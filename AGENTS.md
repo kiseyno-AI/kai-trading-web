@@ -1,5 +1,18 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# AGENTS.md
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+## Purpose
+This repository is part of the KAI trading system.
+
+## Working Rules
+- Read this file before making changes.
+- Prefer simple, practical architecture over premature complexity.
+- Keep modules loosely coupled and clearly named.
+- Update docs when structure or design changes.
+- Do not add live-trading behavior without explicit approval.
+- Commit clear, scoped changes.
+
+## Files to Read First
+- AGENTS.md
+- RULES.md
+- ARCHITECTURE.md
+- TASKS.md
