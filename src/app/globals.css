@@ -48,6 +48,11 @@ input {
   font: inherit;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 button {
   cursor: pointer;
 }
@@ -172,6 +177,7 @@ h2 {
   min-width: 360px;
 }
 
+.ui-button,
 .search-button,
 .icon-pill,
 .profile-pill,
@@ -183,6 +189,17 @@ h2 {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.03);
   color: var(--text);
+}
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.ui-button span {
+  display: inline-flex;
 }
 
 .search-button {
@@ -299,6 +316,67 @@ kbd {
 .mobile-menu-button,
 .mobile-nav {
   display: none;
+}
+
+.drawer-panel.open {
+  display: grid;
+}
+
+.page-stack {
+  margin-top: 22px;
+  display: grid;
+  gap: 22px;
+}
+
+.page-intro {
+  padding: 22px 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.page-intro-copy {
+  margin-top: 10px;
+  max-width: 720px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.single-column-grid {
+  grid-template-columns: 1fr;
+}
+
+.section-card {
+  padding: 20px;
+}
+
+.stack-list {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.market-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.list-card {
+  padding: 18px;
+}
+
+.list-card p {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.list-meta {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #cdd9ef;
+  font-size: 14px;
 }
 
 .content-grid {
@@ -715,7 +793,8 @@ kbd {
 @media (max-width: 1250px) {
   .content-grid,
   .chart-grid,
-  .cards-row {
+  .cards-row,
+  .market-grid {
     grid-template-columns: 1fr;
   }
 

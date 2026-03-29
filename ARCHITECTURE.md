@@ -2,10 +2,25 @@
 
 ## Current Direction
 - Next.js + TypeScript frontend
-- Dashboard-first product structure
+- App-router structure with route-specific feature folders
+- Shared application shell for navigation, search, and responsive layout
 - Connect to backend API, never directly to brokers
 - Focus on positions, orders, fills, PnL, health, and admin views
 - UI must support future KR/US market workflows
+
+## Current Route Map
+- `/dashboard` — primary command surface
+- `/markets` — market intelligence and screening space
+- `/bots` — automation management space
+
+## Folder Conventions
+- `src/app/*` owns route entrypoints
+- `src/features/*` owns page-level composition for each domain
+- `src/components/ui/*` owns reusable primitives
+- `src/components/navigation/*` owns shared nav/search/mobile shell elements
+- `src/components/dashboard/*` owns dashboard-specific presentational parts
+- `src/data/*` owns mock/demo data and view contracts until API adapters are added
+- `src/lib/*` owns generic helpers and formatting utilities
 
 ## Core Areas
 - app router pages
