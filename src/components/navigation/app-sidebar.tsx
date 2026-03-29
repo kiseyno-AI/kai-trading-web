@@ -1,10 +1,10 @@
 import Link from "next/link";
 
-import type { NavItem } from "@/data/trading-dashboard";
+import type { NavItemDto } from "@/types/trading-api";
 import { cn } from "@/lib/utils";
 
 type AppSidebarProps = {
-  items: NavItem[];
+  items: NavItemDto[];
   currentPath: string;
 };
 

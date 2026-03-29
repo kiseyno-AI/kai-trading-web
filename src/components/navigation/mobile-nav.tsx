@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 
-import type { NavItem } from "@/data/trading-dashboard";
+import type { NavItemDto } from "@/types/trading-api";
 import { Drawer } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 type MobileNavProps = {
   open: boolean;
-  items: NavItem[];
+  items: NavItemDto[];
   currentPath: string;
 };
 

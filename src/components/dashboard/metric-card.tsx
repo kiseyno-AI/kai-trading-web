@@ -1,4 +1,4 @@
-import type { Metric } from "@/data/trading-dashboard";
+import type { MetricDto } from "@/types/trading-api";
 
 function Sparkline({ points }: { points: number[] }) {
   const line = points.map((value, index) => `${index * 22},${value}`).join(" ");
@@ -37,9 +37,9 @@ function Donut({ value }: { value: number }) {
   );
 }
 
-export function MetricCard({ metric }: { metric: Metric }) {
+export function MetricCard({ metric }: { metric: MetricDto }) {
   return (
-    <article className={`glass metric-card ${metric.id === "pnl" ? "pnl-card" : ""}`}>
+    <article className={`glass metric-card ${metric.id === "live_pnl" ? "pnl-card" : ""}`}>
       <div className="card-head">
         <span>{metric.title}</span>
         <span className={`pill ${metric.tone ?? "neutral"}`}>{metric.delta}</span>

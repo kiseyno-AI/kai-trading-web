@@ -1,22 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { useAppState } from "@/components/providers/app-state-provider";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { WatchlistItem } from "@/components/dashboard/watchlist-item";
 import { Button } from "@/components/ui/button";
-import { botStatusMap, dashboardData, type BotAction } from "@/data/trading-dashboard";
+import { readStoredValue, storeValue } from "@/lib/persistence";
+import { tradingApi } from "@/lib/trading-api";
+import { useDashboardSnapshot } from "@/lib/use-dashboard-snapshot";
+import type { BotCommand, WatchItemDto } from "@/types/trading-api";
+
+const ACTIVE_TAB_KEY = "trading-web.dashboard.active-tab";
+const ACTIVE_BOT_ACTION_KEY = "trading-web.dashboard.active-bot-action";
 
 export function DashboardView() {
-  const [activeBotAction, setActiveBotAction] = useState<BotAction | null>(null);
-  const [activeTab, setActiveTab] = useState(dashboardData.chart.tabs[0]);
-  const [watchlist, setWatchlist] = useState(dashboardData.watchlist);
+  const { t } = useAppState();
+  const snapshot = useDashboardSnapshot();
+  const [activeBotAction, setActiveBotAction] = useState<BotCommand | null>(() =>
+    readStoredValue<BotCommand | null>(ACTIVE_BOT_ACTION_KEY, null),
+  );
+  const [activeTab, setActiveTab] = useState<string | null>(() => readStoredValue<string | null>(ACTIVE_TAB_KEY, null));
+  const [watchlist, setWatchlist] = useState<WatchItemDto[]>([]);
   const [flashSymbol, setFlashSymbol] = useState<string | null>(null);
+  const [botStatus, setBotStatus] = useState<string>("");
+
+  const resolvedActiveTab = useMemo(() => activeTab ?? snapshot?.chart.activeTab ?? null, [activeTab, snapshot?.chart.activeTab]);
+  const resolvedWatchlist = watchlist.length ? watchlist : snapshot?.watchlist ?? [];
 
   useEffect(() => {
+    if (!snapshot) return;
+
     const timer = window.setInterval(() => {
       setWatchlist((current) => {
-        const next = [...current];
+        const seeded = current.length ? current : snapshot.watchlist;
+        const next = [...seeded];
         const index = Math.floor(Math.random() * next.length);
         const item = next[index];
         const drift = (Math.random() - 0.48) * item.price * 0.004;
@@ -30,15 +48,30 @@ export function DashboardView() {
     }, 1800);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [snapshot]);
 
-  const botStatus = activeBotAction ? botStatusMap[activeBotAction] : dashboardData.bots.idleLabel;
+  if (!snapshot || !resolvedActiveTab) {
+    return <section className="content-grid"><div className="glass section-card">Loading market surface…</div></section>;
+  }
+
+  const handleSetTab = (tab: string) => {
+    setActiveTab(tab);
+    storeValue(ACTIVE_TAB_KEY, tab);
+  };
+
+  const handleBotCommand = async (command: BotCommand) => {
+    setActiveBotAction(command);
+    storeValue(ACTIVE_BOT_ACTION_KEY, command);
+
+    const response = await tradingApi.sendBotCommand("bot-1", { command });
+    setBotStatus(response.data.statusLabel);
+  };
 
   return (
     <section className="content-grid">
       <div className="center-column">
         <section className="cards-row">
-          {dashboardData.metrics.map((metric) => (
+          {snapshot.metrics.map((metric) => (
             <MetricCard key={metric.id} metric={metric} />
           ))}
         </section>
@@ -46,12 +79,12 @@ export function DashboardView() {
         <section className="glass chart-panel">
           <div className="panel-head">
             <div>
-              <p className="eyebrow">{dashboardData.chart.symbol}</p>
-              <h2>{dashboardData.chart.title}</h2>
+              <p className="eyebrow">{snapshot.chart.symbol}</p>
+              <h2>{snapshot.chart.title}</h2>
             </div>
             <div className="chart-tabs">
-              {dashboardData.chart.tabs.map((tab) => (
-                <Button key={tab} className={`tab ${activeTab === tab ? "active" : ""}`} onClick={() => setActiveTab(tab)}>
+              {snapshot.chart.tabs.map((tab) => (
+                <Button key={tab} className={`tab ${resolvedActiveTab === tab ? "active" : ""}`} onClick={() => handleSetTab(tab)}>
                   {tab}
                 </Button>
               ))}
@@ -60,10 +93,10 @@ export function DashboardView() {
 
           <div className="chart-grid">
             <div className="chart-area">
-              <div className="chart-overlay y-top">{dashboardData.chart.overlays.top}</div>
-              <div className="chart-overlay y-mid">{dashboardData.chart.overlays.mid}</div>
-              <div className="chart-overlay y-low">{dashboardData.chart.overlays.low}</div>
-              <svg viewBox="0 0 760 360" className="main-chart" preserveAspectRatio="none" aria-label={`${dashboardData.chart.symbol} ${activeTab} chart`}>
+              <div className="chart-overlay y-top">{snapshot.chart.overlays.top}</div>
+              <div className="chart-overlay y-mid">{snapshot.chart.overlays.mid}</div>
+              <div className="chart-overlay y-low">{snapshot.chart.overlays.low}</div>
+              <svg viewBox="0 0 760 360" className="main-chart" preserveAspectRatio="none" aria-label={`${snapshot.chart.symbol} ${resolvedActiveTab} chart`}>
                 <defs>
                   <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="rgba(124, 92, 255, 0.35)" />
@@ -74,8 +107,8 @@ export function DashboardView() {
                 <path className="chart-line" d="M0 280 C70 220, 110 250, 170 180 S290 90, 360 140 S500 240, 570 175 S670 70, 760 105" />
               </svg>
 
-              {dashboardData.chart.tradeMarkers.map((marker) => (
-                <div key={`${marker.type}-${marker.left}-${marker.top}`} className={`trade-marker ${marker.type}`} style={{ left: marker.left, top: marker.top }}>
+              {snapshot.chart.tradeMarkers.map((marker) => (
+                <div key={`${marker.side}-${marker.left}-${marker.top}`} className={`trade-marker ${marker.side}`} style={{ left: marker.left, top: marker.top }}>
                   {marker.label}
                   <span>{marker.value}</span>
                 </div>
@@ -84,12 +117,12 @@ export function DashboardView() {
 
             <aside className="glass-inner orderbook">
               <div className="orderbook-head">
-                <h3>Mini Order Book</h3>
-                <span>Depth 10</span>
+                <h3>{t.dashboard.miniOrderBook}</h3>
+                <span>Depth {snapshot.chart.orderBook.depth}</span>
               </div>
 
               <div className="book book-sell">
-                {dashboardData.chart.orderBook.sell.map((row) => (
+                {snapshot.chart.orderBook.sell.map((row) => (
                   <div key={`${row.price}-${row.size}`} className="book-row">
                     <span>{row.price}</span>
                     <span>{row.size}</span>
@@ -98,12 +131,12 @@ export function DashboardView() {
               </div>
 
               <div className="mid-price">
-                {dashboardData.chart.orderBook.midPrice}
-                <span>{dashboardData.chart.orderBook.midChange}</span>
+                {snapshot.chart.orderBook.midPrice}
+                <span>{snapshot.chart.orderBook.midChange}</span>
               </div>
 
               <div className="book book-buy">
-                {dashboardData.chart.orderBook.buy.map((row) => (
+                {snapshot.chart.orderBook.buy.map((row) => (
                   <div key={`${row.price}-${row.size}`} className="book-row">
                     <span>{row.price}</span>
                     <span>{row.size}</span>
@@ -117,18 +150,18 @@ export function DashboardView() {
         <section className="glass bot-controls">
           <div className="panel-head compact">
             <div>
-              <p className="eyebrow">Automation</p>
-              <h2>{dashboardData.bots.title}</h2>
+              <p className="eyebrow">{t.dashboard.automation}</p>
+              <h2>{snapshot.botControls.title}</h2>
             </div>
-            <div className={`bot-status ${activeBotAction ?? "idle"}`}>{botStatus}</div>
+            <div className={`bot-status ${activeBotAction ?? "idle"}`}>{botStatus || snapshot.botControls.idleLabel}</div>
           </div>
           <div className="bot-buttons">
-            {dashboardData.bots.actions.map((action) => (
+            {snapshot.botControls.actions.map((action) => (
               <Button
                 key={action.id}
                 className={`control-btn ${action.id} ${activeBotAction === action.id ? "is-active" : ""}`}
                 data-action={action.id}
-                onClick={() => setActiveBotAction(action.id)}
+                onClick={() => handleBotCommand(action.id)}
               >
                 {action.label}
               </Button>
@@ -141,33 +174,61 @@ export function DashboardView() {
         <section className="glass watchlist-panel">
           <div className="panel-head compact">
             <div>
-              <p className="eyebrow">Radar</p>
-              <h2>Watchlist</h2>
+              <p className="eyebrow">{t.dashboard.radar}</p>
+              <h2>{t.dashboard.watchlist}</h2>
             </div>
-            <span className="pill neutral">Live feed</span>
+            <span className="pill neutral">{t.common.liveFeed}</span>
           </div>
           <div className="watchlist">
-            {watchlist.map((item) => (
+            {resolvedWatchlist.map((item) => (
               <WatchlistItem key={item.symbol} item={item} flashing={flashSymbol === item.symbol} />
             ))}
+          </div>
+        </section>
+
+        <section className="glass section-card surface-muted">
+          <div className="panel-head compact">
+            <div>
+              <p className="eyebrow">Execution Health</p>
+              <h2>System Status</h2>
+            </div>
+            <span className="pill positive">Stable</span>
+          </div>
+          <div className="detail-list">
+            <div className="detail-row">
+              <span>API gateway</span>
+              <strong>43ms</strong>
+            </div>
+            <div className="detail-row">
+              <span>Order router</span>
+              <strong>Healthy</strong>
+            </div>
+            <div className="detail-row">
+              <span>Risk guard</span>
+              <strong>Enabled</strong>
+            </div>
+            <div className="detail-row">
+              <span>Last sync</span>
+              <strong>2 sec ago</strong>
+            </div>
           </div>
         </section>
 
         <section className="glass signal-panel">
           <div className="panel-head compact">
             <div>
-              <p className="eyebrow">Signal Engine</p>
-              <h2>AI Insight</h2>
+              <p className="eyebrow">{t.dashboard.signalEngine}</p>
+              <h2>{t.dashboard.aiInsight}</h2>
             </div>
-            <span className="signal-score">{dashboardData.insight.score}</span>
+            <span className="signal-score">{snapshot.insight.score}</span>
           </div>
           <div className="signal-card strong">
-            <div className="signal-label">{dashboardData.insight.label}</div>
-            <h3>{dashboardData.insight.title}</h3>
-            <p>{dashboardData.insight.description}</p>
+            <div className="signal-label">{snapshot.insight.label}</div>
+            <h3>{snapshot.insight.title}</h3>
+            <p>{snapshot.insight.description}</p>
           </div>
           <div className="signal-list">
-            {dashboardData.insight.rows.map((row) => (
+            {snapshot.insight.rows.map((row) => (
               <div key={row.label} className="signal-row">
                 <span>{row.label}</span>
                 <strong>{row.value}</strong>

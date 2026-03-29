@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import type { SearchSuggestion } from "@/data/trading-dashboard";
+import { useAppState } from "@/components/providers/app-state-provider";
 import { Button } from "@/components/ui/button";
+import type { SearchSuggestionDto } from "@/types/trading-api";
 
 type SearchPickerProps = {
-  suggestions: SearchSuggestion[];
+  suggestions: SearchSuggestionDto[];
 };
 
 export function SearchPicker({ suggestions }: SearchPickerProps) {
+  const { t } = useAppState();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -48,16 +50,16 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
         aria-controls="searchMenu"
         onClick={() => setOpen((value) => !value)}
       >
-        <span>{query ? query : "Search markets, bots, signals"}</span>
+        <span>{query ? query : t.common.searchButton}</span>
         <kbd>⌘K</kbd>
       </Button>
 
       <div id="searchMenu" className={open ? "search-menu" : "search-menu hidden"}>
         <label className="search-input-wrap">
-          <span>Quick find</span>
+          <span>{t.common.quickFind}</span>
           <input
             type="text"
-            placeholder="BTC/USDT, Delta Bot, momentum signal..."
+            placeholder={t.common.searchPlaceholder}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             autoFocus={open}
@@ -78,7 +80,7 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
               <em>{suggestion.type}</em>
             </button>
           ))}
-          {filteredSuggestions.length === 0 ? <div className="suggestion empty">No matches found</div> : null}
+          {filteredSuggestions.length === 0 ? <div className="suggestion empty">{t.common.noMatches}</div> : null}
         </div>
       </div>
     </div>

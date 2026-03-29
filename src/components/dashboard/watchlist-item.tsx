@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 import { formatChange, formatPrice } from "@/lib/format";
-import type { WatchItem } from "@/data/trading-dashboard";
+import type { WatchItemDto } from "@/types/trading-api";
 
 type WatchlistItemProps = {
-  item: WatchItem;
+  item: WatchItemDto;
   flashing?: boolean;
   onClick?: () => void;
 };
