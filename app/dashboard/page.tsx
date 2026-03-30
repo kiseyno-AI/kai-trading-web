@@ -54,18 +54,29 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      getJson<CoreMarketStatus>("/market/status"),
-      getJson<CoreTrackedQuotesResponse>("/quotes/tracked"),
-      getJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols"),
-    ]).then(([marketData, trackedData, symbolsData]) => {
-      if (!active) return;
-      setMarket(marketData);
-      setTracked(trackedData);
-      setSymbols(symbolsData);
-    });
+
+    const load = async () => {
+      try {
+        const [marketData, trackedData, symbolsData] = await Promise.all([
+          getJson<CoreMarketStatus>("/market/status"),
+          getJson<CoreTrackedQuotesResponse>("/quotes/tracked"),
+          getJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols"),
+        ]);
+        if (!active) return;
+        setMarket(marketData);
+        setTracked(trackedData);
+        setSymbols(symbolsData);
+      } catch (error) {
+        console.error("Dashboard polling failed", error);
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 1000);
+
     return () => {
       active = false;
+      window.clearInterval(timer);
     };
   }, []);
 
