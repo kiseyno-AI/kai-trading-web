@@ -8,49 +8,27 @@ import { WatchlistItem } from "@/components/dashboard/watchlist-item";
 import { Button } from "@/components/ui/button";
 import { readStoredValue, storeValue } from "@/lib/persistence";
 import { tradingApi } from "@/lib/trading-api";
-import { useDashboardSnapshot } from "@/lib/use-dashboard-snapshot";
-import type { BotCommand, WatchItemDto } from "@/types/trading-api";
+import type { BotCommand, DashboardSnapshotDto, WatchItemDto } from "@/types/trading-api";
 
 const ACTIVE_TAB_KEY = "trading-web.dashboard.active-tab";
 const ACTIVE_BOT_ACTION_KEY = "trading-web.dashboard.active-bot-action";
 
-export function DashboardView() {
+type DashboardViewProps = {
+  snapshot: DashboardSnapshotDto;
+};
+
+export function DashboardView({ snapshot }: DashboardViewProps) {
   const { t } = useAppState();
-  const snapshot = useDashboardSnapshot();
   const [activeBotAction, setActiveBotAction] = useState<BotCommand | null>(() =>
     readStoredValue<BotCommand | null>(ACTIVE_BOT_ACTION_KEY, null),
   );
   const [activeTab, setActiveTab] = useState<string | null>(() => readStoredValue<string | null>(ACTIVE_TAB_KEY, null));
-  const [watchlist, setWatchlist] = useState<WatchItemDto[]>([]);
-  const [flashSymbol, setFlashSymbol] = useState<string | null>(null);
   const [botStatus, setBotStatus] = useState<string>("");
 
   const resolvedActiveTab = useMemo(() => activeTab ?? snapshot?.chart.activeTab ?? null, [activeTab, snapshot?.chart.activeTab]);
-  const resolvedWatchlist = watchlist.length ? watchlist : snapshot?.watchlist ?? [];
+  const resolvedWatchlist = snapshot?.watchlist ?? [];
 
-  useEffect(() => {
-    if (!snapshot) return;
-
-    const timer = window.setInterval(() => {
-      setWatchlist((current) => {
-        const seeded = current.length ? current : snapshot.watchlist;
-        const next = [...seeded];
-        const index = Math.floor(Math.random() * next.length);
-        const item = next[index];
-        const drift = (Math.random() - 0.48) * item.price * 0.004;
-        const price = Math.max(1, item.price + drift);
-        const change = Number(((Math.random() - 0.45) * 4.8).toFixed(2));
-        next[index] = { ...item, price, change };
-        setFlashSymbol(item.symbol);
-        window.setTimeout(() => setFlashSymbol((value) => (value === item.symbol ? null : value)), 650);
-        return next;
-      });
-    }, 1800);
-
-    return () => window.clearInterval(timer);
-  }, [snapshot]);
-
-  if (!snapshot || !resolvedActiveTab) {
+  if (!resolvedActiveTab) {
     return <section className="content-grid"><div className="glass section-card">Loading market surface…</div></section>;
   }
 
@@ -70,6 +48,21 @@ export function DashboardView() {
   return (
     <section className="content-grid">
       <div className="center-column">
+        <section className="glass section-card" style={{ marginBottom: 18 }}>
+          <div className="panel-head compact">
+            <div>
+              <p className="eyebrow">Live Core Feed</p>
+              <h2>KIS / trading-core connected</h2>
+            </div>
+            <span className="pill positive">Real Data</span>
+          </div>
+          <div className="detail-list">
+            <div className="detail-row"><span>Lead symbol</span><strong>{snapshot.chart.symbol}</strong></div>
+            <div className="detail-row"><span>Tracked symbols</span><strong>{snapshot.insight.rows.find((row) => row.label === "Tracked symbols")?.value ?? "-"}</strong></div>
+            <div className="detail-row"><span>Market state</span><strong>{snapshot.insight.rows.find((row) => row.label === "Market state")?.value ?? "-"}</strong></div>
+          </div>
+        </section>
+
         <section className="cards-row">
           {snapshot.metrics.map((metric) => (
             <MetricCard key={metric.id} metric={metric} />
@@ -181,7 +174,7 @@ export function DashboardView() {
           </div>
           <div className="watchlist">
             {resolvedWatchlist.map((item) => (
-              <WatchlistItem key={item.symbol} item={item} flashing={flashSymbol === item.symbol} />
+              <WatchlistItem key={item.symbol} item={item} />
             ))}
           </div>
         </section>
@@ -192,25 +185,15 @@ export function DashboardView() {
               <p className="eyebrow">Execution Health</p>
               <h2>System Status</h2>
             </div>
-            <span className="pill positive">Stable</span>
+            <span className="pill positive">Live</span>
           </div>
           <div className="detail-list">
-            <div className="detail-row">
-              <span>API gateway</span>
-              <strong>43ms</strong>
-            </div>
-            <div className="detail-row">
-              <span>Order router</span>
-              <strong>Healthy</strong>
-            </div>
-            <div className="detail-row">
-              <span>Risk guard</span>
-              <strong>Enabled</strong>
-            </div>
-            <div className="detail-row">
-              <span>Last sync</span>
-              <strong>2 sec ago</strong>
-            </div>
+            {snapshot.insight.rows.map((row) => (
+              <div className="detail-row" key={row.label}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
           </div>
         </section>
 

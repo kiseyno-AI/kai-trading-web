@@ -7,6 +7,8 @@ import type {
   BotsOverviewDto,
   DashboardSnapshotDto,
   MarketsOverviewDto,
+  NavItemDto,
+  SearchSuggestionDto,
   TradingApiAdapter,
 } from "@/types/trading-api";
 
@@ -59,13 +61,40 @@ type CoreTrackedSymbolsResponse = {
   last_updated_at: string | null;
 };
 
+const baseNav: NavItemDto[] = [
+  { id: "dashboard", label: "Dashboard", icon: "◫", href: "/dashboard", description: "Main command surface" },
+  { id: "markets", label: "Markets", icon: "◌", href: "/markets", description: "Track market breadth" },
+  { id: "bots", label: "Bots", icon: "◎", href: "/bots", description: "Manage automation" },
+  { id: "analytics", label: "Analytics", icon: "◭", href: "/dashboard#analytics", description: "Signal overview" },
+  { id: "settings", label: "Settings", icon: "⚙", href: "/dashboard#settings", description: "Desk preferences" },
+];
+
+const baseBotControls = {
+  title: "Bot Controls",
+  idleLabel: "Bot idle · Awaiting command",
+  actions: [
+    { id: "start" as const, label: "Start Bot" },
+    { id: "pause" as const, label: "Pause" },
+    { id: "hedge" as const, label: "Hedge" },
+    { id: "stop" as const, label: "Stop" },
+  ],
+};
+
+const buildSearchSuggestions = (symbols: string[]): SearchSuggestionDto[] =>
+  symbols.map((symbol, index) => ({
+    id: `market-${index + 1}`,
+    label: `${symbol} · KRX tracked`,
+    type: "market",
+    route: "/markets",
+  }));
+
 const formatSignedPercent = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 const formatSignedNumber = (value: number) => `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
 const formatCompactCurrency = (value: number) => {
-  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`;
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
-  return `$${value.toLocaleString()}`;
+  if (value >= 1_000_000_000) return `₩${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `₩${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `₩${(value / 1_000).toFixed(1)}K`;
+  return `₩${value.toLocaleString()}`;
 };
 
 async function getJson<T>(baseUrl: string, path: string): Promise<T> {
@@ -96,7 +125,7 @@ function buildDashboardSnapshotFromCore(
 
   const watchlist = items.map((item) => ({
     symbol: item.symbol,
-    context: item.fallback ? "Cached fallback" : item.is_live ? "Live market feed" : `Market ${item.market_state}`,
+    context: item.fallback ? "Cached fallback" : item.is_live ? "Live KRX tracked quote" : `Market ${item.market_state}`,
     price: item.price,
     change: item.change_pct,
   }));
@@ -116,13 +145,8 @@ function buildDashboardSnapshotFromCore(
   };
 
   return {
-    nav: dashboardData.nav,
-    searchSuggestions: trackedSymbols.tracked_symbols.map((symbol, index) => ({
-      id: `market-${index + 1}`,
-      label: `${symbol} · Tracked`,
-      type: "market",
-      route: "/markets",
-    })),
+    nav: baseNav,
+    searchSuggestions: buildSearchSuggestions(trackedSymbols.tracked_symbols),
     metrics: [
       {
         id: "total_balance",
@@ -130,11 +154,11 @@ function buildDashboardSnapshotFromCore(
         value: formatCompactCurrency(totalTurnover || first.turnover),
         delta: formatSignedPercent(avgChangePct),
         tone: avgChangePct >= 0 ? "positive" : "negative",
-        subtitle: `${items.length} tracked symbols · ${market.state}`,
+        subtitle: `${items.length} tracked symbols · ${market.state} · ${market.server_time}`,
       },
       {
         id: "live_pnl",
-        title: "Lead Symbol Move",
+        title: "Lead KRX Quote",
         value: `₩${first.price.toLocaleString()}`,
         delta: formatSignedPercent(first.change_pct),
         tone: first.change_pct >= 0 ? "positive" : "negative",
@@ -143,7 +167,7 @@ function buildDashboardSnapshotFromCore(
       },
       {
         id: "win_rate",
-        title: "Market Breadth",
+        title: "Tracked Breadth",
         value: `${Math.max(0, Math.min(100, Math.round(50 + avgChangePct * 8)))}%`,
         delta: market.is_open ? "Open" : "Closed",
         tone: "neutral",
@@ -155,7 +179,7 @@ function buildDashboardSnapshotFromCore(
     ],
     chart: {
       symbol: first.symbol,
-      title: "Execution Chart",
+      title: "KRX Tracked Execution View",
       tabs: ["1H", "4H", "1D"],
       activeTab: "1H",
       overlays: {
@@ -163,13 +187,11 @@ function buildDashboardSnapshotFromCore(
         mid: first.price.toLocaleString(),
         low: Math.max(0, first.price - Math.max(50, Math.round(first.price * 0.01))).toLocaleString(),
       },
-      tradeMarkers: dashboardData.chart.tradeMarkers.map((marker) => ({
-        side: marker.type,
-        label: marker.label,
-        value: first.price.toLocaleString(),
-        left: marker.left,
-        top: marker.top,
-      })),
+      tradeMarkers: [
+        { side: "buy", label: "Lead", value: first.price.toLocaleString(), left: "18%", top: "62%" },
+        { side: avgChangePct >= 0 ? "sell" : "buy", label: market.state, value: formatSignedPercent(first.change_pct), left: "48%", top: "34%" },
+        { side: "buy", label: "Tracked", value: String(trackedSymbols.count), left: "76%", top: "48%" },
+      ],
       orderBook: {
         depth: 10,
         sell: [
@@ -190,7 +212,7 @@ function buildDashboardSnapshotFromCore(
     insight: {
       score: market.is_open ? "82 / 100" : "66 / 100",
       label: "Primary Bias",
-      title: market.is_open ? "Live tracked-symbol dashboard active" : "Market closed, cached view active",
+      title: market.is_open ? "Live KRX tracked-symbol feed active" : "Market closed, cached tracked view active",
       description: `Source: ${first.source}. Last as-of: ${first.as_of ?? tracked.as_of}. Scanner symbols: ${trackedSymbols.count}.`,
       rows: [
         { label: "Market state", value: market.state },
@@ -198,7 +220,7 @@ function buildDashboardSnapshotFromCore(
         { label: "Lead symbol", value: first.symbol },
       ],
     },
-    botControls: dashboardData.bots,
+    botControls: baseBotControls,
   };
 }
 

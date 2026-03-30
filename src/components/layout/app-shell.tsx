@@ -6,31 +6,32 @@ import { useState } from "react";
 import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { MobileNav } from "@/components/navigation/mobile-nav";
 import { Topbar } from "@/components/navigation/topbar";
-import { useDashboardSnapshot } from "@/lib/use-dashboard-snapshot";
+import type { DashboardSnapshotDto } from "@/types/trading-api";
 
 type AppShellProps = {
   currentPath: string;
   title: string;
   eyebrow: string;
   children: ReactNode;
+  navItems?: DashboardSnapshotDto["nav"];
+  suggestions?: DashboardSnapshotDto["searchSuggestions"];
 };
 
-export function AppShell({ currentPath, title, eyebrow, children }: AppShellProps) {
+export function AppShell({ currentPath, title, eyebrow, children, navItems = [], suggestions = [] }: AppShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const snapshot = useDashboardSnapshot();
 
   return (
     <div className="dashboard-shell">
-      <AppSidebar items={snapshot?.nav ?? []} currentPath={currentPath} />
+      <AppSidebar items={navItems} currentPath={currentPath} />
 
       <main className="main-layout">
         <Topbar
           title={title}
           eyebrow={eyebrow}
-          suggestions={snapshot?.searchSuggestions ?? []}
+          suggestions={suggestions}
           onToggleMobileNav={() => setMobileNavOpen((value) => !value)}
         />
-        <MobileNav open={mobileNavOpen} items={snapshot?.nav ?? []} currentPath={currentPath} />
+        <MobileNav open={mobileNavOpen} items={navItems} currentPath={currentPath} />
         {children}
       </main>
     </div>
