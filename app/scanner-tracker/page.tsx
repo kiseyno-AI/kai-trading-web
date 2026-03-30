@@ -14,7 +14,7 @@ export default async function ScannerTrackerPage() {
   return (
     <main style={{ padding: 24, fontFamily: 'sans-serif' }}>
       <h1>Tracked Symbols</h1>
-      <p>Symbols currently collected in the scanner's high-frequency tracking layer.</p>
+      <p>Symbols currently collected in the scanner&apos;s high-frequency tracking layer.</p>
       <div style={{ margin: '16px 0', padding: 16, border: '1px solid #333', borderRadius: 12 }}>
         <div><strong>Count:</strong> {data.count}</div>
         <div><strong>Last updated:</strong> {data.last_updated_at || 'not updated yet'}</div>

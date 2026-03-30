@@ -27,7 +27,193 @@ const commandToStatus: Record<BotCommandRequestDto["command"], BotStatus> = {
   stop: "stopped",
 };
 
-export const mockTradingApi: TradingApiAdapter = {
+type CoreMarketStatus = {
+  state: string;
+  is_open: boolean;
+  server_time: string;
+};
+
+type CoreTrackedQuote = {
+  symbol: string;
+  price: number;
+  change: number;
+  change_pct: number;
+  volume: number;
+  turnover: number;
+  as_of: string | null;
+  market_state: string;
+  source: string;
+  fallback: boolean;
+  is_live: boolean;
+};
+
+type CoreTrackedQuotesResponse = {
+  market_state: string;
+  as_of: string;
+  items: CoreTrackedQuote[];
+};
+
+type CoreTrackedSymbolsResponse = {
+  tracked_symbols: string[];
+  count: number;
+  last_updated_at: string | null;
+};
+
+const formatSignedPercent = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+const formatSignedNumber = (value: number) => `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+const formatCompactCurrency = (value: number) => {
+  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toLocaleString()}`;
+};
+
+async function getJson<T>(baseUrl: string, path: string): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${path}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+function buildDashboardSnapshotFromCore(
+  tracked: CoreTrackedQuotesResponse,
+  market: CoreMarketStatus,
+  trackedSymbols: CoreTrackedSymbolsResponse,
+): DashboardSnapshotDto {
+  const items = tracked.items;
+  const primary = items[0];
+  const totalTurnover = items.reduce((sum, item) => sum + item.turnover, 0);
+  const avgChangePct = items.length ? items.reduce((sum, item) => sum + item.change_pct, 0) / items.length : 0;
+  const totalVolume = items.reduce((sum, item) => sum + item.volume, 0);
+
+  const watchlist = items.map((item) => ({
+    symbol: item.symbol,
+    context: item.fallback ? "Cached fallback" : item.is_live ? "Live market feed" : `Market ${item.market_state}`,
+    price: item.price,
+    change: item.change_pct,
+  }));
+
+  const first = primary ?? {
+    symbol: trackedSymbols.tracked_symbols[0] ?? "005930",
+    price: 0,
+    change: 0,
+    change_pct: 0,
+    volume: 0,
+    turnover: 0,
+    as_of: null,
+    market_state: tracked.market_state,
+    source: "api",
+    fallback: false,
+    is_live: market.is_open,
+  };
+
+  return {
+    nav: dashboardData.nav,
+    searchSuggestions: trackedSymbols.tracked_symbols.map((symbol, index) => ({
+      id: `market-${index + 1}`,
+      label: `${symbol} · Tracked`,
+      type: "market",
+      route: "/markets",
+    })),
+    metrics: [
+      {
+        id: "total_balance",
+        title: "Tracked Turnover",
+        value: formatCompactCurrency(totalTurnover || first.turnover),
+        delta: formatSignedPercent(avgChangePct),
+        tone: avgChangePct >= 0 ? "positive" : "negative",
+        subtitle: `${items.length} tracked symbols · ${market.state}`,
+      },
+      {
+        id: "live_pnl",
+        title: "Lead Symbol Move",
+        value: `₩${first.price.toLocaleString()}`,
+        delta: formatSignedPercent(first.change_pct),
+        tone: first.change_pct >= 0 ? "positive" : "negative",
+        subtitle: `${first.symbol} · ${formatSignedNumber(first.change)}`,
+        sparkline: [58, 49, 52, 36, 39, 25, 34, 18, 23, 11, 15],
+      },
+      {
+        id: "win_rate",
+        title: "Market Breadth",
+        value: `${Math.max(0, Math.min(100, Math.round(50 + avgChangePct * 8)))}%`,
+        delta: market.is_open ? "Open" : "Closed",
+        tone: "neutral",
+        donut: {
+          value: Math.max(0, Math.min(100, Math.round(50 + avgChangePct * 8))),
+          summary: `Tracked volume ${totalVolume.toLocaleString()}`,
+        },
+      },
+    ],
+    chart: {
+      symbol: first.symbol,
+      title: "Execution Chart",
+      tabs: ["1H", "4H", "1D"],
+      activeTab: "1H",
+      overlays: {
+        top: (first.price + Math.max(50, Math.round(first.price * 0.01))).toLocaleString(),
+        mid: first.price.toLocaleString(),
+        low: Math.max(0, first.price - Math.max(50, Math.round(first.price * 0.01))).toLocaleString(),
+      },
+      tradeMarkers: dashboardData.chart.tradeMarkers.map((marker) => ({
+        side: marker.type,
+        label: marker.label,
+        value: first.price.toLocaleString(),
+        left: marker.left,
+        top: marker.top,
+      })),
+      orderBook: {
+        depth: 10,
+        sell: [
+          { price: (first.price + 30).toLocaleString(), size: "1.20 lot" },
+          { price: (first.price + 20).toLocaleString(), size: "0.80 lot" },
+          { price: (first.price + 10).toLocaleString(), size: "0.55 lot" },
+        ],
+        midPrice: first.price.toLocaleString(),
+        midChange: formatSignedPercent(first.change_pct),
+        buy: [
+          { price: Math.max(0, first.price - 10).toLocaleString(), size: "1.14 lot" },
+          { price: Math.max(0, first.price - 20).toLocaleString(), size: "0.92 lot" },
+          { price: Math.max(0, first.price - 30).toLocaleString(), size: "0.61 lot" },
+        ],
+      },
+    },
+    watchlist,
+    insight: {
+      score: market.is_open ? "82 / 100" : "66 / 100",
+      label: "Primary Bias",
+      title: market.is_open ? "Live tracked-symbol dashboard active" : "Market closed, cached view active",
+      description: `Source: ${first.source}. Last as-of: ${first.as_of ?? tracked.as_of}. Scanner symbols: ${trackedSymbols.count}.`,
+      rows: [
+        { label: "Market state", value: market.state },
+        { label: "Tracked symbols", value: String(trackedSymbols.count) },
+        { label: "Lead symbol", value: first.symbol },
+      ],
+    },
+    botControls: dashboardData.bots,
+  };
+}
+
+function buildMarketsOverviewFromCore(tracked: CoreTrackedQuotesResponse): MarketsOverviewDto {
+  return {
+    spotlight: tracked.items.map((item) => ({
+      symbol: item.symbol,
+      trend: item.fallback ? "Cached quote fallback" : item.is_live ? "Actively tracked" : `State ${item.market_state}`,
+      volume: formatCompactCurrency(item.turnover),
+      change: formatSignedPercent(item.change_pct),
+    })),
+  };
+}
+
+const mockTradingApi: TradingApiAdapter = {
   async getDashboardSnapshot() {
     const snapshot: DashboardSnapshotDto = {
       nav: dashboardData.nav,
@@ -113,4 +299,35 @@ export const mockTradingApi: TradingApiAdapter = {
   },
 };
 
-export const tradingApi = mockTradingApi;
+const apiBaseUrl = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL;
+
+const httpTradingApi: TradingApiAdapter = {
+  async getDashboardSnapshot() {
+    if (!apiBaseUrl) return mockTradingApi.getDashboardSnapshot();
+
+    const [tracked, market, trackedSymbols] = await Promise.all([
+      getJson<CoreTrackedQuotesResponse>(apiBaseUrl, "/quotes/tracked"),
+      getJson<CoreMarketStatus>(apiBaseUrl, "/market/status"),
+      getJson<CoreTrackedSymbolsResponse>(apiBaseUrl, "/scanner/tracked-symbols"),
+    ]);
+
+    return envelope(buildDashboardSnapshotFromCore(tracked, market, trackedSymbols), "api");
+  },
+
+  async getMarketsOverview() {
+    if (!apiBaseUrl) return mockTradingApi.getMarketsOverview();
+
+    const tracked = await getJson<CoreTrackedQuotesResponse>(apiBaseUrl, "/quotes/tracked");
+    return envelope(buildMarketsOverviewFromCore(tracked), "api");
+  },
+
+  async getBotsOverview() {
+    return mockTradingApi.getBotsOverview();
+  },
+
+  async sendBotCommand(botId, request) {
+    return mockTradingApi.sendBotCommand(botId, request);
+  },
+};
+
+export const tradingApi = httpTradingApi;
