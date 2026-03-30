@@ -10,6 +10,7 @@ type CoreMarketStatus = {
 
 type CoreTrackedQuote = {
   symbol: string;
+  company_name?: string;
   price: number;
   change: number;
   change_pct: number;
@@ -33,6 +34,11 @@ type CoreTrackedSymbolsResponse = {
   count: number;
   last_updated_at: string | null;
 };
+
+function getCompanyName(item: CoreTrackedQuote | undefined): string {
+  if (!item) return "N/A";
+  return item.company_name || item.symbol;
+}
 
 async function getJson<T>(path: string): Promise<T> {
   const base = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL || "http://127.0.0.1:8000";
@@ -85,15 +91,16 @@ export default function DashboardPage() {
           <p>Server time: {market.server_time}</p>
         </section>
         <section style={{ padding: 18, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-          <div style={{ color: "#8ea4cc", fontSize: 12 }}>LEAD SYMBOL</div>
-          <h2>{lead?.symbol ?? "N/A"}</h2>
+          <div style={{ color: "#8ea4cc", fontSize: 12 }}>LEAD COMPANY</div>
+          <h2>{getCompanyName(lead)}</h2>
+          <p>Code: {lead?.symbol ?? "-"}</p>
           <p>Price: ₩{lead?.price?.toLocaleString() ?? "-"}</p>
           <p>Change: {lead?.change_pct?.toFixed(2)}%</p>
         </section>
         <section style={{ padding: 18, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-          <div style={{ color: "#8ea4cc", fontSize: 12 }}>TRACKED SYMBOLS</div>
+          <div style={{ color: "#8ea4cc", fontSize: 12 }}>TRACKED COMPANIES</div>
           <h2>{symbols.count}</h2>
-          <p>{symbols.tracked_symbols.join(", ")}</p>
+          <p>{tracked.items.map((item) => getCompanyName(item)).join(", ")}</p>
           <p>As of: {tracked.as_of}</p>
         </section>
       </div>
@@ -104,8 +111,8 @@ export default function DashboardPage() {
           {tracked.items.map((item) => (
             <div key={item.symbol} style={{ padding: 14, border: "1px solid #20324f", borderRadius: 12, display: "flex", justifyContent: "space-between", gap: 12 }}>
               <div>
-                <strong>{item.symbol}</strong>
-                <div style={{ color: "#9fb0cf" }}>{item.is_live ? "Live KIS quote" : "Cached quote"}</div>
+                <strong>{getCompanyName(item)}</strong>
+                <div style={{ color: "#9fb0cf" }}>{item.symbol} · {item.is_live ? "Live KIS quote" : "Cached quote"}</div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div>₩{item.price.toLocaleString()}</div>
