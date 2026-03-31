@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageIntro } from "@/components/ui/page-intro";
-import { formatDisplayTimestamp } from "@/lib/format";
+import { formatDisplayTimestamp, formatTurnover } from "@/lib/format";
 
 type SymbolSearchItem = {
   symbol: string;
@@ -181,7 +181,7 @@ export default function SearchPage() {
                   </div>
                   <div className="metric-card compact glass-subtle">
                     <span>Turnover</span>
-                    <strong>₩{quote.turnover.toLocaleString()}</strong>
+                    <strong>{formatTurnover(quote.turnover)}</strong>
                   </div>
                 </div>
 

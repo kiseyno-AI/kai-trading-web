@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { formatDisplayTimestamp } from "@/lib/format";
+import { formatDisplayTimestamp, formatTurnover } from "@/lib/format";
 
 export type CoreMarketStatus = {
   state: string;
@@ -329,7 +329,7 @@ export function LiveDashboardClient({
               </div>
               <div>
                 <div style={{ color: "#8ea4cc", fontSize: 12 }}>Turnover</div>
-                <strong>₩{item.turnover.toLocaleString()}</strong>
+                <strong>{formatTurnover(item.turnover)}</strong>
               </div>
               <div>
                 <div style={{ color: "#8ea4cc", fontSize: 12 }}>Updated</div>

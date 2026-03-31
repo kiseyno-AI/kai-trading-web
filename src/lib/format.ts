@@ -6,6 +6,16 @@ export const formatPrice = (price: number) =>
 
 export const formatChange = (change: number) => `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
 
+const compactNumberFormatter = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  compactDisplay: "short",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
+
+export const formatTurnover = (turnover: number, currencySymbol = "₩") =>
+  `${currencySymbol}${Math.abs(turnover) < 1000 ? turnover.toLocaleString() : compactNumberFormatter.format(turnover)}`;
+
 export function formatDisplayTimestamp(value?: string | null, fallback = "-") {
   if (!value) return fallback;
 

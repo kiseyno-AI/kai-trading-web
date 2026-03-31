@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { formatDisplayTimestamp } from "@/lib/format";
+import { formatDisplayTimestamp, formatTurnover } from "@/lib/format";
 
 type SymbolSearchItem = {
   symbol: string;
@@ -188,7 +188,7 @@ export default function SymbolDetailPage() {
           <h2 style={{ marginBottom: 14 }}>Market Activity</h2>
           <div style={{ display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Volume</span><strong>{quote?.volume.toLocaleString() ?? "-"}</strong></div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Turnover</span><strong>{quote ? `₩${quote.turnover.toLocaleString()}` : "-"}</strong></div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Turnover</span><strong>{quote ? formatTurnover(quote.turnover) : "-"}</strong></div>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Fallback</span><strong>{quote ? String(quote.fallback) : "-"}</strong></div>
           </div>
           {quoteError ? <p style={{ color: "#ff909d", marginTop: 14 }}>{quoteError}</p> : null}
