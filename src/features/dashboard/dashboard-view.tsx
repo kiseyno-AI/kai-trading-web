@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -8,7 +9,7 @@ import { WatchlistItem } from "@/components/dashboard/watchlist-item";
 import { Button } from "@/components/ui/button";
 import { readStoredValue, storeValue } from "@/lib/persistence";
 import { tradingApi } from "@/lib/trading-api";
-import type { BotCommand, DashboardSnapshotDto, WatchItemDto } from "@/types/trading-api";
+import type { BotCommand, DashboardSnapshotDto } from "@/types/trading-api";
 
 const ACTIVE_TAB_KEY = "trading-web.dashboard.active-tab";
 const ACTIVE_BOT_ACTION_KEY = "trading-web.dashboard.active-bot-action";
@@ -48,6 +49,22 @@ export function DashboardView({ snapshot }: DashboardViewProps) {
   return (
     <section className="content-grid">
       <div className="center-column">
+        <section className="glass section-card dashboard-search-entry">
+          <div className="panel-head compact">
+            <div>
+              <p className="eyebrow">Search</p>
+              <h2>Look up symbols without leaving the command surface</h2>
+            </div>
+            <Link href="/search" className="dashboard-search-link">
+              <span className="dashboard-search-link-icon" aria-hidden="true">
+                ⌕
+              </span>
+              <span>Open Search</span>
+            </Link>
+          </div>
+          <p className="dashboard-search-copy">Open the dedicated symbol lookup page to search by company name or code and inspect live quote updates.</p>
+        </section>
+
         <section className="glass section-card" style={{ marginBottom: 18 }}>
           <div className="panel-head compact">
             <div>

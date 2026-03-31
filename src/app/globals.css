@@ -72,7 +72,7 @@ svg {
 
 .dashboard-shell {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 176px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -85,7 +85,7 @@ svg {
   padding: 24px 18px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 28px;
 }
 
@@ -98,6 +98,7 @@ svg {
   background: linear-gradient(135deg, #7c5cff, #49b3ff);
   font-weight: 800;
   letter-spacing: 0.08em;
+  flex-shrink: 0;
 }
 
 .side-nav,
@@ -105,6 +106,7 @@ svg {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  align-items: stretch;
 }
 
 .sidebar-footer {
@@ -113,13 +115,31 @@ svg {
 
 .nav-icon,
 .mobile-nav-item {
-  width: 48px;
-  height: 48px;
   border-radius: 16px;
   border: 1px solid transparent;
   background: transparent;
   color: #cfe0ff;
   transition: 180ms ease;
+}
+
+.nav-icon {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-icon-glyph {
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.nav-icon-label {
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .nav-icon:hover,
@@ -192,6 +212,32 @@ h2 {
   gap: 14px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.topbar-link,
+.dashboard-search-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  transition: 180ms ease;
+}
+
+.topbar-link:hover,
+.dashboard-search-link:hover {
+  background: var(--accent-soft);
+  border-color: rgba(124, 92, 255, 0.35);
+}
+
+.topbar-link-icon,
+.dashboard-search-link-icon {
+  font-size: 16px;
 }
 
 .search-wrap {
@@ -404,6 +450,16 @@ kbd {
 
 .section-card {
   padding: 20px;
+}
+
+.dashboard-search-entry {
+  margin-bottom: 18px;
+}
+
+.dashboard-search-copy {
+  margin-top: 14px;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .section-card + .section-card {
@@ -1006,6 +1062,10 @@ kbd {
     display: grid;
     grid-template-columns: 1fr 1fr;
     align-items: stretch;
+  }
+
+  .topbar-link {
+    width: 100%;
   }
 
   .search-wrap {

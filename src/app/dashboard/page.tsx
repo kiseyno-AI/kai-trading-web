@@ -15,7 +15,6 @@ export default function DashboardPage() {
       navItems={snapshot?.nav ?? []}
       suggestions={snapshot?.searchSuggestions ?? []}
     >
-      <div className="glass section-card" style={{ marginBottom: 16 }}>DEBUG_DASHBOARD_PAGE_V2</div>
       {loading || !snapshot ? (
         <section className="content-grid">
           <div className="glass section-card">Loading market surface…</div>

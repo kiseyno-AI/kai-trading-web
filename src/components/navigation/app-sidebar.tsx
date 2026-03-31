@@ -11,13 +11,18 @@ type AppSidebarProps = {
 export function AppSidebar({ items, currentPath }: AppSidebarProps) {
   return (
     <aside className="sidebar">
-      <div className="brand-mark">PX</div>
+      <Link href="/dashboard" className="brand-mark" aria-label="Go to Dashboard">
+        PX
+      </Link>
       <nav className="side-nav">
         {items.slice(0, 4).map((item) => {
           const active = currentPath === item.href;
           return (
             <Link key={item.id} href={item.href} className={cn("nav-icon", active && "active")} aria-label={item.label}>
-              {item.icon}
+              <span className="nav-icon-glyph" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span className="nav-icon-label">{item.label}</span>
             </Link>
           );
         })}

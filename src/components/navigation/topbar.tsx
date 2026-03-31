@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { SearchPicker } from "@/components/ui/search-picker";
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -27,6 +29,11 @@ export function Topbar({ title, eyebrow, suggestions, onToggleMobileNav }: Topba
       </Button>
 
       <div className="topbar-actions">
+        <Link href="/search" className="topbar-link" aria-label="Go to Search">
+          <span className="topbar-link-icon">⌕</span>
+          <span>Search</span>
+        </Link>
+
         <SearchPicker suggestions={suggestions} />
 
         <div className="locale-switch" role="group" aria-label="Locale switcher">
