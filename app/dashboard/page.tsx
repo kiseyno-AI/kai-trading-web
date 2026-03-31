@@ -41,8 +41,7 @@ function getCompanyName(item: CoreTrackedQuote | undefined): string {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const base = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL || "http://127.0.0.1:8000";
-  const response = await fetch(`${base}${path}`, { cache: "no-store" });
+  const response = await fetch(path, { cache: "no-store" });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json() as Promise<T>;
 }
@@ -59,9 +58,9 @@ export default function DashboardPage() {
     const load = async () => {
       try {
         const [marketData, trackedData, symbolsData] = await Promise.all([
-          getJson<CoreMarketStatus>("/market/status"),
-          getJson<CoreTrackedQuotesResponse>("/quotes/tracked"),
-          getJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols"),
+          getJson<CoreMarketStatus>("/api/trading/market/status"),
+          getJson<CoreTrackedQuotesResponse>("/api/trading/quotes/tracked"),
+          getJson<CoreTrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols"),
         ]);
         if (!active) return;
         setMarket(marketData);

@@ -30,10 +30,8 @@ type QuoteResponse = {
   cached_at?: string | null;
 };
 
-const base = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL || "http://127.0.0.1:8000";
-
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${base}${path}`, { cache: "no-store" });
+  const response = await fetch(path, { cache: "no-store" });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json() as Promise<T>;
 }
@@ -50,7 +48,7 @@ export default function SearchPage() {
     let active = true;
     const load = async () => {
       try {
-        const data = await getJson<SymbolSearchResponse>(`/symbols/search?q=${encodeURIComponent(query)}&limit=20`);
+        const data = await getJson<SymbolSearchResponse>(`/api/trading/symbols/search?q=${encodeURIComponent(query)}&limit=20`);
         if (!active) return;
         setItems(data.items);
         setSearchError(null);
@@ -73,7 +71,7 @@ export default function SearchPage() {
 
     const loadQuote = async () => {
       try {
-        const data = await getJson<QuoteResponse>(`/quotes/${selected.symbol}`);
+        const data = await getJson<QuoteResponse>(`/api/trading/quotes/${selected.symbol}`);
         if (!active) return;
         setQuote(data);
         setQuoteError(null);
