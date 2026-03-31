@@ -12,6 +12,20 @@ npm run dev
 Open `http://localhost:3000`.
 The root route redirects to `/dashboard`.
 
+## Environment
+
+Trading API proxy routes under `src/app/api/trading/**` run as server-side Next handlers and forward requests to an upstream origin.
+
+Use these env vars:
+
+- `TRADING_API_UPSTREAM_BASE_URL` - preferred upstream origin for Vercel/serverless deployments, for example `https://api.example.com`
+- `TRADING_API_UPSTREAM_BEARER_TOKEN` - optional bearer token forwarded as `Authorization: Bearer ...` to the upstream
+- `TRADING_API_INTERNAL_BASE_URL` - legacy fallback name still supported for compatibility
+
+If none of those base URL vars are set, the proxy falls back to `http://127.0.0.1:8000` so local development keeps working against a local backend.
+
+See [`.env.example`](/Users/shawn/trading-web/.env.example) for the recommended local shape.
+
 ## Routes
 
 - `/dashboard` — main trading command surface

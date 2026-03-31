@@ -1,12 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
-const coreBase = process.env.TRADING_API_INTERNAL_BASE_URL || "http://127.0.0.1:8000";
+import { proxyTradingUpstreamJson } from "@/lib/trading-upstream";
 
 export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams;
   const q = search.get("q") || "";
   const limit = search.get("limit") || "20";
-  const response = await fetch(`${coreBase}/symbols/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(limit)}`, { cache: "no-store" });
-  const data = await response.json();
-  return NextResponse.json(data, { status: response.status });
+  return proxyTradingUpstreamJson(`/symbols/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(limit)}`);
 }
