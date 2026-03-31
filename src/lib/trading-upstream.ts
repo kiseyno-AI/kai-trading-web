@@ -30,12 +30,25 @@ export function getTradingUpstreamHeaders(init?: HeadersInit) {
   return headers;
 }
 
-export async function proxyTradingUpstreamJson(path: string) {
-  const response = await fetch(`${getTradingUpstreamBaseUrl()}${path}`, {
+export function fetchTradingUpstream(path: string) {
+  return fetch(`${getTradingUpstreamBaseUrl()}${path}`, {
     headers: getTradingUpstreamHeaders(),
     cache: "no-store",
   });
+}
 
+export async function fetchTradingUpstreamJson<T>(path: string): Promise<T> {
+  const response = await fetchTradingUpstream(path);
+
+  if (!response.ok) {
+    throw new Error(`Failed to load ${path}: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function proxyTradingUpstreamJson(path: string) {
+  const response = await fetchTradingUpstream(path);
   const data = await response.json();
   return NextResponse.json(data, { status: response.status });
 }

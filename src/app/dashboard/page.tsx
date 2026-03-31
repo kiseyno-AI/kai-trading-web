@@ -4,18 +4,12 @@ import {
   type CoreTrackedQuotesResponse,
   type CoreTrackedSymbolsResponse,
 } from "./live-dashboard-client";
+import { fetchTradingUpstreamJson } from "@/lib/trading-upstream";
 
 export const dynamic = "force-dynamic";
 
-const coreBase = process.env.TRADING_API_INTERNAL_BASE_URL || "http://127.0.0.1:8000";
-
 async function getCoreJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${coreBase}${path}`, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to load ${path}: HTTP ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
+  return fetchTradingUpstreamJson<T>(path);
 }
 
 export default async function DashboardPage() {
