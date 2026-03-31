@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { formatDisplayTimestamp } from "@/lib/format";
+
 export type CoreMarketStatus = {
   state: string;
   is_open: boolean;
@@ -261,14 +263,14 @@ export function LiveDashboardClient({
           <div style={{ color: "#8ea4cc", fontSize: 12 }}>MARKET STATUS</div>
           <h2>{market.state}</h2>
           <p>Open: {String(market.is_open)}</p>
-          <p>Server time: {market.server_time}</p>
+          <p>Server time: {formatDisplayTimestamp(market.server_time)}</p>
         </section>
 
         <section style={{ padding: 18, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
           <div style={{ color: "#8ea4cc", fontSize: 12 }}>TRACKED SYMBOLS</div>
           <h2>{symbols.count}</h2>
           <p>Universe: {symbols.tracked_symbols.join(", ")}</p>
-          <p>Updated: {symbols.last_updated_at ?? "N/A"}</p>
+          <p>Updated: {formatDisplayTimestamp(symbols.last_updated_at, "N/A")}</p>
         </section>
 
         <section style={{ padding: 18, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
@@ -287,7 +289,7 @@ export function LiveDashboardClient({
           <div>
             <p style={{ margin: 0, color: "#8ea4cc", fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase" }}>TRACKED QUOTES</p>
             <h2 style={{ margin: "8px 0 4px" }}>Realtime KIS-backed watchlist</h2>
-            <p style={{ color: "#9fb0cf" }}>Market state: {tracked.market_state} · As of {tracked.as_of}</p>
+            <p style={{ color: "#9fb0cf" }}>Market state: {tracked.market_state} · Updated {formatDisplayTimestamp(tracked.as_of)}</p>
           </div>
         </div>
 
@@ -330,8 +332,8 @@ export function LiveDashboardClient({
                 <strong>₩{item.turnover.toLocaleString()}</strong>
               </div>
               <div>
-                <div style={{ color: "#8ea4cc", fontSize: 12 }}>Feed</div>
-                <strong>{item.is_live ? "Live" : "Cached"}</strong>
+                <div style={{ color: "#8ea4cc", fontSize: 12 }}>Updated</div>
+                <strong>{formatDisplayTimestamp(item.as_of)}</strong>
               </div>
             </article>
           ))}

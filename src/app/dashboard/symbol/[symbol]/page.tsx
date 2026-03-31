@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { formatDisplayTimestamp } from "@/lib/format";
+
 type SymbolSearchItem = {
   symbol: string;
   standard_code: string;
@@ -162,12 +164,10 @@ export default function SymbolDetailPage() {
         </section>
 
         <section style={{ padding: 20, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-          <div style={{ color: "#8ea4cc", fontSize: 12, marginBottom: 8 }}>DETAIL FEED</div>
+          <div style={{ color: "#8ea4cc", fontSize: 12, marginBottom: 8 }}>QUOTE DETAILS</div>
           <div style={{ display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Market state</span><strong>{quote?.market_state ?? "-"}</strong></div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Source</span><strong>{quote?.source ?? "-"}</strong></div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Mode</span><strong>{quote ? (quote.is_live ? "Live quote" : "Cached quote") : "-"}</strong></div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Cached at</span><strong>{quote?.cached_at ?? "-"}</strong></div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><span style={{ color: "#9fb0cf" }}>Updated</span><strong>{formatDisplayTimestamp(quote?.cached_at)}</strong></div>
           </div>
         </section>
       </div>

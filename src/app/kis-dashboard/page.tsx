@@ -1,3 +1,5 @@
+import { formatDisplayTimestamp } from "@/lib/format";
+
 type CoreMarketStatus = {
   state: string;
   is_open: boolean;
@@ -82,7 +84,7 @@ export default async function KisDashboardPage() {
             <div style={{ color: "#8ea4cc", fontSize: 12 }}>MARKET STATUS</div>
             <h2 style={{ margin: "10px 0" }}>{market.state}</h2>
             <p style={{ margin: 0, color: "#cbd7ee" }}>Open: {String(market.is_open)}</p>
-            <p style={{ margin: "6px 0 0", color: "#9fb0cf" }}>{market.server_time}</p>
+            <p style={{ margin: "6px 0 0", color: "#9fb0cf" }}>{formatDisplayTimestamp(market.server_time)}</p>
           </article>
           <article style={{ padding: 18, borderRadius: 18, border: "1px solid rgba(159,176,212,0.15)", background: "rgba(12,22,38,0.82)" }}>
             <div style={{ color: "#8ea4cc", fontSize: 12 }}>LEAD SYMBOL</div>
@@ -94,7 +96,7 @@ export default async function KisDashboardPage() {
             <div style={{ color: "#8ea4cc", fontSize: 12 }}>TRACKED SET</div>
             <h2 style={{ margin: "10px 0" }}>{symbols.count}</h2>
             <p style={{ margin: 0, color: "#cbd7ee" }}>{symbols.tracked_symbols.join(", ")}</p>
-            <p style={{ margin: "6px 0 0", color: "#9fb0cf" }}>As of {tracked.as_of}</p>
+            <p style={{ margin: "6px 0 0", color: "#9fb0cf" }}>Updated {formatDisplayTimestamp(tracked.as_of)}</p>
           </article>
         </section>
 
@@ -112,7 +114,7 @@ export default async function KisDashboardPage() {
                 <div key={item.symbol} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: 14, borderRadius: 14, border: "1px solid rgba(159,176,212,0.10)", background: "rgba(255,255,255,0.03)" }}>
                   <div>
                     <strong>{item.symbol}</strong>
-                    <div style={{ color: "#9fb0cf", marginTop: 6 }}>{item.is_live ? "Live KIS quote" : item.fallback ? "Cached fallback" : `State ${item.market_state}`}</div>
+                    <div style={{ color: "#9fb0cf", marginTop: 6 }}>{item.as_of ? `Updated ${formatDisplayTimestamp(item.as_of)}` : item.market_state}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div>₩{item.price.toLocaleString()}</div>
@@ -128,8 +130,8 @@ export default async function KisDashboardPage() {
             <h2 style={{ margin: "10px 0 14px" }}>Core Integration Summary</h2>
             <div style={{ display: "grid", gap: 12 }}>
               <div style={{ paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                <span style={{ color: "#9fb0cf" }}>Source</span>
-                <div>{lead?.source ?? "api"}</div>
+                <span style={{ color: "#9fb0cf" }}>Updated</span>
+                <div>{formatDisplayTimestamp(lead?.as_of ?? tracked.as_of)}</div>
               </div>
               <div style={{ paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                 <span style={{ color: "#9fb0cf" }}>Turnover</span>

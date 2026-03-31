@@ -5,3 +5,19 @@ export const formatPrice = (price: number) =>
   });
 
 export const formatChange = (change: number) => `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
+
+export function formatDisplayTimestamp(value?: string | null, fallback = "-") {
+  if (!value) return fallback;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const year = String(date.getFullYear()).slice(-2);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+
+  return `${year}-${month}-${day} : ${hours}:${minutes}:${seconds}`;
+}

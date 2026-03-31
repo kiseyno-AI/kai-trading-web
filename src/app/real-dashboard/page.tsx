@@ -1,3 +1,5 @@
+import { formatDisplayTimestamp } from "@/lib/format";
+
 type CoreMarketStatus = {
   state: string;
   is_open: boolean;
@@ -83,7 +85,7 @@ export default async function RealDashboardPage() {
             <section className="glass section-card" style={{ marginBottom: 18 }}>
               <div className="panel-head compact">
                 <div>
-                  <p className="eyebrow">Live Core Feed</p>
+                  <p className="eyebrow">Core Overview</p>
                   <h2>Real data slots active</h2>
                 </div>
                 <span className="pill positive">Real Data</span>
@@ -99,7 +101,7 @@ export default async function RealDashboardPage() {
               <article className="glass metric-card">
                 <div className="card-head"><span>Tracked Turnover</span><span className="pill positive">{formatSignedPercent(avgChange)}</span></div>
                 <div className="metric-main">{formatCompactWon(totalTurnover)}</div>
-                <p className="metric-sub">{tracked.items.length} tracked symbols · {market.server_time}</p>
+                <p className="metric-sub">{tracked.items.length} tracked symbols · {formatDisplayTimestamp(market.server_time)}</p>
               </article>
               <article className="glass metric-card pnl-card">
                 <div className="card-head"><span>Lead KRX Quote</span><span className={`pill ${lead && lead.change_pct >= 0 ? "positive" : "negative"}`}>{lead ? formatSignedPercent(lead.change_pct) : "-"}</span></div>
@@ -165,14 +167,13 @@ export default async function RealDashboardPage() {
                   <p className="eyebrow">Radar</p>
                   <h2>Watchlist</h2>
                 </div>
-                <span className="pill neutral">Live feed</span>
               </div>
               <div className="watchlist">
                 {tracked.items.map((item) => (
                   <div key={item.symbol} className="watch-item">
                     <div>
                       <strong>{item.symbol}</strong>
-                      <span>{item.is_live ? "Live KIS quote" : item.fallback ? "Cached fallback" : `State ${item.market_state}`}</span>
+                      <span>{item.as_of ? `Updated ${formatDisplayTimestamp(item.as_of)}` : item.market_state}</span>
                     </div>
                     <div className="watch-price">
                       <strong>₩{item.price.toLocaleString()}</strong>
@@ -208,8 +209,8 @@ export default async function RealDashboardPage() {
               </div>
               <div className="signal-card strong">
                 <div className="signal-label">Primary Bias</div>
-                <h3>{market.is_open ? "Live KRX tracked-symbol feed active" : "Market closed, cached tracked view active"}</h3>
-                <p>Source: {lead?.source ?? "api"}. Tracked symbols: {symbols.count}. Last as-of: {tracked.as_of}</p>
+                <h3>{market.is_open ? "KRX tracked symbols active" : "KRX tracked snapshot ready"}</h3>
+                <p>Tracked symbols: {symbols.count}. Last update: {formatDisplayTimestamp(tracked.as_of)}</p>
               </div>
               <div className="signal-list">
                 <div className="signal-row"><span>Market state</span><strong>{market.state}</strong></div>

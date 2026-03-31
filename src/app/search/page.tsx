@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageIntro } from "@/components/ui/page-intro";
+import { formatDisplayTimestamp } from "@/lib/format";
 
 type SymbolSearchItem = {
   symbol: string;
@@ -171,8 +172,6 @@ export default function SearchPage() {
 
                 <div className="search-quote-badges">
                   <span className="pill neutral">{quote.market_state}</span>
-                  <span className="pill neutral">{quote.source}</span>
-                  <span className="pill neutral">{quote.is_live ? "live" : "cached"}</span>
                 </div>
 
                 <div className="metric-grid two-up">
@@ -186,7 +185,7 @@ export default function SearchPage() {
                   </div>
                 </div>
 
-                <div className="muted-note">Cached at: {quote.cached_at ?? "-"}</div>
+                <div className="muted-note">Updated: {formatDisplayTimestamp(quote.cached_at)}</div>
               </div>
             )}
           </section>
