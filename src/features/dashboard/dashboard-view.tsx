@@ -50,19 +50,25 @@ export function DashboardView({ snapshot }: DashboardViewProps) {
     <section className="content-grid">
       <div className="center-column">
         <section className="glass section-card dashboard-search-entry">
-          <div className="panel-head compact">
-            <div>
+          <div className="dashboard-search-entry-head">
+            <div className="dashboard-search-entry-copy">
               <p className="eyebrow">Search</p>
-              <h2>Look up symbols without leaving the command surface</h2>
+              <h2>Find symbols and routes before you scroll</h2>
+              <p className="dashboard-search-copy">
+                Open the dedicated symbol lookup page to search by company name or code and inspect live quote updates.
+              </p>
             </div>
             <Link href="/search" className="dashboard-search-link">
               <span className="dashboard-search-link-icon" aria-hidden="true">
                 ⌕
               </span>
-              <span>Open Search</span>
+              <span>Open Search Workspace</span>
             </Link>
           </div>
-          <p className="dashboard-search-copy">Open the dedicated symbol lookup page to search by company name or code and inspect live quote updates.</p>
+          <div className="dashboard-search-meta">
+            <span className="pill neutral">Server-rendered CTA</span>
+            <span className="pill neutral">Above the fold on /dashboard</span>
+          </div>
         </section>
 
         <section className="glass section-card" style={{ marginBottom: 18 }}>

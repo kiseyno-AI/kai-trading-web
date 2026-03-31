@@ -1,27 +1,20 @@
-"use client";
-
 import { AppShell } from "@/components/layout/app-shell";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
-import { useDashboardSnapshot } from "@/lib/use-dashboard-snapshot";
+import { tradingApi } from "@/lib/trading-api";
 
-export default function DashboardPage() {
-  const { snapshot, loading } = useDashboardSnapshot();
+export default async function DashboardPage() {
+  const response = await tradingApi.getDashboardSnapshot();
+  const snapshot = response.data;
 
   return (
     <AppShell
       currentPath="/dashboard"
       title="Trading Command Surface"
       eyebrow="Precision & Clarity"
-      navItems={snapshot?.nav ?? []}
-      suggestions={snapshot?.searchSuggestions ?? []}
+      navItems={snapshot.nav}
+      suggestions={snapshot.searchSuggestions}
     >
-      {loading || !snapshot ? (
-        <section className="content-grid">
-          <div className="glass section-card">Loading market surface…</div>
-        </section>
-      ) : (
-        <DashboardView snapshot={snapshot} />
-      )}
+      <DashboardView snapshot={snapshot} />
     </AppShell>
   );
 }
