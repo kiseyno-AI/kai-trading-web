@@ -89,7 +89,7 @@ export default async function RealDashboardPage() {
                 <span className="pill positive">Real Data</span>
               </div>
               <div className="detail-list">
-                <div className="detail-row"><span>Lead symbol</span><strong>{lead?.symbol ?? '-'}</strong></div>
+                <div className="detail-row"><span>Lead symbol</span><strong>{lead?.symbol ?? "-"}</strong></div>
                 <div className="detail-row"><span>Tracked symbols</span><strong>{symbols.count}</strong></div>
                 <div className="detail-row"><span>Market state</span><strong>{market.state}</strong></div>
               </div>
@@ -102,12 +102,12 @@ export default async function RealDashboardPage() {
                 <p className="metric-sub">{tracked.items.length} tracked symbols · {market.server_time}</p>
               </article>
               <article className="glass metric-card pnl-card">
-                <div className="card-head"><span>Lead KRX Quote</span><span className={`pill ${lead && lead.change_pct >= 0 ? 'positive' : 'negative'}`}>{lead ? formatSignedPercent(lead.change_pct) : '-'}</span></div>
-                <div className="metric-main">{lead ? `₩${lead.price.toLocaleString()}` : '-'}</div>
-                <p className="metric-sub">{lead ? `${lead.symbol} · ${formatSignedNumber(lead.change)}` : 'No lead symbol'}</p>
+                <div className="card-head"><span>Lead KRX Quote</span><span className={`pill ${lead && lead.change_pct >= 0 ? "positive" : "negative"}`}>{lead ? formatSignedPercent(lead.change_pct) : "-"}</span></div>
+                <div className="metric-main">{lead ? `₩${lead.price.toLocaleString()}` : "-"}</div>
+                <p className="metric-sub">{lead ? `${lead.symbol} · ${formatSignedNumber(lead.change)}` : "No lead symbol"}</p>
               </article>
               <article className="glass metric-card">
-                <div className="card-head"><span>Tracked Breadth</span><span className="pill neutral">{market.is_open ? 'Open' : 'Closed'}</span></div>
+                <div className="card-head"><span>Tracked Breadth</span><span className="pill neutral">{market.is_open ? "Open" : "Closed"}</span></div>
                 <div className="metric-main">{Math.max(0, Math.min(100, Math.round(50 + avgChange * 8)))}%</div>
                 <p className="metric-sub">Tracked volume {tracked.items.reduce((sum, item) => sum + item.volume, 0).toLocaleString()}</p>
               </article>
@@ -116,7 +116,7 @@ export default async function RealDashboardPage() {
             <section className="glass chart-panel">
               <div className="panel-head">
                 <div>
-                  <p className="eyebrow">{lead?.symbol ?? 'KRX'}</p>
+                  <p className="eyebrow">{lead?.symbol ?? "KRX"}</p>
                   <h2>KRX Tracked Execution View</h2>
                 </div>
                 <div className="chart-tabs">
@@ -127,9 +127,9 @@ export default async function RealDashboardPage() {
               </div>
               <div className="chart-grid">
                 <div className="chart-area">
-                  <div className="chart-overlay y-top">{lead ? (lead.price + Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : '-'}</div>
-                  <div className="chart-overlay y-mid">{lead ? lead.price.toLocaleString() : '-'}</div>
-                  <div className="chart-overlay y-low">{lead ? Math.max(0, lead.price - Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : '-'}</div>
+                  <div className="chart-overlay y-top">{lead ? (lead.price + Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : "-"}</div>
+                  <div className="chart-overlay y-mid">{lead ? lead.price.toLocaleString() : "-"}</div>
+                  <div className="chart-overlay y-low">{lead ? Math.max(0, lead.price - Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : "-"}</div>
                   <svg viewBox="0 0 760 360" className="main-chart" preserveAspectRatio="none" aria-label="tracked chart">
                     <defs>
                       <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
@@ -140,18 +140,18 @@ export default async function RealDashboardPage() {
                     <path className="chart-fill" d="M0 280 C70 220, 110 250, 170 180 S290 90, 360 140 S500 240, 570 175 S670 70, 760 105 L760 360 L0 360 Z" />
                     <path className="chart-line" d="M0 280 C70 220, 110 250, 170 180 S290 90, 360 140 S500 240, 570 175 S670 70, 760 105" />
                   </svg>
-                  <div className="trade-marker buy" style={{ left: '18%', top: '62%' }}>Lead<span>{lead?.symbol ?? '-'}</span></div>
-                  <div className={`trade-marker ${avgChange >= 0 ? 'sell' : 'buy'}`} style={{ left: '48%', top: '34%' }}>{market.state}<span>{formatSignedPercent(avgChange)}</span></div>
-                  <div className="trade-marker buy" style={{ left: '76%', top: '48%' }}>Tracked<span>{symbols.count}</span></div>
+                  <div className="trade-marker buy" style={{ left: "18%", top: "62%" }}>Lead<span>{lead?.symbol ?? "-"}</span></div>
+                  <div className={`trade-marker ${avgChange >= 0 ? "sell" : "buy"}`} style={{ left: "48%", top: "34%" }}>{market.state}<span>{formatSignedPercent(avgChange)}</span></div>
+                  <div className="trade-marker buy" style={{ left: "76%", top: "48%" }}>Tracked<span>{symbols.count}</span></div>
                 </div>
                 <aside className="glass-inner orderbook">
                   <div className="orderbook-head"><h3>Mini Order Book</h3><span>Depth 10</span></div>
                   <div className="book book-sell">
-                    {[30,20,10].map((gap) => <div key={gap} className="book-row"><span>{lead ? (lead.price + gap).toLocaleString() : '-'}</span><span>{(1.5 - gap/50).toFixed(2)} lot</span></div>)}
+                    {[30, 20, 10].map((gap) => <div key={gap} className="book-row"><span>{lead ? (lead.price + gap).toLocaleString() : "-"}</span><span>{(1.5 - gap / 50).toFixed(2)} lot</span></div>)}
                   </div>
-                  <div className="mid-price">{lead ? lead.price.toLocaleString() : '-'}<span>{lead ? formatSignedPercent(lead.change_pct) : '-'}</span></div>
+                  <div className="mid-price">{lead ? lead.price.toLocaleString() : "-"}<span>{lead ? formatSignedPercent(lead.change_pct) : "-"}</span></div>
                   <div className="book book-buy">
-                    {[10,20,30].map((gap) => <div key={gap} className="book-row"><span>{lead ? Math.max(0, lead.price - gap).toLocaleString() : '-'}</span><span>{(1.3 - gap/60).toFixed(2)} lot</span></div>)}
+                    {[10, 20, 30].map((gap) => <div key={gap} className="book-row"><span>{lead ? Math.max(0, lead.price - gap).toLocaleString() : "-"}</span><span>{(1.3 - gap / 60).toFixed(2)} lot</span></div>)}
                   </div>
                 </aside>
               </div>
@@ -172,7 +172,7 @@ export default async function RealDashboardPage() {
                   <div key={item.symbol} className="watch-item">
                     <div>
                       <strong>{item.symbol}</strong>
-                      <span>{item.is_live ? 'Live KIS quote' : item.fallback ? 'Cached fallback' : `State ${item.market_state}`}</span>
+                      <span>{item.is_live ? "Live KIS quote" : item.fallback ? "Cached fallback" : `State ${item.market_state}`}</span>
                     </div>
                     <div className="watch-price">
                       <strong>₩{item.price.toLocaleString()}</strong>
@@ -194,7 +194,7 @@ export default async function RealDashboardPage() {
               <div className="detail-list">
                 <div className="detail-row"><span>Market state</span><strong>{market.state}</strong></div>
                 <div className="detail-row"><span>Tracked symbols</span><strong>{symbols.count}</strong></div>
-                <div className="detail-row"><span>Lead symbol</span><strong>{lead?.symbol ?? '-'}</strong></div>
+                <div className="detail-row"><span>Lead symbol</span><strong>{lead?.symbol ?? "-"}</strong></div>
               </div>
             </section>
 
@@ -204,17 +204,17 @@ export default async function RealDashboardPage() {
                   <p className="eyebrow">Signal Engine</p>
                   <h2>AI Insight</h2>
                 </div>
-                <span className="signal-score">{market.is_open ? '82 / 100' : '66 / 100'}</span>
+                <span className="signal-score">{market.is_open ? "82 / 100" : "66 / 100"}</span>
               </div>
               <div className="signal-card strong">
                 <div className="signal-label">Primary Bias</div>
-                <h3>{market.is_open ? 'Live KRX tracked-symbol feed active' : 'Market closed, cached tracked view active'}</h3>
-                <p>Source: {lead?.source ?? 'api'}. Tracked symbols: {symbols.count}. Last as-of: {tracked.as_of}</p>
+                <h3>{market.is_open ? "Live KRX tracked-symbol feed active" : "Market closed, cached tracked view active"}</h3>
+                <p>Source: {lead?.source ?? "api"}. Tracked symbols: {symbols.count}. Last as-of: {tracked.as_of}</p>
               </div>
               <div className="signal-list">
                 <div className="signal-row"><span>Market state</span><strong>{market.state}</strong></div>
                 <div className="signal-row"><span>Tracked symbols</span><strong>{symbols.count}</strong></div>
-                <div className="signal-row"><span>Lead symbol</span><strong>{lead?.symbol ?? '-'}</strong></div>
+                <div className="signal-row"><span>Lead symbol</span><strong>{lead?.symbol ?? "-"}</strong></div>
               </div>
             </section>
           </aside>

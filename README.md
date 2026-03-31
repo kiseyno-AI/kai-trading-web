@@ -23,10 +23,21 @@ The root route redirects to `/dashboard`.
 ```text
 src/
   app/
+    api/
+      trading/
+        market/status/route.ts
+        quotes/[symbol]/route.ts
+        quotes/tracked/route.ts
+        scanner/tracked-symbols/route.ts
+        symbols/search/route.ts
     dashboard/page.tsx
+    dashboard/symbol/[symbol]/page.tsx
     markets/page.tsx
     bots/page.tsx
+    kis-dashboard/page.tsx
     page.tsx
+    real-dashboard/page.tsx
+    scanner-tracker/page.tsx
   components/
     dashboard/
     layout/
@@ -46,6 +57,7 @@ src/
 ## Notes
 
 - Shared demo data currently lives in `src/data/trading-dashboard.ts`.
+- App-router pages and API handlers live under `src/app`.
 - Shared layout/navigation lives in `src/components/layout` and `src/components/navigation`.
 - Reusable UI elements live in `src/components/ui`.
 - The structure is intended to make future real-data injection straightforward without keeping the whole dashboard in one page file.
