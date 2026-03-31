@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [market, setMarket] = useState<CoreMarketStatus | null>(null);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse | null>(null);
   const [symbols, setSymbols] = useState<CoreTrackedSymbolsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -66,8 +67,11 @@ export default function DashboardPage() {
         setMarket(marketData);
         setTracked(trackedData);
         setSymbols(symbolsData);
+        setError(null);
       } catch (error) {
         console.error("Dashboard polling failed", error);
+        if (!active) return;
+        setError("대시보드 데이터를 불러오지 못했습니다. 코어 서버 또는 외부 API 연결을 확인하세요.");
       }
     };
 
@@ -79,6 +83,16 @@ export default function DashboardPage() {
       window.clearInterval(timer);
     };
   }, []);
+
+  if (error) {
+    return (
+      <main style={{ padding: 24, fontFamily: "sans-serif", background: "#07111f", color: "#eef4ff", minHeight: "100vh" }}>
+        <h1 style={{ marginTop: 0 }}>KIS DASHBOARD ERROR</h1>
+        <p style={{ color: "#ff909d" }}>{error}</p>
+        <p style={{ color: "#9fb0cf" }}>로딩이 계속되는 대신 실패 원인을 표시하도록 수정했습니다.</p>
+      </main>
+    );
+  }
 
   if (!market || !tracked || !symbols) {
     return <main style={{ padding: 24, fontFamily: "sans-serif" }}>KIS DASHBOARD LOADING…</main>;
