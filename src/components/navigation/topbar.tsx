@@ -10,18 +10,19 @@ import type { SearchSuggestionDto } from "@/types/trading-api";
 type TopbarProps = {
   title: string;
   eyebrow: string;
+  titleClassName?: string;
   suggestions: SearchSuggestionDto[];
   onToggleMobileNav: () => void;
 };
 
-export function Topbar({ title, eyebrow, suggestions, onToggleMobileNav }: TopbarProps) {
+export function Topbar({ title, eyebrow, titleClassName, suggestions, onToggleMobileNav }: TopbarProps) {
   const { locale, notificationsOn, setLocale, setNotificationsOn, t } = useAppState();
 
   return (
     <header className="glass topbar">
       <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
+        <h1 className={titleClassName}>{title}</h1>
       </div>
 
       <Button className="mobile-menu-button" variant="glass" onClick={onToggleMobileNav} aria-label="Open navigation">

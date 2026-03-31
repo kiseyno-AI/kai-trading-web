@@ -28,6 +28,7 @@ export function AppShell({ currentPath, title, eyebrow, children, navItems = [],
         <Topbar
           title={title}
           eyebrow={eyebrow}
+          titleClassName={currentPath === "/dashboard" ? "dashboard-title" : undefined}
           suggestions={suggestions}
           onToggleMobileNav={() => setMobileNavOpen((value) => !value)}
         />
