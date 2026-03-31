@@ -43,15 +43,25 @@ export default function SearchPage() {
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
-      const data = await getJson<SymbolSearchResponse>(`/symbols/search?q=${encodeURIComponent(query)}&limit=20`);
-      if (!active) return;
-      setItems(data.items);
+      try {
+        const data = await getJson<SymbolSearchResponse>(`/symbols/search?q=${encodeURIComponent(query)}&limit=20`);
+        if (!active) return;
+        setItems(data.items);
+        setSearchError(null);
+      } catch (error) {
+        console.error(error);
+        if (!active) return;
+        setItems([]);
+        setSearchError("검색 데이터를 불러오지 못했습니다. 코어 서버 연결을 확인하세요.");
+      }
     };
-    load().catch(console.error);
+    load();
     return () => {
       active = false;
     };
@@ -66,8 +76,11 @@ export default function SearchPage() {
         const data = await getJson<QuoteResponse>(`/quotes/${selected.symbol}`);
         if (!active) return;
         setQuote(data);
+        setQuoteError(null);
       } catch (error) {
         console.error("Quote polling failed", error);
+        if (!active) return;
+        setQuoteError("실시간 데이터를 불러오지 못했습니다. 코어 서버 상태를 확인하세요.");
       }
     };
 
@@ -99,6 +112,7 @@ export default function SearchPage() {
             placeholder="회사명 또는 종목코드 검색"
             style={{ width: "100%", padding: 12, borderRadius: 12, border: "1px solid #2a3b57", background: "#08111d", color: "#eef4ff" }}
           />
+          {searchError ? <div style={{ color: "#ff909d", marginTop: 12 }}>{searchError}</div> : null}
           <div style={{ display: "grid", gap: 8, marginTop: 16 }}>
             {items.map((item) => (
               <button
@@ -118,6 +132,7 @@ export default function SearchPage() {
             <div style={{ color: "#9fb0cf" }}>종목을 선택하면 실시간 데이터를 표시합니다.</div>
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
+              {quoteError ? <div style={{ color: "#ff909d" }}>{quoteError}</div> : null}
               <div>
                 <div style={{ color: "#8ea4cc", fontSize: 12 }}>COMPANY</div>
                 <h2 style={{ margin: "4px 0" }}>{quote.company_name || selected.name_ko}</h2>
