@@ -100,7 +100,12 @@ export function DashboardView({ snapshot }: DashboardViewProps) {
             </div>
             <div className="chart-tabs">
               {snapshot.chart.tabs.map((tab) => (
-                <Button key={tab} className={`tab ${resolvedActiveTab === tab ? "active" : ""}`} onClick={() => handleSetTab(tab)}>
+                <Button
+                  key={tab}
+                  variant="glass"
+                  className={`tab ${resolvedActiveTab === tab ? "active" : ""}`}
+                  onClick={() => handleSetTab(tab)}
+                >
                   {tab}
                 </Button>
               ))}
@@ -175,6 +180,7 @@ export function DashboardView({ snapshot }: DashboardViewProps) {
             {snapshot.botControls.actions.map((action) => (
               <Button
                 key={action.id}
+                variant="glass"
                 className={`control-btn ${action.id} ${activeBotAction === action.id ? "is-active" : ""}`}
                 data-action={action.id}
                 onClick={() => handleBotCommand(action.id)}
