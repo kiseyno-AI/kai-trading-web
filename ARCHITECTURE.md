@@ -28,3 +28,9 @@
 - charting and data visualization
 - API integration layer
 - design system evolution
+
+## Tooling and quality
+- **Codex:** Project instructions in [`.codex/config.toml`](./.codex/config.toml), skills in [`.codex/skills/`](./.codex/skills/), optional subagents in [`.codex/agents/`](./.codex/agents/).
+- **CI:** GitHub Actions (`.github/workflows/ci.yml`) runs lint, production build, and Playwright e2e tests.
+
+See [AGENTS.md](./AGENTS.md) for how humans and Codex should use this repo.
