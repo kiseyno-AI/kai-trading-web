@@ -50,7 +50,7 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
         aria-controls="searchMenu"
         onClick={() => setOpen((value) => !value)}
       >
-        <span>{query ? query : t.common.searchButton}</span>
+        <span>{query ? query : "Ticker, route, or surface"}</span>
         <kbd>⌘K</kbd>
       </Button>
 
@@ -68,7 +68,7 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
         <div className="search-suggestions">
           {filteredSuggestions.map((suggestion) => (
             <button
-              key={suggestion.label}
+              key={suggestion.id}
               className="suggestion"
               onClick={() => {
                 setQuery(suggestion.label);

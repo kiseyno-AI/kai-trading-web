@@ -4,6 +4,7 @@
 - Next.js + TypeScript frontend
 - App-router structure with route-specific feature folders
 - Shared application shell for navigation, search, and responsive layout
+- Sovereign-style workstation theme primitives drive the shared shell, dashboard, and search surfaces
 - Connect to backend API, never directly to brokers
 - Focus on positions, orders, fills, PnL, health, and admin views
 - UI must support future KR/US market workflows

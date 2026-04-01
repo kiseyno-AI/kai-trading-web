@@ -12,13 +12,19 @@ export function AppSidebar({ items, currentPath }: AppSidebarProps) {
   return (
     <aside className="sidebar">
       <Link href="/dashboard" className="brand-mark" aria-label="Go to Dashboard">
-        PX
+        KAI
       </Link>
       <nav className="side-nav">
-        {items.slice(0, 4).map((item) => {
+        {items.map((item) => {
           const active = currentPath === item.href;
           return (
-            <Link key={item.id} href={item.href} className={cn("nav-icon", active && "active")} aria-label={item.label}>
+            <Link
+              key={item.id}
+              href={item.href}
+              className={cn("nav-icon", active && "active")}
+              aria-label={item.label}
+              title={item.label}
+            >
               <span className="nav-icon-glyph" aria-hidden="true">
                 {item.icon}
               </span>
@@ -28,8 +34,11 @@ export function AppSidebar({ items, currentPath }: AppSidebarProps) {
         })}
       </nav>
       <div className="sidebar-footer">
-        <Link href="/dashboard#settings" className="nav-icon" aria-label="Settings">
-          ⚙
+        <Link href="/dashboard#settings" className="nav-icon" aria-label="Settings" title="Settings">
+          <span className="nav-icon-glyph" aria-hidden="true">
+            CFG
+          </span>
+          <span className="nav-icon-label">Settings</span>
         </Link>
       </div>
     </aside>

@@ -4,12 +4,50 @@ import {
   type CoreTrackedQuotesResponse,
   type CoreTrackedSymbolsResponse,
 } from "./live-dashboard-client";
+import { dashboardData } from "@/data/trading-dashboard";
 import { fetchTradingUpstreamJson } from "@/lib/trading-upstream";
 
 export const dynamic = "force-dynamic";
 
 async function getCoreJson<T>(path: string): Promise<T> {
   return fetchTradingUpstreamJson<T>(path);
+}
+
+function getMockDashboardPayload() {
+  const now = new Date().toISOString();
+
+  const trackedItems = dashboardData.watchlist.map((item, index) => ({
+    symbol: item.symbol,
+    company_name: item.symbol,
+    price: item.price,
+    change: Math.round((item.price * item.change) / 100),
+    change_pct: item.change,
+    volume: 120_000 + index * 15_000,
+    turnover: item.price * (120_000 + index * 15_000),
+    as_of: now,
+    market_state: "mock-session",
+    source: "mock",
+    fallback: true,
+    is_live: false,
+  }));
+
+  return {
+    market: {
+      state: "MOCK MODE",
+      is_open: false,
+      server_time: now,
+    } satisfies CoreMarketStatus,
+    tracked: {
+      market_state: "mock-session",
+      as_of: now,
+      items: trackedItems,
+    } satisfies CoreTrackedQuotesResponse,
+    symbols: {
+      tracked_symbols: trackedItems.map((item) => item.symbol),
+      count: trackedItems.length,
+      last_updated_at: now,
+    } satisfies CoreTrackedSymbolsResponse,
+  };
 }
 
 export default async function DashboardPage() {
@@ -25,23 +63,7 @@ export default async function DashboardPage() {
     ]);
   } catch (error) {
     console.error("Dashboard server render failed", error);
-
-    return (
-      <main
-        style={{
-          padding: 24,
-          fontFamily: "sans-serif",
-          background: "#07111f",
-          color: "#eef4ff",
-          minHeight: "100vh",
-        }}
-      >
-        <h1 style={{ marginTop: 0 }}>KIS DASHBOARD ERROR</h1>
-        <p style={{ color: "#ff909d" }}>
-          대시보드 데이터를 서버에서 불러오지 못했습니다. 코어 서버 연결을 확인하세요.
-        </p>
-      </main>
-    );
+    ({ market, tracked, symbols } = getMockDashboardPayload());
   }
 
   return (

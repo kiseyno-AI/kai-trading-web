@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { formatDisplayTimestamp, formatTurnover } from "@/lib/format";
+import { AppShell } from "@/components/layout/app-shell";
+import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+
+import styles from "./live-dashboard-client.module.css";
 
 export type CoreMarketStatus = {
   state: string;
@@ -56,15 +59,35 @@ type LiveDashboardClientProps = {
   initialSymbols: CoreTrackedSymbolsResponse;
 };
 
+const compactNumberFormatter = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  compactDisplay: "short",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
+
 function getCompanyName(item: CoreTrackedQuote | undefined): string {
   if (!item) return "N/A";
   return item.company_name || item.symbol;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: "no-store" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json() as Promise<T>;
+function formatSignedPercent(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatSignedNumber(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+}
+
+function getJson<T>(path: string): Promise<T> {
+  return fetch(path, { cache: "no-store" }).then((response) => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json() as Promise<T>;
+  });
+}
+
+function getQuoteToneClass(value: number): string {
+  return value >= 0 ? styles.positive : styles.negative;
 }
 
 export function LiveDashboardClient({
@@ -80,6 +103,7 @@ export function LiveDashboardClient({
   const [searchItems, setSearchItems] = useState<SymbolSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "MOCK MODE");
 
   useEffect(() => {
     let active = true;
@@ -91,15 +115,18 @@ export function LiveDashboardClient({
           getJson<CoreTrackedQuotesResponse>("/api/trading/quotes/tracked"),
           getJson<CoreTrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols"),
         ]);
+
         if (!active) return;
         setMarket(marketData);
         setTracked(trackedData);
         setSymbols(symbolsData);
         setError(null);
+        setCoreUnavailable(false);
       } catch (loadError) {
         console.error("Dashboard polling failed", loadError);
         if (!active) return;
-        setError("대시보드 데이터를 불러오지 못했습니다. 코어 서버 또는 외부 API 연결을 확인하세요.");
+        setCoreUnavailable(true);
+        setError("코어 서버에 연결하지 못해 현재는 mock snapshot을 유지하고 있습니다.");
       }
     };
 
@@ -142,7 +169,7 @@ export function LiveDashboardClient({
           setSearchLoading(false);
         }
       }
-    }, 250);
+    }, 220);
 
     return () => {
       active = false;
@@ -150,195 +177,345 @@ export function LiveDashboardClient({
     };
   }, [searchQuery]);
 
+  const lead = tracked.items[0];
+
+  const computed = useMemo(() => {
+    const positiveCount = tracked.items.filter((item) => item.change_pct >= 0).length;
+    const liveCount = tracked.items.filter((item) => item.is_live).length;
+    const fallbackCount = tracked.items.filter((item) => item.fallback).length;
+    const totalTurnover = tracked.items.reduce((sum, item) => sum + item.turnover, 0);
+    const totalVolume = tracked.items.reduce((sum, item) => sum + item.volume, 0);
+    const averageMove = tracked.items.length
+      ? tracked.items.reduce((sum, item) => sum + item.change_pct, 0) / tracked.items.length
+      : 0;
+
+    return {
+      positiveCount,
+      liveCount,
+      fallbackCount,
+      totalTurnover,
+      totalVolume,
+      averageMove,
+      breadthRatio: tracked.items.length ? positiveCount / tracked.items.length : 0,
+    };
+  }, [tracked.items]);
+
   const openSymbolDetail = (item: SymbolSearchItem) => {
     const detailUrl = `/dashboard/symbol/${encodeURIComponent(item.symbol)}?name=${encodeURIComponent(item.name_ko)}&market=${encodeURIComponent(item.market)}&standardCode=${encodeURIComponent(item.standard_code)}`;
     window.open(detailUrl, "_blank", "noopener,noreferrer");
   };
 
-  if (error) {
-    return (
-      <main style={{ padding: 24, fontFamily: "sans-serif", background: "#07111f", color: "#eef4ff", minHeight: "100vh" }}>
-        <h1 style={{ marginTop: 0 }}>KIS DASHBOARD ERROR</h1>
-        <p style={{ color: "#ff909d" }}>{error}</p>
-        <p style={{ color: "#9fb0cf" }}>로딩이 계속되는 대신 실패 원인을 표시하도록 수정했습니다.</p>
-      </main>
-    );
-  }
-
-  const lead = tracked.items[0];
-
   return (
-    <main style={{ padding: 24, fontFamily: "sans-serif", background: "#07111f", color: "#eef4ff", minHeight: "100vh" }}>
-      <div style={{ marginBottom: 24, padding: 20, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-        <p style={{ margin: 0, color: "#8ea4cc", fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase" }}>LIVE KIS DASHBOARD</p>
-        <h1 style={{ margin: "8px 0 0", fontSize: 32 }}>Trading Dashboard Home</h1>
-        <p style={{ color: "#9fb0cf" }}>This page is directly wired to trading-core KIS-backed endpoints.</p>
-      </div>
-
-      <section style={{ marginBottom: 24, padding: 20, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 14, flexWrap: "wrap" }}>
-          <div>
-            <p style={{ margin: 0, color: "#8ea4cc", fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase" }}>MASTER SYMBOL SEARCH</p>
-            <h2 style={{ margin: "8px 0 6px" }}>Open symbol detail from the dashboard</h2>
-            <p style={{ color: "#9fb0cf", maxWidth: 720 }}>
-              Search the master symbol list by company name or code. Selecting a result opens a dedicated detail window for that symbol.
-            </p>
-          </div>
-          <div style={{ color: "#8ea4cc", fontSize: 12 }}>Minimum 2 characters</div>
-        </div>
-
-        <label style={{ display: "grid", gap: 10 }}>
-          <span style={{ color: "#cdd8ef", fontSize: 14 }}>Company name or symbol</span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Samsung / 005930"
-            style={{
-              width: "100%",
-              minHeight: 52,
-              borderRadius: 12,
-              border: "1px solid #2a3b57",
-              background: "#07111f",
-              color: "#eef4ff",
-              padding: "0 16px",
-              outline: "none",
-            }}
-          />
-        </label>
-
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginTop: 14, color: "#8ea4cc", fontSize: 13, flexWrap: "wrap" }}>
-          <span>
-            {searchLoading
-              ? "Searching master symbols…"
-              : searchQuery.trim().length < 2
-                ? "Type at least 2 characters to search."
-                : `${searchItems.length} matching symbols`}
-          </span>
-          {searchError ? <span style={{ color: "#ff909d" }}>{searchError}</span> : null}
-        </div>
-
-        <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-          {searchItems.map((item) => (
-            <button
-              key={`${item.symbol}-${item.standard_code}`}
-              type="button"
-              onClick={() => openSymbolDetail(item)}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 16,
-                alignItems: "center",
-                width: "100%",
-                padding: 16,
-                borderRadius: 14,
-                border: "1px solid #20324f",
-                background: "#07111f",
-                color: "#eef4ff",
-                textAlign: "left",
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <strong style={{ display: "block", fontSize: 16 }}>{item.name_ko}</strong>
-                <div style={{ color: "#9fb0cf", marginTop: 4 }}>{item.symbol} · {item.standard_code}</div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                <span style={{ padding: "6px 10px", borderRadius: 999, border: "1px solid #2a3b57", color: "#cdd8ef", fontSize: 12 }}>
-                  {item.market}
-                </span>
-                <span style={{ color: "#8ea4cc", fontSize: 13 }}>Open detail ↗</span>
-              </div>
-            </button>
-          ))}
-          {!searchLoading && searchQuery.trim().length >= 2 && searchItems.length === 0 && !searchError ? (
-            <div style={{ padding: 16, borderRadius: 14, border: "1px dashed #2a3b57", color: "#9fb0cf" }}>
-              No matching symbol or company was found in the master list.
+    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Live KIS Core Feed">
+      <div className={`page-stack ${styles.workspace}`}>
+        {coreUnavailable ? (
+          <section className={`glass ${styles.noticeBanner}`}>
+            <div>
+              <p className="eyebrow">Core unavailable</p>
+              <strong>Local mock snapshot is active</strong>
             </div>
-          ) : null}
-        </div>
-      </section>
+            <p>{error ?? "trading-core (127.0.0.1:8000)에 연결할 수 없어 mock 데이터로 렌더링 중입니다."}</p>
+          </section>
+        ) : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 24 }}>
-        <section style={{ padding: 18, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-          <div style={{ color: "#8ea4cc", fontSize: 12 }}>MARKET STATUS</div>
-          <h2>{market.state}</h2>
-          <p>Open: {String(market.is_open)}</p>
-          <p>Server time: {formatDisplayTimestamp(market.server_time)}</p>
+        <section className={`glass ${styles.hero}`}>
+          <div className={styles.heroIntro}>
+            <div className={styles.heroEyebrowRow}>
+              <span className={styles.heroEyebrow}>Realtime workspace</span>
+              <span className={styles.heroDivider} />
+              <span className={styles.heroEyebrow}>Stitch-inspired desk layout</span>
+            </div>
+            <h1>Trading Dashboard Home</h1>
+            <p className={styles.heroSummary}>
+              High-density monitoring surface for tracked KRX symbols, symbol search, lead quote context, and core
+              health. Existing data flows stay intact while the desk shifts to a cleaner control-room layout.
+            </p>
+            <div className={styles.heroMeta}>
+              <span className={styles.heroPillStrong}>{market.state}</span>
+              <span className={styles.heroPill}>1s refresh loop</span>
+              <span className={styles.heroPill}>Tracked universe {symbols.count}</span>
+            </div>
+          </div>
+
+          <div className={styles.heroStats}>
+            <article className={styles.heroStatCard}>
+              <span className={styles.statLabel}>Lead quote</span>
+              <strong>{lead?.symbol ?? "N/A"}</strong>
+              <span className={styles.statSubtle}>{getCompanyName(lead)}</span>
+              <span className={`${styles.statDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
+                {lead ? formatSignedPercent(lead.change_pct) : "N/A"}
+              </span>
+            </article>
+            <article className={styles.heroStatCard}>
+              <span className={styles.statLabel}>Tracked turnover</span>
+              <strong>{formatTurnover(computed.totalTurnover)}</strong>
+              <span className={styles.statSubtle}>
+                Volume {compactNumberFormatter.format(computed.totalVolume)}
+              </span>
+            </article>
+            <article className={styles.heroStatCard}>
+              <span className={styles.statLabel}>Breadth</span>
+              <strong>{Math.round(computed.breadthRatio * 100)}%</strong>
+              <span className={styles.statSubtle}>
+                {computed.positiveCount}/{tracked.items.length || 0} symbols positive
+              </span>
+            </article>
+          </div>
         </section>
 
-        <section style={{ padding: 18, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-          <div style={{ color: "#8ea4cc", fontSize: 12 }}>TRACKED SYMBOLS</div>
-          <h2>{symbols.count}</h2>
-          <p>Universe: {symbols.tracked_symbols.join(", ")}</p>
-          <p>Updated: {formatDisplayTimestamp(symbols.last_updated_at, "N/A")}</p>
-        </section>
+        <section className={styles.commandGrid}>
+          <div className={styles.primaryColumn}>
+            <section className={`glass ${styles.panel} ${styles.searchPanel}`}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className="eyebrow">Symbol command</p>
+                  <h2>Search master list and open detail windows</h2>
+                </div>
+                <div className={styles.headerBadges}>
+                  <span className="pill neutral">Min 2 chars</span>
+                  <span className="pill neutral">Window launch</span>
+                </div>
+              </div>
 
-        <section style={{ padding: 18, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-          <div style={{ color: "#8ea4cc", fontSize: 12 }}>LEAD QUOTE</div>
-          <h2>{getCompanyName(lead)}</h2>
-          <p>{lead?.symbol ?? "N/A"}</p>
-          <p>
-            {lead ? `${lead.change_pct >= 0 ? "+" : ""}${lead.change_pct.toFixed(2)}%` : "N/A"} /{" "}
-            {lead ? `${lead.change >= 0 ? "+" : ""}${lead.change.toLocaleString()}` : "N/A"}
-          </p>
+              <label className={styles.searchField}>
+                <span className={styles.searchLabel}>Company or ticker</span>
+                <div className={styles.searchInputShell}>
+                  <span className={styles.searchInputIcon}>SR</span>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Samsung / 005930"
+                  />
+                </div>
+              </label>
+
+              <div className={styles.searchStatusRow}>
+                <span>
+                  {searchLoading
+                    ? "Searching symbol master"
+                    : searchQuery.trim().length < 2
+                      ? "Enter at least 2 characters"
+                      : `${searchItems.length} matching results`}
+                </span>
+                <span>{searchError ?? "Opens detail in a new window"}</span>
+              </div>
+
+              <div className={styles.searchResultList}>
+                {searchItems.map((item) => (
+                  <button
+                    key={`${item.symbol}-${item.standard_code}`}
+                    type="button"
+                    className={styles.searchResultCard}
+                    onClick={() => openSymbolDetail(item)}
+                  >
+                    <div>
+                      <div className={styles.searchResultTitle}>{item.name_ko}</div>
+                      <div className={styles.searchResultMeta}>
+                        {item.symbol} · {item.standard_code}
+                      </div>
+                    </div>
+                    <div className={styles.searchResultSide}>
+                      <span className="pill neutral">{item.market}</span>
+                      <span className={styles.searchResultHint}>Open detail</span>
+                    </div>
+                  </button>
+                ))}
+
+                {!searchLoading && searchQuery.trim().length >= 2 && searchItems.length === 0 && !searchError ? (
+                  <div className={styles.emptyState}>No matching symbol or company was found in the master list.</div>
+                ) : null}
+              </div>
+            </section>
+
+            <section className={`glass ${styles.panel}`}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className="eyebrow">Market board</p>
+                  <h2>Tracked quotes at a glance</h2>
+                </div>
+                <div className={styles.headerBadges}>
+                  <span className="pill positive">{computed.liveCount} live</span>
+                  <span className="pill neutral">{computed.fallbackCount} fallback</span>
+                </div>
+              </div>
+
+              <div className={styles.quoteBoard}>
+                {tracked.items.map((item) => (
+                  <article key={item.symbol} className={styles.quoteCard}>
+                    <div className={styles.quoteCardTop}>
+                      <div>
+                        <div className={styles.quoteCardTitle}>{getCompanyName(item)}</div>
+                        <div className={styles.quoteCardMeta}>
+                          {item.symbol} · {item.market_state} · {item.source}
+                        </div>
+                      </div>
+                      <div className={`${styles.quoteDelta} ${getQuoteToneClass(item.change_pct)}`}>
+                        {formatSignedPercent(item.change_pct)}
+                      </div>
+                    </div>
+
+                    <div className={styles.quotePriceRow}>
+                      <strong>₩{formatPrice(item.price)}</strong>
+                      <span>{formatSignedNumber(item.change)}</span>
+                    </div>
+
+                    <div className={styles.metricStrip}>
+                      <div className={styles.metricBlock}>
+                        <span>Turnover</span>
+                        <strong>{formatTurnover(item.turnover)}</strong>
+                      </div>
+                      <div className={styles.metricBlock}>
+                        <span>Volume</span>
+                        <strong>{compactNumberFormatter.format(item.volume)}</strong>
+                      </div>
+                      <div className={styles.metricBlock}>
+                        <span>As of</span>
+                        <strong>{formatDisplayTimestamp(item.as_of)}</strong>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <aside className={styles.secondaryColumn}>
+            <section className={`glass ${styles.panel} ${styles.spotlightPanel}`}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className="eyebrow">Lead spotlight</p>
+                  <h2>{getCompanyName(lead)}</h2>
+                </div>
+                <span className={`pill ${market.is_open ? "positive" : "neutral"}`}>
+                  {market.is_open ? "Open" : "Closed"}
+                </span>
+              </div>
+
+              <div className={styles.spotlightPrice}>₩{lead ? formatPrice(lead.price) : "N/A"}</div>
+              <div className={`${styles.spotlightChange} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
+                {lead ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}` : "N/A"}
+              </div>
+
+              <div className={styles.spotlightMetaGrid}>
+                <div className={styles.metaPanel}>
+                  <span>Tracked state</span>
+                  <strong>{tracked.market_state}</strong>
+                </div>
+                <div className={styles.metaPanel}>
+                  <span>Feed mode</span>
+                  <strong>{lead?.is_live ? "Live" : "Cached"}</strong>
+                </div>
+                <div className={styles.metaPanel}>
+                  <span>Quote time</span>
+                  <strong>{formatDisplayTimestamp(lead?.as_of)}</strong>
+                </div>
+                <div className={styles.metaPanel}>
+                  <span>Server time</span>
+                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section className={`glass ${styles.panel}`}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className="eyebrow">Universe pulse</p>
+                  <h2>Tracked breadth and readiness</h2>
+                </div>
+              </div>
+
+              <div className={styles.progressGroup}>
+                <div className={styles.progressHeader}>
+                  <span>Positive breadth</span>
+                  <strong>{computed.positiveCount} names</strong>
+                </div>
+                <div className={styles.progressTrack}>
+                  <div className={styles.progressFill} style={{ width: `${computed.breadthRatio * 100}%` }} />
+                </div>
+              </div>
+
+              <div className={styles.progressGroup}>
+                <div className={styles.progressHeader}>
+                  <span>Live quotes</span>
+                  <strong>{computed.liveCount} active</strong>
+                </div>
+                <div className={styles.progressTrack}>
+                  <div
+                    className={`${styles.progressFill} ${styles.progressFillBlue}`}
+                    style={{ width: `${tracked.items.length ? (computed.liveCount / tracked.items.length) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.progressGroup}>
+                <div className={styles.progressHeader}>
+                  <span>Fallback exposure</span>
+                  <strong>{computed.fallbackCount} symbols</strong>
+                </div>
+                <div className={styles.progressTrack}>
+                  <div
+                    className={`${styles.progressFill} ${styles.progressFillAmber}`}
+                    style={{
+                      width: `${tracked.items.length ? (computed.fallbackCount / tracked.items.length) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.snapshotGrid}>
+                <article className={styles.snapshotCard}>
+                  <span>Avg move</span>
+                  <strong className={getQuoteToneClass(computed.averageMove)}>
+                    {formatSignedPercent(computed.averageMove)}
+                  </strong>
+                </article>
+                <article className={styles.snapshotCard}>
+                  <span>Universe size</span>
+                  <strong>{symbols.count}</strong>
+                </article>
+                <article className={styles.snapshotCard}>
+                  <span>Scanner list</span>
+                  <strong>{symbols.tracked_symbols.join(", ") || "-"}</strong>
+                </article>
+              </div>
+            </section>
+
+            <section className={`glass ${styles.panel}`}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className="eyebrow">Core health</p>
+                  <h2>Connection and timing</h2>
+                </div>
+                <span className="pill positive">Connected</span>
+              </div>
+
+              <div className={styles.healthList}>
+                <div className={styles.healthRow}>
+                  <span>Polling cadence</span>
+                  <strong>1 second</strong>
+                </div>
+                <div className={styles.healthRow}>
+                  <span>Tracked updated</span>
+                  <strong>{formatDisplayTimestamp(symbols.last_updated_at, "N/A")}</strong>
+                </div>
+                <div className={styles.healthRow}>
+                  <span>Last board refresh</span>
+                  <strong>{formatDisplayTimestamp(tracked.as_of)}</strong>
+                </div>
+                <div className={styles.healthRow}>
+                  <span>Lead source</span>
+                  <strong>{lead?.source ?? "N/A"}</strong>
+                </div>
+                <div className={styles.healthRow}>
+                  <span>Market open</span>
+                  <strong>{market.is_open ? "Yes" : "No"}</strong>
+                </div>
+              </div>
+            </section>
+          </aside>
         </section>
       </div>
-
-      <section style={{ padding: 20, border: "1px solid #2a3b57", borderRadius: 16, background: "#0b1728" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-          <div>
-            <p style={{ margin: 0, color: "#8ea4cc", fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase" }}>TRACKED QUOTES</p>
-            <h2 style={{ margin: "8px 0 4px" }}>Realtime KIS-backed watchlist</h2>
-            <p style={{ color: "#9fb0cf" }}>Market state: {tracked.market_state} · Updated {formatDisplayTimestamp(tracked.as_of)}</p>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gap: 12 }}>
-          {tracked.items.map((item) => (
-            <article
-              key={item.symbol}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1.4fr) repeat(5, minmax(0, 1fr))",
-                gap: 12,
-                alignItems: "center",
-                padding: 14,
-                borderRadius: 14,
-                border: "1px solid #20324f",
-                background: "#07111f",
-              }}
-            >
-              <div>
-                <strong style={{ display: "block", fontSize: 16 }}>{getCompanyName(item)}</strong>
-                <span style={{ color: "#8ea4cc", fontSize: 13 }}>{item.symbol}</span>
-              </div>
-              <div>
-                <div style={{ color: "#8ea4cc", fontSize: 12 }}>Price</div>
-                <strong>₩{item.price.toLocaleString()}</strong>
-              </div>
-              <div>
-                <div style={{ color: "#8ea4cc", fontSize: 12 }}>Change</div>
-                <strong style={{ color: item.change_pct >= 0 ? "#35d07f" : "#ff6b7a" }}>
-                  {item.change_pct >= 0 ? "+" : ""}
-                  {item.change_pct.toFixed(2)}%
-                </strong>
-              </div>
-              <div>
-                <div style={{ color: "#8ea4cc", fontSize: 12 }}>Volume</div>
-                <strong>{item.volume.toLocaleString()}</strong>
-              </div>
-              <div>
-                <div style={{ color: "#8ea4cc", fontSize: 12 }}>Turnover</div>
-                <strong>{formatTurnover(item.turnover)}</strong>
-              </div>
-              <div>
-                <div style={{ color: "#8ea4cc", fontSize: 12 }}>Updated</div>
-                <strong>{formatDisplayTimestamp(item.as_of)}</strong>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
+    </AppShell>
   );
 }
