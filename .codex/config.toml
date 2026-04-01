@@ -17,6 +17,8 @@ Layout: src/app (routes), src/features (domain composition), src/components (ui,
 Environment: TRADING_API_UPSTREAM_BASE_URL / TRADING_API_INTERNAL_BASE_URL and TRADING_API_UPSTREAM_BEARER_TOKEN are server-only. NEXT_PUBLIC_TRADING_API_BASE_URL is for the client adapter in src/lib/trading-api.ts. Never put secrets in NEXT_PUBLIC_*.
 
 When changing API shapes or routes, keep docs/API_CONTRACT.md and src/types/trading-api.ts aligned with implementation. Do not add live-trading behavior without explicit approval. Use English for code and technical documentation.
+
+After meaningful UI or routing changes, run Playwright: `npm run test:e2e` from the repository root (see `.codex/skills/playwright-iterate`). Iterate: run tests, fix failures or update intentional assertions, re-run until green.
 """
 
 [[skills.config]]
@@ -25,4 +27,8 @@ enabled = true
 
 [[skills.config]]
 path = ".codex/skills/trading-web-quality"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/playwright-iterate"
 enabled = true
