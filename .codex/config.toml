@@ -8,17 +8,23 @@ max_threads = 6
 max_depth = 1
 
 developer_instructions = """
-This workspace is KAI trading-web (Next.js App Router, TypeScript).
+This workspace is KAI trading-web (Next.js App Router, TypeScript). Project AI guidance lives under .codex/ (this file, skills, agents)—not in .cursor.
 
 Before substantial edits, read AGENTS.md, RULES.md, and ARCHITECTURE.md at the repository root.
 
 Layout: src/app (routes), src/features (domain composition), src/components (ui, navigation, layout, dashboard), src/lib (hooks, trading-api adapter, trading-upstream), src/data (mock/demo). Do not call brokers from the browser; use the Next BFF under src/app/api/trading/** or the configured API base URL.
 
+React/Next: Prefer Server Components; use "use client" only when required. Tailwind: flex/grid with gap-*; use cn() from @/lib/utils. When framework APIs are uncertain, verify against current official docs (do not guess).
+
 Environment: TRADING_API_UPSTREAM_BASE_URL / TRADING_API_INTERNAL_BASE_URL and TRADING_API_UPSTREAM_BEARER_TOKEN are server-only. NEXT_PUBLIC_TRADING_API_BASE_URL is for the client adapter in src/lib/trading-api.ts. Never put secrets in NEXT_PUBLIC_*.
 
 When changing API shapes or routes, keep docs/API_CONTRACT.md and src/types/trading-api.ts aligned with implementation. Do not add live-trading behavior without explicit approval. Use English for code and technical documentation.
 
-For new or refactored UI, prefer shadcn/ui via the CLI and `components.json` (see `.codex/skills/shadcn-ui` and https://ui.shadcn.com/docs/skills ). After substantive UI or routing edits, run `npm run test:e2e`.
+For new or refactored UI, prefer shadcn/ui via the CLI and components.json (see .codex/skills/shadcn-ui and https://ui.shadcn.com/docs/skills).
+
+After edits: run npm run lint; after UI or routing changes also run npm run test:e2e (see .codex/skills/playwright-iterate). Run npm run build when the change could affect typecheck or production compile.
+
+Optional deeper workflow patterns: .codex/skills/codex-workflow
 """
 
 [[skills.config]]
@@ -35,4 +41,8 @@ enabled = true
 
 [[skills.config]]
 path = ".codex/skills/shadcn-ui"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-workflow"
 enabled = true
