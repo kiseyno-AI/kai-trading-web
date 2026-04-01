@@ -13,9 +13,17 @@ This repository is part of the KAI trading system.
 - After UI or routing changes, run `npm run test:e2e` (Playwright); see `.codex/skills/playwright-iterate/SKILL.md`.
 - For new UI primitives, use shadcn/ui (`components.json`, `npx shadcn@latest add …`); see [shadcn Skills](https://ui.shadcn.com/docs/skills) and `.codex/skills/shadcn-ui/SKILL.md`.
 
+## OpenAI Codex
+
+- **Project layer:** [`.codex/config.toml`](./.codex/config.toml) (`developer_instructions`) loads when the workspace is **trusted** in Codex. See [Codex configuration](https://developers.openai.com/codex/config-reference).
+- **Skills:** [`.codex/skills/*/SKILL.md`](./.codex/skills/) — start with `codex-workflow`, `shadcn-ui`, `playwright-iterate`, `trading-api-wiring`, `trading-web-quality`.
+- **Subagents:** [`.codex/agents/*.toml`](./.codex/agents/) for focused roles (e.g. `playwright_verifier`, `trading_api_specialist`).
+- **Quality loop:** After changes, run `npm run lint`; after UI/routing, also `npm run test:e2e`. Use `npm run build` when compile/type risk exists. Ask Codex to run these and fix failures before finishing.
+- **Docs:** When Next.js / React / Tailwind APIs are unclear, have the agent verify against current official documentation rather than guessing.
+- **MCP:** Optional in user-level Codex config when you need external tools (DB, registries, etc.).
+
 ## Files to Read First
 - AGENTS.md
 - RULES.md
 - ARCHITECTURE.md
 - TASKS.md
-
