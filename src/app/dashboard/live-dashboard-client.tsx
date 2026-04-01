@@ -54,6 +54,7 @@ type SymbolSearchResponse = {
 };
 
 type LiveDashboardClientProps = {
+  initialError?: string | null;
   initialMarket: CoreMarketStatus;
   initialTracked: CoreTrackedQuotesResponse;
   initialSymbols: CoreTrackedSymbolsResponse;
@@ -91,6 +92,7 @@ function getQuoteToneClass(value: number): string {
 }
 
 export function LiveDashboardClient({
+  initialError = null,
   initialMarket,
   initialTracked,
   initialSymbols,
@@ -98,7 +100,7 @@ export function LiveDashboardClient({
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [symbols, setSymbols] = useState<CoreTrackedSymbolsResponse>(initialSymbols);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchItems, setSearchItems] = useState<SymbolSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -126,7 +128,7 @@ export function LiveDashboardClient({
         console.error("Dashboard polling failed", loadError);
         if (!active) return;
         setCoreUnavailable(true);
-        setError("코어 서버에 연결하지 못해 현재는 mock snapshot을 유지하고 있습니다.");
+        setError(loadError instanceof Error ? loadError.message : "Failed to refresh dashboard data.");
       }
     };
 
@@ -212,9 +214,9 @@ export function LiveDashboardClient({
           <section className={`glass ${styles.noticeBanner}`}>
             <div>
               <p className="eyebrow">Core unavailable</p>
-              <strong>Local mock snapshot is active</strong>
+              <strong>Mock snapshot is active</strong>
             </div>
-            <p>{error ?? "trading-core (127.0.0.1:8000)에 연결할 수 없어 mock 데이터로 렌더링 중입니다."}</p>
+            <p>{error ?? "Live trading API data is unavailable, so the dashboard is rendering a mock snapshot."}</p>
           </section>
         ) : null}
 
