@@ -13,20 +13,16 @@ async function getCoreJson<T>(path: string): Promise<T> {
 }
 
 export default async function DashboardPage() {
+  let market: CoreMarketStatus;
+  let tracked: CoreTrackedQuotesResponse;
+  let symbols: CoreTrackedSymbolsResponse;
+
   try {
-    const [market, tracked, symbols] = await Promise.all([
+    [market, tracked, symbols] = await Promise.all([
       getCoreJson<CoreMarketStatus>("/market/status"),
       getCoreJson<CoreTrackedQuotesResponse>("/quotes/tracked"),
       getCoreJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols"),
     ]);
-
-    return (
-      <LiveDashboardClient
-        initialMarket={market}
-        initialTracked={tracked}
-        initialSymbols={symbols}
-      />
-    );
   } catch (error) {
     console.error("Dashboard server render failed", error);
 
@@ -47,4 +43,12 @@ export default async function DashboardPage() {
       </main>
     );
   }
+
+  return (
+    <LiveDashboardClient
+      initialMarket={market}
+      initialTracked={tracked}
+      initialSymbols={symbols}
+    />
+  );
 }
