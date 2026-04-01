@@ -1,6 +1,6 @@
 # Trading Web (kai-trading-web)
 
-Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots areas, and a **BFF** that proxies selected calls to **trading-core** (FastAPI). This repo does **not** implement broker logic; the backend lives in **kai-trading-core**.
+Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots areas, and a **BFF** that proxies selected calls to **trading-core** (FastAPI). This repo does **not** implement broker integrations; the backend lives in **kai-trading-core**.
 
 ---
 
