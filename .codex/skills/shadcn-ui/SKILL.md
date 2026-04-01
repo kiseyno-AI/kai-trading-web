@@ -5,7 +5,7 @@ description: Adds and composes UI using shadcn/ui and the project components.jso
 
 # shadcn/ui (this project)
 
-Official overview and installer: [shadcn/ui Skills](https://ui.shadcn.com/docs/skills). Optional full skill pack: `npx skills add shadcn/ui -y` (may target Cursor; use project flags if prompted).
+Official overview: [shadcn/ui Skills](https://ui.shadcn.com/docs/skills). Optional upstream skill bundle: `npx skills add shadcn/ui -y` (install scope is editor-specific; this repo already ships `.codex/skills/shadcn-ui`).
 
 ## Before writing custom markup
 
