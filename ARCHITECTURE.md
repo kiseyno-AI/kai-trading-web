@@ -16,7 +16,7 @@
 ## Folder Conventions
 - `src/app/*` owns route entrypoints
 - `src/features/*` owns page-level composition for each domain
-- `src/components/ui/*` owns reusable primitives
+- `src/components/ui/*` owns reusable primitives (shadcn/ui via `components.json`; add with `npx shadcn@latest add …`)
 - `src/components/navigation/*` owns shared nav/search/mobile shell elements
 - `src/components/dashboard/*` owns dashboard-specific presentational parts
 - `src/data/*` owns mock/demo data and view contracts until API adapters are added
