@@ -10,6 +10,7 @@ This repository is part of the KAI trading system.
 - Update docs when structure or design changes.
 - Do not add live-trading behavior without explicit approval.
 - Commit clear, scoped changes.
+- After UI or routing changes, run `npm run test:e2e` (Playwright); see `.codex/skills/playwright-iterate/SKILL.md`.
 
 ## Files to Read First
 - AGENTS.md
