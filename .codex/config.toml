@@ -18,7 +18,7 @@ Environment: TRADING_API_UPSTREAM_BASE_URL / TRADING_API_INTERNAL_BASE_URL and T
 
 When changing API shapes or routes, keep docs/API_CONTRACT.md and src/types/trading-api.ts aligned with implementation. Do not add live-trading behavior without explicit approval. Use English for code and technical documentation.
 
-After meaningful UI or routing changes, run Playwright: `npm run test:e2e` from the repository root (see `.codex/skills/playwright-iterate`). Iterate: run tests, fix failures or update intentional assertions, re-run until green.
+For new or refactored UI, prefer shadcn/ui via the CLI and `components.json` (see `.codex/skills/shadcn-ui` and https://ui.shadcn.com/docs/skills ). After substantive UI or routing edits, run `npm run test:e2e`.
 """
 
 [[skills.config]]
@@ -31,4 +31,8 @@ enabled = true
 
 [[skills.config]]
 path = ".codex/skills/playwright-iterate"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/shadcn-ui"
 enabled = true
