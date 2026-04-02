@@ -61,6 +61,10 @@
   display: none;
 }
 
+.heroCollapsedLead {
+  display: none;
+}
+
 .heroMobileSummaryLabel {
   color: var(--muted-soft);
   font-size: 10px;
@@ -219,6 +223,20 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.heroCollapsedLeadRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.heroCollapsedLeadRow strong {
+  color: var(--text-strong);
+  font-size: 15px;
 }
 
 .insightRail {
@@ -602,19 +620,20 @@
   .hero,
   .panel,
   .insightCard {
-    padding: 18px;
+    padding: 16px;
   }
 
   .hero {
-    gap: 14px;
+    gap: 12px;
   }
 
   .hero h1 {
-    font-size: clamp(1.9rem, 10vw, 2.4rem);
+    max-width: 11ch;
+    font-size: clamp(1.55rem, 8vw, 1.95rem);
   }
 
   .heroCopy {
-    gap: 12px;
+    gap: 10px;
   }
 
   .heroHeaderRow {
@@ -623,13 +642,13 @@
 
   .heroBadgeRow {
     flex: 1;
-    gap: 8px;
+    gap: 6px;
   }
 
   .heroBadge,
   .heroBadgeStrong {
-    min-height: 30px;
-    padding: 0 10px;
+    min-height: 28px;
+    padding: 0 9px;
     font-size: 11px;
   }
 
@@ -667,29 +686,34 @@
     white-space: nowrap;
   }
 
+  .heroCollapsedLead {
+    display: grid;
+    gap: 6px;
+  }
+
   .noticeBanner {
-    align-items: flex-start;
-    padding: 14px 16px;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
   }
 
   .noticeBanner p:last-child {
-    max-width: none;
-    font-size: 13px;
-    line-height: 1.5;
+    display: none;
   }
 
   .heroShell:not(.heroShellExpanded) .kicker,
   .heroShell:not(.heroShellExpanded) .heroBadge:not(:first-child),
   .heroShell:not(.heroShellExpanded) .heroSummary,
   .heroShell:not(.heroShellExpanded) .heroDetails,
-  .heroShell:not(.heroShellExpanded) .heroSpotlight {
+  .heroShell:not(.heroShellExpanded) .heroSpotlight,
+  .heroShell:not(.heroShellExpanded) .heroMobileSummary {
     display: none;
   }
 
   .heroShell:not(.heroShellExpanded) .hero {
     grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 16px;
+    gap: 8px;
+    padding: 14px;
   }
 
   .insightRail {
@@ -700,10 +724,6 @@
 @media (max-width: 560px) {
   .heroMobileSummary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .hero h1 {
-    max-width: 10ch;
   }
 
   .heroMobileSummary > div:last-child {
