@@ -16,7 +16,7 @@ export function AppSidebar({ items, currentPath }: AppSidebarProps) {
           KAI
         </Link>
         <div className="sidebar-brand-copy">
-          <strong>Sovereign Desk</strong>
+          <strong>KAI Desk</strong>
           <span>Realtime command workspace</span>
         </div>
       </div>
