@@ -1876,15 +1876,81 @@ kbd {
   }
 
   .topbar-actions {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .topbar {
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .topbar-main {
+    gap: 14px;
+  }
+
+  .topbar-brand {
+    gap: 12px;
+  }
+
+  .topbar-brand-subtitle,
+  .topbar-summary,
+  .topbar-separator,
+  .topbar-link {
+    display: none;
+  }
+
+  .topbar-copy {
+    gap: 4px;
+  }
+
+  .topbar-copy h1 {
+    font-size: 1.55rem;
+    line-height: 1.05;
+  }
+
+  .topbar-page-row {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .mobile-menu-button {
+    min-height: 42px;
+    padding: 0 14px;
   }
 
   .locale-switch,
-  .locale-chip,
   .icon-pill,
   .profile-pill {
+    width: auto;
+  }
+
+  .locale-switch {
+    display: grid;
+    flex: 1 1 150px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .locale-chip {
     width: 100%;
     justify-content: center;
+  }
+
+  .icon-pill,
+  .profile-pill {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar-brand-title {
+    font-size: 18px;
+  }
+
+  .profile-pill {
+    min-height: 42px;
   }
 }
 .search-layout {

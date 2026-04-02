@@ -259,10 +259,21 @@ export function LiveDashboardClient({
         >
           <section id="dashboard-hero-details" className={`glass ${styles.hero}`}>
             <div className={styles.heroCopy}>
-              <div className={styles.heroBadgeRow}>
-                <span className={styles.heroBadgeStrong}>{market.state}</span>
-                <span className={styles.heroBadge}>1 second polling</span>
-                <span className={styles.heroBadge}>Tracked universe {symbols.count}</span>
+              <div className={styles.heroHeaderRow}>
+                <div className={styles.heroBadgeRow}>
+                  <span className={styles.heroBadgeStrong}>{market.state}</span>
+                  <span className={styles.heroBadge}>1 second polling</span>
+                  <span className={styles.heroBadge}>Tracked universe {symbols.count}</span>
+                </div>
+                <button
+                  type="button"
+                  className={styles.heroMobileToggle}
+                  aria-expanded={isMobileHeroExpanded}
+                  aria-controls="dashboard-hero-details"
+                  onClick={() => setIsMobileHeroExpanded((current) => !current)}
+                >
+                  {isMobileHeroExpanded ? "Less" : "More"}
+                </button>
               </div>
               <p className={styles.kicker}>Stitch-inspired command deck</p>
               <h1>Trading Dashboard Home</h1>
@@ -330,15 +341,6 @@ export function LiveDashboardClient({
               </div>
             </div>
           </section>
-          <button
-            type="button"
-            className={styles.heroMobileToggle}
-            aria-expanded={isMobileHeroExpanded}
-            aria-controls="dashboard-hero-details"
-            onClick={() => setIsMobileHeroExpanded((current) => !current)}
-          >
-            {isMobileHeroExpanded ? "Hide market snapshot" : "Show market snapshot"}
-          </button>
         </section>
 
         <section className={styles.insightRail}>

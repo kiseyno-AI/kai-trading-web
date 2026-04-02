@@ -9,6 +9,13 @@
 
 .heroShellExpanded {}
 
+.heroHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .noticeBanner {
   display: flex;
   align-items: center;
@@ -610,7 +617,12 @@
     gap: 12px;
   }
 
+  .heroHeaderRow {
+    align-items: center;
+  }
+
   .heroBadgeRow {
+    flex: 1;
     gap: 8px;
   }
 
@@ -623,17 +635,21 @@
 
   .heroMobileSummary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .heroMobileSummary > div {
     display: grid;
-    gap: 6px;
-    padding: 12px;
-    border-radius: 16px;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     background: rgba(255, 255, 255, 0.03);
+  }
+
+  .heroMobileSummary > div:last-child {
+    grid-column: 1 / -1;
   }
 
   .heroMobileSummary strong {
@@ -645,8 +661,25 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: auto;
+    min-height: 30px;
+    padding: 0 12px;
+    white-space: nowrap;
   }
 
+  .noticeBanner {
+    align-items: flex-start;
+    padding: 14px 16px;
+  }
+
+  .noticeBanner p:last-child {
+    max-width: none;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .heroShell:not(.heroShellExpanded) .kicker,
+  .heroShell:not(.heroShellExpanded) .heroBadge:not(:first-child),
   .heroShell:not(.heroShellExpanded) .heroSummary,
   .heroShell:not(.heroShellExpanded) .heroDetails,
   .heroShell:not(.heroShellExpanded) .heroSpotlight {
@@ -655,7 +688,8 @@
 
   .heroShell:not(.heroShellExpanded) .hero {
     grid-template-columns: 1fr;
-    padding-bottom: 16px;
+    gap: 10px;
+    padding: 16px;
   }
 
   .insightRail {
@@ -665,6 +699,14 @@
 
 @media (max-width: 560px) {
   .heroMobileSummary {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero h1 {
+    max-width: 10ch;
+  }
+
+  .heroMobileSummary > div:last-child {
+    grid-column: auto;
   }
 }
