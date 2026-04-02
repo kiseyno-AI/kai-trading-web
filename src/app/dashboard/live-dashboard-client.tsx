@@ -241,7 +241,7 @@ export function LiveDashboardClient({
   };
 
   return (
-    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Live KIS Core Feed">
+    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Live KIS Core Feed" compactMobileChrome>
       <div className={`page-stack ${styles.workspace}`}>
         {coreUnavailable ? (
           <section className={`glass ${styles.noticeBanner}`}>
@@ -272,11 +272,21 @@ export function LiveDashboardClient({
                   aria-controls="dashboard-hero-details"
                   onClick={() => setIsMobileHeroExpanded((current) => !current)}
                 >
-                  {isMobileHeroExpanded ? "Less" : "More"}
+                  {isMobileHeroExpanded ? "Hide overview" : "Show overview"}
                 </button>
               </div>
               <p className={styles.kicker}>Stitch-inspired command deck</p>
               <h1>Trading Dashboard Home</h1>
+              <div className={styles.heroCollapsedLead}>
+                <span className={styles.heroMobileSummaryLabel}>Lead quote</span>
+                <div className={styles.heroCollapsedLeadRow}>
+                  <strong>{lead?.symbol ?? "N/A"}</strong>
+                  <span>₩{lead ? formatPrice(lead.price) : "N/A"}</span>
+                  <span className={lead ? getQuoteToneClass(lead.change_pct) : ""}>
+                    {lead ? formatSignedPercent(lead.change_pct) : "Waiting for quote"}
+                  </span>
+                </div>
+              </div>
               <p className={styles.heroSummary}>
                 A denser trading board with clearer hierarchy: lead quote context up top, actionable symbol search in
                 the main lane, and side-rail health signals that stay readable while live data keeps updating.
@@ -291,8 +301,8 @@ export function LiveDashboardClient({
                   <strong>{formatDisplayTimestamp(tracked.as_of)}</strong>
                 </div>
                 <div>
-                  <span className={styles.heroMobileSummaryLabel}>Market</span>
-                  <strong>{market.is_open ? "Open" : "Closed"}</strong>
+                  <span className={styles.heroMobileSummaryLabel}>Server time</span>
+                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
                 </div>
               </div>
               <div className={styles.heroDetails}>

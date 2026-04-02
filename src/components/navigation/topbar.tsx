@@ -11,16 +11,17 @@ type TopbarProps = {
   currentPath: string;
   title: string;
   eyebrow: string;
+  compactMobileChrome?: boolean;
   suggestions: SearchSuggestionDto[];
   onToggleMobileNav: () => void;
 };
 
-export function Topbar({ currentPath, title, eyebrow, suggestions, onToggleMobileNav }: TopbarProps) {
+export function Topbar({ currentPath, title, eyebrow, compactMobileChrome = false, suggestions, onToggleMobileNav }: TopbarProps) {
   const { locale, notificationsOn, setLocale, setNotificationsOn, t } = useAppState();
   const routeLabel = currentPath.replace("/", "") || "dashboard";
 
   return (
-    <header className="glass topbar">
+    <header className={`glass topbar ${compactMobileChrome ? "topbar-compact-mobile" : ""}`}>
       <div className="topbar-main">
         <div className="topbar-brand">
           <div className="topbar-brand-mark">KAI</div>
@@ -44,7 +45,7 @@ export function Topbar({ currentPath, title, eyebrow, suggestions, onToggleMobil
       </div>
 
       <Button className="mobile-menu-button" variant="glass" onClick={onToggleMobileNav} aria-label="Open navigation">
-        NAV
+        Menu
       </Button>
 
       <div className="topbar-actions">
