@@ -1,0 +1,42 @@
+name: OpenClaw Issue Hook
+
+on:
+  issues:
+    types: [opened, edited, reopened, labeled]
+
+jobs:
+  notify-openclaw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send issue to OpenClaw
+        env:
+          OPENCLAW_HOOK_URL: ${{ secrets.OPENCLAW_HOOK_URL }}
+          OPENCLAW_HOOK_TOKEN: ${{ secrets.OPENCLAW_HOOK_TOKEN }}
+        run: |
+          jq -n \
+            --arg repo "${{ github.repository }}" \
+            --arg number "${{ github.event.issue.number }}" \
+            --arg title "${{ github.event.issue.title }}" \
+            --arg body "${{ github.event.issue.body }}" \
+            --arg url "${{ github.event.issue.html_url }}" \
+            --arg labels "${{ join(github.event.issue.labels.*.name, ', ') }}" \
+            '{
+              message:
+                ("GitHub issue webhook received.\n" +
+                 "Repository: " + $repo + "\n" +
+                 "Issue: #" + $number + " - " + $title + "\n" +
+                 "URL: " + $url + "\n" +
+                 "Labels: " + $labels + "\n\n" +
+                 "Body:\n" + $body + "\n\n" +
+                 "Analyze this issue, read local project guidance (.codex/skills, AGENTS.md, RULES.md, ARCHITECTURE.md, TASKS.md), create a detailed development plan aligned with the existing design/system, and if the task is clear and bounded, start ACP Codex work. Keep changes within the existing design language and avoid unnecessary redesign."),
+              name: "GitHub Issue",
+              agentId: "steve",
+              wakeMode: "now",
+              deliver: true,
+              channel: "discord",
+              to: "1487706998949810227"
+            }' \
+          | curl -sS -X POST "$OPENCLAW_HOOK_URL" \
+              -H "Authorization: Bearer $OPENCLAW_HOOK_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data @-
