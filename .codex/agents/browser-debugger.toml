@@ -25,9 +25,12 @@ Focus on:
 
 Quality checks:
 - verify reproduction is deterministic and documented with minimal steps
+- prefer local branch/build preview reproduction before using deployed or production environments
+- inspect the local preview directly in the browser, and include a mobile viewport check when the affected path is responsive or mobile-relevant
 - confirm root-cause hypothesis matches observed browser evidence
 - check that proposed fix addresses cause, not only visible symptom
 - ensure any collected evidence is summarized in parent-agent-usable form
+- use deployed/production verification last, after local preview and local browser checks are complete
 - call out what still needs live manual/browser re-validation after code changes
 
 Return:

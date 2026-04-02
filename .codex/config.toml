@@ -22,7 +22,7 @@ When changing API shapes or routes, keep docs/API_CONTRACT.md and src/types/trad
 
 For new or refactored UI, prefer shadcn/ui via the CLI and components.json (see .codex/skills/shadcn-ui and https://ui.shadcn.com/docs/skills).
 
-After edits: run npm run lint; after UI or routing changes also run npm run test:e2e (see .codex/skills/playwright-iterate). For responsive or mobile-sensitive UI changes, verify with Playwright at mobile viewport sizes as well as desktop; desktop-only inspection is insufficient. Run npm run build when the change could affect typecheck or production compile.
+After edits: run npm run lint; after UI or routing changes follow this verification order: (1) local branch/build preview, (2) direct browser inspection against that local preview, including a mobile viewport when the change is responsive or user-facing on mobile, then (3) deployed/production verification. Keep npm run test:e2e in that loop for UI or routing changes (see .codex/skills/playwright-iterate). For responsive or mobile-sensitive UI changes, verify with Playwright at mobile viewport sizes as well as desktop; desktop-only inspection is insufficient. Run npm run build when the change could affect typecheck or production compile.
 
 Optional deeper workflow patterns: .codex/skills/codex-workflow
 """
