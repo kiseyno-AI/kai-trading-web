@@ -181,6 +181,9 @@ export function LiveDashboardClient({
   }, [searchQuery]);
 
   const lead = tracked.items[0];
+  const fallbackSummary = error
+    ? "Core feed unreachable. Showing a mock snapshot until the connection recovers."
+    : "Live data is unavailable, so the dashboard is showing a mock snapshot.";
 
   const computed = useMemo(() => {
     const positiveCount = tracked.items.filter((item) => item.change_pct >= 0).length;
@@ -245,11 +248,14 @@ export function LiveDashboardClient({
       <div className={`page-stack ${styles.workspace}`}>
         {coreUnavailable ? (
           <section className={`glass ${styles.noticeBanner}`}>
-            <div>
-              <p className="eyebrow">Core unavailable</p>
-              <strong>Mock snapshot is active</strong>
+            <div className={styles.noticeBannerCopy}>
+              <span className={styles.noticeBadge}>Fallback</span>
+              <div>
+                <p className="eyebrow">Core unavailable</p>
+                <strong>Mock snapshot active</strong>
+              </div>
             </div>
-            <p>{error ?? "Live trading API data is unavailable, so the dashboard is rendering a mock snapshot."}</p>
+            <p>{fallbackSummary}</p>
           </section>
         ) : null}
 
@@ -285,6 +291,7 @@ export function LiveDashboardClient({
                   <span className={lead ? getQuoteToneClass(lead.change_pct) : ""}>
                     {lead ? formatSignedPercent(lead.change_pct) : "Waiting for quote"}
                   </span>
+                  <span className={styles.heroCollapsedTimestamp}>Refresh {formatDisplayTimestamp(tracked.as_of)}</span>
                 </div>
               </div>
               <p className={styles.heroSummary}>

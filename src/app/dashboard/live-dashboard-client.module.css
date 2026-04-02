@@ -28,6 +28,28 @@
     rgba(27, 20, 10, 0.92);
 }
 
+.noticeBannerCopy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.noticeBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 92, 0.24);
+  background: rgba(255, 179, 92, 0.12);
+  color: #ffd9aa;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .noticeBanner strong {
   display: block;
   margin-top: 6px;
@@ -63,6 +85,11 @@
 
 .heroCollapsedLead {
   display: none;
+}
+
+.heroCollapsedTimestamp {
+  color: var(--muted-soft);
+  font-size: 12px;
 }
 
 .heroMobileSummaryLabel {
@@ -628,16 +655,18 @@
   }
 
   .hero h1 {
-    max-width: 11ch;
-    font-size: clamp(1.55rem, 8vw, 1.95rem);
+    max-width: none;
+    font-size: clamp(1.35rem, 7vw, 1.6rem);
+    line-height: 1;
   }
 
   .heroCopy {
-    gap: 10px;
+    gap: 8px;
   }
 
   .heroHeaderRow {
     align-items: center;
+    gap: 8px;
   }
 
   .heroBadgeRow {
@@ -647,9 +676,9 @@
 
   .heroBadge,
   .heroBadgeStrong {
-    min-height: 28px;
-    padding: 0 9px;
-    font-size: 11px;
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 10px;
   }
 
   .heroMobileSummary {
@@ -681,20 +710,54 @@
     align-items: center;
     justify-content: center;
     width: auto;
-    min-height: 30px;
-    padding: 0 12px;
+    min-height: 26px;
+    padding: 0 10px;
     white-space: nowrap;
+    font-size: 10px;
   }
 
   .heroCollapsedLead {
     display: grid;
     gap: 6px;
+    padding: 8px 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .heroCollapsedLeadRow {
+    gap: 6px 8px;
+    font-size: 12px;
+  }
+
+  .heroCollapsedLeadRow strong {
+    font-size: 14px;
+  }
+
+  .heroCollapsedTimestamp {
+    width: 100%;
+    font-size: 11px;
   }
 
   .noticeBanner {
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .noticeBannerCopy {
+    gap: 8px;
+  }
+
+  .noticeBadge {
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+
+  .noticeBanner strong {
+    margin-top: 3px;
+    font-size: 13px;
   }
 
   .noticeBanner p:last-child {
@@ -712,12 +775,40 @@
 
   .heroShell:not(.heroShellExpanded) .hero {
     grid-template-columns: 1fr;
-    gap: 8px;
-    padding: 14px;
+    gap: 6px;
+    padding: 12px;
   }
 
   .insightRail {
-    grid-template-columns: 1fr;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .insightRail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .insightCard {
+    flex: 0 0 72%;
+    min-height: 88px;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+
+  .insightCard strong {
+    font-size: 1.1rem;
+  }
+
+  .panel {
+    gap: 14px;
+  }
+
+  .panelHeader h2 {
+    margin-top: 6px;
+    font-size: 1.1rem;
   }
 }
 
