@@ -18,7 +18,7 @@ test.describe("smoke", () => {
 
   test("dashboard renders success or upstream-missing state", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: /Trading Dashboard Home/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Trading Dashboard Home|KIS DASHBOARD ERROR/i })).toBeVisible();
   });
 
   test("kis dashboard renders even when an upstream section is unavailable", async ({ page }) => {

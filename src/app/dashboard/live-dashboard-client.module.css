@@ -2,6 +2,13 @@
   gap: 20px;
 }
 
+.heroShell {
+  display: grid;
+  gap: 10px;
+}
+
+.heroShellExpanded {}
+
 .noticeBanner {
   display: flex;
   align-items: center;
@@ -41,6 +48,18 @@
 .heroSpotlight {
   display: grid;
   gap: 16px;
+}
+
+.heroMobileSummary {
+  display: none;
+}
+
+.heroMobileSummaryLabel {
+  color: var(--muted-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .heroBadgeRow,
@@ -179,6 +198,20 @@
 .heroMiniGrid strong {
   color: var(--text-strong);
   font-size: 14px;
+}
+
+.heroMobileToggle {
+  display: none;
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .insightRail {
@@ -565,7 +598,73 @@
     padding: 18px;
   }
 
+  .hero {
+    gap: 14px;
+  }
+
+  .hero h1 {
+    font-size: clamp(1.9rem, 10vw, 2.4rem);
+  }
+
+  .heroCopy {
+    gap: 12px;
+  }
+
+  .heroBadgeRow {
+    gap: 8px;
+  }
+
+  .heroBadge,
+  .heroBadgeStrong {
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .heroMobileSummary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .heroMobileSummary > div {
+    display: grid;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .heroMobileSummary strong {
+    color: var(--text-strong);
+    font-size: 13px;
+  }
+
+  .heroMobileToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .heroShell:not(.heroShellExpanded) .heroSummary,
+  .heroShell:not(.heroShellExpanded) .heroDetails,
+  .heroShell:not(.heroShellExpanded) .heroSpotlight {
+    display: none;
+  }
+
+  .heroShell:not(.heroShellExpanded) .hero {
+    grid-template-columns: 1fr;
+    padding-bottom: 16px;
+  }
+
   .insightRail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .heroMobileSummary {
     grid-template-columns: 1fr;
   }
 }

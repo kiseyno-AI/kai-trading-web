@@ -97,6 +97,7 @@ export function LiveDashboardClient({
   initialTracked,
   initialSymbols,
 }: LiveDashboardClientProps) {
+  const [isMobileHeroExpanded, setIsMobileHeroExpanded] = useState(false);
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [symbols, setSymbols] = useState<CoreTrackedSymbolsResponse>(initialSymbols);
@@ -252,62 +253,92 @@ export function LiveDashboardClient({
           </section>
         ) : null}
 
-        <section className={`glass ${styles.hero}`}>
-          <div className={styles.heroCopy}>
-            <div className={styles.heroBadgeRow}>
-              <span className={styles.heroBadgeStrong}>{market.state}</span>
-              <span className={styles.heroBadge}>1 second polling</span>
-              <span className={styles.heroBadge}>Tracked universe {symbols.count}</span>
-            </div>
-            <p className={styles.kicker}>Stitch-inspired command deck</p>
-            <h1>Trading Dashboard Home</h1>
-            <p className={styles.heroSummary}>
-              A denser trading board with clearer hierarchy: lead quote context up top, actionable symbol search in
-              the main lane, and side-rail health signals that stay readable while live data keeps updating.
-            </p>
-            <div className={styles.heroDetails}>
-              <div>
-                <span>Universe</span>
-                <strong>{symbols.tracked_symbols.join(", ") || "-"}</strong>
+        <section
+          className={`${styles.heroShell} ${isMobileHeroExpanded ? styles.heroShellExpanded : ""}`}
+          aria-label="Dashboard overview"
+        >
+          <section id="dashboard-hero-details" className={`glass ${styles.hero}`}>
+            <div className={styles.heroCopy}>
+              <div className={styles.heroBadgeRow}>
+                <span className={styles.heroBadgeStrong}>{market.state}</span>
+                <span className={styles.heroBadge}>1 second polling</span>
+                <span className={styles.heroBadge}>Tracked universe {symbols.count}</span>
               </div>
-              <div>
-                <span>Server time</span>
-                <strong>{formatDisplayTimestamp(market.server_time)}</strong>
+              <p className={styles.kicker}>Stitch-inspired command deck</p>
+              <h1>Trading Dashboard Home</h1>
+              <p className={styles.heroSummary}>
+                A denser trading board with clearer hierarchy: lead quote context up top, actionable symbol search in
+                the main lane, and side-rail health signals that stay readable while live data keeps updating.
+              </p>
+              <div className={styles.heroMobileSummary}>
+                <div>
+                  <span className={styles.heroMobileSummaryLabel}>Lead quote</span>
+                  <strong>{lead?.symbol ?? "N/A"}</strong>
+                </div>
+                <div>
+                  <span className={styles.heroMobileSummaryLabel}>Last refresh</span>
+                  <strong>{formatDisplayTimestamp(tracked.as_of)}</strong>
+                </div>
+                <div>
+                  <span className={styles.heroMobileSummaryLabel}>Market</span>
+                  <strong>{market.is_open ? "Open" : "Closed"}</strong>
+                </div>
+              </div>
+              <div className={styles.heroDetails}>
+                <div>
+                  <span>Universe</span>
+                  <strong>{symbols.tracked_symbols.join(", ") || "-"}</strong>
+                </div>
+                <div>
+                  <span>Server time</span>
+                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className={styles.heroSpotlight}>
-            <div className={styles.heroSpotlightHeader}>
-              <div>
-                <p className="eyebrow">Lead spotlight</p>
-                <h2>{getCompanyName(lead)}</h2>
+            <div className={styles.heroSpotlight}>
+              <div className={styles.heroSpotlightHeader}>
+                <div>
+                  <p className="eyebrow">Lead spotlight</p>
+                  <h2>{getCompanyName(lead)}</h2>
+                </div>
+                <span className={`pill ${market.is_open ? "positive" : "neutral"}`}>
+                  {market.is_open ? "Open" : "Closed"}
+                </span>
               </div>
-              <span className={`pill ${market.is_open ? "positive" : "neutral"}`}>{market.is_open ? "Open" : "Closed"}</span>
+              <strong className={styles.heroPrice}>₩{lead ? formatPrice(lead.price) : "N/A"}</strong>
+              <div className={`${styles.heroDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
+                {lead ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}` : "Waiting for quote"}
+              </div>
+              <div className={styles.heroMiniGrid}>
+                <article>
+                  <span>Turnover</span>
+                  <strong>{lead ? formatTurnover(lead.turnover) : "N/A"}</strong>
+                </article>
+                <article>
+                  <span>Volume</span>
+                  <strong>{lead ? compactNumberFormatter.format(lead.volume) : "N/A"}</strong>
+                </article>
+                <article>
+                  <span>Quote time</span>
+                  <strong>{formatDisplayTimestamp(lead?.as_of)}</strong>
+                </article>
+                <article>
+                  <span>Feed mode</span>
+                  <strong>{lead?.is_live ? "Live" : "Cached"}</strong>
+                </article>
+              </div>
             </div>
-            <strong className={styles.heroPrice}>₩{lead ? formatPrice(lead.price) : "N/A"}</strong>
-            <div className={`${styles.heroDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
-              {lead ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}` : "Waiting for quote"}
-            </div>
-            <div className={styles.heroMiniGrid}>
-              <article>
-                <span>Turnover</span>
-                <strong>{lead ? formatTurnover(lead.turnover) : "N/A"}</strong>
-              </article>
-              <article>
-                <span>Volume</span>
-                <strong>{lead ? compactNumberFormatter.format(lead.volume) : "N/A"}</strong>
-              </article>
-              <article>
-                <span>Quote time</span>
-                <strong>{formatDisplayTimestamp(lead?.as_of)}</strong>
-              </article>
-              <article>
-                <span>Feed mode</span>
-                <strong>{lead?.is_live ? "Live" : "Cached"}</strong>
-              </article>
-            </div>
-          </div>
+          </section>
+          <button
+            type="button"
+            className={styles.heroMobileToggle}
+            aria-expanded={isMobileHeroExpanded}
+            aria-controls="dashboard-hero-details"
+            onClick={() => setIsMobileHeroExpanded((current) => !current)}
+          >
+            {isMobileHeroExpanded ? "Hide market snapshot" : "Show market snapshot"}
+          </button>
         </section>
 
         <section className={styles.insightRail}>
