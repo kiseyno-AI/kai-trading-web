@@ -17,6 +17,7 @@ type TopbarProps = {
 
 export function Topbar({ currentPath, title, eyebrow, suggestions, onToggleMobileNav }: TopbarProps) {
   const { locale, notificationsOn, setLocale, setNotificationsOn, t } = useAppState();
+  const routeLabel = currentPath.replace("/", "") || "dashboard";
 
   return (
     <header className="glass topbar">
@@ -30,9 +31,13 @@ export function Topbar({ currentPath, title, eyebrow, suggestions, onToggleMobil
         </div>
 
         <div className="topbar-copy">
-          <p className="topbar-page">{currentPath.replace("/", "") || "dashboard"}</p>
-          <p className="eyebrow">{eyebrow}</p>
+          <div className="topbar-page-row">
+            <p className="topbar-page">{routeLabel}</p>
+            <span className="topbar-separator" />
+            <p className="eyebrow">{eyebrow}</p>
+          </div>
           <h1>{title}</h1>
+          <p className="topbar-summary">Clean desk shell with faster scanability for live market surfaces.</p>
         </div>
 
         <SearchPicker suggestions={suggestions} />
