@@ -9,8 +9,8 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 | Area | Notes |
 |------|--------|
 | **UI** | App Router, React 19, Tailwind v4, shadcn/ui (`components.json`, Nova preset) |
-| **Dashboard** | Live-oriented `/dashboard` SSR-fetches trading-core (`/market/status`, `/quotes/tracked`, `/scanner/tracked-symbols`); shows an error state if the core is unreachable |
-| **Data modes** | **Mock:** when `NEXT_PUBLIC_TRADING_API_BASE_URL` is unset, `src/lib/trading-api.ts` serves demo data from `src/data/trading-dashboard.ts`. **Live:** set the public base URL to your API origin (often same-origin BFF: `http://localhost:3000/api/trading`) |
+| **Dashboard** | Live-oriented `/dashboard` SSR-fetches live trading data (`/market/status`, `/quotes/tracked`, `/scanner/tracked-symbols`); it prefers server upstream env, then `NEXT_PUBLIC_TRADING_API_BASE_URL`, then same-origin `/api/trading` on non-localhost requests, and shows an error state if all live paths fail |
+| **Data modes** | **Mock:** in local development, when `NEXT_PUBLIC_TRADING_API_BASE_URL` is unset, `src/lib/trading-api.ts` serves demo data from `src/data/trading-dashboard.ts`. **Live:** set the public base URL to your API origin (often same-origin BFF: `http://localhost:3000/api/trading`). On non-localhost deployments, the client adapter falls back to same-origin `/api/trading` when the public base URL is unset. |
 | **BFF** | `src/app/api/trading/**` forwards GET requests to the **upstream** core API with optional bearer token |
 | **Bots / markets (adapter)** | Bots overview and some flows still use mock adapter paths until wired to real endpoints |
 | **Quality** | ESLint, Playwright e2e (`e2e/`), GitHub Actions CI |
@@ -39,9 +39,9 @@ If the client calls the core **directly** (bypassing the BFF), it must satisfy *
 | `TRADING_API_UPSTREAM_BASE_URL` | Server | Upstream trading-core origin (e.g. `https://api.example.com`) |
 | `TRADING_API_INTERNAL_BASE_URL` | Server | Legacy alias for upstream base URL |
 | `TRADING_API_UPSTREAM_BEARER_TOKEN` | Server | Bearer token forwarded to core on BFF proxy calls |
-| `NEXT_PUBLIC_TRADING_API_BASE_URL` | Client | If set, `trading-api.ts` uses this base for fetches; if unset, **mock** data |
+| `NEXT_PUBLIC_TRADING_API_BASE_URL` | Client | If set, client fetches use this base; if unset, localhost keeps **mock** data while deployed environments fall back to same-origin `/api/trading` |
 
-If no upstream base URL env is set, the BFF defaults to **`http://127.0.0.1:8000`** (local trading-core).
+If no upstream base URL env is set, server-side direct upstream fetches and the BFF default to **`http://127.0.0.1:8000`** (local trading-core). The `/dashboard` server render now falls back to `NEXT_PUBLIC_TRADING_API_BASE_URL` or same-origin `/api/trading` before using that localhost default.
 
 Copy **[`.env.example`](./.env.example)** to `.env.local` and adjust.
 

@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 import {
   LiveDashboardClient,
   type CoreMarketStatus,
@@ -5,13 +7,9 @@ import {
   type CoreTrackedSymbolsResponse,
 } from "./live-dashboard-client";
 import { dashboardData } from "@/data/trading-dashboard";
-import { fetchTradingUpstreamJson } from "@/lib/trading-upstream";
+import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 
 export const dynamic = "force-dynamic";
-
-async function getCoreJson<T>(path: string): Promise<T> {
-  return fetchTradingUpstreamJson<T>(path);
-}
 
 function getMockDashboardPayload() {
   const now = new Date().toISOString();
@@ -54,20 +52,24 @@ export default async function DashboardPage() {
   let market: CoreMarketStatus;
   let tracked: CoreTrackedQuotesResponse;
   let symbols: CoreTrackedSymbolsResponse;
+  let initialError: string | null = null;
+  const requestHeaders = await headers();
 
   try {
     [market, tracked, symbols] = await Promise.all([
-      getCoreJson<CoreMarketStatus>("/market/status"),
-      getCoreJson<CoreTrackedQuotesResponse>("/quotes/tracked"),
-      getCoreJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols"),
+      fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
+      fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
+      fetchServerTradingApiJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols", requestHeaders),
     ]);
   } catch (error) {
+    initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
     console.error("Dashboard server render failed", error);
     ({ market, tracked, symbols } = getMockDashboardPayload());
   }
 
   return (
     <LiveDashboardClient
+      initialError={initialError}
       initialMarket={market}
       initialTracked={tracked}
       initialSymbols={symbols}
