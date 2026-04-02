@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import {
@@ -9,6 +10,9 @@ import {
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Trading Dashboard Home",
+};
 
 function getMockDashboardPayload() {
   const now = new Date().toISOString();

@@ -25,7 +25,7 @@ export function Topbar({ currentPath, title, eyebrow, suggestions, onToggleMobil
         <div className="topbar-brand">
           <div className="topbar-brand-mark">KAI</div>
           <div>
-            <div className="topbar-brand-title">Sovereign Desk</div>
+            <div className="topbar-brand-title">KAI Desk</div>
             <div className="topbar-brand-subtitle">Trading workstation shell</div>
           </div>
         </div>
