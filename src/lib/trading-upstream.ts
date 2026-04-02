@@ -64,6 +64,18 @@ export function fetchTradingUpstream(path: string) {
   });
 }
 
+function formatFetchErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function parseJsonResponse<T>(response: Response, requestLabel: string): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch (error) {
+    throw new Error(`Failed to parse JSON for ${requestLabel}: ${formatFetchErrorMessage(error)}`);
+  }
+}
+
 export function getServerTradingApiBaseUrl(requestHeaders?: Headers) {
   const upstreamBaseUrl = getConfiguredTradingUpstreamBaseUrl();
   if (upstreamBaseUrl) {
@@ -87,13 +99,22 @@ export function getServerTradingApiBaseUrl(requestHeaders?: Headers) {
 }
 
 export async function fetchTradingUpstreamJson<T>(path: string): Promise<T> {
-  const response = await fetchTradingUpstream(path);
+  const upstreamBaseUrl = getTradingUpstreamBaseUrl();
+  let response: Response;
 
-  if (!response.ok) {
-    throw new Error(`Failed to load ${path}: HTTP ${response.status}`);
+  try {
+    response = await fetchTradingUpstream(path);
+  } catch (error) {
+    throw new Error(
+      `Failed to load ${path} from ${upstreamBaseUrl}: ${formatFetchErrorMessage(error)}`,
+    );
   }
 
-  return (await response.json()) as T;
+  if (!response.ok) {
+    throw new Error(`Failed to load ${path} from ${upstreamBaseUrl}: HTTP ${response.status}`);
+  }
+
+  return parseJsonResponse<T>(response, `${path} from ${upstreamBaseUrl}`);
 }
 
 export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?: Headers): Promise<T> {
@@ -103,22 +124,47 @@ export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?
   }
 
   const baseUrl = getServerTradingApiBaseUrl(requestHeaders);
-  const response = await fetch(`${baseUrl}${path}`, {
-    headers: {
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw new Error(`Failed to load ${path} from ${baseUrl}: ${formatFetchErrorMessage(error)}`);
+  }
 
   if (!response.ok) {
     throw new Error(`Failed to load ${path} from ${baseUrl}: HTTP ${response.status}`);
   }
 
-  return (await response.json()) as T;
+  return parseJsonResponse<T>(response, `${path} from ${baseUrl}`);
 }
 
 export async function proxyTradingUpstreamJson(path: string) {
-  const response = await fetchTradingUpstream(path);
-  const data = await response.json();
-  return NextResponse.json(data, { status: response.status });
+  try {
+    const response = await fetchTradingUpstream(path);
+    const body = await response.text();
+    const contentType = response.headers.get("content-type") ?? "application/json";
+
+    return new NextResponse(body, {
+      status: response.status,
+      headers: {
+        "content-type": contentType,
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "Upstream fetch failed",
+        message: formatFetchErrorMessage(error),
+        path,
+        upstreamBaseUrl: getTradingUpstreamBaseUrl(),
+      },
+      { status: 502 },
+    );
+  }
 }
