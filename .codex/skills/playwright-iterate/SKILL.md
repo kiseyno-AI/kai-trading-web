@@ -19,9 +19,10 @@ If browsers are missing: `npx playwright install chromium`
 After implementing or refactoring UI:
 
 1. Run `npm run test:e2e` (or `CI=true npm run test:e2e` in automation so a fresh dev server is spawned).
-2. If tests fail: read the failure line, open the listed spec under `e2e/`, fix app code or update assertions if the behavior change was intentional.
-3. Re-run until green. Prefer fixing product bugs over weakening assertions unless the spec is wrong.
-4. For flaky timing, use Playwright auto-waiting (`expect(locator).toBeVisible()`); avoid fixed `waitForTimeout` unless unavoidable.
+2. If the change is responsive, layout-sensitive, or otherwise mobile-sensitive, verify the impacted flow at mobile viewport sizes in Playwright, not just desktop. Desktop-only inspection is insufficient for these changes.
+3. If tests fail: read the failure line, open the listed spec under `e2e/`, fix app code or update assertions if the behavior change was intentional.
+4. Re-run until green. Prefer fixing product bugs over weakening assertions unless the spec is wrong.
+5. For flaky timing, use Playwright auto-waiting (`expect(locator).toBeVisible()`); avoid fixed `waitForTimeout` unless unavoidable.
 
 ## Tests location
 
@@ -35,3 +36,5 @@ After implementing or refactoring UI:
 ## Expanding coverage
 
 Add focused specs next to `smoke.spec.ts` for critical flows (search, symbol page, API proxy). Use `data-testid` on unstable widgets only when roles and labels are insufficient.
+
+For responsive UI coverage, prefer Playwright projects or targeted checks that exercise both desktop and mobile viewport widths for the affected flow.
