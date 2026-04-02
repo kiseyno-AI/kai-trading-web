@@ -2,6 +2,14 @@
 
 This document defines the first practical frontend contract for wiring `trading-web` to the FastAPI backend in `trading-core`.
 
+## Current shipped dashboard wiring
+- `/dashboard` currently renders from these live endpoints where available:
+  - `GET /market/status`
+  - `GET /quotes/tracked`
+  - `GET /scanner/tracked-symbols`
+  - `GET /symbols/search`
+- The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.
+
 ## Goals
 - Match the current UI shape in `/dashboard`, `/markets`, and `/bots`
 - Keep the frontend broker-agnostic

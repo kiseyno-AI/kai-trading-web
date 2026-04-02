@@ -8,9 +8,12 @@ test.describe("dashboard mobile hero", () => {
 
     const topbar = page.locator("header.topbar");
     const hero = page.locator('section[aria-label="Dashboard overview"]');
+    const heroToggle = page.getByRole("button", { name: "More" });
 
     await expect(topbar).toBeVisible();
     await expect(hero).toBeVisible();
+    await expect(heroToggle).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Tracked Market Dashboard/i })).toBeVisible();
 
     const [viewport, topbarBox, heroBox] = await Promise.all([
       page.viewportSize(),
