@@ -106,7 +106,7 @@ export function LiveDashboardClient({
   const [searchItems, setSearchItems] = useState<SymbolSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "MOCK MODE");
+  const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "OFFLINE PLACEHOLDER");
 
   useEffect(() => {
     let active = true;
@@ -181,6 +181,9 @@ export function LiveDashboardClient({
   }, [searchQuery]);
 
   const lead = tracked.items[0];
+  const fallbackSummary = error
+    ? "Core feed unreachable. Showing local placeholder values until market status and tracked quote endpoints recover."
+    : "Live data is unavailable, so the dashboard is showing local placeholder values.";
 
   const computed = useMemo(() => {
     const positiveCount = tracked.items.filter((item) => item.change_pct >= 0).length;
@@ -210,15 +213,15 @@ export function LiveDashboardClient({
 
   const insightCards = [
     {
-      label: "Lead quote",
+      label: "Lead tracked quote",
       value: lead?.symbol ?? "N/A",
       detail: lead ? formatSignedPercent(lead.change_pct) : "Waiting for feed",
       tone: lead ? getQuoteToneClass(lead.change_pct) : "",
     },
     {
-      label: "Positive breadth",
+      label: "Positive in tracked set",
       value: `${Math.round(computed.breadthRatio * 100)}%`,
-      detail: `${computed.positiveCount}/${tracked.items.length || 0} names`,
+      detail: `${computed.positiveCount}/${tracked.items.length || 0} tracked names`,
       tone: styles.positive,
     },
     {
@@ -228,7 +231,7 @@ export function LiveDashboardClient({
       tone: "",
     },
     {
-      label: "Last refresh",
+      label: "Tracked refresh",
       value: formatDisplayTimestamp(tracked.as_of),
       detail: market.state,
       tone: "",
@@ -241,15 +244,15 @@ export function LiveDashboardClient({
   };
 
   return (
-    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Live KIS Core Feed">
+    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Tracked Core Feed">
       <div className={`page-stack ${styles.workspace}`}>
         {coreUnavailable ? (
           <section className={`glass ${styles.noticeBanner}`}>
             <div>
               <p className="eyebrow">Core unavailable</p>
-              <strong>Mock snapshot is active</strong>
+              <strong>Offline placeholder active</strong>
             </div>
-            <p>{error ?? "Live trading API data is unavailable, so the dashboard is rendering a mock snapshot."}</p>
+            <p>{fallbackSummary}</p>
           </section>
         ) : null}
 
@@ -262,8 +265,8 @@ export function LiveDashboardClient({
               <div className={styles.heroHeaderRow}>
                 <div className={styles.heroBadgeRow}>
                   <span className={styles.heroBadgeStrong}>{market.state}</span>
-                  <span className={styles.heroBadge}>1 second polling</span>
-                  <span className={styles.heroBadge}>Tracked universe {symbols.count}</span>
+                  <span className={styles.heroBadge}>Tracked symbols {symbols.count}</span>
+                  <span className={styles.heroBadge}>Client polling 1s</span>
                 </div>
                 <button
                   type="button"
@@ -275,15 +278,16 @@ export function LiveDashboardClient({
                   {isMobileHeroExpanded ? "Less" : "More"}
                 </button>
               </div>
-              <p className={styles.kicker}>Stitch-inspired command deck</p>
-              <h1>Trading Dashboard Home</h1>
+              <p className={styles.kicker}>Current core coverage only</p>
+              <h1>Tracked Market Dashboard</h1>
               <p className={styles.heroSummary}>
-                A denser trading board with clearer hierarchy: lead quote context up top, actionable symbol search in
-                the main lane, and side-rail health signals that stay readable while live data keeps updating.
+                Built from `market/status`, `quotes/tracked`, `scanner/tracked-symbols`, and `symbols/search`. This
+                pass keeps the Stitch-like density, but avoids claiming market-wide movers, automation state, or
+                readiness signals that the backend does not expose yet.
               </p>
               <div className={styles.heroMobileSummary}>
                 <div>
-                  <span className={styles.heroMobileSummaryLabel}>Lead quote</span>
+                  <span className={styles.heroMobileSummaryLabel}>Lead tracked quote</span>
                   <strong>{lead?.symbol ?? "N/A"}</strong>
                 </div>
                 <div>
@@ -297,7 +301,7 @@ export function LiveDashboardClient({
               </div>
               <div className={styles.heroDetails}>
                 <div>
-                  <span>Universe</span>
+                  <span>Tracked symbols</span>
                   <strong>{symbols.tracked_symbols.join(", ") || "-"}</strong>
                 </div>
                 <div>
@@ -310,7 +314,7 @@ export function LiveDashboardClient({
             <div className={styles.heroSpotlight}>
               <div className={styles.heroSpotlightHeader}>
                 <div>
-                  <p className="eyebrow">Lead spotlight</p>
+                  <p className="eyebrow">Lead tracked quote</p>
                   <h2>{getCompanyName(lead)}</h2>
                 </div>
                 <span className={`pill ${market.is_open ? "positive" : "neutral"}`}>
@@ -335,8 +339,8 @@ export function LiveDashboardClient({
                   <strong>{formatDisplayTimestamp(lead?.as_of)}</strong>
                 </article>
                 <article>
-                  <span>Feed mode</span>
-                  <strong>{lead?.is_live ? "Live" : "Cached"}</strong>
+                  <span>Quote source</span>
+                  <strong>{lead?.source ?? "N/A"}</strong>
                 </article>
               </div>
             </div>
@@ -430,10 +434,10 @@ export function LiveDashboardClient({
               <div className={styles.panelHeader}>
                 <div>
                   <p className="eyebrow">Quote board</p>
-                  <h2>Tracked tape with faster scanability</h2>
+                  <h2>Tracked quotes from the current core feed</h2>
                 </div>
                 <div className={styles.headerBadges}>
-                  <span className="pill positive">{computed.liveCount} live</span>
+                  <span className="pill positive">{computed.liveCount} flagged live</span>
                   <span className="pill neutral">{computed.fallbackCount} fallback</span>
                 </div>
               </div>
@@ -477,15 +481,15 @@ export function LiveDashboardClient({
             <section className={`glass ${styles.panel} ${styles.sideFeature}`}>
               <div className={styles.panelHeader}>
                 <div>
-                  <p className="eyebrow">Universe pulse</p>
-                  <h2>Readiness and breadth</h2>
+                  <p className="eyebrow">Tracked set facts</p>
+                  <h2>Composition of the symbols we actually receive</h2>
                 </div>
                 <span className="pill neutral">{tracked.market_state}</span>
               </div>
 
               <div className={styles.progressGroup}>
                 <div className={styles.progressHeader}>
-                  <span>Positive breadth</span>
+                  <span>Positive quotes</span>
                   <strong>{computed.positiveCount} names</strong>
                 </div>
                 <div className={styles.progressTrack}>
@@ -495,7 +499,7 @@ export function LiveDashboardClient({
 
               <div className={styles.progressGroup}>
                 <div className={styles.progressHeader}>
-                  <span>Live quotes</span>
+                  <span>Quotes flagged live</span>
                   <strong>{computed.liveCount} active</strong>
                 </div>
                 <div className={styles.progressTrack}>
@@ -508,7 +512,7 @@ export function LiveDashboardClient({
 
               <div className={styles.progressGroup}>
                 <div className={styles.progressHeader}>
-                  <span>Fallback exposure</span>
+                  <span>Fallback quotes</span>
                   <strong>{computed.fallbackCount} symbols</strong>
                 </div>
                 <div className={styles.progressTrack}>
@@ -523,11 +527,11 @@ export function LiveDashboardClient({
 
               <div className={styles.snapshotGrid}>
                 <article className={styles.snapshotCard}>
-                  <span>Average move</span>
+                  <span>Average tracked move</span>
                   <strong className={getQuoteToneClass(computed.averageMove)}>{formatSignedPercent(computed.averageMove)}</strong>
                 </article>
                 <article className={styles.snapshotCard}>
-                  <span>Universe size</span>
+                  <span>Tracked symbols</span>
                   <strong>{symbols.count}</strong>
                 </article>
               </div>
@@ -536,8 +540,8 @@ export function LiveDashboardClient({
             <section className={`glass ${styles.panel}`}>
               <div className={styles.panelHeader}>
                 <div>
-                  <p className="eyebrow">Top movers</p>
-                  <h2>Largest absolute shifts</h2>
+                  <p className="eyebrow">Tracked movers</p>
+                  <h2>Largest absolute shifts inside the tracked list</h2>
                 </div>
               </div>
 
@@ -560,12 +564,10 @@ export function LiveDashboardClient({
             <section className={`glass ${styles.panel}`}>
               <div className={styles.panelHeader}>
                 <div>
-                  <p className="eyebrow">Core health</p>
-                  <h2>Connection and timing</h2>
+                  <p className="eyebrow">Feed timestamps</p>
+                  <h2>What the current endpoints tell us</h2>
                 </div>
-                <span className={`pill ${coreUnavailable ? "negative" : "positive"}`}>
-                  {coreUnavailable ? "Degraded" : "Connected"}
-                </span>
+                <span className="pill neutral">No synthetic readiness score</span>
               </div>
 
               <div className={styles.healthList}>
@@ -574,7 +576,15 @@ export function LiveDashboardClient({
                   <strong>1 second</strong>
                 </div>
                 <div className={styles.healthRow}>
-                  <span>Tracked updated</span>
+                  <span>Market state</span>
+                  <strong>{market.state}</strong>
+                </div>
+                <div className={styles.healthRow}>
+                  <span>Server time</span>
+                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
+                </div>
+                <div className={styles.healthRow}>
+                  <span>Tracked list updated</span>
                   <strong>{formatDisplayTimestamp(symbols.last_updated_at, "N/A")}</strong>
                 </div>
                 <div className={styles.healthRow}>
@@ -586,8 +596,8 @@ export function LiveDashboardClient({
                   <strong>{lead?.source ?? "N/A"}</strong>
                 </div>
                 <div className={styles.healthRow}>
-                  <span>Market open</span>
-                  <strong>{market.is_open ? "Yes" : "No"}</strong>
+                  <span>Lead quote live flag</span>
+                  <strong>{lead ? (lead.is_live ? "Live" : "Cached or delayed") : "N/A"}</strong>
                 </div>
               </div>
             </section>

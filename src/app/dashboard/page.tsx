@@ -6,37 +6,45 @@ import {
   type CoreTrackedQuotesResponse,
   type CoreTrackedSymbolsResponse,
 } from "./live-dashboard-client";
-import { dashboardData } from "@/data/trading-dashboard";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 
 export const dynamic = "force-dynamic";
 
 function getMockDashboardPayload() {
   const now = new Date().toISOString();
+  const trackedItems = [
+    { symbol: "005930", company_name: "Samsung Electronics", price: 71_500, change_pct: 0.84 },
+    { symbol: "000660", company_name: "SK hynix", price: 183_400, change_pct: -0.41 },
+    { symbol: "035420", company_name: "NAVER", price: 202_500, change_pct: 1.12 },
+    { symbol: "005380", company_name: "Hyundai Motor", price: 238_000, change_pct: 0.27 },
+  ].map((item, index) => {
+    const volume = 120_000 + index * 18_000;
+    const change = Math.round((item.price * item.change_pct) / 100);
 
-  const trackedItems = dashboardData.watchlist.map((item, index) => ({
-    symbol: item.symbol,
-    company_name: item.symbol,
-    price: item.price,
-    change: Math.round((item.price * item.change) / 100),
-    change_pct: item.change,
-    volume: 120_000 + index * 15_000,
-    turnover: item.price * (120_000 + index * 15_000),
-    as_of: now,
-    market_state: "mock-session",
-    source: "mock",
-    fallback: true,
-    is_live: false,
-  }));
+    return {
+      symbol: item.symbol,
+      company_name: item.company_name,
+      price: item.price,
+      change,
+      change_pct: item.change_pct,
+      volume,
+      turnover: item.price * volume,
+      as_of: now,
+      market_state: "offline-placeholder",
+      source: "mock",
+      fallback: true,
+      is_live: false,
+    };
+  });
 
   return {
     market: {
-      state: "MOCK MODE",
+      state: "OFFLINE PLACEHOLDER",
       is_open: false,
       server_time: now,
     } satisfies CoreMarketStatus,
     tracked: {
-      market_state: "mock-session",
+      market_state: "offline-placeholder",
       as_of: now,
       items: trackedItems,
     } satisfies CoreTrackedQuotesResponse,
