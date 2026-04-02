@@ -20,4 +20,9 @@ test.describe("smoke", () => {
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: /Trading Dashboard Home|KIS DASHBOARD ERROR/i })).toBeVisible();
   });
+
+  test("kis dashboard renders even when an upstream section is unavailable", async ({ page }) => {
+    await page.goto("/kis-dashboard");
+    await expect(page.getByRole("heading", { name: /Trading Dashboard Home|All upstream sections failed/i })).toBeVisible();
+  });
 });

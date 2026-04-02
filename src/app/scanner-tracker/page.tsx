@@ -1,13 +1,41 @@
-import { formatDisplayTimestamp } from "@/lib/format";
+import { headers } from "next/headers";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+import { formatDisplayTimestamp } from "@/lib/format";
+import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
+
+type TrackedSymbolsResponse = {
+  tracked_symbols: string[];
+  count: number;
+  last_updated_at: string | null;
+};
+
+type TrackedSymbolsLoadResult = TrackedSymbolsResponse & {
+  error: string | null;
+};
 
 async function getTrackedSymbols() {
-  const res = await fetch(`${API_BASE}/scanner/tracked-symbols`, { cache: "no-store" });
-  if (!res.ok) {
-    return { tracked_symbols: [], count: 0, last_updated_at: null, error: true };
+  const requestHeaders = await headers();
+
+  try {
+    const data = await fetchServerTradingApiJson<TrackedSymbolsResponse>(
+      "/scanner/tracked-symbols",
+      requestHeaders,
+    );
+
+    return {
+      ...data,
+      error: null,
+    } satisfies TrackedSymbolsLoadResult;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    return {
+      tracked_symbols: [],
+      count: 0,
+      last_updated_at: null,
+      error: message,
+    } satisfies TrackedSymbolsLoadResult;
   }
-  return res.json();
 }
 
 export default async function ScannerTrackerPage() {
@@ -21,6 +49,11 @@ export default async function ScannerTrackerPage() {
         <div><strong>Count:</strong> {data.count}</div>
         <div><strong>Last updated:</strong> {formatDisplayTimestamp(data.last_updated_at, "not updated yet")}</div>
       </div>
+      {data.error ? (
+        <div style={{ margin: "16px 0", padding: 16, border: "1px solid #7f1d1d", borderRadius: 12, background: "#fff1f2", color: "#881337" }}>
+          <strong>Scanner feed unavailable:</strong> {data.error}
+        </div>
+      ) : null}
       <ul>
         {(data.tracked_symbols || []).map((symbol: string) => (
           <li key={symbol}>{symbol}</li>

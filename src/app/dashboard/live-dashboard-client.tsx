@@ -166,7 +166,7 @@ export function LiveDashboardClient({
         console.error("Symbol search failed", searchLoadError);
         if (!active) return;
         setSearchItems([]);
-        setSearchError("심볼 검색을 불러오지 못했습니다. 코어 심볼 마스터 연결을 확인하세요.");
+        setSearchError("Symbol search is unavailable. Check the upstream symbol master.");
       } finally {
         if (active) {
           setSearchLoading(false);
@@ -203,6 +203,38 @@ export function LiveDashboardClient({
     };
   }, [tracked.items]);
 
+  const movers = useMemo(
+    () => [...tracked.items].sort((left, right) => Math.abs(right.change_pct) - Math.abs(left.change_pct)).slice(0, 5),
+    [tracked.items],
+  );
+
+  const insightCards = [
+    {
+      label: "Lead quote",
+      value: lead?.symbol ?? "N/A",
+      detail: lead ? formatSignedPercent(lead.change_pct) : "Waiting for feed",
+      tone: lead ? getQuoteToneClass(lead.change_pct) : "",
+    },
+    {
+      label: "Positive breadth",
+      value: `${Math.round(computed.breadthRatio * 100)}%`,
+      detail: `${computed.positiveCount}/${tracked.items.length || 0} names`,
+      tone: styles.positive,
+    },
+    {
+      label: "Tracked turnover",
+      value: formatTurnover(computed.totalTurnover),
+      detail: `Volume ${compactNumberFormatter.format(computed.totalVolume)}`,
+      tone: "",
+    },
+    {
+      label: "Last refresh",
+      value: formatDisplayTimestamp(tracked.as_of),
+      detail: market.state,
+      tone: "",
+    },
+  ];
+
   const openSymbolDetail = (item: SymbolSearchItem) => {
     const detailUrl = `/dashboard/symbol/${encodeURIComponent(item.symbol)}?name=${encodeURIComponent(item.name_ko)}&market=${encodeURIComponent(item.market)}&standardCode=${encodeURIComponent(item.standard_code)}`;
     window.open(detailUrl, "_blank", "noopener,noreferrer");
@@ -226,22 +258,18 @@ export function LiveDashboardClient({
           aria-label="Dashboard overview"
         >
           <section id="dashboard-hero-details" className={`glass ${styles.hero}`}>
-            <div className={styles.heroIntro}>
-              <div className={styles.heroEyebrowRow}>
-                <span className={styles.heroEyebrow}>Realtime workspace</span>
-                <span className={styles.heroDivider} />
-                <span className={styles.heroEyebrow}>Stitch-inspired desk layout</span>
+            <div className={styles.heroCopy}>
+              <div className={styles.heroBadgeRow}>
+                <span className={styles.heroBadgeStrong}>{market.state}</span>
+                <span className={styles.heroBadge}>1 second polling</span>
+                <span className={styles.heroBadge}>Tracked universe {symbols.count}</span>
               </div>
+              <p className={styles.kicker}>Stitch-inspired command deck</p>
               <h1>Trading Dashboard Home</h1>
               <p className={styles.heroSummary}>
-                High-density monitoring surface for tracked KRX symbols, symbol search, lead quote context, and core
-                health. Existing data flows stay intact while the desk shifts to a cleaner control-room layout.
+                A denser trading board with clearer hierarchy: lead quote context up top, actionable symbol search in
+                the main lane, and side-rail health signals that stay readable while live data keeps updating.
               </p>
-              <div className={styles.heroMeta}>
-                <span className={styles.heroPillStrong}>{market.state}</span>
-                <span className={styles.heroPill}>1s refresh loop</span>
-                <span className={styles.heroPill}>Tracked universe {symbols.count}</span>
-              </div>
               <div className={styles.heroMobileSummary}>
                 <div>
                   <span className={styles.heroMobileSummaryLabel}>Lead quote</span>
@@ -256,31 +284,50 @@ export function LiveDashboardClient({
                   <strong>{market.is_open ? "Open" : "Closed"}</strong>
                 </div>
               </div>
+              <div className={styles.heroDetails}>
+                <div>
+                  <span>Universe</span>
+                  <strong>{symbols.tracked_symbols.join(", ") || "-"}</strong>
+                </div>
+                <div>
+                  <span>Server time</span>
+                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
+                </div>
+              </div>
             </div>
 
-            <div className={styles.heroStats}>
-              <article className={styles.heroStatCard}>
-                <span className={styles.statLabel}>Lead quote</span>
-                <strong>{lead?.symbol ?? "N/A"}</strong>
-                <span className={styles.statSubtle}>{getCompanyName(lead)}</span>
-                <span className={`${styles.statDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
-                  {lead ? formatSignedPercent(lead.change_pct) : "N/A"}
+            <div className={styles.heroSpotlight}>
+              <div className={styles.heroSpotlightHeader}>
+                <div>
+                  <p className="eyebrow">Lead spotlight</p>
+                  <h2>{getCompanyName(lead)}</h2>
+                </div>
+                <span className={`pill ${market.is_open ? "positive" : "neutral"}`}>
+                  {market.is_open ? "Open" : "Closed"}
                 </span>
-              </article>
-              <article className={styles.heroStatCard}>
-                <span className={styles.statLabel}>Tracked turnover</span>
-                <strong>{formatTurnover(computed.totalTurnover)}</strong>
-                <span className={styles.statSubtle}>
-                  Volume {compactNumberFormatter.format(computed.totalVolume)}
-                </span>
-              </article>
-              <article className={styles.heroStatCard}>
-                <span className={styles.statLabel}>Breadth</span>
-                <strong>{Math.round(computed.breadthRatio * 100)}%</strong>
-                <span className={styles.statSubtle}>
-                  {computed.positiveCount}/{tracked.items.length || 0} symbols positive
-                </span>
-              </article>
+              </div>
+              <strong className={styles.heroPrice}>₩{lead ? formatPrice(lead.price) : "N/A"}</strong>
+              <div className={`${styles.heroDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
+                {lead ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}` : "Waiting for quote"}
+              </div>
+              <div className={styles.heroMiniGrid}>
+                <article>
+                  <span>Turnover</span>
+                  <strong>{lead ? formatTurnover(lead.turnover) : "N/A"}</strong>
+                </article>
+                <article>
+                  <span>Volume</span>
+                  <strong>{lead ? compactNumberFormatter.format(lead.volume) : "N/A"}</strong>
+                </article>
+                <article>
+                  <span>Quote time</span>
+                  <strong>{formatDisplayTimestamp(lead?.as_of)}</strong>
+                </article>
+                <article>
+                  <span>Feed mode</span>
+                  <strong>{lead?.is_live ? "Live" : "Cached"}</strong>
+                </article>
+              </div>
             </div>
           </section>
           <button
@@ -294,76 +341,94 @@ export function LiveDashboardClient({
           </button>
         </section>
 
-        <section className={styles.commandGrid}>
+        <section className={styles.insightRail}>
+          {insightCards.map((card) => (
+            <article key={card.label} className={`glass ${styles.insightCard}`}>
+              <span>{card.label}</span>
+              <strong>{card.value}</strong>
+              <p className={card.tone}>{card.detail}</p>
+            </article>
+          ))}
+        </section>
+
+        <section className={styles.dashboardGrid}>
           <div className={styles.primaryColumn}>
-            <section className={`glass ${styles.panel} ${styles.searchPanel}`}>
+            <section className={`glass ${styles.panel}`}>
               <div className={styles.panelHeader}>
                 <div>
                   <p className="eyebrow">Symbol command</p>
-                  <h2>Search master list and open detail windows</h2>
+                  <h2>Search the master list and open symbol detail</h2>
                 </div>
                 <div className={styles.headerBadges}>
                   <span className="pill neutral">Min 2 chars</span>
-                  <span className="pill neutral">Window launch</span>
+                  <span className="pill neutral">New window</span>
                 </div>
               </div>
 
-              <label className={styles.searchField}>
-                <span className={styles.searchLabel}>Company or ticker</span>
-                <div className={styles.searchInputShell}>
-                  <span className={styles.searchInputIcon}>SR</span>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Samsung / 005930"
-                  />
+              <div className={styles.searchLayout}>
+                <div className={styles.searchColumn}>
+                  <label className={styles.searchField}>
+                    <span className={styles.searchLabel}>Company or ticker</span>
+                    <div className={styles.searchInputShell}>
+                      <span className={styles.searchInputIcon}>SR</span>
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Samsung / 005930"
+                      />
+                    </div>
+                  </label>
+
+                  <div className={styles.searchStatusRow}>
+                    <span>
+                      {searchLoading
+                        ? "Searching symbol master"
+                        : searchQuery.trim().length < 2
+                          ? "Enter at least 2 characters"
+                          : `${searchItems.length} matching results`}
+                    </span>
+                    <span>{searchError ?? "Results open detail in a new window"}</span>
+                  </div>
                 </div>
-              </label>
 
-              <div className={styles.searchStatusRow}>
-                <span>
-                  {searchLoading
-                    ? "Searching symbol master"
-                    : searchQuery.trim().length < 2
-                      ? "Enter at least 2 characters"
-                      : `${searchItems.length} matching results`}
-                </span>
-                <span>{searchError ?? "Opens detail in a new window"}</span>
-              </div>
+                <div className={styles.searchResultList}>
+                  {searchQuery.trim().length < 2 ? (
+                    <div className={styles.emptyState}>Start with a company name or ticker to search the symbol master.</div>
+                  ) : null}
 
-              <div className={styles.searchResultList}>
-                {searchItems.map((item) => (
-                  <button
-                    key={`${item.symbol}-${item.standard_code}`}
-                    type="button"
-                    className={styles.searchResultCard}
-                    onClick={() => openSymbolDetail(item)}
-                  >
-                    <div>
-                      <div className={styles.searchResultTitle}>{item.name_ko}</div>
-                      <div className={styles.searchResultMeta}>
-                        {item.symbol} · {item.standard_code}
+                  {searchItems.map((item) => (
+                    <button
+                      key={`${item.symbol}-${item.standard_code}`}
+                      type="button"
+                      className={styles.searchResultCard}
+                      onClick={() => openSymbolDetail(item)}
+                    >
+                      <div>
+                        <div className={styles.searchResultTitle}>{item.name_ko}</div>
+                        <div className={styles.searchResultMeta}>
+                          {item.symbol} · {item.standard_code}
+                        </div>
                       </div>
-                    </div>
-                    <div className={styles.searchResultSide}>
-                      <span className="pill neutral">{item.market}</span>
-                      <span className={styles.searchResultHint}>Open detail</span>
-                    </div>
-                  </button>
-                ))}
+                      <div className={styles.searchResultSide}>
+                        <span className="pill neutral">{item.market}</span>
+                        <span className={styles.searchResultHint}>Open detail</span>
+                      </div>
+                    </button>
+                  ))}
 
-                {!searchLoading && searchQuery.trim().length >= 2 && searchItems.length === 0 && !searchError ? (
-                  <div className={styles.emptyState}>No matching symbol or company was found in the master list.</div>
-                ) : null}
+                  {!searchLoading && searchQuery.trim().length >= 2 && searchItems.length === 0 && !searchError ? (
+                    <div className={styles.emptyState}>No matching symbol or company was found in the master list.</div>
+                  ) : null}
+                </div>
               </div>
             </section>
 
             <section className={`glass ${styles.panel}`}>
               <div className={styles.panelHeader}>
                 <div>
-                  <p className="eyebrow">Market board</p>
-                  <h2>Tracked quotes at a glance</h2>
+                  <p className="eyebrow">Quote board</p>
+                  <h2>Tracked tape with faster scanability</h2>
                 </div>
                 <div className={styles.headerBadges}>
                   <span className="pill positive">{computed.liveCount} live</span>
@@ -371,89 +436,49 @@ export function LiveDashboardClient({
                 </div>
               </div>
 
-              <div className={styles.quoteBoard}>
-                {tracked.items.map((item) => (
-                  <article key={item.symbol} className={styles.quoteCard}>
-                    <div className={styles.quoteCardTop}>
-                      <div>
-                        <div className={styles.quoteCardTitle}>{getCompanyName(item)}</div>
-                        <div className={styles.quoteCardMeta}>
-                          {item.symbol} · {item.market_state} · {item.source}
+              <div className={styles.quoteTable}>
+                {tracked.items.map((item) => {
+                  const barWidth = Math.min(Math.abs(item.change_pct) * 12, 100);
+
+                  return (
+                    <article key={item.symbol} className={styles.quoteRow}>
+                      <div className={styles.quoteIdentity}>
+                        <strong>{item.symbol}</strong>
+                        <span>{getCompanyName(item)}</span>
+                      </div>
+                      <div className={styles.quoteValue}>
+                        <strong>₩{formatPrice(item.price)}</strong>
+                        <span>{formatSignedNumber(item.change)}</span>
+                      </div>
+                      <div className={styles.quoteMove}>
+                        <strong className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</strong>
+                        <div className={styles.quoteBarTrack}>
+                          <div
+                            className={`${styles.quoteBarFill} ${item.change_pct >= 0 ? styles.quoteBarPositive : styles.quoteBarNegative}`}
+                            style={{ width: `${barWidth}%` }}
+                          />
                         </div>
                       </div>
-                      <div className={`${styles.quoteDelta} ${getQuoteToneClass(item.change_pct)}`}>
-                        {formatSignedPercent(item.change_pct)}
+                      <div className={styles.quoteMeta}>
+                        <span>Turnover {formatTurnover(item.turnover)}</span>
+                        <span>Vol {compactNumberFormatter.format(item.volume)}</span>
+                        <span>{formatDisplayTimestamp(item.as_of)}</span>
                       </div>
-                    </div>
-
-                    <div className={styles.quotePriceRow}>
-                      <strong>₩{formatPrice(item.price)}</strong>
-                      <span>{formatSignedNumber(item.change)}</span>
-                    </div>
-
-                    <div className={styles.metricStrip}>
-                      <div className={styles.metricBlock}>
-                        <span>Turnover</span>
-                        <strong>{formatTurnover(item.turnover)}</strong>
-                      </div>
-                      <div className={styles.metricBlock}>
-                        <span>Volume</span>
-                        <strong>{compactNumberFormatter.format(item.volume)}</strong>
-                      </div>
-                      <div className={styles.metricBlock}>
-                        <span>As of</span>
-                        <strong>{formatDisplayTimestamp(item.as_of)}</strong>
-                      </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             </section>
           </div>
 
           <aside className={styles.secondaryColumn}>
-            <section className={`glass ${styles.panel} ${styles.spotlightPanel}`}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className="eyebrow">Lead spotlight</p>
-                  <h2>{getCompanyName(lead)}</h2>
-                </div>
-                <span className={`pill ${market.is_open ? "positive" : "neutral"}`}>
-                  {market.is_open ? "Open" : "Closed"}
-                </span>
-              </div>
-
-              <div className={styles.spotlightPrice}>₩{lead ? formatPrice(lead.price) : "N/A"}</div>
-              <div className={`${styles.spotlightChange} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
-                {lead ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}` : "N/A"}
-              </div>
-
-              <div className={styles.spotlightMetaGrid}>
-                <div className={styles.metaPanel}>
-                  <span>Tracked state</span>
-                  <strong>{tracked.market_state}</strong>
-                </div>
-                <div className={styles.metaPanel}>
-                  <span>Feed mode</span>
-                  <strong>{lead?.is_live ? "Live" : "Cached"}</strong>
-                </div>
-                <div className={styles.metaPanel}>
-                  <span>Quote time</span>
-                  <strong>{formatDisplayTimestamp(lead?.as_of)}</strong>
-                </div>
-                <div className={styles.metaPanel}>
-                  <span>Server time</span>
-                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
-                </div>
-              </div>
-            </section>
-
-            <section className={`glass ${styles.panel}`}>
+            <section className={`glass ${styles.panel} ${styles.sideFeature}`}>
               <div className={styles.panelHeader}>
                 <div>
                   <p className="eyebrow">Universe pulse</p>
-                  <h2>Tracked breadth and readiness</h2>
+                  <h2>Readiness and breadth</h2>
                 </div>
+                <span className="pill neutral">{tracked.market_state}</span>
               </div>
 
               <div className={styles.progressGroup}>
@@ -496,19 +521,37 @@ export function LiveDashboardClient({
 
               <div className={styles.snapshotGrid}>
                 <article className={styles.snapshotCard}>
-                  <span>Avg move</span>
-                  <strong className={getQuoteToneClass(computed.averageMove)}>
-                    {formatSignedPercent(computed.averageMove)}
-                  </strong>
+                  <span>Average move</span>
+                  <strong className={getQuoteToneClass(computed.averageMove)}>{formatSignedPercent(computed.averageMove)}</strong>
                 </article>
                 <article className={styles.snapshotCard}>
                   <span>Universe size</span>
                   <strong>{symbols.count}</strong>
                 </article>
-                <article className={styles.snapshotCard}>
-                  <span>Scanner list</span>
-                  <strong>{symbols.tracked_symbols.join(", ") || "-"}</strong>
-                </article>
+              </div>
+            </section>
+
+            <section className={`glass ${styles.panel}`}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <p className="eyebrow">Top movers</p>
+                  <h2>Largest absolute shifts</h2>
+                </div>
+              </div>
+
+              <div className={styles.moverList}>
+                {movers.map((item) => (
+                  <article key={item.symbol} className={styles.moverCard}>
+                    <div>
+                      <strong>{item.symbol}</strong>
+                      <span>{getCompanyName(item)}</span>
+                    </div>
+                    <div className={styles.moverStats}>
+                      <strong className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</strong>
+                      <span>₩{formatPrice(item.price)}</span>
+                    </div>
+                  </article>
+                ))}
               </div>
             </section>
 
@@ -518,7 +561,9 @@ export function LiveDashboardClient({
                   <p className="eyebrow">Core health</p>
                   <h2>Connection and timing</h2>
                 </div>
-                <span className="pill positive">Connected</span>
+                <span className={`pill ${coreUnavailable ? "negative" : "positive"}`}>
+                  {coreUnavailable ? "Degraded" : "Connected"}
+                </span>
               </div>
 
               <div className={styles.healthList}>
