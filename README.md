@@ -11,7 +11,7 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 | **UI** | App Router, React 19, Tailwind v4, shadcn/ui (`components.json`, Nova preset) |
 | **Dashboard** | Live-oriented `/dashboard` SSR-fetches live trading data (`/market/status`, `/quotes/tracked`, `/scanner/tracked-symbols`); it prefers server upstream env, then `NEXT_PUBLIC_TRADING_API_BASE_URL`, then same-origin `/api/trading` on non-localhost requests, and shows an error state if all live paths fail |
 | **Data modes** | **Mock:** in local development, when `NEXT_PUBLIC_TRADING_API_BASE_URL` is unset, `src/lib/trading-api.ts` serves demo data from `src/data/trading-dashboard.ts`. **Live:** set the public base URL to your API origin (often same-origin BFF: `http://localhost:3000/api/trading`). On non-localhost deployments, the client adapter falls back to same-origin `/api/trading` when the public base URL is unset. |
-| **BFF** | `src/app/api/trading/**` forwards GET requests to the **upstream** core API with optional bearer token |
+| **BFF** | `src/app/api/trading/**` forwards GET requests to the **upstream** core API with optional bearer token; `GET /scanner/tracked-symbols` is also exposed as a same-origin compatibility alias |
 | **Bots / markets (adapter)** | Bots overview and some flows still use mock adapter paths until wired to real endpoints |
 | **Quality** | ESLint, Playwright e2e (`e2e/`), GitHub Actions CI |
 | **Agent config** | Codex: `.codex/config.toml`, `.codex/skills/`, `.codex/agents/` |
@@ -65,6 +65,7 @@ These routes are implemented under **`src/app/api/trading/`**. They **proxy GET*
 
 | Method | Next.js path | Upstream path (trading-core) | Query |
 |--------|----------------|-------------------------------|--------|
+| `GET` | `/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
 | `GET` | `/api/trading/market/status` | `/market/status` | — |
 | `GET` | `/api/trading/quotes/tracked` | `/quotes/tracked` | — |
 | `GET` | `/api/trading/quotes/{symbol}` | `/quotes/{symbol}` | — |
