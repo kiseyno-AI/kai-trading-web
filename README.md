@@ -20,6 +20,16 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 
 ---
 
+## Design reference
+
+The current GUI reference for user-facing work is the Stitch project:
+
+- [Stitch design reference](https://stitch.withgoogle.com/projects/3421673477307619036)
+
+If a fresh screenshot or exported image from Stitch is available, link it from future updates. Until then, treat the Stitch project above as the source of truth for the current GUI direction.
+
+---
+
 ## Authentication and upstream security
 
 ### Browser → Next.js BFF (`/api/trading/...`)
