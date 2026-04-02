@@ -18,8 +18,6 @@ test.describe("smoke", () => {
 
   test("dashboard renders success or upstream-missing state", async ({ page }) => {
     await page.goto("/dashboard");
-    const h1 = page.getByRole("heading", { level: 1 });
-    await expect(h1).toBeVisible();
-    await expect(h1).toHaveText(/Trading Dashboard Home|KIS DASHBOARD ERROR/);
+    await expect(page.getByRole("heading", { name: /Trading Dashboard Home|KIS DASHBOARD ERROR/i })).toBeVisible();
   });
 });

@@ -97,6 +97,7 @@ export function LiveDashboardClient({
   initialTracked,
   initialSymbols,
 }: LiveDashboardClientProps) {
+  const [isMobileHeroExpanded, setIsMobileHeroExpanded] = useState(false);
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [symbols, setSymbols] = useState<CoreTrackedSymbolsResponse>(initialSymbols);
@@ -220,49 +221,77 @@ export function LiveDashboardClient({
           </section>
         ) : null}
 
-        <section className={`glass ${styles.hero}`}>
-          <div className={styles.heroIntro}>
-            <div className={styles.heroEyebrowRow}>
-              <span className={styles.heroEyebrow}>Realtime workspace</span>
-              <span className={styles.heroDivider} />
-              <span className={styles.heroEyebrow}>Stitch-inspired desk layout</span>
+        <section
+          className={`${styles.heroShell} ${isMobileHeroExpanded ? styles.heroShellExpanded : ""}`}
+          aria-label="Dashboard overview"
+        >
+          <section id="dashboard-hero-details" className={`glass ${styles.hero}`}>
+            <div className={styles.heroIntro}>
+              <div className={styles.heroEyebrowRow}>
+                <span className={styles.heroEyebrow}>Realtime workspace</span>
+                <span className={styles.heroDivider} />
+                <span className={styles.heroEyebrow}>Stitch-inspired desk layout</span>
+              </div>
+              <h1>Trading Dashboard Home</h1>
+              <p className={styles.heroSummary}>
+                High-density monitoring surface for tracked KRX symbols, symbol search, lead quote context, and core
+                health. Existing data flows stay intact while the desk shifts to a cleaner control-room layout.
+              </p>
+              <div className={styles.heroMeta}>
+                <span className={styles.heroPillStrong}>{market.state}</span>
+                <span className={styles.heroPill}>1s refresh loop</span>
+                <span className={styles.heroPill}>Tracked universe {symbols.count}</span>
+              </div>
+              <div className={styles.heroMobileSummary}>
+                <div>
+                  <span className={styles.heroMobileSummaryLabel}>Lead quote</span>
+                  <strong>{lead?.symbol ?? "N/A"}</strong>
+                </div>
+                <div>
+                  <span className={styles.heroMobileSummaryLabel}>Last refresh</span>
+                  <strong>{formatDisplayTimestamp(tracked.as_of)}</strong>
+                </div>
+                <div>
+                  <span className={styles.heroMobileSummaryLabel}>Market</span>
+                  <strong>{market.is_open ? "Open" : "Closed"}</strong>
+                </div>
+              </div>
             </div>
-            <h1>Trading Dashboard Home</h1>
-            <p className={styles.heroSummary}>
-              High-density monitoring surface for tracked KRX symbols, symbol search, lead quote context, and core
-              health. Existing data flows stay intact while the desk shifts to a cleaner control-room layout.
-            </p>
-            <div className={styles.heroMeta}>
-              <span className={styles.heroPillStrong}>{market.state}</span>
-              <span className={styles.heroPill}>1s refresh loop</span>
-              <span className={styles.heroPill}>Tracked universe {symbols.count}</span>
-            </div>
-          </div>
 
-          <div className={styles.heroStats}>
-            <article className={styles.heroStatCard}>
-              <span className={styles.statLabel}>Lead quote</span>
-              <strong>{lead?.symbol ?? "N/A"}</strong>
-              <span className={styles.statSubtle}>{getCompanyName(lead)}</span>
-              <span className={`${styles.statDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
-                {lead ? formatSignedPercent(lead.change_pct) : "N/A"}
-              </span>
-            </article>
-            <article className={styles.heroStatCard}>
-              <span className={styles.statLabel}>Tracked turnover</span>
-              <strong>{formatTurnover(computed.totalTurnover)}</strong>
-              <span className={styles.statSubtle}>
-                Volume {compactNumberFormatter.format(computed.totalVolume)}
-              </span>
-            </article>
-            <article className={styles.heroStatCard}>
-              <span className={styles.statLabel}>Breadth</span>
-              <strong>{Math.round(computed.breadthRatio * 100)}%</strong>
-              <span className={styles.statSubtle}>
-                {computed.positiveCount}/{tracked.items.length || 0} symbols positive
-              </span>
-            </article>
-          </div>
+            <div className={styles.heroStats}>
+              <article className={styles.heroStatCard}>
+                <span className={styles.statLabel}>Lead quote</span>
+                <strong>{lead?.symbol ?? "N/A"}</strong>
+                <span className={styles.statSubtle}>{getCompanyName(lead)}</span>
+                <span className={`${styles.statDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
+                  {lead ? formatSignedPercent(lead.change_pct) : "N/A"}
+                </span>
+              </article>
+              <article className={styles.heroStatCard}>
+                <span className={styles.statLabel}>Tracked turnover</span>
+                <strong>{formatTurnover(computed.totalTurnover)}</strong>
+                <span className={styles.statSubtle}>
+                  Volume {compactNumberFormatter.format(computed.totalVolume)}
+                </span>
+              </article>
+              <article className={styles.heroStatCard}>
+                <span className={styles.statLabel}>Breadth</span>
+                <strong>{Math.round(computed.breadthRatio * 100)}%</strong>
+                <span className={styles.statSubtle}>
+                  {computed.positiveCount}/{tracked.items.length || 0} symbols positive
+                </span>
+              </article>
+            </div>
+          </section>
+          <button
+            type="button"
+            className={styles.heroMobileToggle}
+            aria-expanded={isMobileHeroExpanded}
+            aria-controls="dashboard-hero-details"
+            onClick={() => setIsMobileHeroExpanded((current) => !current)}
+          >
+            {isMobileHeroExpanded ? "Hide market snapshot" : "Show market snapshot"}
+          </button>
         </section>
 
         <section className={styles.commandGrid}>
