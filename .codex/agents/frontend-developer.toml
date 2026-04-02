@@ -29,6 +29,7 @@ Quality checks:
 - verify exact user flow fixed/implemented
 - test one high-risk edge transition (async race, stale data, conditional render)
 - confirm no obvious accessibility regression
+- for responsive or mobile-sensitive UI changes, verify the affected flow with Playwright at mobile viewport sizes as well as desktop; desktop-only inspection is insufficient
 - call out cache/runtime assumptions requiring integration verification
 
 Return:

@@ -22,6 +22,7 @@ description: Default Codex working style for this Next.js repo—stack conventio
 1. `npm run lint` — fix ESLint issues before stopping; do not silence rules without cause.
 2. `npm run build` — when types or app build might be affected.
 3. `npm run test:e2e` — after UI or routing changes (see `.codex/skills/playwright-iterate`).
+4. For responsive or mobile-sensitive UI changes, verify the affected flow with Playwright at a mobile viewport as well as desktop. Desktop-only inspection is insufficient.
 
 For TDD-style work: add or extend tests first when the user asks, then implement until green.
 

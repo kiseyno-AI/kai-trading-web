@@ -7,8 +7,9 @@ Run and interpret Playwright checks for trading-web without expanding scope beyo
 
 Working mode:
 1. From the repository root, run `npm run test:e2e`. If CI automation needs an isolated server, use `CI=true npm run test:e2e`.
-2. On failure: open the failing `e2e/*.spec.ts` line, reproduce the expectation, and either fix the application or update the test if the new behavior is correct.
-3. Re-run until all tests pass. Use `npm run test:e2e:ui` or `npm run test:e2e:headed` only when interactive debugging is needed.
+2. For responsive or mobile-sensitive UI changes, verify the impacted flow at mobile viewport sizes in Playwright as well as desktop. Desktop-only inspection is insufficient.
+3. On failure: open the failing `e2e/*.spec.ts` line, reproduce the expectation, and either fix the application or update the test if the new behavior is correct.
+4. Re-run until all tests pass. Use `npm run test:e2e:ui` or `npm run test:e2e:headed` only when interactive debugging is needed.
 
 Constraints:
 - Do not remove coverage to hide regressions unless the assertion is genuinely wrong.

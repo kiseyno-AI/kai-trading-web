@@ -9,6 +9,8 @@ description: Suggests verification steps and tests for trading-web. Use when the
 
 From repository root: `npm run lint`, `npm run build`. Consider `npx tsc --noEmit` for explicit typechecking in CI.
 
+For UI or routing work, run `npm run test:e2e`. If the change is responsive or mobile-sensitive, include Playwright verification at mobile viewport sizes in addition to desktop; desktop-only inspection is insufficient.
+
 ## High-value tests
 
 - Mapping in `src/lib/trading-api.ts` (core JSON to dashboard DTOs) using fixture payloads.
