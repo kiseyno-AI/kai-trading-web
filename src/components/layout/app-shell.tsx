@@ -27,11 +27,20 @@ type AppShellProps = {
   title: string;
   eyebrow: string;
   children: ReactNode;
+  compactMobileChrome?: boolean;
   navItems?: DashboardSnapshotDto["nav"];
   suggestions?: DashboardSnapshotDto["searchSuggestions"];
 };
 
-export function AppShell({ currentPath, title, eyebrow, children, navItems = [], suggestions = [] }: AppShellProps) {
+export function AppShell({
+  currentPath,
+  title,
+  eyebrow,
+  children,
+  compactMobileChrome = false,
+  navItems = [],
+  suggestions = [],
+}: AppShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const resolvedNavItems = navItems.length > 0 ? navItems : DEFAULT_NAV_ITEMS;
   const resolvedSuggestions = suggestions.length > 0 ? suggestions : DEFAULT_SUGGESTIONS;
@@ -45,6 +54,7 @@ export function AppShell({ currentPath, title, eyebrow, children, navItems = [],
           currentPath={currentPath}
           title={title}
           eyebrow={eyebrow}
+          compactMobileChrome={compactMobileChrome}
           suggestions={resolvedSuggestions}
           onToggleMobileNav={() => setMobileNavOpen((value) => !value)}
         />

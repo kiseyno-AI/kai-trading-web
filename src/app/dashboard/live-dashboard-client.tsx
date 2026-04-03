@@ -244,7 +244,7 @@ export function LiveDashboardClient({
   };
 
   return (
-    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Tracked Core Feed">
+    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Tracked Core Feed" compactMobileChrome>
       <div className={`page-stack ${styles.workspace}`}>
         {coreUnavailable ? (
           <section className={`glass ${styles.noticeBanner}`}>

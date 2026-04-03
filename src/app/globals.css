@@ -1843,7 +1843,7 @@ kbd {
 
 @media (max-width: 720px) {
   .main-layout {
-    padding: 14px;
+    padding: 14px 14px 18px;
   }
 
   .topbar,
@@ -1886,12 +1886,28 @@ kbd {
     padding: 16px;
   }
 
+  .topbar-compact-mobile {
+    position: static;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 20px;
+  }
+
   .topbar-main {
     gap: 14px;
   }
 
+  .topbar-compact-mobile .topbar-main {
+    align-items: center;
+    gap: 12px;
+  }
+
   .topbar-brand {
     gap: 12px;
+  }
+
+  .topbar-compact-mobile .topbar-brand {
+    display: none;
   }
 
   .topbar-brand-subtitle,
@@ -1901,8 +1917,18 @@ kbd {
     display: none;
   }
 
+  .topbar-compact-mobile .search-wrap,
+  .topbar-compact-mobile .topbar-actions,
+  .topbar-compact-mobile .topbar-page {
+    display: none;
+  }
+
   .topbar-copy {
     gap: 4px;
+  }
+
+  .topbar-compact-mobile .topbar-copy {
+    gap: 2px;
   }
 
   .topbar-copy h1 {
@@ -1910,14 +1936,33 @@ kbd {
     line-height: 1.05;
   }
 
+  .topbar-compact-mobile .topbar-copy h1 {
+    font-size: 1.1rem;
+    line-height: 1.1;
+  }
+
   .topbar-page-row {
     gap: 6px;
     flex-wrap: wrap;
   }
 
+  .topbar-compact-mobile .topbar-page-row {
+    gap: 0;
+  }
+
+  .topbar-compact-mobile .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+  }
+
   .mobile-menu-button {
     min-height: 42px;
     padding: 0 14px;
+  }
+
+  .topbar-compact-mobile .mobile-menu-button {
+    min-height: 40px;
+    padding: 0 13px;
   }
 
   .locale-switch,
