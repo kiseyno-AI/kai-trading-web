@@ -36,7 +36,7 @@ jobs:
               channel: "discord",
               to: "1487706998949810227"
             }' \
-          | curl -sS -X POST "$OPENCLAW_HOOK_URL" \
+          | curl -sS --fail-with-body -X POST "$OPENCLAW_HOOK_URL" \
               -H "Authorization: Bearer $OPENCLAW_HOOK_TOKEN" \
               -H "Content-Type: application/json" \
               --data @-
