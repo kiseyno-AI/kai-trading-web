@@ -28,6 +28,18 @@ description: Default Codex working style for this Next.js repo—stack conventio
 
 For TDD-style work: add or extend tests first when the user asks, then implement until green.
 
+## Pull requests
+
+- Build PR bodies as real multiline Markdown. Do not assemble PR text with a literal `"/n"` sequence; use actual newlines via direct multiline text, a heredoc, or a file-based body such as `gh pr create --body-file`.
+- Preferred PR body structure for this repo:
+  - `Summary`
+  - `Why`
+  - `Verification`
+  - `UI checked`
+  - `Screenshots` when practical
+  - `Closes #issue` when applicable
+- Before considering the PR ready, verify the rendered PR body formatting in GitHub so headings, bullets, and spacing display correctly.
+
 ## When APIs are unclear
 
 Consult current Next.js / React / Tailwind documentation (fetch or web search) instead of guessing—version-sensitive behavior matters.
