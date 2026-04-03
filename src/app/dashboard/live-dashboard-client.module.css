@@ -602,35 +602,36 @@
   .hero,
   .panel,
   .insightCard {
-    padding: 18px;
+    padding: 16px;
   }
 
   .hero {
-    gap: 14px;
+    gap: 12px;
   }
 
   .hero h1 {
-    font-size: clamp(1.9rem, 10vw, 2.4rem);
+    font-size: clamp(1.6rem, 8vw, 2rem);
   }
 
   .heroCopy {
-    gap: 12px;
+    gap: 10px;
   }
 
   .heroHeaderRow {
     align-items: center;
+    gap: 8px;
   }
 
   .heroBadgeRow {
     flex: 1;
-    gap: 8px;
+    gap: 6px;
   }
 
   .heroBadge,
   .heroBadgeStrong {
-    min-height: 30px;
-    padding: 0 10px;
-    font-size: 11px;
+    min-height: 28px;
+    padding: 0 9px;
+    font-size: 10px;
   }
 
   .heroMobileSummary {
@@ -662,9 +663,10 @@
     align-items: center;
     justify-content: center;
     width: auto;
-    min-height: 30px;
-    padding: 0 12px;
+    min-height: 28px;
+    padding: 0 10px;
     white-space: nowrap;
+    font-size: 10px;
   }
 
   .noticeBanner {
@@ -688,8 +690,8 @@
 
   .heroShell:not(.heroShellExpanded) .hero {
     grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 16px;
+    gap: 8px;
+    padding: 14px;
   }
 
   .insightRail {
