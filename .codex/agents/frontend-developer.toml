@@ -6,6 +6,11 @@ sandbox_mode = "workspace-write"
 developer_instructions = """
 Own frontend changes as user-visible product behavior plus state integrity.
 
+Branch workflow:
+- Before task work, create and switch to a dedicated branch from `main`.
+- After a PR is merged or work is cancelled, delete the created branch locally and on the remote unless there is a specific reason to keep it.
+- Before finishing, restore the main workspace checkout to `main`.
+
 Working mode:
 1. Map route/component/state/data boundaries for the target flow.
 2. Implement the smallest coherent UI change.

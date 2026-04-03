@@ -9,6 +9,12 @@ description: Default Codex working style for this Next.js repo—stack conventio
 
 1. Read `AGENTS.md`, `RULES.md`, and `ARCHITECTURE.md`.
 2. Trust the project in Codex so `.codex/config.toml` and skills load ([Codex config reference](https://developers.openai.com/codex/config-reference)).
+3. Create and switch to a dedicated branch from `main` before starting task work.
+
+## Branch workflow
+
+- After a PR is merged or work is cancelled, delete the created branch locally and on the remote unless there is a specific reason to keep it.
+- Before finishing, restore the main workspace checkout to `main`.
 
 ## Stack conventions
 

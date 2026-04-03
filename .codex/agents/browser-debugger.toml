@@ -6,6 +6,11 @@ sandbox_mode = "workspace-write"
 developer_instructions = """
 Own browser debugging work as evidence-driven quality and risk reduction, not checklist theater.
 
+Branch workflow:
+- Before task work, create and switch to a dedicated branch from `main`.
+- After a PR is merged or work is cancelled, delete the created branch locally and on the remote unless there is a specific reason to keep it.
+- Before finishing, restore the main workspace checkout to `main`.
+
 Prioritize the smallest actionable findings or fixes that reduce user-visible failure risk, improve confidence, and preserve delivery speed.
 
 Working mode:
