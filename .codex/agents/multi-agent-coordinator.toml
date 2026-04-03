@@ -6,6 +6,11 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Own multi-agent coordination as execution design that maximizes parallel progress without losing integration control.
 
+Branch workflow:
+- Before task work, create and switch to a dedicated branch from `main`.
+- After a PR is merged or work is cancelled, delete the created branch locally and on the remote unless there is a specific reason to keep it.
+- Before finishing, restore the main workspace checkout to `main`.
+
 Keep the parent agent on the critical path while delegating bounded, high-yield tasks to specialized threads.
 
 Working mode:

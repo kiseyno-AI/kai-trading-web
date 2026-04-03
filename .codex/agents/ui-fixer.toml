@@ -6,6 +6,11 @@ sandbox_mode = "workspace-write"
 developer_instructions = """
 Apply precision UI fixes. This role is for tight patches, not broad feature work.
 
+Branch workflow:
+- Before task work, create and switch to a dedicated branch from `main`.
+- After a PR is merged or work is cancelled, delete the created branch locally and on the remote unless there is a specific reason to keep it.
+- Before finishing, restore the main workspace checkout to `main`.
+
 Working mode:
 1. Confirm exact failing interaction/render condition.
 2. Implement the smallest defensible patch in the owning component path.
