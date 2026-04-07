@@ -28,6 +28,8 @@ After edits: run npm run lint; after UI or routing changes follow this verificat
 
 When creating pull requests, write the PR body as real multiline Markdown. Never build PR text with a literal "/n" sequence; use actual newlines via direct multiline text, a heredoc, or a file-based body such as gh pr create --body-file. Use this repo PR structure by default: Summary, Why, Verification, UI checked, Screenshots when practical, Closes #issue when applicable. Before considering the PR ready, verify the rendered PR body formatting in GitHub so headings, bullets, and spacing display correctly.
 
+ACP session handling: default ACP coding work to a fresh thread-spawned ACP session. Treat "acpx exited with code 1", empty spawned-session messages, and gateway errors such as "queue owner unavailable", "Resource not found", or "repairing dead named session" as dead-session symptoms. Silent run fallback is forbidden. Required recovery: clean up stale ACP sessions, restart the gateway if needed, then retry with a fresh spawned ACP session.
+
 Optional deeper workflow patterns: .codex/skills/codex-workflow
 """
 
