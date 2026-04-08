@@ -181,14 +181,19 @@ function buildAggregateContextSummary(
 }
 
 function shiftIsoDate(isoDate: string, { months = 0, years = 0 }: { months?: number; years?: number }) {
-  const value = new Date(`${isoDate}T00:00:00Z`);
-  if (Number.isNaN(value.getTime())) {
+  const parts = isoDate.split("-").map((part) => Number.parseInt(part, 10));
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
     return isoDate;
   }
 
-  value.setUTCFullYear(value.getUTCFullYear() + years);
-  value.setUTCMonth(value.getUTCMonth() + months);
-  return value.toISOString().slice(0, 10);
+  const [year, month, day] = parts;
+  const totalMonths = year * 12 + (month - 1) + years * 12 + months;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonthIndex = totalMonths - targetYear * 12;
+  const lastDayOfTargetMonth = new Date(Date.UTC(targetYear, targetMonthIndex + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfTargetMonth);
+
+  return new Date(Date.UTC(targetYear, targetMonthIndex, clampedDay)).toISOString().slice(0, 10);
 }
 
 function buildPriceHistoryQuery(range: PriceHistoryRange, marketDate: string) {

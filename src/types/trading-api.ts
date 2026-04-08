@@ -292,6 +292,28 @@ export type AgentContextResponseDto = {
   items: AgentContextItemDto[];
 };
 
+export type SymbolPriceBarDto = {
+  trade_date: string;
+  open_price: number;
+  high_price: number;
+  low_price: number;
+  close_price: number;
+  volume: number;
+  turnover: number;
+  source: string;
+  captured_at: string | null;
+};
+
+export type SymbolPriceBarsResponseDto = {
+  symbol: string;
+  count: number;
+  start_date: string | null;
+  end_date: string | null;
+  requested_start_date: string | null;
+  requested_end_date: string | null;
+  items: SymbolPriceBarDto[];
+};
+
 export type TradingApiAdapter = {
   getDashboardSnapshot: () => Promise<ApiEnvelope<DashboardSnapshotDto>>;
   getMarketsOverview: () => Promise<ApiEnvelope<MarketsOverviewDto>>;
