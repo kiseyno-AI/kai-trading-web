@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
@@ -97,6 +98,7 @@ export function LiveDashboardClient({
   initialTracked,
   initialSymbols,
 }: LiveDashboardClientProps) {
+  const router = useRouter();
   const [isMobileHeroExpanded, setIsMobileHeroExpanded] = useState(false);
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
@@ -240,7 +242,7 @@ export function LiveDashboardClient({
 
   const openSymbolDetail = (item: SymbolSearchItem) => {
     const detailUrl = `/dashboard/symbol/${encodeURIComponent(item.symbol)}?name=${encodeURIComponent(item.name_ko)}&market=${encodeURIComponent(item.market)}&standardCode=${encodeURIComponent(item.standard_code)}`;
-    window.open(detailUrl, "_blank", "noopener,noreferrer");
+    router.push(detailUrl);
   };
 
   return (
@@ -367,7 +369,7 @@ export function LiveDashboardClient({
                 </div>
                 <div className={styles.headerBadges}>
                   <span className="pill neutral">Min 2 chars</span>
-                  <span className="pill neutral">New window</span>
+                  <span className="pill neutral">In-app detail</span>
                 </div>
               </div>
 
@@ -394,7 +396,7 @@ export function LiveDashboardClient({
                           ? "Enter at least 2 characters"
                           : `${searchItems.length} matching results`}
                     </span>
-                    <span>{searchError ?? "Results open detail in a new window"}</span>
+                    <span>{searchError ?? "Results open the symbol detail screen inline"}</span>
                   </div>
                 </div>
 
