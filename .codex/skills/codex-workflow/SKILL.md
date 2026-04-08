@@ -27,8 +27,8 @@ description: Default Codex working style for this Next.js repo—stack conventio
 
 1. `npm run lint` — fix ESLint issues before stopping; do not silence rules without cause.
 2. `npm run build` — when types or app build might be affected.
-3. For user-facing UI changes, verify in this order: local branch/build preview first, direct browser inspection on that local preview second, then deployed/production verification last.
-4. When that UI is responsive or plausibly used on mobile, include at least one mobile viewport in the direct browser inspection step.
+3. For user-facing UI changes, verify in this order: local branch/build preview first, Playwright MCP browser inspection on that local preview second, then deployed/production verification last.
+4. When that UI is responsive or plausibly used on mobile, include at least one mobile viewport in the Playwright MCP browser inspection step.
 5. `npm run test:e2e` — after UI or routing changes as part of that local-first verification loop (see `.codex/skills/playwright-iterate`).
 6. For responsive or mobile-sensitive UI changes, verify the affected flow with Playwright at a mobile viewport as well as desktop. Desktop-only inspection is insufficient.
 

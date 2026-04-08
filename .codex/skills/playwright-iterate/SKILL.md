@@ -19,13 +19,13 @@ If browsers are missing: `npx playwright install chromium`
 After implementing or refactoring UI:
 
 1. Start with a local branch/build preview for the exact code under review.
-2. Inspect that local preview directly in the browser before treating deployment as the source of truth.
-3. When the change is responsive or user-facing on mobile, repeat the browser inspection in a mobile viewport.
+2. Inspect that local preview through Playwright MCP before treating deployment as the source of truth.
+3. When the change is responsive or user-facing on mobile, repeat the Playwright MCP browser inspection in a mobile viewport.
 4. Run `npm run test:e2e` (or `CI=true npm run test:e2e` in automation so a fresh dev server is spawned) against the local preview flow.
 5. If the change is responsive, layout-sensitive, or otherwise mobile-sensitive, verify the impacted flow at mobile viewport sizes in Playwright, not just desktop. Desktop-only inspection is insufficient for these changes.
 6. If tests fail: read the failure line, open the listed spec under `e2e/`, fix app code or update assertions if the behavior change was intentional.
 7. Re-run until green. Prefer fixing product bugs over weakening assertions unless the spec is wrong.
-8. Only after local preview, direct browser inspection, and Playwright are in good shape should you use deployed/production verification as the final confirmation step.
+8. Only after local preview, Playwright MCP browser inspection, and Playwright are in good shape should you use deployed/production verification as the final confirmation step.
 9. For flaky timing, use Playwright auto-waiting (`expect(locator).toBeVisible()`); avoid fixed `waitForTimeout` unless unavoidable.
 
 ## Tests location
