@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
@@ -97,6 +98,7 @@ export function LiveDashboardClient({
   initialTracked,
   initialSymbols,
 }: LiveDashboardClientProps) {
+  const router = useRouter();
   const [isMobileHeroExpanded, setIsMobileHeroExpanded] = useState(false);
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
@@ -240,7 +242,7 @@ export function LiveDashboardClient({
 
   const openSymbolDetail = (item: SymbolSearchItem) => {
     const detailUrl = `/dashboard/symbol/${encodeURIComponent(item.symbol)}?name=${encodeURIComponent(item.name_ko)}&market=${encodeURIComponent(item.market)}&standardCode=${encodeURIComponent(item.standard_code)}`;
-    window.open(detailUrl, "_blank", "noopener,noreferrer");
+    router.push(detailUrl);
   };
 
   return (

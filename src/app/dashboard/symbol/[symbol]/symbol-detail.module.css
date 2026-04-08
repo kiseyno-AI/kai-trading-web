@@ -1,0 +1,308 @@
+.detailPage {
+  gap: 24px;
+}
+
+.introAside {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.summaryCard {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.cardLabel {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cardValue {
+  color: var(--text-strong);
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.cardDetail {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.positive {
+  color: var(--positive);
+}
+
+.negative {
+  color: var(--red);
+}
+
+.chartSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.95fr);
+  gap: 16px;
+}
+
+.chartCard,
+.sideStack,
+.infoCard {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.chartHeader,
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.chartHeader h2,
+.cardHeader h2 {
+  font-size: 1.2rem;
+}
+
+.chartHeader p,
+.cardHeader p,
+.supportingNote {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.chartMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.metaPill {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.chartFrame {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(73, 179, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+}
+
+.chartSvg {
+  width: 100%;
+  height: 280px;
+  display: block;
+}
+
+.chartGridLine {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+}
+
+.chartArea {
+  opacity: 0;
+  animation: chartAreaReveal 700ms ease-out 140ms forwards;
+}
+
+.chartLine {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 640;
+  stroke-dashoffset: 640;
+  animation: chartLineDraw 900ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+.chartDot {
+  opacity: 0;
+  animation: chartDotReveal 260ms ease-out 540ms forwards;
+}
+
+.axisLabel {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.chartFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.noteGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.noteCard {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.noteCard strong {
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.infoList {
+  display: grid;
+  gap: 12px;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.infoRow:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.infoLabel {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.infoValue {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.contextBody {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.feedback {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 107, 122, 0.25);
+  background: rgba(255, 107, 122, 0.08);
+  color: #ffd6dc;
+  font-size: 14px;
+}
+
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-strong);
+  transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.linkButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(124, 92, 255, 0.28);
+  background: rgba(124, 92, 255, 0.12);
+}
+
+@keyframes chartLineDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chartAreaReveal {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chartDotReveal {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 1180px) {
+  .summaryGrid,
+  .detailGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chartSection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .summaryGrid,
+  .detailGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chartCard,
+  .sideStack,
+  .infoCard,
+  .summaryCard {
+    padding: 18px;
+  }
+
+  .chartSvg {
+    height: 220px;
+  }
+
+  .infoRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .infoValue {
+    text-align: left;
+  }
+}
