@@ -45,16 +45,20 @@ type CoreMarketStatus = {
 
 type CoreTrackedQuote = {
   symbol: string;
-  price: number;
-  change: number;
-  change_pct: number;
-  volume: number;
-  turnover: number;
+  price: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  turnover: number | null;
   as_of: string | null;
   market_state: string;
   source: string;
   fallback: boolean;
   is_live: boolean;
+  available: boolean;
+  trade_date?: string | null;
+  fallback_reason?: string | null;
+  unavailable_reason?: string | null;
 };
 
 type CoreTrackedQuotesResponse = {
@@ -99,6 +103,9 @@ const buildSearchSuggestions = (symbols: string[]): SearchSuggestionDto[] =>
 
 const formatSignedPercent = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 const formatSignedNumber = (value: number) => `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+const hasNumber = (value: number | null | undefined): value is number => typeof value === "number";
+const formatSignedPercentSafe = (value: number | null | undefined, fallback = "Unavailable") =>
+  hasNumber(value) ? formatSignedPercent(value) : fallback;
 const formatCompactCurrency = (value: number) => {
   if (value >= 1_000_000_000) return `₩${(value / 1_000_000_000).toFixed(1)}B`;
   if (value >= 1_000_000) return `₩${(value / 1_000_000).toFixed(1)}M`;
@@ -126,17 +133,25 @@ function buildDashboardSnapshotFromCore(
   market: CoreMarketStatus,
   trackedSymbols: CoreTrackedSymbolsResponse,
 ): DashboardSnapshotDto {
-  const items = tracked.items;
+  const items = tracked.items.filter((item) => item.available);
   const primary = items[0];
-  const totalTurnover = items.reduce((sum, item) => sum + item.turnover, 0);
-  const avgChangePct = items.length ? items.reduce((sum, item) => sum + item.change_pct, 0) / items.length : 0;
-  const totalVolume = items.reduce((sum, item) => sum + item.volume, 0);
+  const totalTurnover = items.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
+  const avgChangePct = items.length ? items.reduce((sum, item) => sum + (item.change_pct ?? 0), 0) / items.length : 0;
+  const totalVolume = items.reduce((sum, item) => sum + (item.volume ?? 0), 0);
 
-  const watchlist = items.map((item) => ({
+  const watchlist = tracked.items.map((item) => ({
     symbol: item.symbol,
-    context: item.fallback ? "Cached fallback" : item.is_live ? "Live KRX tracked quote" : `Market ${item.market_state}`,
-    price: item.price,
-    change: item.change_pct,
+    context: !item.available
+      ? `Unavailable${item.unavailable_reason ? ` · ${item.unavailable_reason}` : ""}`
+      : item.source === "daily_price_bar"
+        ? `DB EOD fallback${item.trade_date ? ` · ${item.trade_date}` : ""}`
+        : item.fallback
+          ? "Fallback quote"
+          : item.is_live
+            ? "Live KRX tracked quote"
+            : `Market ${item.market_state}`,
+    price: item.price ?? 0,
+    change: item.change_pct ?? 0,
   }));
 
   const first = primary ?? {
@@ -151,7 +166,11 @@ function buildDashboardSnapshotFromCore(
     source: "api",
     fallback: false,
     is_live: market.is_open,
+    available: market.is_open,
   };
+  const firstPrice = first.price ?? 0;
+  const firstChange = first.change ?? 0;
+  const firstChangePct = first.change_pct ?? 0;
 
   return {
     nav: baseNav,
@@ -160,7 +179,7 @@ function buildDashboardSnapshotFromCore(
       {
         id: "total_balance",
         title: "Tracked Turnover",
-        value: formatCompactCurrency(totalTurnover || first.turnover),
+        value: formatCompactCurrency(totalTurnover || first.turnover || 0),
         delta: formatSignedPercent(avgChangePct),
         tone: avgChangePct >= 0 ? "positive" : "negative",
         subtitle: `${items.length} tracked symbols · ${market.state} · ${market.server_time}`,
@@ -168,10 +187,10 @@ function buildDashboardSnapshotFromCore(
       {
         id: "live_pnl",
         title: "Lead KRX Quote",
-        value: `₩${first.price.toLocaleString()}`,
-        delta: formatSignedPercent(first.change_pct),
-        tone: first.change_pct >= 0 ? "positive" : "negative",
-        subtitle: `${first.symbol} · ${formatSignedNumber(first.change)}`,
+        value: `₩${firstPrice.toLocaleString()}`,
+        delta: formatSignedPercent(firstChangePct),
+        tone: firstChangePct >= 0 ? "positive" : "negative",
+        subtitle: `${first.symbol} · ${formatSignedNumber(firstChange)}`,
         sparkline: [58, 49, 52, 36, 39, 25, 34, 18, 23, 11, 15],
       },
       {
@@ -192,28 +211,28 @@ function buildDashboardSnapshotFromCore(
       tabs: ["1H", "4H", "1D"],
       activeTab: "1H",
       overlays: {
-        top: (first.price + Math.max(50, Math.round(first.price * 0.01))).toLocaleString(),
-        mid: first.price.toLocaleString(),
-        low: Math.max(0, first.price - Math.max(50, Math.round(first.price * 0.01))).toLocaleString(),
+        top: (firstPrice + Math.max(50, Math.round(firstPrice * 0.01))).toLocaleString(),
+        mid: firstPrice.toLocaleString(),
+        low: Math.max(0, firstPrice - Math.max(50, Math.round(firstPrice * 0.01))).toLocaleString(),
       },
       tradeMarkers: [
-        { side: "buy", label: "Lead", value: first.price.toLocaleString(), left: "18%", top: "62%" },
-        { side: avgChangePct >= 0 ? "sell" : "buy", label: market.state, value: formatSignedPercent(first.change_pct), left: "48%", top: "34%" },
+        { side: "buy", label: "Lead", value: firstPrice.toLocaleString(), left: "18%", top: "62%" },
+        { side: avgChangePct >= 0 ? "sell" : "buy", label: market.state, value: formatSignedPercent(firstChangePct), left: "48%", top: "34%" },
         { side: "buy", label: "Tracked", value: String(trackedSymbols.count), left: "76%", top: "48%" },
       ],
       orderBook: {
         depth: 10,
         sell: [
-          { price: (first.price + 30).toLocaleString(), size: "1.20 lot" },
-          { price: (first.price + 20).toLocaleString(), size: "0.80 lot" },
-          { price: (first.price + 10).toLocaleString(), size: "0.55 lot" },
+          { price: (firstPrice + 30).toLocaleString(), size: "1.20 lot" },
+          { price: (firstPrice + 20).toLocaleString(), size: "0.80 lot" },
+          { price: (firstPrice + 10).toLocaleString(), size: "0.55 lot" },
         ],
-        midPrice: first.price.toLocaleString(),
-        midChange: formatSignedPercent(first.change_pct),
+        midPrice: firstPrice.toLocaleString(),
+        midChange: formatSignedPercent(firstChangePct),
         buy: [
-          { price: Math.max(0, first.price - 10).toLocaleString(), size: "1.14 lot" },
-          { price: Math.max(0, first.price - 20).toLocaleString(), size: "0.92 lot" },
-          { price: Math.max(0, first.price - 30).toLocaleString(), size: "0.61 lot" },
+          { price: Math.max(0, firstPrice - 10).toLocaleString(), size: "1.14 lot" },
+          { price: Math.max(0, firstPrice - 20).toLocaleString(), size: "0.92 lot" },
+          { price: Math.max(0, firstPrice - 30).toLocaleString(), size: "0.61 lot" },
         ],
       },
     },
@@ -221,8 +240,8 @@ function buildDashboardSnapshotFromCore(
     insight: {
       score: market.is_open ? "82 / 100" : "66 / 100",
       label: "Primary Bias",
-      title: market.is_open ? "Live KRX tracked-symbol feed active" : "Market closed, cached tracked view active",
-      description: `Source: ${first.source}. Last as-of: ${first.as_of ?? tracked.as_of}. Scanner symbols: ${trackedSymbols.count}.`,
+      title: market.is_open ? "Live KRX tracked-symbol feed active" : "Tracked quote fallback policy active",
+      description: `Source: ${first.source}. Last as-of: ${first.as_of ?? first.trade_date ?? tracked.as_of}. Scanner symbols: ${trackedSymbols.count}.`,
       rows: [
         { label: "Market state", value: market.state },
         { label: "Tracked symbols", value: String(trackedSymbols.count) },
@@ -237,9 +256,17 @@ function buildMarketsOverviewFromCore(tracked: CoreTrackedQuotesResponse): Marke
   return {
     spotlight: tracked.items.map((item) => ({
       symbol: item.symbol,
-      trend: item.fallback ? "Cached quote fallback" : item.is_live ? "Actively tracked" : `State ${item.market_state}`,
-      volume: formatCompactCurrency(item.turnover),
-      change: formatSignedPercent(item.change_pct),
+      trend: !item.available
+        ? `Quote unavailable${item.unavailable_reason ? ` · ${item.unavailable_reason}` : ""}`
+        : item.source === "daily_price_bar"
+          ? `DB EOD fallback${item.trade_date ? ` · ${item.trade_date}` : ""}`
+          : item.fallback
+            ? "Fallback quote"
+            : item.is_live
+              ? "Actively tracked"
+              : `State ${item.market_state}`,
+      volume: hasNumber(item.turnover) ? formatCompactCurrency(item.turnover) : "Unavailable",
+      change: formatSignedPercentSafe(item.change_pct),
     })),
   };
 }

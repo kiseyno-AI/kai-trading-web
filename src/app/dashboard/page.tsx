@@ -38,6 +38,10 @@ function getMockDashboardPayload() {
       source: "mock",
       fallback: true,
       is_live: false,
+      available: true,
+      trade_date: now.slice(0, 10),
+      fallback_reason: "offline_placeholder",
+      unavailable_reason: null,
     };
   });
 

@@ -1,8 +1,10 @@
-export const formatPrice = (price: number) =>
-  price.toLocaleString(undefined, {
+export const formatPrice = (price?: number | null, fallback = "-") => {
+  if (typeof price !== "number") return fallback;
+  return price.toLocaleString(undefined, {
     minimumFractionDigits: price >= 1000 ? 0 : 2,
     maximumFractionDigits: price >= 1000 ? 0 : 2,
   });
+};
 
 export const formatChange = (change: number) => `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
 
@@ -13,8 +15,10 @@ const compactNumberFormatter = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 });
 
-export const formatTurnover = (turnover: number, currencySymbol = "₩") =>
-  `${currencySymbol}${Math.abs(turnover) < 1000 ? turnover.toLocaleString() : compactNumberFormatter.format(turnover)}`;
+export const formatTurnover = (turnover?: number | null, currencySymbol = "₩", fallback = "-") => {
+  if (typeof turnover !== "number") return fallback;
+  return `${currencySymbol}${Math.abs(turnover) < 1000 ? turnover.toLocaleString() : compactNumberFormatter.format(turnover)}`;
+};
 
 export function formatDisplayTimestamp(value?: string | null, fallback = "-") {
   if (!value) return fallback;

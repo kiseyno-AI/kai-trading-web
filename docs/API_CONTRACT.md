@@ -12,6 +12,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /quotes/{symbol}` for the live price, volume, turnover, feed mode, and the recent price trace built in-page
   - `GET /agent-context/symbol-day` for company metadata, technical snapshot, action summary, latest fundamentals summary, and recent disclosures
   - `GET /scanner/tracked-symbols` for tracked-universe coverage only
+- Field-level screen and component mapping now lives in `docs/UI_API_SURFACE_MAP.md`.
 - The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.
 
 ## Goals

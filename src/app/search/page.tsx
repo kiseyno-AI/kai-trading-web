@@ -22,17 +22,24 @@ type SymbolSearchResponse = {
 type QuoteResponse = {
   symbol: string;
   company_name?: string;
-  price: number;
-  change: number;
-  change_pct: number;
-  volume: number;
-  turnover: number;
+  price: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  turnover: number | null;
   market_state: string;
   source: string;
   fallback: boolean;
   is_live: boolean;
+  available: boolean;
   cached_at?: string | null;
+  trade_date?: string | null;
+  unavailable_reason?: string | null;
 };
+
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === "number";
+}
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: "no-store" });
@@ -200,22 +207,22 @@ export default function SearchPage() {
                   </div>
                   <div className="search-detail-meta">
                     <span className="pill neutral">{quote.market_state}</span>
-                    <span className="pill neutral">{quote.is_live ? "live" : "cached"}</span>
+                    <span className="pill neutral">
+                      {quote.available ? (quote.is_live ? "live" : quote.fallback ? "fallback" : "delayed") : "unavailable"}
+                    </span>
                   </div>
                 </div>
 
                 <div className="search-quote-hero">
                   <div>
                     <div className="search-quote-label">Last Price</div>
-                    <div className="search-quote-price">₩{quote.price.toLocaleString()}</div>
+                    <div className="search-quote-price">{hasNumber(quote.price) ? `₩${quote.price.toLocaleString()}` : "Unavailable"}</div>
                     <div className="search-quote-change">
-                      <span className={quote.change_pct >= 0 ? "positive" : "negative"}>
-                        {quote.change_pct >= 0 ? "+" : ""}
-                        {quote.change_pct.toFixed(2)}%
+                      <span className={hasNumber(quote.change_pct) && quote.change_pct >= 0 ? "positive" : "negative"}>
+                        {hasNumber(quote.change_pct) ? `${quote.change_pct >= 0 ? "+" : ""}${quote.change_pct.toFixed(2)}%` : "Unavailable"}
                       </span>
                       <span>
-                        {quote.change >= 0 ? "+" : ""}
-                        {quote.change.toLocaleString()}
+                        {hasNumber(quote.change) ? `${quote.change >= 0 ? "+" : ""}${quote.change.toLocaleString()}` : (quote.unavailable_reason ?? "No fresh quote")}
                       </span>
                     </div>
                   </div>
@@ -227,7 +234,7 @@ export default function SearchPage() {
                     </div>
                     <div className="search-quote-status-card">
                       <span>Update State</span>
-                      <strong>{quote.is_live ? "Live" : "Cached"}</strong>
+                      <strong>{quote.available ? (quote.is_live ? "Live" : quote.fallback ? "Fallback" : "Delayed") : "Unavailable"}</strong>
                     </div>
                     <div className="search-quote-status-card">
                       <span>Market</span>
@@ -239,7 +246,7 @@ export default function SearchPage() {
                 <div className="search-quote-metrics">
                   <div className="search-quote-metric">
                     <span>Volume</span>
-                    <strong>{quote.volume.toLocaleString()}</strong>
+                    <strong>{hasNumber(quote.volume) ? quote.volume.toLocaleString() : "-"}</strong>
                   </div>
                   <div className="search-quote-metric">
                     <span>Turnover</span>
@@ -251,11 +258,11 @@ export default function SearchPage() {
                   </div>
                   <div className="search-quote-metric">
                     <span>Cached At</span>
-                    <strong>{formatDisplayTimestamp(quote.cached_at)}</strong>
+                    <strong>{formatDisplayTimestamp(quote.cached_at ?? quote.trade_date)}</strong>
                   </div>
                 </div>
 
-                <div className="muted-note">Updated: {formatDisplayTimestamp(quote.cached_at)}</div>
+                <div className="muted-note">Updated: {formatDisplayTimestamp(quote.cached_at ?? quote.trade_date)}</div>
               </div>
             )}
           </section>

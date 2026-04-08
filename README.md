@@ -16,7 +16,7 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 | **Quality** | ESLint, Playwright e2e (`e2e/`), GitHub Actions CI |
 | **Agent config** | Codex: `.codex/config.toml`, `.codex/skills/`, `.codex/agents/` |
 
-**Docs in-repo:** `AGENTS.md`, `RULES.md`, `ARCHITECTURE.md`, `TASKS.md`, `docs/API_CONTRACT.md` (intended contract vs trading-core).
+**Docs in-repo:** `AGENTS.md`, `RULES.md`, `ARCHITECTURE.md`, `TASKS.md`, `docs/API_CONTRACT.md` (intended contract vs trading-core), `docs/UI_API_SURFACE_MAP.md` (screen/component to API/field wiring).
 
 ---
 
@@ -127,6 +127,8 @@ Bots and some overview calls may still use **mock** implementations in the same 
 | `/scanner-tracker` | Scanner / tracking UI |
 
 Layout and navigation: `src/components/layout`, `src/components/navigation`.
+
+For exact field-level wiring by UI surface, use [`docs/UI_API_SURFACE_MAP.md`](./docs/UI_API_SURFACE_MAP.md).
 
 ---
 
