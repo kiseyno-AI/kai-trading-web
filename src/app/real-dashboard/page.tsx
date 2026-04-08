@@ -1,4 +1,7 @@
+import { headers } from "next/headers";
+
 import { formatDisplayTimestamp } from "@/lib/format";
+import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 
 type CoreMarketStatus = {
   state: string;
@@ -32,13 +35,6 @@ type CoreTrackedSymbolsResponse = {
   last_updated_at: string | null;
 };
 
-async function getJson<T>(path: string): Promise<T> {
-  const base = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL || "http://127.0.0.1:8000";
-  const response = await fetch(`${base}${path}`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json() as Promise<T>;
-}
-
 function formatSignedPercent(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
@@ -55,10 +51,11 @@ function formatCompactWon(value: number) {
 }
 
 export default async function RealDashboardPage() {
+  const requestHeaders = await headers();
   const [market, tracked, symbols] = await Promise.all([
-    getJson<CoreMarketStatus>("/market/status"),
-    getJson<CoreTrackedQuotesResponse>("/quotes/tracked"),
-    getJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols"),
+    fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
+    fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
+    fetchServerTradingApiJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols", requestHeaders),
   ]);
 
   const lead = tracked.items[0] ?? null;

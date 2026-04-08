@@ -22,6 +22,14 @@ function envelope<T>(data: T, source: "mock" | "api" = "mock"): ApiEnvelope<T> {
   };
 }
 
+function trimTrailingSlash(value: string) {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+function isLocalHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
 const commandToStatus: Record<BotCommandRequestDto["command"], BotStatus> = {
   start: "running",
   pause: "paused",
@@ -322,10 +330,22 @@ const mockTradingApi: TradingApiAdapter = {
   },
 };
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL;
+function getBrowserTradingApiBaseUrl() {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL;
+  if (configuredBaseUrl) {
+    return trimTrailingSlash(configuredBaseUrl);
+  }
+
+  if (typeof window !== "undefined" && !isLocalHostname(window.location.hostname)) {
+    return "/api/trading";
+  }
+
+  return null;
+}
 
 const httpTradingApi: TradingApiAdapter = {
   async getDashboardSnapshot() {
+    const apiBaseUrl = getBrowserTradingApiBaseUrl();
     if (!apiBaseUrl) return mockTradingApi.getDashboardSnapshot();
 
     const [tracked, market, trackedSymbols] = await Promise.all([
@@ -338,6 +358,7 @@ const httpTradingApi: TradingApiAdapter = {
   },
 
   async getMarketsOverview() {
+    const apiBaseUrl = getBrowserTradingApiBaseUrl();
     if (!apiBaseUrl) return mockTradingApi.getMarketsOverview();
 
     const tracked = await getJson<CoreTrackedQuotesResponse>(apiBaseUrl, "/quotes/tracked");
