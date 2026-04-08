@@ -185,6 +185,35 @@
   gap: 12px;
 }
 
+.itemList {
+  display: grid;
+  gap: 12px;
+}
+
+.itemRow {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.itemRow:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.itemTitle {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.itemMeta {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .infoRow {
   display: flex;
   justify-content: space-between;

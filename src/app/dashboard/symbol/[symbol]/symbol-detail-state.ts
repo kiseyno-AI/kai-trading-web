@@ -5,6 +5,10 @@ export type SymbolMetaSeed = {
   market: string;
 };
 
+export type AggregateContextLoadState = "loading" | "success" | "error";
+
+export type DisclosureSectionState = "loading" | "list" | "empty" | "unavailable";
+
 type SymbolMetaParams = {
   name: string | null;
   market: string | null;
@@ -30,4 +34,20 @@ export function createSymbolMetaResetToken(symbol: string, initialMeta: SymbolMe
 
 export function shouldFetchSymbolMeta(initialMeta: SymbolMetaSeed | null): boolean {
   return initialMeta === null;
+}
+
+export function getDisclosureSectionState(
+  loadState: AggregateContextLoadState,
+  aggregateContextLoaded: boolean,
+  disclosureCount: number,
+): DisclosureSectionState {
+  if (loadState === "loading") {
+    return "loading";
+  }
+
+  if (loadState === "error" || !aggregateContextLoaded) {
+    return "unavailable";
+  }
+
+  return disclosureCount > 0 ? "list" : "empty";
 }

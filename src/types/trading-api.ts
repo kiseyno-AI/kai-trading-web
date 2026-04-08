@@ -138,6 +138,159 @@ export type BotCommandResponseDto = {
   acceptedAt: string;
 };
 
+export type AgentContextCompanyDto = {
+  symbol: string;
+  name_ko: string | null;
+  market: string | null;
+  instrument_type: string | null;
+  standard_code: string | null;
+  source: string | null;
+  is_active: boolean | null;
+  last_refreshed_at: string | null;
+  dart: {
+    corp_code: string | null;
+    corp_name: string | null;
+  };
+};
+
+export type AgentContextTechnicalSnapshotDto = {
+  symbol: string;
+  market_date: string;
+  source: string;
+  close_price: number;
+  volume: number;
+  trend_state: string;
+  ma_alignment: string;
+  breakout_20d: boolean;
+  breakdown_20d: boolean;
+  return_5d: number | null;
+  return_20d: number | null;
+  volume_ratio_20d: number | null;
+  atr_14: number | null;
+  atr_pct_14: number | null;
+  signal_payload: Record<string, unknown>;
+  captured_at: string | null;
+};
+
+export type AgentContextActionSummaryDto = {
+  symbol: string;
+  market_date: string;
+  source: string;
+  action_label: string;
+  bias_direction: string;
+  signal_score: number;
+  confidence_tier: string;
+  risk_tier: string;
+  trigger_price: number | null;
+  invalidation_price: number | null;
+  support_price: number | null;
+  resistance_price: number | null;
+  reasons: string[];
+  summary_payload: Record<string, unknown>;
+  captured_at: string | null;
+};
+
+export type AgentContextFundamentalsSnapshotDto = {
+  filing: {
+    rcept_no: string;
+    report_name: string | null;
+    filing_category: string | null;
+    receipt_date: string | null;
+    captured_at: string | null;
+  };
+  period: {
+    business_year: number;
+    report_code: string;
+    report_label: string | null;
+    period_type: string;
+    period_scope: string | null;
+    quarter: string | null;
+    period_end_month: number | null;
+    period_end_date: string | null;
+  };
+  statement: {
+    fs_div: string;
+    fs_label: string | null;
+    statement_type: string;
+    currency: string | null;
+    source_status: string | null;
+    source_message: string | null;
+    row_count: number;
+  };
+  highlights: Record<string, unknown>;
+};
+
+export type AgentContextFundamentalsSummaryDto = {
+  latest_snapshot: AgentContextFundamentalsSnapshotDto | null;
+  history_summary: {
+    entries: number;
+    latest_receipt_date: string | null;
+    latest_period_end_date: string | null;
+    available_business_years: number[];
+    recent_periods: Array<{
+      business_year: number;
+      report_code: string;
+      report_label: string | null;
+      period_type: string;
+      period_end_date: string | null;
+      receipt_date: string | null;
+      rcept_no: string;
+    }>;
+  };
+};
+
+export type AgentContextDisclosureDto = {
+  rcept_no: string;
+  corp_code: string;
+  corp_name: string;
+  report_nm: string;
+  filing_category: string | null;
+  is_financial_report: boolean;
+  receipt_date: string | null;
+  remark: string | null;
+  fundamentals_capture_status: string | null;
+};
+
+export type AgentContextItemDto = {
+  symbol: string;
+  market_date: string;
+  company: AgentContextCompanyDto;
+  technical_snapshot: AgentContextTechnicalSnapshotDto | null;
+  action_summary: AgentContextActionSummaryDto | null;
+  fundamentals: AgentContextFundamentalsSummaryDto;
+  recent_disclosures: {
+    count: number;
+    items: AgentContextDisclosureDto[];
+  };
+  availability: {
+    company: boolean;
+    technical_snapshot: boolean;
+    action_summary: boolean;
+    fundamentals: boolean;
+    recent_disclosures: boolean;
+  };
+};
+
+export type AgentContextResponseDto = {
+  request: {
+    market_date: string;
+    symbols: string[];
+    fs_div: string | null;
+    fs_label: string | null;
+    disclosures_limit: number;
+  };
+  summary: {
+    requested_symbol_count: number;
+    matched_symbol_count: number;
+    technical_snapshot_count: number;
+    action_summary_count: number;
+    fundamentals_count: number;
+    recent_disclosure_symbol_count: number;
+    missing_symbols: string[];
+  };
+  items: AgentContextItemDto[];
+};
+
 export type TradingApiAdapter = {
   getDashboardSnapshot: () => Promise<ApiEnvelope<DashboardSnapshotDto>>;
   getMarketsOverview: () => Promise<ApiEnvelope<MarketsOverviewDto>>;
