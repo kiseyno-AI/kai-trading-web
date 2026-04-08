@@ -9,7 +9,7 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 | Area | Notes |
 |------|--------|
 | **UI** | App Router, React 19, Tailwind v4, shadcn/ui (`components.json`, Nova preset) |
-| **Dashboard** | Live-oriented `/dashboard` SSR-fetches live trading data (`/market/status`, `/quotes/tracked`, `/scanner/tracked-symbols`); it prefers server upstream env, then `NEXT_PUBLIC_TRADING_API_BASE_URL`, then same-origin `/api/trading` on non-localhost requests, and shows an error state if all live paths fail |
+| **Dashboard** | Live-oriented `/dashboard` SSR-fetches live trading data (`/market/status`, `/quotes/tracked`, `/scanner/tracked-symbols`); server rendering now uses `TRADING_API_UPSTREAM_*` when configured, otherwise same-origin `/api/trading` on deployed hosts, with localhost-only fallback to `127.0.0.1:8000` during local development |
 | **Data modes** | **Mock:** in local development, when `NEXT_PUBLIC_TRADING_API_BASE_URL` is unset, `src/lib/trading-api.ts` serves demo data from `src/data/trading-dashboard.ts`. **Live:** set the public base URL to your API origin (often same-origin BFF: `http://localhost:3000/api/trading`). On non-localhost deployments, the client adapter falls back to same-origin `/api/trading` when the public base URL is unset. |
 | **BFF** | `src/app/api/trading/**` forwards GET requests to the **upstream** core API with optional bearer token; `GET /scanner/tracked-symbols` is also exposed as a same-origin compatibility alias |
 | **Bots / markets (adapter)** | Bots overview and some flows still use mock adapter paths until wired to real endpoints |
@@ -38,7 +38,7 @@ Server-side handlers use **`trading-upstream.ts`**. If **`TRADING_API_UPSTREAM_B
 
 ### Browser → direct API (`NEXT_PUBLIC_TRADING_API_BASE_URL`)
 
-If the client calls the core **directly** (bypassing the BFF), it must satisfy **whatever** trading-core requires (e.g. `UPSTREAM_BEARER_TOKEN` on the core). Do not put secrets in `NEXT_PUBLIC_*`.
+If the client calls the core **directly** (bypassing the BFF), it must satisfy **whatever** trading-core requires (e.g. `UPSTREAM_BEARER_TOKEN` on the core). Do not put secrets in `NEXT_PUBLIC_*`, and prefer the same-origin BFF unless you intentionally want browser-to-core traffic.
 
 ---
 
@@ -51,7 +51,16 @@ If the client calls the core **directly** (bypassing the BFF), it must satisfy *
 | `TRADING_API_UPSTREAM_BEARER_TOKEN` | Server | Bearer token forwarded to core on BFF proxy calls |
 | `NEXT_PUBLIC_TRADING_API_BASE_URL` | Client | If set, client fetches use this base; if unset, localhost keeps **mock** data while deployed environments fall back to same-origin `/api/trading` |
 
-If no upstream base URL env is set, server-side direct upstream fetches and the BFF default to **`http://127.0.0.1:8000`** (local trading-core). The `/dashboard` server render now falls back to `NEXT_PUBLIC_TRADING_API_BASE_URL` or same-origin `/api/trading` before using that localhost default.
+If no upstream base URL env is set, localhost development still falls back to **`http://127.0.0.1:8000`**. Deployed BFF routes now fail loudly with a config error instead of silently guessing a localhost upstream, and server rendering no longer uses `NEXT_PUBLIC_TRADING_API_BASE_URL` as an authenticated upstream source.
+
+For preview/production, set these server env vars together:
+
+```bash
+TRADING_API_UPSTREAM_BASE_URL=https://your-core-origin
+TRADING_API_UPSTREAM_BEARER_TOKEN=... # required when core sets UPSTREAM_BEARER_TOKEN
+```
+
+Use `NEXT_PUBLIC_TRADING_API_BASE_URL` only for browser-visible base URLs, and prefer the same-origin BFF value (`/api/trading` or `https://your-web-origin/api/trading`) rather than the core origin.
 
 Copy **[`.env.example`](./.env.example)** to `.env.local` and adjust.
 
@@ -97,7 +106,7 @@ When **`NEXT_PUBLIC_TRADING_API_BASE_URL`** is set, the dashboard adapter issues
 - `{base}/quotes/tracked`
 - `{base}/scanner/tracked-symbols`
 
-…with **no** `/api/v1` prefix (aligned with current core routes). Set `base` to `http://localhost:3000/api/trading` to use the BFF, or to the core origin if calling FastAPI directly.
+…with **no** `/api/v1` prefix (aligned with current core routes). Set `base` to `http://localhost:3000/api/trading` to use the BFF. When the env var is unset, deployed browser sessions fall back to same-origin `/api/trading`; localhost keeps mock mode.
 
 Bots and some overview calls may still use **mock** implementations in the same module until wired to real endpoints.
 

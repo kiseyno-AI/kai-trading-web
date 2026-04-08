@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 const LOCAL_TRADING_UPSTREAM_FALLBACK = "http://127.0.0.1:8000";
+const SAME_ORIGIN_TRADING_BFF_PATH = "/api/trading";
 
 function trimTrailingSlash(value: string) {
   return value.endsWith("/") ? value.slice(0, -1) : value;
@@ -18,15 +19,74 @@ function getConfiguredTradingUpstreamBaseUrl() {
   return configuredBaseUrl ? trimTrailingSlash(configuredBaseUrl) : null;
 }
 
-function getConfiguredPublicTradingApiBaseUrl() {
-  const configuredBaseUrl = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL;
-  return configuredBaseUrl ? trimTrailingSlash(configuredBaseUrl) : null;
+function isLocalDevelopmentEnvironment() {
+  return process.env.NODE_ENV !== "production" && !process.env.VERCEL;
+}
+
+type TradingUpstreamTarget = {
+  authMode: "bearer" | "none";
+  baseUrl: string;
+  source: "configured-upstream" | "local-default";
+};
+
+type ServerTradingApiTarget = {
+  baseUrl: string;
+  source: "configured-upstream" | "same-origin-bff" | "local-default";
+};
+
+class TradingUpstreamConfigurationError extends Error {
+  readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown>) {
+    super(message);
+    this.name = "TradingUpstreamConfigurationError";
+    this.details = details;
+  }
+}
+
+function getTradingUpstreamAuthMode(): TradingUpstreamTarget["authMode"] {
+  return process.env.TRADING_API_UPSTREAM_BEARER_TOKEN ? "bearer" : "none";
+}
+
+function buildTradingUpstreamConfigurationDetails() {
+  return {
+    expectedEnv: [
+      "TRADING_API_UPSTREAM_BASE_URL",
+      "TRADING_API_UPSTREAM_BEARER_TOKEN (required when kai-trading-core sets UPSTREAM_BEARER_TOKEN)",
+    ],
+    hasBearerToken: Boolean(process.env.TRADING_API_UPSTREAM_BEARER_TOKEN),
+    hasConfiguredUpstreamBaseUrl: Boolean(getConfiguredTradingUpstreamBaseUrl()),
+    nodeEnv: process.env.NODE_ENV ?? null,
+    vercelEnv: process.env.VERCEL_ENV ?? null,
+  };
+}
+
+function resolveTradingUpstreamTarget(): TradingUpstreamTarget {
+  const configuredBaseUrl = getConfiguredTradingUpstreamBaseUrl();
+  if (configuredBaseUrl) {
+    return {
+      authMode: getTradingUpstreamAuthMode(),
+      baseUrl: configuredBaseUrl,
+      source: "configured-upstream",
+    };
+  }
+
+  if (isLocalDevelopmentEnvironment()) {
+    return {
+      authMode: getTradingUpstreamAuthMode(),
+      baseUrl: LOCAL_TRADING_UPSTREAM_FALLBACK,
+      source: "local-default",
+    };
+  }
+
+  throw new TradingUpstreamConfigurationError(
+    "TRADING_API_UPSTREAM_BASE_URL is required for deployed trading proxy requests.",
+    buildTradingUpstreamConfigurationDetails(),
+  );
 }
 
 export function getTradingUpstreamBaseUrl() {
-  const configuredBaseUrl = getConfiguredTradingUpstreamBaseUrl() ?? LOCAL_TRADING_UPSTREAM_FALLBACK;
-
-  return trimTrailingSlash(configuredBaseUrl);
+  return resolveTradingUpstreamTarget().baseUrl;
 }
 
 function getServerRequestOrigin(requestHeaders?: Headers) {
@@ -58,7 +118,9 @@ export function getTradingUpstreamHeaders(init?: HeadersInit) {
 }
 
 export function fetchTradingUpstream(path: string) {
-  return fetch(`${getTradingUpstreamBaseUrl()}${path}`, {
+  const upstreamTarget = resolveTradingUpstreamTarget();
+
+  return fetch(`${upstreamTarget.baseUrl}${path}`, {
     headers: getTradingUpstreamHeaders(),
     cache: "no-store",
   });
@@ -79,42 +141,46 @@ async function parseJsonResponse<T>(response: Response, requestLabel: string): P
 export function getServerTradingApiBaseUrl(requestHeaders?: Headers) {
   const upstreamBaseUrl = getConfiguredTradingUpstreamBaseUrl();
   if (upstreamBaseUrl) {
-    return upstreamBaseUrl;
-  }
-
-  const publicBaseUrl = getConfiguredPublicTradingApiBaseUrl();
-  if (publicBaseUrl) {
-    return publicBaseUrl;
+    return {
+      baseUrl: upstreamBaseUrl,
+      source: "configured-upstream",
+    } satisfies ServerTradingApiTarget;
   }
 
   const requestOrigin = getServerRequestOrigin(requestHeaders);
   if (requestOrigin) {
     const { hostname } = new URL(requestOrigin);
     if (!isLocalHostname(hostname)) {
-      return `${requestOrigin}/api/trading`;
+      return {
+        baseUrl: `${requestOrigin}${SAME_ORIGIN_TRADING_BFF_PATH}`,
+        source: "same-origin-bff",
+      } satisfies ServerTradingApiTarget;
     }
   }
 
-  return LOCAL_TRADING_UPSTREAM_FALLBACK;
+  return {
+    baseUrl: LOCAL_TRADING_UPSTREAM_FALLBACK,
+    source: "local-default",
+  } satisfies ServerTradingApiTarget;
 }
 
 export async function fetchTradingUpstreamJson<T>(path: string): Promise<T> {
-  const upstreamBaseUrl = getTradingUpstreamBaseUrl();
+  const upstreamTarget = resolveTradingUpstreamTarget();
   let response: Response;
 
   try {
     response = await fetchTradingUpstream(path);
   } catch (error) {
     throw new Error(
-      `Failed to load ${path} from ${upstreamBaseUrl}: ${formatFetchErrorMessage(error)}`,
+      `Failed to load ${path} from ${upstreamTarget.baseUrl}: ${formatFetchErrorMessage(error)}`,
     );
   }
 
   if (!response.ok) {
-    throw new Error(`Failed to load ${path} from ${upstreamBaseUrl}: HTTP ${response.status}`);
+    throw new Error(`Failed to load ${path} from ${upstreamTarget.baseUrl}: HTTP ${response.status}`);
   }
 
-  return parseJsonResponse<T>(response, `${path} from ${upstreamBaseUrl}`);
+  return parseJsonResponse<T>(response, `${path} from ${upstreamTarget.baseUrl}`);
 }
 
 export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?: Headers): Promise<T> {
@@ -123,29 +189,30 @@ export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?
     return fetchTradingUpstreamJson<T>(path);
   }
 
-  const baseUrl = getServerTradingApiBaseUrl(requestHeaders);
+  const serverTarget = getServerTradingApiBaseUrl(requestHeaders);
   let response: Response;
 
   try {
-    response = await fetch(`${baseUrl}${path}`, {
+    response = await fetch(`${serverTarget.baseUrl}${path}`, {
       headers: {
         Accept: "application/json",
       },
       cache: "no-store",
     });
   } catch (error) {
-    throw new Error(`Failed to load ${path} from ${baseUrl}: ${formatFetchErrorMessage(error)}`);
+    throw new Error(`Failed to load ${path} from ${serverTarget.baseUrl}: ${formatFetchErrorMessage(error)}`);
   }
 
   if (!response.ok) {
-    throw new Error(`Failed to load ${path} from ${baseUrl}: HTTP ${response.status}`);
+    throw new Error(`Failed to load ${path} from ${serverTarget.baseUrl}: HTTP ${response.status}`);
   }
 
-  return parseJsonResponse<T>(response, `${path} from ${baseUrl}`);
+  return parseJsonResponse<T>(response, `${path} from ${serverTarget.baseUrl}`);
 }
 
 export async function proxyTradingUpstreamJson(path: string) {
   try {
+    const upstreamTarget = resolveTradingUpstreamTarget();
     const response = await fetchTradingUpstream(path);
     const body = await response.text();
     const contentType = response.headers.get("content-type") ?? "application/json";
@@ -154,15 +221,29 @@ export async function proxyTradingUpstreamJson(path: string) {
       status: response.status,
       headers: {
         "content-type": contentType,
+        "x-kai-trading-auth-mode": upstreamTarget.authMode,
+        "x-kai-trading-upstream-source": upstreamTarget.source,
       },
     });
   } catch (error) {
+    if (error instanceof TradingUpstreamConfigurationError) {
+      return NextResponse.json(
+        {
+          error: "Trading upstream misconfigured",
+          message: error.message,
+          path,
+          details: error.details,
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json(
       {
         error: "Upstream fetch failed",
         message: formatFetchErrorMessage(error),
         path,
-        upstreamBaseUrl: getTradingUpstreamBaseUrl(),
+        details: buildTradingUpstreamConfigurationDetails(),
       },
       { status: 502 },
     );
