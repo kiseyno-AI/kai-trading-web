@@ -18,7 +18,9 @@ import type {
 import {
   buildInitialSymbolMeta,
   createSymbolMetaResetToken,
+  getDisclosureSectionState,
   shouldFetchSymbolMeta,
+  type AggregateContextLoadState,
   type SymbolMetaSeed,
 } from "./symbol-detail-state";
 import styles from "./symbol-detail.module.css";
@@ -214,6 +216,7 @@ export default function SymbolDetailPage() {
   const [meta, setMeta] = useState<SymbolSearchItem | null>(initialMeta);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [aggregateContext, setAggregateContext] = useState<AgentContextItemDto | null>(null);
+  const [aggregateContextLoadState, setAggregateContextLoadState] = useState<AggregateContextLoadState>("loading");
   const [trackedSymbols, setTrackedSymbols] = useState<TrackedSymbolsResponse | null>(null);
   const [recentPrices, setRecentPrices] = useState<RecentPricePoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,6 +228,7 @@ export default function SymbolDetailPage() {
     setMeta(initialMeta);
     setQuote(null);
     setAggregateContext(null);
+    setAggregateContextLoadState("loading");
     setTrackedSymbols(null);
     setRecentPrices([]);
     setLoading(true);
@@ -299,6 +303,7 @@ export default function SymbolDetailPage() {
     let active = true;
 
     const loadContext = async () => {
+      setAggregateContextLoadState("loading");
       const aggregateParams = new URLSearchParams();
       aggregateParams.set("market_date", marketDate);
       aggregateParams.append("symbols", symbol);
@@ -320,11 +325,15 @@ export default function SymbolDetailPage() {
         const exactMatch = aggregateResult.value.items.find((item) => item.symbol === symbol) ?? null;
         setAggregateContext(exactMatch);
         if (!exactMatch) {
+          setAggregateContextLoadState("error");
           errors.push("Aggregate symbol context did not include this symbol.");
+        } else {
+          setAggregateContextLoadState("success");
         }
       } else {
         console.error("Aggregate symbol context load failed", aggregateResult.reason);
         setAggregateContext(null);
+        setAggregateContextLoadState("error");
         errors.push("Aggregate symbol context is unavailable right now.");
       }
 
@@ -397,6 +406,11 @@ export default function SymbolDetailPage() {
   const lineColor = (quote?.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a";
   const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
+  const disclosureSectionState = getDisclosureSectionState(
+    aggregateContextLoadState,
+    aggregateContext !== null,
+    aggregateContext?.recent_disclosures.count ?? 0,
+  );
   const introTitle =
     aggregateContext?.company.name_ko ?? meta?.name_ko ?? quote?.company_name ?? aggregateContext?.company.dart.corp_name ?? symbol;
   const contextSummary = aggregateContext
@@ -745,9 +759,9 @@ export default function SymbolDetailPage() {
                 <h2>Recent disclosure window</h2>
               </div>
             </div>
-            {aggregateContext?.recent_disclosures.items.length ? (
+            {disclosureSectionState === "list" ? (
               <div className={styles.itemList}>
-                {aggregateContext.recent_disclosures.items.map((item) => (
+                {aggregateContext?.recent_disclosures.items.map((item) => (
                   <div key={item.rcept_no} className={styles.itemRow}>
                     <strong className={styles.itemTitle}>{item.report_nm}</strong>
                     <span className={styles.itemMeta}>
@@ -757,12 +771,28 @@ export default function SymbolDetailPage() {
                 ))}
               </div>
             ) : (
-              <div className={styles.noteCard}>
-                <strong>No recent disclosures</strong>
-                <p className={styles.supportingNote}>
-                  Trading-core did not return any disclosure events for this symbol inside the requested market-date window.
-                </p>
-              </div>
+              disclosureSectionState === "loading" ? (
+                <div className={styles.noteCard}>
+                  <strong>Loading aggregate context</strong>
+                  <p className={styles.supportingNote}>
+                    Waiting for the symbol-day aggregate response before determining disclosure availability.
+                  </p>
+                </div>
+              ) : disclosureSectionState === "unavailable" ? (
+                <div className={styles.noteCard}>
+                  <strong>Aggregate context unavailable</strong>
+                  <p className={styles.supportingNote}>
+                    Recent disclosures cannot be determined because the symbol-day aggregate request did not complete successfully.
+                  </p>
+                </div>
+              ) : (
+                <div className={styles.noteCard}>
+                  <strong>No recent disclosures</strong>
+                  <p className={styles.supportingNote}>
+                    Trading-core did not return any disclosure events for this symbol inside the requested market-date window.
+                  </p>
+                </div>
+              )
             )}
           </section>
         </section>

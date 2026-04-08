@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   buildInitialSymbolMeta,
   createSymbolMetaResetToken,
+  getDisclosureSectionState,
   shouldFetchSymbolMeta,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 
@@ -58,6 +59,14 @@ test.describe("smoke", () => {
     expect(emptyMetaB).toBeNull();
     expect(shouldFetchSymbolMeta(emptyMetaA)).toBe(true);
     expect(createSymbolMetaResetToken("005930", emptyMetaA)).not.toBe(createSymbolMetaResetToken("000660", emptyMetaB));
+  });
+
+  test("disclosure section only shows an empty state after aggregate context succeeds", async () => {
+    expect(getDisclosureSectionState("loading", false, 0)).toBe("loading");
+    expect(getDisclosureSectionState("error", false, 0)).toBe("unavailable");
+    expect(getDisclosureSectionState("success", false, 0)).toBe("unavailable");
+    expect(getDisclosureSectionState("success", true, 0)).toBe("empty");
+    expect(getDisclosureSectionState("success", true, 2)).toBe("list");
   });
 
   test("kis dashboard renders even when an upstream section is unavailable", async ({ page }) => {
