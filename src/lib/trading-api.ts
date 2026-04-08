@@ -150,8 +150,9 @@ function buildDashboardSnapshotFromCore(
           : item.is_live
             ? "Live KRX tracked quote"
             : `Market ${item.market_state}`,
-    price: item.price ?? 0,
-    change: item.change_pct ?? 0,
+    price: item.available ? item.price : null,
+    change: item.available ? item.change_pct : null,
+    available: item.available,
   }));
 
   const first = primary ?? {

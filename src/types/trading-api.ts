@@ -67,8 +67,9 @@ export type ChartSnapshotDto = {
 export type WatchItemDto = {
   symbol: string;
   context: string;
-  price: number;
-  change: number;
+  price: number | null;
+  change: number | null;
+  available?: boolean;
 };
 
 export type InsightRowDto = {

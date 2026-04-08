@@ -9,10 +9,11 @@ type WatchlistItemProps = {
 };
 
 export function WatchlistItem({ item, flashing, onClick }: WatchlistItemProps) {
-  const isUp = item.change >= 0;
+  const isAvailable = item.available !== false;
+  const isUp = (item.change ?? 0) >= 0;
   return (
     <button
-      className={cn("watch-item", flashing && (isUp ? "flash-up" : "flash-down"))}
+      className={cn("watch-item", isAvailable && flashing && (isUp ? "flash-up" : "flash-down"))}
       onClick={onClick}
     >
       <div>
@@ -20,8 +21,8 @@ export function WatchlistItem({ item, flashing, onClick }: WatchlistItemProps) {
         <span>{item.context}</span>
       </div>
       <div className="watch-price">
-        <strong>{formatPrice(item.price)}</strong>
-        <span>{formatChange(item.change)}</span>
+        <strong>{isAvailable ? formatPrice(item.price) : "Unavailable"}</strong>
+        <span>{isAvailable ? formatChange(item.change ?? 0) : "No fresh quote"}</span>
       </div>
     </button>
   );
