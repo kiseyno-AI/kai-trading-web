@@ -369,7 +369,7 @@ export function LiveDashboardClient({
                 </div>
                 <div className={styles.headerBadges}>
                   <span className="pill neutral">Min 2 chars</span>
-                  <span className="pill neutral">New window</span>
+                  <span className="pill neutral">In-app detail</span>
                 </div>
               </div>
 
@@ -396,7 +396,7 @@ export function LiveDashboardClient({
                           ? "Enter at least 2 characters"
                           : `${searchItems.length} matching results`}
                     </span>
-                    <span>{searchError ?? "Results open detail in a new window"}</span>
+                    <span>{searchError ?? "Results open the symbol detail screen inline"}</span>
                   </div>
                 </div>
 

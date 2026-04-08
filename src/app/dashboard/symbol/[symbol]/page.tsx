@@ -8,14 +8,15 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageIntro } from "@/components/ui/page-intro";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 
+import {
+  buildInitialSymbolMeta,
+  createSymbolMetaResetToken,
+  shouldFetchSymbolMeta,
+  type SymbolMetaSeed,
+} from "./symbol-detail-state";
 import styles from "./symbol-detail.module.css";
 
-type SymbolSearchItem = {
-  symbol: string;
-  standard_code: string;
-  name_ko: string;
-  market: string;
-};
+type SymbolSearchItem = SymbolMetaSeed;
 
 type SymbolSearchResponse = {
   query: string;
@@ -111,21 +112,13 @@ export default function SymbolDetailPage() {
   const searchParams = useSearchParams();
   const symbol = useMemo(() => decodeURIComponent(params.symbol), [params.symbol]);
   const initialMeta = useMemo(() => {
-    const name = searchParams.get("name");
-    const market = searchParams.get("market");
-    const standardCode = searchParams.get("standardCode");
-
-    if (!name && !market && !standardCode) {
-      return null;
-    }
-
-    return {
-      symbol,
-      name_ko: name ?? symbol,
-      market: market ?? "-",
-      standard_code: standardCode ?? "-",
-    };
+    return buildInitialSymbolMeta(symbol, {
+      name: searchParams.get("name"),
+      market: searchParams.get("market"),
+      standardCode: searchParams.get("standardCode"),
+    });
   }, [searchParams, symbol]);
+  const metaResetToken = useMemo(() => createSymbolMetaResetToken(symbol, initialMeta), [initialMeta, symbol]);
   const [meta, setMeta] = useState<SymbolSearchItem | null>(initialMeta);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [trackedQuotes, setTrackedQuotes] = useState<TrackedQuoteResponse | null>(null);
@@ -143,13 +136,17 @@ export default function SymbolDetailPage() {
     setLoading(true);
     setMetaError(null);
     setQuoteError(null);
-  }, [initialMeta]);
+  }, [initialMeta, metaResetToken]);
 
   useEffect(() => {
     let active = true;
 
     const loadMeta = async () => {
-      if (meta) return;
+      if (!shouldFetchSymbolMeta(initialMeta)) {
+        if (!active) return;
+        setMeta(initialMeta);
+        return;
+      }
 
       try {
         const data = await getJson<SymbolSearchResponse>(`/api/trading/symbols/search?q=${encodeURIComponent(symbol)}&limit=20`);
@@ -169,7 +166,7 @@ export default function SymbolDetailPage() {
     return () => {
       active = false;
     };
-  }, [meta, symbol]);
+  }, [initialMeta, symbol]);
 
   useEffect(() => {
     let active = true;
