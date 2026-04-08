@@ -9,10 +9,12 @@ import { PageIntro } from "@/components/ui/page-intro";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import type {
   AgentContextActionSummaryDto,
+  AgentContextFundamentalsSummaryDto,
   AgentContextDisclosureDto,
   AgentContextItemDto,
   AgentContextResponseDto,
   AgentContextTechnicalSnapshotDto,
+  SymbolPriceBarsResponseDto,
 } from "@/types/trading-api";
 
 import {
@@ -23,6 +25,7 @@ import {
   type AggregateContextLoadState,
   type SymbolMetaSeed,
 } from "./symbol-detail-state";
+import { SymbolHistoryChart } from "./symbol-history-chart";
 import styles from "./symbol-detail.module.css";
 
 type SymbolSearchItem = SymbolMetaSeed;
@@ -52,16 +55,15 @@ type QuoteResponse = {
   unavailable_reason?: string | null;
 };
 
-type TrackedSymbolsResponse = {
-  tracked_symbols: string[];
-  count: number;
-  last_updated_at: string | null;
+type MarketStatusResponse = {
+  state: string;
+  is_open: boolean;
+  server_time: string;
 };
 
-type RecentPricePoint = {
-  price: number;
-  timestamp: string;
-};
+type PriceHistoryRange = "3M" | "1Y" | "5Y" | "MAX";
+
+const PRICE_HISTORY_RANGES: PriceHistoryRange[] = ["3M", "1Y", "5Y", "MAX"];
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: "no-store" });
@@ -136,14 +138,9 @@ function buildQuoteFeedLabel(quote: QuoteResponse | null) {
 
 function buildAggregateContextSummary(
   aggregateContext: AgentContextItemDto,
-  isTracked: boolean,
   quote: QuoteResponse | null,
 ) {
-  const parts = [
-    isTracked
-      ? "This symbol is still inside the tracked dashboard universe."
-      : "This symbol is being opened on demand outside the tracked dashboard universe.",
-  ];
+  const parts = ["This symbol detail view mixes on-demand quote polling with the stored symbol-day aggregate packet."];
 
   if (aggregateContext.action_summary) {
     parts.push(
@@ -183,35 +180,37 @@ function buildAggregateContextSummary(
   return parts.join(" ");
 }
 
-function appendRecentPrice(history: RecentPricePoint[], quote: QuoteResponse): RecentPricePoint[] {
-  if (!quote.available || !hasNumber(quote.price)) {
-    return history;
+function shiftIsoDate(isoDate: string, { months = 0, years = 0 }: { months?: number; years?: number }) {
+  const parts = isoDate.split("-").map((part) => Number.parseInt(part, 10));
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
+    return isoDate;
   }
 
-  const timestamp = quote.cached_at ?? quote.trade_date ?? new Date().toISOString();
-  const nextPoint = {
-    price: quote.price,
-    timestamp,
-  };
-  const previous = history[history.length - 1];
+  const [year, month, day] = parts;
+  const totalMonths = year * 12 + (month - 1) + years * 12 + months;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonthIndex = totalMonths - targetYear * 12;
+  const lastDayOfTargetMonth = new Date(Date.UTC(targetYear, targetMonthIndex + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(day, lastDayOfTargetMonth);
 
-  if (previous && previous.price === nextPoint.price && previous.timestamp === nextPoint.timestamp) {
-    return history;
+  return new Date(Date.UTC(targetYear, targetMonthIndex, clampedDay)).toISOString().slice(0, 10);
+}
+
+function buildPriceHistoryQuery(range: PriceHistoryRange, marketDate: string) {
+  const params = new URLSearchParams();
+  params.set("end_date", marketDate);
+
+  if (range === "3M") {
+    params.set("start_date", shiftIsoDate(marketDate, { months: -3 }));
+  } else if (range === "1Y") {
+    params.set("start_date", shiftIsoDate(marketDate, { years: -1 }));
+  } else if (range === "5Y") {
+    params.set("start_date", shiftIsoDate(marketDate, { years: -5 }));
+  } else {
+    params.set("limit", "10000");
   }
 
-  return [...history, nextPoint].slice(-30);
-}
-
-function buildLinePath(points: Array<{ x: number; y: number }>) {
-  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
-}
-
-function buildAreaPath(points: Array<{ x: number; y: number }>, height: number, padding: number) {
-  if (points.length === 0) return "";
-
-  const first = points[0];
-  const last = points[points.length - 1];
-  return `M ${first.x} ${height - padding} L ${buildLinePath(points).slice(2)} L ${last.x} ${height - padding} Z`;
+  return params.toString();
 }
 
 function buildActionTone(actionSummary: AgentContextActionSummaryDto | null) {
@@ -232,11 +231,62 @@ function buildLatestDisclosure(disclosures: AgentContextDisclosureDto[]) {
   return disclosures[0] ?? null;
 }
 
+function buildTechnicalSnapshotDetail(
+  technicalSnapshot: AgentContextTechnicalSnapshotDto | null,
+  quote: QuoteResponse | null,
+  marketDate: string | null,
+) {
+  if (technicalSnapshot) {
+    return `As of ${technicalSnapshot.market_date} · 5D ${formatOptionalPercent(technicalSnapshot.return_5d)} · 20D ${formatOptionalPercent(technicalSnapshot.return_20d)} · Vol ${formatOptionalMultiple(technicalSnapshot.volume_ratio_20d)}`;
+  }
+
+  if (quote?.trade_date && marketDate && quote.trade_date !== marketDate) {
+    return `Requested ${marketDate}, but the latest completed trading day is ${quote.trade_date}. Stored EOD technical snapshots only exist after that market close.`;
+  }
+
+  if (marketDate && quote?.market_state === "PREOPEN") {
+    return `Stored EOD technical snapshots are keyed to the prior completed trading day. Before the session opens, ${marketDate} can legitimately be empty until quote trade-date resolution settles on the previous close.`;
+  }
+
+  if (marketDate && quote?.market_state === "OPEN") {
+    return `Stored EOD technical snapshots are written after the market closes, so ${marketDate} remains unavailable during the live session.`;
+  }
+
+  if (marketDate) {
+    return `Stored market-date snapshot missing for ${marketDate}. If this is the current calendar day, the latest completed EOD packet may still be the prior trading session.`;
+  }
+
+  return "Waiting for quote trade date before loading stored technical context";
+}
+
+function buildLatestFilingDetail(
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
+  latestDisclosure: AgentContextDisclosureDto | null,
+  aggregateContextLoaded: boolean,
+  disclosureCount: number,
+  symbol: string,
+) {
+  if (latestFundamentals) {
+    return `${latestFundamentals.filing.receipt_date ?? "Date unknown"} · ${latestFundamentals.statement.fs_label ?? latestFundamentals.statement.fs_div} · ${disclosureCount} recent disclosure(s)`;
+  }
+
+  if (latestDisclosure) {
+    return `Recent disclosure only: ${latestDisclosure.report_nm} (${latestDisclosure.receipt_date ?? "date unknown"})`;
+  }
+
+  if (aggregateContextLoaded) {
+    return `No stored DART fundamentals summary or recent disclosure is attached to ${symbol} yet. Current-universe DART backfill is still batch-driven, so later symbols can legitimately remain empty until their batch is processed.`;
+  }
+
+  return "Waiting for the symbol-day aggregate response to confirm DART coverage";
+}
+
 export default function SymbolDetailPage() {
   const params = useParams<{ symbol: string }>();
   const searchParams = useSearchParams();
   const symbol = useMemo(() => decodeURIComponent(params.symbol), [params.symbol]);
-  const marketDate = useMemo(() => searchParams.get("marketDate") ?? getCurrentSeoulMarketDate(), [searchParams]);
+  const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
+  const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
   const initialMeta = useMemo(() => {
     return buildInitialSymbolMeta(symbol, {
@@ -248,25 +298,39 @@ export default function SymbolDetailPage() {
   const metaResetToken = useMemo(() => createSymbolMetaResetToken(symbol, initialMeta), [initialMeta, symbol]);
   const [meta, setMeta] = useState<SymbolSearchItem | null>(initialMeta);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
+  const [marketStatus, setMarketStatus] = useState<MarketStatusResponse | null>(null);
+  const [selectedRange, setSelectedRange] = useState<PriceHistoryRange>("1Y");
+  const [priceHistory, setPriceHistory] = useState<SymbolPriceBarsResponseDto | null>(null);
   const [aggregateContext, setAggregateContext] = useState<AgentContextItemDto | null>(null);
   const [aggregateContextLoadState, setAggregateContextLoadState] = useState<AggregateContextLoadState>("loading");
-  const [trackedSymbols, setTrackedSymbols] = useState<TrackedSymbolsResponse | null>(null);
-  const [recentPrices, setRecentPrices] = useState<RecentPricePoint[]>([]);
+  const [quotePollingStopped, setQuotePollingStopped] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
+
+  const marketDate = useMemo(() => {
+    if (requestedMarketDate) return requestedMarketDate;
+    if (quote?.trade_date) return quote.trade_date;
+    if (!loading) return defaultMarketDate;
+    return null;
+  }, [defaultMarketDate, loading, quote?.trade_date, requestedMarketDate]);
 
   useEffect(() => {
     setMeta(initialMeta);
     setQuote(null);
+    setSelectedRange("1Y");
+    setPriceHistory(null);
     setAggregateContext(null);
     setAggregateContextLoadState("loading");
-    setTrackedSymbols(null);
-    setRecentPrices([]);
+    setQuotePollingStopped(false);
     setLoading(true);
+    setHistoryLoading(true);
     setMetaError(null);
     setQuoteError(null);
+    setHistoryError(null);
     setContextError(null);
   }, [initialMeta, metaResetToken]);
 
@@ -304,18 +368,30 @@ export default function SymbolDetailPage() {
 
   useEffect(() => {
     let active = true;
+    let timer: number | null = null;
 
     const loadQuote = async () => {
       try {
-        const data = await getJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`);
+        const [quoteData, marketData] = await Promise.all([
+          getJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`),
+          getJson<MarketStatusResponse>("/api/trading/market/status"),
+        ]);
         if (!active) return;
-        setQuote(data);
-        setRecentPrices((current) => appendRecentPrice(current, data));
+        const shouldStopPolling = marketData.state === "CLOSED" && quoteData.market_state === "CLOSED";
+
+        setQuote(quoteData);
+        setMarketStatus(marketData);
+        setQuotePollingStopped(shouldStopPolling);
         setQuoteError(null);
+
+        if (!shouldStopPolling) {
+          timer = window.setTimeout(loadQuote, 1500);
+        }
       } catch (quoteLoadError) {
         console.error("Symbol quote load failed", quoteLoadError);
         if (!active) return;
         setQuoteError("Unable to load symbol quote details from trading-core.");
+        timer = window.setTimeout(loadQuote, 1500);
       } finally {
         if (active) {
           setLoading(false);
@@ -324,18 +400,66 @@ export default function SymbolDetailPage() {
     };
 
     loadQuote();
-    const timer = window.setInterval(loadQuote, 1500);
 
     return () => {
       active = false;
-      window.clearInterval(timer);
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
     };
   }, [symbol]);
 
   useEffect(() => {
     let active = true;
 
+    const loadPriceHistory = async () => {
+      if (!marketDate) {
+        setPriceHistory(null);
+        setHistoryLoading(true);
+        setHistoryError(null);
+        return;
+      }
+
+      setHistoryLoading(true);
+
+      try {
+        const query = buildPriceHistoryQuery(selectedRange, marketDate);
+        const data = await getJson<SymbolPriceBarsResponseDto>(
+          `/api/trading/symbols/${encodeURIComponent(symbol)}/price-bars?${query}`,
+        );
+        if (!active) return;
+        setPriceHistory(data);
+        setHistoryError(null);
+      } catch (priceHistoryLoadError) {
+        console.error("Symbol price history load failed", priceHistoryLoadError);
+        if (!active) return;
+        setPriceHistory(null);
+        setHistoryError("Unable to load stored historical price bars from trading-core.");
+      } finally {
+        if (active) {
+          setHistoryLoading(false);
+        }
+      }
+    };
+
+    loadPriceHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [marketDate, selectedRange, symbol]);
+
+  useEffect(() => {
+    let active = true;
+
     const loadContext = async () => {
+      if (!marketDate) {
+        setAggregateContext(null);
+        setAggregateContextLoadState("loading");
+        setContextError(null);
+        return;
+      }
+
       setAggregateContextLoadState("loading");
       const aggregateParams = new URLSearchParams();
       aggregateParams.set("market_date", marketDate);
@@ -345,10 +469,11 @@ export default function SymbolDetailPage() {
         aggregateParams.set("fs_div", fsDiv);
       }
 
-      const [aggregateResult, trackedSymbolsResult] = await Promise.allSettled([
-        getJson<AgentContextResponseDto>(`/api/trading/agent-context/symbol-day?${aggregateParams.toString()}`),
-        getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols"),
-      ]);
+      const aggregateResult = await getJson<AgentContextResponseDto>(
+        `/api/trading/agent-context/symbol-day?${aggregateParams.toString()}`,
+      )
+        .then((value) => ({ status: "fulfilled" as const, value }))
+        .catch((reason: unknown) => ({ status: "rejected" as const, reason }));
 
       if (!active) return;
 
@@ -370,14 +495,6 @@ export default function SymbolDetailPage() {
         errors.push("Aggregate symbol context is unavailable right now.");
       }
 
-      if (trackedSymbolsResult.status === "fulfilled") {
-        setTrackedSymbols(trackedSymbolsResult.value);
-      } else {
-        console.error("Tracked-universe load failed", trackedSymbolsResult.reason);
-        setTrackedSymbols(null);
-        errors.push("Tracked-universe coverage is unavailable right now.");
-      }
-
       setContextError(errors.length > 0 ? errors.join(" ") : null);
     };
 
@@ -388,55 +505,30 @@ export default function SymbolDetailPage() {
     };
   }, [fsDiv, marketDate, symbol]);
 
-  const isTracked = useMemo(() => {
-    return trackedSymbols?.tracked_symbols.includes(symbol) ?? false;
-  }, [symbol, trackedSymbols]);
-
   const chartMetrics = useMemo(() => {
-    if (recentPrices.length === 0) return null;
+    if (!priceHistory || priceHistory.items.length === 0) return null;
 
-    const prices = recentPrices.map((point) => point.price);
-    const low = Math.min(...prices);
-    const high = Math.max(...prices);
-    const start = recentPrices[0]?.price ?? low;
-    const end = recentPrices[recentPrices.length - 1]?.price ?? high;
+    const first = priceHistory.items[0];
+    const last = priceHistory.items[priceHistory.items.length - 1];
+    let low = first.low_price;
+    let high = first.high_price;
+
+    for (const bar of priceHistory.items) {
+      if (bar.low_price < low) low = bar.low_price;
+      if (bar.high_price > high) high = bar.high_price;
+    }
 
     return {
       low,
       high,
-      start,
-      end,
-      points: recentPrices.length,
+      start: first.open_price,
+      end: last.close_price,
+      points: priceHistory.items.length,
+      startDate: first.trade_date,
+      endDate: last.trade_date,
     };
-  }, [recentPrices]);
+  }, [priceHistory]);
 
-  const chartGeometry = useMemo(() => {
-    if (!chartMetrics) return null;
-
-    const width = 640;
-    const height = 280;
-    const padding = 22;
-    const spread = chartMetrics.high - chartMetrics.low || Math.max(chartMetrics.high * 0.002, 1);
-    const baseline = recentPrices.length === 1 ? [recentPrices[0], recentPrices[0]] : recentPrices;
-    const step = baseline.length > 1 ? (width - padding * 2) / (baseline.length - 1) : 0;
-    const points = baseline.map((point, index) => {
-      const normalized = (point.price - chartMetrics.low) / spread;
-      const x = padding + index * step;
-      const y = height - padding - normalized * (height - padding * 2);
-      return { x, y };
-    });
-
-    return {
-      width,
-      height,
-      padding,
-      points,
-      linePath: buildLinePath(points),
-      areaPath: buildAreaPath(points, height, padding),
-    };
-  }, [chartMetrics, recentPrices]);
-
-  const lineColor = (quote?.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a";
   const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
   const disclosureSectionState = getDisclosureSectionState(
@@ -447,8 +539,10 @@ export default function SymbolDetailPage() {
   const introTitle =
     aggregateContext?.company.name_ko ?? meta?.name_ko ?? quote?.company_name ?? aggregateContext?.company.dart.corp_name ?? symbol;
   const contextSummary = aggregateContext
-    ? buildAggregateContextSummary(aggregateContext, isTracked, quote)
-    : "Waiting for the aggregate symbol-day context from trading-core.";
+    ? buildAggregateContextSummary(aggregateContext, quote)
+    : marketDate
+      ? "Waiting for the aggregate symbol-day context from trading-core."
+      : "Waiting for the quote trade date before loading stored symbol-day context.";
 
   const summaryCards = [
     {
@@ -466,9 +560,7 @@ export default function SymbolDetailPage() {
       value: aggregateContext?.technical_snapshot
         ? `${humanizeToken(aggregateContext.technical_snapshot.trend_state)} · ${humanizeToken(aggregateContext.technical_snapshot.ma_alignment)}`
         : "Unavailable",
-      detail: aggregateContext?.technical_snapshot
-        ? `5D ${formatOptionalPercent(aggregateContext.technical_snapshot.return_5d)} · 20D ${formatOptionalPercent(aggregateContext.technical_snapshot.return_20d)} · Vol ${formatOptionalMultiple(aggregateContext.technical_snapshot.volume_ratio_20d)}`
-        : `Stored market-date snapshot missing for ${marketDate}`,
+      detail: buildTechnicalSnapshotDetail(aggregateContext?.technical_snapshot ?? null, quote, marketDate),
       tone: buildTechnicalTone(aggregateContext?.technical_snapshot ?? null),
     },
     {
@@ -482,11 +574,13 @@ export default function SymbolDetailPage() {
     {
       label: "Latest filing",
       value: latestFundamentals?.filing.report_name ?? latestFundamentals?.period.report_label ?? "No snapshot",
-      detail: latestFundamentals
-        ? `${latestFundamentals.filing.receipt_date ?? "Date unknown"} · ${latestFundamentals.statement.fs_label ?? latestFundamentals.statement.fs_div} · ${aggregateContext?.recent_disclosures.count ?? 0} recent disclosure(s)`
-        : latestDisclosure
-          ? `Recent disclosure only: ${latestDisclosure.report_nm} (${latestDisclosure.receipt_date ?? "date unknown"})`
-          : "No fundamentals or disclosures returned for this symbol-day packet",
+      detail: buildLatestFilingDetail(
+        latestFundamentals,
+        latestDisclosure,
+        aggregateContext !== null,
+        aggregateContext?.recent_disclosures.count ?? 0,
+        symbol,
+      ),
       tone: "",
     },
   ];
@@ -497,7 +591,7 @@ export default function SymbolDetailPage() {
         <PageIntro
           eyebrow="Symbol Detail"
           title={introTitle}
-          description="The recent price chart and live quote metrics still poll the quote endpoint, while explanatory cards now read the backend aggregate symbol-day context for company metadata, technicals, action summary, fundamentals summary, and recent disclosures."
+          description="The primary chart reads stored multi-year OHLCV history through the trading-web BFF, while the summary cards combine quote polling with market-status checks until both routes confirm a closed market and the backend aggregate symbol-day context."
           aside={
             <div className={styles.introAside}>
               <span className="pill neutral">{symbol}</span>
@@ -523,73 +617,42 @@ export default function SymbolDetailPage() {
           <section className={`glass ${styles.chartCard}`}>
             <div className={styles.chartHeader}>
               <div>
-                <p className="eyebrow">Recent Price Trace</p>
-                <h2>Recent price chart</h2>
+                <p className="eyebrow">Price History</p>
+                <h2>Historical candlestick chart</h2>
                 <p>
-                  Lightweight SVG rendering keeps the view smooth while the backend still exposes live quote snapshots
-                  rather than a dedicated historical bar feed for this screen.
+                  Stored daily OHLCV bars now come from <code>daily_price_bars</code> via the symbol history API, so
+                  this view can cover multiple years instead of a short live trace.
                 </p>
               </div>
               <div className={styles.chartMeta}>
-                <span className={styles.metaPill}>{recentPrices.length || 0} points</span>
-                <span className={styles.metaPill}>Updated {formatDisplayTimestamp(quote?.cached_at ?? quote?.trade_date)}</span>
+                {PRICE_HISTORY_RANGES.map((range) => (
+                  <button
+                    key={range}
+                    type="button"
+                    className={`${styles.rangeButton} ${selectedRange === range ? styles.rangeButtonActive : ""}`.trim()}
+                    onClick={() => setSelectedRange(range)}
+                  >
+                    {range}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className={styles.chartFrame}>
-              {chartGeometry ? (
-                <svg
-                  key={symbol}
-                  viewBox={`0 0 ${chartGeometry.width} ${chartGeometry.height}`}
-                  className={styles.chartSvg}
-                  role="img"
-                  aria-label={`Recent price trace for ${symbol}`}
-                >
-                  {[0.2, 0.5, 0.8].map((ratio) => {
-                    const y = chartGeometry.height - chartGeometry.padding - ratio * (chartGeometry.height - chartGeometry.padding * 2);
-                    return (
-                      <line
-                        key={ratio}
-                        x1={chartGeometry.padding}
-                        y1={y}
-                        x2={chartGeometry.width - chartGeometry.padding}
-                        y2={y}
-                        className={styles.chartGridLine}
-                      />
-                    );
-                  })}
-                  <path d={chartGeometry.areaPath} className={styles.chartArea} fill={`${lineColor}22`} />
-                  <path d={chartGeometry.linePath} className={styles.chartLine} stroke={lineColor} />
-                  {chartGeometry.points.map((point, index) => (
-                    <circle
-                      key={`${point.x}-${point.y}-${index}`}
-                      cx={point.x}
-                      cy={point.y}
-                      r={index === chartGeometry.points.length - 1 ? 4.5 : 2.2}
-                      className={styles.chartDot}
-                      fill={lineColor}
-                    />
-                  ))}
-                  {chartMetrics ? (
-                    <>
-                      <text x={chartGeometry.padding} y={18} className={styles.axisLabel}>
-                        High KRW {formatPrice(chartMetrics.high)}
-                      </text>
-                      <text
-                        x={chartGeometry.padding}
-                        y={chartGeometry.height - 8}
-                        className={styles.axisLabel}
-                      >
-                        Low KRW {formatPrice(chartMetrics.low)}
-                      </text>
-                    </>
-                  ) : null}
-                </svg>
+              {priceHistory && priceHistory.items.length > 0 ? (
+                <SymbolHistoryChart key={`${symbol}-${selectedRange}`} symbol={symbol} bars={priceHistory.items} />
+              ) : historyLoading ? (
+                <div className={styles.noteCard}>
+                  <strong>Loading stored price history</strong>
+                  <p className={styles.supportingNote}>
+                    Requesting the selected historical OHLCV window from trading-core through the BFF.
+                  </p>
+                </div>
               ) : (
                 <div className={styles.noteCard}>
-                  <strong>Waiting for the first quote snapshot</strong>
+                  <strong>No stored bars returned</strong>
                   <p className={styles.supportingNote}>
-                    The chart will initialize as soon as trading-core returns the first symbol quote.
+                    Trading-core did not return any daily price bars for the selected range.
                   </p>
                 </div>
               )}
@@ -598,10 +661,14 @@ export default function SymbolDetailPage() {
             <div className={styles.chartFooter}>
               <span>
                 {chartMetrics
-                  ? `Since entry: ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
-                  : "Since entry: waiting for enough points"}
+                  ? `${selectedRange} return: ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
+                  : `${selectedRange} return: waiting for stored bars`}
               </span>
-              <span>{quote ? `${quote.market_state} · ${quote.source}` : "Feed metadata pending"}</span>
+              <span>
+                {chartMetrics
+                  ? `${chartMetrics.points} bars · ${chartMetrics.startDate} to ${chartMetrics.endDate}`
+                  : "History metadata pending"}
+              </span>
             </div>
           </section>
 
@@ -627,18 +694,17 @@ export default function SymbolDetailPage() {
               <div className={styles.noteCard}>
                 <strong>Tracked universe</strong>
                 <p className={styles.supportingNote}>
-                  {isTracked
-                    ? "This symbol is part of the tracked dashboard universe, so aggregate context and live quote polling can be compared with the desk set."
-                    : "This symbol is not in the tracked dashboard universe right now, so the page mixes on-demand quote polling with the aggregate symbol-day context packet."}
+                  The tracked-symbol scanner list currently powers the main dashboard universe, counts, and tracked search suggestions. This detail screen no longer requests that list because it does not change any symbol-specific rendering here.
                 </p>
               </div>
               <div className={styles.noteCard}>
-                <strong>Recent-trace assumption</strong>
+                <strong>History route</strong>
                 <p className={styles.supportingNote}>
-                  The chart, feed mode, last price, volume, and turnover still use <code>/api/trading/quotes/[symbol]</code>.
-                  Company metadata, technical snapshot, action summary, fundamentals summary, and disclosures now come
-                  from <code>/api/trading/agent-context/symbol-day</code>. Tracked coverage still comes from
-                  <code> /api/trading/scanner/tracked-symbols </code>.
+                  The candlestick chart now uses <code>/api/trading/symbols/[symbol]/price-bars</code>. Live feed mode,
+                  last price, volume, and turnover still use <code>/api/trading/quotes/[symbol]</code>, paired with
+                  <code> /api/trading/market/status </code> until both return <code>CLOSED</code>. Company metadata,
+                  technical snapshot, action summary, fundamentals summary, and disclosures come from
+                  <code> /api/trading/agent-context/symbol-day </code>.
                 </p>
               </div>
               <div className={styles.noteCard}>
@@ -648,14 +714,30 @@ export default function SymbolDetailPage() {
                   explicitly unavailable when no fresh live, same-day cache, or acceptable DB EOD fallback exists.
                 </p>
               </div>
+              <div className={styles.noteCard}>
+                <strong>EOD timing</strong>
+                <p className={styles.supportingNote}>
+                  Stored technical snapshots are keyed by completed trading day, not by the current Seoul calendar day.
+                  Around pre-open and intraday windows, a symbol can legitimately show yesterday&apos;s last completed
+                  packet as the newest available EOD context.
+                </p>
+              </div>
+              <div className={styles.noteCard}>
+                <strong>DART coverage</strong>
+                <p className={styles.supportingNote}>
+                  DART fundamentals and disclosure rows are batch-ingested over the active universe. A valid symbol can
+                  still show empty DART coverage when its backfill batch has not been processed yet.
+                </p>
+              </div>
             </section>
           </aside>
         </section>
 
-        {(quoteError || metaError || contextError) ? (
+        {(quoteError || metaError || historyError || contextError) ? (
           <section className={styles.detailGrid}>
             {quoteError ? <div className={styles.feedback}>{quoteError}</div> : null}
             {metaError ? <div className={styles.feedback}>{metaError}</div> : null}
+            {historyError ? <div className={styles.feedback}>{historyError}</div> : null}
             {contextError ? <div className={styles.feedback}>{contextError}</div> : null}
           </section>
         ) : null}
@@ -705,6 +787,12 @@ export default function SymbolDetailPage() {
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Market state</span>
                 <strong className={styles.infoValue}>{quote?.market_state ?? "-"}</strong>
+              </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Market status route</span>
+                <strong className={styles.infoValue}>
+                  {marketStatus ? `${marketStatus.state} (${quotePollingStopped ? "polling stopped" : "polling active"})` : "-"}
+                </strong>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Volume</span>
