@@ -77,6 +77,7 @@ These routes are implemented under **`src/app/api/trading/`**. They **proxy GET*
 |--------|----------------|-------------------------------|--------|
 | `GET` | `/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
 | `GET` | `/api/trading/market/status` | `/market/status` | — |
+| `GET` | `/api/trading/agent-context/symbol-day` | `/agent-context/symbol-day` | `market_date`, repeatable `symbols`, optional `fs_div`, optional `disclosures_limit` |
 | `GET` | `/api/trading/quotes/tracked` | `/quotes/tracked` | — |
 | `GET` | `/api/trading/quotes/{symbol}` | `/quotes/{symbol}` | — |
 | `GET` | `/api/trading/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
@@ -108,7 +109,7 @@ Bots and some overview calls may still use **mock** implementations in the same 
 |------|------|
 | `/` | Redirects to `/dashboard` |
 | `/dashboard` | Primary desk (server data from core when reachable) |
-| `/dashboard/symbol/[symbol]` | Symbol-scoped view |
+| `/dashboard/symbol/[symbol]` | Symbol-scoped view; live quote chart still polls `/quotes/{symbol}`, while explanatory cards use `/agent-context/symbol-day` and tracked coverage uses `/scanner/tracked-symbols` |
 | `/markets` | Markets overview (client data via adapter / mock) |
 | `/bots` | Automation overview (mock-heavy today) |
 | `/search` | Search entry |
