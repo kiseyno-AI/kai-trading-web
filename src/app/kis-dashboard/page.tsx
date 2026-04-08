@@ -11,16 +11,19 @@ type CoreMarketStatus = {
 
 type CoreTrackedQuote = {
   symbol: string;
-  price: number;
-  change: number;
-  change_pct: number;
-  volume: number;
-  turnover: number;
+  price: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  turnover: number | null;
   as_of: string | null;
   market_state: string;
   source: string;
   fallback: boolean;
   is_live: boolean;
+  available: boolean;
+  trade_date?: string | null;
+  unavailable_reason?: string | null;
 };
 
 type CoreTrackedQuotesResponse = {
@@ -75,6 +78,10 @@ function formatSignedPercent(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === "number";
+}
+
 function formatCompactWon(value: number) {
   if (value >= 1_000_000_000) return `₩${(value / 1_000_000_000).toFixed(1)}B`;
   if (value >= 1_000_000) return `₩${(value / 1_000_000).toFixed(1)}M`;
@@ -124,13 +131,14 @@ export default async function KisDashboardPage() {
 
   const trackedItems = tracked?.items ?? [];
   const lead = trackedItems[0] ?? null;
-  const averageMove = trackedItems.length
-    ? trackedItems.reduce((sum, item) => sum + item.change_pct, 0) / trackedItems.length
+  const availableItems = trackedItems.filter((item) => item.available);
+  const averageMove = availableItems.length
+    ? availableItems.reduce((sum, item) => sum + (item.change_pct ?? 0), 0) / availableItems.length
     : 0;
   const trackedSymbols = symbols?.tracked_symbols ?? trackedItems.map((item) => item.symbol);
   const trackedCount = symbols?.count ?? trackedSymbols.length;
   const trackedUpdatedAt = tracked?.as_of ?? symbols?.last_updated_at ?? market?.server_time ?? null;
-  const totalTurnover = trackedItems.reduce((sum, item) => sum + item.turnover, 0);
+  const totalTurnover = availableItems.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
 
   return (
     <main style={shellStyle}>
@@ -167,9 +175,9 @@ export default async function KisDashboardPage() {
         <article style={{ padding: 18, borderRadius: 18, border: "1px solid rgba(159,176,212,0.15)", background: "rgba(12,22,38,0.82)" }}>
           <div style={{ color: "#8ea4cc", fontSize: 12 }}>LEAD SYMBOL</div>
           <h2 style={{ margin: "10px 0" }}>{lead?.symbol ?? trackedSymbols[0] ?? "N/A"}</h2>
-          <p style={{ margin: 0, color: "#cbd7ee" }}>Price: {lead ? `₩${lead.price.toLocaleString()}` : "-"}</p>
-          <p style={{ margin: "6px 0 0", color: lead && lead.change_pct >= 0 ? "#35d07f" : "#ff6b7a" }}>
-            {lead ? formatSignedPercent(lead.change_pct) : "Tracked quote feed unavailable"}
+          <p style={{ margin: 0, color: "#cbd7ee" }}>Price: {lead && hasNumber(lead.price) ? `₩${lead.price.toLocaleString()}` : "-"}</p>
+          <p style={{ margin: "6px 0 0", color: lead && (lead.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a" }}>
+            {lead && hasNumber(lead.change_pct) ? formatSignedPercent(lead.change_pct) : (lead?.unavailable_reason ?? "Tracked quote feed unavailable")}
           </p>
         </article>
         <article style={{ padding: 18, borderRadius: 18, border: "1px solid rgba(159,176,212,0.15)", background: "rgba(12,22,38,0.82)" }}>
@@ -199,11 +207,13 @@ export default async function KisDashboardPage() {
                 <div key={item.symbol} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: 14, borderRadius: 14, border: "1px solid rgba(159,176,212,0.10)", background: "rgba(255,255,255,0.03)" }}>
                   <div>
                     <strong>{item.symbol}</strong>
-                    <div style={{ color: "#9fb0cf", marginTop: 6 }}>{item.as_of ? `Updated ${formatDisplayTimestamp(item.as_of)}` : item.market_state}</div>
+                    <div style={{ color: "#9fb0cf", marginTop: 6 }}>{item.as_of ? `Updated ${formatDisplayTimestamp(item.as_of)}` : item.trade_date ?? item.market_state}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div>₩{item.price.toLocaleString()}</div>
-                    <div style={{ marginTop: 6, color: item.change_pct >= 0 ? "#35d07f" : "#ff6b7a" }}>{formatSignedPercent(item.change_pct)}</div>
+                    <div>{hasNumber(item.price) ? `₩${item.price.toLocaleString()}` : "Unavailable"}</div>
+                    <div style={{ marginTop: 6, color: (item.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a" }}>
+                      {hasNumber(item.change_pct) ? formatSignedPercent(item.change_pct) : (item.unavailable_reason ?? "Unavailable")}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -227,8 +237,8 @@ export default async function KisDashboardPage() {
             </div>
             <div style={{ paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
               <span style={{ color: "#9fb0cf" }}>Lead change</span>
-              <div style={{ color: lead && lead.change_pct >= 0 ? "#35d07f" : "#ff6b7a" }}>
-                {lead ? formatSignedPercent(lead.change_pct) : "Unavailable"}
+              <div style={{ color: lead && (lead.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a" }}>
+                {lead && hasNumber(lead.change_pct) ? formatSignedPercent(lead.change_pct) : (lead?.unavailable_reason ?? "Unavailable")}
               </div>
             </div>
             <div>

@@ -11,16 +11,19 @@ type CoreMarketStatus = {
 
 type CoreTrackedQuote = {
   symbol: string;
-  price: number;
-  change: number;
-  change_pct: number;
-  volume: number;
-  turnover: number;
+  price: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  turnover: number | null;
   as_of: string | null;
   market_state: string;
   source: string;
   fallback: boolean;
   is_live: boolean;
+  available: boolean;
+  trade_date?: string | null;
+  unavailable_reason?: string | null;
 };
 
 type CoreTrackedQuotesResponse = {
@@ -43,6 +46,10 @@ function formatSignedNumber(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
 }
 
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === "number";
+}
+
 function formatCompactWon(value: number) {
   if (value >= 1_000_000_000) return `₩${(value / 1_000_000_000).toFixed(1)}B`;
   if (value >= 1_000_000) return `₩${(value / 1_000_000).toFixed(1)}M`;
@@ -58,11 +65,12 @@ export default async function RealDashboardPage() {
     fetchServerTradingApiJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols", requestHeaders),
   ]);
 
+  const availableItems = tracked.items.filter((item) => item.available);
   const lead = tracked.items[0] ?? null;
-  const avgChange = tracked.items.length
-    ? tracked.items.reduce((sum, item) => sum + item.change_pct, 0) / tracked.items.length
+  const avgChange = availableItems.length
+    ? availableItems.reduce((sum, item) => sum + (item.change_pct ?? 0), 0) / availableItems.length
     : 0;
-  const totalTurnover = tracked.items.reduce((sum, item) => sum + item.turnover, 0);
+  const totalTurnover = availableItems.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
 
   return (
     <main className="dashboard-shell" style={{ gridTemplateColumns: "1fr", minHeight: "100vh" }}>
@@ -101,14 +109,14 @@ export default async function RealDashboardPage() {
                 <p className="metric-sub">{tracked.items.length} tracked symbols · {formatDisplayTimestamp(market.server_time)}</p>
               </article>
               <article className="glass metric-card pnl-card">
-                <div className="card-head"><span>Lead KRX Quote</span><span className={`pill ${lead && lead.change_pct >= 0 ? "positive" : "negative"}`}>{lead ? formatSignedPercent(lead.change_pct) : "-"}</span></div>
-                <div className="metric-main">{lead ? `₩${lead.price.toLocaleString()}` : "-"}</div>
-                <p className="metric-sub">{lead ? `${lead.symbol} · ${formatSignedNumber(lead.change)}` : "No lead symbol"}</p>
+                <div className="card-head"><span>Lead KRX Quote</span><span className={`pill ${lead && (lead.change_pct ?? 0) >= 0 ? "positive" : "negative"}`}>{lead && hasNumber(lead.change_pct) ? formatSignedPercent(lead.change_pct) : "Unavailable"}</span></div>
+                <div className="metric-main">{lead && hasNumber(lead.price) ? `₩${lead.price.toLocaleString()}` : "Unavailable"}</div>
+                <p className="metric-sub">{lead && hasNumber(lead.change) ? `${lead.symbol} · ${formatSignedNumber(lead.change)}` : "No lead symbol"}</p>
               </article>
               <article className="glass metric-card">
                 <div className="card-head"><span>Tracked Breadth</span><span className="pill neutral">{market.is_open ? "Open" : "Closed"}</span></div>
                 <div className="metric-main">{Math.max(0, Math.min(100, Math.round(50 + avgChange * 8)))}%</div>
-                <p className="metric-sub">Tracked volume {tracked.items.reduce((sum, item) => sum + item.volume, 0).toLocaleString()}</p>
+                <p className="metric-sub">Tracked volume {availableItems.reduce((sum, item) => sum + (item.volume ?? 0), 0).toLocaleString()}</p>
               </article>
             </section>
 
@@ -126,9 +134,9 @@ export default async function RealDashboardPage() {
               </div>
               <div className="chart-grid">
                 <div className="chart-area">
-                  <div className="chart-overlay y-top">{lead ? (lead.price + Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : "-"}</div>
-                  <div className="chart-overlay y-mid">{lead ? lead.price.toLocaleString() : "-"}</div>
-                  <div className="chart-overlay y-low">{lead ? Math.max(0, lead.price - Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : "-"}</div>
+                  <div className="chart-overlay y-top">{lead && hasNumber(lead.price) ? (lead.price + Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : "-"}</div>
+                  <div className="chart-overlay y-mid">{lead && hasNumber(lead.price) ? lead.price.toLocaleString() : "-"}</div>
+                  <div className="chart-overlay y-low">{lead && hasNumber(lead.price) ? Math.max(0, lead.price - Math.max(50, Math.round(lead.price * 0.01))).toLocaleString() : "-"}</div>
                   <svg viewBox="0 0 760 360" className="main-chart" preserveAspectRatio="none" aria-label="tracked chart">
                     <defs>
                       <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
@@ -146,11 +154,11 @@ export default async function RealDashboardPage() {
                 <aside className="glass-inner orderbook">
                   <div className="orderbook-head"><h3>Mini Order Book</h3><span>Depth 10</span></div>
                   <div className="book book-sell">
-                    {[30, 20, 10].map((gap) => <div key={gap} className="book-row"><span>{lead ? (lead.price + gap).toLocaleString() : "-"}</span><span>{(1.5 - gap / 50).toFixed(2)} lot</span></div>)}
+                    {[30, 20, 10].map((gap) => <div key={gap} className="book-row"><span>{lead && hasNumber(lead.price) ? (lead.price + gap).toLocaleString() : "-"}</span><span>{(1.5 - gap / 50).toFixed(2)} lot</span></div>)}
                   </div>
-                  <div className="mid-price">{lead ? lead.price.toLocaleString() : "-"}<span>{lead ? formatSignedPercent(lead.change_pct) : "-"}</span></div>
+                  <div className="mid-price">{lead && hasNumber(lead.price) ? lead.price.toLocaleString() : "-"}<span>{lead && hasNumber(lead.change_pct) ? formatSignedPercent(lead.change_pct) : "-"}</span></div>
                   <div className="book book-buy">
-                    {[10, 20, 30].map((gap) => <div key={gap} className="book-row"><span>{lead ? Math.max(0, lead.price - gap).toLocaleString() : "-"}</span><span>{(1.3 - gap / 60).toFixed(2)} lot</span></div>)}
+                    {[10, 20, 30].map((gap) => <div key={gap} className="book-row"><span>{lead && hasNumber(lead.price) ? Math.max(0, lead.price - gap).toLocaleString() : "-"}</span><span>{(1.3 - gap / 60).toFixed(2)} lot</span></div>)}
                   </div>
                 </aside>
               </div>
@@ -173,8 +181,8 @@ export default async function RealDashboardPage() {
                       <span>{item.as_of ? `Updated ${formatDisplayTimestamp(item.as_of)}` : item.market_state}</span>
                     </div>
                     <div className="watch-price">
-                      <strong>₩{item.price.toLocaleString()}</strong>
-                      <span>{formatSignedPercent(item.change_pct)}</span>
+                      <strong>{hasNumber(item.price) ? `₩${item.price.toLocaleString()}` : "Unavailable"}</strong>
+                      <span>{hasNumber(item.change_pct) ? formatSignedPercent(item.change_pct) : (item.unavailable_reason ?? "Unavailable")}</span>
                     </div>
                   </div>
                 ))}

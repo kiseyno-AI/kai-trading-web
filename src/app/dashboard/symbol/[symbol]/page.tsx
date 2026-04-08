@@ -36,16 +36,20 @@ type SymbolSearchResponse = {
 type QuoteResponse = {
   symbol: string;
   company_name?: string;
-  price: number;
-  change: number;
-  change_pct: number;
-  volume: number;
-  turnover: number;
+  price: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  turnover: number | null;
   market_state: string;
   source: string;
   fallback: boolean;
   is_live: boolean;
+  available: boolean;
   cached_at?: string | null;
+  trade_date?: string | null;
+  fallback_reason?: string | null;
+  unavailable_reason?: string | null;
 };
 
 type TrackedSymbolsResponse = {
@@ -71,6 +75,18 @@ function formatSignedPercent(value: number) {
 
 function formatSignedNumber(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+}
+
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === "number";
+}
+
+function formatSignedPercentOptional(value: number | null | undefined, fallback = "Unavailable") {
+  return hasNumber(value) ? formatSignedPercent(value) : fallback;
+}
+
+function formatSignedNumberOptional(value: number | null | undefined, fallback = "Unavailable") {
+  return hasNumber(value) ? formatSignedNumber(value) : fallback;
 }
 
 function formatOptionalPercent(value: number | null) {
@@ -107,6 +123,15 @@ function buildQuoteContext(quote: Pick<QuoteResponse, "fallback" | "is_live" | "
   if (quote.fallback) return "Quote polling is currently on the backend fallback path.";
   if (quote.is_live) return "Quote polling is on the live trading-core feed.";
   return `Quote polling reports market state ${quote.market_state.toLowerCase()}.`;
+}
+
+function buildQuoteFeedLabel(quote: QuoteResponse | null) {
+  if (!quote) return "Feed pending";
+  if (!quote.available) return "Quote unavailable";
+  if (quote.is_live) return "Live feed";
+  if (quote.source === "daily_price_bar") return "DB EOD fallback";
+  if (quote.fallback) return "Quote fallback";
+  return "Delayed feed";
 }
 
 function buildAggregateContextSummary(
@@ -148,14 +173,22 @@ function buildAggregateContextSummary(
   }
 
   if (quote) {
-    parts.push(buildQuoteContext(quote));
+    if (quote.available) {
+      parts.push(buildQuoteContext(quote));
+    } else {
+      parts.push(`Quote polling is explicitly unavailable: ${quote.unavailable_reason ?? "no fresh upstream or fallback data"}.`);
+    }
   }
 
   return parts.join(" ");
 }
 
 function appendRecentPrice(history: RecentPricePoint[], quote: QuoteResponse): RecentPricePoint[] {
-  const timestamp = quote.cached_at ?? new Date().toISOString();
+  if (!quote.available || !hasNumber(quote.price)) {
+    return history;
+  }
+
+  const timestamp = quote.cached_at ?? quote.trade_date ?? new Date().toISOString();
   const nextPoint = {
     price: quote.price,
     timestamp,
@@ -420,9 +453,13 @@ export default function SymbolDetailPage() {
   const summaryCards = [
     {
       label: "Last price",
-      value: quote ? `KRW ${formatPrice(quote.price)}` : loading ? "Loading..." : "-",
-      detail: quote ? `${formatSignedPercent(quote.change_pct)} · ${formatSignedNumber(quote.change)}` : "Awaiting quote snapshot",
-      tone: quote ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : "",
+      value: quote ? (quote.available ? `KRW ${formatPrice(quote.price)}` : "Unavailable") : loading ? "Loading..." : "-",
+      detail: quote
+        ? quote.available
+          ? `${formatSignedPercentOptional(quote.change_pct)} · ${formatSignedNumberOptional(quote.change)}`
+          : (quote.unavailable_reason ?? "Awaiting a fresh quote source")
+        : "Awaiting quote snapshot",
+      tone: quote && hasNumber(quote.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : "",
     },
     {
       label: "Technical snapshot",
@@ -465,8 +502,8 @@ export default function SymbolDetailPage() {
             <div className={styles.introAside}>
               <span className="pill neutral">{symbol}</span>
               <span className="pill neutral">{aggregateContext?.company.market ?? meta?.market ?? quote?.market_state ?? "Market pending"}</span>
-              <span className={`pill ${quote?.change_pct && quote.change_pct < 0 ? "warning" : "positive"}`}>
-                {quote ? (quote.is_live ? "Live feed" : "Cached feed") : "Feed pending"}
+              <span className={`pill ${quote && quote.available && (quote.change_pct ?? 0) < 0 ? "warning" : quote?.available === false ? "warning" : "positive"}`}>
+                {buildQuoteFeedLabel(quote)}
               </span>
             </div>
           }
@@ -495,7 +532,7 @@ export default function SymbolDetailPage() {
               </div>
               <div className={styles.chartMeta}>
                 <span className={styles.metaPill}>{recentPrices.length || 0} points</span>
-                <span className={styles.metaPill}>Updated {formatDisplayTimestamp(quote?.cached_at)}</span>
+                <span className={styles.metaPill}>Updated {formatDisplayTimestamp(quote?.cached_at ?? quote?.trade_date)}</span>
               </div>
             </div>
 
@@ -604,6 +641,13 @@ export default function SymbolDetailPage() {
                   <code> /api/trading/scanner/tracked-symbols </code>.
                 </p>
               </div>
+              <div className={styles.noteCard}>
+                <strong>Quote provenance</strong>
+                <p className={styles.supportingNote}>
+                  Current quote mode: <code>{quote?.source ?? "pending"}</code>. The backend now marks quotes as
+                  explicitly unavailable when no fresh live, same-day cache, or acceptable DB EOD fallback exists.
+                </p>
+              </div>
             </section>
           </aside>
         </section>
@@ -664,7 +708,7 @@ export default function SymbolDetailPage() {
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Volume</span>
-                <strong className={styles.infoValue}>{quote ? quote.volume.toLocaleString() : "-"}</strong>
+                <strong className={styles.infoValue}>{hasNumber(quote?.volume) ? quote.volume.toLocaleString() : "-"}</strong>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Turnover</span>
@@ -672,11 +716,21 @@ export default function SymbolDetailPage() {
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Feed provenance</span>
-                <strong className={styles.infoValue}>{quote ? `${quote.source} (${quote.fallback ? "fallback" : "primary"})` : "-"}</strong>
+                <strong className={styles.infoValue}>
+                  {quote
+                    ? quote.available
+                      ? `${quote.source} (${quote.fallback ? "fallback" : "primary"})`
+                      : `unavailable (${quote.unavailable_reason ?? "no fresh fallback"})`
+                    : "-"}
+                </strong>
               </div>
               <div className={styles.infoRow}>
                 <span className={styles.infoLabel}>Updated</span>
-                <strong className={styles.infoValue}>{formatDisplayTimestamp(quote?.cached_at)}</strong>
+                <strong className={styles.infoValue}>{formatDisplayTimestamp(quote?.cached_at ?? quote?.trade_date)}</strong>
+              </div>
+              <div className={styles.infoRow}>
+                <span className={styles.infoLabel}>Trade date</span>
+                <strong className={styles.infoValue}>{quote?.trade_date ?? "-"}</strong>
               </div>
             </div>
           </section>

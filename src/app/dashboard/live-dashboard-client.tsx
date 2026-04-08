@@ -17,16 +17,21 @@ export type CoreMarketStatus = {
 export type CoreTrackedQuote = {
   symbol: string;
   company_name?: string;
-  price: number;
-  change: number;
-  change_pct: number;
-  volume: number;
-  turnover: number;
+  price: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  turnover: number | null;
   as_of: string | null;
   market_state: string;
   source: string;
   fallback: boolean;
   is_live: boolean;
+  available: boolean;
+  trade_date?: string | null;
+  cached_at?: string | null;
+  fallback_reason?: string | null;
+  unavailable_reason?: string | null;
 };
 
 export type CoreTrackedQuotesResponse = {
@@ -73,11 +78,17 @@ function getCompanyName(item: CoreTrackedQuote | undefined): string {
   return item.company_name || item.symbol;
 }
 
-function formatSignedPercent(value: number): string {
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === "number";
+}
+
+function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable"): string {
+  if (!hasNumber(value)) return fallback;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatSignedNumber(value: number): string {
+function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable"): string {
+  if (!hasNumber(value)) return fallback;
   return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
 }
 
@@ -88,8 +99,34 @@ function getJson<T>(path: string): Promise<T> {
   });
 }
 
-function getQuoteToneClass(value: number): string {
+function formatCompactMetric(value: number | null | undefined, fallback = "N/A"): string {
+  if (!hasNumber(value)) return fallback;
+  return compactNumberFormatter.format(value);
+}
+
+function getQuoteToneClass(value: number | null | undefined): string {
+  if (!hasNumber(value)) return "";
   return value >= 0 ? styles.positive : styles.negative;
+}
+
+function describeQuoteSource(item: CoreTrackedQuote | undefined): string {
+  if (!item) return "N/A";
+  if (!item.available) {
+    return item.unavailable_reason ? `Unavailable · ${item.unavailable_reason}` : "Unavailable";
+  }
+  if (!item.fallback) {
+    return item.is_live ? "Live KIS quote" : item.source;
+  }
+  if (item.source === "daily_price_bar") {
+    return item.trade_date ? `DB EOD fallback · ${item.trade_date}` : "DB EOD fallback";
+  }
+  if (item.source === "db_cache") {
+    return "Same-day DB quote cache";
+  }
+  if (item.source === "cache") {
+    return "Same-day memory cache";
+  }
+  return `${item.source} fallback`;
 }
 
 export function LiveDashboardClient({
@@ -188,28 +225,36 @@ export function LiveDashboardClient({
     : "Live data is unavailable, so the dashboard is showing local placeholder values.";
 
   const computed = useMemo(() => {
-    const positiveCount = tracked.items.filter((item) => item.change_pct >= 0).length;
+    const availableItems = tracked.items.filter((item) => item.available);
+    const positiveCount = availableItems.filter((item) => (item.change_pct ?? 0) >= 0).length;
     const liveCount = tracked.items.filter((item) => item.is_live).length;
     const fallbackCount = tracked.items.filter((item) => item.fallback).length;
-    const totalTurnover = tracked.items.reduce((sum, item) => sum + item.turnover, 0);
-    const totalVolume = tracked.items.reduce((sum, item) => sum + item.volume, 0);
-    const averageMove = tracked.items.length
-      ? tracked.items.reduce((sum, item) => sum + item.change_pct, 0) / tracked.items.length
+    const unavailableCount = tracked.items.filter((item) => !item.available).length;
+    const totalTurnover = availableItems.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
+    const totalVolume = availableItems.reduce((sum, item) => sum + (item.volume ?? 0), 0);
+    const averageMove = availableItems.length
+      ? availableItems.reduce((sum, item) => sum + (item.change_pct ?? 0), 0) / availableItems.length
       : 0;
 
     return {
+      availableCount: availableItems.length,
       positiveCount,
       liveCount,
       fallbackCount,
+      unavailableCount,
       totalTurnover,
       totalVolume,
       averageMove,
-      breadthRatio: tracked.items.length ? positiveCount / tracked.items.length : 0,
+      breadthRatio: availableItems.length ? positiveCount / availableItems.length : 0,
     };
   }, [tracked.items]);
 
   const movers = useMemo(
-    () => [...tracked.items].sort((left, right) => Math.abs(right.change_pct) - Math.abs(left.change_pct)).slice(0, 5),
+    () =>
+      [...tracked.items]
+        .filter((item) => item.available && hasNumber(item.change_pct))
+        .sort((left, right) => Math.abs((right.change_pct ?? 0)) - Math.abs((left.change_pct ?? 0)))
+        .slice(0, 5),
     [tracked.items],
   );
 
@@ -217,13 +262,13 @@ export function LiveDashboardClient({
     {
       label: "Lead tracked quote",
       value: lead?.symbol ?? "N/A",
-      detail: lead ? formatSignedPercent(lead.change_pct) : "Waiting for feed",
+      detail: lead ? (lead.available ? formatSignedPercent(lead.change_pct) : "Explicitly unavailable") : "Waiting for feed",
       tone: lead ? getQuoteToneClass(lead.change_pct) : "",
     },
     {
-      label: "Positive in tracked set",
+      label: "Positive in available set",
       value: `${Math.round(computed.breadthRatio * 100)}%`,
-      detail: `${computed.positiveCount}/${tracked.items.length || 0} tracked names`,
+      detail: `${computed.positiveCount}/${computed.availableCount || 0} quote-ready names`,
       tone: styles.positive,
     },
     {
@@ -319,30 +364,34 @@ export function LiveDashboardClient({
                   <p className="eyebrow">Lead tracked quote</p>
                   <h2>{getCompanyName(lead)}</h2>
                 </div>
-                <span className={`pill ${market.is_open ? "positive" : "neutral"}`}>
-                  {market.is_open ? "Open" : "Closed"}
+                <span className={`pill ${lead?.available ? (market.is_open ? "positive" : "neutral") : "warning"}`}>
+                  {lead?.available ? (market.is_open ? "Open" : "Closed") : "Quote unavailable"}
                 </span>
               </div>
-              <strong className={styles.heroPrice}>₩{lead ? formatPrice(lead.price) : "N/A"}</strong>
+              <strong className={styles.heroPrice}>{lead?.available ? `₩${formatPrice(lead.price)}` : "Unavailable"}</strong>
               <div className={`${styles.heroDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
-                {lead ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}` : "Waiting for quote"}
+                {lead
+                  ? lead.available
+                    ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}`
+                    : (lead.unavailable_reason ?? "No fresh quote source available")
+                  : "Waiting for quote"}
               </div>
               <div className={styles.heroMiniGrid}>
                 <article>
                   <span>Turnover</span>
-                  <strong>{lead ? formatTurnover(lead.turnover) : "N/A"}</strong>
+                  <strong>{lead?.available ? formatTurnover(lead.turnover) : "Unavailable"}</strong>
                 </article>
                 <article>
                   <span>Volume</span>
-                  <strong>{lead ? compactNumberFormatter.format(lead.volume) : "N/A"}</strong>
+                  <strong>{lead?.available ? formatCompactMetric(lead.volume) : "Unavailable"}</strong>
                 </article>
                 <article>
                   <span>Quote time</span>
-                  <strong>{formatDisplayTimestamp(lead?.as_of)}</strong>
+                  <strong>{formatDisplayTimestamp(lead?.as_of ?? lead?.trade_date ?? lead?.cached_at)}</strong>
                 </article>
                 <article>
                   <span>Quote source</span>
-                  <strong>{lead?.source ?? "N/A"}</strong>
+                  <strong>{describeQuoteSource(lead)}</strong>
                 </article>
               </div>
             </div>
@@ -441,12 +490,13 @@ export function LiveDashboardClient({
                 <div className={styles.headerBadges}>
                   <span className="pill positive">{computed.liveCount} flagged live</span>
                   <span className="pill neutral">{computed.fallbackCount} fallback</span>
+                  <span className="pill warning">{computed.unavailableCount} unavailable</span>
                 </div>
               </div>
 
               <div className={styles.quoteTable}>
                 {tracked.items.map((item) => {
-                  const barWidth = Math.min(Math.abs(item.change_pct) * 12, 100);
+                  const barWidth = hasNumber(item.change_pct) ? Math.min(Math.abs(item.change_pct) * 12, 100) : 0;
 
                   return (
                     <article key={item.symbol} className={styles.quoteRow}>
@@ -455,22 +505,25 @@ export function LiveDashboardClient({
                         <span>{getCompanyName(item)}</span>
                       </div>
                       <div className={styles.quoteValue}>
-                        <strong>₩{formatPrice(item.price)}</strong>
-                        <span>{formatSignedNumber(item.change)}</span>
+                        <strong>{item.available ? `₩${formatPrice(item.price)}` : "Unavailable"}</strong>
+                        <span>{item.available ? formatSignedNumber(item.change) : (item.unavailable_reason ?? "No fresh fallback")}</span>
                       </div>
                       <div className={styles.quoteMove}>
-                        <strong className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</strong>
+                        <strong className={getQuoteToneClass(item.change_pct)}>
+                          {item.available ? formatSignedPercent(item.change_pct) : "Unavailable"}
+                        </strong>
                         <div className={styles.quoteBarTrack}>
                           <div
-                            className={`${styles.quoteBarFill} ${item.change_pct >= 0 ? styles.quoteBarPositive : styles.quoteBarNegative}`}
+                            className={`${styles.quoteBarFill} ${(item.change_pct ?? 0) >= 0 ? styles.quoteBarPositive : styles.quoteBarNegative}`}
                             style={{ width: `${barWidth}%` }}
                           />
                         </div>
                       </div>
                       <div className={styles.quoteMeta}>
                         <span>Turnover {formatTurnover(item.turnover)}</span>
-                        <span>Vol {compactNumberFormatter.format(item.volume)}</span>
-                        <span>{formatDisplayTimestamp(item.as_of)}</span>
+                        <span>Vol {formatCompactMetric(item.volume)}</span>
+                        <span>{formatDisplayTimestamp(item.as_of ?? item.trade_date ?? item.cached_at)}</span>
+                        <span>{describeQuoteSource(item)}</span>
                       </div>
                     </article>
                   );
@@ -491,7 +544,7 @@ export function LiveDashboardClient({
 
               <div className={styles.progressGroup}>
                 <div className={styles.progressHeader}>
-                  <span>Positive quotes</span>
+                  <span>Positive available quotes</span>
                   <strong>{computed.positiveCount} names</strong>
                 </div>
                 <div className={styles.progressTrack}>
@@ -535,6 +588,10 @@ export function LiveDashboardClient({
                 <article className={styles.snapshotCard}>
                   <span>Tracked symbols</span>
                   <strong>{symbols.count}</strong>
+                </article>
+                <article className={styles.snapshotCard}>
+                  <span>Unavailable quotes</span>
+                  <strong>{computed.unavailableCount}</strong>
                 </article>
               </div>
             </section>
@@ -595,11 +652,11 @@ export function LiveDashboardClient({
                 </div>
                 <div className={styles.healthRow}>
                   <span>Lead source</span>
-                  <strong>{lead?.source ?? "N/A"}</strong>
+                  <strong>{describeQuoteSource(lead)}</strong>
                 </div>
                 <div className={styles.healthRow}>
-                  <span>Lead quote live flag</span>
-                  <strong>{lead ? (lead.is_live ? "Live" : "Cached or delayed") : "N/A"}</strong>
+                  <span>Lead quote availability</span>
+                  <strong>{lead ? (lead.available ? (lead.is_live ? "Live" : "Fallback") : "Unavailable") : "N/A"}</strong>
                 </div>
               </div>
             </section>
