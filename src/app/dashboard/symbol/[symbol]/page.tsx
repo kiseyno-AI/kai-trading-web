@@ -232,7 +232,7 @@ function buildTechnicalSnapshotDetail(
   marketDate: string | null,
 ) {
   if (technicalSnapshot) {
-    return `5D ${formatOptionalPercent(technicalSnapshot.return_5d)} · 20D ${formatOptionalPercent(technicalSnapshot.return_20d)} · Vol ${formatOptionalMultiple(technicalSnapshot.volume_ratio_20d)}`;
+    return `As of ${technicalSnapshot.market_date} · 5D ${formatOptionalPercent(technicalSnapshot.return_5d)} · 20D ${formatOptionalPercent(technicalSnapshot.return_20d)} · Vol ${formatOptionalMultiple(technicalSnapshot.volume_ratio_20d)}`;
   }
 
   if (quote?.trade_date && marketDate && quote.trade_date !== marketDate) {
