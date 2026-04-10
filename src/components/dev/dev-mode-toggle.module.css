@@ -1,0 +1,27 @@
+.toggle {
+  border: 1px solid rgba(143, 144, 158, 0.18);
+  border-radius: 999px;
+  background: rgba(29, 43, 61, 0.78);
+  color: #c5c5d4;
+  padding: 0.38rem 0.68rem;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.toggle:hover {
+  color: #f5f7ff;
+  border-color: rgba(186, 195, 255, 0.35);
+}
+
+.active {
+  background: rgba(63, 81, 181, 0.95);
+  color: #ffffff;
+  border-color: rgba(186, 195, 255, 0.45);
+}

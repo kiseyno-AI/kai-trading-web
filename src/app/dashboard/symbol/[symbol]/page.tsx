@@ -5,7 +5,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { AppShell } from "@/components/layout/app-shell";
+import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
+import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import type {
   AgentContextActionSummaryDto,
@@ -107,10 +108,6 @@ function formatCompactNumber(value: number | string | null | undefined, fallback
   }
 
   return fallback;
-}
-
-function formatPercentOrDash(value: number | null | undefined) {
-  return hasNumber(value) ? `${value.toFixed(2)}%` : "[확인 필요]";
 }
 
 function formatNumberOrDash(value: number | null | undefined) {
@@ -903,63 +900,86 @@ export default function SymbolDetailPage() {
     },
   ] as const;
 
+  const currentDetailHref = `/dashboard/symbol/${encodeURIComponent(symbol)}`;
+
   return (
-    <AppShell currentPath="/dashboard" title={introTitle} eyebrow="Symbol Detail" compactMobileChrome>
-      <div className={`page-stack ${styles.detailPage}`}>
-        <section className={`glass ${styles.heroCard}`} id="summary">
+    <MobileAppChrome
+      activeNav="symbols"
+      mySymbolsHref={currentDetailHref}
+      header={
+        <>
+          <div className={styles.headerBrand}>
+            <Link href="/dashboard" className={styles.backButton} aria-label="Back to dashboard">
+              ←
+            </Link>
+            <div>
+              <p className={styles.sectionEyebrow}>Obsidian Ledger</p>
+              <strong className={styles.headerTitle}>{symbol}</strong>
+            </div>
+          </div>
+
+          <div className={styles.headerActions}>
+            <span className={`pill ${quotePollingStopped ? "info" : marketStateTone}`}>
+              {quotePollingStopped ? "Stable Mode" : marketStatus?.state ?? "Market Pending"}
+            </span>
+            <DevModeToggle />
+          </div>
+        </>
+      }
+    >
+      <div className={styles.detailPage}>
+        <section className={`${styles.panel} ${styles.heroCard}`} id="summary">
           <ComponentTag
             label="symbol.hero"
             api="/api/trading/quotes/{symbol} + /api/trading/market/status + /api/trading/symbols/search"
           />
 
-          <div className={styles.heroHeader}>
+          <div className={styles.heroTopRow}>
             <div>
-              <p className="eyebrow">Symbol Detail</p>
+              <p className={styles.sectionEyebrow}>Market Insights</p>
               <div className={styles.heroTitleRow}>
                 <h1>{symbol}</h1>
                 <p className={`clamp-3 ${styles.heroCompany}`}>{introTitle}</p>
               </div>
             </div>
 
-            <div className={styles.heroPills}>
-              <span className="pill neutral">{marketLabel}</span>
-              <span className={`pill ${marketStateTone}`}>
-                {marketStatus?.state ?? "Market pending"}
-              </span>
-              <span className={`pill ${quotePollingStopped ? "info" : "warning"}`}>
-                {quotePollingStopped ? "Polling stopped" : "Polling active"}
-              </span>
+            <div className={styles.heroControls}>
+              <button type="button" className={styles.tradeButton} disabled title="Execution route [확인 필요]">
+                Trade
+              </button>
+              <span className={styles.watchBadge}>★</span>
             </div>
           </div>
 
-          <div className={styles.heroQuoteRow}>
-            <div className={styles.heroPriceBlock}>
-              <strong>
-                {quote
-                  ? quote.available
-                    ? `₩${formatPrice(quote.price)}`
-                    : "Unavailable"
-                  : loading
-                    ? "Loading..."
-                    : "[확인 필요]"}
-              </strong>
-              <span className={hasNumber(quote?.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : ""}>
-                {quote?.available
-                  ? `${formatSignedPercent(quote.change_pct)} · ${formatSignedNumber(quote.change)}`
-                  : quote?.unavailable_reason ?? "Awaiting a fresh quote source"}
-              </span>
-              <p className={`clamp-3 ${styles.heroCopy}`}>{buildQuoteSourceLabel(quote)}</p>
-            </div>
-
-            <div className={styles.heroActions}>
-              <Link href="/dashboard" className={styles.linkButton}>
-                Back to dashboard
-              </Link>
-              <Link href="/search" className={styles.linkButtonMuted}>
-                Search workspace
-              </Link>
-            </div>
+          <div className={styles.heroQuoteBlock}>
+            <strong>
+              {quote
+                ? quote.available
+                  ? `₩${formatPrice(quote.price)}`
+                  : "N/A"
+                : loading
+                  ? "Loading..."
+                  : "[확인 필요]"}
+            </strong>
+            <span className={hasNumber(quote?.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : ""}>
+              {quote?.available
+                ? `${formatSignedPercent(quote.change_pct)} · ${formatSignedNumber(quote.change)}`
+                : quote?.unavailable_reason ?? "Awaiting a fresh quote source"}
+            </span>
+            <p className={`clamp-3 ${styles.heroCopy}`}>{buildQuoteSourceLabel(quote)}</p>
           </div>
+
+          <div className={styles.heroPills}>
+            <span className="pill neutral">{marketLabel}</span>
+            <span className={`pill ${marketStateTone}`}>{marketStatus?.state ?? "Market pending"}</span>
+            <span className={`pill ${quotePollingStopped ? "info" : "warning"}`}>
+              {quotePollingStopped ? "Polling stopped" : "Polling active"}
+            </span>
+          </div>
+
+          <p className={`clamp-3 ${styles.fusionCopy}`}>
+            Layer-specific freshness stays explicit. {contextSummary}
+          </p>
 
           <div className={styles.heroMetrics}>
             {heroMetrics.map((metric) => (
@@ -972,43 +992,21 @@ export default function SymbolDetailPage() {
           </div>
         </section>
 
-        <nav className={`glass ${styles.anchorRail}`}>
-          <ComponentTag label="symbol.section-nav" api="in-page anchors" />
-          <a href="#chart" className={styles.anchorChip}>
-            Chart
-          </a>
-          <a href="#action" className={styles.anchorChip}>
-            Action
-          </a>
-          <a href="#technical" className={styles.anchorChip}>
-            Technical
-          </a>
-          <a href="#fundamentals" className={styles.anchorChip}>
-            Fundamentals
-          </a>
-          <a href="#disclosures" className={styles.anchorChip}>
-            DART
-          </a>
-          <a href="#freshness" className={styles.anchorChip}>
-            Freshness
-          </a>
-        </nav>
-
-        <section className={`glass ${styles.fusionCard}`}>
-          <ComponentTag
-            label="symbol.data-fusion-note"
-            api="/api/trading/agent-context/symbol-day + /api/trading/quotes/{symbol}"
-          />
-          <div className={styles.cardHeader}>
-            <div>
-              <p className="eyebrow">Fusion Note</p>
-              <h2>Layer-specific freshness stays explicit</h2>
+        {detailErrors.length > 0 ? (
+          <section className={`${styles.panel} ${styles.alertCard}`}>
+            <ComponentTag label="symbol.errors" api="client fetch states" />
+            <p className={styles.sectionEyebrow}>Data Issues</p>
+            <div className={styles.errorList}>
+              {detailErrors.map((error) => (
+                <div key={error} className={styles.feedback}>
+                  {error}
+                </div>
+              ))}
             </div>
-          </div>
-          <p className={`clamp-3 ${styles.supportingCopy}`}>{contextSummary}</p>
-        </section>
+          </section>
+        ) : null}
 
-        <section className={`glass ${styles.chartCard}`} id="chart">
+        <section className={`${styles.panel} ${styles.chartCard}`} id="chart">
           <ComponentTag
             label="symbol.chart"
             api="/api/trading/symbols/{symbol}/price-bars + /api/trading/quotes/{symbol}"
@@ -1016,12 +1014,8 @@ export default function SymbolDetailPage() {
 
           <div className={styles.cardHeader}>
             <div>
-              <p className="eyebrow">Historical Performance</p>
-              <h2>Swipe-aware candlestick chart</h2>
-              <p className={`clamp-3 ${styles.supportingCopy}`}>
-                Stored daily OHLCV bars drive this mobile chart. Swipe or drag across the plot to move focus dates
-                without forcing live quote polling into the historical view.
-              </p>
+              <p className={styles.sectionEyebrow}>Historical Performance</p>
+              <h2 className={styles.cardTitle}>Swipe-aware candlestick chart</h2>
             </div>
 
             <div className={styles.rangeRow}>
@@ -1045,7 +1039,7 @@ export default function SymbolDetailPage() {
               <p className="clamp-3">
                 {focusBar
                   ? `Open ${formatPrice(focusBar.open_price)} · High ${formatPrice(focusBar.high_price)} · Low ${formatPrice(focusBar.low_price)}`
-                  : "Select a bar to inspect OHLC details."}
+                  : "Select a candle to inspect OHLC details."}
               </p>
             </article>
             <article className={styles.focusCard}>
@@ -1056,25 +1050,14 @@ export default function SymbolDetailPage() {
               <p className="clamp-3">
                 {previousFocusBar
                   ? `Prior close ${formatPrice(previousFocusBar.close_price)} · Current close ${formatPrice(focusBar?.close_price)}`
-                  : "Prior close comparison appears once a neighboring bar exists."}
+                  : "Prior close comparison appears once a neighboring candle exists."}
               </p>
             </article>
             <article className={styles.focusCard}>
               <span>Volume</span>
               <strong>{formatCompactNumber(focusBar?.volume)}</strong>
-              <p className="clamp-3">{focusBar ? `Turnover ${formatTurnover(focusBar.turnover)}` : "Focus any candle for turnover metadata."}</p>
-            </article>
-            <article className={styles.focusCard}>
-              <span>Range spread</span>
-              <strong>
-                {focusBar
-                  ? `₩${formatPrice(focusBar.high_price - focusBar.low_price)}`
-                  : "[확인 필요]"}
-              </strong>
               <p className="clamp-3">
-                {chartMetrics
-                  ? `${chartMetrics.points} bars loaded between ${formatIsoDateLabel(chartMetrics.startDate)} and ${formatIsoDateLabel(chartMetrics.endDate)}.`
-                  : "Historical bar metadata pending."}
+                {focusBar ? `Turnover ${formatTurnover(focusBar.turnover)}` : "Focus any candle for turnover metadata."}
               </p>
             </article>
           </div>
@@ -1090,16 +1073,12 @@ export default function SymbolDetailPage() {
             ) : historyLoading ? (
               <div className={styles.emptyPanel}>
                 <strong>Loading stored price history</strong>
-                <p className="clamp-3">
-                  Requesting the selected historical OHLCV window from trading-core through the BFF.
-                </p>
+                <p className="clamp-3">Requesting the selected historical OHLCV window from trading-core through the BFF.</p>
               </div>
             ) : (
               <div className={styles.emptyPanel}>
                 <strong>No stored bars returned</strong>
-                <p className="clamp-3">
-                  Trading-core did not return any daily price bars for the selected range.
-                </p>
+                <p className="clamp-3">Trading-core did not return any daily price bars for the selected range.</p>
               </div>
             )}
           </div>
@@ -1116,7 +1095,7 @@ export default function SymbolDetailPage() {
         </section>
 
         <section className={styles.insightGrid}>
-          <section className={`glass ${styles.insightCard} ${styles.actionCard}`} id="action">
+          <section className={`${styles.panel} ${styles.insightCard}`} id="action">
             <ComponentTag
               label="symbol.action-summary"
               api="/api/trading/eod/action-summaries + /api/trading/agent-context/symbol-day"
@@ -1124,49 +1103,39 @@ export default function SymbolDetailPage() {
 
             <div className={styles.cardHeader}>
               <div>
-                <p className="eyebrow">Action Summary</p>
-                <h2>Deterministic action layer</h2>
+                <p className={styles.sectionEyebrow}>Action Summary</p>
+                <h2 className={styles.cardTitle}>Deterministic action layer</h2>
               </div>
               <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : "Unavailable"}</span>
             </div>
 
-            <div className={styles.scorePanel}>
-              <div
-                className={styles.scoreRing}
-                style={{
-                  background: `conic-gradient(rgba(186, 195, 255, 0.95) ${actionScore}%, rgba(255, 255, 255, 0.08) 0)`,
-                }}
-              >
-                <div className={styles.scoreInner}>
-                  <strong>{resolvedActionSummary?.signal_score ?? "[확인 필요]"}</strong>
-                  <span>Score</span>
-                </div>
-              </div>
-
-              <div className={styles.scoreCopy}>
-                <strong className="clamp-3">
-                  {resolvedActionSummary
-                    ? `${humanizeToken(resolvedActionSummary.action_label)} bias with ${humanizeToken(resolvedActionSummary.confidence_tier)} confidence`
-                    : "Action summary is not resolved for this symbol-date packet."}
-                </strong>
-                <p className="clamp-3">
-                  {actionReasons.length > 0
-                    ? actionReasons.join(" ")
-                    : "Current core spec does not guarantee multi-day signal history. If a historical action timeline is needed, keep it as [확인 필요] until a dedicated route exists."}
-                </p>
+            <div className={styles.signalMeter}>
+              <div className={styles.signalTrack}>
+                <span className={styles.signalSell}>Sell</span>
+                <span className={styles.signalStrong}>Strong Buy</span>
+                <div className={styles.signalFill} style={{ width: `${actionScore}%` }} />
               </div>
             </div>
 
-            <div className={styles.metricList}>
+            <strong className={`clamp-3 ${styles.insightHeadline}`}>
+              {resolvedActionSummary
+                ? `${humanizeToken(resolvedActionSummary.action_label)} bias with ${humanizeToken(resolvedActionSummary.confidence_tier)} confidence`
+                : "Action summary is not resolved for this symbol-date packet."}
+            </strong>
+            <p className={`clamp-3 ${styles.supportingCopy}`}>
+              {actionReasons.length > 0
+                ? actionReasons.join(" ")
+                : "Historical action rationale is [확인 필요] until a dedicated multi-day signal route exists."}
+            </p>
+
+            <div className={styles.metricGrid}>
               <article className={styles.metricCard}>
                 <span>Confidence</span>
                 <strong>{humanizeToken(resolvedActionSummary?.confidence_tier)}</strong>
-                <p className="clamp-3">Tier from the deterministic action-summary packet.</p>
               </article>
               <article className={styles.metricCard}>
                 <span>Risk</span>
                 <strong>{humanizeToken(resolvedActionSummary?.risk_tier)}</strong>
-                <p className="clamp-3">Separate from confidence so the UI does not collapse signal quality and risk.</p>
               </article>
               <article className={styles.metricCard}>
                 <span>Trigger</span>
@@ -1175,40 +1144,21 @@ export default function SymbolDetailPage() {
                     ? `₩${formatPrice(resolvedActionSummary?.trigger_price)}`
                     : "[확인 필요]"}
                 </strong>
-                <p className="clamp-3">Trigger or entry guidance from the action-summary payload.</p>
-              </article>
-              <article className={styles.metricCard}>
-                <span>Risk rails</span>
-                <strong>
-                  {hasNumber(resolvedActionSummary?.support_price)
-                    ? `₩${formatPrice(resolvedActionSummary?.support_price)}`
-                    : "[확인 필요]"}
-                </strong>
-                <p className="clamp-3">
-                  Support {hasNumber(resolvedActionSummary?.support_price) ? `₩${formatPrice(resolvedActionSummary?.support_price)}` : "[확인 필요]"} · Resistance {hasNumber(resolvedActionSummary?.resistance_price) ? `₩${formatPrice(resolvedActionSummary?.resistance_price)}` : "[확인 필요]"}.
-                </p>
               </article>
             </div>
 
-            <div className={styles.tagSection}>
-              <div className={styles.tagGroup}>
-                {actionReasons.length > 0 ? (
-                  actionReasons.map((reason) => (
-                    <span key={reason} className={styles.tagChip}>
-                      {reason}
-                    </span>
-                  ))
-                ) : (
-                  <span className={styles.tagChip}>[확인 필요] Historical rationale endpoint</span>
-                )}
-              </div>
-              <div className={styles.metaCaption}>
-                Payload keys: {actionPayloadTags.join(" · ")}
-              </div>
+            <div className={styles.tagGroup}>
+              {(actionReasons.length > 0 ? actionReasons : ["[확인 필요] Historical rationale endpoint"]).map((reason) => (
+                <span key={reason} className={styles.tagChip}>
+                  {reason}
+                </span>
+              ))}
             </div>
+
+            <p className={styles.metaCaption}>Payload keys: {actionPayloadTags.join(" · ")}</p>
           </section>
 
-          <section className={`glass ${styles.insightCard}`} id="technical">
+          <section className={`${styles.panel} ${styles.insightCard}`} id="technical">
             <ComponentTag
               label="symbol.technical-analysis"
               api="/api/trading/eod/technical-snapshots + /api/trading/agent-context/symbol-day"
@@ -1216,89 +1166,60 @@ export default function SymbolDetailPage() {
 
             <div className={styles.cardHeader}>
               <div>
-                <p className="eyebrow">Technical Analysis</p>
-                <h2>Stored snapshot metrics</h2>
+                <p className={styles.sectionEyebrow}>Technical Snapshot</p>
+                <h2 className={styles.cardTitle}>Stored snapshot metrics</h2>
               </div>
               <span className={`pill ${technicalTone}`}>
                 {resolvedTechnicalSnapshot ? humanizeToken(resolvedTechnicalSnapshot.trend_state) : "Unavailable"}
               </span>
             </div>
 
-            <div className={styles.technicalHero}>
-              <div>
-                <strong className={styles.technicalHeadline}>
-                  {resolvedTechnicalSnapshot
-                    ? `${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)} structure`
-                    : "Technical snapshot is not available for the requested market date."}
-                </strong>
-                <p className={`clamp-3 ${styles.supportingCopy}`}>
-                  {resolvedTechnicalSnapshot
-                    ? `Breakout 20D ${resolvedTechnicalSnapshot.breakout_20d ? "yes" : "no"} · Breakdown 20D ${resolvedTechnicalSnapshot.breakdown_20d ? "yes" : "no"} · Source ${resolvedTechnicalSnapshot.source}`
-                    : "Current UI keeps unavailable technical states explicit instead of manufacturing RSI, MACD, or ADX values when the API does not expose them."}
-                </p>
-              </div>
-              <div className={styles.liveBadge}>
-                <span className="pill info">
-                  {resolvedTechnicalSnapshot?.market_date ??
-                    freshness?.latest?.technical_market_date ??
-                    "[확인 필요]"}
-                </span>
-              </div>
-            </div>
+            <strong className={`clamp-3 ${styles.insightHeadline}`}>
+              {resolvedTechnicalSnapshot
+                ? `${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)} structure`
+                : "Technical snapshot is not available for the requested market date."}
+            </strong>
+            <p className={`clamp-3 ${styles.supportingCopy}`}>
+              {resolvedTechnicalSnapshot
+                ? `Breakout 20D ${resolvedTechnicalSnapshot.breakout_20d ? "yes" : "no"} · Breakdown 20D ${resolvedTechnicalSnapshot.breakdown_20d ? "yes" : "no"} · Source ${resolvedTechnicalSnapshot.source}`
+                : "Unsupported indicators stay labeled [확인 필요] instead of being manufactured in the client."}
+            </p>
 
-            <div className={styles.metricList}>
+            <div className={styles.metricGrid}>
               <article className={styles.metricCard}>
                 <span>5D return</span>
                 <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, "[확인 필요]")}</strong>
-                <p className="clamp-3">Null is legitimate when historical lookback is insufficient.</p>
               </article>
               <article className={styles.metricCard}>
                 <span>20D return</span>
                 <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, "[확인 필요]")}</strong>
-                <p className="clamp-3">Derived from stored EOD snapshots, not the live quote feed.</p>
               </article>
               <article className={styles.metricCard}>
                 <span>Volume ratio 20D</span>
                 <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.volume_ratio_20d)}</strong>
-                <p className="clamp-3">Shows relative participation versus the rolling 20-day baseline.</p>
               </article>
               <article className={styles.metricCard}>
                 <span>ATR 14</span>
                 <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.atr_14)}</strong>
-                <p className="clamp-3">Absolute volatility rail from the technical snapshot.</p>
-              </article>
-              <article className={styles.metricCard}>
-                <span>ATR % 14</span>
-                <strong>{formatPercentOrDash(resolvedTechnicalSnapshot?.atr_pct_14)}</strong>
-                <p className="clamp-3">Normalized ATR from the technical snapshot packet.</p>
-              </article>
-              <article className={styles.metricCard}>
-                <span>Payload extras</span>
-                <strong>{technicalPayloadTags[0] ?? "[확인 필요]"}</strong>
-                <p className="clamp-3">
-                  Additional signal-payload keys appear only when exposed upstream. Unsupported indicators stay
-                  labeled [확인 필요].
-                </p>
               </article>
             </div>
 
-            <div className={styles.tagSection}>
-              <div className={styles.tagGroup}>
-                {technicalPayloadTags.map((tag) => (
-                  <span key={tag} className={styles.tagChip}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              <div className={styles.metaCaption}>
-                Source date {resolvedTechnicalSnapshot?.market_date ?? "[확인 필요]"} · Layer freshness is independent from price freshness.
-              </div>
+            <div className={styles.tagGroup}>
+              {technicalPayloadTags.map((tag) => (
+                <span key={tag} className={styles.tagChip}>
+                  {tag}
+                </span>
+              ))}
             </div>
+
+            <p className={styles.metaCaption}>
+              Source date {resolvedTechnicalSnapshot?.market_date ?? "[확인 필요]"} · Layer freshness is independent from price freshness.
+            </p>
           </section>
         </section>
 
         <section className={styles.evidenceGrid}>
-          <section className={`glass ${styles.evidenceCard}`} id="fundamentals">
+          <section className={`${styles.panel} ${styles.evidenceCard}`} id="fundamentals">
             <ComponentTag
               label="symbol.fundamentals-history"
               api="/api/trading/disclosures/dart/fundamentals/history + /api/trading/agent-context/symbol-day"
@@ -1306,42 +1227,41 @@ export default function SymbolDetailPage() {
 
             <div className={styles.cardHeader}>
               <div>
-                <p className="eyebrow">Fundamentals</p>
-                <h2>Stored DART filing history</h2>
-                <p className={`clamp-3 ${styles.supportingCopy}`}>
-                  Latest filing metadata and five-year history are rendered separately so we do not imply a single
-                  cross-source fundamentals freshness date.
-                </p>
+                <p className={styles.sectionEyebrow}>Fundamentals</p>
+                <h2 className={styles.cardTitle}>Stored DART filing history</h2>
               </div>
               <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? "Default FS"}</span>
             </div>
 
-            <div className={styles.metricList}>
+            <div className={styles.companyStrip}>
+              <div className={styles.companyAvatar}>{symbol.slice(0, 1)}</div>
+              <div>
+                <strong>{introTitle}</strong>
+                <p className="clamp-3">
+                  Latest filing {latestHistoryEntry?.filing.report_nm ?? latestFundamentals?.filing.report_name ?? "[확인 필요]"}.
+                </p>
+              </div>
+            </div>
+
+            <div className={styles.metricGrid}>
               {latestHighlights.length > 0 ? (
                 latestHighlights.map((metric, index) => (
                   <article key={`${formatHighlightLabel(metric, index)}-${index}`} className={styles.metricCard}>
                     <span>{formatHighlightLabel(metric, index)}</span>
                     <strong>{formatHighlightValue(metric)}</strong>
-                    <p className="clamp-3">
-                      Latest filing {latestHistoryEntry?.filing.report_nm ?? latestFundamentals?.filing.report_name ?? "[확인 필요]"}.
-                    </p>
                   </article>
                 ))
               ) : (
                 <article className={styles.metricCard}>
                   <span>Latest filing</span>
                   <strong>{latestFundamentals?.filing.report_name ?? "[확인 필요]"}</strong>
-                  <p className="clamp-3">
-                    Highlights are unavailable until the fundamentals-history endpoint exposes metric rows for this
-                    symbol.
-                  </p>
                 </article>
               )}
             </div>
 
             <div className={styles.historyList}>
               {companyHistory?.entries.length ? (
-                companyHistory.entries.slice(0, 5).map((entry) => (
+                companyHistory.entries.slice(0, 4).map((entry) => (
                   <article key={entry.filing.rcept_no} className={styles.historyCard}>
                     <div className={styles.historyHeader}>
                       <div>
@@ -1356,12 +1276,16 @@ export default function SymbolDetailPage() {
                       <span className="pill neutral">{entry.statement.fs_div ?? "[확인 필요]"}</span>
                     </div>
                     <div className={styles.historyMetrics}>
-                      {(entry.highlights.length > 0 ? entry.highlights : [{ metric_key: null, label: "[확인 필요]", value: null }]).slice(0, 4).map((metric, index) => (
-                        <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}`} className={styles.historyMetricRow}>
-                          <span>{formatHighlightLabel(metric, index)}</span>
-                          <strong>{formatHighlightValue(metric)}</strong>
-                        </div>
-                      ))}
+                      {(entry.highlights.length > 0
+                        ? entry.highlights
+                        : [{ metric_key: null, label: "[확인 필요]", value: null }])
+                        .slice(0, 2)
+                        .map((metric, index) => (
+                          <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}`} className={styles.historyMetricRow}>
+                            <span>{formatHighlightLabel(metric, index)}</span>
+                            <strong>{formatHighlightValue(metric)}</strong>
+                          </div>
+                        ))}
                     </div>
                   </article>
                 ))
@@ -1373,28 +1297,19 @@ export default function SymbolDetailPage() {
               ) : (
                 <div className={styles.emptyPanel}>
                   <strong>No stored fundamentals history</strong>
-                  <p className="clamp-3">
-                    {buildFundamentalsCoverageNote(companyHistory, latestFundamentals)}
-                  </p>
+                  <p className="clamp-3">{buildFundamentalsCoverageNote(companyHistory, latestFundamentals)}</p>
                 </div>
               )}
             </div>
           </section>
 
-          <section className={`glass ${styles.evidenceCard}`} id="disclosures">
-            <ComponentTag
-              label="symbol.disclosures"
-              api="/api/trading/agent-context/symbol-day"
-            />
+          <section className={`${styles.panel} ${styles.evidenceCard}`} id="disclosures">
+            <ComponentTag label="symbol.disclosures" api="/api/trading/agent-context/symbol-day" />
 
             <div className={styles.cardHeader}>
               <div>
-                <p className="eyebrow">DART Disclosures</p>
-                <h2>Recent filing coverage</h2>
-                <p className={`clamp-3 ${styles.supportingCopy}`}>
-                  This section renders only recent disclosures already composed into the aggregate packet. Filing
-                  document download remains [확인 필요] until a dedicated web-side doc flow is wired.
-                </p>
+                <p className={styles.sectionEyebrow}>DART Disclosures</p>
+                <h2 className={styles.cardTitle}>Recent filing coverage</h2>
               </div>
               <span className={`pill ${disclosureSectionState === "list" ? "info" : disclosureSectionState === "empty" ? "neutral" : "warning"}`}>
                 {aggregateContext?.recent_disclosures.count ?? 0} items
@@ -1403,7 +1318,7 @@ export default function SymbolDetailPage() {
 
             {disclosureSectionState === "list" ? (
               <div className={styles.disclosureList}>
-                {aggregateContext?.recent_disclosures.items.map((item) => (
+                {aggregateContext?.recent_disclosures.items.slice(0, 4).map((item) => (
                   <article key={item.rcept_no} className={styles.disclosureCard}>
                     <div className={styles.disclosureHeader}>
                       <strong className="clamp-3">{item.report_nm}</strong>
@@ -1423,29 +1338,30 @@ export default function SymbolDetailPage() {
             ) : disclosureSectionState === "loading" ? (
               <div className={styles.emptyPanel}>
                 <strong>Loading disclosure coverage</strong>
-                <p className="clamp-3">
-                  Waiting for the aggregate symbol-day payload before rendering disclosure availability.
-                </p>
+                <p className="clamp-3">Waiting for the aggregate symbol-day payload before rendering disclosure availability.</p>
               </div>
             ) : disclosureSectionState === "empty" ? (
               <div className={styles.emptyPanel}>
                 <strong>No Disclosure Found</strong>
-                <p className="clamp-3">
-                  Aggregate context succeeded, but no recent disclosure rows were attached to this symbol-day packet.
-                </p>
+                <p className="clamp-3">Aggregate context succeeded, but no recent disclosure rows were attached to this symbol-day packet.</p>
               </div>
             ) : (
               <div className={styles.emptyPanel}>
                 <strong>Disclosure coverage unavailable</strong>
-                <p className="clamp-3">
-                  Recent disclosure coverage could not be confirmed because the aggregate route is currently unavailable.
-                </p>
+                <p className="clamp-3">Recent disclosure coverage could not be confirmed because the aggregate route is currently unavailable.</p>
               </div>
             )}
+
+            <div className={styles.coverageNote}>
+              <strong>{latestDisclosure ? "Latest disclosure available" : "Partial analyst coverage"}</strong>
+              <p className="clamp-3">
+                {buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0)}
+              </p>
+            </div>
           </section>
         </section>
 
-        <section className={`glass ${styles.freshnessCard}`} id="freshness">
+        <section className={`${styles.panel} ${styles.freshnessCard}`} id="freshness">
           <ComponentTag
             label="symbol.system-freshness"
             api="/api/trading/eod/freshness + /api/trading/quotes/{symbol}"
@@ -1453,40 +1369,28 @@ export default function SymbolDetailPage() {
 
           <div className={styles.cardHeader}>
             <div>
-              <p className="eyebrow">Operational Integrity</p>
-              <h2>Layer-specific freshness registry</h2>
-              <p className={`clamp-3 ${styles.supportingCopy}`}>
-                Price, technical, action, fundamentals, and disclosures do not share one universal timestamp. This
-                registry keeps each layer visible so the mobile UI avoids false synchronization cues.
-              </p>
+              <p className={styles.sectionEyebrow}>Operational Integrity</p>
+              <h2 className={styles.cardTitle}>Layer-specific freshness registry</h2>
             </div>
-            <span className={`pill ${freshnessTone}`}>
-              {humanizeToken(freshness?.today?.eod_status, "[확인 필요]")}
-            </span>
+            <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, "[확인 필요]")}</span>
           </div>
 
-          <div className={styles.freshnessHeroGrid}>
-            <article className={styles.heroMetricCard}>
+          <div className={styles.metricGrid}>
+            <article className={styles.metricCard}>
               <span>EOD trade date</span>
               <strong>{freshness?.today?.trade_date ?? "[확인 필요]"}</strong>
-              <p className="clamp-3">
-                {freshness?.today?.symbols_succeeded ?? "[확인 필요]"} / {freshness?.today?.symbols_total ?? "[확인 필요]"} symbols succeeded
-              </p>
             </article>
-            <article className={styles.heroMetricCard}>
+            <article className={styles.metricCard}>
               <span>Price latest</span>
               <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? "[확인 필요]"}</strong>
-              <p className="clamp-3">{buildQuoteFeedLabel(quote)}</p>
             </article>
-            <article className={styles.heroMetricCard}>
+            <article className={styles.metricCard}>
               <span>Technical latest</span>
               <strong>{freshness?.latest?.technical_market_date ?? "[확인 필요]"}</strong>
-              <p className="clamp-3">EOD technical snapshots remain independent from live quote timing.</p>
             </article>
-            <article className={styles.heroMetricCard}>
+            <article className={styles.metricCard}>
               <span>Action latest</span>
               <strong>{freshness?.latest?.action_market_date ?? "[확인 필요]"}</strong>
-              <p className="clamp-3">Deterministic action summaries can lag the raw price layer.</p>
             </article>
           </div>
 
@@ -1506,18 +1410,7 @@ export default function SymbolDetailPage() {
             ))}
           </div>
         </section>
-
-        {detailErrors.length > 0 ? (
-          <section className={styles.feedbackGrid}>
-            <ComponentTag label="symbol.errors" api="client fetch states" />
-            {detailErrors.map((error) => (
-              <div key={error} className={styles.feedback}>
-                {error}
-              </div>
-            ))}
-          </section>
-        ) : null}
       </div>
-    </AppShell>
+    </MobileAppChrome>
   );
 }

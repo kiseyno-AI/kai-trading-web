@@ -6,13 +6,14 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 
 - Mobile is the primary target for this spec. Desktop polish is intentionally secondary for this phase.
 - Long text is clamped to **3 lines maximum** in the refreshed mobile cards. Anything longer should visually truncate with `...`.
-- Dev-mode component tags stay available through the topbar toggle: `Tags On` / `Tags Off`.
+- Dev-mode component tags stay available through the mobile chrome toggle: `Tags On` / `Tags Off`.
 - If an upstream field is not confirmed by `kai-trading-core`, the UI must render `[확인 필요]` instead of inventing data.
 - Freshness is **layer-specific**. Price, technical, action, fundamentals, and disclosures must not imply one shared timestamp.
+- Dashboard and symbol detail now use a dedicated mobile shell with a fixed top app bar and a bottom tab bar (`Dashboard`, `Search`, `My Symbols`) instead of the old `AppShell` workspace chrome.
 
 ## Dev tag workflow
 
-- Toggle dev tags in the app shell topbar.
+- Toggle dev tags in the mobile app bar.
 - Each mobile section renders a `ComponentTag` in dev mode.
 - Use the tag names below to jump between code, UI review, and API validation.
 
@@ -21,29 +22,23 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 | Tag | File | Mobile component | API | Rendered fields | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `dashboard.operational-integrity` | `src/app/dashboard/live-dashboard-client.tsx` | Operational Integrity hero | `/api/trading/eod/freshness`, `/api/trading/market/status` | `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `market.state`, `market.server_time` | Fundamentals freshness is still `[확인 필요]` because the current freshness route does not expose a dedicated fundamentals date. |
-| `dashboard.summary.tracked-count` | `src/app/dashboard/live-dashboard-client.tsx` | Tracked symbols summary card | `/api/trading/quotes/tracked`, `/api/trading/scanner/tracked-symbols` | `symbols.count`, tracked availability counts | Treat `available: false` as unavailable, never zero. |
-| `dashboard.summary.turnover` | `src/app/dashboard/live-dashboard-client.tsx` | Tracked turnover summary card | `/api/trading/quotes/tracked` | `items[].turnover`, `as_of` | Aggregate of currently available tracked quotes only. |
-| `dashboard.summary.breadth` | `src/app/dashboard/live-dashboard-client.tsx` | Breadth summary card | `/api/trading/quotes/tracked` | `items[].change_pct`, availability counts | Positive breadth only counts quote-ready names. |
-| `dashboard.summary.lead-source` | `src/app/dashboard/live-dashboard-client.tsx` | Lead feed mode summary card | `/api/trading/quotes/tracked` | first tracked item `available`, `is_live`, `source`, `fallback`, `unavailable_reason` | Uses the first tracked symbol returned by the API. |
-| `dashboard.tracked-symbols` | `src/app/dashboard/live-dashboard-client.tsx` | Horizontal symbol card rail | `/api/trading/quotes/tracked`, `/api/trading/scanner/tracked-symbols`, `/api/trading/eod/freshness` | `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `available`, `is_live`, `trade_date`, `source`, `unavailable_reason`, `latest.technical_market_date` | Price freshness and TA freshness are intentionally separate. |
-| `dashboard.symbol-card.{symbol}` | `src/app/dashboard/live-dashboard-client.tsx` | Per-symbol tracked card | `/api/trading/quotes/tracked`, `/api/trading/eod/freshness` | Same per-symbol fields as above | Card copy is 3-line clamped. |
-| `dashboard.search-command` | `src/app/dashboard/live-dashboard-client.tsx` | Symbol search command panel | `/api/trading/symbols/search` | `items[].symbol`, `items[].standard_code`, `items[].name_ko`, `items[].market` | Search opens the symbol detail route without fabricating unsupported market summaries. |
-| `dashboard.derived-notes` | `src/app/dashboard/live-dashboard-client.tsx` | Context notes | `/api/trading/quotes/tracked`, `/api/trading/eod/freshness` | Derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date` | Notes are explanatory only, not new backend facts. |
+| `dashboard.watch-snapshot` | `src/app/dashboard/live-dashboard-client.tsx` | Tracked snapshot card | `/api/trading/quotes/tracked`, `/api/trading/scanner/tracked-symbols`, `/api/trading/eod/freshness` | aggregate tracked turnover, tracked count, live/fallback/unavailable counts, lead symbol, `latest.price_trade_date`, `latest.technical_market_date` | The large headline metric is still data-backed. Unsupported portfolio-like values stay `[확인 필요]`. |
+| `dashboard.symbol-card.{symbol}` | `src/app/dashboard/live-dashboard-client.tsx` | Per-symbol tracked card | `/api/trading/quotes/tracked`, `/api/trading/eod/freshness` | `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `available`, `is_live`, `trade_date`, `source`, `unavailable_reason`, `latest.technical_market_date` | Price freshness and TA freshness are intentionally separate. |
+| `dashboard.momentum-board` | `src/app/dashboard/live-dashboard-client.tsx` | Highest-movers note card | `/api/trading/quotes/tracked` | top absolute movers from `items[].change_pct` | Derived ordering only; no new backend fields are invented. |
+| `dashboard.coverage-note` | `src/app/dashboard/live-dashboard-client.tsx` | Mobile coverage note stack | `/api/trading/eod/freshness`, `/api/trading/quotes/tracked` | unavailable counts, fallback counts, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date` | Replaces the old search/notes dashboard column for mobile. |
 
 ## Symbol detail
 
 | Tag | File | Mobile component | API | Rendered fields | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `symbol.hero` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Quote hero | `/api/trading/quotes/{symbol}`, `/api/trading/market/status`, `/api/trading/symbols/search` | `price`, `change`, `change_pct`, `available`, `source`, `market_state`, `trade_date`, `cached_at`, search seed metadata | Back link, search link, and feed status live here. |
-| `symbol.section-nav` | `src/app/dashboard/symbol/[symbol]/page.tsx` | In-page anchor rail | none | static anchor map | Used for mobile section jumping only. |
-| `symbol.data-fusion-note` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Fusion note card | `/api/trading/agent-context/symbol-day`, `/api/trading/quotes/{symbol}` | company/action/technical/fundamentals/disclosure availability summary | Keeps multi-source reasoning explicit. |
+| `symbol.hero` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Quote hero | `/api/trading/quotes/{symbol}`, `/api/trading/market/status`, `/api/trading/symbols/search`, `/api/trading/agent-context/symbol-day` | `price`, `change`, `change_pct`, `available`, `source`, `market_state`, `trade_date`, `cached_at`, search seed metadata, aggregate availability summary | Includes back navigation, stable-mode/polling state, and the compact fusion note. |
 | `symbol.chart` | `src/app/dashboard/symbol/[symbol]/page.tsx`, `src/app/dashboard/symbol/[symbol]/symbol-history-chart.tsx` | Swipe-aware candlestick chart | `/api/trading/symbols/{symbol}/price-bars`, `/api/trading/quotes/{symbol}` | `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`, plus current quote freshness context | Focus date updates from chart interaction; chart stays historical, not live-tick simulated. |
 | `symbol.action-summary` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Deterministic action layer card | `/api/trading/eod/action-summaries`, fallback `/api/trading/agent-context/symbol-day` | `action_label`, `signal_score`, `confidence_tier`, `risk_tier`, `trigger_price`, `support_price`, `resistance_price`, `reasons`, `summary_payload` keys | Multi-day history remains `[확인 필요]` until a confirmed endpoint exists. |
 | `symbol.technical-analysis` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Technical snapshot card | `/api/trading/eod/technical-snapshots`, fallback `/api/trading/agent-context/symbol-day` | `trend_state`, `ma_alignment`, `breakout_20d`, `breakdown_20d`, `return_5d`, `return_20d`, `volume_ratio_20d`, `atr_14`, `atr_pct_14`, `signal_payload` keys | RSI/MACD/ADX are not invented when upstream fields are not confirmed. |
 | `symbol.fundamentals-history` | `src/app/dashboard/symbol/[symbol]/page.tsx` | DART fundamentals history | `/api/trading/disclosures/dart/fundamentals/history`, fallback `/api/trading/agent-context/symbol-day` | `companies[].entries[].filing`, `period`, `statement.fs_div`, `highlights[]`, plus aggregate latest filing fallback | When highlight metrics are missing, UI shows `[확인 필요]` instead of fake valuation data. |
 | `symbol.disclosures` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Recent disclosures | `/api/trading/agent-context/symbol-day` | `recent_disclosures.count`, `items[].report_nm`, `receipt_date`, `filing_category`, `fundamentals_capture_status`, `rcept_no` | Explicit empty state uses “No Disclosure Found”. |
 | `symbol.system-freshness` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Layer-specific freshness registry | `/api/trading/eod/freshness`, `/api/trading/quotes/{symbol}` | `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, quote provenance | Fundamentals freshness remains a reference-only row until upstream exposes a dedicated freshness field. |
-| `symbol.errors` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Error feedback rail | client fetch states | quote, metadata, history, context, fundamentals errors | Error cards are still clamped to 3 lines. |
+| `symbol.errors` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Error feedback rail | client fetch states | quote, metadata, history, context, fundamentals errors | Error cards are still clamped to 3 lines and sit above the chart on failure. |
 
 ## BFF routes added for the mobile Stitch refresh
 
