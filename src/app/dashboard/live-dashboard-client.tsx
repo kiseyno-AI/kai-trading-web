@@ -80,7 +80,7 @@ function formatSignedPercent(value: number | null | undefined, fallback = "Unava
 
 function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable"): string {
   if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
 }
 
 function getCompanyName(item: CoreTrackedQuote | undefined): string {

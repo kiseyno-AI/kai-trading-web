@@ -89,12 +89,12 @@ function formatSignedPercent(value: number | null | undefined, fallback = "Unava
 
 function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable") {
   if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
 }
 
 function formatCompactNumber(value: number | string | null | undefined, fallback = "[확인 필요]") {
   if (typeof value === "number") {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat("ko-KR", {
       notation: "compact",
       compactDisplay: "short",
       minimumFractionDigits: 0,
