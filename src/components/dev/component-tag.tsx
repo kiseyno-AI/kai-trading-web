@@ -31,14 +31,26 @@ export function ComponentTag({ label, api, placement = "corner" }: ComponentTagP
   };
 
   return (
-    <button
-      type="button"
+    <div
       className={`component-tag component-tag-${placement}`}
-      onClick={handleCopy}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void handleCopy();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          event.stopPropagation();
+          void handleCopy();
+        }
+      }}
+      role="button"
+      tabIndex={0}
       title="Copy component tag"
     >
       <strong>{copied ? "Copied" : label}</strong>
       {api ? <span>{api}</span> : null}
-    </button>
+    </div>
   );
 }
