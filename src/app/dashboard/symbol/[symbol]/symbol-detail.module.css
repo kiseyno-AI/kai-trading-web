@@ -1,45 +1,478 @@
 .detailPage {
-  gap: 24px;
-}
-
-.introAside {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-.summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
-.summaryCard {
+.heroCard,
+.fusionCard,
+.chartCard,
+.insightCard,
+.evidenceCard,
+.freshnessCard,
+.anchorRail,
+.feedbackGrid {
+  position: relative;
+}
+
+.heroCard,
+.fusionCard,
+.chartCard,
+.insightCard,
+.evidenceCard,
+.freshnessCard {
   display: grid;
-  gap: 8px;
+  gap: 18px;
   padding: 18px;
 }
 
-.cardLabel {
+.heroCard {
+  background:
+    radial-gradient(circle at top right, rgba(186, 195, 255, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(17, 29, 47, 0.94), rgba(9, 18, 31, 0.96));
+}
+
+.heroHeader,
+.heroQuoteRow,
+.cardHeader,
+.historyHeader,
+.disclosureHeader,
+.moduleRow,
+.chartFooter {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.heroTitleRow {
+  display: grid;
+  gap: 6px;
+}
+
+.heroTitleRow h1 {
+  color: var(--text-strong);
+  font-size: clamp(2.2rem, 12vw, 3.4rem);
+  line-height: 0.92;
+  letter-spacing: -0.08em;
+}
+
+.heroCompany {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.heroPills,
+.heroActions,
+.rangeRow,
+.tagGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.heroQuoteRow {
+  align-items: flex-end;
+}
+
+.heroPriceBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.heroPriceBlock strong {
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), monospace;
+  font-size: clamp(2rem, 11vw, 3rem);
+  line-height: 0.98;
+  letter-spacing: -0.08em;
+}
+
+.heroPriceBlock span,
+.heroMetricCard span,
+.focusCard span,
+.metricCard span,
+.historyMetricRow span,
+.moduleAside span:first-child,
+.moduleApi,
+.disclosureMeta span,
+.scoreInner span {
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.cardValue {
+.heroCopy,
+.supportingCopy,
+.heroMetricCard p,
+.focusCard p,
+.metricCard p,
+.historyHeader p,
+.moduleRow p,
+.emptyPanel p,
+.feedback {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.58;
+}
+
+.linkButton,
+.linkButtonMuted,
+.anchorChip,
+.rangeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.linkButton,
+.anchorChip,
+.rangeButton {
+  border: 1px solid rgba(186, 195, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-strong);
-  font-size: clamp(1.4rem, 2.2vw, 2rem);
-  font-weight: 700;
+}
+
+.linkButton:hover,
+.linkButtonMuted:hover,
+.anchorChip:hover,
+.rangeButton:hover {
+  transform: translateY(-1px);
+}
+
+.linkButton:hover,
+.anchorChip:hover,
+.rangeButton:hover {
+  border-color: rgba(186, 195, 255, 0.34);
+  background: rgba(186, 195, 255, 0.12);
+}
+
+.linkButtonMuted {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+}
+
+.heroMetrics,
+.focusGrid,
+.metricList,
+.freshnessHeroGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.heroMetricCard,
+.focusCard,
+.metricCard,
+.moduleRow,
+.historyCard,
+.disclosureCard,
+.emptyPanel {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.heroMetricCard,
+.focusCard,
+.metricCard {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+}
+
+.heroMetricCard strong,
+.focusCard strong,
+.metricCard strong,
+.historyMetricRow strong,
+.moduleRow strong,
+.historyHeader strong,
+.disclosureHeader strong,
+.scoreInner strong,
+.technicalHeadline {
+  color: var(--text-strong);
+}
+
+.heroMetricCard strong,
+.focusCard strong,
+.metricCard strong {
+  font-size: clamp(1rem, 4.5vw, 1.35rem);
+  line-height: 1.1;
+}
+
+.anchorRail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(10, 18, 31, 0.86);
+  backdrop-filter: blur(14px);
+  border-radius: 999px;
+  scroll-snap-type: x proximity;
+  top: 74px;
+  position: sticky;
+  z-index: 5;
+}
+
+.anchorChip {
+  scroll-snap-align: start;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.cardHeader h2 {
+  margin-top: 8px;
+  color: var(--text-strong);
+  font-size: clamp(1.3rem, 5vw, 1.8rem);
+  line-height: 1.06;
+  letter-spacing: -0.05em;
+}
+
+.chartCard {
+  background:
+    radial-gradient(circle at top right, rgba(78, 222, 163, 0.08), transparent 32%),
+    rgba(11, 20, 33, 0.94);
+}
+
+.rangeRow {
+  justify-content: flex-end;
+}
+
+.rangeButton {
+  font-size: 12px;
+}
+
+.rangeButtonActive {
+  border-color: rgba(78, 222, 163, 0.4);
+  background: rgba(78, 222, 163, 0.12);
+  color: #d7fff0;
+}
+
+.chartFrame {
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+    radial-gradient(circle at top, rgba(73, 179, 255, 0.1), transparent 40%);
+  min-height: 300px;
+  padding: 14px;
+}
+
+.candlestickChart {
+  width: 100%;
+  height: 360px;
+  display: block;
+  animation: chartFadeIn 280ms ease;
+}
+
+@keyframes chartFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chartFooter {
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.insightGrid,
+.evidenceGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.insightCard,
+.evidenceCard {
+  min-width: 0;
+}
+
+.actionCard {
+  background:
+    radial-gradient(circle at top right, rgba(105, 118, 255, 0.14), transparent 34%),
+    rgba(11, 20, 33, 0.94);
+}
+
+.scorePanel {
+  display: grid;
+  grid-template-columns: minmax(120px, 132px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.scoreRing {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  box-shadow: 0 0 30px rgba(105, 118, 255, 0.16);
+}
+
+.scoreInner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  background: rgba(10, 18, 31, 0.96);
+}
+
+.scoreInner strong {
+  font-family: var(--font-space-grotesk), monospace;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: -0.08em;
+}
+
+.scoreCopy {
+  display: grid;
+  gap: 8px;
+}
+
+.scoreCopy strong,
+.technicalHeadline {
+  font-size: clamp(1.15rem, 4.2vw, 1.5rem);
+  line-height: 1.12;
   letter-spacing: -0.04em;
 }
 
-.cardDetail {
+.technicalHero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.liveBadge {
+  display: flex;
+  align-items: flex-start;
+}
+
+.tagSection {
+  display: grid;
+  gap: 10px;
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.metaCaption {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.historyList,
+.disclosureList,
+.moduleRows {
+  display: grid;
+  gap: 12px;
+}
+
+.historyCard,
+.disclosureCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+}
+
+.historyMetrics {
+  display: grid;
+  gap: 8px;
+}
+
+.historyMetricRow,
+.disclosureMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.moduleRow {
+  padding: 16px;
+  border-radius: 20px;
+}
+
+.moduleRow strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 1rem;
+}
+
+.moduleApi {
+  display: inline-block;
+  margin-top: 10px;
+}
+
+.moduleAside {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+}
+
+.moduleAside span:first-child {
+  color: var(--text);
+}
+
+.emptyPanel {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 20px;
+}
+
+.emptyPanel strong {
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.feedbackGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.feedback {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 107, 122, 0.22);
+  background: rgba(255, 107, 122, 0.09);
+  color: #ffd6dc;
 }
 
 .positive {
@@ -47,255 +480,72 @@
 }
 
 .negative {
-  color: var(--red);
+  color: var(--negative);
 }
 
-.chartSection {
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 0.95fr);
-  gap: 16px;
-}
-
-.chartCard,
-.sideStack,
-.infoCard {
-  display: grid;
-  gap: 18px;
-  padding: 20px;
-}
-
-.chartHeader,
-.cardHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.chartHeader h2,
-.cardHeader h2 {
-  font-size: 1.2rem;
-}
-
-.chartHeader p,
-.cardHeader p,
-.supportingNote {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.chartMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.rangeButton {
-  padding: 8px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text);
-  font-size: 13px;
-  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
-}
-
-.rangeButton:hover {
-  transform: translateY(-1px);
-  border-color: rgba(73, 179, 255, 0.26);
-  background: rgba(73, 179, 255, 0.1);
-}
-
-.rangeButtonActive {
-  border-color: rgba(73, 179, 255, 0.35);
-  background: rgba(73, 179, 255, 0.16);
-  color: var(--text-strong);
-}
-
-.chartFrame {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
-  padding: 18px;
-  background:
-    radial-gradient(circle at top right, rgba(73, 179, 255, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-}
-
-.candlestickChart {
-  width: 100%;
-  height: 420px;
-  display: block;
-}
-
-.chartFooter {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.noteGrid {
-  display: grid;
-  gap: 16px;
-}
-
-.noteCard {
-  display: grid;
-  gap: 8px;
-  padding: 16px 18px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.noteCard strong {
-  color: var(--text-strong);
-  font-size: 1rem;
-}
-
-.detailGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.infoList {
-  display: grid;
-  gap: 12px;
-}
-
-.itemList {
-  display: grid;
-  gap: 12px;
-}
-
-.itemRow {
-  display: grid;
-  gap: 6px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.itemRow:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.itemTitle {
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.itemMeta {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.infoRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.infoRow:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.infoLabel {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.infoValue {
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 600;
-  text-align: right;
-}
-
-.contextBody {
-  color: var(--text);
-  font-size: 15px;
-  line-height: 1.65;
-}
-
-.feedback {
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 107, 122, 0.25);
-  background: rgba(255, 107, 122, 0.08);
-  color: #ffd6dc;
-  font-size: 14px;
-}
-
-.linkRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.linkButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-strong);
-  transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
-}
-
-.linkButton:hover {
-  transform: translateY(-1px);
-  border-color: rgba(124, 92, 255, 0.28);
-  background: rgba(124, 92, 255, 0.12);
-}
-
-@media (max-width: 1180px) {
-  .summaryGrid,
-  .detailGrid {
+@media (min-width: 960px) {
+  .insightGrid,
+  .evidenceGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .chartSection {
-    grid-template-columns: minmax(0, 1fr);
+  .chartCard {
+    padding: 22px;
   }
 }
 
 @media (max-width: 760px) {
-  .summaryGrid,
-  .detailGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
+  .heroCard,
+  .fusionCard,
   .chartCard,
-  .sideStack,
-  .infoCard,
-  .summaryCard {
-    padding: 18px;
+  .insightCard,
+  .evidenceCard,
+  .freshnessCard {
+    padding: 16px;
   }
 
-  .candlestickChart {
-    height: 280px;
-  }
-
-  .infoRow {
+  .heroHeader,
+  .heroQuoteRow,
+  .cardHeader,
+  .historyHeader,
+  .disclosureHeader,
+  .moduleRow,
+  .chartFooter,
+  .technicalHero {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .infoValue {
+  .heroMetrics,
+  .focusGrid,
+  .metricList,
+  .freshnessHeroGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scorePanel {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .scoreRing {
+    width: 116px;
+    height: 116px;
+  }
+
+  .candlestickChart {
+    height: 292px;
+  }
+
+  .moduleAside {
+    width: 100%;
+    justify-items: start;
     text-align: left;
+  }
+
+  .historyMetricRow,
+  .disclosureMeta {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
