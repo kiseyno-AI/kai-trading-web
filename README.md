@@ -118,7 +118,7 @@ Bots and some overview calls may still use **mock** implementations in the same 
 |------|------|
 | `/` | Redirects to `/dashboard` |
 | `/dashboard` | Primary desk (server data from core when reachable) |
-| `/dashboard/symbol/[symbol]` | Symbol-scoped view; live quote chart still polls `/quotes/{symbol}`, while explanatory cards use `/agent-context/symbol-day` and tracked coverage uses `/scanner/tracked-symbols` |
+| `/dashboard/symbol/[symbol]` | Symbol-scoped view; `/quotes/{symbol}` keeps polling until both quote and market-status routes report `CLOSED`, while explanatory cards use `/agent-context/symbol-day` and symbol metadata falls back to `/symbols/search` only when route seed data is missing |
 | `/markets` | Markets overview (client data via adapter / mock) |
 | `/bots` | Automation overview (mock-heavy today) |
 | `/search` | Search entry |
