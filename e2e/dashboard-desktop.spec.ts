@@ -5,13 +5,14 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect(page.getByRole("heading", { name: /Tracked Market Dashboard/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Tracked quotes from the current core feed/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Largest absolute shifts inside the tracked list/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /What the current endpoints tell us/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Priority symbol cards/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /What the current APIs support today/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Open any symbol detail quickly/i })).toBeVisible();
 
-    await expect(page.getByText(/Current core coverage only/i)).toBeVisible();
-    await expect(page.getByText(/Tracked set facts/i)).toBeVisible();
-    await expect(page.getByText(/No synthetic readiness score/i)).toBeVisible();
+    await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
+    await expect(page.getByText(/Each card keeps price freshness and technical freshness separate/i)).toBeVisible();
+    await expect(page.getByText(/Results open the symbol detail screen/i)).toBeVisible();
 
     await expect(page.getByText(/Readiness and breadth/i)).toHaveCount(0);
     await expect(page.getByText(/Top movers/i)).toHaveCount(0);

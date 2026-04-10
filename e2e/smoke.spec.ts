@@ -26,14 +26,14 @@ test.describe("smoke", () => {
   test("dashboard renders success or upstream-missing state", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page).toHaveTitle(/Trading Dashboard Home/i);
-    await expect(page.getByRole("heading", { name: /Tracked Market Dashboard|KIS DASHBOARD ERROR/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Tracked Market Dashboard/i })).toBeVisible();
     await expect(page.getByText(/Sovereign Desk/i)).toHaveCount(0);
   });
 
   test("symbol detail route renders as an in-app screen", async ({ page }) => {
     await page.goto("/dashboard/symbol/005930?name=Samsung%20Electronics&market=KRX&standardCode=KR7005930003");
-    await expect(page.getByRole("heading", { name: /Recent price chart/i })).toBeVisible();
-    await expect(page.getByText(/Recent-trace assumption/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
+    await expect(page.getByText(/Layer-specific freshness stays explicit/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Back to dashboard/i })).toBeVisible();
   });
 
