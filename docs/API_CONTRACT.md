@@ -8,11 +8,18 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /quotes/tracked`
   - `GET /scanner/tracked-symbols`
   - `GET /symbols/search`
+  - `GET /eod/freshness`
 - `/dashboard/symbol/[symbol]` now mixes:
-  - `GET /quotes/{symbol}` for the live price, volume, turnover, feed mode, and the recent price trace built in-page
+  - `GET /quotes/{symbol}` for the live price, volume, turnover, and quote provenance
   - `GET /market/status` only as the polling stop gate for the symbol quote loop
-  - `GET /agent-context/symbol-day` for company metadata, technical snapshot, action summary, latest fundamentals summary, and recent disclosures
+  - `GET /symbols/{symbol}/price-bars` for the mobile candlestick chart
+  - `GET /eod/technical-snapshots` for the dedicated technical-analysis section
+  - `GET /eod/action-summaries` for the dedicated action-summary section
+  - `GET /eod/freshness` for layer-specific freshness labels
+  - `GET /disclosures/dart/fundamentals/history` for stored DART fundamentals history
+  - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures
 - Field-level screen and component mapping now lives in `docs/UI_API_SURFACE_MAP.md`.
+- Dev-tag and mobile component specs now live in `docs/MOBILE_COMPONENT_SPEC.md`.
 - The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.
 
 ## Goals
