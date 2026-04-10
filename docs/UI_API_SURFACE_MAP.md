@@ -38,19 +38,22 @@ Entry point:
 
 Client polling:
 - `GET /api/trading/quotes/{symbol}`
+- `GET /api/trading/market/status`
 - `GET /api/trading/agent-context/symbol-day?market_date=...&symbols={symbol}&disclosures_limit=5[&fs_div=...]`
-- `GET /api/trading/scanner/tracked-symbols`
 - `GET /api/trading/symbols/search?q={symbol}&limit=20` when route seed metadata is incomplete
 
 UI surfaces and fields:
 - Quote summary cards and recent price trace: `/quotes/{symbol}` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`
+- Market-status gate for quote polling: `/market/status` -> `state`
 - Aggregate context narrative and explanatory cards: `/agent-context/symbol-day` -> `company`, `technical_snapshot`, `action_summary`, `fundamentals`, `recent_disclosures`, `availability`
-- Tracked-universe badge and messaging: `/scanner/tracked-symbols` -> `tracked_symbols`
 - Symbol metadata fallback seed: `/symbols/search` -> `symbol`, `standard_code`, `name_ko`, `market`
 
 Important behavior:
 - The chart is not a historical bars API. It is an in-page trace built from repeated `/quotes/{symbol}` responses.
 - Aggregate explanatory cards do not read `/quotes/{symbol}` except for quote-provenance messaging.
+- Quote polling stops entirely after the first response where both `/market/status.state` and `/quotes/{symbol}.market_state` are `CLOSED`.
+- `/agent-context/symbol-day` and the historical price-bars route are one-shot per dependency change, not recurring polls.
+- `/scanner/tracked-symbols` is not requested by the symbol detail route anymore; tracked-universe coverage now remains a dashboard/search concern.
 
 ## Search route: `/search`
 
