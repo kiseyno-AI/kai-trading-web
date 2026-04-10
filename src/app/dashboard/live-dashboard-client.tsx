@@ -138,7 +138,6 @@ function humanizeStatus(status: string | null | undefined) {
 function buildTrackedDetailHref(item: CoreTrackedQuote) {
   const params = new URLSearchParams();
   params.set("name", item.company_name ?? item.symbol);
-  params.set("market", "KRX");
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}?${params.toString()}`;
 }
 

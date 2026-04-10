@@ -32,8 +32,16 @@ export function createSymbolMetaResetToken(symbol: string, initialMeta: SymbolMe
   return [symbol, initialMeta?.name_ko ?? "", initialMeta?.market ?? "", initialMeta?.standard_code ?? ""].join("|");
 }
 
+function hasPlaceholderSeed(value: string | null | undefined): boolean {
+  return !value || value === "-";
+}
+
 export function shouldFetchSymbolMeta(initialMeta: SymbolMetaSeed | null): boolean {
-  return initialMeta === null;
+  if (initialMeta === null) {
+    return true;
+  }
+
+  return hasPlaceholderSeed(initialMeta.market) || hasPlaceholderSeed(initialMeta.standard_code);
 }
 
 export function getDisclosureSectionState(

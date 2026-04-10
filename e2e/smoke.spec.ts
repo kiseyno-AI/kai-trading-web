@@ -44,6 +44,11 @@ test.describe("smoke", () => {
       market: "KOSPI",
       standardCode: "KR7005930003",
     });
+    const partialMeta = buildInitialSymbolMeta("005930", {
+      name: "Samsung Electronics",
+      market: null,
+      standardCode: null,
+    });
     const emptyMetaA = buildInitialSymbolMeta("005930", {
       name: null,
       market: null,
@@ -56,9 +61,12 @@ test.describe("smoke", () => {
     });
 
     expect(seededMeta?.standard_code).toBe("KR7005930003");
+    expect(partialMeta?.name_ko).toBe("Samsung Electronics");
     expect(emptyMetaA).toBeNull();
     expect(emptyMetaB).toBeNull();
+    expect(shouldFetchSymbolMeta(partialMeta)).toBe(true);
     expect(shouldFetchSymbolMeta(emptyMetaA)).toBe(true);
+    expect(shouldFetchSymbolMeta(seededMeta)).toBe(false);
     expect(createSymbolMetaResetToken("005930", emptyMetaA)).not.toBe(createSymbolMetaResetToken("000660", emptyMetaB));
   });
 
