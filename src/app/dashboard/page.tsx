@@ -8,6 +8,7 @@ import {
   type CoreTrackedSymbolsResponse,
 } from "./live-dashboard-client";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
+import type { EodFreshnessResponseDto } from "@/types/trading-api";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -68,14 +69,16 @@ export default async function DashboardPage() {
   let market: CoreMarketStatus;
   let tracked: CoreTrackedQuotesResponse;
   let symbols: CoreTrackedSymbolsResponse;
+  let freshness: EodFreshnessResponseDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, symbols] = await Promise.all([
+    [market, tracked, symbols, freshness] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols", requestHeaders),
+      fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
     ]);
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
@@ -89,6 +92,7 @@ export default async function DashboardPage() {
       initialMarket={market}
       initialTracked={tracked}
       initialSymbols={symbols}
+      initialFreshness={freshness}
     />
   );
 }

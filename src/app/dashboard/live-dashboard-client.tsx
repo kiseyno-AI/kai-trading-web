@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { ComponentTag } from "@/components/dev/component-tag";
 import { AppShell } from "@/components/layout/app-shell";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import type { EodFreshnessResponseDto } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
 
@@ -64,19 +66,8 @@ type LiveDashboardClientProps = {
   initialMarket: CoreMarketStatus;
   initialTracked: CoreTrackedQuotesResponse;
   initialSymbols: CoreTrackedSymbolsResponse;
+  initialFreshness: EodFreshnessResponseDto | null;
 };
-
-const compactNumberFormatter = new Intl.NumberFormat(undefined, {
-  notation: "compact",
-  compactDisplay: "short",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 1,
-});
-
-function getCompanyName(item: CoreTrackedQuote | undefined): string {
-  if (!item) return "N/A";
-  return item.company_name || item.symbol;
-}
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -89,7 +80,12 @@ function formatSignedPercent(value: number | null | undefined, fallback = "Unava
 
 function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable"): string {
   if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
+}
+
+function getCompanyName(item: CoreTrackedQuote | undefined): string {
+  if (!item) return "N/A";
+  return item.company_name || item.symbol;
 }
 
 function getJson<T>(path: string): Promise<T> {
@@ -97,11 +93,6 @@ function getJson<T>(path: string): Promise<T> {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json() as Promise<T>;
   });
-}
-
-function formatCompactMetric(value: number | null | undefined, fallback = "N/A"): string {
-  if (!hasNumber(value)) return fallback;
-  return compactNumberFormatter.format(value);
 }
 
 function getQuoteToneClass(value: number | null | undefined): string {
@@ -129,17 +120,45 @@ function describeQuoteSource(item: CoreTrackedQuote | undefined): string {
   return `${item.source} fallback`;
 }
 
+function getPriceFreshnessLabel(item: CoreTrackedQuote) {
+  if (!item.available) return "Unavailable";
+  if (item.is_live) return "Live";
+  if (item.trade_date) return item.trade_date;
+  return formatDisplayTimestamp(item.as_of ?? item.cached_at, "Pending");
+}
+
+function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
+  return freshness?.latest?.technical_market_date ?? "[확인 필요]";
+}
+
+function getFreshnessTone(status: string | null | undefined) {
+  if (!status) return "warning";
+  if (status === "completed") return "positive";
+  if (status === "completed_with_errors") return "warning";
+  if (status === "running") return "info";
+  return "neutral";
+}
+
+function humanizeStatus(status: string | null | undefined) {
+  if (!status) return "[확인 필요]";
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export function LiveDashboardClient({
   initialError = null,
   initialMarket,
   initialTracked,
   initialSymbols,
+  initialFreshness,
 }: LiveDashboardClientProps) {
   const router = useRouter();
-  const [isMobileHeroExpanded, setIsMobileHeroExpanded] = useState(false);
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [symbols, setSymbols] = useState<CoreTrackedSymbolsResponse>(initialSymbols);
+  const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(initialFreshness);
   const [error, setError] = useState<string | null>(initialError);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchItems, setSearchItems] = useState<SymbolSearchItem[]>([]);
@@ -172,7 +191,32 @@ export function LiveDashboardClient({
       }
     };
 
-    const timer = window.setInterval(load, 1000);
+    load();
+    const timer = window.setInterval(load, 4_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadFreshness = async () => {
+      try {
+        const data = await getJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
+        if (!active) return;
+        setFreshness(data);
+      } catch (freshnessError) {
+        console.error("Dashboard freshness load failed", freshnessError);
+        if (!active) return;
+        setFreshness((current) => current);
+      }
+    };
+
+    loadFreshness();
+    const timer = window.setInterval(loadFreshness, 30_000);
 
     return () => {
       active = false;
@@ -220,68 +264,115 @@ export function LiveDashboardClient({
   }, [searchQuery]);
 
   const lead = tracked.items[0];
-  const fallbackSummary = error
-    ? "Core feed unreachable. Showing local placeholder values until market status and tracked quote endpoints recover."
-    : "Live data is unavailable, so the dashboard is showing local placeholder values.";
-
-  const computed = useMemo(() => {
-    const availableItems = tracked.items.filter((item) => item.available);
-    const positiveCount = availableItems.filter((item) => (item.change_pct ?? 0) >= 0).length;
-    const liveCount = tracked.items.filter((item) => item.is_live).length;
-    const fallbackCount = tracked.items.filter((item) => item.fallback).length;
-    const unavailableCount = tracked.items.filter((item) => !item.available).length;
-    const totalTurnover = availableItems.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
-    const totalVolume = availableItems.reduce((sum, item) => sum + (item.volume ?? 0), 0);
-    const averageMove = availableItems.length
-      ? availableItems.reduce((sum, item) => sum + (item.change_pct ?? 0), 0) / availableItems.length
-      : 0;
-
-    return {
-      availableCount: availableItems.length,
-      positiveCount,
-      liveCount,
-      fallbackCount,
-      unavailableCount,
-      totalTurnover,
-      totalVolume,
-      averageMove,
-      breadthRatio: availableItems.length ? positiveCount / availableItems.length : 0,
-    };
-  }, [tracked.items]);
+  const availableItems = tracked.items.filter((item) => item.available);
+  const positiveCount = availableItems.filter((item) => (item.change_pct ?? 0) >= 0).length;
+  const liveCount = tracked.items.filter((item) => item.is_live).length;
+  const fallbackCount = tracked.items.filter((item) => item.fallback).length;
+  const unavailableCount = tracked.items.filter((item) => !item.available).length;
+  const totalTurnover = availableItems.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
+  const breadthRatio = availableItems.length ? positiveCount / availableItems.length : 0;
 
   const movers = useMemo(
     () =>
       [...tracked.items]
         .filter((item) => item.available && hasNumber(item.change_pct))
         .sort((left, right) => Math.abs((right.change_pct ?? 0)) - Math.abs((left.change_pct ?? 0)))
-        .slice(0, 5),
+        .slice(0, 3),
     [tracked.items],
   );
 
-  const insightCards = [
+  const summaryCards = [
     {
-      label: "Lead tracked quote",
-      value: lead?.symbol ?? "N/A",
-      detail: lead ? (lead.available ? formatSignedPercent(lead.change_pct) : "Explicitly unavailable") : "Waiting for feed",
-      tone: lead ? getQuoteToneClass(lead.change_pct) : "",
+      id: "tracked-count",
+      label: "Tracked symbols",
+      value: String(symbols.count),
+      detail: `${positiveCount} positive · ${unavailableCount} unavailable`,
+      tone: "",
     },
     {
-      label: "Positive in available set",
-      value: `${Math.round(computed.breadthRatio * 100)}%`,
-      detail: `${computed.positiveCount}/${computed.availableCount || 0} quote-ready names`,
+      id: "turnover",
+      label: "Tracked turnover",
+      value: formatTurnover(totalTurnover),
+      detail: `As of ${formatDisplayTimestamp(tracked.as_of)}`,
+      tone: "",
+    },
+    {
+      id: "breadth",
+      label: "Positive breadth",
+      value: `${Math.round(breadthRatio * 100)}%`,
+      detail: `${positiveCount}/${availableItems.length || 0} quote-ready names`,
       tone: styles.positive,
     },
     {
-      label: "Tracked turnover",
-      value: formatTurnover(computed.totalTurnover),
-      detail: `Volume ${compactNumberFormatter.format(computed.totalVolume)}`,
-      tone: "",
+      id: "lead-source",
+      label: "Lead feed mode",
+      value: lead ? (lead.available ? (lead.is_live ? "Live" : "Fallback") : "Unavailable") : "Pending",
+      detail: describeQuoteSource(lead),
+      tone: lead?.available === false ? styles.negative : "",
+    },
+  ];
+
+  const moduleRows = [
+    {
+      id: "price",
+      label: "Price Module",
+      status: lead?.available ? "Optimal" : "Unavailable",
+      meta: freshness?.latest?.price_trade_date ?? lead?.trade_date ?? "[확인 필요]",
+      coverage: `${availableItems.length}/${tracked.items.length} symbols ready`,
+      tone: lead?.available ? "positive" : "warning",
     },
     {
-      label: "Tracked refresh",
-      value: formatDisplayTimestamp(tracked.as_of),
-      detail: market.state,
-      tone: "",
+      id: "technical",
+      label: "Technical Analysis",
+      status: freshness?.latest?.technical_market_date ? "Synced" : "[확인 필요]",
+      meta: freshness?.latest?.technical_market_date ?? "[확인 필요]",
+      coverage: "EOD-derived snapshot date",
+      tone: freshness?.latest?.technical_market_date ? "info" : "warning",
+    },
+    {
+      id: "action",
+      label: "Action Summary",
+      status: freshness?.latest?.action_market_date ? "Synced" : "[확인 필요]",
+      meta: freshness?.latest?.action_market_date ?? "[확인 필요]",
+      coverage: "Deterministic action layer",
+      tone: freshness?.latest?.action_market_date ? "info" : "warning",
+    },
+    {
+      id: "fundamentals",
+      label: "Fundamentals",
+      status: "[확인 필요]",
+      meta: "[확인 필요]",
+      coverage: "Freshness API not exposed in current web layer",
+      tone: "neutral",
+    },
+  ] as const;
+
+  const derivedNotes = [
+    {
+      id: "momentum",
+      title: movers[0] ? `${movers[0].symbol} leads tracked momentum` : "Tracked momentum is waiting for live coverage",
+      detail: movers[0]
+        ? `${getCompanyName(movers[0])} is the largest absolute mover at ${formatSignedPercent(movers[0].change_pct)}.`
+        : "No tracked quote has enough available data to rank momentum yet.",
+      api: "/api/trading/quotes/tracked",
+    },
+    {
+      id: "risk",
+      title: unavailableCount > 0 ? `${unavailableCount} tracked quote(s) need attention` : "Fallback pressure is currently contained",
+      detail:
+        unavailableCount > 0
+          ? "Unavailable symbols stay explicit instead of dropping to zero. Review the quote cards before acting on relative strength."
+          : `${fallbackCount} symbols are on fallback paths, but the board still has live coverage for ${liveCount} tracked names.`,
+      api: "/api/trading/quotes/tracked",
+    },
+    {
+      id: "freshness",
+      title: `EOD registry ${humanizeStatus(freshness?.today?.eod_status)}`,
+      detail:
+        freshness?.today?.trade_date
+          ? `Price latest ${freshness.latest?.price_trade_date ?? "[확인 필요]"} · technical latest ${freshness.latest?.technical_market_date ?? "[확인 필요]"}.`
+          : "Current web layer can read the freshness registry, but some module-level dates remain unavailable.",
+      api: "/api/trading/eod/freshness",
     },
   ];
 
@@ -290,377 +381,239 @@ export function LiveDashboardClient({
     router.push(detailUrl);
   };
 
+  const openTrackedDetail = (item: CoreTrackedQuote) => {
+    const params = new URLSearchParams();
+    params.set("name", item.company_name ?? item.symbol);
+    params.set("market", "KRX");
+    router.push(`/dashboard/symbol/${encodeURIComponent(item.symbol)}?${params.toString()}`);
+  };
+
+  const statusTone = getFreshnessTone(freshness?.today?.eod_status);
+  const statusLabel = humanizeStatus(freshness?.today?.eod_status);
+
   return (
-    <AppShell currentPath="/dashboard" title="Main Dashboard" eyebrow="Tracked Core Feed" compactMobileChrome>
+    <AppShell currentPath="/dashboard" title="Tracked Market Dashboard" eyebrow="Obsidian Ledger" compactMobileChrome>
       <div className={`page-stack ${styles.workspace}`}>
         {coreUnavailable ? (
           <section className={`glass ${styles.noticeBanner}`}>
+            <ComponentTag label="dashboard.core-unavailable" api="/api/trading/market/status + /api/trading/quotes/tracked" />
             <div>
               <p className="eyebrow">Core unavailable</p>
               <strong>Offline placeholder active</strong>
             </div>
-            <p>{fallbackSummary}</p>
+            <p className="clamp-3">
+              {error ?? "Core feed unreachable. Showing placeholder values until the upstream endpoints recover."}
+            </p>
           </section>
         ) : null}
 
-        <section
-          className={`${styles.heroShell} ${isMobileHeroExpanded ? styles.heroShellExpanded : ""}`}
-          aria-label="Dashboard overview"
-        >
-          <section id="dashboard-hero-details" className={`glass ${styles.hero}`}>
-            <div className={styles.heroCopy}>
-              <div className={styles.heroHeaderRow}>
-                <div className={styles.heroBadgeRow}>
-                  <span className={styles.heroBadgeStrong}>{market.state}</span>
-                  <span className={styles.heroBadge}>Tracked symbols {symbols.count}</span>
-                  <span className={styles.heroBadge}>Client polling 1s</span>
-                </div>
-                <button
-                  type="button"
-                  className={styles.heroMobileToggle}
-                  aria-expanded={isMobileHeroExpanded}
-                  aria-controls="dashboard-hero-details"
-                  onClick={() => setIsMobileHeroExpanded((current) => !current)}
-                >
-                  {isMobileHeroExpanded ? "Less" : "More"}
-                </button>
-              </div>
-              <p className={styles.kicker}>Current core coverage only</p>
-              <h1>Tracked Market Dashboard</h1>
-              <p className={styles.heroSummary}>
-                Built from `market/status`, `quotes/tracked`, `scanner/tracked-symbols`, and `symbols/search`. This
-                pass keeps the Stitch-like density, but avoids claiming market-wide movers, automation state, or
-                readiness signals that the backend does not expose yet.
+        <section className={`glass ${styles.operationalCard}`} id="dashboard-freshness">
+          <ComponentTag label="dashboard.operational-integrity" api="/api/trading/eod/freshness + /api/trading/market/status" />
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className="eyebrow">Market Freshness Registry</p>
+              <h1>Operational Integrity</h1>
+              <p className={`clamp-3 ${styles.sectionCopy}`}>
+                Mobile dashboard cards now anchor to real market-state and freshness signals first, then layer tracked
+                symbol summaries without inventing portfolio data that the current core APIs do not expose.
               </p>
-              <div className={styles.heroMobileSummary}>
-                <div>
-                  <span className={styles.heroMobileSummaryLabel}>Lead tracked quote</span>
-                  <strong>{lead?.symbol ?? "N/A"}</strong>
-                </div>
-                <div>
-                  <span className={styles.heroMobileSummaryLabel}>Last refresh</span>
-                  <strong>{formatDisplayTimestamp(tracked.as_of)}</strong>
-                </div>
-                <div>
-                  <span className={styles.heroMobileSummaryLabel}>Market</span>
-                  <strong>{market.is_open ? "Open" : "Closed"}</strong>
-                </div>
-              </div>
-              <div className={styles.heroDetails}>
-                <div>
-                  <span>Tracked symbols</span>
-                  <strong>{symbols.tracked_symbols.join(", ") || "-"}</strong>
-                </div>
-                <div>
-                  <span>Server time</span>
-                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
-                </div>
-              </div>
             </div>
+            <span className={`pill ${statusTone}`}>{statusLabel}</span>
+          </div>
 
-            <div className={styles.heroSpotlight}>
-              <div className={styles.heroSpotlightHeader}>
+          <div className={styles.heroStats}>
+            <article className={styles.heroStatCard}>
+              <span>Market state</span>
+              <strong>{market.state}</strong>
+              <p className="clamp-3">Server time {formatDisplayTimestamp(market.server_time)}</p>
+            </article>
+            <article className={styles.heroStatCard}>
+              <span>EOD trade date</span>
+              <strong>{freshness?.today?.trade_date ?? "[확인 필요]"}</strong>
+              <p className="clamp-3">
+                {freshness?.today?.symbols_succeeded ?? "[확인 필요]"} / {freshness?.today?.symbols_total ?? "[확인 필요]"} symbols succeeded
+              </p>
+            </article>
+            <article className={styles.heroStatCard}>
+              <span>Price latest</span>
+              <strong>{freshness?.latest?.price_trade_date ?? lead?.trade_date ?? "[확인 필요]"}</strong>
+              <p className="clamp-3">Tracked board refreshed {formatDisplayTimestamp(tracked.as_of)}</p>
+            </article>
+          </div>
+
+          <div className={styles.moduleList}>
+            {moduleRows.map((row) => (
+              <article key={row.id} className={styles.moduleRow}>
                 <div>
-                  <p className="eyebrow">Lead tracked quote</p>
-                  <h2>{getCompanyName(lead)}</h2>
+                  <strong>{row.label}</strong>
+                  <p className="clamp-3">{row.coverage}</p>
                 </div>
-                <span className={`pill ${lead?.available ? (market.is_open ? "positive" : "neutral") : "warning"}`}>
-                  {lead?.available ? (market.is_open ? "Open" : "Closed") : "Quote unavailable"}
-                </span>
-              </div>
-              <strong className={styles.heroPrice}>{lead?.available ? `₩${formatPrice(lead.price)}` : "Unavailable"}</strong>
-              <div className={`${styles.heroDelta} ${lead ? getQuoteToneClass(lead.change_pct) : ""}`}>
-                {lead
-                  ? lead.available
-                    ? `${formatSignedPercent(lead.change_pct)} · ${formatSignedNumber(lead.change)}`
-                    : (lead.unavailable_reason ?? "No fresh quote source available")
-                  : "Waiting for quote"}
-              </div>
-              <div className={styles.heroMiniGrid}>
-                <article>
-                  <span>Turnover</span>
-                  <strong>{lead?.available ? formatTurnover(lead.turnover) : "Unavailable"}</strong>
-                </article>
-                <article>
-                  <span>Volume</span>
-                  <strong>{lead?.available ? formatCompactMetric(lead.volume) : "Unavailable"}</strong>
-                </article>
-                <article>
-                  <span>Quote time</span>
-                  <strong>{formatDisplayTimestamp(lead?.as_of ?? lead?.trade_date ?? lead?.cached_at)}</strong>
-                </article>
-                <article>
-                  <span>Quote source</span>
-                  <strong>{describeQuoteSource(lead)}</strong>
-                </article>
-              </div>
-            </div>
-          </section>
+                <div className={styles.moduleMeta}>
+                  <span>{row.meta}</span>
+                  <span className={`pill ${row.tone}`}>{row.status}</span>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
 
-        <section className={styles.insightRail}>
-          {insightCards.map((card) => (
-            <article key={card.label} className={`glass ${styles.insightCard}`}>
+        <section className={styles.summaryGrid}>
+          {summaryCards.map((card) => (
+            <article key={card.id} className={`glass ${styles.summaryCard}`}>
+              <ComponentTag label={`dashboard.summary.${card.id}`} api="/api/trading/quotes/tracked" />
               <span>{card.label}</span>
-              <strong>{card.value}</strong>
-              <p className={card.tone}>{card.detail}</p>
+              <strong className={card.tone}>{card.value}</strong>
+              <p className="clamp-3">{card.detail}</p>
             </article>
           ))}
         </section>
 
-        <section className={styles.dashboardGrid}>
-          <div className={styles.primaryColumn}>
-            <section className={`glass ${styles.panel}`}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className="eyebrow">Symbol command</p>
-                  <h2>Search the master list and open symbol detail</h2>
-                </div>
-                <div className={styles.headerBadges}>
-                  <span className="pill neutral">Min 2 chars</span>
-                  <span className="pill neutral">In-app detail</span>
-                </div>
-              </div>
+        <section className={`glass ${styles.trackedSection}`}>
+          <ComponentTag label="dashboard.tracked-symbols" api="/api/trading/quotes/tracked + /api/trading/scanner/tracked-symbols" />
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className="eyebrow">Tracked Symbols</p>
+              <h2>Priority symbol cards</h2>
+              <p className={`clamp-3 ${styles.sectionCopy}`}>
+                Each card keeps price freshness and technical freshness separate so we do not imply all modules share one
+                timestamp.
+              </p>
+            </div>
+          </div>
 
-              <div className={styles.searchLayout}>
-                <div className={styles.searchColumn}>
-                  <label className={styles.searchField}>
-                    <span className={styles.searchLabel}>Company or ticker</span>
-                    <div className={styles.searchInputShell}>
-                      <span className={styles.searchInputIcon}>SR</span>
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
-                        placeholder="Samsung / 005930"
-                      />
-                    </div>
-                  </label>
+          <div className={styles.trackedScroller}>
+            {tracked.items.map((item) => (
+              <button
+                key={item.symbol}
+                type="button"
+                className={styles.trackedCard}
+                onClick={() => openTrackedDetail(item)}
+              >
+                <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
+                <div className={styles.cardTopRow}>
+                  <div>
+                    <strong className={styles.symbolCode}>{item.symbol}</strong>
+                    <p className="clamp-3">{getCompanyName(item)}</p>
+                  </div>
+                  <span className={`pill ${item.available ? (item.change_pct ?? 0) >= 0 ? "positive" : "negative" : "warning"}`}>
+                    {item.available ? (item.is_live ? "Live" : "Fallback") : "Unavailable"}
+                  </span>
+                </div>
 
-                  <div className={styles.searchStatusRow}>
-                    <span>
-                      {searchLoading
-                        ? "Searching symbol master"
-                        : searchQuery.trim().length < 2
-                          ? "Enter at least 2 characters"
-                          : `${searchItems.length} matching results`}
-                    </span>
-                    <span>{searchError ?? "Results open the symbol detail screen inline"}</span>
+                <div className={styles.priceBlock}>
+                  <strong>{item.available ? `₩${formatPrice(item.price)}` : "Unavailable"}</strong>
+                  <span className={getQuoteToneClass(item.change_pct)}>
+                    {item.available ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change)}` : (item.unavailable_reason ?? "No fresh quote source")}
+                  </span>
+                </div>
+
+                <div className={styles.cardMetaGrid}>
+                  <div>
+                    <span>Price Freshness</span>
+                    <strong>{getPriceFreshnessLabel(item)}</strong>
+                  </div>
+                  <div>
+                    <span>TA Freshness</span>
+                    <strong>{getTechnicalFreshnessLabel(freshness)}</strong>
                   </div>
                 </div>
 
-                <div className={styles.searchResultList}>
-                  {searchQuery.trim().length < 2 ? (
-                    <div className={styles.emptyState}>Start with a company name or ticker to search the symbol master.</div>
-                  ) : null}
-
-                  {searchItems.map((item) => (
-                    <button
-                      key={`${item.symbol}-${item.standard_code}`}
-                      type="button"
-                      className={styles.searchResultCard}
-                      onClick={() => openSymbolDetail(item)}
-                    >
-                      <div>
-                        <div className={styles.searchResultTitle}>{item.name_ko}</div>
-                        <div className={styles.searchResultMeta}>
-                          {item.symbol} · {item.standard_code}
-                        </div>
-                      </div>
-                      <div className={styles.searchResultSide}>
-                        <span className="pill neutral">{item.market}</span>
-                        <span className={styles.searchResultHint}>Open detail</span>
-                      </div>
-                    </button>
-                  ))}
-
-                  {!searchLoading && searchQuery.trim().length >= 2 && searchItems.length === 0 && !searchError ? (
-                    <div className={styles.emptyState}>No matching symbol or company was found in the master list.</div>
-                  ) : null}
+                <div className={styles.cardFooter}>
+                  <span className="clamp-3">Turnover {formatTurnover(item.turnover)}</span>
+                  <span className="clamp-3">{describeQuoteSource(item)}</span>
                 </div>
-              </div>
-            </section>
-
-            <section className={`glass ${styles.panel}`}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className="eyebrow">Quote board</p>
-                  <h2>Tracked quotes from the current core feed</h2>
-                </div>
-                <div className={styles.headerBadges}>
-                  <span className="pill positive">{computed.liveCount} flagged live</span>
-                  <span className="pill neutral">{computed.fallbackCount} fallback</span>
-                  <span className="pill warning">{computed.unavailableCount} unavailable</span>
-                </div>
-              </div>
-
-              <div className={styles.quoteTable}>
-                {tracked.items.map((item) => {
-                  const barWidth = hasNumber(item.change_pct) ? Math.min(Math.abs(item.change_pct) * 12, 100) : 0;
-
-                  return (
-                    <article key={item.symbol} className={styles.quoteRow}>
-                      <div className={styles.quoteIdentity}>
-                        <strong>{item.symbol}</strong>
-                        <span>{getCompanyName(item)}</span>
-                      </div>
-                      <div className={styles.quoteValue}>
-                        <strong>{item.available ? `₩${formatPrice(item.price)}` : "Unavailable"}</strong>
-                        <span>{item.available ? formatSignedNumber(item.change) : (item.unavailable_reason ?? "No fresh fallback")}</span>
-                      </div>
-                      <div className={styles.quoteMove}>
-                        <strong className={getQuoteToneClass(item.change_pct)}>
-                          {item.available ? formatSignedPercent(item.change_pct) : "Unavailable"}
-                        </strong>
-                        <div className={styles.quoteBarTrack}>
-                          <div
-                            className={`${styles.quoteBarFill} ${(item.change_pct ?? 0) >= 0 ? styles.quoteBarPositive : styles.quoteBarNegative}`}
-                            style={{ width: `${barWidth}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className={styles.quoteMeta}>
-                        <span>Turnover {formatTurnover(item.turnover)}</span>
-                        <span>Vol {formatCompactMetric(item.volume)}</span>
-                        <span>{formatDisplayTimestamp(item.as_of ?? item.trade_date ?? item.cached_at)}</span>
-                        <span>{describeQuoteSource(item)}</span>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
+              </button>
+            ))}
           </div>
+        </section>
 
-          <aside className={styles.secondaryColumn}>
-            <section className={`glass ${styles.panel} ${styles.sideFeature}`}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className="eyebrow">Tracked set facts</p>
-                  <h2>Composition of the symbols we actually receive</h2>
-                </div>
-                <span className="pill neutral">{tracked.market_state}</span>
+        <section className={styles.commandGrid}>
+          <section className={`glass ${styles.commandSection}`}>
+            <ComponentTag label="dashboard.search-command" api="/api/trading/symbols/search" />
+            <div className={styles.sectionHeader}>
+              <div>
+                <p className="eyebrow">Search Command</p>
+                <h2>Open any symbol detail quickly</h2>
+                <p className={`clamp-3 ${styles.sectionCopy}`}>
+                  Search stays in the dashboard flow on mobile, then pushes directly into the symbol detail stack.
+                </p>
               </div>
+            </div>
 
-              <div className={styles.progressGroup}>
-                <div className={styles.progressHeader}>
-                  <span>Positive available quotes</span>
-                  <strong>{computed.positiveCount} names</strong>
-                </div>
-                <div className={styles.progressTrack}>
-                  <div className={styles.progressFill} style={{ width: `${computed.breadthRatio * 100}%` }} />
-                </div>
+            <label className={styles.searchField}>
+              <span>Company or ticker</span>
+              <div className={styles.searchInputShell}>
+                <span className={styles.searchInputIcon}>SR</span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Samsung / 005930"
+                />
               </div>
+            </label>
 
-              <div className={styles.progressGroup}>
-                <div className={styles.progressHeader}>
-                  <span>Quotes flagged live</span>
-                  <strong>{computed.liveCount} active</strong>
-                </div>
-                <div className={styles.progressTrack}>
-                  <div
-                    className={`${styles.progressFill} ${styles.progressFillBlue}`}
-                    style={{ width: `${tracked.items.length ? (computed.liveCount / tracked.items.length) * 100 : 0}%` }}
-                  />
-                </div>
-              </div>
+            <div className={styles.searchStatusRow}>
+              <span>
+                {searchLoading
+                  ? "Searching symbol master"
+                  : searchQuery.trim().length < 2
+                    ? "Enter at least 2 characters"
+                    : `${searchItems.length} matching results`}
+              </span>
+              <span className="clamp-3">{searchError ?? "Results open the symbol detail screen."}</span>
+            </div>
 
-              <div className={styles.progressGroup}>
-                <div className={styles.progressHeader}>
-                  <span>Fallback quotes</span>
-                  <strong>{computed.fallbackCount} symbols</strong>
-                </div>
-                <div className={styles.progressTrack}>
-                  <div
-                    className={`${styles.progressFill} ${styles.progressFillAmber}`}
-                    style={{
-                      width: `${tracked.items.length ? (computed.fallbackCount / tracked.items.length) * 100 : 0}%`,
-                    }}
-                  />
-                </div>
-              </div>
+            <div className={styles.searchResultList}>
+              {searchQuery.trim().length < 2 ? (
+                <div className={styles.emptyState}>Search opens KRX symbols without inventing unsupported market summaries.</div>
+              ) : null}
 
-              <div className={styles.snapshotGrid}>
-                <article className={styles.snapshotCard}>
-                  <span>Average tracked move</span>
-                  <strong className={getQuoteToneClass(computed.averageMove)}>{formatSignedPercent(computed.averageMove)}</strong>
-                </article>
-                <article className={styles.snapshotCard}>
-                  <span>Tracked symbols</span>
-                  <strong>{symbols.count}</strong>
-                </article>
-                <article className={styles.snapshotCard}>
-                  <span>Unavailable quotes</span>
-                  <strong>{computed.unavailableCount}</strong>
-                </article>
-              </div>
-            </section>
-
-            <section className={`glass ${styles.panel}`}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className="eyebrow">Tracked movers</p>
-                  <h2>Largest absolute shifts inside the tracked list</h2>
-                </div>
-              </div>
-
-              <div className={styles.moverList}>
-                {movers.map((item) => (
-                  <article key={item.symbol} className={styles.moverCard}>
-                    <div>
-                      <strong>{item.symbol}</strong>
-                      <span>{getCompanyName(item)}</span>
+              {searchItems.map((item) => (
+                <button
+                  key={`${item.symbol}-${item.standard_code}`}
+                  type="button"
+                  className={styles.searchResultCard}
+                  onClick={() => openSymbolDetail(item)}
+                >
+                  <div>
+                    <div className={styles.searchResultTitle}>{item.name_ko}</div>
+                    <div className={`${styles.searchResultMeta} clamp-3`}>
+                      {item.symbol} · {item.standard_code}
                     </div>
-                    <div className={styles.moverStats}>
-                      <strong className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</strong>
-                      <span>₩{formatPrice(item.price)}</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
+                  </div>
+                  <div className={styles.searchResultSide}>
+                    <span className="pill neutral">{item.market}</span>
+                    <span>Open</span>
+                  </div>
+                </button>
+              ))}
 
-            <section className={`glass ${styles.panel}`}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className="eyebrow">Feed timestamps</p>
-                  <h2>What the current endpoints tell us</h2>
-                </div>
-                <span className="pill neutral">No synthetic readiness score</span>
-              </div>
+              {!searchLoading && searchQuery.trim().length >= 2 && searchItems.length === 0 && !searchError ? (
+                <div className={styles.emptyState}>No matching symbol or company was found in the master list.</div>
+              ) : null}
+            </div>
+          </section>
 
-              <div className={styles.healthList}>
-                <div className={styles.healthRow}>
-                  <span>Polling cadence</span>
-                  <strong>1 second</strong>
-                </div>
-                <div className={styles.healthRow}>
-                  <span>Market state</span>
-                  <strong>{market.state}</strong>
-                </div>
-                <div className={styles.healthRow}>
-                  <span>Server time</span>
-                  <strong>{formatDisplayTimestamp(market.server_time)}</strong>
-                </div>
-                <div className={styles.healthRow}>
-                  <span>Tracked list updated</span>
-                  <strong>{formatDisplayTimestamp(symbols.last_updated_at, "N/A")}</strong>
-                </div>
-                <div className={styles.healthRow}>
-                  <span>Last board refresh</span>
-                  <strong>{formatDisplayTimestamp(tracked.as_of)}</strong>
-                </div>
-                <div className={styles.healthRow}>
-                  <span>Lead source</span>
-                  <strong>{describeQuoteSource(lead)}</strong>
-                </div>
-                <div className={styles.healthRow}>
-                  <span>Lead quote availability</span>
-                  <strong>{lead ? (lead.available ? (lead.is_live ? "Live" : "Fallback") : "Unavailable") : "N/A"}</strong>
-                </div>
+          <section className={`glass ${styles.notesSection}`}>
+            <ComponentTag label="dashboard.derived-notes" api="/api/trading/quotes/tracked + /api/trading/eod/freshness" />
+            <div className={styles.sectionHeader}>
+              <div>
+                <p className="eyebrow">Context Notes</p>
+                <h2>What the current APIs support today</h2>
               </div>
-            </section>
-          </aside>
+            </div>
+
+            <div className={styles.noteList}>
+              {derivedNotes.map((note) => (
+                <article key={note.id} className={styles.noteCard}>
+                  <strong className="clamp-3">{note.title}</strong>
+                  <p className="clamp-3">{note.detail}</p>
+                  <span>{note.api}</span>
+                </article>
+              ))}
+            </div>
+          </section>
         </section>
       </div>
     </AppShell>

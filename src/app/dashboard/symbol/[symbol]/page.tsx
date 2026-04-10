@@ -4,16 +4,23 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { ComponentTag } from "@/components/dev/component-tag";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageIntro } from "@/components/ui/page-intro";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import type {
   AgentContextActionSummaryDto,
-  AgentContextFundamentalsSummaryDto,
   AgentContextDisclosureDto,
+  AgentContextFundamentalsSummaryDto,
   AgentContextItemDto,
   AgentContextResponseDto,
   AgentContextTechnicalSnapshotDto,
+  DartFundamentalsHistoryCompanyDto,
+  DartFundamentalsHistoryMetricDto,
+  DartFundamentalsHistoryResponseDto,
+  EodActionSummariesResponseDto,
+  EodFreshnessResponseDto,
+  EodTechnicalSnapshotsResponseDto,
+  SymbolPriceBarDto,
   SymbolPriceBarsResponseDto,
 } from "@/types/trading-api";
 
@@ -71,36 +78,47 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function formatSignedPercent(value: number) {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-function formatSignedNumber(value: number) {
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString()}`;
-}
-
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
 
-function formatSignedPercentOptional(value: number | null | undefined, fallback = "Unavailable") {
-  return hasNumber(value) ? formatSignedPercent(value) : fallback;
+function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable") {
+  if (!hasNumber(value)) return fallback;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatSignedNumberOptional(value: number | null | undefined, fallback = "Unavailable") {
-  return hasNumber(value) ? formatSignedNumber(value) : fallback;
+function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable") {
+  if (!hasNumber(value)) return fallback;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
 }
 
-function formatOptionalPercent(value: number | null) {
-  return value === null ? "-" : formatSignedPercent(value);
+function formatCompactNumber(value: number | string | null | undefined, fallback = "[확인 필요]") {
+  if (typeof value === "number") {
+    return new Intl.NumberFormat("ko-KR", {
+      notation: "compact",
+      compactDisplay: "short",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 1,
+    }).format(value);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+
+  return fallback;
 }
 
-function formatOptionalMultiple(value: number | null) {
-  return value === null ? "-" : `${value.toFixed(2)}x`;
+function formatPercentOrDash(value: number | null | undefined) {
+  return hasNumber(value) ? `${value.toFixed(2)}%` : "[확인 필요]";
 }
 
-function humanizeToken(value: string | null | undefined) {
-  if (!value) return "-";
+function formatNumberOrDash(value: number | null | undefined) {
+  return hasNumber(value) ? value.toFixed(2) : "[확인 필요]";
+}
+
+function humanizeToken(value: string | null | undefined, fallback = "[확인 필요]") {
+  if (!value) return fallback;
   return value
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -121,10 +139,15 @@ function getCurrentSeoulMarketDate(now = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function buildQuoteContext(quote: Pick<QuoteResponse, "fallback" | "is_live" | "market_state">) {
-  if (quote.fallback) return "Quote polling is currently on the backend fallback path.";
-  if (quote.is_live) return "Quote polling is on the live trading-core feed.";
-  return `Quote polling reports market state ${quote.market_state.toLowerCase()}.`;
+function formatIsoDateLabel(value: string | null | undefined, fallback = "[확인 필요]") {
+  if (!value) return fallback;
+  const [year, month, day] = value.split("-");
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${year}.${month}.${day}`;
 }
 
 function buildQuoteFeedLabel(quote: QuoteResponse | null) {
@@ -136,48 +159,71 @@ function buildQuoteFeedLabel(quote: QuoteResponse | null) {
   return "Delayed feed";
 }
 
+function buildQuoteSourceLabel(quote: QuoteResponse | null) {
+  if (!quote) return "Quote source pending.";
+  if (!quote.available) {
+    return quote.unavailable_reason
+      ? `Quote unavailable: ${quote.unavailable_reason}.`
+      : "Quote source is currently unavailable.";
+  }
+  if (quote.is_live) return "Primary KIS live quote source.";
+  if (quote.source === "daily_price_bar") {
+    return quote.trade_date
+      ? `Daily price-bar fallback for ${quote.trade_date}.`
+      : "Daily price-bar fallback path.";
+  }
+  if (quote.fallback) return `${quote.source} fallback path.`;
+  return `${quote.source} quote source.`;
+}
+
 function buildAggregateContextSummary(
-  aggregateContext: AgentContextItemDto,
+  aggregateContext: AgentContextItemDto | null,
   quote: QuoteResponse | null,
+  marketDate: string | null,
 ) {
-  const parts = ["This symbol detail view mixes on-demand quote polling with the stored symbol-day aggregate packet."];
+  if (!aggregateContext) {
+    if (!marketDate) {
+      return "Waiting for the quote trade date before requesting the aggregate symbol-day packet.";
+    }
+
+    return "Waiting for trading-core to resolve the symbol-day aggregate packet for this requested market date.";
+  }
+
+  const fragments = [
+    `Quote rendering uses /quotes/${aggregateContext.symbol} while insight and evidence modules are layered from the symbol-day aggregate payload.`,
+  ];
+
+  if (aggregateContext.technical_snapshot) {
+    fragments.push(
+      `${humanizeToken(aggregateContext.technical_snapshot.trend_state)} trend with ${humanizeToken(aggregateContext.technical_snapshot.ma_alignment)} alignment.`,
+    );
+  }
 
   if (aggregateContext.action_summary) {
-    parts.push(
-      `${humanizeToken(aggregateContext.action_summary.action_label)} bias with ${aggregateContext.action_summary.confidence_tier} confidence and ${aggregateContext.action_summary.risk_tier} risk.`,
+    fragments.push(
+      `${humanizeToken(aggregateContext.action_summary.action_label)} bias at score ${aggregateContext.action_summary.signal_score}.`,
     );
-  } else if (aggregateContext.technical_snapshot) {
-    parts.push(
-      `${humanizeToken(aggregateContext.technical_snapshot.trend_state)} technical state with ${humanizeToken(aggregateContext.technical_snapshot.ma_alignment)} moving-average alignment.`,
-    );
-  } else {
-    parts.push("No stored technical/action block is available for the requested market date yet.");
   }
 
   if (aggregateContext.fundamentals.latest_snapshot) {
-    const latestSnapshot = aggregateContext.fundamentals.latest_snapshot;
-    parts.push(
-      `Latest fundamentals summary comes from ${latestSnapshot.filing.report_name ?? latestSnapshot.period.report_label ?? "the stored filing"} received ${latestSnapshot.filing.receipt_date ?? "at an unknown date"}.`,
+    fragments.push(
+      `Latest filing snapshot received ${aggregateContext.fundamentals.latest_snapshot.filing.receipt_date ?? "[확인 필요]"}.`,
     );
   } else {
-    parts.push("No eligible fundamentals summary is stored for this symbol yet.");
+    fragments.push("No stored fundamentals snapshot is attached yet.");
   }
 
   if (aggregateContext.recent_disclosures.count > 0) {
-    parts.push(`${aggregateContext.recent_disclosures.count} recent disclosure event(s) are attached to this context packet.`);
+    fragments.push(`${aggregateContext.recent_disclosures.count} recent disclosure item(s) are available.`);
   } else {
-    parts.push("No recent disclosures were returned for this market-date window.");
+    fragments.push("Recent disclosure coverage is empty for this packet.");
   }
 
-  if (quote) {
-    if (quote.available) {
-      parts.push(buildQuoteContext(quote));
-    } else {
-      parts.push(`Quote polling is explicitly unavailable: ${quote.unavailable_reason ?? "no fresh upstream or fallback data"}.`);
-    }
+  if (quote?.available) {
+    fragments.push(quote.is_live ? "Price card is on a live feed." : "Price card is on a fallback quote path.");
   }
 
-  return parts.join(" ");
+  return fragments.join(" ");
 }
 
 function shiftIsoDate(isoDate: string, { months = 0, years = 0 }: { months?: number; years?: number }) {
@@ -213,72 +259,114 @@ function buildPriceHistoryQuery(range: PriceHistoryRange, marketDate: string) {
   return params.toString();
 }
 
-function buildActionTone(actionSummary: AgentContextActionSummaryDto | null) {
-  if (!actionSummary) return "";
-  if (actionSummary.bias_direction === "long") return styles.positive;
-  if (actionSummary.bias_direction === "short") return styles.negative;
-  return "";
-}
-
-function buildTechnicalTone(technicalSnapshot: AgentContextTechnicalSnapshotDto | null) {
-  if (!technicalSnapshot) return "";
-  if (technicalSnapshot.trend_state === "uptrend") return styles.positive;
-  if (technicalSnapshot.trend_state === "downtrend") return styles.negative;
-  return "";
+function buildFundamentalsHistoryQuery(symbol: string, marketDate: string, fsDiv: string | null) {
+  const params = new URLSearchParams();
+  params.append("symbols", symbol);
+  params.set("start_date", shiftIsoDate(marketDate, { years: -5 }));
+  params.set("end_date", marketDate);
+  if (fsDiv) {
+    params.set("fs_div", fsDiv);
+  }
+  return params.toString();
 }
 
 function buildLatestDisclosure(disclosures: AgentContextDisclosureDto[]) {
   return disclosures[0] ?? null;
 }
 
-function buildTechnicalSnapshotDetail(
-  technicalSnapshot: AgentContextTechnicalSnapshotDto | null,
-  quote: QuoteResponse | null,
-  marketDate: string | null,
-) {
-  if (technicalSnapshot) {
-    return `As of ${technicalSnapshot.market_date} · 5D ${formatOptionalPercent(technicalSnapshot.return_5d)} · 20D ${formatOptionalPercent(technicalSnapshot.return_20d)} · Vol ${formatOptionalMultiple(technicalSnapshot.volume_ratio_20d)}`;
-  }
-
-  if (quote?.trade_date && marketDate && quote.trade_date !== marketDate) {
-    return `Requested ${marketDate}, but the latest completed trading day is ${quote.trade_date}. Stored EOD technical snapshots only exist after that market close.`;
-  }
-
-  if (marketDate && quote?.market_state === "PREOPEN") {
-    return `Stored EOD technical snapshots are keyed to the prior completed trading day. Before the session opens, ${marketDate} can legitimately be empty until quote trade-date resolution settles on the previous close.`;
-  }
-
-  if (marketDate && quote?.market_state === "OPEN") {
-    return `Stored EOD technical snapshots are written after the market closes, so ${marketDate} remains unavailable during the live session.`;
-  }
-
-  if (marketDate) {
-    return `Stored market-date snapshot missing for ${marketDate}. If this is the current calendar day, the latest completed EOD packet may still be the prior trading session.`;
-  }
-
-  return "Waiting for quote trade date before loading stored technical context";
+function buildActionTone(actionSummary: AgentContextActionSummaryDto | null) {
+  if (!actionSummary) return "neutral";
+  if (actionSummary.bias_direction === "long") return "positive";
+  if (actionSummary.bias_direction === "short") return "negative";
+  return "info";
 }
 
-function buildLatestFilingDetail(
-  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
-  latestDisclosure: AgentContextDisclosureDto | null,
-  aggregateContextLoaded: boolean,
-  disclosureCount: number,
+function buildTechnicalTone(technicalSnapshot: AgentContextTechnicalSnapshotDto | null) {
+  if (!technicalSnapshot) return "warning";
+  if (technicalSnapshot.trend_state === "uptrend") return "positive";
+  if (technicalSnapshot.trend_state === "downtrend") return "negative";
+  return "info";
+}
+
+function buildFreshnessTone(status: string | null | undefined) {
+  if (!status) return "warning";
+  if (status === "completed") return "positive";
+  if (status === "completed_with_errors") return "warning";
+  if (status === "running") return "info";
+  return "neutral";
+}
+
+function buildModuleStatusTone(available: boolean, fallbackTone = "warning") {
+  return available ? "positive" : fallbackTone;
+}
+
+function buildConfidenceTone(value: string | null | undefined) {
+  if (!value) return "warning";
+  if (value === "high" || value === "premium") return "positive";
+  if (value === "low") return "negative";
+  return "info";
+}
+
+function buildInsightTags(payload: Record<string, unknown> | null | undefined) {
+  const keys = payload ? Object.keys(payload) : [];
+  if (keys.length === 0) {
+    return ["[확인 필요]"];
+  }
+
+  return keys.slice(0, 4).map((key) => humanizeToken(key, key));
+}
+
+function formatHighlightLabel(metric: DartFundamentalsHistoryMetricDto, index: number) {
+  return metric.label ?? metric.metric_key ?? `Metric ${index + 1}`;
+}
+
+function formatHighlightValue(metric: DartFundamentalsHistoryMetricDto) {
+  return formatCompactNumber(metric.value);
+}
+
+function pickFundamentalsCompany(
+  fundamentalsHistory: DartFundamentalsHistoryResponseDto | null,
   symbol: string,
 ) {
+  if (!fundamentalsHistory) return null;
+  return (
+    fundamentalsHistory.companies.find((company) => company.symbol === symbol) ??
+    fundamentalsHistory.companies[0] ??
+    null
+  );
+}
+
+function buildFundamentalsCoverageNote(
+  companyHistory: DartFundamentalsHistoryCompanyDto | null,
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
+) {
+  if (companyHistory?.entries.length) {
+    return `${companyHistory.entries.length} stored filing period(s) loaded from the DART fundamentals history endpoint.`;
+  }
+
   if (latestFundamentals) {
-    return `${latestFundamentals.filing.receipt_date ?? "Date unknown"} · ${latestFundamentals.statement.fs_label ?? latestFundamentals.statement.fs_div} · ${disclosureCount} recent disclosure(s)`;
+    return `Aggregate context still has a latest filing snapshot from ${latestFundamentals.filing.receipt_date ?? "[확인 필요]"}.`;
   }
 
-  if (latestDisclosure) {
-    return `Recent disclosure only: ${latestDisclosure.report_nm} (${latestDisclosure.receipt_date ?? "date unknown"})`;
+  return "Current web layer cannot confirm a stored fundamentals history row for this symbol yet.";
+}
+
+function buildDisclosureCoverageNote(
+  latestDisclosure: AgentContextDisclosureDto | null,
+  disclosureCount: number,
+) {
+  if (disclosureCount > 0 && latestDisclosure) {
+    return `${disclosureCount} disclosure item(s) loaded. Latest filing landed on ${latestDisclosure.receipt_date ?? "[확인 필요]"}.`;
   }
 
-  if (aggregateContextLoaded) {
-    return `No stored DART fundamentals summary or recent disclosure is attached to ${symbol} yet. Current-universe DART backfill is still batch-driven, so later symbols can legitimately remain empty until their batch is processed.`;
-  }
+  return "No Disclosure Found for this symbol.";
+}
 
-  return "Waiting for the symbol-day aggregate response to confirm DART coverage";
+function buildMarketStateTone(quote: QuoteResponse | null, marketStatus: MarketStatusResponse | null) {
+  if (!quote || !marketStatus) return "neutral";
+  if (quote.available && marketStatus.state === "OPEN") return "positive";
+  if (!quote.available) return "warning";
+  return "info";
 }
 
 export default function SymbolDetailPage() {
@@ -301,15 +389,23 @@ export default function SymbolDetailPage() {
   const [marketStatus, setMarketStatus] = useState<MarketStatusResponse | null>(null);
   const [selectedRange, setSelectedRange] = useState<PriceHistoryRange>("1Y");
   const [priceHistory, setPriceHistory] = useState<SymbolPriceBarsResponseDto | null>(null);
+  const [selectedBar, setSelectedBar] = useState<SymbolPriceBarDto | null>(null);
   const [aggregateContext, setAggregateContext] = useState<AgentContextItemDto | null>(null);
-  const [aggregateContextLoadState, setAggregateContextLoadState] = useState<AggregateContextLoadState>("loading");
+  const [technicalSnapshot, setTechnicalSnapshot] = useState<AgentContextTechnicalSnapshotDto | null>(null);
+  const [actionSummary, setActionSummary] = useState<AgentContextActionSummaryDto | null>(null);
+  const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(null);
+  const [fundamentalsHistory, setFundamentalsHistory] = useState<DartFundamentalsHistoryResponseDto | null>(null);
+  const [aggregateContextLoadState, setAggregateContextLoadState] =
+    useState<AggregateContextLoadState>("loading");
   const [quotePollingStopped, setQuotePollingStopped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [fundamentalsLoading, setFundamentalsLoading] = useState(true);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
 
   const marketDate = useMemo(() => {
     if (requestedMarketDate) return requestedMarketDate;
@@ -321,17 +417,25 @@ export default function SymbolDetailPage() {
   useEffect(() => {
     setMeta(initialMeta);
     setQuote(null);
+    setMarketStatus(null);
     setSelectedRange("1Y");
     setPriceHistory(null);
+    setSelectedBar(null);
     setAggregateContext(null);
+    setTechnicalSnapshot(null);
+    setActionSummary(null);
+    setFreshness(null);
+    setFundamentalsHistory(null);
     setAggregateContextLoadState("loading");
     setQuotePollingStopped(false);
     setLoading(true);
     setHistoryLoading(true);
+    setFundamentalsLoading(true);
     setMetaError(null);
     setQuoteError(null);
     setHistoryError(null);
     setContextError(null);
+    setFundamentalsError(null);
   }, [initialMeta, metaResetToken]);
 
   useEffect(() => {
@@ -377,7 +481,9 @@ export default function SymbolDetailPage() {
           getJson<MarketStatusResponse>("/api/trading/market/status"),
         ]);
         if (!active) return;
-        const shouldStopPolling = marketData.state === "CLOSED" && quoteData.market_state === "CLOSED";
+
+        const shouldStopPolling =
+          marketData.state === "CLOSED" && quoteData.market_state === "CLOSED";
 
         setQuote(quoteData);
         setMarketStatus(marketData);
@@ -385,13 +491,13 @@ export default function SymbolDetailPage() {
         setQuoteError(null);
 
         if (!shouldStopPolling) {
-          timer = window.setTimeout(loadQuote, 1500);
+          timer = window.setTimeout(loadQuote, 1_500);
         }
       } catch (quoteLoadError) {
         console.error("Symbol quote load failed", quoteLoadError);
         if (!active) return;
         setQuoteError("Unable to load symbol quote details from trading-core.");
-        timer = window.setTimeout(loadQuote, 1500);
+        timer = window.setTimeout(loadQuote, 1_500);
       } finally {
         if (active) {
           setLoading(false);
@@ -415,6 +521,7 @@ export default function SymbolDetailPage() {
     const loadPriceHistory = async () => {
       if (!marketDate) {
         setPriceHistory(null);
+        setSelectedBar(null);
         setHistoryLoading(true);
         setHistoryError(null);
         return;
@@ -429,11 +536,13 @@ export default function SymbolDetailPage() {
         );
         if (!active) return;
         setPriceHistory(data);
+        setSelectedBar(data.items[data.items.length - 1] ?? null);
         setHistoryError(null);
       } catch (priceHistoryLoadError) {
         console.error("Symbol price history load failed", priceHistoryLoadError);
         if (!active) return;
         setPriceHistory(null);
+        setSelectedBar(null);
         setHistoryError("Unable to load stored historical price bars from trading-core.");
       } finally {
         if (active) {
@@ -452,7 +561,7 @@ export default function SymbolDetailPage() {
   useEffect(() => {
     let active = true;
 
-    const loadContext = async () => {
+    const loadAggregateContext = async () => {
       if (!marketDate) {
         setAggregateContext(null);
         setAggregateContextLoadState("loading");
@@ -469,41 +578,176 @@ export default function SymbolDetailPage() {
         aggregateParams.set("fs_div", fsDiv);
       }
 
-      const aggregateResult = await getJson<AgentContextResponseDto>(
-        `/api/trading/agent-context/symbol-day?${aggregateParams.toString()}`,
-      )
-        .then((value) => ({ status: "fulfilled" as const, value }))
-        .catch((reason: unknown) => ({ status: "rejected" as const, reason }));
+      try {
+        const data = await getJson<AgentContextResponseDto>(
+          `/api/trading/agent-context/symbol-day?${aggregateParams.toString()}`,
+        );
+        if (!active) return;
 
-      if (!active) return;
-
-      const errors: string[] = [];
-
-      if (aggregateResult.status === "fulfilled") {
-        const exactMatch = aggregateResult.value.items.find((item) => item.symbol === symbol) ?? null;
+        const exactMatch = data.items.find((item) => item.symbol === symbol) ?? null;
         setAggregateContext(exactMatch);
-        if (!exactMatch) {
-          setAggregateContextLoadState("error");
-          errors.push("Aggregate symbol context did not include this symbol.");
-        } else {
-          setAggregateContextLoadState("success");
-        }
-      } else {
-        console.error("Aggregate symbol context load failed", aggregateResult.reason);
+        setAggregateContextLoadState(exactMatch ? "success" : "error");
+        setContextError(exactMatch ? null : "Aggregate symbol context did not include this symbol.");
+      } catch (aggregateLoadError) {
+        console.error("Aggregate symbol context load failed", aggregateLoadError);
+        if (!active) return;
         setAggregateContext(null);
         setAggregateContextLoadState("error");
-        errors.push("Aggregate symbol context is unavailable right now.");
+        setContextError("Aggregate symbol context is unavailable right now.");
       }
-
-      setContextError(errors.length > 0 ? errors.join(" ") : null);
     };
 
-    loadContext();
+    loadAggregateContext();
 
     return () => {
       active = false;
     };
   }, [fsDiv, marketDate, symbol]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadDerivedInsights = async () => {
+      if (!marketDate) {
+        setTechnicalSnapshot(null);
+        setActionSummary(null);
+        return;
+      }
+
+      const insightQuery = new URLSearchParams();
+      insightQuery.set("market_date", marketDate);
+      insightQuery.append("symbols", symbol);
+
+      const [technicalResult, actionResult] = await Promise.allSettled([
+        getJson<EodTechnicalSnapshotsResponseDto>(
+          `/api/trading/eod/technical-snapshots?${insightQuery.toString()}`,
+        ),
+        getJson<EodActionSummariesResponseDto>(
+          `/api/trading/eod/action-summaries?${insightQuery.toString()}`,
+        ),
+      ]);
+
+      if (!active) return;
+
+      if (technicalResult.status === "fulfilled") {
+        setTechnicalSnapshot(
+          technicalResult.value.items.find((item) => item.symbol === symbol) ??
+            technicalResult.value.items[0] ??
+            null,
+        );
+      } else {
+        console.error("Technical snapshot load failed", technicalResult.reason);
+        setTechnicalSnapshot(null);
+      }
+
+      if (actionResult.status === "fulfilled") {
+        setActionSummary(
+          actionResult.value.items.find((item) => item.symbol === symbol) ??
+            actionResult.value.items[0] ??
+            null,
+        );
+      } else {
+        console.error("Action summary load failed", actionResult.reason);
+        setActionSummary(null);
+      }
+    };
+
+    loadDerivedInsights();
+
+    return () => {
+      active = false;
+    };
+  }, [marketDate, symbol]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadFreshness = async () => {
+      try {
+        const data = await getJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
+        if (!active) return;
+        setFreshness(data);
+      } catch (freshnessLoadError) {
+        console.error("Symbol freshness load failed", freshnessLoadError);
+        if (!active) return;
+        setFreshness((current) => current);
+      }
+    };
+
+    loadFreshness();
+    const timer = window.setInterval(loadFreshness, 30_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadFundamentalsHistory = async () => {
+      if (!marketDate) {
+        setFundamentalsHistory(null);
+        setFundamentalsLoading(true);
+        setFundamentalsError(null);
+        return;
+      }
+
+      setFundamentalsLoading(true);
+
+      try {
+        const query = buildFundamentalsHistoryQuery(symbol, marketDate, fsDiv);
+        const data = await getJson<DartFundamentalsHistoryResponseDto>(
+          `/api/trading/disclosures/dart/fundamentals/history?${query}`,
+        );
+        if (!active) return;
+        setFundamentalsHistory(data);
+        setFundamentalsError(null);
+      } catch (fundamentalsLoadError) {
+        console.error("Fundamentals history load failed", fundamentalsLoadError);
+        if (!active) return;
+        setFundamentalsHistory(null);
+        setFundamentalsError("Unable to load DART fundamentals history from trading-core.");
+      } finally {
+        if (active) {
+          setFundamentalsLoading(false);
+        }
+      }
+    };
+
+    loadFundamentalsHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [fsDiv, marketDate, symbol]);
+
+  const resolvedTechnicalSnapshot = technicalSnapshot ?? aggregateContext?.technical_snapshot ?? null;
+  const resolvedActionSummary = actionSummary ?? aggregateContext?.action_summary ?? null;
+  const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
+  const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
+  const companyHistory = pickFundamentalsCompany(fundamentalsHistory, symbol);
+  const latestHistoryEntry = companyHistory?.entries[0] ?? null;
+  const latestHighlights = latestHistoryEntry?.highlights.slice(0, 3) ?? [];
+  const disclosureSectionState = getDisclosureSectionState(
+    aggregateContextLoadState,
+    aggregateContext !== null,
+    aggregateContext?.recent_disclosures.count ?? 0,
+  );
+
+  const introTitle =
+    aggregateContext?.company.name_ko ??
+    meta?.name_ko ??
+    quote?.company_name ??
+    aggregateContext?.company.dart.corp_name ??
+    symbol;
+  const marketLabel =
+    aggregateContext?.company.market ?? meta?.market ?? quote?.market_state ?? "[확인 필요]";
+  const contextSummary = buildAggregateContextSummary(aggregateContext, quote, marketDate);
+  const detailErrors = [quoteError, metaError, historyError, contextError, fundamentalsError].filter(
+    (value): value is string => Boolean(value),
+  );
 
   const chartMetrics = useMemo(() => {
     if (!priceHistory || priceHistory.items.length === 0) return null;
@@ -529,424 +773,750 @@ export default function SymbolDetailPage() {
     };
   }, [priceHistory]);
 
-  const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
-  const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
-  const disclosureSectionState = getDisclosureSectionState(
-    aggregateContextLoadState,
-    aggregateContext !== null,
-    aggregateContext?.recent_disclosures.count ?? 0,
-  );
-  const introTitle =
-    aggregateContext?.company.name_ko ?? meta?.name_ko ?? quote?.company_name ?? aggregateContext?.company.dart.corp_name ?? symbol;
-  const contextSummary = aggregateContext
-    ? buildAggregateContextSummary(aggregateContext, quote)
-    : marketDate
-      ? "Waiting for the aggregate symbol-day context from trading-core."
-      : "Waiting for the quote trade date before loading stored symbol-day context.";
+  const focusBar = selectedBar ?? priceHistory?.items[priceHistory.items.length - 1] ?? null;
+  const focusBarIndex =
+    focusBar && priceHistory
+      ? priceHistory.items.findIndex((item) => item.trade_date === focusBar.trade_date)
+      : -1;
+  const previousFocusBar =
+    focusBarIndex > 0 && priceHistory ? priceHistory.items[focusBarIndex - 1] ?? null : null;
+  const focusMovePct =
+    focusBar && previousFocusBar && previousFocusBar.close_price > 0
+      ? ((focusBar.close_price - previousFocusBar.close_price) / previousFocusBar.close_price) * 100
+      : null;
 
-  const summaryCards = [
+  const heroMetrics = [
     {
-      label: "Last price",
-      value: quote ? (quote.available ? `KRW ${formatPrice(quote.price)}` : "Unavailable") : loading ? "Loading..." : "-",
-      detail: quote
-        ? quote.available
-          ? `${formatSignedPercentOptional(quote.change_pct)} · ${formatSignedNumberOptional(quote.change)}`
-          : (quote.unavailable_reason ?? "Awaiting a fresh quote source")
-        : "Awaiting quote snapshot",
-      tone: quote && hasNumber(quote.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : "",
+      label: "Quote freshness",
+      value: quote?.is_live
+        ? "Live"
+        : quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, "[확인 필요]"),
+      detail: buildQuoteFeedLabel(quote),
     },
     {
-      label: "Technical snapshot",
-      value: aggregateContext?.technical_snapshot
-        ? `${humanizeToken(aggregateContext.technical_snapshot.trend_state)} · ${humanizeToken(aggregateContext.technical_snapshot.ma_alignment)}`
-        : "Unavailable",
-      detail: buildTechnicalSnapshotDetail(aggregateContext?.technical_snapshot ?? null, quote, marketDate),
-      tone: buildTechnicalTone(aggregateContext?.technical_snapshot ?? null),
+      label: "Focus candle",
+      value: focusBar?.trade_date ? formatIsoDateLabel(focusBar.trade_date) : "[확인 필요]",
+      detail: focusBar ? `O ${formatPrice(focusBar.open_price)} · C ${formatPrice(focusBar.close_price)}` : "Swipe or tap chart to inspect a date.",
     },
     {
-      label: "Action summary",
-      value: aggregateContext?.action_summary ? humanizeToken(aggregateContext.action_summary.action_label) : "Unavailable",
-      detail: aggregateContext?.action_summary
-        ? `Score ${aggregateContext.action_summary.signal_score} · ${humanizeToken(aggregateContext.action_summary.confidence_tier)} confidence · ${humanizeToken(aggregateContext.action_summary.risk_tier)} risk`
-        : "No deterministic action block stored for this symbol-day packet",
-      tone: buildActionTone(aggregateContext?.action_summary ?? null),
+      label: "TA latest",
+      value:
+        resolvedTechnicalSnapshot?.market_date ??
+        freshness?.latest?.technical_market_date ??
+        "[확인 필요]",
+      detail: resolvedTechnicalSnapshot
+        ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
+        : "No technical snapshot resolved yet.",
     },
     {
-      label: "Latest filing",
-      value: latestFundamentals?.filing.report_name ?? latestFundamentals?.period.report_label ?? "No snapshot",
-      detail: buildLatestFilingDetail(
-        latestFundamentals,
-        latestDisclosure,
-        aggregateContext !== null,
-        aggregateContext?.recent_disclosures.count ?? 0,
-        symbol,
-      ),
-      tone: "",
+      label: "Action latest",
+      value:
+        resolvedActionSummary?.market_date ??
+        freshness?.latest?.action_market_date ??
+        "[확인 필요]",
+      detail: resolvedActionSummary
+        ? `${humanizeToken(resolvedActionSummary.action_label)} · ${humanizeToken(resolvedActionSummary.confidence_tier)} confidence`
+        : "No deterministic action summary resolved yet.",
     },
   ];
+
+  const actionReasons = resolvedActionSummary?.reasons.slice(0, 4) ?? [];
+  const actionPayloadTags = buildInsightTags(resolvedActionSummary?.summary_payload);
+  const technicalPayloadTags = buildInsightTags(resolvedTechnicalSnapshot?.signal_payload);
+  const actionTone = buildActionTone(resolvedActionSummary);
+  const technicalTone = buildTechnicalTone(resolvedTechnicalSnapshot);
+  const freshnessTone = buildFreshnessTone(freshness?.today?.eod_status);
+  const marketStateTone = buildMarketStateTone(quote, marketStatus);
+  const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
+
+  const moduleRows = [
+    {
+      id: "price",
+      label: "Price Module",
+      date: freshness?.latest?.price_trade_date ?? quote?.trade_date ?? "[확인 필요]",
+      detail: quote?.available ? buildQuoteSourceLabel(quote) : quote?.unavailable_reason ?? "Quote coverage unavailable.",
+      tone: buildModuleStatusTone(Boolean(quote?.available)),
+      status: quote?.available ? (quote?.is_live ? "Live" : "Fallback") : "Unavailable",
+      api: "/api/trading/quotes/{symbol}",
+    },
+    {
+      id: "technical",
+      label: "Technical Analysis",
+      date:
+        resolvedTechnicalSnapshot?.market_date ??
+        freshness?.latest?.technical_market_date ??
+        "[확인 필요]",
+      detail: resolvedTechnicalSnapshot
+        ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
+        : "Technical snapshot unavailable or still lagging the latest close.",
+      tone: resolvedTechnicalSnapshot ? technicalTone : "warning",
+      status: resolvedTechnicalSnapshot ? "Synced" : "[확인 필요]",
+      api: "/api/trading/eod/technical-snapshots",
+    },
+    {
+      id: "action",
+      label: "Action Summary",
+      date:
+        resolvedActionSummary?.market_date ??
+        freshness?.latest?.action_market_date ??
+        "[확인 필요]",
+      detail: resolvedActionSummary
+        ? `${humanizeToken(resolvedActionSummary.action_label)} · ${humanizeToken(resolvedActionSummary.risk_tier)} risk`
+        : "Action summary unavailable or not yet derived for this date.",
+      tone: resolvedActionSummary ? actionTone : "warning",
+      status: resolvedActionSummary ? "Resolved" : "[확인 필요]",
+      api: "/api/trading/eod/action-summaries",
+    },
+    {
+      id: "fundamentals",
+      label: "Fundamentals",
+      date:
+        latestHistoryEntry?.filing.receipt_date ??
+        latestFundamentals?.filing.receipt_date ??
+        "[확인 필요]",
+      detail: buildFundamentalsCoverageNote(companyHistory, latestFundamentals),
+      tone: companyHistory?.entries.length ? "info" : "warning",
+      status: companyHistory?.entries.length ? "History loaded" : "[확인 필요]",
+      api: "/api/trading/disclosures/dart/fundamentals/history",
+    },
+    {
+      id: "disclosures",
+      label: "DART Disclosures",
+      date: latestDisclosure?.receipt_date ?? "[확인 필요]",
+      detail: buildDisclosureCoverageNote(
+        latestDisclosure,
+        aggregateContext?.recent_disclosures.count ?? 0,
+      ),
+      tone:
+        disclosureSectionState === "list"
+          ? "info"
+          : disclosureSectionState === "empty"
+            ? "neutral"
+            : "warning",
+      status:
+        disclosureSectionState === "list"
+          ? "Coverage"
+          : disclosureSectionState === "empty"
+            ? "Empty"
+            : "[확인 필요]",
+      api: "/api/trading/agent-context/symbol-day",
+    },
+  ] as const;
 
   return (
     <AppShell currentPath="/dashboard" title={introTitle} eyebrow="Symbol Detail" compactMobileChrome>
       <div className={`page-stack ${styles.detailPage}`}>
-        <PageIntro
-          eyebrow="Symbol Detail"
-          title={introTitle}
-          description="The primary chart reads stored multi-year OHLCV history through the trading-web BFF, while the summary cards combine quote polling with market-status checks until both routes confirm a closed market and the backend aggregate symbol-day context."
-          aside={
-            <div className={styles.introAside}>
-              <span className="pill neutral">{symbol}</span>
-              <span className="pill neutral">{aggregateContext?.company.market ?? meta?.market ?? quote?.market_state ?? "Market pending"}</span>
-              <span className={`pill ${quote && quote.available && (quote.change_pct ?? 0) < 0 ? "warning" : quote?.available === false ? "warning" : "positive"}`}>
-                {buildQuoteFeedLabel(quote)}
+        <section className={`glass ${styles.heroCard}`} id="summary">
+          <ComponentTag
+            label="symbol.hero"
+            api="/api/trading/quotes/{symbol} + /api/trading/market/status + /api/trading/symbols/search"
+          />
+
+          <div className={styles.heroHeader}>
+            <div>
+              <p className="eyebrow">Symbol Detail</p>
+              <div className={styles.heroTitleRow}>
+                <h1>{symbol}</h1>
+                <p className={`clamp-3 ${styles.heroCompany}`}>{introTitle}</p>
+              </div>
+            </div>
+
+            <div className={styles.heroPills}>
+              <span className="pill neutral">{marketLabel}</span>
+              <span className={`pill ${marketStateTone}`}>
+                {marketStatus?.state ?? "Market pending"}
+              </span>
+              <span className={`pill ${quotePollingStopped ? "info" : "warning"}`}>
+                {quotePollingStopped ? "Polling stopped" : "Polling active"}
               </span>
             </div>
-          }
-        />
+          </div>
 
-        <section className={styles.summaryGrid}>
-          {summaryCards.map((card) => (
-            <article key={card.label} className={`glass ${styles.summaryCard}`}>
-              <span className={styles.cardLabel}>{card.label}</span>
-              <strong className={`${styles.cardValue} ${card.tone}`.trim()}>{card.value}</strong>
-              <p className={styles.cardDetail}>{card.detail}</p>
-            </article>
-          ))}
+          <div className={styles.heroQuoteRow}>
+            <div className={styles.heroPriceBlock}>
+              <strong>
+                {quote
+                  ? quote.available
+                    ? `₩${formatPrice(quote.price)}`
+                    : "Unavailable"
+                  : loading
+                    ? "Loading..."
+                    : "[확인 필요]"}
+              </strong>
+              <span className={hasNumber(quote?.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : ""}>
+                {quote?.available
+                  ? `${formatSignedPercent(quote.change_pct)} · ${formatSignedNumber(quote.change)}`
+                  : quote?.unavailable_reason ?? "Awaiting a fresh quote source"}
+              </span>
+              <p className={`clamp-3 ${styles.heroCopy}`}>{buildQuoteSourceLabel(quote)}</p>
+            </div>
+
+            <div className={styles.heroActions}>
+              <Link href="/dashboard" className={styles.linkButton}>
+                Back to dashboard
+              </Link>
+              <Link href="/search" className={styles.linkButtonMuted}>
+                Search workspace
+              </Link>
+            </div>
+          </div>
+
+          <div className={styles.heroMetrics}>
+            {heroMetrics.map((metric) => (
+              <article key={metric.label} className={styles.heroMetricCard}>
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <p className="clamp-3">{metric.detail}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
-        <section className={styles.chartSection}>
-          <section className={`glass ${styles.chartCard}`}>
-            <div className={styles.chartHeader}>
-              <div>
-                <p className="eyebrow">Price History</p>
-                <h2>Historical candlestick chart</h2>
-                <p>
-                  Stored daily OHLCV bars now come from <code>daily_price_bars</code> via the symbol history API, so
-                  this view can cover multiple years instead of a short live trace.
+        <nav className={`glass ${styles.anchorRail}`}>
+          <ComponentTag label="symbol.section-nav" api="in-page anchors" />
+          <a href="#chart" className={styles.anchorChip}>
+            Chart
+          </a>
+          <a href="#action" className={styles.anchorChip}>
+            Action
+          </a>
+          <a href="#technical" className={styles.anchorChip}>
+            Technical
+          </a>
+          <a href="#fundamentals" className={styles.anchorChip}>
+            Fundamentals
+          </a>
+          <a href="#disclosures" className={styles.anchorChip}>
+            DART
+          </a>
+          <a href="#freshness" className={styles.anchorChip}>
+            Freshness
+          </a>
+        </nav>
+
+        <section className={`glass ${styles.fusionCard}`}>
+          <ComponentTag
+            label="symbol.data-fusion-note"
+            api="/api/trading/agent-context/symbol-day + /api/trading/quotes/{symbol}"
+          />
+          <div className={styles.cardHeader}>
+            <div>
+              <p className="eyebrow">Fusion Note</p>
+              <h2>Layer-specific freshness stays explicit</h2>
+            </div>
+          </div>
+          <p className={`clamp-3 ${styles.supportingCopy}`}>{contextSummary}</p>
+        </section>
+
+        <section className={`glass ${styles.chartCard}`} id="chart">
+          <ComponentTag
+            label="symbol.chart"
+            api="/api/trading/symbols/{symbol}/price-bars + /api/trading/quotes/{symbol}"
+          />
+
+          <div className={styles.cardHeader}>
+            <div>
+              <p className="eyebrow">Historical Performance</p>
+              <h2>Swipe-aware candlestick chart</h2>
+              <p className={`clamp-3 ${styles.supportingCopy}`}>
+                Stored daily OHLCV bars drive this mobile chart. Swipe or drag across the plot to move focus dates
+                without forcing live quote polling into the historical view.
+              </p>
+            </div>
+
+            <div className={styles.rangeRow}>
+              {PRICE_HISTORY_RANGES.map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  className={`${styles.rangeButton} ${selectedRange === range ? styles.rangeButtonActive : ""}`.trim()}
+                  onClick={() => setSelectedRange(range)}
+                >
+                  {range}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.focusGrid}>
+            <article className={styles.focusCard}>
+              <span>Focus date</span>
+              <strong>{focusBar?.trade_date ? formatIsoDateLabel(focusBar.trade_date) : "[확인 필요]"}</strong>
+              <p className="clamp-3">
+                {focusBar
+                  ? `Open ${formatPrice(focusBar.open_price)} · High ${formatPrice(focusBar.high_price)} · Low ${formatPrice(focusBar.low_price)}`
+                  : "Select a bar to inspect OHLC details."}
+              </p>
+            </article>
+            <article className={styles.focusCard}>
+              <span>Close move</span>
+              <strong className={hasNumber(focusMovePct) ? (focusMovePct >= 0 ? styles.positive : styles.negative) : ""}>
+                {hasNumber(focusMovePct) ? formatSignedPercent(focusMovePct) : "[확인 필요]"}
+              </strong>
+              <p className="clamp-3">
+                {previousFocusBar
+                  ? `Prior close ${formatPrice(previousFocusBar.close_price)} · Current close ${formatPrice(focusBar?.close_price)}`
+                  : "Prior close comparison appears once a neighboring bar exists."}
+              </p>
+            </article>
+            <article className={styles.focusCard}>
+              <span>Volume</span>
+              <strong>{formatCompactNumber(focusBar?.volume)}</strong>
+              <p className="clamp-3">{focusBar ? `Turnover ${formatTurnover(focusBar.turnover)}` : "Focus any candle for turnover metadata."}</p>
+            </article>
+            <article className={styles.focusCard}>
+              <span>Range spread</span>
+              <strong>
+                {focusBar
+                  ? `₩${formatPrice(focusBar.high_price - focusBar.low_price)}`
+                  : "[확인 필요]"}
+              </strong>
+              <p className="clamp-3">
+                {chartMetrics
+                  ? `${chartMetrics.points} bars loaded between ${formatIsoDateLabel(chartMetrics.startDate)} and ${formatIsoDateLabel(chartMetrics.endDate)}.`
+                  : "Historical bar metadata pending."}
+              </p>
+            </article>
+          </div>
+
+          <div className={styles.chartFrame}>
+            {priceHistory && priceHistory.items.length > 0 ? (
+              <SymbolHistoryChart
+                key={`${symbol}-${selectedRange}`}
+                symbol={symbol}
+                bars={priceHistory.items}
+                onSelectedBarChange={setSelectedBar}
+              />
+            ) : historyLoading ? (
+              <div className={styles.emptyPanel}>
+                <strong>Loading stored price history</strong>
+                <p className="clamp-3">
+                  Requesting the selected historical OHLCV window from trading-core through the BFF.
                 </p>
               </div>
-              <div className={styles.chartMeta}>
-                {PRICE_HISTORY_RANGES.map((range) => (
-                  <button
-                    key={range}
-                    type="button"
-                    className={`${styles.rangeButton} ${selectedRange === range ? styles.rangeButtonActive : ""}`.trim()}
-                    onClick={() => setSelectedRange(range)}
-                  >
-                    {range}
-                  </button>
-                ))}
+            ) : (
+              <div className={styles.emptyPanel}>
+                <strong>No stored bars returned</strong>
+                <p className="clamp-3">
+                  Trading-core did not return any daily price bars for the selected range.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.chartFooter}>
+            <span>
+              {chartMetrics
+                ? `${selectedRange} return ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
+                : `${selectedRange} return [확인 필요]`}
+            </span>
+            <span>{marketDate ? `Requested market date ${formatIsoDateLabel(marketDate)}` : "Market date pending"}</span>
+            <span>Swipe the chart to move date focus on mobile.</span>
+          </div>
+        </section>
+
+        <section className={styles.insightGrid}>
+          <section className={`glass ${styles.insightCard} ${styles.actionCard}`} id="action">
+            <ComponentTag
+              label="symbol.action-summary"
+              api="/api/trading/eod/action-summaries + /api/trading/agent-context/symbol-day"
+            />
+
+            <div className={styles.cardHeader}>
+              <div>
+                <p className="eyebrow">Action Summary</p>
+                <h2>Deterministic action layer</h2>
+              </div>
+              <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : "Unavailable"}</span>
+            </div>
+
+            <div className={styles.scorePanel}>
+              <div
+                className={styles.scoreRing}
+                style={{
+                  background: `conic-gradient(rgba(186, 195, 255, 0.95) ${actionScore}%, rgba(255, 255, 255, 0.08) 0)`,
+                }}
+              >
+                <div className={styles.scoreInner}>
+                  <strong>{resolvedActionSummary?.signal_score ?? "[확인 필요]"}</strong>
+                  <span>Score</span>
+                </div>
+              </div>
+
+              <div className={styles.scoreCopy}>
+                <strong className="clamp-3">
+                  {resolvedActionSummary
+                    ? `${humanizeToken(resolvedActionSummary.action_label)} bias with ${humanizeToken(resolvedActionSummary.confidence_tier)} confidence`
+                    : "Action summary is not resolved for this symbol-date packet."}
+                </strong>
+                <p className="clamp-3">
+                  {actionReasons.length > 0
+                    ? actionReasons.join(" ")
+                    : "Current core spec does not guarantee multi-day signal history. If a historical action timeline is needed, keep it as [확인 필요] until a dedicated route exists."}
+                </p>
               </div>
             </div>
 
-            <div className={styles.chartFrame}>
-              {priceHistory && priceHistory.items.length > 0 ? (
-                <SymbolHistoryChart key={`${symbol}-${selectedRange}`} symbol={symbol} bars={priceHistory.items} />
-              ) : historyLoading ? (
-                <div className={styles.noteCard}>
-                  <strong>Loading stored price history</strong>
-                  <p className={styles.supportingNote}>
-                    Requesting the selected historical OHLCV window from trading-core through the BFF.
+            <div className={styles.metricList}>
+              <article className={styles.metricCard}>
+                <span>Confidence</span>
+                <strong>{humanizeToken(resolvedActionSummary?.confidence_tier)}</strong>
+                <p className="clamp-3">Tier from the deterministic action-summary packet.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>Risk</span>
+                <strong>{humanizeToken(resolvedActionSummary?.risk_tier)}</strong>
+                <p className="clamp-3">Separate from confidence so the UI does not collapse signal quality and risk.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>Trigger</span>
+                <strong>
+                  {hasNumber(resolvedActionSummary?.trigger_price)
+                    ? `₩${formatPrice(resolvedActionSummary?.trigger_price)}`
+                    : "[확인 필요]"}
+                </strong>
+                <p className="clamp-3">Trigger or entry guidance from the action-summary payload.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>Risk rails</span>
+                <strong>
+                  {hasNumber(resolvedActionSummary?.support_price)
+                    ? `₩${formatPrice(resolvedActionSummary?.support_price)}`
+                    : "[확인 필요]"}
+                </strong>
+                <p className="clamp-3">
+                  Support {hasNumber(resolvedActionSummary?.support_price) ? `₩${formatPrice(resolvedActionSummary?.support_price)}` : "[확인 필요]"} · Resistance {hasNumber(resolvedActionSummary?.resistance_price) ? `₩${formatPrice(resolvedActionSummary?.resistance_price)}` : "[확인 필요]"}.
+                </p>
+              </article>
+            </div>
+
+            <div className={styles.tagSection}>
+              <div className={styles.tagGroup}>
+                {actionReasons.length > 0 ? (
+                  actionReasons.map((reason) => (
+                    <span key={reason} className={styles.tagChip}>
+                      {reason}
+                    </span>
+                  ))
+                ) : (
+                  <span className={styles.tagChip}>[확인 필요] Historical rationale endpoint</span>
+                )}
+              </div>
+              <div className={styles.metaCaption}>
+                Payload keys: {actionPayloadTags.join(" · ")}
+              </div>
+            </div>
+          </section>
+
+          <section className={`glass ${styles.insightCard}`} id="technical">
+            <ComponentTag
+              label="symbol.technical-analysis"
+              api="/api/trading/eod/technical-snapshots + /api/trading/agent-context/symbol-day"
+            />
+
+            <div className={styles.cardHeader}>
+              <div>
+                <p className="eyebrow">Technical Analysis</p>
+                <h2>Stored snapshot metrics</h2>
+              </div>
+              <span className={`pill ${technicalTone}`}>
+                {resolvedTechnicalSnapshot ? humanizeToken(resolvedTechnicalSnapshot.trend_state) : "Unavailable"}
+              </span>
+            </div>
+
+            <div className={styles.technicalHero}>
+              <div>
+                <strong className={styles.technicalHeadline}>
+                  {resolvedTechnicalSnapshot
+                    ? `${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)} structure`
+                    : "Technical snapshot is not available for the requested market date."}
+                </strong>
+                <p className={`clamp-3 ${styles.supportingCopy}`}>
+                  {resolvedTechnicalSnapshot
+                    ? `Breakout 20D ${resolvedTechnicalSnapshot.breakout_20d ? "yes" : "no"} · Breakdown 20D ${resolvedTechnicalSnapshot.breakdown_20d ? "yes" : "no"} · Source ${resolvedTechnicalSnapshot.source}`
+                    : "Current UI keeps unavailable technical states explicit instead of manufacturing RSI, MACD, or ADX values when the API does not expose them."}
+                </p>
+              </div>
+              <div className={styles.liveBadge}>
+                <span className="pill info">
+                  {resolvedTechnicalSnapshot?.market_date ??
+                    freshness?.latest?.technical_market_date ??
+                    "[확인 필요]"}
+                </span>
+              </div>
+            </div>
+
+            <div className={styles.metricList}>
+              <article className={styles.metricCard}>
+                <span>5D return</span>
+                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, "[확인 필요]")}</strong>
+                <p className="clamp-3">Null is legitimate when historical lookback is insufficient.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>20D return</span>
+                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, "[확인 필요]")}</strong>
+                <p className="clamp-3">Derived from stored EOD snapshots, not the live quote feed.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>Volume ratio 20D</span>
+                <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.volume_ratio_20d)}</strong>
+                <p className="clamp-3">Shows relative participation versus the rolling 20-day baseline.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>ATR 14</span>
+                <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.atr_14)}</strong>
+                <p className="clamp-3">Absolute volatility rail from the technical snapshot.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>ATR % 14</span>
+                <strong>{formatPercentOrDash(resolvedTechnicalSnapshot?.atr_pct_14)}</strong>
+                <p className="clamp-3">Normalized ATR from the technical snapshot packet.</p>
+              </article>
+              <article className={styles.metricCard}>
+                <span>Payload extras</span>
+                <strong>{technicalPayloadTags[0] ?? "[확인 필요]"}</strong>
+                <p className="clamp-3">
+                  Additional signal-payload keys appear only when exposed upstream. Unsupported indicators stay
+                  labeled [확인 필요].
+                </p>
+              </article>
+            </div>
+
+            <div className={styles.tagSection}>
+              <div className={styles.tagGroup}>
+                {technicalPayloadTags.map((tag) => (
+                  <span key={tag} className={styles.tagChip}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className={styles.metaCaption}>
+                Source date {resolvedTechnicalSnapshot?.market_date ?? "[확인 필요]"} · Layer freshness is independent from price freshness.
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section className={styles.evidenceGrid}>
+          <section className={`glass ${styles.evidenceCard}`} id="fundamentals">
+            <ComponentTag
+              label="symbol.fundamentals-history"
+              api="/api/trading/disclosures/dart/fundamentals/history + /api/trading/agent-context/symbol-day"
+            />
+
+            <div className={styles.cardHeader}>
+              <div>
+                <p className="eyebrow">Fundamentals</p>
+                <h2>Stored DART filing history</h2>
+                <p className={`clamp-3 ${styles.supportingCopy}`}>
+                  Latest filing metadata and five-year history are rendered separately so we do not imply a single
+                  cross-source fundamentals freshness date.
+                </p>
+              </div>
+              <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? "Default FS"}</span>
+            </div>
+
+            <div className={styles.metricList}>
+              {latestHighlights.length > 0 ? (
+                latestHighlights.map((metric, index) => (
+                  <article key={`${formatHighlightLabel(metric, index)}-${index}`} className={styles.metricCard}>
+                    <span>{formatHighlightLabel(metric, index)}</span>
+                    <strong>{formatHighlightValue(metric)}</strong>
+                    <p className="clamp-3">
+                      Latest filing {latestHistoryEntry?.filing.report_nm ?? latestFundamentals?.filing.report_name ?? "[확인 필요]"}.
+                    </p>
+                  </article>
+                ))
+              ) : (
+                <article className={styles.metricCard}>
+                  <span>Latest filing</span>
+                  <strong>{latestFundamentals?.filing.report_name ?? "[확인 필요]"}</strong>
+                  <p className="clamp-3">
+                    Highlights are unavailable until the fundamentals-history endpoint exposes metric rows for this
+                    symbol.
                   </p>
+                </article>
+              )}
+            </div>
+
+            <div className={styles.historyList}>
+              {companyHistory?.entries.length ? (
+                companyHistory.entries.slice(0, 5).map((entry) => (
+                  <article key={entry.filing.rcept_no} className={styles.historyCard}>
+                    <div className={styles.historyHeader}>
+                      <div>
+                        <strong className="clamp-3">
+                          {entry.period.report_label ??
+                            `${entry.period.business_year ?? "[확인 필요]"} ${entry.period.report_code ?? ""}`}
+                        </strong>
+                        <p className="clamp-3">
+                          {entry.filing.report_nm ?? "[확인 필요]"} · Receipt {entry.filing.receipt_date ?? "[확인 필요]"}
+                        </p>
+                      </div>
+                      <span className="pill neutral">{entry.statement.fs_div ?? "[확인 필요]"}</span>
+                    </div>
+                    <div className={styles.historyMetrics}>
+                      {(entry.highlights.length > 0 ? entry.highlights : [{ metric_key: null, label: "[확인 필요]", value: null }]).slice(0, 4).map((metric, index) => (
+                        <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}`} className={styles.historyMetricRow}>
+                          <span>{formatHighlightLabel(metric, index)}</span>
+                          <strong>{formatHighlightValue(metric)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))
+              ) : fundamentalsLoading ? (
+                <div className={styles.emptyPanel}>
+                  <strong>Loading fundamentals history</strong>
+                  <p className="clamp-3">Requesting DART filing history through the trading-web BFF.</p>
                 </div>
               ) : (
-                <div className={styles.noteCard}>
-                  <strong>No stored bars returned</strong>
-                  <p className={styles.supportingNote}>
-                    Trading-core did not return any daily price bars for the selected range.
+                <div className={styles.emptyPanel}>
+                  <strong>No stored fundamentals history</strong>
+                  <p className="clamp-3">
+                    {buildFundamentalsCoverageNote(companyHistory, latestFundamentals)}
                   </p>
                 </div>
               )}
             </div>
+          </section>
 
-            <div className={styles.chartFooter}>
-              <span>
-                {chartMetrics
-                  ? `${selectedRange} return: ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
-                  : `${selectedRange} return: waiting for stored bars`}
+          <section className={`glass ${styles.evidenceCard}`} id="disclosures">
+            <ComponentTag
+              label="symbol.disclosures"
+              api="/api/trading/agent-context/symbol-day"
+            />
+
+            <div className={styles.cardHeader}>
+              <div>
+                <p className="eyebrow">DART Disclosures</p>
+                <h2>Recent filing coverage</h2>
+                <p className={`clamp-3 ${styles.supportingCopy}`}>
+                  This section renders only recent disclosures already composed into the aggregate packet. Filing
+                  document download remains [확인 필요] until a dedicated web-side doc flow is wired.
+                </p>
+              </div>
+              <span className={`pill ${disclosureSectionState === "list" ? "info" : disclosureSectionState === "empty" ? "neutral" : "warning"}`}>
+                {aggregateContext?.recent_disclosures.count ?? 0} items
               </span>
-              <span>
-                {chartMetrics
-                  ? `${chartMetrics.points} bars · ${chartMetrics.startDate} to ${chartMetrics.endDate}`
-                  : "History metadata pending"}
-              </span>
             </div>
-          </section>
 
-          <aside className={styles.noteGrid}>
-            <section className={`glass ${styles.sideStack}`}>
-              <div className={styles.cardHeader}>
-                <div>
-                  <p className="eyebrow">At a glance</p>
-                  <h2>What this screen is telling you</h2>
-                </div>
-              </div>
-              <div className={styles.noteCard}>
-                <strong>Desk context</strong>
-                <p className={styles.supportingNote}>{contextSummary}</p>
-              </div>
-              <div className={styles.noteCard}>
-                <strong>Aggregate payload route</strong>
-                <p className={styles.supportingNote}>
-                  Reference and explanatory cards now read <code>/api/trading/agent-context/symbol-day</code> with
-                  <code> market_date={marketDate} </code> and <code>symbols={symbol}</code>.
-                </p>
-              </div>
-              <div className={styles.noteCard}>
-                <strong>Tracked universe</strong>
-                <p className={styles.supportingNote}>
-                  The tracked-symbol scanner list currently powers the main dashboard universe, counts, and tracked search suggestions. This detail screen no longer requests that list because it does not change any symbol-specific rendering here.
-                </p>
-              </div>
-              <div className={styles.noteCard}>
-                <strong>History route</strong>
-                <p className={styles.supportingNote}>
-                  The candlestick chart now uses <code>/api/trading/symbols/[symbol]/price-bars</code>. Live feed mode,
-                  last price, volume, and turnover still use <code>/api/trading/quotes/[symbol]</code>, paired with
-                  <code> /api/trading/market/status </code> until both return <code>CLOSED</code>. Company metadata,
-                  technical snapshot, action summary, fundamentals summary, and disclosures come from
-                  <code> /api/trading/agent-context/symbol-day </code>.
-                </p>
-              </div>
-              <div className={styles.noteCard}>
-                <strong>Quote provenance</strong>
-                <p className={styles.supportingNote}>
-                  Current quote mode: <code>{quote?.source ?? "pending"}</code>. The backend now marks quotes as
-                  explicitly unavailable when no fresh live, same-day cache, or acceptable DB EOD fallback exists.
-                </p>
-              </div>
-              <div className={styles.noteCard}>
-                <strong>EOD timing</strong>
-                <p className={styles.supportingNote}>
-                  Stored technical snapshots are keyed by completed trading day, not by the current Seoul calendar day.
-                  Around pre-open and intraday windows, a symbol can legitimately show yesterday&apos;s last completed
-                  packet as the newest available EOD context.
-                </p>
-              </div>
-              <div className={styles.noteCard}>
-                <strong>DART coverage</strong>
-                <p className={styles.supportingNote}>
-                  DART fundamentals and disclosure rows are batch-ingested over the active universe. A valid symbol can
-                  still show empty DART coverage when its backfill batch has not been processed yet.
-                </p>
-              </div>
-            </section>
-          </aside>
-        </section>
-
-        {(quoteError || metaError || historyError || contextError) ? (
-          <section className={styles.detailGrid}>
-            {quoteError ? <div className={styles.feedback}>{quoteError}</div> : null}
-            {metaError ? <div className={styles.feedback}>{metaError}</div> : null}
-            {historyError ? <div className={styles.feedback}>{historyError}</div> : null}
-            {contextError ? <div className={styles.feedback}>{contextError}</div> : null}
-          </section>
-        ) : null}
-
-        <section className={styles.detailGrid}>
-          <section className={`glass ${styles.infoCard}`}>
-            <div className={styles.cardHeader}>
-              <div>
-                <p className="eyebrow">Reference</p>
-                <h2>Backend-backed symbol facts</h2>
-              </div>
-            </div>
-            <div className={styles.infoList}>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Company</span>
-                <strong className={styles.infoValue}>
-                  {aggregateContext?.company.name_ko ?? aggregateContext?.company.dart.corp_name ?? meta?.name_ko ?? quote?.company_name ?? "-"}
-                </strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Symbol</span>
-                <strong className={styles.infoValue}>{symbol}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Market</span>
-                <strong className={styles.infoValue}>{aggregateContext?.company.market ?? meta?.market ?? "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Standard code</span>
-                <strong className={styles.infoValue}>{aggregateContext?.company.standard_code ?? meta?.standard_code ?? "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>DART corp code</span>
-                <strong className={styles.infoValue}>{aggregateContext?.company.dart.corp_code ?? "-"}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className={`glass ${styles.infoCard}`}>
-            <div className={styles.cardHeader}>
-              <div>
-                <p className="eyebrow">Market Activity</p>
-                <h2>Live quote snapshot</h2>
-              </div>
-            </div>
-            <div className={styles.infoList}>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Market state</span>
-                <strong className={styles.infoValue}>{quote?.market_state ?? "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Market status route</span>
-                <strong className={styles.infoValue}>
-                  {marketStatus ? `${marketStatus.state} (${quotePollingStopped ? "polling stopped" : "polling active"})` : "-"}
-                </strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Volume</span>
-                <strong className={styles.infoValue}>{hasNumber(quote?.volume) ? quote.volume.toLocaleString() : "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Turnover</span>
-                <strong className={styles.infoValue}>{quote ? formatTurnover(quote.turnover) : "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Feed provenance</span>
-                <strong className={styles.infoValue}>
-                  {quote
-                    ? quote.available
-                      ? `${quote.source} (${quote.fallback ? "fallback" : "primary"})`
-                      : `unavailable (${quote.unavailable_reason ?? "no fresh fallback"})`
-                    : "-"}
-                </strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Updated</span>
-                <strong className={styles.infoValue}>{formatDisplayTimestamp(quote?.cached_at ?? quote?.trade_date)}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Trade date</span>
-                <strong className={styles.infoValue}>{quote?.trade_date ?? "-"}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className={`glass ${styles.infoCard}`}>
-            <div className={styles.cardHeader}>
-              <div>
-                <p className="eyebrow">Agent Context</p>
-                <h2>Aggregate payload coverage</h2>
-              </div>
-            </div>
-            <p className={styles.contextBody}>{contextSummary}</p>
-            <div className={styles.infoList}>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Market date</span>
-                <strong className={styles.infoValue}>{aggregateContext?.market_date ?? marketDate}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Company block</span>
-                <strong className={styles.infoValue}>{aggregateContext?.availability.company ? "Present" : "Missing"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Technical snapshot</span>
-                <strong className={styles.infoValue}>{aggregateContext?.availability.technical_snapshot ? "Present" : "Missing"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Action summary</span>
-                <strong className={styles.infoValue}>{aggregateContext?.availability.action_summary ? "Present" : "Missing"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Fundamentals summary</span>
-                <strong className={styles.infoValue}>{aggregateContext?.availability.fundamentals ? "Present" : "Missing"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Recent disclosures</span>
-                <strong className={styles.infoValue}>{aggregateContext?.recent_disclosures.count ?? 0}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className={`glass ${styles.infoCard}`}>
-            <div className={styles.cardHeader}>
-              <div>
-                <p className="eyebrow">Fundamentals</p>
-                <h2>Latest stored summary</h2>
-              </div>
-            </div>
-            <div className={styles.infoList}>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Report</span>
-                <strong className={styles.infoValue}>{latestFundamentals?.filing.report_name ?? latestFundamentals?.period.report_label ?? "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Receipt date</span>
-                <strong className={styles.infoValue}>{latestFundamentals?.filing.receipt_date ?? "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Period end</span>
-                <strong className={styles.infoValue}>{latestFundamentals?.period.period_end_date ?? "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Statement</span>
-                <strong className={styles.infoValue}>{latestFundamentals?.statement.fs_label ?? latestFundamentals?.statement.fs_div ?? "-"}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Rows captured</span>
-                <strong className={styles.infoValue}>{latestFundamentals?.statement.row_count ?? 0}</strong>
-              </div>
-              <div className={styles.infoRow}>
-                <span className={styles.infoLabel}>Stored periods</span>
-                <strong className={styles.infoValue}>{aggregateContext?.fundamentals.history_summary.entries ?? 0}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className={`glass ${styles.infoCard}`}>
-            <div className={styles.cardHeader}>
-              <div>
-                <p className="eyebrow">Disclosures</p>
-                <h2>Recent disclosure window</h2>
-              </div>
-            </div>
             {disclosureSectionState === "list" ? (
-              <div className={styles.itemList}>
+              <div className={styles.disclosureList}>
                 {aggregateContext?.recent_disclosures.items.map((item) => (
-                  <div key={item.rcept_no} className={styles.itemRow}>
-                    <strong className={styles.itemTitle}>{item.report_nm}</strong>
-                    <span className={styles.itemMeta}>
-                      {item.receipt_date ?? "Date unknown"} · {humanizeToken(item.filing_category)} · {item.fundamentals_capture_status ?? "status unknown"}
-                    </span>
-                  </div>
+                  <article key={item.rcept_no} className={styles.disclosureCard}>
+                    <div className={styles.disclosureHeader}>
+                      <strong className="clamp-3">{item.report_nm}</strong>
+                      <span className="pill neutral">{item.receipt_date ?? "[확인 필요]"}</span>
+                    </div>
+                    <p className="clamp-3">
+                      {humanizeToken(item.filing_category, "No category")} · Capture{" "}
+                      {humanizeToken(item.fundamentals_capture_status, "[확인 필요]")}
+                    </p>
+                    <div className={styles.disclosureMeta}>
+                      <span>Receipt {item.receipt_date ?? "[확인 필요]"}</span>
+                      <span>Rcept {item.rcept_no}</span>
+                    </div>
+                  </article>
                 ))}
               </div>
+            ) : disclosureSectionState === "loading" ? (
+              <div className={styles.emptyPanel}>
+                <strong>Loading disclosure coverage</strong>
+                <p className="clamp-3">
+                  Waiting for the aggregate symbol-day payload before rendering disclosure availability.
+                </p>
+              </div>
+            ) : disclosureSectionState === "empty" ? (
+              <div className={styles.emptyPanel}>
+                <strong>No Disclosure Found</strong>
+                <p className="clamp-3">
+                  Aggregate context succeeded, but no recent disclosure rows were attached to this symbol-day packet.
+                </p>
+              </div>
             ) : (
-              disclosureSectionState === "loading" ? (
-                <div className={styles.noteCard}>
-                  <strong>Loading aggregate context</strong>
-                  <p className={styles.supportingNote}>
-                    Waiting for the symbol-day aggregate response before determining disclosure availability.
-                  </p>
-                </div>
-              ) : disclosureSectionState === "unavailable" ? (
-                <div className={styles.noteCard}>
-                  <strong>Aggregate context unavailable</strong>
-                  <p className={styles.supportingNote}>
-                    Recent disclosures cannot be determined because the symbol-day aggregate request did not complete successfully.
-                  </p>
-                </div>
-              ) : (
-                <div className={styles.noteCard}>
-                  <strong>No recent disclosures</strong>
-                  <p className={styles.supportingNote}>
-                    Trading-core did not return any disclosure events for this symbol inside the requested market-date window.
-                  </p>
-                </div>
-              )
+              <div className={styles.emptyPanel}>
+                <strong>Disclosure coverage unavailable</strong>
+                <p className="clamp-3">
+                  Recent disclosure coverage could not be confirmed because the aggregate route is currently unavailable.
+                </p>
+              </div>
             )}
           </section>
         </section>
 
-        <section className={styles.linkRow}>
-          <Link href="/dashboard" className={styles.linkButton}>
-            Back to dashboard
-          </Link>
-          <Link href="/search" className={styles.linkButton}>
-            Open search workspace
-          </Link>
+        <section className={`glass ${styles.freshnessCard}`} id="freshness">
+          <ComponentTag
+            label="symbol.system-freshness"
+            api="/api/trading/eod/freshness + /api/trading/quotes/{symbol}"
+          />
+
+          <div className={styles.cardHeader}>
+            <div>
+              <p className="eyebrow">Operational Integrity</p>
+              <h2>Layer-specific freshness registry</h2>
+              <p className={`clamp-3 ${styles.supportingCopy}`}>
+                Price, technical, action, fundamentals, and disclosures do not share one universal timestamp. This
+                registry keeps each layer visible so the mobile UI avoids false synchronization cues.
+              </p>
+            </div>
+            <span className={`pill ${freshnessTone}`}>
+              {humanizeToken(freshness?.today?.eod_status, "[확인 필요]")}
+            </span>
+          </div>
+
+          <div className={styles.freshnessHeroGrid}>
+            <article className={styles.heroMetricCard}>
+              <span>EOD trade date</span>
+              <strong>{freshness?.today?.trade_date ?? "[확인 필요]"}</strong>
+              <p className="clamp-3">
+                {freshness?.today?.symbols_succeeded ?? "[확인 필요]"} / {freshness?.today?.symbols_total ?? "[확인 필요]"} symbols succeeded
+              </p>
+            </article>
+            <article className={styles.heroMetricCard}>
+              <span>Price latest</span>
+              <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? "[확인 필요]"}</strong>
+              <p className="clamp-3">{buildQuoteFeedLabel(quote)}</p>
+            </article>
+            <article className={styles.heroMetricCard}>
+              <span>Technical latest</span>
+              <strong>{freshness?.latest?.technical_market_date ?? "[확인 필요]"}</strong>
+              <p className="clamp-3">EOD technical snapshots remain independent from live quote timing.</p>
+            </article>
+            <article className={styles.heroMetricCard}>
+              <span>Action latest</span>
+              <strong>{freshness?.latest?.action_market_date ?? "[확인 필요]"}</strong>
+              <p className="clamp-3">Deterministic action summaries can lag the raw price layer.</p>
+            </article>
+          </div>
+
+          <div className={styles.moduleRows}>
+            {moduleRows.map((row) => (
+              <article key={row.id} className={styles.moduleRow}>
+                <div>
+                  <strong>{row.label}</strong>
+                  <p className="clamp-3">{row.detail}</p>
+                  <span className={styles.moduleApi}>{row.api}</span>
+                </div>
+                <div className={styles.moduleAside}>
+                  <span>{row.date}</span>
+                  <span className={`pill ${row.tone}`}>{row.status}</span>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
+
+        {detailErrors.length > 0 ? (
+          <section className={styles.feedbackGrid}>
+            <ComponentTag label="symbol.errors" api="client fetch states" />
+            {detailErrors.map((error) => (
+              <div key={error} className={styles.feedback}>
+                {error}
+              </div>
+            ))}
+          </section>
+        ) : null}
       </div>
     </AppShell>
   );

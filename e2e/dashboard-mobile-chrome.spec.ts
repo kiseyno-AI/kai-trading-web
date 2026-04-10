@@ -7,6 +7,7 @@ test.describe("dashboard mobile chrome", () => {
     await page.goto("/dashboard");
 
     const topbar = page.locator("header.topbar");
+    const navButton = topbar.getByRole("button", { name: /Open navigation/i });
     await expect(topbar).toBeVisible();
 
     const [topbarBox, topbarPosition] = await Promise.all([
@@ -19,9 +20,9 @@ test.describe("dashboard mobile chrome", () => {
     expect(topbarBox!.height).toBeLessThan(96);
     expect(topbarBox!.x).toBeGreaterThanOrEqual(12);
 
-    await expect(page.getByRole("button", { name: "NAV" })).toBeVisible();
+    await expect(navButton).toBeVisible();
     await expect(page.getByRole("heading", { name: /Tracked Market Dashboard/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: "More" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
     await expect(topbar.locator(".search-wrap")).toBeHidden();
     await expect(topbar.locator(".topbar-actions")).toBeHidden();
   });

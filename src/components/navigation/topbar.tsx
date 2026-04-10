@@ -24,7 +24,7 @@ export function Topbar({
   suggestions,
   onToggleMobileNav,
 }: TopbarProps) {
-  const { locale, notificationsOn, setLocale, setNotificationsOn, t } = useAppState();
+  const { devMode, locale, notificationsOn, setDevMode, setLocale, setNotificationsOn, t } = useAppState();
   const routeLabel = currentPath.replace("/", "") || "dashboard";
 
   return (
@@ -77,6 +77,15 @@ export function Topbar({
           onClick={() => setNotificationsOn(!notificationsOn)}
         >
           {notificationsOn ? "Feed On" : "Feed Off"}
+        </Button>
+
+        <Button
+          className={devMode ? "icon-pill" : "icon-pill muted-toggle"}
+          variant="pill"
+          aria-pressed={devMode}
+          onClick={() => setDevMode(!devMode)}
+        >
+          {devMode ? "Tags On" : "Tags Off"}
         </Button>
 
         <div className="profile-pill">

@@ -4,71 +4,71 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --bg-soft: #0b1728;
-  --panel: rgba(12, 22, 38, 0.82);
-  --panel-strong: #0e1b2f;
-  --panel-soft: rgba(13, 24, 40, 0.68);
-  --background-strong: #06101b;
-  --surface-low: rgba(12, 22, 38, 0.68);
-  --surface: rgba(12, 22, 38, 0.82);
-  --surface-high: rgba(14, 27, 47, 0.92);
-  --surface-highest: rgba(18, 32, 54, 0.96);
-  --surface-elevated: rgba(12, 22, 38, 0.72);
-  --border: rgba(159, 176, 212, 0.15);
-  --outline: rgba(159, 176, 212, 0.15);
-  --outline-strong: rgba(159, 176, 212, 0.3);
-  --text: #eef4ff;
-  --text-strong: #ffffff;
-  --muted: #8b9ab7;
-  --muted-soft: #7d8ca8;
-  --accent: #7c5cff;
-  --accent-soft: rgba(124, 92, 255, 0.16);
-  --primary-soft: rgba(124, 92, 255, 0.18);
-  --green: #35d07f;
-  --red: #ff6b7a;
+  --bg-soft: #0d1c2e;
+  --panel: rgba(18, 32, 50, 0.88);
+  --panel-strong: #122032;
+  --panel-soft: rgba(13, 28, 46, 0.74);
+  --background-strong: #010f20;
+  --surface-low: rgba(13, 28, 46, 0.86);
+  --surface: rgba(18, 32, 50, 0.9);
+  --surface-high: rgba(29, 43, 61, 0.94);
+  --surface-highest: rgba(40, 54, 72, 0.96);
+  --surface-elevated: rgba(44, 58, 77, 0.72);
+  --border: rgba(143, 144, 158, 0.18);
+  --outline: rgba(143, 144, 158, 0.16);
+  --outline-strong: rgba(143, 144, 158, 0.34);
+  --text: #d5e3fc;
+  --text-strong: #f3f7ff;
+  --muted: #a5b2cb;
+  --muted-soft: #8f9ab2;
+  --accent: #bac3ff;
+  --accent-soft: rgba(186, 195, 255, 0.16);
+  --primary-soft: rgba(63, 81, 181, 0.22);
+  --green: #4edea3;
+  --red: #ffb3b6;
   --yellow: #ffcc66;
-  --blue: #49b3ff;
-  --positive: #35d07f;
-  --positive-soft: rgba(53, 208, 127, 0.16);
-  --negative: #ffb5bd;
-  --negative-soft: rgba(255, 107, 122, 0.14);
+  --blue: #7fb8ff;
+  --positive: #4edea3;
+  --positive-soft: rgba(78, 222, 163, 0.16);
+  --negative: #ffb3b6;
+  --negative-soft: rgba(255, 179, 182, 0.14);
   --warning: #ffcc66;
   --warning-soft: rgba(255, 204, 102, 0.14);
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-  --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.2);
+  --shadow: 0 24px 80px rgba(0, 16, 42, 0.34);
+  --shadow-soft: 0 12px 32px rgba(0, 16, 42, 0.2);
   --radius-xl: 24px;
   --radius-lg: 20px;
   --radius-md: 16px;
   --radius-sm: 12px;
-  --background: #07111f;
-  --foreground: #eef4ff;
-  --card: rgba(12, 22, 38, 0.72);
-  --card-foreground: #eef4ff;
-  --popover: #0e1b2f;
-  --popover-foreground: #eef4ff;
-  --primary: #7c5cff;
-  --primary-foreground: #f8f9ff;
+  --background: #051425;
+  --foreground: #d5e3fc;
+  --card: rgba(18, 32, 50, 0.84);
+  --card-foreground: #d5e3fc;
+  --popover: #122032;
+  --popover-foreground: #d5e3fc;
+  --primary: #bac3ff;
+  --primary-foreground: #08218a;
   --secondary: rgba(255, 255, 255, 0.06);
-  --secondary-foreground: #eef4ff;
-  --muted-foreground: #8b9ab7;
-  --accent-foreground: #eef4ff;
+  --secondary-foreground: #d5e3fc;
+  --muted-foreground: #a5b2cb;
+  --accent-foreground: #051425;
   --destructive: oklch(0.577 0.245 27.325);
-  --input: rgba(159, 176, 212, 0.2);
-  --ring: rgba(124, 92, 255, 0.45);
-  --chart-1: #7c5cff;
-  --chart-2: #35d07f;
-  --chart-3: #49b3ff;
+  --input: rgba(143, 144, 158, 0.24);
+  --ring: rgba(186, 195, 255, 0.32);
+  --chart-1: #bac3ff;
+  --chart-2: #4edea3;
+  --chart-3: #7fb8ff;
   --chart-4: #ffcc66;
-  --chart-5: #ff6b7a;
+  --chart-5: #ffb3b6;
   --radius: 0.625rem;
-  --sidebar: #0b1728;
-  --sidebar-foreground: #eef4ff;
-  --sidebar-primary: #7c5cff;
-  --sidebar-primary-foreground: #f8f9ff;
+  --sidebar: #0d1c2e;
+  --sidebar-foreground: #d5e3fc;
+  --sidebar-primary: #bac3ff;
+  --sidebar-primary-foreground: #08218a;
   --sidebar-accent: rgba(255, 255, 255, 0.06);
-  --sidebar-accent-foreground: #eef4ff;
-  --sidebar-border: rgba(159, 176, 212, 0.15);
-  --sidebar-ring: rgba(124, 92, 255, 0.45);
+  --sidebar-accent-foreground: #d5e3fc;
+  --sidebar-border: rgba(143, 144, 158, 0.18);
+  --sidebar-ring: rgba(186, 195, 255, 0.3);
 }
 
 @theme inline {
@@ -76,8 +76,7 @@
   --color-foreground: var(--text);
   --font-sans: var(--font-inter);
   --font-heading: var(--font-manrope);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-mono: var(--font-space-grotesk);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -122,9 +121,9 @@
 
 html {
   background:
-    radial-gradient(circle at top center, rgba(109, 94, 247, 0.16), transparent 24%),
-    radial-gradient(circle at 15% 20%, rgba(173, 198, 255, 0.08), transparent 26%),
-    linear-gradient(180deg, #0a0e13 0%, #101419 34%, #0d1116 100%);
+    radial-gradient(circle at top center, rgba(63, 81, 181, 0.24), transparent 24%),
+    radial-gradient(circle at 15% 20%, rgba(186, 195, 255, 0.08), transparent 26%),
+    linear-gradient(180deg, #051425 0%, #08182a 34%, #010f20 100%);
 }
 
 body {
@@ -855,6 +854,64 @@ kbd {
 .pill.info {
   background: rgba(173, 198, 255, 0.14);
   color: var(--secondary);
+}
+
+.pill.warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.clamp-3 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  text-overflow: ellipsis;
+}
+
+.component-tag {
+  z-index: 4;
+  display: inline-grid;
+  gap: 2px;
+  max-width: min(100%, 240px);
+  border: 1px solid rgba(186, 195, 255, 0.28);
+  border-radius: 12px;
+  background: rgba(5, 20, 37, 0.92);
+  padding: 8px 10px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+}
+
+.component-tag strong,
+.component-tag span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-tag strong {
+  color: var(--text-strong);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.component-tag span {
+  color: var(--muted);
+  font-family: var(--font-space-grotesk), monospace;
+  font-size: 10px;
+}
+
+.component-tag-inline {
+  position: static;
+  margin-bottom: 10px;
+}
+
+.component-tag-corner {
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 .hero-strip {

@@ -314,6 +314,80 @@ export type SymbolPriceBarsResponseDto = {
   items: SymbolPriceBarDto[];
 };
 
+export type EodFreshnessTodayDto = {
+  trade_date: string | null;
+  eod_status: string | null;
+  symbols_total: number | null;
+  symbols_succeeded: number | null;
+  symbols_failed: number | null;
+  received: boolean | null;
+};
+
+export type EodFreshnessLatestDto = {
+  price_trade_date: string | null;
+  technical_market_date: string | null;
+  action_market_date: string | null;
+};
+
+export type EodFreshnessResponseDto = {
+  today: EodFreshnessTodayDto | null;
+  latest: EodFreshnessLatestDto | null;
+};
+
+export type DartFundamentalsHistoryMetricDto = {
+  metric_key: string | null;
+  label: string | null;
+  value: number | string | null;
+};
+
+export type DartFundamentalsHistoryEntryDto = {
+  filing: {
+    rcept_no: string;
+    report_nm: string | null;
+    receipt_date: string | null;
+  };
+  period: {
+    business_year: number | null;
+    report_code: string | null;
+    report_label: string | null;
+    period_end_date: string | null;
+  };
+  statement: {
+    fs_div: string | null;
+  };
+  highlights: DartFundamentalsHistoryMetricDto[];
+  statements?: Array<{
+    account_name: string | null;
+    current_amount: number | string | null;
+  }>;
+};
+
+export type DartFundamentalsHistoryCompanyDto = {
+  symbol: string;
+  name: string | null;
+  entries: DartFundamentalsHistoryEntryDto[];
+};
+
+export type DartFundamentalsHistoryResponseDto = {
+  request: {
+    symbols: string[];
+    start_date: string | null;
+    end_date: string | null;
+    fs_div: string | null;
+  };
+  companies: DartFundamentalsHistoryCompanyDto[];
+};
+
+export type EodTechnicalSnapshotsResponseDto = {
+  market_date: string | null;
+  items: AgentContextTechnicalSnapshotDto[];
+};
+
+export type EodActionSummariesResponseDto = {
+  market_date: string | null;
+  items: AgentContextActionSummaryDto[];
+};
+
 export type TradingApiAdapter = {
   getDashboardSnapshot: () => Promise<ApiEnvelope<DashboardSnapshotDto>>;
   getMarketsOverview: () => Promise<ApiEnvelope<MarketsOverviewDto>>;

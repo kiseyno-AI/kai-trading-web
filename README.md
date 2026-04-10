@@ -16,7 +16,7 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 | **Quality** | ESLint, Playwright e2e (`e2e/`), GitHub Actions CI |
 | **Agent config** | Codex: `.codex/config.toml`, `.codex/skills/`, `.codex/agents/` |
 
-**Docs in-repo:** `AGENTS.md`, `RULES.md`, `ARCHITECTURE.md`, `TASKS.md`, `docs/API_CONTRACT.md` (intended contract vs trading-core), `docs/UI_API_SURFACE_MAP.md` (screen/component to API/field wiring).
+**Docs in-repo:** `AGENTS.md`, `RULES.md`, `ARCHITECTURE.md`, `TASKS.md`, `docs/API_CONTRACT.md` (intended contract vs trading-core), `docs/UI_API_SURFACE_MAP.md` (screen/component to API/field wiring), `docs/MOBILE_COMPONENT_SPEC.md` (dev tags + mobile Stitch component spec).
 
 ---
 
@@ -87,12 +87,17 @@ These routes are implemented under **`src/app/api/trading/`**. They **proxy GET*
 | `GET` | `/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
 | `GET` | `/api/trading/market/status` | `/market/status` | — |
 | `GET` | `/api/trading/agent-context/symbol-day` | `/agent-context/symbol-day` | `market_date`, repeatable `symbols`, optional `fs_div`, optional `disclosures_limit` |
+| `GET` | `/api/trading/eod/freshness` | `/eod/freshness` | — |
+| `GET` | `/api/trading/eod/technical-snapshots` | `/eod/technical-snapshots` | `market_date`, repeatable `symbols` |
+| `GET` | `/api/trading/eod/action-summaries` | `/eod/action-summaries` | `market_date`, repeatable `symbols` |
 | `GET` | `/api/trading/quotes/tracked` | `/quotes/tracked` | — |
 | `GET` | `/api/trading/quotes/{symbol}` | `/quotes/{symbol}` | — |
 | `GET` | `/api/trading/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
+| `GET` | `/api/trading/disclosures/dart/fundamentals/history` | `/disclosures/dart/fundamentals/history` | repeatable `symbols`, `start_date`, `end_date`, optional `fs_div` |
+| `GET` | `/api/trading/symbols/{symbol}/price-bars` | `/symbols/{symbol}/price-bars` | `start_date`, `end_date`, `limit` |
 | `GET` | `/api/trading/symbols/search` | `/symbols/search` | `q` (optional), `limit` (optional, forwarded) |
 
-**Not proxied here:** trading-core endpoints such as `/broker/kis/*`, `/eod/*`, `/macro/*`, `/fx/*` are not under `/api/trading/` in this app. Add new route handlers if the UI needs them.
+**Not proxied here:** trading-core endpoints such as `/broker/kis/*`, `/macro/*`, `/fx/*` are not under `/api/trading/` in this app. Add new route handlers if the UI needs them.
 
 There is **no** separate OpenAPI document shipped for the BFF; behavior matches the upstream JSON. See **trading-core** `README.md` / `GET /docs` on the core service for the full API.
 
