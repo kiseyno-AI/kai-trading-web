@@ -22,17 +22,19 @@ Client polling:
 - `GET /api/trading/symbols/search?q=...&limit=8`
 
 UI surfaces and fields:
+- Mobile chrome: fixed app bar + bottom tab bar -> navigation only, no additional backend dependency
 - Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
-- Summary cards: `/quotes/tracked.items[]` + `/scanner/tracked-symbols` -> tracked counts, aggregate turnover, positive breadth, lead feed mode
+- Tracked snapshot card: `/quotes/tracked.items[]` + `/scanner/tracked-symbols` + `/eod/freshness` -> tracked counts, aggregate turnover, live/fallback/unavailable counts, lead feed mode, layer freshness
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
 - Tracked symbol list: `/scanner/tracked-symbols` -> `tracked_symbols`, `count`, `last_updated_at`
-- Search panel: `/symbols/search` -> `items[].symbol`, `standard_code`, `name_ko`, `market`
-- Derived notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`
+- Momentum board: `/quotes/tracked` -> top absolute movers from `items[].change_pct`
+- Coverage notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 
 Important behavior:
 - The UI now treats `available: false` as an explicit unavailable state, not as a zero-price quote.
 - `source: "daily_price_bar"` means the backend is serving DB-backed EOD fallback from `daily_price_bars`.
 - Dashboard cards intentionally keep price freshness and technical freshness separate.
+- Search entry on the mobile dashboard now lives in the bottom tab bar / manage-feed CTA rather than an inline dashboard search panel.
 
 ## Symbol detail route: `/dashboard/symbol/[symbol]`
 
@@ -52,7 +54,8 @@ Client polling:
 - `GET /api/trading/symbols/search?q={symbol}&limit=20` when route seed metadata is incomplete
 
 UI surfaces and fields:
-- Quote hero: `/quotes/{symbol}` + `/market/status` + `/symbols/search` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`, route metadata seed
+- Mobile chrome: fixed app bar + bottom tab bar -> current symbol navigation state only, no additional backend dependency
+- Quote hero: `/quotes/{symbol}` + `/market/status` + `/symbols/search` + `/agent-context/symbol-day` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`, route metadata seed, aggregate availability summary
 - Market-status gate for quote polling: `/market/status` -> `state`
 - Chart: `/symbols/{symbol}/price-bars` -> `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`
 - Action Summary section: `/eod/action-summaries` with fallback `/agent-context/symbol-day.action_summary` -> `action_label`, `signal_score`, `confidence_tier`, `risk_tier`, `trigger_price`, `support_price`, `resistance_price`, `reasons`, `summary_payload`

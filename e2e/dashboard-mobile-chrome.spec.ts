@@ -3,11 +3,11 @@ import { devices, expect, test } from "@playwright/test";
 test.use({ ...devices["iPhone 13"] });
 
 test.describe("dashboard mobile chrome", () => {
-  test("dashboard top card is compact and scrolls with the page on mobile", async ({ page }) => {
+  test("dashboard top chrome is compact and fixed on mobile", async ({ page }) => {
     await page.goto("/dashboard");
 
     const topbar = page.locator("header.topbar");
-    const navButton = topbar.getByRole("button", { name: /Open navigation/i });
+    const bottomNav = page.getByRole("navigation", { name: /Primary/i });
     await expect(topbar).toBeVisible();
 
     const [topbarBox, topbarPosition] = await Promise.all([
@@ -15,15 +15,16 @@ test.describe("dashboard mobile chrome", () => {
       topbar.evaluate((element) => window.getComputedStyle(element).position),
     ]);
 
-    expect(topbarPosition).toBe("static");
+    expect(topbarPosition).toBe("fixed");
     expect(topbarBox).not.toBeNull();
-    expect(topbarBox!.height).toBeLessThan(96);
-    expect(topbarBox!.x).toBeGreaterThanOrEqual(12);
+    expect(topbarBox!.height).toBeLessThan(112);
+    expect(topbarBox!.x).toBeGreaterThanOrEqual(0);
 
-    await expect(navButton).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Tracked Market Dashboard/i })).toBeVisible();
+    await expect(bottomNav).toBeVisible();
+    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
-    await expect(topbar.locator(".search-wrap")).toBeHidden();
-    await expect(topbar.locator(".topbar-actions")).toBeHidden();
+    await expect(page.getByRole("link", { name: /Dashboard/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Search/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /My Symbols/i })).toBeVisible();
   });
 });
