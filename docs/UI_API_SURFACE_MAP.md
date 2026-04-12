@@ -40,7 +40,15 @@ Important behavior:
 
 Entry point:
 - `src/app/dashboard/symbol/[symbol]/page.tsx`
+- `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`
 - `src/app/dashboard/symbol/[symbol]/symbol-history-chart.tsx`
+
+Dedicated mobile detail routes:
+- `/dashboard/symbol/[symbol]/action-summary`
+- `/dashboard/symbol/[symbol]/technical-analysis`
+- `/dashboard/symbol/[symbol]/fundamentals-history`
+- `/dashboard/symbol/[symbol]/disclosure-coverage`
+- `/dashboard/symbol/[symbol]/system-freshness`
 
 Client polling:
 - `GET /api/trading/quotes/{symbol}`
@@ -65,6 +73,7 @@ UI surfaces and fields:
 - System Freshness section: `/eod/freshness` -> `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 - Fusion note and fallback messaging: `/agent-context/symbol-day` -> `company`, `technical_snapshot`, `action_summary`, `fundamentals`, `recent_disclosures`, `availability`
 - Symbol metadata fallback seed: `/symbols/search` -> `symbol`, `standard_code`, `name_ko`, `market`
+- Detail page tabs: route-only navigation that preserves known seed metadata, `marketDate`, and `fsDiv`; seed values are forwarded only when they come from actual symbol metadata or non-placeholder route params.
 
 Important behavior:
 - The primary chart now uses the stored historical bars API, not an in-page quote trace.
@@ -73,6 +82,7 @@ Important behavior:
 - `/agent-context/symbol-day`, `/eod/technical-snapshots`, `/eod/action-summaries`, `/disclosures/dart/fundamentals/history`, and `/symbols/{symbol}/price-bars` are one-shot per dependency change, not recurring quote polls.
 - `/scanner/tracked-symbols` is not requested by the symbol detail route anymore; tracked-universe coverage now remains a dashboard/search concern.
 - When a technical or action field is not confirmed upstream, the UI shows `[확인 필요]` instead of manufacturing indicator values.
+- The five dedicated detail routes reuse the same mobile chrome, dev tags, and API loaders as the overview card stack. They narrow the rendered body to the selected Stitch detail screen instead of duplicating data logic.
 
 ## Search route: `/search`
 

@@ -124,6 +124,11 @@ Bots and some overview calls may still use **mock** implementations in the same 
 | `/` | Redirects to `/dashboard` |
 | `/dashboard` | Primary desk (server data from core when reachable) |
 | `/dashboard/symbol/[symbol]` | Symbol-scoped view; `/quotes/{symbol}` keeps polling until both quote and market-status routes report `CLOSED`, while explanatory cards use `/agent-context/symbol-day` and symbol metadata falls back to `/symbols/search` only when route seed data is missing |
+| `/dashboard/symbol/[symbol]/action-summary` | Mobile Stitch Action Summary Detail; reuses `/eod/action-summaries` with aggregate fallback |
+| `/dashboard/symbol/[symbol]/technical-analysis` | Mobile Stitch Technical Analysis Detail; reuses `/eod/technical-snapshots` with aggregate fallback |
+| `/dashboard/symbol/[symbol]/fundamentals-history` | Mobile Stitch Fundamentals History Detail; reuses `/disclosures/dart/fundamentals/history` with aggregate fallback |
+| `/dashboard/symbol/[symbol]/disclosure-coverage` | Mobile Stitch Disclosure & Coverage Detail; reuses `/agent-context/symbol-day.recent_disclosures` |
+| `/dashboard/symbol/[symbol]/system-freshness` | Mobile Stitch System Freshness Detail; reuses `/eod/freshness` and quote provenance |
 | `/markets` | Markets overview (client data via adapter / mock) |
 | `/bots` | Automation overview (mock-heavy today) |
 | `/search` | Search entry |

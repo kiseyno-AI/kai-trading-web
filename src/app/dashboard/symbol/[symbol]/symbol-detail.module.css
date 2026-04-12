@@ -244,6 +244,58 @@
   line-height: 1.5;
 }
 
+.detailNavigator {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem;
+  background:
+    linear-gradient(135deg, rgba(13, 28, 46, 0.94), rgba(35, 40, 67, 0.8)),
+    radial-gradient(circle at 20% 0%, rgba(78, 222, 163, 0.12), transparent 34%);
+}
+
+.detailTabs {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+  scrollbar-width: none;
+}
+
+.detailTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.detailTab,
+.detailLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border: 1px solid rgba(143, 144, 158, 0.14);
+  border-radius: 999px;
+  background: rgba(13, 28, 46, 0.72);
+  color: #dee0ff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.52rem 0.7rem;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.detailTabActive {
+  background: rgba(78, 222, 163, 0.16);
+  border-color: rgba(78, 222, 163, 0.36);
+  color: #dfffe8;
+}
+
+.detailLink {
+  margin-top: 0.85rem;
+}
+
 .cardTitle {
   margin: 0.25rem 0 0;
   color: #ffffff;
