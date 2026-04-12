@@ -18,6 +18,13 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /eod/freshness` for layer-specific freshness labels
   - `GET /disclosures/dart/fundamentals/history` for stored DART fundamentals history
   - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures
+- The symbol detail card stack also powers dedicated mobile Stitch detail routes:
+  - `/dashboard/symbol/[symbol]/action-summary`
+  - `/dashboard/symbol/[symbol]/technical-analysis`
+  - `/dashboard/symbol/[symbol]/fundamentals-history`
+  - `/dashboard/symbol/[symbol]/disclosure-coverage`
+  - `/dashboard/symbol/[symbol]/system-freshness`
+  These routes do not add live-trading behavior; they reuse the BFF reads above and preserve `[확인 필요]` for unconfirmed upstream fields.
 - Field-level screen and component mapping now lives in `docs/UI_API_SURFACE_MAP.md`.
 - Dev-tag and mobile component specs now live in `docs/MOBILE_COMPONENT_SPEC.md`.
 - The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.

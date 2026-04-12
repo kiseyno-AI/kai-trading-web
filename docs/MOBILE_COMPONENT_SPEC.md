@@ -29,16 +29,43 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 
 ## Symbol detail
 
+Primary route:
+- `/dashboard/symbol/[symbol]` — Symbol Detail - Insights & Data overview
+
+Dedicated Stitch detail routes:
+- `/dashboard/symbol/[symbol]/action-summary` — Action Summary Detail
+- `/dashboard/symbol/[symbol]/technical-analysis` — Technical Analysis Detail
+- `/dashboard/symbol/[symbol]/fundamentals-history` — Fundamentals History Detail
+- `/dashboard/symbol/[symbol]/disclosure-coverage` — Disclosure & Coverage Detail
+- `/dashboard/symbol/[symbol]/system-freshness` — System Freshness Component Detail
+
 | Tag | File | Mobile component | API | Rendered fields | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `symbol.hero` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Quote hero | `/api/trading/quotes/{symbol}`, `/api/trading/market/status`, `/api/trading/symbols/search`, `/api/trading/agent-context/symbol-day` | `price`, `change`, `change_pct`, `available`, `source`, `market_state`, `trade_date`, `cached_at`, search seed metadata, aggregate availability summary | Includes back navigation, stable-mode/polling state, and the compact fusion note. |
-| `symbol.chart` | `src/app/dashboard/symbol/[symbol]/page.tsx`, `src/app/dashboard/symbol/[symbol]/symbol-history-chart.tsx` | Swipe-aware candlestick chart | `/api/trading/symbols/{symbol}/price-bars`, `/api/trading/quotes/{symbol}` | `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`, plus current quote freshness context | Focus date updates from chart interaction; chart stays historical, not live-tick simulated. |
-| `symbol.action-summary` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Deterministic action layer card | `/api/trading/eod/action-summaries`, fallback `/api/trading/agent-context/symbol-day` | `action_label`, `signal_score`, `confidence_tier`, `risk_tier`, `trigger_price`, `support_price`, `resistance_price`, `reasons`, `summary_payload` keys | Multi-day history remains `[확인 필요]` until a confirmed endpoint exists. |
-| `symbol.technical-analysis` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Technical snapshot card | `/api/trading/eod/technical-snapshots`, fallback `/api/trading/agent-context/symbol-day` | `trend_state`, `ma_alignment`, `breakout_20d`, `breakdown_20d`, `return_5d`, `return_20d`, `volume_ratio_20d`, `atr_14`, `atr_pct_14`, `signal_payload` keys | RSI/MACD/ADX are not invented when upstream fields are not confirmed. |
-| `symbol.fundamentals-history` | `src/app/dashboard/symbol/[symbol]/page.tsx` | DART fundamentals history | `/api/trading/disclosures/dart/fundamentals/history`, fallback `/api/trading/agent-context/symbol-day` | `companies[].entries[].filing`, `period`, `statement.fs_div`, `highlights[]`, plus aggregate latest filing fallback | When highlight metrics are missing, UI shows `[확인 필요]` instead of fake valuation data. |
-| `symbol.disclosures` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Recent disclosures | `/api/trading/agent-context/symbol-day` | `recent_disclosures.count`, `items[].report_nm`, `receipt_date`, `filing_category`, `fundamentals_capture_status`, `rcept_no` | Explicit empty state uses “No Disclosure Found”. |
-| `symbol.system-freshness` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Layer-specific freshness registry | `/api/trading/eod/freshness`, `/api/trading/quotes/{symbol}` | `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, quote provenance | Fundamentals freshness remains a reference-only row until upstream exposes a dedicated freshness field. |
-| `symbol.errors` | `src/app/dashboard/symbol/[symbol]/page.tsx` | Error feedback rail | client fetch states | quote, metadata, history, context, fundamentals errors | Error cards are still clamped to 3 lines and sit above the chart on failure. |
+| `symbol.hero` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx` | Quote hero | `/api/trading/quotes/{symbol}`, `/api/trading/market/status`, `/api/trading/symbols/search`, `/api/trading/agent-context/symbol-day` | `price`, `change`, `change_pct`, `available`, `source`, `market_state`, `trade_date`, `cached_at`, search seed metadata, aggregate availability summary | Includes back navigation, stable-mode/polling state, and the compact fusion note. |
+| `symbol.chart` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`, `src/app/dashboard/symbol/[symbol]/symbol-history-chart.tsx` | Swipe-aware candlestick chart | `/api/trading/symbols/{symbol}/price-bars`, `/api/trading/quotes/{symbol}` | `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`, plus current quote freshness context | Focus date updates from chart interaction; chart stays historical, not live-tick simulated. |
+| `symbol.action-summary` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`, `src/app/dashboard/symbol/[symbol]/action-summary/page.tsx` | Deterministic action layer card and detail page | `/api/trading/eod/action-summaries`, fallback `/api/trading/agent-context/symbol-day` | `action_label`, `signal_score`, `confidence_tier`, `risk_tier`, `trigger_price`, `support_price`, `resistance_price`, `reasons`, `summary_payload` keys | Multi-day history remains `[확인 필요]` until a confirmed endpoint exists. |
+| `symbol.technical-analysis` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`, `src/app/dashboard/symbol/[symbol]/technical-analysis/page.tsx` | Technical snapshot card and detail page | `/api/trading/eod/technical-snapshots`, fallback `/api/trading/agent-context/symbol-day` | `trend_state`, `ma_alignment`, `breakout_20d`, `breakdown_20d`, `return_5d`, `return_20d`, `volume_ratio_20d`, `atr_14`, `atr_pct_14`, `signal_payload` keys | RSI/MACD/ADX are not invented when upstream fields are not confirmed. |
+| `symbol.fundamentals-history` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`, `src/app/dashboard/symbol/[symbol]/fundamentals-history/page.tsx` | DART fundamentals history card and detail page | `/api/trading/disclosures/dart/fundamentals/history`, fallback `/api/trading/agent-context/symbol-day` | `companies[].entries[].filing`, `period`, `statement.fs_div`, `highlights[]`, plus aggregate latest filing fallback | When highlight metrics are missing, UI shows `[확인 필요]` instead of fake valuation data. |
+| `symbol.disclosures` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`, `src/app/dashboard/symbol/[symbol]/disclosure-coverage/page.tsx` | Recent disclosures card and detail page | `/api/trading/agent-context/symbol-day` | `recent_disclosures.count`, `items[].report_nm`, `receipt_date`, `filing_category`, `fundamentals_capture_status`, `rcept_no` | Explicit empty state uses “No Disclosure Found”. |
+| `symbol.system-freshness` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`, `src/app/dashboard/symbol/[symbol]/system-freshness/page.tsx` | Layer-specific freshness registry card and detail page | `/api/trading/eod/freshness`, `/api/trading/quotes/{symbol}` | `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, quote provenance | Fundamentals freshness remains a reference-only row until upstream exposes a dedicated freshness field. |
+| `symbol.errors` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx` | Error feedback rail | client fetch states | quote, metadata, history, context, fundamentals errors | Error cards are still clamped to 3 lines and sit above the chart on failure. |
+
+## Dev tag IDs
+
+The dev-mode tag overlay shows short IDs while copying the full label/API payload. Current mappings:
+- `D1` dashboard core unavailable
+- `D2` dashboard operational integrity
+- `D3` dashboard watch/symbol cards
+- `D4` dashboard momentum board
+- `D5` dashboard coverage note
+- `S1` symbol hero
+- `S2` symbol errors
+- `S3` symbol chart
+- `S4` action summary
+- `S5` technical analysis
+- `S6` fundamentals history
+- `S7` disclosures
+- `S8` system freshness
 
 ## BFF routes added for the mobile Stitch refresh
 
