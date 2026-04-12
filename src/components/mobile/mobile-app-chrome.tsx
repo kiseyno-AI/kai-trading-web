@@ -52,6 +52,10 @@ function getItemClass(active: boolean) {
   return `${styles.navItem} ${active ? styles.navItemActive : ""}`.trim();
 }
 
+function getDesktopItemClass(active: boolean) {
+  return `${styles.desktopNavItem} ${active ? styles.desktopNavItemActive : ""}`.trim();
+}
+
 export function MobileAppChrome({
   activeNav,
   header,
@@ -63,6 +67,42 @@ export function MobileAppChrome({
     <div className={styles.surface}>
       <div className={styles.glowPrimary} />
       <div className={styles.glowSecondary} />
+
+      <aside className={styles.desktopRail} aria-label="Desktop navigation">
+        <div className={styles.desktopBrand}>
+          <div className={styles.desktopBrandMark}>OL</div>
+          <div>
+            <strong>Obsidian</strong>
+            <span>Ledger Terminal</span>
+          </div>
+        </div>
+
+        <nav className={styles.desktopNav} aria-label="Primary desktop">
+          <Link href="/dashboard" className={getDesktopItemClass(activeNav === "dashboard")}>
+            <DashboardIcon />
+            <span>Dashboard</span>
+          </Link>
+          <Link href={searchHref} className={getDesktopItemClass(activeNav === "search")}>
+            <SearchIcon />
+            <span>Search</span>
+          </Link>
+          <Link href="/dashboard#dashboard-freshness" className={getDesktopItemClass(false)}>
+            <span className={styles.desktopNavGlyph}>MS</span>
+            <span>Market Status</span>
+          </Link>
+          <Link href={mySymbolsHref} className={getDesktopItemClass(activeNav === "symbols")}>
+            <SymbolsIcon />
+            <span>My Symbols</span>
+          </Link>
+        </nav>
+
+        <div className={styles.desktopRailStatus}>
+          <span>Live Connection</span>
+          <div className={styles.desktopStatusTrack}>
+            <i />
+          </div>
+        </div>
+      </aside>
 
       <header className={`${styles.headerFrame} topbar`}>
         <div className={styles.headerInner}>{header}</div>

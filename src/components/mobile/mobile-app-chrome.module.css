@@ -9,6 +9,10 @@
   overflow: hidden;
 }
 
+.desktopRail {
+  display: none;
+}
+
 .glowPrimary,
 .glowSecondary {
   position: fixed;
@@ -142,5 +146,208 @@
 
   .main {
     padding-top: 6rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .surface {
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background:
+      linear-gradient(90deg, rgba(18, 32, 50, 0.95) 0, rgba(18, 32, 50, 0.95) 16.5rem, transparent 16.5rem),
+      radial-gradient(circle at 86% 8%, rgba(186, 195, 255, 0.1), transparent 26rem),
+      linear-gradient(180deg, #071425 0%, #061324 48%, #05101f 100%);
+  }
+
+  .desktopRail {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    display: flex;
+    width: 16.5rem;
+    flex-direction: column;
+    gap: 4rem;
+    padding: 2rem 1rem;
+    border-right: 1px solid rgba(143, 144, 158, 0.12);
+    background: rgba(12, 26, 42, 0.92);
+    box-shadow: 18px 0 58px rgba(1, 15, 32, 0.32);
+  }
+
+  .desktopBrand {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    color: #f6f8ff;
+  }
+
+  .desktopBrandMark {
+    width: 3.2rem;
+    height: 3.2rem;
+    display: grid;
+    place-items: center;
+    border-radius: 0.45rem;
+    background: linear-gradient(145deg, #d9ddff, #7f8dd6);
+    color: #182038;
+    font-family: var(--font-space-grotesk), sans-serif;
+    font-size: 1.45rem;
+    font-weight: 800;
+  }
+
+  .desktopBrand strong,
+  .desktopNavItem span,
+  .desktopRailStatus span {
+    font-family: var(--font-space-grotesk), sans-serif;
+  }
+
+  .desktopBrand strong {
+    display: block;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  .desktopBrand span {
+    display: block;
+    margin-top: 0.28rem;
+    color: #93a3b8;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+  }
+
+  .desktopNav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .desktopNavItem {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.95rem 1rem;
+    border-radius: 0.12rem;
+    color: #aeb8c8;
+    text-decoration: none;
+    transition:
+      background-color 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .desktopNavItem:hover {
+    color: #f6f8ff;
+    background: rgba(40, 54, 72, 0.7);
+  }
+
+  .desktopNavItemActive {
+    color: #e6e8ff;
+    background: rgba(42, 58, 82, 0.92);
+    box-shadow: inset -3px 0 0 #c5c8ff;
+  }
+
+  .desktopNavItem .navIcon,
+  .desktopNavGlyph {
+    width: 1.4rem;
+    height: 1.4rem;
+    flex: 0 0 auto;
+  }
+
+  .desktopNavItem span:last-child {
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+
+  .desktopNavGlyph {
+    display: grid;
+    place-items: center;
+    font-size: 1.12rem;
+    line-height: 1;
+  }
+
+  .desktopRailStatus {
+    margin-top: auto;
+    padding: 1rem;
+    border: 1px solid rgba(143, 144, 158, 0.1);
+    border-radius: 0.25rem;
+    background: rgba(18, 32, 50, 0.7);
+  }
+
+  .desktopRailStatus span {
+    display: block;
+    color: #c5c8ff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .desktopStatusTrack {
+    margin-top: 0.85rem;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: rgba(143, 144, 158, 0.14);
+  }
+
+  .desktopStatusTrack i {
+    display: block;
+    width: 22%;
+    height: 100%;
+    border-radius: inherit;
+    background: #c5c8ff;
+    box-shadow: 0 0 16px rgba(197, 200, 255, 0.45);
+  }
+
+  .headerFrame {
+    inset: 0 0 auto 16.5rem;
+    justify-content: stretch;
+    padding: 1.15rem 2rem 0;
+  }
+
+  .headerInner {
+    width: 100%;
+    max-width: none;
+    min-height: 4.2rem;
+    border-radius: 0.18rem;
+    background: rgba(7, 18, 34, 0.84);
+    box-shadow: 0 18px 42px rgba(1, 15, 32, 0.22);
+  }
+
+  .main {
+    width: auto;
+    max-width: none;
+    margin: 0 0 0 16.5rem;
+    padding: 6.7rem 2rem 3rem;
+  }
+
+  .bottomNavFrame {
+    display: none;
+  }
+}
+
+@media (min-width: 1440px) {
+  .surface {
+    background:
+      linear-gradient(90deg, rgba(18, 32, 50, 0.95) 0, rgba(18, 32, 50, 0.95) 18rem, transparent 18rem),
+      radial-gradient(circle at 86% 8%, rgba(186, 195, 255, 0.1), transparent 26rem),
+      linear-gradient(180deg, #071425 0%, #061324 48%, #05101f 100%);
+  }
+
+  .desktopRail {
+    width: 18rem;
+    padding-inline: 1.2rem;
+  }
+
+  .headerFrame {
+    left: 18rem;
+    padding-inline: 2.4rem;
+  }
+
+  .main {
+    margin-left: 18rem;
+    padding-inline: 2.4rem;
   }
 }
