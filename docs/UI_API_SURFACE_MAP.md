@@ -22,19 +22,20 @@ Client polling:
 - `GET /api/trading/symbols/search?q=...&limit=8`
 
 UI surfaces and fields:
-- Mobile chrome: fixed app bar + bottom tab bar -> navigation only, no additional backend dependency
+- Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> navigation only, no additional backend dependency
 - Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 - Tracked snapshot card: `/quotes/tracked.items[]` + `/scanner/tracked-symbols` + `/eod/freshness` -> tracked counts, aggregate turnover, live/fallback/unavailable counts, lead feed mode, layer freshness
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
 - Tracked symbol list: `/scanner/tracked-symbols` -> `tracked_symbols`, `count`, `last_updated_at`
 - Momentum board: `/quotes/tracked` -> top absolute movers from `items[].change_pct`
 - Coverage notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
+- Desktop audit feed: `/eod/freshness` + `/quotes/tracked` -> module freshness rows for price, technical, and action status
 
 Important behavior:
 - The UI now treats `available: false` as an explicit unavailable state, not as a zero-price quote.
 - `source: "daily_price_bar"` means the backend is serving DB-backed EOD fallback from `daily_price_bars`.
 - Dashboard cards intentionally keep price freshness and technical freshness separate.
-- Search entry on the mobile dashboard now lives in the bottom tab bar / manage-feed CTA rather than an inline dashboard search panel.
+- Search entry on mobile lives in the bottom tab bar / manage-feed CTA; desktop uses the left rail plus top command bar treatment from the Stitch wide view.
 
 ## Symbol detail route: `/dashboard/symbol/[symbol]`
 
@@ -43,7 +44,7 @@ Entry point:
 - `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`
 - `src/app/dashboard/symbol/[symbol]/symbol-history-chart.tsx`
 
-Dedicated mobile detail routes:
+Dedicated detail routes:
 - `/dashboard/symbol/[symbol]/action-summary`
 - `/dashboard/symbol/[symbol]/technical-analysis`
 - `/dashboard/symbol/[symbol]/fundamentals-history`
@@ -62,7 +63,7 @@ Client polling:
 - `GET /api/trading/symbols/search?q={symbol}&limit=20` when route seed metadata is incomplete
 
 UI surfaces and fields:
-- Mobile chrome: fixed app bar + bottom tab bar -> current symbol navigation state only, no additional backend dependency
+- Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> current symbol navigation state only, no additional backend dependency
 - Quote hero: `/quotes/{symbol}` + `/market/status` + `/symbols/search` + `/agent-context/symbol-day` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`, route metadata seed, aggregate availability summary
 - Market-status gate for quote polling: `/market/status` -> `state`
 - Chart: `/symbols/{symbol}/price-bars` -> `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`
@@ -76,13 +77,13 @@ UI surfaces and fields:
 - Detail page tabs: route-only navigation that preserves known seed metadata, `marketDate`, and `fsDiv`; seed values are forwarded only when they come from actual symbol metadata or non-placeholder route params.
 
 Important behavior:
-- The primary chart now uses the stored historical bars API, not an in-page quote trace.
+- The primary chart now uses the stored historical bars API, not an in-page quote trace. The technical-analysis detail page also renders the same candlestick API on desktop to match the Stitch candlestick view.
 - The chart focus card updates from chart interaction, but the chart itself remains EOD-history based.
 - Quote polling stops entirely after the first response where both `/market/status.state` and `/quotes/{symbol}.market_state` are `CLOSED`.
 - `/agent-context/symbol-day`, `/eod/technical-snapshots`, `/eod/action-summaries`, `/disclosures/dart/fundamentals/history`, and `/symbols/{symbol}/price-bars` are one-shot per dependency change, not recurring quote polls.
 - `/scanner/tracked-symbols` is not requested by the symbol detail route anymore; tracked-universe coverage now remains a dashboard/search concern.
 - When a technical or action field is not confirmed upstream, the UI shows `[확인 필요]` instead of manufacturing indicator values.
-- The five dedicated detail routes reuse the same mobile chrome, dev tags, and API loaders as the overview card stack. They narrow the rendered body to the selected Stitch detail screen instead of duplicating data logic.
+- The five dedicated detail routes reuse the same responsive chrome, dev tags, and API loaders as the overview card stack. They narrow the rendered body to the selected Stitch detail screen instead of duplicating data logic.
 
 ## Search route: `/search`
 

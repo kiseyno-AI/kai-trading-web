@@ -16,7 +16,7 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 | **Quality** | ESLint, Playwright e2e (`e2e/`), GitHub Actions CI |
 | **Agent config** | Codex: `.codex/config.toml`, `.codex/skills/`, `.codex/agents/` |
 
-**Docs in-repo:** `AGENTS.md`, `RULES.md`, `ARCHITECTURE.md`, `TASKS.md`, `docs/API_CONTRACT.md` (intended contract vs trading-core), `docs/UI_API_SURFACE_MAP.md` (screen/component to API/field wiring), `docs/MOBILE_COMPONENT_SPEC.md` (dev tags + mobile Stitch component spec).
+**Docs in-repo:** `AGENTS.md`, `RULES.md`, `ARCHITECTURE.md`, `TASKS.md`, `docs/API_CONTRACT.md` (intended contract vs trading-core), `docs/UI_API_SURFACE_MAP.md` (screen/component to API/field wiring), `docs/MOBILE_COMPONENT_SPEC.md` (dev tags + mobile Stitch component spec), `docs/DESKTOP_COMPONENT_SPEC.md` (desktop Stitch component spec).
 
 ---
 
@@ -122,13 +122,13 @@ Bots and some overview calls may still use **mock** implementations in the same 
 | Path | Role |
 |------|------|
 | `/` | Redirects to `/dashboard` |
-| `/dashboard` | Primary desk (server data from core when reachable) |
+| `/dashboard` | Primary desk (server data from core when reachable); mobile and desktop Stitch layouts share the same API-backed data |
 | `/dashboard/symbol/[symbol]` | Symbol-scoped view; `/quotes/{symbol}` keeps polling until both quote and market-status routes report `CLOSED`, while explanatory cards use `/agent-context/symbol-day` and symbol metadata falls back to `/symbols/search` only when route seed data is missing |
-| `/dashboard/symbol/[symbol]/action-summary` | Mobile Stitch Action Summary Detail; reuses `/eod/action-summaries` with aggregate fallback |
-| `/dashboard/symbol/[symbol]/technical-analysis` | Mobile Stitch Technical Analysis Detail; reuses `/eod/technical-snapshots` with aggregate fallback |
-| `/dashboard/symbol/[symbol]/fundamentals-history` | Mobile Stitch Fundamentals History Detail; reuses `/disclosures/dart/fundamentals/history` with aggregate fallback |
-| `/dashboard/symbol/[symbol]/disclosure-coverage` | Mobile Stitch Disclosure & Coverage Detail; reuses `/agent-context/symbol-day.recent_disclosures` |
-| `/dashboard/symbol/[symbol]/system-freshness` | Mobile Stitch System Freshness Detail; reuses `/eod/freshness` and quote provenance |
+| `/dashboard/symbol/[symbol]/action-summary` | Stitch Action Summary Detail; reuses `/eod/action-summaries` with aggregate fallback |
+| `/dashboard/symbol/[symbol]/technical-analysis` | Stitch Technical Analysis Detail; reuses `/eod/technical-snapshots` with aggregate fallback and renders the desktop candlestick view from `/symbols/{symbol}/price-bars` |
+| `/dashboard/symbol/[symbol]/fundamentals-history` | Stitch Fundamentals History Detail; reuses `/disclosures/dart/fundamentals/history` with aggregate fallback |
+| `/dashboard/symbol/[symbol]/disclosure-coverage` | Stitch Disclosure & Coverage Detail; reuses `/agent-context/symbol-day.recent_disclosures` |
+| `/dashboard/symbol/[symbol]/system-freshness` | Stitch System Freshness Detail; reuses `/eod/freshness` and quote provenance |
 | `/markets` | Markets overview (client data via adapter / mock) |
 | `/bots` | Automation overview (mock-heavy today) |
 | `/search` | Search entry |
