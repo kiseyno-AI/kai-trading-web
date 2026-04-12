@@ -41,6 +41,8 @@ type QuoteResponse = {
   unavailable_reason?: string | null;
 };
 
+type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
+
 const SEARCH_RECENTS_STORAGE_KEY = "kai.search.recent-symbols";
 const UNKNOWN = "[확인 필요]";
 
@@ -48,10 +50,11 @@ function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
 
-async function getJson<T>(path: string): Promise<T> {
+async function getJson<T>(path: string): Promise<JsonResult<T>> {
   const response = await fetch(path, { cache: "no-store" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json() as Promise<T>;
+  if (!response.ok) return { ok: false, status: response.status };
+  const data = (await response.json()) as T;
+  return { ok: true, data };
 }
 
 function getInitials(item: SymbolSearchItem) {
@@ -127,8 +130,14 @@ export default function SearchPage() {
     let active = true;
     const load = async () => {
       try {
-        const data = await getJson<SymbolSearchResponse>(`/api/trading/symbols/search?q=${encodeURIComponent(query)}&limit=20`);
+        const result = await getJson<SymbolSearchResponse>(`/api/trading/symbols/search?q=${encodeURIComponent(query)}&limit=20`);
         if (!active) return;
+        if (!result.ok) {
+          setItems([]);
+          setSearchError(`Search endpoint unavailable. Check trading-core or BFF connectivity. HTTP ${result.status}`);
+          return;
+        }
+        const data = result.data;
         const normalizedItems = data.items.map(normalizeSearchItem);
         setItems(normalizedItems);
         setSearchError(null);
@@ -150,8 +159,14 @@ export default function SearchPage() {
 
     const loadQuote = async () => {
       try {
-        const data = await getJson<QuoteResponse>(`/api/trading/quotes/${selected.symbol}`);
+        const result = await getJson<QuoteResponse>(`/api/trading/quotes/${selected.symbol}`);
         if (!active) return;
+        if (!result.ok) {
+          setQuote(null);
+          setQuoteError(`Quote endpoint unavailable. Select stays pinned, but live fields need confirmation. HTTP ${result.status}`);
+          return;
+        }
+        const data = result.data;
         setQuote(data);
         setQuoteError(null);
       } catch {
