@@ -6,6 +6,7 @@ import {
   getDisclosureSectionState,
   shouldFetchSymbolMeta,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
+import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 
 test.describe("smoke", () => {
   test("home redirects to dashboard", async ({ page }) => {
@@ -49,6 +50,11 @@ test.describe("smoke", () => {
       market: null,
       standardCode: null,
     });
+    const unknownMeta = buildInitialSymbolMeta("005930", {
+      name: "[확인 필요]",
+      market: "[확인 필요]",
+      standardCode: "[확인 필요]",
+    });
     const emptyMetaA = buildInitialSymbolMeta("005930", {
       name: null,
       market: null,
@@ -65,8 +71,10 @@ test.describe("smoke", () => {
     expect(emptyMetaA).toBeNull();
     expect(emptyMetaB).toBeNull();
     expect(shouldFetchSymbolMeta(partialMeta)).toBe(true);
+    expect(shouldFetchSymbolMeta(unknownMeta)).toBe(true);
     expect(shouldFetchSymbolMeta(emptyMetaA)).toBe(true);
     expect(shouldFetchSymbolMeta(seededMeta)).toBe(false);
+    expect(getForwardableSymbolMetaSeedValue("[확인 필요]")).toBeNull();
     expect(createSymbolMetaResetToken("005930", emptyMetaA)).not.toBe(createSymbolMetaResetToken("000660", emptyMetaB));
   });
 

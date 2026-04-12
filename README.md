@@ -131,7 +131,7 @@ Bots and some overview calls may still use **mock** implementations in the same 
 | `/dashboard/symbol/[symbol]/system-freshness` | Stitch System Freshness Detail; reuses `/eod/freshness` and quote provenance |
 | `/markets` | Markets overview (client data via adapter / mock) |
 | `/bots` | Automation overview (mock-heavy today) |
-| `/search` | Search entry |
+| `/search` | Stitch terminal search entry backed by `/api/trading/symbols/search`; selected rows poll `/api/trading/quotes/{symbol}` |
 | `/kis-dashboard` | Alternate KIS-oriented dashboard experiment |
 | `/real-dashboard` | Alternate dashboard variant |
 | `/scanner-tracker` | Scanner / tracking UI |

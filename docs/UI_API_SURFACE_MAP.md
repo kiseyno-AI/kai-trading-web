@@ -95,8 +95,18 @@ Client polling:
 - `GET /api/trading/quotes/{symbol}`
 
 UI surfaces and fields:
-- Search results list: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`
-- Right-hand quote panel: `/quotes/{symbol}` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `source`, `available`, `fallback`, `cached_at`, `trade_date`, `unavailable_reason`
+- Shared responsive chrome: mobile fixed Search terminal top bar + bottom tab bar, desktop Obsidian Ledger rail + centered terminal search surface -> navigation only, no direct backend dependency
+- Terminal search input and result count: `/symbols/search` -> `query`, `count`, `items.length`
+- Mobile result cards: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; selected row also uses `/quotes/{symbol}` for price and change
+- Quick access / recent cards: local recent selections plus current `/symbols/search.items[]`; no backend field is invented for unavailable recency
+- Trending symbols cards: current `/symbols/search.items[]` metadata only; ranking source, market cap, and unselected prices remain `[확인 필요]` until confirmed upstream
+- Desktop results table: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; selected row also uses `/quotes/{symbol}` for `price`, `change_pct`, `cached_at`, `trade_date`
+- Selected quote panel: `/quotes/{symbol}` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `source`, `available`, `fallback`, `is_live`, `cached_at`, `trade_date`, `unavailable_reason`
+
+Important behavior:
+- Symbol detail links preserve only actual metadata returned by `/symbols/search`; `market` is never hardcoded.
+- Desktop Stitch-only fields such as market cap, terminal coverage tier, result ranking, and bulk freshness are rendered as `[확인 필요]` unless backed by the selected quote response or returned search metadata.
+- Dev-mode tags for this route are `search.terminal-shell`, `search.mobile-results`, `search.quick-access`, `search.trending-symbols`, `search.network-integrity`, `search.desktop-results-table`, and `search.selected-quote`.
 
 ## Alternate dashboard routes
 

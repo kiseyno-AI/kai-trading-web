@@ -10,6 +10,7 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 - If an upstream field is not confirmed by `kai-trading-core`, the UI must render `[확인 필요]` instead of inventing data.
 - Freshness is **layer-specific**. Price, technical, action, fundamentals, and disclosures must not imply one shared timestamp.
 - Dashboard and symbol detail now use a dedicated mobile shell with a fixed top app bar and a bottom tab bar (`Dashboard`, `Search`, `My Symbols`) instead of the old `AppShell` workspace chrome.
+- `/search` also uses this shell, matching the Stitch `Search - Mobile Terminal` screen instead of the legacy workspace panel.
 
 ## Dev tag workflow
 
@@ -50,6 +51,20 @@ Dedicated Stitch detail routes:
 | `symbol.system-freshness` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx`, `src/app/dashboard/symbol/[symbol]/system-freshness/page.tsx` | Layer-specific freshness registry card and detail page | `/api/trading/eod/freshness`, `/api/trading/quotes/{symbol}` | `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, quote provenance | Fundamentals freshness remains a reference-only row until upstream exposes a dedicated freshness field. |
 | `symbol.errors` | `src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx` | Error feedback rail | client fetch states | quote, metadata, history, context, fundamentals errors | Error cards are still clamped to 3 lines and sit above the chart on failure. |
 
+## Search
+
+Primary route:
+- `/search` — Search - Mobile Terminal
+
+| Tag | File | Mobile component | API | Rendered fields | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `search.terminal-shell` | `src/app/search/page.tsx` | Search app bar and terminal input | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | `query`, result count, selected quote mode | Replaces the old `AppShell` search layout and keeps the bottom tab bar active on Search. |
+| `search.mobile-results` | `src/app/search/page.tsx` | Mobile result cards | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | `items[].symbol`, `items[].name_ko`, `items[].market`, selected `price`, selected `change_pct`, selected freshness | Unselected rows show `[확인 필요]` for quote values instead of sample prices. |
+| `search.quick-access` | `src/app/search/page.tsx` | Recent / quick chips | local recent selections, `/api/trading/symbols/search` | recent `symbol`, `name_ko`, current query items | Local storage is convenience state only; no backend recency is implied. |
+| `search.trending-symbols` | `src/app/search/page.tsx` | Trending-style symbol cards | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | current result `symbol`, `market`, selected quote values | Actual trend ranking source is `[확인 필요]` because no confirmed trending endpoint powers `/search`. |
+| `search.network-integrity` | `src/app/search/page.tsx` | Integrity strip | client fetch states | search/quote error state | The visual integrity meter degrades when either endpoint errors. |
+| `search.selected-quote` | `src/app/search/page.tsx` | Selected quote inspector | `/api/trading/quotes/{symbol}` | `price`, `change`, `change_pct`, `volume`, `turnover`, `source`, `available`, `fallback`, `is_live`, `cached_at`, `trade_date` | Provides a real-data path to the symbol detail route without adding trading actions. |
+
 ## Dev tag IDs
 
 The dev-mode tag overlay shows short IDs while copying the full label/API payload. Current mappings:
@@ -58,6 +73,13 @@ The dev-mode tag overlay shows short IDs while copying the full label/API payloa
 - `D3` dashboard watch/symbol cards
 - `D4` dashboard momentum board
 - `D5` dashboard coverage note
+- `Q1` search terminal shell
+- `Q2` search mobile results
+- `Q3` search quick access
+- `Q4` search trending symbols
+- `Q5` search network integrity
+- `Q6` search desktop results table
+- `Q7` search selected quote
 - `S1` symbol hero
 - `S2` symbol errors
 - `S3` symbol chart

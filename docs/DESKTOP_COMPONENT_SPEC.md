@@ -21,6 +21,7 @@ Project: `4983085105003286837`
 | Action Summary Detail - Desktop View | `ff30595a9e094ff6bb9dd59a787bef61` | `/dashboard/symbol/[symbol]/action-summary` |
 | Fundamentals History - Desktop View | `d87dcf06e3694c57aa4a72e537eb23d3` | `/dashboard/symbol/[symbol]/fundamentals-history` |
 | Technical Analysis Detail - Candlestick View | `7d122202cb7740f3b146aa4470c76914` | `/dashboard/symbol/[symbol]/technical-analysis` |
+| Search - Desktop Centered Terminal | `194aa22ed2c34b8cbb4411af812419f5` | `/search` |
 
 Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-desktop` during implementation.
 
@@ -54,8 +55,25 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 | `symbol.disclosures` | Disclosure coverage detail | `/api/trading/agent-context/symbol-day` | Recent filing cards use `report_nm`, `receipt_date`, `filing_category`, `fundamentals_capture_status`, and `rcept_no`. |
 | `symbol.system-freshness` | Freshness registry | `/api/trading/eod/freshness`, `/api/trading/quotes/{symbol}` | Price, technical, action, fundamentals, and disclosure rows preserve layer-specific status. |
 
+## Search: `/search`
+
+Mobile reference:
+- `Search - Mobile Terminal` (`53f5332a2ca848d4ac0651fe4b0a0945`)
+
+Desktop reference:
+- `Search - Desktop Centered Terminal` (`194aa22ed2c34b8cbb4411af812419f5`)
+
+| Tag | Component | API | Desktop behavior |
+| --- | --- | --- | --- |
+| `search.terminal-shell` | Centered Universal Search hero | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | Large centered terminal input, desktop top links, market-open badge, and dev toggle. |
+| `search.quick-access` | Quick Access / Recent cards | local recent selections, `/api/trading/symbols/search` | Four wide cards use actual recent selections or current search metadata; no sample TSLA/NVDA values are hardcoded. |
+| `search.desktop-results-table` | Desktop results table | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | Rows render symbol metadata from search. Only the selected row shows quote-backed price, change, and freshness; market cap and unsupported coverage are `[확인 필요]`. |
+| `search.selected-quote` | Sticky selected quote inspector | `/api/trading/quotes/{symbol}` | Shows live/fallback/unavailable mode, price, change, volume, turnover, source, freshness, and a metadata-preserving symbol detail link. |
+| `search.network-integrity` | Mobile integrity strip | client fetch states | Hidden on desktop; mobile uses endpoint error state to degrade the meter. |
+
 ## Implementation notes
 
 - Desktop layout is CSS-driven through `MobileAppChrome` and route CSS modules, so page data loading stays shared with mobile.
 - `/dashboard/symbol/[symbol]/technical-analysis` now loads `/symbols/{symbol}/price-bars` so the desktop candlestick Stitch screen is represented without faking intraday bars.
 - The chart uses `lightweight-charts` with horizontal touch drag and mouse drag enabled; focus cards update from crosshair/click events.
+- `/search` uses the same BFF endpoints as the prior route, but replaces the legacy workspace shell with Stitch terminal chrome on both mobile and desktop.
