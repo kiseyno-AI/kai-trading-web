@@ -8,6 +8,7 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import type {
   AgentContextActionSummaryDto,
   AgentContextDisclosureDto,
@@ -345,10 +346,6 @@ function buildFundamentalsHistoryQuery(symbol: string, marketDate: string, fsDiv
   return params.toString();
 }
 
-function shouldForwardSeedValue(value: string | null | undefined): value is string {
-  return Boolean(value && value !== "-");
-}
-
 function buildSymbolRouteQuery(
   meta: SymbolSearchItem | null,
   marketDate: string | null,
@@ -358,17 +355,20 @@ function buildSymbolRouteQuery(
   const name = meta?.name_ko;
   const market = meta?.market;
   const standardCode = meta?.standard_code;
+  const forwardableName = getForwardableSymbolMetaSeedValue(name);
+  const forwardableMarket = getForwardableSymbolMetaSeedValue(market);
+  const forwardableStandardCode = getForwardableSymbolMetaSeedValue(standardCode);
 
-  if (shouldForwardSeedValue(name)) {
-    params.set("name", name);
+  if (forwardableName) {
+    params.set("name", forwardableName);
   }
 
-  if (shouldForwardSeedValue(market)) {
-    params.set("market", market);
+  if (forwardableMarket) {
+    params.set("market", forwardableMarket);
   }
 
-  if (shouldForwardSeedValue(standardCode)) {
-    params.set("standardCode", standardCode);
+  if (forwardableStandardCode) {
+    params.set("standardCode", forwardableStandardCode);
   }
 
   if (marketDate) {

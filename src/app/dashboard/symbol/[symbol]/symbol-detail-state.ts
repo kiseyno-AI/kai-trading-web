@@ -1,3 +1,5 @@
+import { isPlaceholderSymbolMetaSeed } from "@/lib/symbol-meta";
+
 export type SymbolMetaSeed = {
   symbol: string;
   standard_code: string;
@@ -32,16 +34,12 @@ export function createSymbolMetaResetToken(symbol: string, initialMeta: SymbolMe
   return [symbol, initialMeta?.name_ko ?? "", initialMeta?.market ?? "", initialMeta?.standard_code ?? ""].join("|");
 }
 
-function hasPlaceholderSeed(value: string | null | undefined): boolean {
-  return !value || value === "-";
-}
-
 export function shouldFetchSymbolMeta(initialMeta: SymbolMetaSeed | null): boolean {
   if (initialMeta === null) {
     return true;
   }
 
-  return hasPlaceholderSeed(initialMeta.market) || hasPlaceholderSeed(initialMeta.standard_code);
+  return isPlaceholderSymbolMetaSeed(initialMeta.market) || isPlaceholderSymbolMetaSeed(initialMeta.standard_code);
 }
 
 export function getDisclosureSectionState(

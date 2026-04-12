@@ -19,4 +19,35 @@ test.describe("search terminal desktop", () => {
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
     await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
   });
+
+  test("omits placeholder metadata from symbol detail links", async ({ page }) => {
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+      await route.fulfill({
+        json: {
+          query: query ?? "",
+          count: query === "MISSING" ? 1 : 0,
+          items:
+            query === "MISSING"
+              ? [
+                  {
+                    symbol: "000000",
+                    standard_code: "",
+                    name_ko: "",
+                    market: "",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("MISSING");
+
+    const resultRow = page.getByRole("row", { name: /000000/i });
+    await expect(resultRow).toBeVisible();
+    await expect(resultRow.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/dashboard/symbol/000000");
+  });
 });

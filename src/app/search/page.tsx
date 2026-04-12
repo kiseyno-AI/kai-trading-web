@@ -7,6 +7,11 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import {
+  UNKNOWN_SYMBOL_META,
+  getForwardableSymbolMetaSeedValue,
+  normalizeSymbolMetaSeedValue,
+} from "@/lib/symbol-meta";
 
 import styles from "./search-page.module.css";
 
@@ -44,7 +49,7 @@ type QuoteResponse = {
 type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const SEARCH_RECENTS_STORAGE_KEY = "kai.search.recent-symbols";
-const UNKNOWN = "[확인 필요]";
+const UNKNOWN = UNKNOWN_SYMBOL_META;
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -64,9 +69,12 @@ function getInitials(item: SymbolSearchItem) {
 
 function buildSymbolHref(item: SymbolSearchItem) {
   const params = new URLSearchParams();
-  if (item.name_ko && item.name_ko !== "-") params.set("name", item.name_ko);
-  if (item.market && item.market !== "-") params.set("market", item.market);
-  if (item.standard_code && item.standard_code !== "-") params.set("standardCode", item.standard_code);
+  const name = getForwardableSymbolMetaSeedValue(item.name_ko);
+  const market = getForwardableSymbolMetaSeedValue(item.market);
+  const standardCode = getForwardableSymbolMetaSeedValue(item.standard_code);
+  if (name) params.set("name", name);
+  if (market) params.set("market", market);
+  if (standardCode) params.set("standardCode", standardCode);
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
@@ -97,9 +105,9 @@ function getQuoteMode(quote: QuoteResponse | null) {
 function normalizeSearchItem(item: SymbolSearchItem): SymbolSearchItem {
   return {
     symbol: item.symbol,
-    standard_code: item.standard_code || UNKNOWN,
-    name_ko: item.name_ko || UNKNOWN,
-    market: item.market || UNKNOWN,
+    standard_code: normalizeSymbolMetaSeedValue(item.standard_code),
+    name_ko: normalizeSymbolMetaSeedValue(item.name_ko),
+    market: normalizeSymbolMetaSeedValue(item.market),
   };
 }
 
