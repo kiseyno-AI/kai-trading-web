@@ -5,10 +5,12 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+    await expect(page.getByRole("navigation", { name: /Primary desktop/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Priority surveillance board/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Highest absolute movers/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /What the mobile board is saying/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Layer sync events/i })).toBeVisible();
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
     await expect(page.getByText(/Layer freshness stays separated/i)).toBeVisible();

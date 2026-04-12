@@ -490,7 +490,7 @@ function buildMarketStateTone(quote: QuoteResponse | null, marketStatus: MarketS
 export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProps) {
   const isOverviewMode = mode === "overview";
   const shouldLoadAggregateContext = mode !== "system-freshness";
-  const shouldLoadPriceHistory = isOverviewMode;
+  const shouldLoadPriceHistory = isOverviewMode || mode === "technical-analysis";
   const shouldLoadTechnicalSnapshot = isOverviewMode || mode === "technical-analysis";
   const shouldLoadActionSummary = isOverviewMode || mode === "action-summary";
   const shouldLoadFundamentalsHistory = isOverviewMode || mode === "fundamentals-history";
@@ -1068,6 +1068,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const activeDetailMode = SYMBOL_DETAIL_MODE_BY_ID[mode];
   const currentDetailHref = buildSymbolDetailHref(symbol, mode, routeQueryString);
   const showOverview = isOverviewMode;
+  const showChartSection = showOverview || mode === "technical-analysis";
   const showActionSection = showOverview || mode === "action-summary";
   const showTechnicalSection = showOverview || mode === "technical-analysis";
   const showFundamentalsSection = showOverview || mode === "fundamentals-history";
@@ -1099,7 +1100,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         </>
       }
     >
-      <div className={styles.detailPage}>
+      <div className={styles.detailPage} data-mode={mode}>
         <section className={`${styles.panel} ${styles.heroCard}`} id="summary">
           <ComponentTag
             label="symbol.hero"
@@ -1183,7 +1184,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <p className={styles.sectionEyebrow}>{activeDetailMode.eyebrow}</p>
             <h2 className={styles.cardTitle}>{activeDetailMode.title}</h2>
             <p className={`clamp-3 ${styles.supportingCopy}`}>
-              Each mobile detail page keeps the same data contract as the overview cards. Missing upstream fields stay marked as [확인 필요].
+              Each detail page keeps the same data contract as the overview cards. Missing upstream fields stay marked as [확인 필요].
             </p>
           </div>
           <nav className={styles.detailTabs} aria-label="Symbol detail pages">
@@ -1199,7 +1200,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
           </nav>
         </section>
 
-        {showOverview ? (
+        {showChartSection ? (
         <section className={`${styles.panel} ${styles.chartCard}`} id="chart">
           <ComponentTag
             label="symbol.chart"
@@ -1208,8 +1209,12 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
 
           <div className={styles.cardHeader}>
             <div>
-              <p className={styles.sectionEyebrow}>Historical Performance</p>
-              <h2 className={styles.cardTitle}>Swipe-aware candlestick chart</h2>
+              <p className={styles.sectionEyebrow}>
+                {mode === "technical-analysis" ? "Momentum Intelligence Score" : "Historical Performance"}
+              </p>
+              <h2 className={styles.cardTitle}>
+                {mode === "technical-analysis" ? "Candlestick view" : "Swipe-aware candlestick chart"}
+              </h2>
             </div>
 
             <div className={styles.rangeRow}>
@@ -1284,7 +1289,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
                 : `${selectedRange} return [확인 필요]`}
             </span>
             <span>{marketDate ? `Requested market date ${formatIsoDateLabel(marketDate)}` : "Market date pending"}</span>
-            <span>Swipe the chart to move date focus on mobile.</span>
+            <span>Swipe or drag the chart to move date focus.</span>
           </div>
         </section>
         ) : null}

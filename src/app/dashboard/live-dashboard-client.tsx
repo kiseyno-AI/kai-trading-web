@@ -267,7 +267,7 @@ export function LiveDashboardClient({
 
   const statusTone = getFreshnessTone(freshness?.today?.eod_status);
   const statusLabel = humanizeStatus(freshness?.today?.eod_status);
-  const portfolioHeadline = totalTurnover > 0 ? `₩${formatTurnover(totalTurnover)}` : "[확인 필요]";
+  const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
 
   return (
@@ -290,7 +290,7 @@ export function LiveDashboardClient({
         </>
       }
     >
-      <div className={styles.stack}>
+      <div className={`${styles.stack} ${styles.dashboardWideShell}`}>
         {coreUnavailable ? (
           <section className={`${styles.panel} ${styles.alertPanel}`}>
             <ComponentTag label="dashboard.core-unavailable" api="/api/trading/market/status + /api/trading/quotes/tracked" />
@@ -397,10 +397,26 @@ export function LiveDashboardClient({
           </div>
         </section>
 
+        <section className={`${styles.panel} ${styles.supportPanel} ${styles.desktopAuditPanel}`}>
+          <ComponentTag label="dashboard.audit-feed" api="/api/trading/eod/freshness + /api/trading/quotes/tracked" />
+          <p className={styles.sectionEyebrow}>Real-Time Audit Feed</p>
+          <h2 className={styles.sectionTitle}>Layer sync events</h2>
+          <div className={styles.auditList}>
+            {moduleRows.slice(0, 3).map((row) => (
+              <article key={row.id} className={styles.auditItem}>
+                <span>{row.meta}</span>
+                <p className="clamp-3">
+                  {row.label} status is {row.status}. {row.coverage}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className={styles.sectionHeaderRow} id="tracked-symbols">
           <div>
             <p className={styles.sectionEyebrow}>Tracked Symbols</p>
-            <h2 className={styles.sectionTitle}>Priority surveillance board</h2>
+            <h2 className={styles.sectionTitle}>Today&apos;s ledger recommendations</h2>
           </div>
           <Link href="/search" className={styles.sectionLink}>
             Manage Feed
@@ -457,7 +473,7 @@ export function LiveDashboardClient({
         <section className={styles.supportGrid}>
           <section className={`${styles.panel} ${styles.supportPanel}`}>
             <ComponentTag label="dashboard.momentum-board" api="/api/trading/quotes/tracked" />
-            <p className={styles.sectionEyebrow}>Bullish Momentum</p>
+            <p className={styles.sectionEyebrow}>Global Sentiment Distribution</p>
             <h2 className={styles.sectionTitle}>Highest absolute movers</h2>
             <div className={styles.supportList}>
               {movers.length > 0 ? (
@@ -479,7 +495,7 @@ export function LiveDashboardClient({
           <section className={`${styles.panel} ${styles.supportPanel}`}>
             <ComponentTag label="dashboard.coverage-note" api="/api/trading/eod/freshness + /api/trading/quotes/tracked" />
             <p className={styles.sectionEyebrow}>Coverage Notes</p>
-            <h2 className={styles.sectionTitle}>What the mobile board is saying</h2>
+            <h2 className={styles.sectionTitle}>Ledger coverage notes</h2>
             <div className={styles.noteStack}>
               <article className={styles.noteCard}>
                 <strong>{unavailableCount > 0 ? `${unavailableCount} symbol(s) need attention` : "Fallback pressure is contained"}</strong>

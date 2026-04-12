@@ -337,6 +337,13 @@
   background: rgba(5, 20, 37, 0.72);
 }
 
+.candlestickChart {
+  width: 100%;
+  min-height: 15rem;
+  height: 100%;
+  animation: chartReveal 560ms ease both;
+}
+
 .emptyPanel {
   display: flex;
   flex-direction: column;
@@ -540,9 +547,298 @@
   color: #ffb3b6;
 }
 
+@keyframes chartReveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.8rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (min-width: 768px) {
   .insightGrid,
   .evidenceGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .detailPage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(21rem, 0.72fr);
+    align-items: start;
+    gap: 1.2rem;
+  }
+
+  .panel {
+    border-radius: 0.18rem;
+    background: rgba(18, 32, 50, 0.84);
+    box-shadow: 0 30px 64px rgba(1, 15, 32, 0.26);
+  }
+
+  .heroCard,
+  .alertCard,
+  .detailNavigator,
+  .freshnessCard {
+    grid-column: 1 / -1;
+  }
+
+  .heroCard,
+  .alertCard,
+  .chartCard,
+  .insightCard,
+  .evidenceCard,
+  .freshnessCard {
+    padding: 1.55rem;
+  }
+
+  .heroCard {
+    min-height: 18rem;
+    background:
+      linear-gradient(90deg, rgba(18, 32, 50, 0.96), rgba(18, 32, 50, 0.72)),
+      radial-gradient(circle at 92% 12%, rgba(186, 195, 255, 0.14), transparent 20rem);
+  }
+
+  .heroTopRow {
+    align-items: center;
+  }
+
+  .sectionEyebrow {
+    letter-spacing: 0.28em;
+  }
+
+  .heroTitleRow {
+    display: flex;
+    align-items: baseline;
+    gap: 1.1rem;
+    flex-wrap: wrap;
+  }
+
+  .heroTitleRow h1 {
+    font-size: clamp(3.3rem, 6vw, 5.4rem);
+  }
+
+  .heroCompany {
+    font-size: clamp(1.2rem, 1.6vw, 1.8rem);
+  }
+
+  .heroQuoteBlock {
+    margin-top: 1.5rem;
+  }
+
+  .heroQuoteBlock strong {
+    font-size: clamp(3.2rem, 5vw, 5.2rem);
+  }
+
+  .heroMetrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-top: 1.4rem;
+  }
+
+  .heroMetricCard,
+  .metricCard,
+  .focusCard,
+  .historyCard,
+  .disclosureCard,
+  .moduleRow,
+  .coverageNote,
+  .companyStrip,
+  .emptyPanel {
+    border-radius: 0.16rem;
+    background: rgba(12, 26, 42, 0.78);
+  }
+
+  .detailNavigator {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    border-radius: 0.18rem;
+    padding: 1.15rem 1.4rem;
+  }
+
+  .detailNavigator > div {
+    max-width: 42rem;
+  }
+
+  .detailTabs {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .detailTab,
+  .detailLink,
+  .rangeButton {
+    border-radius: 0.12rem;
+  }
+
+  .detailTab {
+    padding-inline: 0.85rem;
+  }
+
+  .detailPage[data-mode="overview"] .chartCard,
+  .detailPage[data-mode="technical-analysis"] .chartCard {
+    grid-column: 1;
+  }
+
+  .detailPage[data-mode="overview"] .insightGrid,
+  .detailPage[data-mode="technical-analysis"] .insightGrid {
+    grid-column: 2;
+    grid-template-columns: 1fr;
+  }
+
+  .detailPage[data-mode="overview"] .evidenceGrid {
+    grid-column: 2;
+    grid-template-columns: 1fr;
+  }
+
+  .detailPage[data-mode="overview"] .freshnessCard {
+    grid-column: 1 / -1;
+  }
+
+  .detailPage[data-mode="action-summary"] .insightGrid,
+  .detailPage[data-mode="fundamentals-history"] .evidenceGrid,
+  .detailPage[data-mode="disclosure-coverage"] .evidenceGrid,
+  .detailPage[data-mode="system-freshness"] .freshnessCard {
+    grid-column: 1 / -1;
+  }
+
+  .detailPage[data-mode="action-summary"] .insightGrid,
+  .detailPage[data-mode="fundamentals-history"] .evidenceGrid,
+  .detailPage[data-mode="disclosure-coverage"] .evidenceGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chartCard {
+    min-height: 42rem;
+  }
+
+  .chartFrame {
+    min-height: 29rem;
+    border-radius: 0.14rem;
+  }
+
+  .candlestickChart {
+    min-height: 28rem;
+  }
+
+  .detailPage[data-mode="technical-analysis"] .chartCard {
+    min-height: 48rem;
+  }
+
+  .detailPage[data-mode="technical-analysis"] .chartFrame,
+  .detailPage[data-mode="technical-analysis"] .candlestickChart {
+    min-height: 35rem;
+  }
+
+  .focusGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .detailPage[data-mode="technical-analysis"] .metricGrid,
+  .detailPage[data-mode="system-freshness"] .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .insightGrid,
+  .evidenceGrid {
+    gap: 1.2rem;
+  }
+
+  .insightCard,
+  .evidenceCard,
+  .freshnessCard {
+    min-height: 22rem;
+  }
+
+  .signalTrack {
+    border-radius: 0.14rem;
+    min-height: 3.1rem;
+  }
+
+  .signalSell,
+  .signalStrong {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+  }
+
+  .insightHeadline,
+  .coverageNote strong,
+  .historyHeader strong,
+  .disclosureHeader strong {
+    display: block;
+    margin-top: 1rem;
+    font-size: clamp(1.2rem, 1.6vw, 1.8rem);
+  }
+
+  .tagChip {
+    border-radius: 0.12rem;
+    letter-spacing: 0.08em;
+  }
+
+  .companyStrip {
+    padding: 1.2rem;
+  }
+
+  .companyAvatar {
+    border-radius: 0.12rem;
+  }
+
+  .detailPage[data-mode="fundamentals-history"] .historyList {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 0.85rem;
+  }
+
+  .detailPage[data-mode="fundamentals-history"] .historyCard {
+    min-height: 12rem;
+  }
+
+  .detailPage[data-mode="disclosure-coverage"] .disclosureList {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    gap: 0.85rem;
+  }
+
+  .moduleRows {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.85rem;
+  }
+
+  .moduleRow {
+    flex-direction: column;
+    min-height: 11rem;
+  }
+
+  .moduleAside {
+    align-items: flex-start;
+    min-width: 0;
+  }
+}
+
+@media (min-width: 1500px) {
+  .detailPage {
+    grid-template-columns: minmax(0, 1.7fr) 34rem;
+    gap: 1.6rem;
+  }
+
+  .heroCard,
+  .alertCard,
+  .chartCard,
+  .insightCard,
+  .evidenceCard,
+  .freshnessCard {
+    padding: 1.9rem;
   }
 }

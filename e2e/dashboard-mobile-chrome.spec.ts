@@ -10,12 +10,11 @@ test.describe("dashboard mobile chrome", () => {
     const bottomNav = page.getByRole("navigation", { name: /Primary/i });
     await expect(topbar).toBeVisible();
 
-    const [topbarBox, topbarPosition] = await Promise.all([
-      topbar.boundingBox(),
-      topbar.evaluate((element) => window.getComputedStyle(element).position),
-    ]);
+    await expect
+      .poll(() => topbar.evaluate((element) => window.getComputedStyle(element).position))
+      .toBe("fixed");
 
-    expect(topbarPosition).toBe("fixed");
+    const topbarBox = await topbar.boundingBox();
     expect(topbarBox).not.toBeNull();
     expect(topbarBox!.height).toBeLessThan(112);
     expect(topbarBox!.x).toBeGreaterThanOrEqual(0);
