@@ -46,4 +46,15 @@ test.describe("symbol detail mobile pages", () => {
       await expect(page.getByRole("link", { name: /Freshness/i })).toBeVisible();
     }
   });
+
+  test("disclosure detail requests the same row cap it can render", async ({ page }) => {
+    const aggregateRequest = page.waitForRequest((request) => {
+      const url = request.url();
+      return url.includes("/api/trading/agent-context/symbol-day") && url.includes("disclosures_limit=8");
+    });
+
+    await page.goto(`/dashboard/symbol/005930/disclosure-coverage?${symbolSeed}`);
+    await expect(page.getByText(/Disclosure & Coverage Detail/i)).toBeVisible();
+    await aggregateRequest;
+  });
 });

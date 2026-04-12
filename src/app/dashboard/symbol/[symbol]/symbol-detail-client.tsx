@@ -537,6 +537,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     if (!loading) return defaultMarketDate;
     return null;
   }, [defaultMarketDate, loading, quote?.trade_date, requestedMarketDate]);
+  const fundamentalsEntryLimit = mode === "fundamentals-history" ? 8 : 4;
+  const disclosureItemLimit = mode === "disclosure-coverage" ? 8 : 4;
 
   useEffect(() => {
     setMeta(initialMeta);
@@ -712,7 +714,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       const aggregateParams = new URLSearchParams();
       aggregateParams.set("market_date", marketDate);
       aggregateParams.append("symbols", symbol);
-      aggregateParams.set("disclosures_limit", "5");
+      aggregateParams.set("disclosures_limit", String(disclosureItemLimit));
       if (fsDiv) {
         aggregateParams.set("fs_div", fsDiv);
       }
@@ -741,7 +743,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [fsDiv, marketDate, shouldLoadAggregateContext, symbol]);
+  }, [disclosureItemLimit, fsDiv, marketDate, shouldLoadAggregateContext, symbol]);
 
   useEffect(() => {
     let active = true;
@@ -1071,8 +1073,6 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const showFundamentalsSection = showOverview || mode === "fundamentals-history";
   const showDisclosureSection = showOverview || mode === "disclosure-coverage";
   const showFreshnessSection = showOverview || mode === "system-freshness";
-  const fundamentalsEntryLimit = mode === "fundamentals-history" ? 8 : 4;
-  const disclosureItemLimit = mode === "disclosure-coverage" ? 8 : 4;
 
   return (
     <MobileAppChrome
