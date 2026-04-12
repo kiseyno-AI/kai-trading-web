@@ -10,15 +10,40 @@ type ComponentTagProps = {
   placement?: "inline" | "corner";
 };
 
+const TAG_IDS: Record<string, string> = {
+  "dashboard.core-unavailable": "D1",
+  "dashboard.operational-integrity": "D2",
+  "dashboard.watch-snapshot": "D3",
+  "dashboard.momentum-board": "D4",
+  "dashboard.coverage-note": "D5",
+  "symbol.hero": "S1",
+  "symbol.errors": "S2",
+  "symbol.chart": "S3",
+  "symbol.action-summary": "S4",
+  "symbol.technical-analysis": "S5",
+  "symbol.fundamentals-history": "S6",
+  "symbol.disclosures": "S7",
+  "symbol.system-freshness": "S8",
+};
+
+function resolveTagId(label: string) {
+  if (label.startsWith("dashboard.symbol-card.")) {
+    return "D3";
+  }
+
+  return TAG_IDS[label] ?? label;
+}
+
 export function ComponentTag({ label, api, placement = "corner" }: ComponentTagProps) {
   const { devMode } = useAppState();
   const [copied, setCopied] = useState(false);
+  const tagId = resolveTagId(label);
 
   if (!devMode) {
     return null;
   }
 
-  const copyText = api ? `${label}\n${api}` : label;
+  const copyText = api ? `${tagId}\n${label}\n${api}` : `${tagId}\n${label}`;
 
   const handleCopy = async () => {
     try {
@@ -49,7 +74,7 @@ export function ComponentTag({ label, api, placement = "corner" }: ComponentTagP
       tabIndex={0}
       title="Copy component tag"
     >
-      <strong>{copied ? "Copied" : label}</strong>
+      <strong>{copied ? "Copied" : tagId}</strong>
       {api ? <span>{api}</span> : null}
     </div>
   );
