@@ -20,7 +20,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
   });
 
-  test("D2 EOD status uses core freshness update flag and latest EOD date", async ({ page }) => {
+  test("D2 EOD status uses core freshness update flag and symbol counts", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -28,8 +28,8 @@ test.describe("dashboard desktop", () => {
           today: {
             trade_date: "2026-04-13",
             eod_status: "missing",
-            symbols_total: null,
-            symbols_succeeded: null,
+            symbols_total: 250,
+            symbols_succeeded: 237,
             symbols_failed: null,
             received: false,
           },
@@ -48,6 +48,8 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Not received")).toBeVisible();
     await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
-    await expect(eodStatusCard.getByText("Market date 2026-04-13")).toBeVisible();
+    await expect(eodStatusCard.getByText("Success count 237")).toBeVisible();
+    await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
+    await expect(eodStatusCard.getByText(/Market date/i)).toHaveCount(0);
   });
 });
