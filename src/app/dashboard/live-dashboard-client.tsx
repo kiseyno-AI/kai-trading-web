@@ -291,7 +291,7 @@ export function LiveDashboardClient({
           </div>
 
           <div className={styles.appHeaderActions}>
-            <span className={`pill ${market.is_open ? "positive" : "info"}`}>{marketBadgeLabel}</span>
+            <span className={`pill ${styles.marketStatusPill} ${market.is_open ? "positive" : "info"}`}>{marketBadgeLabel}</span>
             <DevModeToggle />
           </div>
         </>
