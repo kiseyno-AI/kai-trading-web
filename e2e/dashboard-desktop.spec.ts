@@ -19,4 +19,34 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Top movers/i)).toHaveCount(0);
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
   });
+
+  test("D2 EOD card uses core freshness update status and date", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        json: {
+          today: {
+            trade_date: "2026-04-10",
+            eod_status: "completed",
+            symbols_total: 950,
+            symbols_succeeded: 950,
+            symbols_failed: 0,
+            received: true,
+          },
+          latest: {
+            price_trade_date: "2026-04-10",
+            technical_market_date: "2026-04-09",
+            action_market_date: "2026-04-09",
+          },
+        },
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const freshnessCard = page.locator("#dashboard-freshness");
+    await expect(freshnessCard.getByText(/EOD Update/i)).toBeVisible();
+    await expect(freshnessCard.getByText(/Recently updated/i).first()).toBeVisible();
+    await expect(freshnessCard.getByText(/Latest EOD date 2026-04-10/i)).toBeVisible();
+    await expect(freshnessCard.getByText(/Run status Completed/i)).toBeVisible();
+  });
 });
