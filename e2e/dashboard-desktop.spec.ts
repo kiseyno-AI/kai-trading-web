@@ -19,4 +19,35 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Top movers/i)).toHaveCount(0);
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
   });
+
+  test("D2 EOD status uses core freshness update flag and latest EOD date", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-13",
+            eod_status: "missing",
+            symbols_total: null,
+            symbols_succeeded: null,
+            symbols_failed: null,
+            received: false,
+          },
+          latest: {
+            price_trade_date: "2026-04-10",
+            technical_market_date: "2026-04-10",
+            action_market_date: "2026-04-10",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard).toBeVisible();
+    await expect(eodStatusCard.getByText("Not received")).toBeVisible();
+    await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
+    await expect(eodStatusCard.getByText("2026-04-13")).toHaveCount(0);
+  });
 });
