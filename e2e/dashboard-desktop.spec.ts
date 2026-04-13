@@ -46,11 +46,10 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Not received")).toBeVisible();
+    await expect(eodStatusCard.getByText("Market date 2026-04-13 · Not received")).toBeVisible();
     await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
     await expect(eodStatusCard.getByText("Success count 237")).toBeVisible();
     await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
-    await expect(eodStatusCard.getByText(/Market date/i)).toHaveCount(0);
   });
 
   test("D2 EOD status uses freshness values when received flag is absent", async ({ page }) => {
@@ -79,7 +78,7 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Freshness available")).toBeVisible();
+    await expect(eodStatusCard.getByText("Market date 2026-04-13 · Freshness available")).toBeVisible();
     await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
     await expect(eodStatusCard.getByText("Success count 237")).toBeVisible();
     await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
@@ -113,7 +112,7 @@ test.describe("dashboard desktop", () => {
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
-    await expect(eodStatusCard.locator("strong").filter({ hasText: "[확인 필요]" })).toBeVisible();
+    await expect(eodStatusCard.getByText("Market date 2026-04-13 · [확인 필요]")).toBeVisible();
     await expect(eodStatusCard).toContainText("Latest EOD date [확인 필요]");
     await expect(eodStatusCard).toContainText("Success count [확인 필요]");
     await expect(eodStatusCard).toContainText("Total count [확인 필요]");
