@@ -45,6 +45,11 @@
   gap: 0.45rem;
 }
 
+.marketStatusPill {
+  text-align: center;
+  line-height: 1.15;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
