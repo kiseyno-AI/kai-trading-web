@@ -9,13 +9,15 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /scanner/tracked-symbols`
   - `GET /symbols/search`
   - `GET /eod/freshness`
+    - web currently treats `latest.technical_market_date` as the stable technical freshness fallback
+    - optional layer objects such as `technical.success` and `technical.latest_date` may be consumed when present
 - `/dashboard/symbol/[symbol]` now mixes:
   - `GET /quotes/{symbol}` for the live price, volume, turnover, and quote provenance
   - `GET /market/status` only as the polling stop gate for the symbol quote loop
   - `GET /symbols/{symbol}/price-bars` for the mobile candlestick chart
   - `GET /eod/technical-snapshots` for the dedicated technical-analysis section
   - `GET /eod/action-summaries` for the dedicated action-summary section
-  - `GET /eod/freshness` for layer-specific freshness labels
+  - `GET /eod/freshness` for layer-specific freshness labels, with `latest.technical_market_date` as the stable technical freshness field and optional layer status fields like `technical.success` and `technical.latest_date` consumed when present
   - `GET /disclosures/dart/fundamentals/history` for stored DART fundamentals history
   - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures
 - The symbol detail card stack also powers dedicated mobile Stitch detail routes:
