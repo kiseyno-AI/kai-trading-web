@@ -52,4 +52,70 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
     await expect(eodStatusCard.getByText(/Market date/i)).toHaveCount(0);
   });
+
+  test("D2 EOD status uses freshness values when received flag is absent", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-13",
+            eod_status: null,
+            symbols_total: 250,
+            symbols_succeeded: 237,
+            symbols_failed: null,
+            received: null,
+          },
+          latest: {
+            price_trade_date: "2026-04-10",
+            technical_market_date: "2026-04-10",
+            action_market_date: "2026-04-10",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard).toBeVisible();
+    await expect(eodStatusCard.getByText("Freshness available")).toBeVisible();
+    await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
+    await expect(eodStatusCard.getByText("Success count 237")).toBeVisible();
+    await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
+    await expect(eodStatusCard.getByText("[확인 필요]")).toHaveCount(0);
+  });
+
+  test("D2 EOD status does not mark a market-date-only stub as available", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-13",
+            eod_status: null,
+            symbols_total: null,
+            symbols_succeeded: null,
+            symbols_failed: null,
+            received: null,
+          },
+          latest: {
+            price_trade_date: null,
+            technical_market_date: null,
+            action_market_date: null,
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard).toBeVisible();
+    await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
+    await expect(eodStatusCard.locator("strong").filter({ hasText: "[확인 필요]" })).toBeVisible();
+    await expect(eodStatusCard).toContainText("Latest EOD date [확인 필요]");
+    await expect(eodStatusCard).toContainText("Success count [확인 필요]");
+    await expect(eodStatusCard).toContainText("Total count [확인 필요]");
+  });
 });
