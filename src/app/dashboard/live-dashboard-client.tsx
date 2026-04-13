@@ -242,10 +242,16 @@ export function LiveDashboardClient({
     {
       id: "technical",
       label: "Technical Analysis",
-      status: freshness?.technical?.success ? "Synced" : "[확인 필요]",
+      status:
+        freshness?.technical?.success || freshness?.technical?.latest_date || freshness?.latest?.technical_market_date
+          ? "Synced"
+          : "[확인 필요]",
       meta: freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]",
       coverage: "EOD-derived snapshot date",
-      tone: freshness?.technical?.success ? "info" : "warning",
+      tone:
+        freshness?.technical?.success || freshness?.technical?.latest_date || freshness?.latest?.technical_market_date
+          ? "info"
+          : "warning",
     },
     {
       id: "action",
