@@ -36,7 +36,7 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 
 | Tag | Component | API | Rendered fields |
 | --- | --- | --- | --- |
-| `dashboard.operational-integrity` | Portfolio / asset status zone | `/api/trading/eod/freshness`, `/api/trading/market/status` | `today.received`, `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, `market.state`, `server_time` |
+| `dashboard.operational-integrity` | Portfolio / asset status zone | `/api/trading/eod/freshness`, `/api/trading/market/status` | `today.received`, `today.trade_date`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, `market.state`, `server_time` |
 | `dashboard.watch-snapshot` | Desktop right rail snapshot | `/api/trading/quotes/tracked`, `/api/trading/scanner/tracked-symbols`, `/api/trading/eod/freshness` | tracked count, live/fallback/unavailable counts, breadth, lead symbol, layer freshness |
 | `dashboard.audit-feed` | Desktop audit feed | `/api/trading/eod/freshness`, `/api/trading/quotes/tracked` | module freshness rows derived from price, technical, and action layers |
 | `dashboard.symbol-card.{symbol}` | Ledger recommendation row | `/api/trading/quotes/tracked`, `/api/trading/eod/freshness` | `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `available`, `is_live`, `source`, `trade_date`, technical freshness |
