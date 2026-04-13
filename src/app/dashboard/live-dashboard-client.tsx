@@ -270,6 +270,7 @@ export function LiveDashboardClient({
       tone: "neutral",
     },
   ] as const;
+  const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");
 
   const statusTone = getFreshnessTone(freshness?.today?.eod_status);
   const statusLabel = humanizeStatus(freshness?.today?.eod_status);
@@ -338,7 +339,7 @@ export function LiveDashboardClient({
           </div>
 
           <div className={styles.moduleList}>
-            {moduleRows.map((row) => (
+            {integrityModuleRows.map((row) => (
               <article key={row.id} className={styles.moduleRow}>
                 <div>
                   <strong>{row.label}</strong>
