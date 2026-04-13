@@ -23,7 +23,7 @@ Client polling:
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> navigation only, no additional backend dependency
-- Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
+- Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.received`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`; the D2 EOD Status stat displays the received flag and latest price EOD date rather than the current server trade date.
 - Tracked snapshot card: `/quotes/tracked.items[]` + `/scanner/tracked-symbols` + `/eod/freshness` -> tracked counts, aggregate turnover, live/fallback/unavailable counts, lead feed mode, layer freshness
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
 - Tracked symbol list: `/scanner/tracked-symbols` -> `tracked_symbols`, `count`, `last_updated_at`

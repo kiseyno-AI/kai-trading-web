@@ -127,6 +127,16 @@ function getFreshnessTone(status: string | null | undefined) {
   return "neutral";
 }
 
+function getEodUpdateLabel(freshness: EodFreshnessResponseDto | null) {
+  if (freshness?.today?.received === true) return "Received";
+  if (freshness?.today?.received === false) return "Not received";
+  return "[확인 필요]";
+}
+
+function getEodLatestUpdateDate(freshness: EodFreshnessResponseDto | null) {
+  return freshness?.latest?.price_trade_date ?? "[확인 필요]";
+}
+
 function humanizeStatus(status: string | null | undefined) {
   if (!status) return "[확인 필요]";
   return status
@@ -275,6 +285,8 @@ export function LiveDashboardClient({
   const hasFreshnessStatus = Boolean(freshness?.today?.eod_status);
   const statusTone = getFreshnessTone(freshness?.today?.eod_status);
   const statusLabel = humanizeStatus(freshness?.today?.eod_status);
+  const eodUpdateLabel = getEodUpdateLabel(freshness);
+  const eodLatestUpdateDate = getEodLatestUpdateDate(freshness);
   const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
 
@@ -323,8 +335,8 @@ export function LiveDashboardClient({
           <div className={styles.integrityGrid}>
             <article className={styles.integrityStat}>
               <span>EOD Status</span>
-              <strong>{statusLabel}</strong>
-              <p className="clamp-3">{freshness?.today?.trade_date ?? "[확인 필요]"}</p>
+              <strong>{eodUpdateLabel}</strong>
+              <p className="clamp-3">Latest EOD date {eodLatestUpdateDate}</p>
             </article>
             <article className={styles.integrityStat}>
               <span>Market State</span>
