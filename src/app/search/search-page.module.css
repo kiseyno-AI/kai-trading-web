@@ -654,17 +654,17 @@
 }
 
 @media (min-width: 1024px) {
-  .mobileHeaderMark {
-    display: none;
-  }
-
-  .headerTitleBlock {
+  .appHeaderBrand {
     flex: 0 0 auto;
-    display: grid;
-    gap: 0.18rem;
   }
 
-  .headerTitleBlock span {
+  .brandMark {
+    width: 2.8rem;
+    height: 2.8rem;
+    font-size: 1rem;
+  }
+
+  .brandEyebrow {
     display: block;
     color: rgba(213, 227, 252, 0.42);
     font-size: 0.65rem;
@@ -673,13 +673,13 @@
     text-transform: uppercase;
   }
 
-  .headerTitleBlock strong {
+  .brandTitle {
     font-size: 1.05rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
-  .headerActions {
+  .appHeaderActions {
     flex: 1;
     justify-content: flex-end;
   }
@@ -699,11 +699,6 @@
 
   .desktopHeaderLinks span:not(:first-child) {
     color: rgba(213, 227, 252, 0.62);
-  }
-
-  .marketBadge {
-    display: inline-flex;
-    padding-inline: 0.8rem;
   }
 
   .searchTerminal {
