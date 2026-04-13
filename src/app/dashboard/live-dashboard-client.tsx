@@ -374,18 +374,22 @@ export function LiveDashboardClient({
           </div>
 
           <div className={styles.moduleList}>
-            {integrityModuleRows.map((row) => (
-              <article key={row.id} className={styles.moduleRow}>
-                <div>
-                  <strong>{row.label}</strong>
-                  <p className="clamp-3">{row.coverage}</p>
-                </div>
-                <div className={styles.moduleAside}>
-                  <span>{row.meta}</span>
-                  <span className={`pill ${row.tone}`}>{row.status}</span>
-                </div>
-              </article>
-            ))}
+            {integrityModuleRows.map((row) => {
+              const emphasizeSynced = row.status === "Synced" && (row.id === "technical" || row.id === "action");
+
+              return (
+                <article key={row.id} className={styles.moduleRow}>
+                  <div>
+                    <strong>{row.label}</strong>
+                    <p className="clamp-3">{row.coverage}</p>
+                  </div>
+                  <div className={styles.moduleAside}>
+                    <span>{row.meta}</span>
+                    <span className={`pill ${row.tone} ${emphasizeSynced ? styles.syncedStatusPill : ""}`}>{row.status}</span>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
 
