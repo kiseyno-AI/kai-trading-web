@@ -47,9 +47,9 @@ test.describe("dashboard desktop", () => {
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Not received")).toBeVisible();
+    await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
     await expect(eodStatusCard.getByText("Success count 237")).toBeVisible();
     await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
-    await expect(eodStatusCard.getByText(/Latest EOD date/i)).toHaveCount(0);
     await expect(eodStatusCard.getByText(/Market date/i)).toHaveCount(0);
   });
 });

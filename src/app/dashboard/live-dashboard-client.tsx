@@ -276,6 +276,7 @@ export function LiveDashboardClient({
   const hasEodReceivedStatus = freshness?.today?.received !== null && freshness?.today?.received !== undefined;
   const eodReceivedTone = getEodReceivedTone(freshness?.today?.received);
   const eodReceivedLabel = getEodReceivedLabel(freshness?.today?.received);
+  const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? "[확인 필요]";
   const eodSuccessCount = formatEodSymbolCount(freshness?.today?.symbols_succeeded);
   const eodTotalCount = formatEodSymbolCount(freshness?.today?.symbols_total);
   const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
@@ -328,6 +329,8 @@ export function LiveDashboardClient({
               <span>EOD Status</span>
               <strong>{eodReceivedLabel}</strong>
               <p className="clamp-3">
+                Latest EOD date {eodLatestPriceDate}
+                <br />
                 Success count {eodSuccessCount}
                 <br />
                 Total count {eodTotalCount}
