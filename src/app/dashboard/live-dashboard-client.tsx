@@ -11,6 +11,8 @@ import type { EodFreshnessResponseDto } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
 
+const UNKNOWN_LABEL = "[확인 필요]";
+
 export type CoreMarketStatus = {
   state: string;
   is_open: boolean;
@@ -125,14 +127,44 @@ function getEodReceivedTone(received: boolean | null | undefined) {
   return "neutral";
 }
 
-function getEodReceivedLabel(received: boolean | null | undefined) {
+function hasTextValue(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasUsableEodFreshness(freshness: EodFreshnessResponseDto | null) {
+  return (
+    hasTextValue(freshness?.today?.trade_date) ||
+    hasTextValue(freshness?.today?.eod_status) ||
+    hasTextValue(freshness?.latest?.price_trade_date) ||
+    hasNumber(freshness?.today?.symbols_succeeded) ||
+    hasNumber(freshness?.today?.symbols_total)
+  );
+}
+
+function getEodFreshnessTone(freshness: EodFreshnessResponseDto | null) {
+  if (freshness?.today?.received !== null && freshness?.today?.received !== undefined) {
+    return getEodReceivedTone(freshness.today.received);
+  }
+  return hasUsableEodFreshness(freshness) ? "info" : "neutral";
+}
+
+function getEodStatusLabel(freshness: EodFreshnessResponseDto | null) {
+  const received = freshness?.today?.received;
+  const eodStatus = freshness?.today?.eod_status;
   if (received === true) return "Received";
   if (received === false) return "Not received";
-  return "[확인 필요]";
+
+  if (hasTextValue(eodStatus)) {
+    return eodStatus;
+  }
+  if (hasUsableEodFreshness(freshness)) {
+    return "Freshness available";
+  }
+  return UNKNOWN_LABEL;
 }
 
 function formatEodSymbolCount(value: number | null | undefined) {
-  if (!hasNumber(value)) return "[확인 필요]";
+  if (!hasNumber(value)) return UNKNOWN_LABEL;
   return value.toLocaleString("ko-KR");
 }
 
@@ -273,10 +305,10 @@ export function LiveDashboardClient({
   ] as const;
   const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");
 
-  const hasEodReceivedStatus = freshness?.today?.received !== null && freshness?.today?.received !== undefined;
-  const eodReceivedTone = getEodReceivedTone(freshness?.today?.received);
-  const eodReceivedLabel = getEodReceivedLabel(freshness?.today?.received);
-  const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? "[확인 필요]";
+  const eodStatusTone = getEodFreshnessTone(freshness);
+  const eodStatusLabel = getEodStatusLabel(freshness);
+  const hasEodStatusLabel = eodStatusLabel !== UNKNOWN_LABEL;
+  const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? UNKNOWN_LABEL;
   const eodSuccessCount = formatEodSymbolCount(freshness?.today?.symbols_succeeded);
   const eodTotalCount = formatEodSymbolCount(freshness?.today?.symbols_total);
   const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
@@ -321,14 +353,14 @@ export function LiveDashboardClient({
               <p className={styles.sectionEyebrow}>Market Freshness Registry</p>
               <h1 className={styles.heroTitle}>Operational Integrity</h1>
             </div>
-            {hasEodReceivedStatus ? <span className={`pill ${eodReceivedTone}`}>{eodReceivedLabel}</span> : null}
+            {hasEodStatusLabel ? <span className={`pill ${eodStatusTone}`}>{eodStatusLabel}</span> : null}
           </div>
 
           <div className={styles.integrityGrid}>
             <article className={styles.integrityStat}>
               <span>EOD Status</span>
-              <strong>{eodReceivedLabel}</strong>
-              <p className="clamp-3">
+              <strong>{eodStatusLabel}</strong>
+              <p className={styles.eodStatusDetails}>
                 Latest EOD date {eodLatestPriceDate}
                 <br />
                 Success count {eodSuccessCount}
