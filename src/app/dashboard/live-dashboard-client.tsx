@@ -131,10 +131,8 @@ function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function hasUsableEodFreshness(freshness: EodFreshnessResponseDto | null) {
+function hasEodReadinessSignal(freshness: EodFreshnessResponseDto | null) {
   return (
-    hasTextValue(freshness?.today?.trade_date) ||
-    hasTextValue(freshness?.today?.eod_status) ||
     hasTextValue(freshness?.latest?.price_trade_date) ||
     hasNumber(freshness?.today?.symbols_succeeded) ||
     hasNumber(freshness?.today?.symbols_total)
@@ -145,7 +143,7 @@ function getEodFreshnessTone(freshness: EodFreshnessResponseDto | null) {
   if (freshness?.today?.received !== null && freshness?.today?.received !== undefined) {
     return getEodReceivedTone(freshness.today.received);
   }
-  return hasUsableEodFreshness(freshness) ? "info" : "neutral";
+  return hasEodReadinessSignal(freshness) ? "info" : "neutral";
 }
 
 function getEodStatusLabel(freshness: EodFreshnessResponseDto | null) {
@@ -157,7 +155,7 @@ function getEodStatusLabel(freshness: EodFreshnessResponseDto | null) {
   if (hasTextValue(eodStatus)) {
     return eodStatus;
   }
-  if (hasUsableEodFreshness(freshness)) {
+  if (hasEodReadinessSignal(freshness)) {
     return "Freshness available";
   }
   return UNKNOWN_LABEL;
