@@ -9,7 +9,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /scanner/tracked-symbols`
   - `GET /symbols/search`
   - `GET /eod/freshness`
-    - D2 EOD Status uses `today.received` as the recent EOD update flag, `latest.price_trade_date` as the latest stored EOD date, and `today.trade_date` as market-date context
+    - D2 EOD Status uses `today.received` as the recent EOD update flag and `today.symbols_succeeded` / `today.symbols_total` as the EOD symbol count context
     - web currently treats `latest.technical_market_date` as the stable technical freshness fallback
     - optional layer objects such as `technical.success` and `technical.latest_date` may be consumed when present
 - `/dashboard/symbol/[symbol]` now mixes:
