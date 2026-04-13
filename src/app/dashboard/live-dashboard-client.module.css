@@ -453,7 +453,10 @@
 }
 
 @media (max-width: 520px) {
-  .integrityGrid,
+  .integrityGrid {
+    grid-template-columns: 1fr;
+  }
+
   .snapshotMetrics,
   .cardMeta {
     grid-template-columns: repeat(2, minmax(0, 1fr));

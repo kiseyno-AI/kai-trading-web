@@ -48,6 +48,6 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Not received")).toBeVisible();
     await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
-    await expect(eodStatusCard.getByText("2026-04-13")).toHaveCount(0);
+    await expect(eodStatusCard.getByText("Market date 2026-04-13")).toBeVisible();
   });
 });
