@@ -23,12 +23,12 @@ Client polling:
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> navigation only, no additional backend dependency
-- Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
+- Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.received`, `today.trade_date`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 - Tracked snapshot card: `/quotes/tracked.items[]` + `/scanner/tracked-symbols` + `/eod/freshness` -> tracked counts, aggregate turnover, live/fallback/unavailable counts, lead feed mode, layer freshness
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
 - Tracked symbol list: `/scanner/tracked-symbols` -> `tracked_symbols`, `count`, `last_updated_at`
 - Momentum board: `/quotes/tracked` -> top absolute movers from `items[].change_pct`
-- Coverage notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
+- Coverage notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 - Desktop audit feed: `/eod/freshness` + `/quotes/tracked` -> module freshness rows for price, technical, and action status
 
 Important behavior:
