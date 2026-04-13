@@ -116,7 +116,7 @@ function getPriceFreshnessLabel(item: CoreTrackedQuote) {
 }
 
 function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.latest?.technical_market_date ?? "[확인 필요]";
+  return freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]";
 }
 
 function getFreshnessTone(status: string | null | undefined) {
@@ -242,10 +242,10 @@ export function LiveDashboardClient({
     {
       id: "technical",
       label: "Technical Analysis",
-      status: freshness?.latest?.technical_market_date ? "Synced" : "[확인 필요]",
-      meta: freshness?.latest?.technical_market_date ?? "[확인 필요]",
+      status: freshness?.technical?.success ? "Synced" : "[확인 필요]",
+      meta: freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]",
       coverage: "EOD-derived snapshot date",
-      tone: freshness?.latest?.technical_market_date ? "info" : "warning",
+      tone: freshness?.technical?.success ? "info" : "warning",
     },
     {
       id: "action",
@@ -505,7 +505,7 @@ export function LiveDashboardClient({
                 <strong>Freshness stays layer-specific</strong>
                 <p className="clamp-3">
                   Price latest {freshness?.latest?.price_trade_date ?? "[확인 필요]"} · Technical latest{" "}
-                  {freshness?.latest?.technical_market_date ?? "[확인 필요]"} · Action latest{" "}
+                  {freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]"} · Action latest{" "}
                   {freshness?.latest?.action_market_date ?? "[확인 필요]"}.
                 </p>
               </article>

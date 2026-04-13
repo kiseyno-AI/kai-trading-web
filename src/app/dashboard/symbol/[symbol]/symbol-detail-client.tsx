@@ -1011,6 +1011,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       label: "TA latest",
       value:
         resolvedTechnicalSnapshot?.market_date ??
+        freshness?.technical?.latest_date ??
         freshness?.latest?.technical_market_date ??
         "[확인 필요]",
       detail: resolvedTechnicalSnapshot
@@ -1054,13 +1055,14 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       label: "Technical Analysis",
       date:
         resolvedTechnicalSnapshot?.market_date ??
+        freshness?.technical?.latest_date ??
         freshness?.latest?.technical_market_date ??
         "[확인 필요]",
       detail: resolvedTechnicalSnapshot
         ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
         : "Technical snapshot unavailable or still lagging the latest close.",
-      tone: resolvedTechnicalSnapshot ? technicalTone : "warning",
-      status: resolvedTechnicalSnapshot ? "Synced" : "[확인 필요]",
+      tone: resolvedTechnicalSnapshot || freshness?.technical?.success ? technicalTone : "warning",
+      status: resolvedTechnicalSnapshot ? "Synced" : freshness?.technical?.success ? "Synced" : "[확인 필요]",
       api: "/api/trading/eod/technical-snapshots",
     },
     {
@@ -1683,7 +1685,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             </article>
             <article className={styles.metricCard}>
               <span>Technical latest</span>
-              <strong>{freshness?.latest?.technical_market_date ?? "[확인 필요]"}</strong>
+              <strong>{freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]"}</strong>
             </article>
             <article className={styles.metricCard}>
               <span>Action latest</span>

@@ -323,6 +323,11 @@ export type EodFreshnessTodayDto = {
   received: boolean | null;
 };
 
+export type EodFreshnessLayerStatusDto = {
+  success: boolean | null;
+  latest_date: string | null;
+};
+
 export type EodFreshnessLatestDto = {
   price_trade_date: string | null;
   technical_market_date: string | null;
@@ -332,6 +337,9 @@ export type EodFreshnessLatestDto = {
 export type EodFreshnessResponseDto = {
   today: EodFreshnessTodayDto | null;
   latest: EodFreshnessLatestDto | null;
+  price?: EodFreshnessLayerStatusDto | null;
+  technical?: EodFreshnessLayerStatusDto | null;
+  action?: EodFreshnessLayerStatusDto | null;
 };
 
 export type DartFundamentalsHistoryMetricDto = {

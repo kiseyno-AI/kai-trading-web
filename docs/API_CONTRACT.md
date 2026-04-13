@@ -15,7 +15,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /symbols/{symbol}/price-bars` for the mobile candlestick chart
   - `GET /eod/technical-snapshots` for the dedicated technical-analysis section
   - `GET /eod/action-summaries` for the dedicated action-summary section
-  - `GET /eod/freshness` for layer-specific freshness labels
+  - `GET /eod/freshness` for layer-specific freshness labels, including optional layer status fields like `technical.success` and `technical.latest_date` when provided by core
   - `GET /disclosures/dart/fundamentals/history` for stored DART fundamentals history
   - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures
 - The symbol detail card stack also powers dedicated mobile Stitch detail routes:
