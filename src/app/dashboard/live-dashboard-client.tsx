@@ -119,20 +119,18 @@ function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
   return freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]";
 }
 
-function getFreshnessTone(status: string | null | undefined) {
-  if (!status) return "warning";
-  if (status === "completed") return "positive";
-  if (status === "completed_with_errors") return "warning";
-  if (status === "running") return "info";
-  return "neutral";
+function hasReceivedStatus(received: boolean | null | undefined): received is boolean {
+  return typeof received === "boolean";
 }
 
-function humanizeStatus(status: string | null | undefined) {
-  if (!status) return "[확인 필요]";
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function getReceivedTone(received: boolean | null | undefined) {
+  if (!hasReceivedStatus(received)) return "warning";
+  return received ? "positive" : "warning";
+}
+
+function getReceivedLabel(received: boolean | null | undefined) {
+  if (!hasReceivedStatus(received)) return "[확인 필요]";
+  return received ? "Received" : "Not Received";
 }
 
 function buildTrackedDetailHref(item: CoreTrackedQuote) {
@@ -272,9 +270,11 @@ export function LiveDashboardClient({
   ] as const;
   const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");
 
-  const hasFreshnessStatus = Boolean(freshness?.today?.eod_status);
-  const statusTone = getFreshnessTone(freshness?.today?.eod_status);
-  const statusLabel = humanizeStatus(freshness?.today?.eod_status);
+  const hasFreshnessStatus = hasReceivedStatus(freshness?.today?.received);
+  const statusTone = getReceivedTone(freshness?.today?.received);
+  const statusLabel = getReceivedLabel(freshness?.today?.received);
+  const latestStoredEodDate = freshness?.latest?.price_trade_date ?? "[확인 필요]";
+  const marketDateContext = freshness?.today?.trade_date ?? "[확인 필요]";
   const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
 
@@ -322,9 +322,18 @@ export function LiveDashboardClient({
 
           <div className={styles.integrityGrid}>
             <article className={styles.integrityStat}>
-              <span>EOD Status</span>
+              <span>EOD Recent Update</span>
               <strong>{statusLabel}</strong>
-              <p className="clamp-3">{freshness?.today?.trade_date ?? "[확인 필요]"}</p>
+              <dl className={styles.integrityDateList}>
+                <div>
+                  <dt>Latest stored EOD</dt>
+                  <dd>{latestStoredEodDate}</dd>
+                </div>
+                <div>
+                  <dt>Market date</dt>
+                  <dd>{marketDateContext}</dd>
+                </div>
+              </dl>
             </article>
             <article className={styles.integrityStat}>
               <span>Market State</span>
