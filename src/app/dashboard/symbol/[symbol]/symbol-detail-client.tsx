@@ -64,10 +64,20 @@ type QuoteResponse = {
   unavailable_reason?: string | null;
 };
 
+type MarketStatusItem = {
+  market?: string | null;
+  state?: string | null;
+  is_open?: boolean | null;
+  available?: boolean | null;
+  ready?: boolean | null;
+  label?: string | null;
+};
+
 type MarketStatusResponse = {
-  state: string;
-  is_open: boolean;
-  server_time: string;
+  state?: string;
+  is_open?: boolean;
+  server_time?: string;
+  markets?: MarketStatusItem[];
 };
 
 type PriceHistoryRange = "3M" | "1Y" | "5Y" | "MAX";
@@ -485,6 +495,47 @@ function buildMarketStateTone(quote: QuoteResponse | null, marketStatus: MarketS
   if (quote.available && marketStatus.state === "OPEN") return "positive";
   if (!quote.available) return "warning";
   return "info";
+}
+
+function normalizeMarketCode(value: string | null | undefined) {
+  if (!value) return null;
+  return value.trim().toUpperCase();
+}
+
+function resolveMarketStateLabel(item: MarketStatusItem) {
+  const state = normalizeMarketCode(item.state);
+  if (item.ready === false || item.available === false) return "Not ready";
+  if (state === "OPEN") return "OPEN";
+  if (state === "CLOSED") return "CLOSED";
+  if (state === "PREOPEN") return "PREOPEN";
+  if (state === "POSTCLOSE") return "POSTCLOSE";
+  return item.state ?? "Not ready";
+}
+
+function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbackMarket: string | null | undefined) {
+  const preferredMarkets = ["KRX", "KOSDAQ", "NASDAQ"];
+  const normalizedFallback = normalizeMarketCode(fallbackMarket);
+  const items = Array.isArray(marketStatus?.markets) ? marketStatus.markets : [];
+  const byCode = new Map<string, MarketStatusItem>();
+
+  for (const item of items) {
+    const code = normalizeMarketCode(item.market ?? item.label);
+    if (!code) continue;
+    byCode.set(code, item);
+  }
+
+  const orderedCodes = [...preferredMarkets];
+  if (normalizedFallback && !orderedCodes.includes(normalizedFallback)) {
+    orderedCodes.unshift(normalizedFallback);
+  }
+
+  return orderedCodes.map((code) => {
+    const item = byCode.get(code);
+    return {
+      market: code,
+      state: item ? resolveMarketStateLabel(item) : code === "KRX" || code === "KOSDAQ" ? (marketStatus?.state ?? "Not ready") : "Not ready",
+    };
+  });
 }
 
 export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProps) {
@@ -985,6 +1036,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const technicalTone = buildTechnicalTone(resolvedTechnicalSnapshot);
   const freshnessTone = buildFreshnessTone(freshness?.today?.eod_status);
   const marketStateTone = buildMarketStateTone(quote, marketStatus);
+  const marketStateRows = useMemo(() => buildMarketStateRows(marketStatus, meta?.market), [marketStatus, meta?.market]);
   const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
 
   const moduleRows = [
@@ -1144,7 +1196,14 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
 
           <div className={styles.heroPills}>
             <span className="pill neutral">{marketLabel}</span>
-            <span className={`pill ${marketStateTone}`}>{marketStatus?.state ?? "Market pending"}</span>
+            {marketStateRows.map((item) => (
+              <span
+                key={item.market}
+                className={`pill ${item.state === "OPEN" ? "positive" : item.state === "Not ready" ? "warning" : "info"}`}
+              >
+                {item.market}: {item.state}
+              </span>
+            ))}
             <span className={`pill ${quotePollingStopped ? "info" : "warning"}`}>
               {quotePollingStopped ? "Polling stopped" : "Polling active"}
             </span>
