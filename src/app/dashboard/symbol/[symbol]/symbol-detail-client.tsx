@@ -1140,7 +1140,6 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               ←
             </Link>
             <div>
-              <p className={styles.sectionEyebrow}>Obsidian Ledger</p>
               <strong className={styles.headerTitle}>{symbol}</strong>
             </div>
           </div>
