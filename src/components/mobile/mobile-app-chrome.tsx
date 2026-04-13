@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import styles from "./mobile-app-chrome.module.css";
 
@@ -63,6 +64,8 @@ export function MobileAppChrome({
   mySymbolsHref = "/dashboard#tracked-symbols",
   searchHref = "/search",
 }: MobileAppChromeProps) {
+  const router = useRouter();
+
   return (
     <div className={styles.surface}>
       <div className={styles.glowPrimary} />
@@ -111,7 +114,18 @@ export function MobileAppChrome({
       <main className={styles.main}>{children}</main>
 
       <div className={styles.bottomNavFrame}>
-        <nav className={styles.bottomNav} aria-label="Primary">
+        <nav
+          className={styles.bottomNav}
+          aria-label="Primary"
+          onPointerDown={() => {
+            if (activeNav !== "dashboard") {
+              router.prefetch("/dashboard");
+            }
+            if (activeNav !== "search") {
+              router.prefetch(searchHref);
+            }
+          }}
+        >
           <Link href="/dashboard" className={getItemClass(activeNav === "dashboard")}>
             <DashboardIcon />
             <span className={styles.navLabel}>Dashboard</span>
