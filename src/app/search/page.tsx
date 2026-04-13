@@ -238,7 +238,6 @@ export default function SearchPage() {
           <div className={styles.appHeaderBrand}>
             <div className={styles.brandMark}>K</div>
             <div>
-              <p className={styles.brandEyebrow}>Obsidian Ledger</p>
               <strong className={styles.brandTitle}>Trading Dashboard</strong>
             </div>
           </div>
