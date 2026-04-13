@@ -272,6 +272,7 @@ export function LiveDashboardClient({
   ] as const;
   const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");
 
+  const hasFreshnessStatus = Boolean(freshness?.today?.eod_status);
   const statusTone = getFreshnessTone(freshness?.today?.eod_status);
   const statusLabel = humanizeStatus(freshness?.today?.eod_status);
   const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
@@ -317,7 +318,7 @@ export function LiveDashboardClient({
               <p className={styles.sectionEyebrow}>Market Freshness Registry</p>
               <h1 className={styles.heroTitle}>Operational Integrity</h1>
             </div>
-            <span className={`pill ${statusTone}`}>{statusLabel}</span>
+            {hasFreshnessStatus ? <span className={`pill ${statusTone}`}>{statusLabel}</span> : null}
           </div>
 
           <div className={styles.integrityGrid}>
