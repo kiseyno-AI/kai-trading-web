@@ -151,7 +151,7 @@ function getEodUpdateTone(freshness: EodFreshnessResponseDto | null) {
 }
 
 function getEodUpdateDate(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.latest?.price_trade_date ?? freshness?.today?.trade_date ?? "[확인 필요]";
+  return freshness?.latest?.price_trade_date ?? "[확인 필요]";
 }
 
 function getEodUpdateDetail(freshness: EodFreshnessResponseDto | null) {
@@ -159,7 +159,7 @@ function getEodUpdateDetail(freshness: EodFreshnessResponseDto | null) {
   const marketDate = freshness?.today?.trade_date;
   const status = humanizeStatus(freshness?.today?.eod_status);
 
-  if (marketDate && latestEodDate !== marketDate && latestEodDate !== "[확인 필요]") {
+  if (marketDate) {
     return `Latest EOD date ${latestEodDate}. Market date ${marketDate}. Run status ${status}.`;
   }
 
