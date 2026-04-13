@@ -30,6 +30,6 @@ test.describe("dashboard mobile hero", () => {
     expect(heroBox!.y).toBeLessThan(viewport!.height - 40);
     expect(heroBox!.x).toBeGreaterThanOrEqual(0);
     await expect(hero.getByText(/Market Freshness Registry/i)).toBeVisible();
-    await expect(hero.getByText(/Price Module/i)).toBeVisible();
+    await expect(hero.getByText(/Price Module/i)).toHaveCount(0);
   });
 });
