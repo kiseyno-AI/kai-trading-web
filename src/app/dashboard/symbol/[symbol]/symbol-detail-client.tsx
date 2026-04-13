@@ -1036,10 +1036,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const technicalTone = buildTechnicalTone(resolvedTechnicalSnapshot);
   const freshnessTone = buildFreshnessTone(freshness?.today?.eod_status);
   const marketStateTone = buildMarketStateTone(quote, marketStatus);
-  const marketStateRows = useMemo(
-    () => buildMarketStateRows(marketStatus, meta?.market ?? quote?.market_state),
-    [marketStatus, meta?.market, quote?.market_state],
-  );
+  const marketStateRows = useMemo(() => buildMarketStateRows(marketStatus, meta?.market), [marketStatus, meta?.market]);
   const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
 
   const moduleRows = [
