@@ -234,29 +234,20 @@ export default function SearchPage() {
     <MobileAppChrome
       activeNav="search"
       header={
-        <div className={styles.headerShell}>
-          <div className={styles.mobileHeaderMark} aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className={styles.headerTitleBlock}>
-            <span>Terminal</span>
-            <strong>Search</strong>
-          </div>
-          <div className={styles.headerActions}>
-            <div className={styles.desktopHeaderLinks} aria-label="Desktop search sections">
-              <span>Markets</span>
-              <span>Sectors</span>
-              <span>Analyst View</span>
+        <>
+          <div className={styles.appHeaderBrand}>
+            <div className={styles.brandMark}>K</div>
+            <div>
+              <p className={styles.brandEyebrow}>Obsidian Ledger</p>
+              <strong className={styles.brandTitle}>Trading Dashboard</strong>
             </div>
-            <span className={styles.marketBadge}>
-              <i />
-              Market Open
-            </span>
+          </div>
+
+          <div className={styles.appHeaderActions}>
+            <span className="pill positive">Market Open</span>
             <DevModeToggle />
           </div>
-        </div>
+        </>
       }
     >
       <div className={styles.searchTerminal}>
