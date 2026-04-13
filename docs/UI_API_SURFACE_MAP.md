@@ -23,7 +23,7 @@ Client polling:
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> navigation only, no additional backend dependency
-- Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
+- Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.trade_date`, `today.eod_status`, `today.received`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 - Tracked snapshot card: `/quotes/tracked.items[]` + `/scanner/tracked-symbols` + `/eod/freshness` -> tracked counts, aggregate turnover, live/fallback/unavailable counts, lead feed mode, layer freshness
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
 - Tracked symbol list: `/scanner/tracked-symbols` -> `tracked_symbols`, `count`, `last_updated_at`
@@ -34,6 +34,7 @@ UI surfaces and fields:
 Important behavior:
 - The UI now treats `available: false` as an explicit unavailable state, not as a zero-price quote.
 - `source: "daily_price_bar"` means the backend is serving DB-backed EOD fallback from `daily_price_bars`.
+- D2 EOD Update uses `today.received` for recent-update state and `latest.price_trade_date` for the latest stored EOD date; `today.trade_date` remains market-date context.
 - Dashboard cards intentionally keep price freshness and technical freshness separate.
 - Search entry on mobile lives in the bottom tab bar / manage-feed CTA; desktop uses the left rail plus top command bar treatment from the Stitch wide view.
 
