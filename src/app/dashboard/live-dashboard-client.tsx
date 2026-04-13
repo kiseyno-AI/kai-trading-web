@@ -331,11 +331,6 @@ export function LiveDashboardClient({
               <strong>{market.state}</strong>
               <p className="clamp-3">Server time {formatDisplayTimestamp(market.server_time)}</p>
             </article>
-            <article className={styles.integrityStat}>
-              <span>Latest Update</span>
-              <strong>{freshness?.latest?.price_trade_date ?? lead?.trade_date ?? "[확인 필요]"}</strong>
-              <p className="clamp-3">Tracked board refreshed {formatDisplayTimestamp(tracked.as_of)}</p>
-            </article>
           </div>
 
           <div className={styles.moduleList}>
