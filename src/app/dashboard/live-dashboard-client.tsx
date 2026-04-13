@@ -309,10 +309,6 @@ export function LiveDashboardClient({
             <div>
               <p className={styles.sectionEyebrow}>Market Freshness Registry</p>
               <h1 className={styles.heroTitle}>Operational Integrity</h1>
-              <p className={`clamp-3 ${styles.supportingCopy}`}>
-                Layer freshness stays separated so price, technical, action, and fundamentals coverage do not imply a
-                false shared timestamp.
-              </p>
             </div>
             <span className={`pill ${statusTone}`}>{statusLabel}</span>
           </div>

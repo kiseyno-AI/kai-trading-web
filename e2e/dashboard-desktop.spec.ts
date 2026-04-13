@@ -13,7 +13,6 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Layer sync events/i })).toBeVisible();
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
-    await expect(page.getByText(/Layer freshness stays separated/i)).toBeVisible();
     await expect(page.getByText(/Manage Feed/i)).toBeVisible();
 
     await expect(page.getByText(/Readiness and breadth/i)).toHaveCount(0);
