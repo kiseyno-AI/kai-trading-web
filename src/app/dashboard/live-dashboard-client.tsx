@@ -306,6 +306,7 @@ export function LiveDashboardClient({
   const eodStatusTone = getEodFreshnessTone(freshness);
   const eodStatusLabel = getEodStatusLabel(freshness);
   const hasEodStatusLabel = eodStatusLabel !== UNKNOWN_LABEL;
+  const eodMarketDate = freshness?.today?.trade_date ?? UNKNOWN_LABEL;
   const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? UNKNOWN_LABEL;
   const eodSuccessCount = formatEodSymbolCount(freshness?.today?.symbols_succeeded);
   const eodTotalCount = formatEodSymbolCount(freshness?.today?.symbols_total);
@@ -359,6 +360,8 @@ export function LiveDashboardClient({
               <span>EOD Status</span>
               <strong>{eodStatusLabel}</strong>
               <p className={styles.eodStatusDetails}>
+                Market date {eodMarketDate}
+                <br />
                 Latest EOD date {eodLatestPriceDate}
                 <br />
                 Success count {eodSuccessCount}

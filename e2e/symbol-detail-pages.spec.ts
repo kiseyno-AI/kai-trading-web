@@ -1,6 +1,8 @@
-import { devices, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-test.use({ ...devices["iPhone 13"] });
+import { chromiumIPhone13 } from "./devices";
+
+test.use(chromiumIPhone13);
 
 const symbolSeed =
   "name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10";

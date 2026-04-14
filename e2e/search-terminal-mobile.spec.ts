@@ -1,6 +1,8 @@
-import { devices, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-test.use({ ...devices["iPhone 13"] });
+import { chromiumIPhone13 } from "./devices";
+
+test.use(chromiumIPhone13);
 
 test.describe("search terminal mobile", () => {
   test("renders mobile terminal chrome and bottom tabs", async ({ page }) => {
