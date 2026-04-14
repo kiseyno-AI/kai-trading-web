@@ -134,8 +134,8 @@ function hasTextValue(value: string | null | undefined): value is string {
 function hasEodReadinessSignal(freshness: EodFreshnessResponseDto | null) {
   return (
     hasTextValue(freshness?.latest?.price_trade_date) ||
-    hasNumber(freshness?.today?.symbols_succeeded) ||
-    hasNumber(freshness?.today?.symbols_total)
+    hasNumber(getEodSymbolsSucceeded(freshness)) ||
+    hasNumber(getEodSymbolsTotal(freshness))
   );
 }
 
@@ -164,6 +164,14 @@ function getEodStatusLabel(freshness: EodFreshnessResponseDto | null) {
 function formatEodSymbolCount(value: number | null | undefined) {
   if (!hasNumber(value)) return UNKNOWN_LABEL;
   return value.toLocaleString("ko-KR");
+}
+
+function getEodSymbolsSucceeded(freshness: EodFreshnessResponseDto | null) {
+  return freshness?.today?.symbols_succeeded ?? freshness?.latest?.symbols_succeeded;
+}
+
+function getEodSymbolsTotal(freshness: EodFreshnessResponseDto | null) {
+  return freshness?.today?.symbols_total ?? freshness?.latest?.symbols_total;
 }
 
 function buildTrackedDetailHref(item: CoreTrackedQuote) {
@@ -308,8 +316,8 @@ export function LiveDashboardClient({
   const hasEodStatusLabel = eodStatusLabel !== UNKNOWN_LABEL;
   const eodMarketDate = freshness?.today?.trade_date ?? UNKNOWN_LABEL;
   const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? UNKNOWN_LABEL;
-  const eodSuccessCount = formatEodSymbolCount(freshness?.today?.symbols_succeeded);
-  const eodTotalCount = formatEodSymbolCount(freshness?.today?.symbols_total);
+  const eodSuccessCount = formatEodSymbolCount(getEodSymbolsSucceeded(freshness));
+  const eodTotalCount = formatEodSymbolCount(getEodSymbolsTotal(freshness));
   const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
 
