@@ -7,7 +7,10 @@ import {
   type CoreTrackedQuotesResponse,
 } from "./live-dashboard-client";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
-import type { EodFreshnessResponseDto } from "@/types/trading-api";
+import type {
+  DartFundamentalsDailyInspectResponseDto,
+  EodFreshnessResponseDto,
+} from "@/types/trading-api";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -63,14 +66,19 @@ export default async function DashboardPage() {
   let market: CoreMarketStatus;
   let tracked: CoreTrackedQuotesResponse;
   let freshness: EodFreshnessResponseDto | null = null;
+  let fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, freshness] = await Promise.all([
+    [market, tracked, freshness, fundamentalsStatus] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
+      fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
+        "/disclosures/dart/fundamentals/daily/inspect?runs_limit=1",
+        requestHeaders,
+      ).catch(() => null),
     ]);
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
@@ -84,6 +92,7 @@ export default async function DashboardPage() {
       initialMarket={market}
       initialTracked={tracked}
       initialFreshness={freshness}
+      initialFundamentalsStatus={fundamentalsStatus}
     />
   );
 }

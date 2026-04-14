@@ -121,7 +121,7 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("[확인 필요]")).toHaveCount(0);
   });
 
-  test("D2 fundamentals row shows synced when latest update matches latest EOD", async ({ page }) => {
+  test("D2 fundamentals row shows the latest update date from freshness status", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -139,10 +139,19 @@ test.describe("dashboard desktop", () => {
             technical_market_date: "2026-04-10",
             action_market_date: "2026-04-10",
           },
-          fundamentals: {
+          fundamental: {
             success: true,
             latest_date: "2026-04-10",
           },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
         }),
       });
     });
@@ -153,11 +162,11 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsRow).toBeVisible();
     await expect(fundamentalsRow).toContainText("Latest fundamentals update date");
     await expect(fundamentalsRow).toContainText("2026-04-10");
-    await expect(fundamentalsRow.getByText("Synced")).toBeVisible();
+    await expect(fundamentalsRow.getByText("Available")).toBeVisible();
     await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
   });
 
-  test("D2 fundamentals row keeps confirmation status when latest update lags EOD", async ({ page }) => {
+  test("D2 fundamentals row uses daily inspect status when freshness lacks a fundamentals date", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -175,10 +184,38 @@ test.describe("dashboard desktop", () => {
             technical_market_date: "2026-04-10",
             action_market_date: "2026-04-10",
           },
-          fundamentals: {
-            success: true,
-            latest_date: "2026-04-09",
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 7,
+            market_date: "2026-04-14",
+            trigger: "internal_ops_cli",
+            status: "partial",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 3583,
+            symbols_checked: 3583,
+            symbols_missing: 1388,
+            symbols_stale: 100,
+            symbols_fresh: 2095,
+            symbols_refreshed: 10,
+            symbols_failed: 1406,
+            events_detected: 13786,
+            events_captured: 10,
+            events_failed: 490,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-14T08:56:58.357390+09:00",
+            completed_at: "2026-04-14T09:11:08.375335+09:00",
           },
+          runs: [],
         }),
       });
     });
@@ -187,9 +224,9 @@ test.describe("dashboard desktop", () => {
 
     const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
     await expect(fundamentalsRow).toBeVisible();
-    await expect(fundamentalsRow).toContainText("2026-04-09");
-    await expect(fundamentalsRow.getByText("[확인 필요]")).toBeVisible();
-    await expect(fundamentalsRow.getByText("Synced")).toHaveCount(0);
+    await expect(fundamentalsRow).toContainText("2026-04-14");
+    await expect(fundamentalsRow.getByText("Partial")).toBeVisible();
+    await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
   });
 
   test("D2 EOD status does not mark a market-date-only stub as available", async ({ page }) => {
