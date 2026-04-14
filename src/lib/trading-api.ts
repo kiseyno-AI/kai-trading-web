@@ -365,7 +365,7 @@ function getBrowserTradingApiBaseUrl() {
   }
 
   if (typeof window !== "undefined" && !isLocalHostname(window.location.hostname)) {
-    return "/api/trading";
+    return process.env.NEXT_PUBLIC_TRADING_API_BASE_URL || "/api/trading";
   }
 
   return null;

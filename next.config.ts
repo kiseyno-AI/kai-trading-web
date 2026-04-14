@@ -6,9 +6,14 @@ import type { NextConfig } from "next";
 const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const normalizedBasePath = basePath && basePath !== "/" ? basePath.replace(/\/$/, "") : "";
+const assetVersion = process.env.NEXT_PUBLIC_ASSET_VERSION?.trim();
+const normalizedAssetPrefix = assetVersion
+  ? `${normalizedBasePath || ""}/v-${assetVersion}`
+  : normalizedBasePath || undefined;
 
 const nextConfig: NextConfig = {
   basePath: normalizedBasePath || undefined,
+  assetPrefix: normalizedAssetPrefix,
   allowedDevOrigins: [
     "127.0.0.1",
     "localhost",

@@ -8,6 +8,7 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   UNKNOWN_SYMBOL_META,
   getForwardableSymbolMetaSeedValue,
@@ -194,7 +195,7 @@ function hasNumber(value: number | null | undefined): value is number {
 }
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<JsonResult<T>> {
-  return getTradingApiJsonResult<T>(path, init);
+  return getTradingApiJsonResult<T>(resolveTradingApiClientPath(path), init);
 }
 
 function getInitials(item: SymbolSearchItem) {

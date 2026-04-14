@@ -1,3 +1,5 @@
+import { getTradingApiClientBasePath, resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
+
 const CACHE_STORAGE_KEY = "kai.trading-api.cache.v1";
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const TRENDING_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -62,22 +64,24 @@ function getRequestMethod(init?: RequestInit) {
 }
 
 function normalizeTradingApiPath(input: string) {
-  if (typeof window === "undefined") return input;
+  const resolvedInput = resolveTradingApiClientPath(input);
+  if (typeof window === "undefined") return resolvedInput;
 
   try {
-    const url = new URL(input, window.location.origin);
+    const url = new URL(resolvedInput, window.location.origin);
     return url.origin === window.location.origin ? `${url.pathname}${url.search}` : url.toString();
   } catch {
-    return input;
+    return resolvedInput;
   }
 }
 
 function normalizeTradingApiPolicyPath(path: string) {
+  const resolvedPath = resolveTradingApiClientPath(path);
   try {
-    const url = typeof window === "undefined" ? new URL(path, "http://kai.local") : new URL(path, window.location.origin);
-    return url.pathname;
+    const url = typeof window === "undefined" ? new URL(resolvedPath, "http://kai.local") : new URL(resolvedPath, window.location.origin);
+    return url.pathname.replace(getTradingApiClientBasePath(), "/api/trading");
   } catch {
-    return path.split("?")[0] ?? path;
+    return resolvedPath.split("?")[0]?.replace(getTradingApiClientBasePath(), "/api/trading") ?? resolvedPath;
   }
 }
 
