@@ -87,8 +87,11 @@ test.describe("smoke", () => {
     expect(getDisclosureSectionState("success", true, 2)).toBe("list");
   });
 
-  test("trading API cache policy keeps live price paths uncached", async () => {
-    expect(getTradingApiCacheTtlMs("/api/trading/eod/freshness")).toBe(60 * 60 * 1000);
+  test("trading API cache policy keeps live status and price paths uncached", async () => {
+    expect(getTradingApiCacheTtlMs("/api/trading/eod/freshness")).toBeNull();
+    expect(
+      getTradingApiCacheTtlMs("/api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1"),
+    ).toBeNull();
     expect(getTradingApiCacheTtlMs("/api/trading/disclosures/dart/fundamentals/history?symbols=005930")).toBe(60 * 60 * 1000);
     expect(getTradingApiCacheTtlMs("/api/trading/eod/technical-snapshots?symbols=005930")).toBe(60 * 60 * 1000);
     expect(getTradingApiCacheTtlMs("/api/trading/scanner/realtime-trending?limit=5")).toBe(10 * 60 * 1000);

@@ -86,6 +86,8 @@ export function getTradingApiCacheTtlMs(path: string, init?: RequestInit) {
   if (!pathname.startsWith("/api/trading/")) return null;
   if (pathname.startsWith("/api/trading/quotes/")) return null;
   if (pathname === "/api/trading/market/status") return null;
+  if (pathname === "/api/trading/eod/freshness") return null;
+  if (pathname === "/api/trading/disclosures/dart/fundamentals/daily/inspect") return null;
 
   if (
     pathname.startsWith("/api/trading/scanner/realtime-trending") ||
