@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { getCachedTradingApiJson } from "@/lib/trading-api-cache";
@@ -164,7 +165,7 @@ const SYMBOL_DETAIL_MODE_BY_ID = SYMBOL_DETAIL_MODES.reduce(
 );
 
 async function getJson<T>(path: string): Promise<T> {
-  return getCachedTradingApiJson<T>(path);
+  return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
 }
 
 function hasNumber(value: number | null | undefined): value is number {
