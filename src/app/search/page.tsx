@@ -287,7 +287,6 @@ export default function SearchPage() {
           <div className={styles.mobileResultList}>
             {items.slice(0, 6).map((item) => {
               const isSelected = selected?.symbol === item.symbol;
-              const canShowSelectedQuote = isSelected && quote;
               return (
                 <button
                   key={item.symbol}
@@ -299,13 +298,6 @@ export default function SearchPage() {
                   <span className={styles.resultIdentity}>
                     <strong className="clamp-3">{item.symbol}</strong>
                     <span className="clamp-3">{item.name_ko}</span>
-                  </span>
-                  <span className={styles.mobileResultQuote}>
-                    <strong>{canShowSelectedQuote && hasNumber(quote.price) ? `₩${formatPrice(quote.price)}` : UNKNOWN}</strong>
-                    <span className={canShowSelectedQuote ? getChangeClass(quote.change_pct) : styles.neutralText}>
-                      {canShowSelectedQuote ? formatChangePct(quote.change_pct) : UNKNOWN}
-                    </span>
-                    <small>{canShowSelectedQuote ? selectedQuoteDate : "select for quote"}</small>
                   </span>
                 </button>
               );
