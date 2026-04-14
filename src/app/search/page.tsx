@@ -596,6 +596,8 @@ export default function SearchPage() {
   }, [favoriteItems, items, quickAccessCleared, recentItems]);
 
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
+    if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
+
     setTrendingMode(nextMode);
     setTrendingVisibleLimit(TRENDING_INITIAL_LIMIT);
     setTrendingItems([]);

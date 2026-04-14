@@ -224,6 +224,10 @@ test.describe("search terminal mobile", () => {
     await expect(trendingSection.getByText("000660", { exact: true })).toBeVisible();
     await expect(trendingSection.getByText("035420", { exact: true })).toHaveCount(0);
 
+    await trendingSection.getByRole("tab", { name: /KIS/i }).click();
+    await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
+    await expect(trendingSection.getByText("000660", { exact: true })).toBeVisible();
+
     await trendingSection.getByRole("button", { name: /^More$/i }).click();
     await expect(trendingSection.getByText("035420", { exact: true })).toBeVisible();
 
