@@ -70,9 +70,142 @@ test.describe("search terminal desktop", () => {
     await expect(quickSection.getByRole("button", { name: /000660/i })).toHaveCount(0);
     await expect(quickSection.getByRole("button", { name: /005930/i })).toHaveCount(0);
     await expect(quickSection.getByText(/No recent symbols/i)).toBeVisible();
+    await expect(quickSection.getByRole("button", { name: /Add Favorite/i })).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => window.localStorage.getItem("kai.search.recent-symbols")))
       .toBeNull();
+  });
+
+  test("Q3 add favorite saves the current symbol through the core tracked-symbol flow", async ({ page }) => {
+    let postedSymbols: string[] | null = null;
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      if (route.request().method() === "POST") {
+        postedSymbols = JSON.parse(route.request().postData() ?? "{}").symbols;
+        await route.fulfill({
+          json: {
+            tracked_symbols: postedSymbols,
+            count: postedSymbols?.length ?? 0,
+            last_updated_at: "2026-04-14T09:00:00+09:00",
+          },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          tracked_symbols: ["000660"],
+          count: 1,
+          last_updated_at: "2026-04-14T08:55:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+
+      await route.fulfill({
+        json: {
+          query: query ?? "",
+          count: query === "005930" ? 1 : 0,
+          items:
+            query === "005930"
+              ? [
+                  {
+                    symbol: "005930",
+                    standard_code: "KR7005930003",
+                    name_ko: "Samsung Electronics",
+                    market: "KOSPI",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    const quickSection = page.locator("section").filter({ hasText: "Quick Access / Recent" }).first();
+
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
+    await expect(quickSection.getByRole("button", { name: /005930/i })).toBeVisible();
+
+    await quickSection.getByRole("button", { name: /Clear All/i }).click();
+    await expect(quickSection.getByText(/No recent symbols/i)).toBeVisible();
+
+    await quickSection.getByRole("button", { name: "Add Favorite" }).click();
+
+    await expect.poll(() => postedSymbols).toEqual(["005930", "000660"]);
+    await expect(quickSection.getByRole("button", { name: /005930/i })).toBeVisible();
+    await expect(quickSection.getByText(/005930 saved to core favorites/i)).toBeVisible();
+  });
+
+  test("Q3 add favorite does not post when tracked symbols fail to load", async ({ page }) => {
+    let postAttempted = false;
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      if (route.request().method() === "POST") {
+        postAttempted = true;
+        await route.fulfill({
+          status: 500,
+          json: { error: "unexpected POST" },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 503,
+        json: { error: "tracked symbols unavailable" },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+
+      await route.fulfill({
+        json: {
+          query: query ?? "",
+          count: query === "005930" ? 1 : 0,
+          items:
+            query === "005930"
+              ? [
+                  {
+                    symbol: "005930",
+                    standard_code: "KR7005930003",
+                    name_ko: "Samsung Electronics",
+                    market: "KOSPI",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    const quickSection = page.locator("section").filter({ hasText: "Quick Access / Recent" }).first();
+
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
+    await expect(quickSection.getByRole("button", { name: /005930/i })).toBeVisible();
+
+    await quickSection.getByRole("button", { name: "+ Favorite" }).click();
+
+    await expect(quickSection.getByText(/Favorite save blocked until tracked symbols load successfully. HTTP 503/i)).toBeVisible();
+    expect(postAttempted).toBe(false);
   });
 
   test("omits placeholder metadata from symbol detail links", async ({ page }) => {

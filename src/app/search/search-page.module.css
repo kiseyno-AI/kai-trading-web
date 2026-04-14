@@ -189,6 +189,14 @@
   margin-bottom: 0.9rem;
 }
 
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
 .sectionHeader h2 {
   margin: 0;
   color: rgba(213, 227, 252, 0.38);
@@ -210,6 +218,12 @@
 
 .sectionHeader button {
   cursor: pointer;
+}
+
+.sectionHeader button:disabled,
+.favoriteForm button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .mobileResultsPanel,
@@ -297,6 +311,10 @@
   gap: 0.7rem;
 }
 
+.quickGrid > .emptyState {
+  grid-column: 1 / -1;
+}
+
 .quickCard {
   display: flex;
   align-items: center;
@@ -324,6 +342,59 @@
   border: 0.14rem solid rgba(213, 227, 252, 0.24);
   border-left-color: transparent;
   border-radius: 50%;
+}
+
+.favoriteForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.favoriteForm input {
+  min-width: 0;
+  border: 1px solid rgba(143, 162, 190, 0.18);
+  background: rgba(5, 18, 34, 0.58);
+  color: #dce6fb;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.72rem;
+}
+
+.favoriteForm input::placeholder {
+  color: rgba(213, 227, 252, 0.38);
+}
+
+.favoriteForm button {
+  border: 1px solid rgba(197, 200, 255, 0.26);
+  background: rgba(197, 200, 255, 0.14);
+  color: #e5e8ff;
+  cursor: pointer;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  padding: 0.72rem 0.85rem;
+  text-transform: uppercase;
+}
+
+.favoriteStatus,
+.favoriteError {
+  margin: 0.75rem 0 0;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.favoriteStatus {
+  color: #f4d87f;
+}
+
+.favoriteError {
+  color: #f1b7b7;
 }
 
 .trendingGrid {
@@ -619,7 +690,8 @@
 @media (max-width: 420px) {
   .trendingGrid,
   .quickGrid,
-  .selectedPriceGrid {
+  .selectedPriceGrid,
+  .favoriteForm {
     grid-template-columns: 1fr;
   }
 }
