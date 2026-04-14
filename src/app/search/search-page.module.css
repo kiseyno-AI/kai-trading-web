@@ -228,7 +228,7 @@
 .mobileResultCard {
   width: 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.9rem;
   border: 1px solid transparent;
@@ -282,33 +282,12 @@
 }
 
 .resultIdentity span,
-.mobileResultQuote small,
 .quickCard small,
 .trendingFooter small,
 .selectedName,
 .emptyState p,
 .integrityPanel p {
   color: rgba(213, 227, 252, 0.52);
-}
-
-.mobileResultQuote {
-  display: grid;
-  justify-items: end;
-  gap: 0.26rem;
-  min-width: 6.2rem;
-}
-
-.mobileResultQuote strong {
-  color: #dce6fb;
-  font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 1.08rem;
-}
-
-.mobileResultQuote span,
-.mobileResultQuote small {
-  font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.74rem;
-  font-weight: 800;
 }
 
 .quickGrid {
@@ -637,15 +616,6 @@
 }
 
 @media (max-width: 420px) {
-  .mobileResultCard {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .mobileResultQuote {
-    grid-column: 2;
-    justify-items: start;
-  }
-
   .trendingGrid,
   .quickGrid,
   .selectedPriceGrid {
