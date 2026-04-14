@@ -220,8 +220,14 @@ test.describe("search terminal mobile", () => {
     await page.goto("/search");
 
     const trendingSection = page.locator("section").filter({ has: page.getByRole("heading", { name: /Trending Symbols/i }) }).first();
+    const trendingMetricFor = (symbol: string) =>
+      trendingSection.getByRole("button", { name: new RegExp(symbol) }).locator("[class*='trendingMetric'] strong");
+
     await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
+    await expect(trendingMetricFor("005930")).toHaveText("250,000");
     await expect(trendingSection.getByText("000660", { exact: true })).toBeVisible();
+    await expect(trendingMetricFor("000660")).toHaveText("-1.50%");
+    await expect(trendingMetricFor("207940")).toHaveText("#4");
     await expect(trendingSection.getByText("035420", { exact: true })).toHaveCount(0);
 
     await trendingSection.getByRole("tab", { name: /KIS/i }).click();
@@ -230,6 +236,7 @@ test.describe("search terminal mobile", () => {
 
     await trendingSection.getByRole("button", { name: /^More$/i }).click();
     await expect(trendingSection.getByText("035420", { exact: true })).toBeVisible();
+    await expect(trendingMetricFor("035420")).toHaveText("+0.21%");
 
     await trendingSection.getByRole("tab", { name: /5D/i }).click();
     await expect(trendingSection.getByText("086520", { exact: true })).toBeVisible();

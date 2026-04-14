@@ -282,25 +282,38 @@ function getTrendingEndpoint(mode: TrendingMode, limit: number) {
   return `/api/trading/scanner/trending-stocks?${params.toString()}`;
 }
 
-function formatTrendingMetric(item: TrendingDisplayItem) {
+function isPercentTrendingMetric(item: TrendingDisplayItem) {
   const metricName = item.metricName.toLowerCase();
-  const value = hasNumber(item.changePct) ? item.changePct : item.metricValue;
+  const metricUnit = item.metricUnit?.toLowerCase();
+  return metricUnit === "percent" || metricName.includes("pct") || metricName.includes("return");
+}
+
+function getTrendingMetricValue(item: TrendingDisplayItem) {
+  if (isPercentTrendingMetric(item)) {
+    return hasNumber(item.changePct) ? item.changePct : item.metricValue;
+  }
+  return item.metricValue;
+}
+
+function formatTrendingMetric(item: TrendingDisplayItem) {
+  const metricUnit = item.metricUnit?.toLowerCase();
+  const value = getTrendingMetricValue(item);
 
   if (!hasNumber(value)) return UNKNOWN;
-  if (item.metricUnit === "percent" || metricName.includes("pct") || metricName.includes("return")) {
+  if (isPercentTrendingMetric(item)) {
     return formatChangePct(value);
   }
-  if (item.metricUnit === "shares") {
+  if (metricUnit === "shares") {
     return value.toLocaleString("ko-KR");
   }
-  if (item.metricUnit === "rank") {
+  if (metricUnit === "rank") {
     return `#${Math.round(value)}`;
   }
   return value.toLocaleString("ko-KR");
 }
 
 function getTrendingMetricClass(item: TrendingDisplayItem) {
-  const value = hasNumber(item.changePct) ? item.changePct : item.metricValue;
+  const value = getTrendingMetricValue(item);
   if (!hasNumber(value)) return styles.neutralText;
   return value >= 0 ? styles.positiveText : styles.negativeText;
 }
