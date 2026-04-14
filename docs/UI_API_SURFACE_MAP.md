@@ -99,7 +99,7 @@ UI surfaces and fields:
 - Shared responsive chrome: mobile fixed Search terminal top bar + bottom tab bar, desktop Obsidian Ledger rail + centered terminal search surface -> navigation only, no direct backend dependency
 - Terminal search input and result count: `/symbols/search` -> `query`, `count`, `items.length`
 - Mobile result cards: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; price, change, and quote freshness are not rendered in the list
-- Quick access / recent cards: `/symbols/favorites.items[]` first, then local recent selections plus current `/symbols/search.items[]`; the visible add-favorite action posts the updated symbol set through `/scanner/tracked-symbols` because that is the current core write path that persists scanner membership
+- Quick access cards: `/symbols/favorites.items[]` only; the `+` action opens a symbol-search dialog backed by `/symbols/search`, then posts the updated symbol set through `/scanner/tracked-symbols` because that is the current core write path that persists scanner membership
 - Trending symbols cards: current `/symbols/search.items[]` metadata only; ranking source, market cap, and unselected prices remain `[확인 필요]` until confirmed upstream
 - Desktop results table: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; selected row also uses `/quotes/{symbol}` for `price`, `change_pct`, `cached_at`, `trade_date`
 - Selected quote panel: `/quotes/{symbol}` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `source`, `available`, `fallback`, `is_live`, `cached_at`, `trade_date`, `unavailable_reason`
