@@ -7,7 +7,12 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
-import type { EodFreshnessResponseDto } from "@/types/trading-api";
+import type {
+  DartFundamentalsDailyInspectResponseDto,
+  DartFundamentalsDailyRunDto,
+  EodFreshnessLayerStatusDto,
+  EodFreshnessResponseDto,
+} from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
 
@@ -50,6 +55,7 @@ type LiveDashboardClientProps = {
   initialMarket: CoreMarketStatus;
   initialTracked: CoreTrackedQuotesResponse;
   initialFreshness: EodFreshnessResponseDto | null;
+  initialFundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null;
 };
 
 function hasNumber(value: number | null | undefined): value is number {
@@ -114,8 +120,68 @@ function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
   return freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]";
 }
 
-function getFundamentalsFreshnessDate(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.fundamentals?.latest_date ?? null;
+function getFundamentalsFreshnessLayer(
+  freshness: EodFreshnessResponseDto | null,
+): EodFreshnessLayerStatusDto | null {
+  return freshness?.fundamentals ?? freshness?.fundamental ?? null;
+}
+
+function getLatestFundamentalsRun(
+  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
+): DartFundamentalsDailyRunDto | null {
+  return fundamentalsStatus?.latest_run ?? fundamentalsStatus?.runs?.[0] ?? null;
+}
+
+function getDatePart(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+  return value.slice(0, 10);
+}
+
+function getFundamentalsRunDate(run: DartFundamentalsDailyRunDto | null) {
+  return run?.market_date ?? getDatePart(run?.completed_at) ?? getDatePart(run?.started_at);
+}
+
+function getFundamentalsFreshnessDate(
+  freshness: EodFreshnessResponseDto | null,
+  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
+) {
+  return (
+    getFundamentalsFreshnessLayer(freshness)?.latest_date ??
+    getFundamentalsRunDate(getLatestFundamentalsRun(fundamentalsStatus))
+  );
+}
+
+function humanizeToken(value: string | null | undefined, fallback = UNKNOWN_LABEL) {
+  if (!hasTextValue(value)) return fallback;
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function getFundamentalsStatusLabel(
+  freshness: EodFreshnessResponseDto | null,
+  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
+  latestFundamentalsDate: string | null,
+) {
+  const runStatus = getLatestFundamentalsRun(fundamentalsStatus)?.status;
+  if (hasTextValue(runStatus)) return humanizeToken(runStatus);
+
+  const freshnessLayer = getFundamentalsFreshnessLayer(freshness);
+  if (freshnessLayer?.success === true) return "Available";
+  if (freshnessLayer?.success === false) return "Needs review";
+  if (hasTextValue(latestFundamentalsDate)) return "Available";
+
+  return UNKNOWN_LABEL;
+}
+
+function getFundamentalsTone(statusLabel: string, latestFundamentalsDate: string | null) {
+  const normalized = statusLabel.toLowerCase();
+  if (normalized === "completed" || normalized === "available") return "info";
+  if (normalized === "running") return "info";
+  if (hasTextValue(latestFundamentalsDate)) return "warning";
+  return "warning";
 }
 
 function getEodReceivedTone(received: boolean | null | undefined) {
@@ -182,10 +248,14 @@ export function LiveDashboardClient({
   initialMarket,
   initialTracked,
   initialFreshness,
+  initialFundamentalsStatus,
 }: LiveDashboardClientProps) {
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(initialFreshness);
+  const [fundamentalsStatus, setFundamentalsStatus] = useState<DartFundamentalsDailyInspectResponseDto | null>(
+    initialFundamentalsStatus,
+  );
   const [error, setError] = useState<string | null>(initialError);
   const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "OFFLINE PLACEHOLDER");
 
@@ -245,14 +315,40 @@ export function LiveDashboardClient({
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadFundamentalsStatus = async () => {
+      try {
+        const data = await getJson<DartFundamentalsDailyInspectResponseDto>(
+          "/api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1",
+        );
+        if (!active) return;
+        setFundamentalsStatus(data);
+      } catch (fundamentalsStatusError) {
+        console.error("Dashboard fundamentals status load failed", fundamentalsStatusError);
+        if (!active) return;
+        setFundamentalsStatus((current) => current);
+      }
+    };
+
+    loadFundamentalsStatus();
+    const timer = window.setInterval(loadFundamentalsStatus, 60_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   const lead = tracked.items[0];
   const availableItems = tracked.items.filter((item) => item.available);
   const liveCount = tracked.items.filter((item) => item.is_live).length;
   const fallbackCount = tracked.items.filter((item) => item.fallback).length;
   const unavailableCount = tracked.items.filter((item) => !item.available).length;
-  const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness);
-  const latestEodDate = freshness?.latest?.price_trade_date;
-  const isFundamentalsSynced = hasTextValue(latestFundamentalsDate) && latestFundamentalsDate === latestEodDate;
+  const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
+  const fundamentalsStatusLabel = getFundamentalsStatusLabel(freshness, fundamentalsStatus, latestFundamentalsDate);
+  const fundamentalsTone = getFundamentalsTone(fundamentalsStatusLabel, latestFundamentalsDate);
   const movers = useMemo(
     () =>
       [...tracked.items]
@@ -296,10 +392,10 @@ export function LiveDashboardClient({
     {
       id: "fundamentals",
       label: "Fundamentals",
-      status: isFundamentalsSynced ? "Synced" : "[확인 필요]",
+      status: fundamentalsStatusLabel,
       meta: latestFundamentalsDate ?? "[확인 필요]",
       coverage: "Latest fundamentals update date",
-      tone: isFundamentalsSynced ? "info" : "warning",
+      tone: fundamentalsTone,
     },
   ] as const;
   const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");

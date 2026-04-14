@@ -12,16 +12,18 @@ SSR bootstrap:
 - `GET /market/status`
 - `GET /quotes/tracked`
 - `GET /eod/freshness`
+- `GET /disclosures/dart/fundamentals/daily/inspect?runs_limit=1`
 
 Client polling:
 - `GET /api/trading/market/status`
 - `GET /api/trading/quotes/tracked`
 - `GET /api/trading/eod/freshness`
+- `GET /api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1`
 - `GET /api/trading/symbols/search?q=...&limit=8`
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> navigation only, no additional backend dependency
-- Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.received`, `today.trade_date`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.symbols_succeeded`, `latest.symbols_total`, `latest.technical_market_date`, `latest.action_market_date`, `fundamentals.latest_date`; the D2 EOD Status stat displays the received flag, market-date context, latest stored EOD date, and success/total EOD symbol counts, using latest counts when today's run has not happened yet. The D2 Fundamentals row displays `fundamentals.latest_date` and marks synced only when it matches `latest.price_trade_date`.
+- Operational Integrity card: `/market/status` + `/eod/freshness` + `/disclosures/dart/fundamentals/daily/inspect` -> `state`, `server_time`, `today.received`, `today.trade_date`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.symbols_succeeded`, `latest.symbols_total`, `latest.technical_market_date`, `latest.action_market_date`, optional `fundamental(s).latest_date`, and fundamentals `latest_run.status` / `latest_run.market_date`; the D2 EOD Status stat displays the received flag, market-date context, latest stored EOD date, and success/total EOD symbol counts, using latest counts when today's run has not happened yet. The D2 Fundamentals row displays the latest fundamentals update date and falls back to the daily inspect run date/status when the freshness payload has no layer date.
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
 - Momentum board: `/quotes/tracked` -> top absolute movers from `items[].change_pct`
 - Coverage notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`

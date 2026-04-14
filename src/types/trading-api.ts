@@ -342,7 +342,38 @@ export type EodFreshnessResponseDto = {
   price?: EodFreshnessLayerStatusDto | null;
   technical?: EodFreshnessLayerStatusDto | null;
   action?: EodFreshnessLayerStatusDto | null;
+  fundamental?: EodFreshnessLayerStatusDto | null;
   fundamentals?: EodFreshnessLayerStatusDto | null;
+};
+
+export type DartFundamentalsDailyRunDto = {
+  id: number;
+  market_date: string;
+  trigger: string | null;
+  status: string | null;
+  fs_div: string | null;
+  force: boolean | null;
+  symbol_limit: number | null;
+  symbol_offset: number | null;
+  symbols_total: number | null;
+  symbols_checked: number | null;
+  symbols_missing: number | null;
+  symbols_stale: number | null;
+  symbols_fresh: number | null;
+  symbols_refreshed: number | null;
+  symbols_failed: number | null;
+  events_detected: number | null;
+  events_captured: number | null;
+  events_failed: number | null;
+  error_message: string | null;
+  run_metadata: Record<string, unknown> | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type DartFundamentalsDailyInspectResponseDto = {
+  latest_run: DartFundamentalsDailyRunDto | null;
+  runs: DartFundamentalsDailyRunDto[];
 };
 
 export type DartFundamentalsHistoryMetricDto = {
