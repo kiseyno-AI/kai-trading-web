@@ -221,7 +221,8 @@
 }
 
 .sectionHeader button:disabled,
-.favoriteForm button:disabled {
+.favoriteSearchForm button:disabled,
+.favoriteSuggestions button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -345,14 +346,79 @@
   border-radius: 50%;
 }
 
-.favoriteForm {
+.favoriteDialogOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(1, 11, 24, 0.68);
+  backdrop-filter: blur(12px);
+}
+
+.favoriteDialog {
+  width: min(100%, 34rem);
+  max-height: min(82vh, 44rem);
+  overflow: auto;
+  border: 1px solid rgba(143, 162, 190, 0.18);
+  background: rgba(12, 27, 45, 0.98);
+  box-shadow: 0 28px 80px rgba(1, 11, 24, 0.48);
+  color: #dce6fb;
+  padding: 1rem;
+}
+
+.favoriteDialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.favoriteDialogHeader strong,
+.favoriteSearchForm button,
+.favoriteSuggestions strong,
+.favoriteSearchStatus {
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-weight: 900;
+}
+
+.favoriteDialogHeader strong {
+  display: block;
+  color: #f6f8ff;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.favoriteDialogHeader span {
+  display: block;
+  margin-top: 0.25rem;
+  color: rgba(213, 227, 252, 0.52);
+  font-size: 0.78rem;
+}
+
+.favoriteDialogHeader button {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgba(143, 162, 190, 0.18);
+  background: rgba(5, 18, 34, 0.58);
+  color: #dce6fb;
+  cursor: pointer;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-weight: 900;
+}
+
+.favoriteSearchForm {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.55rem;
-  margin-top: 0.8rem;
+  margin-top: 1rem;
 }
 
-.favoriteForm input {
+.favoriteSearchForm input {
   min-width: 0;
   border: 1px solid rgba(143, 162, 190, 0.18);
   background: rgba(5, 18, 34, 0.58);
@@ -364,20 +430,67 @@
   padding: 0.72rem;
 }
 
-.favoriteForm input::placeholder {
+.favoriteSearchForm input::placeholder {
   color: rgba(213, 227, 252, 0.38);
 }
 
-.favoriteForm button {
+.favoriteSearchForm button {
   border: 1px solid rgba(197, 200, 255, 0.26);
   background: rgba(197, 200, 255, 0.14);
   color: #e5e8ff;
   cursor: pointer;
-  font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.72rem;
-  font-weight: 900;
   letter-spacing: 0.1em;
   padding: 0.72rem 0.85rem;
+  text-transform: uppercase;
+}
+
+.favoriteSuggestions {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+
+.favoriteSuggestions button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.65rem;
+  border: 1px solid rgba(143, 162, 190, 0.14);
+  background: rgba(18, 34, 55, 0.86);
+  color: inherit;
+  cursor: pointer;
+  padding: 0.72rem;
+  text-align: left;
+}
+
+.favoriteSuggestions button:hover {
+  border-color: rgba(197, 200, 255, 0.34);
+  background: rgba(23, 43, 68, 0.94);
+}
+
+.favoriteSuggestions span {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.favoriteSuggestions strong {
+  color: #dce6fb;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+}
+
+.favoriteSuggestions small {
+  color: rgba(213, 227, 252, 0.52);
+}
+
+.favoriteSearchStatus {
+  margin: 0.25rem 0 0;
+  color: rgba(213, 227, 252, 0.58);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -730,7 +843,8 @@
 @media (max-width: 420px) {
   .quickGrid,
   .selectedPriceGrid,
-  .favoriteForm {
+  .favoriteSearchForm,
+  .favoriteSuggestions button {
     grid-template-columns: 1fr;
   }
 

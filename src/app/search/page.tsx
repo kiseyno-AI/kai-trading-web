@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
@@ -174,8 +175,9 @@ type QuoteResponse = {
 
 type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
-const SEARCH_RECENTS_STORAGE_KEY = "kai.search.recent-symbols";
 const UNKNOWN = UNKNOWN_SYMBOL_META;
+const FAVORITE_DIALOG_ID = "favorite-symbol-dialog";
+const FAVORITE_SUGGESTIONS_ID = "favorite-symbol-suggestions";
 const TRENDING_INITIAL_LIMIT = 5;
 const TRENDING_LIMIT_STEP = 5;
 const TRENDING_REALTIME_SOURCES = "volume-rank,fluctuation,hts-top-view";
@@ -253,15 +255,6 @@ function normalizeSearchItem(item: {
     name_ko: normalizeSymbolMetaSeedValue(item.name_ko ?? item.symbol),
     market: normalizeSymbolMetaSeedValue(item.market ?? ""),
   };
-}
-
-function buildFallbackFavoriteItem(symbol: string): SymbolSearchItem {
-  return normalizeSearchItem({
-    symbol,
-    standard_code: "",
-    name_ko: symbol,
-    market: "KRX",
-  });
 }
 
 function getTrendingEndpoint(mode: TrendingMode, limit: number) {
@@ -385,17 +378,21 @@ export default function SearchPage() {
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
-  const [recentItems, setRecentItems] = useState<SymbolSearchItem[]>([]);
-  const [quickAccessCleared, setQuickAccessCleared] = useState(false);
   const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>([]);
   const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
   const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
+  const [favoriteDialogOpen, setFavoriteDialogOpen] = useState(false);
   const [favoriteSymbolInput, setFavoriteSymbolInput] = useState("");
+  const [favoriteSearchItems, setFavoriteSearchItems] = useState<SymbolSearchItem[]>([]);
+  const [favoriteSearchLoading, setFavoriteSearchLoading] = useState(false);
+  const [favoriteSearchError, setFavoriteSearchError] = useState<string | null>(null);
   const [favoriteSavingSymbol, setFavoriteSavingSymbol] = useState<string | null>(null);
   const [favoriteStatus, setFavoriteStatus] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
+  const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
   const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>([]);
   const [trendingVisibleLimit, setTrendingVisibleLimit] = useState(TRENDING_INITIAL_LIMIT);
@@ -403,20 +400,6 @@ export default function SearchPage() {
   const [trendingMeta, setTrendingMeta] = useState<string | null>(null);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingError, setTrendingError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const stored = window.localStorage.getItem(SEARCH_RECENTS_STORAGE_KEY);
-        if (!stored) return;
-        const parsed = JSON.parse(stored) as SymbolSearchItem[];
-        setRecentItems(parsed.map(normalizeSearchItem).slice(0, 4));
-      } catch {
-        setRecentItems([]);
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -498,6 +481,57 @@ export default function SearchPage() {
       active = false;
     };
   }, [query]);
+
+  useEffect(() => {
+    if (!favoriteDialogOpen) return;
+    favoriteSearchInputRef.current?.focus();
+  }, [favoriteDialogOpen]);
+
+  useEffect(() => {
+    if (!favoriteDialogOpen) {
+      setFavoriteSearchItems([]);
+      setFavoriteSearchLoading(false);
+      setFavoriteSearchError(null);
+      return;
+    }
+
+    const favoriteQuery = favoriteSymbolInput.trim();
+    if (!favoriteQuery) {
+      setFavoriteSearchItems([]);
+      setFavoriteSearchLoading(false);
+      setFavoriteSearchError(null);
+      return;
+    }
+
+    let active = true;
+    setFavoriteSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await getJson<SymbolSearchResponse>(
+          `/api/trading/symbols/search?q=${encodeURIComponent(favoriteQuery)}&limit=8`,
+        );
+        if (!active) return;
+        if (!result.ok) {
+          setFavoriteSearchItems([]);
+          setFavoriteSearchError(`Favorite search unavailable. HTTP ${result.status}`);
+          return;
+        }
+        setFavoriteSearchItems(result.data.items.map(normalizeSearchItem));
+        setFavoriteSearchError(null);
+      } catch {
+        if (!active) return;
+        setFavoriteSearchItems([]);
+        setFavoriteSearchError("Favorite search unavailable. Check trading-core connectivity.");
+      } finally {
+        if (active) setFavoriteSearchLoading(false);
+      }
+    }, 150);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [favoriteDialogOpen, favoriteSymbolInput]);
 
   useEffect(() => {
     let active = true;
@@ -587,26 +621,21 @@ export default function SearchPage() {
     };
   }, [selected]);
 
+  const getValidatedFavoriteItem = (symbol: string) =>
+    (selected?.symbol === symbol ? selected : null) ??
+    favoriteSearchItems.find((currentItem) => currentItem.symbol === symbol) ??
+    items.find((currentItem) => currentItem.symbol === symbol) ??
+    null;
+
   const resultTitle = query.trim() ? `Results for "${query.trim()}"` : "Search Results";
   const selectedQuoteDate = quote ? formatDisplayTimestamp(quote.cached_at ?? quote.trade_date, UNKNOWN) : UNKNOWN;
   const selectedHref = selected ? buildSymbolHref(selected) : "/dashboard#tracked-symbols";
-  const favoriteCandidate = selected ?? items[0] ?? null;
-  const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput || favoriteCandidate?.symbol || "");
-  const canAddFavorite = favoriteSymbolCandidate.length > 0 && favoriteSavingSymbol === null;
+  const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput);
+  const favoriteInputItem = favoriteSymbolCandidate ? getValidatedFavoriteItem(favoriteSymbolCandidate) : null;
+  const canAddFavorite = favoriteInputItem !== null && favoriteSavingSymbol === null;
+  const quickAccessItems = favoriteItems;
   const selectedTrendingTab = TRENDING_TABS.find((tab) => tab.mode === trendingMode) ?? TRENDING_TABS[0];
   const canShowMoreTrending = trendingItems.length > 0 && trendingResultCount >= trendingVisibleLimit && !trendingLoading;
-
-  const quickAccessItems = useMemo(() => {
-    if (favoriteItems.length > 0) return favoriteItems;
-    if (quickAccessCleared) return [];
-    const merged = [...recentItems, ...items];
-    const seen = new Set<string>();
-    return merged.filter((item) => {
-      if (seen.has(item.symbol)) return false;
-      seen.add(item.symbol);
-      return true;
-    }).slice(0, 4);
-  }, [favoriteItems, items, quickAccessCleared, recentItems]);
 
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
@@ -625,46 +654,48 @@ export default function SearchPage() {
 
   const handleQueryChange = (nextQuery: string) => {
     setQuery(nextQuery);
-    setQuickAccessCleared(false);
     setFavoriteStatus(null);
     setFavoriteError(null);
   };
 
   const handleSelect = (item: SymbolSearchItem) => {
-    setQuickAccessCleared(false);
     setQuote(null);
     setQuoteError(null);
     setSelected(item);
-    setRecentItems((current) => {
-      const next = [item, ...current.filter((recent) => recent.symbol !== item.symbol)].slice(0, 4);
-      try {
-        window.localStorage.setItem(SEARCH_RECENTS_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // Local storage is a convenience only; search still works without it.
-      }
-      return next;
-    });
   };
 
-  const handleClearRecent = () => {
-    setRecentItems([]);
-    setQuickAccessCleared(true);
-    try {
-      window.localStorage.removeItem(SEARCH_RECENTS_STORAGE_KEY);
-    } catch {
-      // Ignore storage failures.
-    }
+  const handleOpenFavoriteDialog = () => {
+    setFavoriteStatus(null);
+    setFavoriteError(null);
+    setFavoriteSearchError(null);
+    setFavoriteSymbolInput(selected?.symbol ?? "");
+    setFavoriteDialogOpen(true);
+  };
+
+  const handleCloseFavoriteDialog = () => {
+    if (favoriteSavingSymbol) return;
+    setFavoriteDialogOpen(false);
+    setFavoriteSearchError(null);
+    window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
   };
 
   const handleAddFavorite = async (item?: SymbolSearchItem) => {
-    const symbol = normalizeSymbolCode(favoriteSymbolInput || item?.symbol || favoriteCandidate?.symbol || "");
+    const symbolCandidate = normalizeSymbolCode(item?.symbol || favoriteSymbolInput);
+    const favoriteSourceItem = item ? normalizeSearchItem(item) : getValidatedFavoriteItem(symbolCandidate);
 
-    if (!symbol) {
+    if (!symbolCandidate) {
       setFavoriteStatus(null);
       setFavoriteError("Enter a symbol code before adding a favorite.");
       return;
     }
 
+    if (!favoriteSourceItem) {
+      setFavoriteStatus(null);
+      setFavoriteError("Select a symbol from the search suggestions before adding a favorite.");
+      return;
+    }
+
+    const symbol = favoriteSourceItem.symbol;
     setFavoriteSavingSymbol(symbol);
     setFavoriteStatus(null);
     setFavoriteError(null);
@@ -699,8 +730,6 @@ export default function SearchPage() {
       }
 
       const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
-      const favoriteSourceItem =
-        item?.symbol === symbol ? item : favoriteCandidate?.symbol === symbol ? favoriteCandidate : buildFallbackFavoriteItem(symbol);
       const favoriteItem = normalizeSearchItem(favoriteSourceItem);
 
       setTrackedSymbols(normalizedTrackedSymbols);
@@ -708,9 +737,12 @@ export default function SearchPage() {
         const next = [favoriteItem, ...current.filter((currentItem) => currentItem.symbol !== symbol)];
         return next.slice(0, 4);
       });
-      setQuickAccessCleared(false);
+      setFavoriteDialogOpen(false);
+      setFavoriteSearchItems([]);
+      setFavoriteSearchError(null);
       setFavoriteSymbolInput("");
       setFavoriteStatus(`${symbol} saved to core favorites.`);
+      window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
     } catch {
       setFavoriteError("Favorite save failed. Check trading-core connectivity.");
     } finally {
@@ -802,25 +834,24 @@ export default function SearchPage() {
         <section className={styles.quickSection}>
           <ComponentTag
             label="search.quick-access"
-            api="/api/trading/symbols/favorites + /api/trading/scanner/tracked-symbols + local recent selections + /api/trading/symbols/search"
+            api="/api/trading/symbols/favorites + /api/trading/scanner/tracked-symbols + dialog /api/trading/symbols/search"
           />
           <div className={styles.sectionHeader}>
-            <h2>Quick Access / Recent</h2>
+            <h2>Quick Access</h2>
             <div className={styles.sectionActions}>
-              <button type="button" onClick={() => void handleAddFavorite()} disabled={!canAddFavorite}>
-                {favoriteSavingSymbol ? "Saving" : "+ Favorite"}
+              <button
+                ref={favoriteOpenButtonRef}
+                type="button"
+                onClick={handleOpenFavoriteDialog}
+                disabled={favoriteSavingSymbol !== null}
+                aria-label="Open favorite search"
+                aria-haspopup="dialog"
+                aria-expanded={favoriteDialogOpen}
+                aria-controls={favoriteDialogOpen ? FAVORITE_DIALOG_ID : undefined}
+              >
+                +
               </button>
-              {favoriteItems.length > 0 ? (
-                <span>Core favorites</span>
-              ) : quickAccessItems.length > 0 ? (
-                <button type="button" onClick={handleClearRecent}>
-                  Clear All
-                </button>
-              ) : quickAccessCleared ? (
-                <span>Cleared</span>
-              ) : (
-                <span>From current query</span>
-              )}
+              <span>{favoriteItems.length > 0 ? "Core favorites" : "No favorites"}</span>
             </div>
           </div>
           <div className={styles.quickGrid}>
@@ -836,38 +867,108 @@ export default function SearchPage() {
               ))
             ) : (
               <div className={styles.emptyState}>
-                <strong>{quickAccessCleared ? "No recent symbols" : UNKNOWN}</strong>
-                <p className="clamp-3">
-                  {quickAccessCleared
-                    ? "Search or enter a symbol, then save it to the core favorite list."
-                    : "Quick access requires confirmed search results, a favorite, or a local recent selection."}
-                </p>
-                <form
-                  className={styles.favoriteForm}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void handleAddFavorite();
-                  }}
-                >
-                  <label className={styles.srOnly} htmlFor="favorite-symbol-code">
-                    Favorite symbol code
-                  </label>
-                  <input
-                    id="favorite-symbol-code"
-                    value={favoriteSymbolInput}
-                    onChange={(event) => setFavoriteSymbolInput(event.target.value)}
-                    placeholder={favoriteCandidate?.symbol ?? "Symbol code"}
-                    aria-label="Favorite symbol code"
-                  />
-                  <button type="submit" disabled={!canAddFavorite}>
-                    {favoriteSavingSymbol ? "Saving" : "Add Favorite"}
-                  </button>
-                </form>
+                <strong>No favorites saved.</strong>
+                <p className="clamp-3">Use + to search the symbol master and save a core favorite.</p>
               </div>
             )}
           </div>
+          {favoriteDialogOpen && typeof document !== "undefined"
+            ? createPortal(
+                <div className={styles.favoriteDialogOverlay} onClick={handleCloseFavoriteDialog}>
+                  <div
+                    id={FAVORITE_DIALOG_ID}
+                    className={styles.favoriteDialog}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="favorite-dialog-title"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") handleCloseFavoriteDialog();
+                    }}
+                  >
+                    <div className={styles.favoriteDialogHeader}>
+                      <div>
+                        <strong id="favorite-dialog-title">Save Symbol</strong>
+                        <span>Search the symbol master</span>
+                      </div>
+                      <button type="button" onClick={handleCloseFavoriteDialog} aria-label="Close favorite search">
+                        x
+                      </button>
+                    </div>
+                    <form
+                      className={styles.favoriteSearchForm}
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void handleAddFavorite();
+                      }}
+                    >
+                      <label className={styles.srOnly} htmlFor="favorite-symbol-search">
+                        Favorite symbol search
+                      </label>
+                      <input
+                        ref={favoriteSearchInputRef}
+                        id="favorite-symbol-search"
+                        value={favoriteSymbolInput}
+                        onChange={(event) => setFavoriteSymbolInput(event.target.value)}
+                        placeholder="Search symbol or company..."
+                        aria-label="Favorite symbol search"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded={favoriteSearchItems.length > 0}
+                        aria-controls={FAVORITE_SUGGESTIONS_ID}
+                        autoComplete="off"
+                      />
+                      <button type="submit" disabled={!canAddFavorite}>
+                        {favoriteSavingSymbol ? "Saving" : "Add"}
+                      </button>
+                    </form>
+                    {favoriteSearchError ? <div className={styles.feedback}>{favoriteSearchError}</div> : null}
+                    {favoriteError ? <div className={styles.feedback}>{favoriteError}</div> : null}
+                    <div
+                      id={FAVORITE_SUGGESTIONS_ID}
+                      className={styles.favoriteSuggestions}
+                      aria-label="Favorite search suggestions"
+                      aria-busy={favoriteSearchLoading}
+                      aria-live="polite"
+                    >
+                      {favoriteSearchItems.map((item) => (
+                        <button
+                          key={item.symbol}
+                          type="button"
+                          onClick={() => void handleAddFavorite(item)}
+                          disabled={favoriteSavingSymbol !== null}
+                        >
+                          <span>
+                            <strong className="clamp-3">{item.symbol}</strong>
+                            <small className="clamp-3">{item.name_ko}</small>
+                          </span>
+                          <small className="clamp-3">{item.market}</small>
+                        </button>
+                      ))}
+                      {favoriteSymbolInput.trim() &&
+                      favoriteSearchItems.length === 0 &&
+                      !favoriteSearchLoading &&
+                      !favoriteSearchError ? (
+                        <div className={styles.emptyState}>
+                          <strong>No matching symbols.</strong>
+                          <p className="clamp-3">Enter an exact symbol code from the symbol master or refine the search.</p>
+                        </div>
+                      ) : null}
+                      {!favoriteSymbolInput.trim() ? (
+                        <div className={styles.emptyState}>
+                          <strong>Start typing to search.</strong>
+                          <p className="clamp-3">Suggestions use the same symbol master as Universal Search.</p>
+                        </div>
+                      ) : null}
+                      {favoriteSearchLoading ? <p className={styles.favoriteSearchStatus}>Searching...</p> : null}
+                    </div>
+                  </div>
+                </div>,
+                document.body,
+              )
+            : null}
           {favoriteStatus ? <p className={styles.favoriteStatus}>{favoriteStatus}</p> : null}
-          {favoriteError ? <p className={styles.favoriteError}>{favoriteError}</p> : null}
+          {favoriteError && !favoriteDialogOpen ? <p className={styles.favoriteError}>{favoriteError}</p> : null}
         </section>
 
         <section className={styles.trendingPanel}>
