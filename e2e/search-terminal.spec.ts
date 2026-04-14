@@ -24,6 +24,116 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
   });
 
+  test("reuses session cache for stable search data after reload", async ({ page }) => {
+    const requestCounts = {
+      favorites: 0,
+      tracked: 0,
+      search: 0,
+      trending: 0,
+    };
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      requestCounts.favorites += 1;
+      await route.fulfill({
+        json: {
+          count: 1,
+          items: [
+            {
+              symbol: "005930",
+              standard_code: "KR7005930003",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      requestCounts.tracked += 1;
+      await route.fulfill({
+        json: {
+          tracked_symbols: ["005930"],
+          count: 1,
+          last_updated_at: "2026-04-14T09:00:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      requestCounts.search += 1;
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 1,
+          items: [
+            {
+              symbol: "005930",
+              standard_code: "KR7005930003",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      requestCounts.trending += 1;
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: {
+            item_count: 1,
+          },
+          items: [
+            {
+              symbol: "005930",
+              name: "Samsung Electronics",
+              market: "KRX",
+              price: 71500,
+              change_pct: 0.84,
+              best_rank: 1,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 1,
+                  metric: { name: "volume", value: 250000, unit: "shares" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const quickSection = getQuickAccessSection(page);
+    await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect.poll(() => requestCounts).toEqual({
+      favorites: 1,
+      tracked: 1,
+      search: 1,
+      trending: 1,
+    });
+
+    await page.reload();
+
+    await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(requestCounts).toEqual({
+      favorites: 1,
+      tracked: 1,
+      search: 1,
+      trending: 1,
+    });
+  });
+
   test("Q3 renders core favorites instead of tracked or recent symbols", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem(

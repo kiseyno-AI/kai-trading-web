@@ -7,6 +7,7 @@ import {
   shouldFetchSymbolMeta,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
+import { getTradingApiCacheTtlMs } from "@/lib/trading-api-cache";
 
 test.describe("smoke", () => {
   test("home redirects to dashboard", async ({ page }) => {
@@ -84,6 +85,20 @@ test.describe("smoke", () => {
     expect(getDisclosureSectionState("success", false, 0)).toBe("unavailable");
     expect(getDisclosureSectionState("success", true, 0)).toBe("empty");
     expect(getDisclosureSectionState("success", true, 2)).toBe("list");
+  });
+
+  test("trading API cache policy uses daily status TTLs without caching live price paths", async () => {
+    expect(getTradingApiCacheTtlMs("/api/trading/eod/freshness")).toBe(10 * 60 * 1000);
+    expect(
+      getTradingApiCacheTtlMs("/api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1"),
+    ).toBe(10 * 60 * 1000);
+    expect(getTradingApiCacheTtlMs("/api/trading/disclosures/dart/fundamentals/history?symbols=005930")).toBe(60 * 60 * 1000);
+    expect(getTradingApiCacheTtlMs("/api/trading/eod/technical-snapshots?symbols=005930")).toBe(60 * 60 * 1000);
+    expect(getTradingApiCacheTtlMs("/api/trading/scanner/realtime-trending?limit=5")).toBe(10 * 60 * 1000);
+    expect(getTradingApiCacheTtlMs("/api/trading/scanner/trending-stocks?period=5d")).toBe(10 * 60 * 1000);
+    expect(getTradingApiCacheTtlMs("/api/trading/quotes/005930")).toBeNull();
+    expect(getTradingApiCacheTtlMs("/api/trading/market/status")).toBeNull();
+    expect(getTradingApiCacheTtlMs("/api/trading/scanner/tracked-symbols", { method: "POST" })).toBeNull();
   });
 
   test("kis dashboard renders even when an upstream section is unavailable", async ({ page }) => {
