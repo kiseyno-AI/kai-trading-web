@@ -22,7 +22,7 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByText(/Network Integrity/i)).toBeVisible();
   });
 
-  test("keeps quote prices out of the Q2 symbol list", async ({ page }) => {
+  test("opens the candlestick detail page from the Q2 symbol list without rendering quote prices in the list", async ({ page }) => {
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       await route.fulfill({
         json: {
@@ -39,7 +39,54 @@ test.describe("search terminal mobile", () => {
         },
       });
     });
-    await page.route("**/api/trading/quotes/005930", async (route) => {
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      await route.fulfill({
+        json: {
+          symbol: "005930",
+          count: 3,
+          start_date: "2026-04-10",
+          end_date: "2026-04-14",
+          requested_start_date: "2025-04-14",
+          requested_end_date: "2026-04-14",
+          items: [
+            {
+              trade_date: "2026-04-10",
+              open_price: 70000,
+              high_price: 71000,
+              low_price: 69500,
+              close_price: 70500,
+              volume: 1000000,
+              turnover: 70500000000,
+              source: "test",
+              captured_at: "2026-04-10T16:00:00+09:00",
+            },
+            {
+              trade_date: "2026-04-13",
+              open_price: 70600,
+              high_price: 71600,
+              low_price: 70200,
+              close_price: 70900,
+              volume: 1100000,
+              turnover: 77990000000,
+              source: "test",
+              captured_at: "2026-04-13T16:00:00+09:00",
+            },
+            {
+              trade_date: "2026-04-14",
+              open_price: 71000,
+              high_price: 71800,
+              low_price: 70800,
+              close_price: 71500,
+              volume: 1250000,
+              turnover: 89375000000,
+              source: "test",
+              captured_at: "2026-04-14T16:00:00+09:00",
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/quotes/005930**", async (route) => {
       await route.fulfill({
         json: {
           symbol: "005930",
@@ -63,20 +110,19 @@ test.describe("search terminal mobile", () => {
     await page.goto("/search");
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
 
-    const resultCard = page.getByRole("button", { name: /005930.*Samsung Electronics/i }).first();
+    const resultCard = page.getByRole("link", { name: /005930.*Samsung Electronics/i }).first();
     await expect(resultCard).toBeVisible();
-    const quoteResponse = page.waitForResponse(
-      (response) => response.url().includes("/api/trading/quotes/005930") && response.ok(),
+    await expect(resultCard).toHaveAttribute(
+      "href",
+      "/dashboard/symbol/005930?name=Samsung+Electronics&market=KOSPI&standardCode=KR7005930003",
     );
-    await resultCard.click();
-    await quoteResponse;
-
-    const selectedInspector = page.getByRole("complementary");
-    await expect(selectedInspector.getByText("Last Price")).toBeVisible();
-    await expect(selectedInspector.getByText("₩71,500")).toBeVisible();
-    await expect(selectedInspector.getByText("+0.84%")).toBeVisible();
 
     await expect(resultCard).not.toContainText("₩71,500");
     await expect(resultCard).not.toContainText("+0.84%");
+
+    await Promise.all([page.waitForURL(/\/dashboard\/symbol\/005930/), resultCard.click()]);
+
+    await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
+    await expect(page.getByRole("img", { name: /Historical candlestick chart for 005930/i })).toBeVisible();
   });
 });

@@ -288,9 +288,9 @@ export default function SearchPage() {
             {items.slice(0, 6).map((item) => {
               const isSelected = selected?.symbol === item.symbol;
               return (
-                <button
+                <Link
                   key={item.symbol}
-                  type="button"
+                  href={buildSymbolHref(item)}
                   className={`${styles.mobileResultCard} ${isSelected ? styles.mobileResultCardActive : ""}`.trim()}
                   onClick={() => handleSelect(item)}
                 >
@@ -299,7 +299,7 @@ export default function SearchPage() {
                     <strong className="clamp-3">{item.symbol}</strong>
                     <span className="clamp-3">{item.name_ko}</span>
                   </span>
-                </button>
+                </Link>
               );
             })}
             {items.length === 0 && !searchError ? (
