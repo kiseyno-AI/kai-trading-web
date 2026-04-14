@@ -121,6 +121,10 @@ When **`NEXT_PUBLIC_TRADING_API_BASE_URL`** is set, the dashboard adapter issues
 
 Bots and some overview calls may still use **mock** implementations in the same module until wired to real endpoints.
 
+## Browser API cache
+
+Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF reads. Successful GET responses for stored EOD data, DART fundamentals, technical/action summaries, favorites/tracked-symbol metadata, symbol search, aggregate symbol context, and price bars are cached in `sessionStorage` for up to 1 hour, so the data clears when the browser session ends. Trending scanner reads are cached for 10 minutes. Live quote and market-status paths stay uncached so polling continues to reflect current price state.
+
 ---
 
 ## UI routes (pages)

@@ -8,6 +8,7 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { getCachedTradingApiJson, seedTradingApiJsonCache } from "@/lib/trading-api-cache";
 import type {
   DartFundamentalsDailyInspectResponseDto,
   DartFundamentalsDailyRunDto,
@@ -92,10 +93,7 @@ function getCompanyName(item: CoreTrackedQuote | undefined): string {
 }
 
 function getJson<T>(path: string): Promise<T> {
-  return fetch(path, { cache: "no-store" }).then((response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json() as Promise<T>;
-  });
+  return getCachedTradingApiJson<T>(path);
 }
 
 function getQuoteToneClass(value: number | null | undefined): string {
@@ -398,6 +396,14 @@ export function LiveDashboardClient({
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError);
   const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "OFFLINE PLACEHOLDER");
+
+  useEffect(() => {
+    seedTradingApiJsonCache("/api/trading/eod/freshness", initialFreshness);
+    seedTradingApiJsonCache(
+      "/api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1",
+      initialFundamentalsStatus,
+    );
+  }, [initialFreshness, initialFundamentalsStatus]);
 
   useEffect(() => {
     let active = true;

@@ -9,6 +9,7 @@ import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
+import { getCachedTradingApiJson } from "@/lib/trading-api-cache";
 import type {
   AgentContextActionSummaryDto,
   AgentContextDisclosureDto,
@@ -163,9 +164,7 @@ const SYMBOL_DETAIL_MODE_BY_ID = SYMBOL_DETAIL_MODES.reduce(
 );
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: "no-store" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json() as Promise<T>;
+  return getCachedTradingApiJson<T>(path);
 }
 
 function hasNumber(value: number | null | undefined): value is number {

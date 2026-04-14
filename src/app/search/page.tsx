@@ -13,6 +13,7 @@ import {
   getForwardableSymbolMetaSeedValue,
   normalizeSymbolMetaSeedValue,
 } from "@/lib/symbol-meta";
+import { getTradingApiJsonResult, invalidateTradingApiCacheByPathPrefix } from "@/lib/trading-api-cache";
 
 import styles from "./search-page.module.css";
 
@@ -193,10 +194,7 @@ function hasNumber(value: number | null | undefined): value is number {
 }
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<JsonResult<T>> {
-  const response = await fetch(path, { cache: "no-store", ...init });
-  if (!response.ok) return { ok: false, status: response.status };
-  const data = (await response.json()) as T;
-  return { ok: true, data };
+  return getTradingApiJsonResult<T>(path, init);
 }
 
 function getInitials(item: SymbolSearchItem) {
@@ -732,6 +730,10 @@ export default function SearchPage() {
       const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
       const favoriteItem = normalizeSearchItem(favoriteSourceItem);
 
+      invalidateTradingApiCacheByPathPrefix([
+        "/api/trading/scanner/tracked-symbols",
+        "/api/trading/symbols/favorites",
+      ]);
       setTrackedSymbols(normalizedTrackedSymbols);
       setFavoriteItems((current) => {
         const next = [favoriteItem, ...current.filter((currentItem) => currentItem.symbol !== symbol)];
