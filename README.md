@@ -168,6 +168,16 @@ npm run test:e2e        # Playwright; starts dev server via playwright.config
 npm run test:e2e:ui
 ```
 
+## Production serve on port 8383
+
+Local production serving for the bridge/Tailscale path uses launchd label `com.kiseyno.trading-web` and this helper script:
+
+```bash
+/Users/shawn/trading-web/scripts/redeploy-prod-8383.sh
+```
+
+The script installs dependencies when needed, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web`, then restarts the launchd-managed `next start` server on port `8383`.
+
 ---
 
 ## Project structure (abbreviated)
