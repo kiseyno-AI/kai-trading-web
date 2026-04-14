@@ -11,7 +11,7 @@ Next.js **frontend** for the KAI trading desk: dashboard shell, markets/bots are
 | **UI** | App Router, React 19, Tailwind v4, shadcn/ui (`components.json`, Nova preset) |
 | **Dashboard** | Live-oriented `/dashboard` SSR-fetches live trading data (`/market/status`, `/quotes/tracked`, `/eod/freshness`, `/disclosures/dart/fundamentals/daily/inspect`); deployed server rendering now uses only the authenticated `TRADING_API_UPSTREAM_*` path, with localhost-only fallback to `127.0.0.1:8000` during true local development |
 | **Data modes** | **Mock:** in local development, when `NEXT_PUBLIC_TRADING_API_BASE_URL` is unset, `src/lib/trading-api.ts` serves demo data from `src/data/trading-dashboard.ts`. **Live:** set the public base URL to your API origin (often same-origin BFF: `http://localhost:3000/api/trading`). On non-localhost deployments, the client adapter falls back to same-origin `/api/trading` when the public base URL is unset. |
-| **BFF** | `src/app/api/trading/**` forwards GET requests to the **upstream** core API with optional bearer token; `GET /scanner/tracked-symbols` is also exposed as a same-origin compatibility alias |
+| **BFF** | `src/app/api/trading/**` forwards selected requests to the **upstream** core API with optional bearer token; `/scanner/tracked-symbols` is also exposed as a same-origin compatibility alias |
 | **Bots / markets (adapter)** | Bots overview and some flows still use mock adapter paths until wired to real endpoints |
 | **Quality** | ESLint, Playwright e2e (`e2e/`), GitHub Actions CI |
 | **Agent config** | Codex: `.codex/config.toml`, `.codex/skills/`, `.codex/agents/` |
@@ -80,11 +80,12 @@ NEXT_PUBLIC_TRADING_API_BASE_URL=http://localhost:3000/api/trading
 
 Base URL (local dev): `http://localhost:3000`
 
-These routes are implemented under **`src/app/api/trading/`**. They **proxy GET** to trading-core paths on the configured upstream (status and body pass through).
+These routes are implemented under **`src/app/api/trading/`**. They proxy to trading-core paths on the configured upstream (status and body pass through).
 
 | Method | Next.js path | Upstream path (trading-core) | Query |
 |--------|----------------|-------------------------------|--------|
 | `GET` | `/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
+| `POST` | `/scanner/tracked-symbols` | `/scanner/tracked-symbols` | JSON `{ "symbols": [...] }` |
 | `GET` | `/api/trading/market/status` | `/market/status` | — |
 | `GET` | `/api/trading/agent-context/symbol-day` | `/agent-context/symbol-day` | `market_date`, repeatable `symbols`, optional `fs_div`, optional `disclosures_limit` |
 | `GET` | `/api/trading/eod/freshness` | `/eod/freshness` | — |
@@ -93,8 +94,10 @@ These routes are implemented under **`src/app/api/trading/`**. They **proxy GET*
 | `GET` | `/api/trading/quotes/tracked` | `/quotes/tracked` | — |
 | `GET` | `/api/trading/quotes/{symbol}` | `/quotes/{symbol}` | — |
 | `GET` | `/api/trading/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
+| `POST` | `/api/trading/scanner/tracked-symbols` | `/scanner/tracked-symbols` | JSON `{ "symbols": [...] }` |
 | `GET` | `/api/trading/disclosures/dart/fundamentals/daily/inspect` | `/disclosures/dart/fundamentals/daily/inspect` | optional `runs_limit`, optional `market_date`, optional `fs_div` |
 | `GET` | `/api/trading/disclosures/dart/fundamentals/history` | `/disclosures/dart/fundamentals/history` | repeatable `symbols`, `start_date`, `end_date`, optional `fs_div` |
+| `GET` | `/api/trading/symbols/favorites` | `/symbols/favorites` | — |
 | `GET` | `/api/trading/symbols/{symbol}/price-bars` | `/symbols/{symbol}/price-bars` | `start_date`, `end_date`, `limit` |
 | `GET` | `/api/trading/symbols/search` | `/symbols/search` | `q` (optional), `limit` (optional, forwarded) |
 

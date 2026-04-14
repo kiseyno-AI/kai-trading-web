@@ -110,11 +110,12 @@ export function getTradingUpstreamHeaders(init?: HeadersInit) {
   return headers;
 }
 
-export function fetchTradingUpstream(path: string) {
+export function fetchTradingUpstream(path: string, init?: RequestInit) {
   const upstreamTarget = resolveTradingUpstreamTarget();
 
   return fetch(`${upstreamTarget.baseUrl}${path}`, {
-    headers: getTradingUpstreamHeaders(),
+    ...init,
+    headers: getTradingUpstreamHeaders(init?.headers),
     cache: "no-store",
   });
 }
@@ -180,10 +181,10 @@ export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?
   return parseJsonResponse<T>(response, `${path} from ${serverTarget.baseUrl}`);
 }
 
-export async function proxyTradingUpstreamJson(path: string) {
+export async function proxyTradingUpstreamJson(path: string, init?: RequestInit) {
   try {
     const upstreamTarget = resolveTradingUpstreamTarget();
-    const response = await fetchTradingUpstream(path);
+    const response = await fetchTradingUpstream(path, init);
     const body = await response.text();
     const contentType = response.headers.get("content-type") ?? "application/json";
 

@@ -28,6 +28,24 @@ type SymbolSearchResponse = {
   items: SymbolSearchItem[];
 };
 
+type FavoriteSymbolItem = {
+  symbol: string;
+  standard_code: string | null;
+  name_ko: string | null;
+  market: string | null;
+};
+
+type FavoriteSymbolsResponse = {
+  count: number;
+  items: FavoriteSymbolItem[];
+};
+
+type TrackedSymbolsResponse = {
+  tracked_symbols: string[];
+  count: number;
+  last_updated_at: string | null;
+};
+
 type QuoteResponse = {
   symbol: string;
   company_name?: string;
@@ -55,8 +73,8 @@ function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
 
-async function getJson<T>(path: string): Promise<JsonResult<T>> {
-  const response = await fetch(path, { cache: "no-store" });
+async function getJson<T>(path: string, init?: RequestInit): Promise<JsonResult<T>> {
+  const response = await fetch(path, { cache: "no-store", ...init });
   if (!response.ok) return { ok: false, status: response.status };
   const data = (await response.json()) as T;
   return { ok: true, data };
@@ -102,13 +120,31 @@ function getQuoteMode(quote: QuoteResponse | null) {
   return "DELAYED";
 }
 
-function normalizeSearchItem(item: SymbolSearchItem): SymbolSearchItem {
+function normalizeSymbolCode(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function normalizeSearchItem(item: {
+  symbol: string;
+  standard_code?: string | null;
+  name_ko?: string | null;
+  market?: string | null;
+}): SymbolSearchItem {
   return {
-    symbol: item.symbol,
-    standard_code: normalizeSymbolMetaSeedValue(item.standard_code),
-    name_ko: normalizeSymbolMetaSeedValue(item.name_ko),
-    market: normalizeSymbolMetaSeedValue(item.market),
+    symbol: normalizeSymbolCode(item.symbol),
+    standard_code: normalizeSymbolMetaSeedValue(item.standard_code ?? ""),
+    name_ko: normalizeSymbolMetaSeedValue(item.name_ko ?? item.symbol),
+    market: normalizeSymbolMetaSeedValue(item.market ?? ""),
   };
+}
+
+function buildFallbackFavoriteItem(symbol: string): SymbolSearchItem {
+  return normalizeSearchItem({
+    symbol,
+    standard_code: "",
+    name_ko: symbol,
+    market: "KRX",
+  });
 }
 
 export default function SearchPage() {
@@ -118,6 +154,12 @@ export default function SearchPage() {
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [recentItems, setRecentItems] = useState<SymbolSearchItem[]>([]);
   const [quickAccessCleared, setQuickAccessCleared] = useState(false);
+  const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>([]);
+  const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
+  const [favoriteSymbolInput, setFavoriteSymbolInput] = useState("");
+  const [favoriteSavingSymbol, setFavoriteSavingSymbol] = useState<string | null>(null);
+  const [favoriteStatus, setFavoriteStatus] = useState<string | null>(null);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
@@ -133,6 +175,57 @@ export default function SearchPage() {
       }
     }, 0);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadFavorites = async () => {
+      try {
+        const result = await getJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites");
+        if (!active) return;
+        if (!result.ok) {
+          setFavoriteItems([]);
+          setFavoriteError(`Favorite list unavailable. HTTP ${result.status}`);
+          return;
+        }
+        setFavoriteItems(result.data.items.map(normalizeSearchItem).slice(0, 4));
+        setFavoriteError(null);
+      } catch {
+        if (!active) return;
+        setFavoriteItems([]);
+        setFavoriteError("Favorite list unavailable.");
+      }
+    };
+
+    void loadFavorites();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTrackedSymbols = async () => {
+      try {
+        const result = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
+        if (!active) return;
+        if (!result.ok) {
+          setTrackedSymbols([]);
+          return;
+        }
+        setTrackedSymbols(result.data.tracked_symbols.map(normalizeSymbolCode));
+      } catch {
+        if (!active) return;
+        setTrackedSymbols([]);
+      }
+    };
+
+    void loadTrackedSymbols();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -196,8 +289,12 @@ export default function SearchPage() {
   const resultTitle = query.trim() ? `Results for "${query.trim()}"` : "Search Results";
   const selectedQuoteDate = quote ? formatDisplayTimestamp(quote.cached_at ?? quote.trade_date, UNKNOWN) : UNKNOWN;
   const selectedHref = selected ? buildSymbolHref(selected) : "/dashboard#tracked-symbols";
+  const favoriteCandidate = selected ?? items[0] ?? null;
+  const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput || favoriteCandidate?.symbol || "");
+  const canAddFavorite = favoriteSymbolCandidate.length > 0 && favoriteSavingSymbol === null;
 
   const quickAccessItems = useMemo(() => {
+    if (favoriteItems.length > 0) return favoriteItems;
     if (quickAccessCleared) return [];
     const merged = [...recentItems, ...items];
     const seen = new Set<string>();
@@ -206,11 +303,13 @@ export default function SearchPage() {
       seen.add(item.symbol);
       return true;
     }).slice(0, 4);
-  }, [items, quickAccessCleared, recentItems]);
+  }, [favoriteItems, items, quickAccessCleared, recentItems]);
 
   const handleQueryChange = (nextQuery: string) => {
     setQuery(nextQuery);
     setQuickAccessCleared(false);
+    setFavoriteStatus(null);
+    setFavoriteError(null);
   };
 
   const handleSelect = (item: SymbolSearchItem) => {
@@ -236,6 +335,62 @@ export default function SearchPage() {
       window.localStorage.removeItem(SEARCH_RECENTS_STORAGE_KEY);
     } catch {
       // Ignore storage failures.
+    }
+  };
+
+  const handleAddFavorite = async (item?: SymbolSearchItem) => {
+    const symbol = normalizeSymbolCode(favoriteSymbolInput || item?.symbol || favoriteCandidate?.symbol || "");
+
+    if (!symbol) {
+      setFavoriteStatus(null);
+      setFavoriteError("Enter a symbol code before adding a favorite.");
+      return;
+    }
+
+    setFavoriteSavingSymbol(symbol);
+    setFavoriteStatus(null);
+    setFavoriteError(null);
+
+    try {
+      let currentTrackedSymbols = trackedSymbols;
+      if (currentTrackedSymbols.length === 0) {
+        const currentResult = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
+        if (currentResult.ok) {
+          currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
+        }
+      }
+
+      const nextSymbols = [symbol, ...currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol)];
+      const result = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ symbols: nextSymbols }),
+      });
+
+      if (!result.ok) {
+        setFavoriteError(`Favorite save failed. HTTP ${result.status}`);
+        return;
+      }
+
+      const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
+      const favoriteSourceItem =
+        item?.symbol === symbol ? item : favoriteCandidate?.symbol === symbol ? favoriteCandidate : buildFallbackFavoriteItem(symbol);
+      const favoriteItem = normalizeSearchItem(favoriteSourceItem);
+
+      setTrackedSymbols(normalizedTrackedSymbols);
+      setFavoriteItems((current) => {
+        const next = [favoriteItem, ...current.filter((currentItem) => currentItem.symbol !== symbol)];
+        return next.slice(0, 4);
+      });
+      setQuickAccessCleared(false);
+      setFavoriteSymbolInput("");
+      setFavoriteStatus(`${symbol} saved to core favorites.`);
+    } catch {
+      setFavoriteError("Favorite save failed. Check trading-core connectivity.");
+    } finally {
+      setFavoriteSavingSymbol(null);
     }
   };
 
@@ -321,18 +476,28 @@ export default function SearchPage() {
         </section>
 
         <section className={styles.quickSection}>
-          <ComponentTag label="search.quick-access" api="local recent selections + /api/trading/symbols/search" />
+          <ComponentTag
+            label="search.quick-access"
+            api="/api/trading/symbols/favorites + /api/trading/scanner/tracked-symbols + local recent selections + /api/trading/symbols/search"
+          />
           <div className={styles.sectionHeader}>
             <h2>Quick Access / Recent</h2>
-            {quickAccessItems.length > 0 ? (
-              <button type="button" onClick={handleClearRecent}>
-                Clear All
+            <div className={styles.sectionActions}>
+              <button type="button" onClick={() => void handleAddFavorite()} disabled={!canAddFavorite}>
+                {favoriteSavingSymbol ? "Saving" : "+ Favorite"}
               </button>
-            ) : quickAccessCleared ? (
-              <span>Cleared</span>
-            ) : (
-              <span>From current query</span>
-            )}
+              {favoriteItems.length > 0 ? (
+                <span>Core favorites</span>
+              ) : quickAccessItems.length > 0 ? (
+                <button type="button" onClick={handleClearRecent}>
+                  Clear All
+                </button>
+              ) : quickAccessCleared ? (
+                <span>Cleared</span>
+              ) : (
+                <span>From current query</span>
+              )}
+            </div>
           </div>
           <div className={styles.quickGrid}>
             {quickAccessItems.length > 0 ? (
@@ -350,12 +515,35 @@ export default function SearchPage() {
                 <strong>{quickAccessCleared ? "No recent symbols" : UNKNOWN}</strong>
                 <p className="clamp-3">
                   {quickAccessCleared
-                    ? "Search or select a symbol to rebuild recent access."
-                    : "Quick access requires confirmed search results or a local recent selection."}
+                    ? "Search or enter a symbol, then save it to the core favorite list."
+                    : "Quick access requires confirmed search results, a favorite, or a local recent selection."}
                 </p>
+                <form
+                  className={styles.favoriteForm}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleAddFavorite();
+                  }}
+                >
+                  <label className={styles.srOnly} htmlFor="favorite-symbol-code">
+                    Favorite symbol code
+                  </label>
+                  <input
+                    id="favorite-symbol-code"
+                    value={favoriteSymbolInput}
+                    onChange={(event) => setFavoriteSymbolInput(event.target.value)}
+                    placeholder={favoriteCandidate?.symbol ?? "Symbol code"}
+                    aria-label="Favorite symbol code"
+                  />
+                  <button type="submit" disabled={!canAddFavorite}>
+                    {favoriteSavingSymbol ? "Saving" : "Add Favorite"}
+                  </button>
+                </form>
               </div>
             )}
           </div>
+          {favoriteStatus ? <p className={styles.favoriteStatus}>{favoriteStatus}</p> : null}
+          {favoriteError ? <p className={styles.favoriteError}>{favoriteError}</p> : null}
         </section>
 
         <section className={styles.trendingPanel}>
