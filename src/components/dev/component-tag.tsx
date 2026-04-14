@@ -13,7 +13,6 @@ type ComponentTagProps = {
 const TAG_IDS: Record<string, string> = {
   "dashboard.core-unavailable": "D1",
   "dashboard.operational-integrity": "D2",
-  "dashboard.watch-snapshot": "D3",
   "dashboard.momentum-board": "D4",
   "dashboard.coverage-note": "D5",
   "search.terminal-shell": "Q1",
@@ -34,10 +33,6 @@ const TAG_IDS: Record<string, string> = {
 };
 
 function resolveTagId(label: string) {
-  if (label.startsWith("dashboard.symbol-card.")) {
-    return "D3";
-  }
-
   return TAG_IDS[label] ?? label;
 }
 
