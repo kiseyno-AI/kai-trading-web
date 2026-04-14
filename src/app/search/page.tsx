@@ -117,6 +117,7 @@ export default function SearchPage() {
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [recentItems, setRecentItems] = useState<SymbolSearchItem[]>([]);
+  const [quickAccessCleared, setQuickAccessCleared] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
@@ -197,6 +198,7 @@ export default function SearchPage() {
   const selectedHref = selected ? buildSymbolHref(selected) : "/dashboard#tracked-symbols";
 
   const quickAccessItems = useMemo(() => {
+    if (quickAccessCleared) return [];
     const merged = [...recentItems, ...items];
     const seen = new Set<string>();
     return merged.filter((item) => {
@@ -204,9 +206,15 @@ export default function SearchPage() {
       seen.add(item.symbol);
       return true;
     }).slice(0, 4);
-  }, [items, recentItems]);
+  }, [items, quickAccessCleared, recentItems]);
+
+  const handleQueryChange = (nextQuery: string) => {
+    setQuery(nextQuery);
+    setQuickAccessCleared(false);
+  };
 
   const handleSelect = (item: SymbolSearchItem) => {
+    setQuickAccessCleared(false);
     setQuote(null);
     setQuoteError(null);
     setSelected(item);
@@ -223,6 +231,7 @@ export default function SearchPage() {
 
   const handleClearRecent = () => {
     setRecentItems([]);
+    setQuickAccessCleared(true);
     try {
       window.localStorage.removeItem(SEARCH_RECENTS_STORAGE_KEY);
     } catch {
@@ -263,12 +272,12 @@ export default function SearchPage() {
             <span className={styles.searchGlyph} aria-hidden="true" />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => handleQueryChange(event.target.value)}
               placeholder="Search markets, symbols, or analysis..."
               aria-label="Search markets, symbols, or analysis"
             />
             {query ? (
-              <button type="button" onClick={() => setQuery("")} aria-label="Clear search query">
+              <button type="button" onClick={() => handleQueryChange("")} aria-label="Clear search query">
                 /
               </button>
             ) : (
@@ -315,10 +324,12 @@ export default function SearchPage() {
           <ComponentTag label="search.quick-access" api="local recent selections + /api/trading/symbols/search" />
           <div className={styles.sectionHeader}>
             <h2>Quick Access / Recent</h2>
-            {recentItems.length > 0 ? (
+            {quickAccessItems.length > 0 ? (
               <button type="button" onClick={handleClearRecent}>
                 Clear All
               </button>
+            ) : quickAccessCleared ? (
+              <span>Cleared</span>
             ) : (
               <span>From current query</span>
             )}
@@ -336,8 +347,12 @@ export default function SearchPage() {
               ))
             ) : (
               <div className={styles.emptyState}>
-                <strong>{UNKNOWN}</strong>
-                <p className="clamp-3">Quick access requires confirmed search results or a local recent selection.</p>
+                <strong>{quickAccessCleared ? "No recent symbols" : UNKNOWN}</strong>
+                <p className="clamp-3">
+                  {quickAccessCleared
+                    ? "Search or select a symbol to rebuild recent access."
+                    : "Quick access requires confirmed search results or a local recent selection."}
+                </p>
               </div>
             )}
           </div>
