@@ -125,4 +125,67 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
     await expect(page.getByRole("img", { name: /Historical candlestick chart for 005930/i })).toBeVisible();
   });
+
+  test("keeps the favorite dialog overlay above the mobile bottom nav", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: "2026-04-14T08:55:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    await page.getByRole("button", { name: /Open favorite search/i }).click();
+
+    const dialog = page.getByRole("dialog", { name: /Save Symbol/i });
+    await expect(dialog).toBeVisible();
+
+    const bottomNav = page.getByRole("navigation", { name: /^Primary$/i });
+    await expect(bottomNav).toBeVisible();
+
+    const bottomNavBox = await bottomNav.boundingBox();
+    expect(bottomNavBox).not.toBeNull();
+
+    const topLayer = await page.evaluate(
+      ({ x, y }) => {
+        const element = document.elementFromPoint(x, y);
+        const className = typeof element?.className === "string" ? element.className : "";
+
+        return {
+          className,
+          isWithinBottomNav: Boolean(element?.closest('nav[aria-label="Primary"]')),
+          zIndex: element ? Number.parseInt(window.getComputedStyle(element).zIndex, 10) : Number.NaN,
+        };
+      },
+      {
+        x: bottomNavBox!.x + bottomNavBox!.width / 2,
+        y: bottomNavBox!.y + bottomNavBox!.height / 2,
+      },
+    );
+
+    expect(topLayer.className).toContain("favoriteDialogOverlay");
+    expect(topLayer.isWithinBottomNav).toBe(false);
+    expect(topLayer.zIndex).toBeGreaterThan(45);
+  });
 });

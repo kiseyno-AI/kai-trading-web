@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
@@ -67,6 +68,8 @@ type QuoteResponse = {
 type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const UNKNOWN = UNKNOWN_SYMBOL_META;
+const FAVORITE_DIALOG_ID = "favorite-symbol-dialog";
+const FAVORITE_SUGGESTIONS_ID = "favorite-symbol-suggestions";
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -137,15 +140,6 @@ function normalizeSearchItem(item: {
   };
 }
 
-function buildFallbackFavoriteItem(symbol: string): SymbolSearchItem {
-  return normalizeSearchItem({
-    symbol,
-    standard_code: "",
-    name_ko: symbol,
-    market: "KRX",
-  });
-}
-
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
@@ -164,6 +158,7 @@ export default function SearchPage() {
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -329,11 +324,18 @@ export default function SearchPage() {
     };
   }, [selected]);
 
+  const getValidatedFavoriteItem = (symbol: string) =>
+    (selected?.symbol === symbol ? selected : null) ??
+    favoriteSearchItems.find((currentItem) => currentItem.symbol === symbol) ??
+    items.find((currentItem) => currentItem.symbol === symbol) ??
+    null;
+
   const resultTitle = query.trim() ? `Results for "${query.trim()}"` : "Search Results";
   const selectedQuoteDate = quote ? formatDisplayTimestamp(quote.cached_at ?? quote.trade_date, UNKNOWN) : UNKNOWN;
   const selectedHref = selected ? buildSymbolHref(selected) : "/dashboard#tracked-symbols";
   const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput);
-  const canAddFavorite = favoriteSymbolCandidate.length > 0 && favoriteSavingSymbol === null;
+  const favoriteInputItem = favoriteSymbolCandidate ? getValidatedFavoriteItem(favoriteSymbolCandidate) : null;
+  const canAddFavorite = favoriteInputItem !== null && favoriteSavingSymbol === null;
   const quickAccessItems = favoriteItems;
 
   const handleQueryChange = (nextQuery: string) => {
@@ -352,7 +354,7 @@ export default function SearchPage() {
     setFavoriteStatus(null);
     setFavoriteError(null);
     setFavoriteSearchError(null);
-    setFavoriteSymbolInput(selected?.symbol ?? query.trim());
+    setFavoriteSymbolInput(selected?.symbol ?? "");
     setFavoriteDialogOpen(true);
   };
 
@@ -360,17 +362,26 @@ export default function SearchPage() {
     if (favoriteSavingSymbol) return;
     setFavoriteDialogOpen(false);
     setFavoriteSearchError(null);
+    window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
   };
 
   const handleAddFavorite = async (item?: SymbolSearchItem) => {
-    const symbol = normalizeSymbolCode(item?.symbol || favoriteSymbolInput);
+    const symbolCandidate = normalizeSymbolCode(item?.symbol || favoriteSymbolInput);
+    const favoriteSourceItem = item ? normalizeSearchItem(item) : getValidatedFavoriteItem(symbolCandidate);
 
-    if (!symbol) {
+    if (!symbolCandidate) {
       setFavoriteStatus(null);
       setFavoriteError("Enter a symbol code before adding a favorite.");
       return;
     }
 
+    if (!favoriteSourceItem) {
+      setFavoriteStatus(null);
+      setFavoriteError("Select a symbol from the search suggestions before adding a favorite.");
+      return;
+    }
+
+    const symbol = favoriteSourceItem.symbol;
     setFavoriteSavingSymbol(symbol);
     setFavoriteStatus(null);
     setFavoriteError(null);
@@ -405,13 +416,6 @@ export default function SearchPage() {
       }
 
       const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
-      const favoriteSourceItem =
-        item?.symbol === symbol
-          ? item
-          : favoriteSearchItems.find((currentItem) => currentItem.symbol === symbol) ??
-            (selected?.symbol === symbol ? selected : null) ??
-            items.find((currentItem) => currentItem.symbol === symbol) ??
-            buildFallbackFavoriteItem(symbol);
       const favoriteItem = normalizeSearchItem(favoriteSourceItem);
 
       setTrackedSymbols(normalizedTrackedSymbols);
@@ -424,6 +428,7 @@ export default function SearchPage() {
       setFavoriteSearchError(null);
       setFavoriteSymbolInput("");
       setFavoriteStatus(`${symbol} saved to core favorites.`);
+      window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
     } catch {
       setFavoriteError("Favorite save failed. Check trading-core connectivity.");
     } finally {
@@ -521,10 +526,14 @@ export default function SearchPage() {
             <h2>Quick Access</h2>
             <div className={styles.sectionActions}>
               <button
+                ref={favoriteOpenButtonRef}
                 type="button"
                 onClick={handleOpenFavoriteDialog}
                 disabled={favoriteSavingSymbol !== null}
                 aria-label="Open favorite search"
+                aria-haspopup="dialog"
+                aria-expanded={favoriteDialogOpen}
+                aria-controls={favoriteDialogOpen ? FAVORITE_DIALOG_ID : undefined}
               >
                 +
               </button>
@@ -549,84 +558,101 @@ export default function SearchPage() {
               </div>
             )}
           </div>
-          {favoriteDialogOpen ? (
-            <div className={styles.favoriteDialogOverlay} onClick={handleCloseFavoriteDialog}>
-              <div
-                className={styles.favoriteDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="favorite-dialog-title"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") handleCloseFavoriteDialog();
-                }}
-              >
-                <div className={styles.favoriteDialogHeader}>
-                  <div>
-                    <strong id="favorite-dialog-title">Save Symbol</strong>
-                    <span>Search the symbol master</span>
-                  </div>
-                  <button type="button" onClick={handleCloseFavoriteDialog} aria-label="Close favorite search">
-                    x
-                  </button>
-                </div>
-                <form
-                  className={styles.favoriteSearchForm}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void handleAddFavorite();
-                  }}
-                >
-                  <label className={styles.srOnly} htmlFor="favorite-symbol-search">
-                    Favorite symbol search
-                  </label>
-                  <input
-                    ref={favoriteSearchInputRef}
-                    id="favorite-symbol-search"
-                    value={favoriteSymbolInput}
-                    onChange={(event) => setFavoriteSymbolInput(event.target.value)}
-                    placeholder="Search symbol or company..."
-                    aria-label="Favorite symbol search"
-                    autoComplete="off"
-                  />
-                  <button type="submit" disabled={!canAddFavorite}>
-                    {favoriteSavingSymbol ? "Saving" : "Add"}
-                  </button>
-                </form>
-                {favoriteSearchError ? <div className={styles.feedback}>{favoriteSearchError}</div> : null}
-                {favoriteError ? <div className={styles.feedback}>{favoriteError}</div> : null}
-                <div className={styles.favoriteSuggestions} aria-label="Favorite search suggestions">
-                  {favoriteSearchItems.map((item) => (
-                    <button
-                      key={item.symbol}
-                      type="button"
-                      onClick={() => void handleAddFavorite(item)}
-                      disabled={favoriteSavingSymbol !== null}
+          {favoriteDialogOpen && typeof document !== "undefined"
+            ? createPortal(
+                <div className={styles.favoriteDialogOverlay} onClick={handleCloseFavoriteDialog}>
+                  <div
+                    id={FAVORITE_DIALOG_ID}
+                    className={styles.favoriteDialog}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="favorite-dialog-title"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") handleCloseFavoriteDialog();
+                    }}
+                  >
+                    <div className={styles.favoriteDialogHeader}>
+                      <div>
+                        <strong id="favorite-dialog-title">Save Symbol</strong>
+                        <span>Search the symbol master</span>
+                      </div>
+                      <button type="button" onClick={handleCloseFavoriteDialog} aria-label="Close favorite search">
+                        x
+                      </button>
+                    </div>
+                    <form
+                      className={styles.favoriteSearchForm}
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void handleAddFavorite();
+                      }}
                     >
-                      <span>
-                        <strong className="clamp-3">{item.symbol}</strong>
-                        <small className="clamp-3">{item.name_ko}</small>
-                      </span>
-                      <small className="clamp-3">{item.market}</small>
-                    </button>
-                  ))}
-                  {favoriteSymbolInput.trim() && favoriteSearchItems.length === 0 && !favoriteSearchLoading && !favoriteSearchError ? (
-                    <div className={styles.emptyState}>
-                      <strong>No matching symbols.</strong>
-                      <p className="clamp-3">Submit the symbol code directly or refine the search.</p>
+                      <label className={styles.srOnly} htmlFor="favorite-symbol-search">
+                        Favorite symbol search
+                      </label>
+                      <input
+                        ref={favoriteSearchInputRef}
+                        id="favorite-symbol-search"
+                        value={favoriteSymbolInput}
+                        onChange={(event) => setFavoriteSymbolInput(event.target.value)}
+                        placeholder="Search symbol or company..."
+                        aria-label="Favorite symbol search"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded={favoriteSearchItems.length > 0}
+                        aria-controls={FAVORITE_SUGGESTIONS_ID}
+                        autoComplete="off"
+                      />
+                      <button type="submit" disabled={!canAddFavorite}>
+                        {favoriteSavingSymbol ? "Saving" : "Add"}
+                      </button>
+                    </form>
+                    {favoriteSearchError ? <div className={styles.feedback}>{favoriteSearchError}</div> : null}
+                    {favoriteError ? <div className={styles.feedback}>{favoriteError}</div> : null}
+                    <div
+                      id={FAVORITE_SUGGESTIONS_ID}
+                      className={styles.favoriteSuggestions}
+                      aria-label="Favorite search suggestions"
+                      aria-busy={favoriteSearchLoading}
+                      aria-live="polite"
+                    >
+                      {favoriteSearchItems.map((item) => (
+                        <button
+                          key={item.symbol}
+                          type="button"
+                          onClick={() => void handleAddFavorite(item)}
+                          disabled={favoriteSavingSymbol !== null}
+                        >
+                          <span>
+                            <strong className="clamp-3">{item.symbol}</strong>
+                            <small className="clamp-3">{item.name_ko}</small>
+                          </span>
+                          <small className="clamp-3">{item.market}</small>
+                        </button>
+                      ))}
+                      {favoriteSymbolInput.trim() &&
+                      favoriteSearchItems.length === 0 &&
+                      !favoriteSearchLoading &&
+                      !favoriteSearchError ? (
+                        <div className={styles.emptyState}>
+                          <strong>No matching symbols.</strong>
+                          <p className="clamp-3">Enter an exact symbol code from the symbol master or refine the search.</p>
+                        </div>
+                      ) : null}
+                      {!favoriteSymbolInput.trim() ? (
+                        <div className={styles.emptyState}>
+                          <strong>Start typing to search.</strong>
+                          <p className="clamp-3">Suggestions use the same symbol master as Universal Search.</p>
+                        </div>
+                      ) : null}
+                      {favoriteSearchLoading ? <p className={styles.favoriteSearchStatus}>Searching...</p> : null}
                     </div>
-                  ) : null}
-                  {!favoriteSymbolInput.trim() ? (
-                    <div className={styles.emptyState}>
-                      <strong>Start typing to search.</strong>
-                      <p className="clamp-3">Suggestions use the same symbol master as Universal Search.</p>
-                    </div>
-                  ) : null}
-                  {favoriteSearchLoading ? <p className={styles.favoriteSearchStatus}>Searching...</p> : null}
-                </div>
-              </div>
-            </div>
-          ) : null}
+                  </div>
+                </div>,
+                document.body,
+              )
+            : null}
           {favoriteStatus ? <p className={styles.favoriteStatus}>{favoriteStatus}</p> : null}
           {favoriteError && !favoriteDialogOpen ? <p className={styles.favoriteError}>{favoriteError}</p> : null}
         </section>
