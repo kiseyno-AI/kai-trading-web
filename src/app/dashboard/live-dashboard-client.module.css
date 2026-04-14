@@ -198,6 +198,146 @@
   text-shadow: 0 0 10px rgba(111, 251, 190, 0.32);
 }
 
+.statusButton {
+  border: 1px solid rgba(227, 176, 74, 0.28);
+  border-radius: 0.45rem;
+  box-shadow: 0 0 0 1px rgba(227, 176, 74, 0.08);
+}
+
+.statusButton:hover {
+  border-color: rgba(227, 176, 74, 0.52);
+  filter: brightness(1.08);
+}
+
+.statusButton:focus-visible,
+.dialogCloseButton:focus-visible {
+  outline: 2px solid rgba(186, 195, 255, 0.88);
+  outline-offset: 2px;
+}
+
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+  background: rgba(1, 15, 32, 0.78);
+  backdrop-filter: blur(12px);
+}
+
+.failureDialog {
+  width: min(42rem, 100%);
+  max-height: min(46rem, calc(100vh - 2rem));
+  overflow-y: auto;
+  border: 1px solid rgba(186, 195, 255, 0.22);
+  border-radius: 0.5rem;
+  background: rgba(13, 28, 46, 0.98);
+  box-shadow: 0 28px 70px rgba(1, 15, 32, 0.46);
+  padding: 1rem;
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.dialogTitle {
+  margin: 0.25rem 0 0;
+  color: #ffffff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.dialogCloseButton {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid rgba(186, 195, 255, 0.18);
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f6f8ff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dialogCloseButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.failureReason {
+  margin: 1rem 0 0;
+  padding: 0.8rem;
+  border: 1px solid rgba(227, 176, 74, 0.2);
+  border-radius: 0.45rem;
+  background: rgba(50, 37, 12, 0.42);
+  color: #fff4dd;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.failureDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0.9rem 0 0;
+}
+
+.failureDetailItem,
+.metadataBlock {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 0.45rem;
+  background: rgba(5, 20, 37, 0.56);
+}
+
+.failureDetailItem dt,
+.metadataBlock dt {
+  color: #93a3b8;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.failureDetailItem dd,
+.metadataBlock dd {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.metadataBlock {
+  margin-top: 0.9rem;
+}
+
+.metadataBlock strong {
+  display: block;
+  color: #ffffff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.94rem;
+  font-weight: 800;
+}
+
+.metadataBlock dl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0.7rem 0 0;
+}
+
 .sectionHeaderRow {
   display: flex;
   align-items: center;
@@ -407,6 +547,24 @@
 
   .cardMeta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dialogBackdrop {
+    align-items: flex-end;
+    padding: 0.75rem;
+  }
+
+  .failureDialog {
+    max-height: calc(100vh - 1.5rem);
+  }
+
+  .dialogHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .failureDetailGrid {
+    grid-template-columns: 1fr;
   }
 }
 

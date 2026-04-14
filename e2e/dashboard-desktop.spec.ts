@@ -229,6 +229,85 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
   });
 
+  test("D2 fundamentals failed control opens the 2026-04-14 failure reason dialog", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-14",
+            eod_status: "completed",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            symbols_failed: 0,
+            received: true,
+          },
+          latest: {
+            price_trade_date: "2026-04-14",
+            technical_market_date: "2026-04-14",
+            action_market_date: "2026-04-14",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 85,
+            market_date: "2026-04-14",
+            trigger: "internal_ops_cli",
+            status: "failed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 3583,
+            symbols_checked: 3583,
+            symbols_missing: 1388,
+            symbols_stale: 100,
+            symbols_fresh: 2095,
+            symbols_refreshed: 10,
+            symbols_failed: 1406,
+            events_detected: 13786,
+            events_captured: 10,
+            events_failed: 490,
+            error_message: null,
+            run_metadata: {
+              failure_reason: "DART fundamentals capture reported failed symbols and events.",
+            },
+            started_at: "2026-04-14T08:56:58.357390+09:00",
+            completed_at: "2026-04-14T09:11:08.375335+09:00",
+          },
+          runs: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
+    await expect(fundamentalsRow).toBeVisible();
+
+    await fundamentalsRow.getByRole("button", { name: "Failed" }).click();
+
+    const dialog = page.getByRole("dialog", { name: /DART fundamentals failed/i });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Trading-core reported 1,406 failed symbols and 490 failed events");
+    await expect(dialog).toContainText("Run date");
+    await expect(dialog).toContainText("2026-04-14");
+    await expect(dialog).toContainText("Symbols failed");
+    await expect(dialog).toContainText("1,406");
+    await expect(dialog).toContainText("Events failed");
+    await expect(dialog).toContainText("490");
+    await expect(dialog).toContainText("Failure Reason");
+    await expect(dialog).toContainText("DART fundamentals capture reported failed symbols and events.");
+
+    await dialog.getByRole("button", { name: /Close/i }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+
   test("D2 EOD status does not mark a market-date-only stub as available", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
