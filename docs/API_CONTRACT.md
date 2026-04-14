@@ -6,7 +6,6 @@ This document defines the first practical frontend contract for wiring `trading-
 - `/dashboard` currently renders from these live endpoints where available:
   - `GET /market/status`
   - `GET /quotes/tracked`
-  - `GET /scanner/tracked-symbols`
   - `GET /symbols/search`
   - `GET /eod/freshness`
     - D2 EOD Status uses `today.received` as the recent EOD update flag, `latest.price_trade_date` as the latest stored EOD date, `today.trade_date` as market-date context, and `today.symbols_succeeded` / `today.symbols_total` as the EOD symbol count context, falling back to `latest.symbols_succeeded` / `latest.symbols_total` when today's run has not happened yet

@@ -45,17 +45,10 @@ export type CoreTrackedQuotesResponse = {
   items: CoreTrackedQuote[];
 };
 
-export type CoreTrackedSymbolsResponse = {
-  tracked_symbols: string[];
-  count: number;
-  last_updated_at: string | null;
-};
-
 type LiveDashboardClientProps = {
   initialError?: string | null;
   initialMarket: CoreMarketStatus;
   initialTracked: CoreTrackedQuotesResponse;
-  initialSymbols: CoreTrackedSymbolsResponse;
   initialFreshness: EodFreshnessResponseDto | null;
 };
 
@@ -188,12 +181,10 @@ export function LiveDashboardClient({
   initialError = null,
   initialMarket,
   initialTracked,
-  initialSymbols,
   initialFreshness,
 }: LiveDashboardClientProps) {
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
-  const [symbols, setSymbols] = useState<CoreTrackedSymbolsResponse>(initialSymbols);
   const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(initialFreshness);
   const [error, setError] = useState<string | null>(initialError);
   const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "OFFLINE PLACEHOLDER");
@@ -203,16 +194,14 @@ export function LiveDashboardClient({
 
     const load = async () => {
       try {
-        const [marketData, trackedData, symbolsData] = await Promise.all([
+        const [marketData, trackedData] = await Promise.all([
           getJson<CoreMarketStatus>("/api/trading/market/status"),
           getJson<CoreTrackedQuotesResponse>("/api/trading/quotes/tracked"),
-          getJson<CoreTrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols"),
         ]);
 
         if (!active) return;
         setMarket(marketData);
         setTracked(trackedData);
-        setSymbols(symbolsData);
         setError(null);
         setCoreUnavailable(false);
       } catch (loadError) {
@@ -261,9 +250,6 @@ export function LiveDashboardClient({
   const liveCount = tracked.items.filter((item) => item.is_live).length;
   const fallbackCount = tracked.items.filter((item) => item.fallback).length;
   const unavailableCount = tracked.items.filter((item) => !item.available).length;
-  const positiveCount = availableItems.filter((item) => (item.change_pct ?? 0) >= 0).length;
-  const totalTurnover = availableItems.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
-  const breadthRatio = availableItems.length ? Math.round((positiveCount / availableItems.length) * 100) : 0;
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness);
   const latestEodDate = freshness?.latest?.price_trade_date;
   const isFundamentalsSynced = hasTextValue(latestFundamentalsDate) && latestFundamentalsDate === latestEodDate;
@@ -325,7 +311,6 @@ export function LiveDashboardClient({
   const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? UNKNOWN_LABEL;
   const eodSuccessCount = formatEodSymbolCount(getEodSymbolsSucceeded(freshness));
   const eodTotalCount = formatEodSymbolCount(getEodSymbolsTotal(freshness));
-  const portfolioHeadline = totalTurnover > 0 ? formatTurnover(totalTurnover) : "[확인 필요]";
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
 
   return (
@@ -410,52 +395,6 @@ export function LiveDashboardClient({
                 </article>
               );
             })}
-          </div>
-        </section>
-
-        <section className={`${styles.panel} ${styles.snapshotPanel}`}>
-          <ComponentTag label="dashboard.watch-snapshot" api="/api/trading/quotes/tracked + /api/trading/scanner/tracked-symbols" />
-
-          <div className={styles.snapshotTopRow}>
-            <div>
-              <p className={styles.sectionEyebrow}>Tracked Snapshot</p>
-              <strong className={styles.snapshotValue}>{portfolioHeadline}</strong>
-            </div>
-            <span className={styles.snapshotDelta}>{breadthRatio}% breadth</span>
-          </div>
-
-          <div className={styles.snapshotMetrics}>
-            <div className={styles.snapshotMetric}>
-              <span>Tracked</span>
-              <strong>{symbols.count}</strong>
-            </div>
-            <div className={styles.snapshotMetric}>
-              <span>Live</span>
-              <strong>{liveCount}</strong>
-            </div>
-            <div className={styles.snapshotMetric}>
-              <span>Fallback</span>
-              <strong>{fallbackCount}</strong>
-            </div>
-            <div className={styles.snapshotMetric}>
-              <span>Unavailable</span>
-              <strong>{unavailableCount}</strong>
-            </div>
-          </div>
-
-          <div className={styles.snapshotRows}>
-            <div className={styles.snapshotRow}>
-              <span>Lead symbol</span>
-              <strong>{lead ? `${lead.symbol} ${formatSignedPercent(lead.change_pct, "N/A")}` : "[확인 필요]"}</strong>
-            </div>
-            <div className={styles.snapshotRow}>
-              <span>Price freshness</span>
-              <strong>{freshness?.latest?.price_trade_date ?? "[확인 필요]"}</strong>
-            </div>
-            <div className={styles.snapshotRow}>
-              <span>Technical freshness</span>
-              <strong>{getTechnicalFreshnessLabel(freshness)}</strong>
-            </div>
           </div>
         </section>
 

@@ -11,22 +11,18 @@ Entry points:
 SSR bootstrap:
 - `GET /market/status`
 - `GET /quotes/tracked`
-- `GET /scanner/tracked-symbols`
 - `GET /eod/freshness`
 
 Client polling:
 - `GET /api/trading/market/status`
 - `GET /api/trading/quotes/tracked`
-- `GET /api/trading/scanner/tracked-symbols`
 - `GET /api/trading/eod/freshness`
 - `GET /api/trading/symbols/search?q=...&limit=8`
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> navigation only, no additional backend dependency
 - Operational Integrity card: `/market/status` + `/eod/freshness` -> `state`, `server_time`, `today.received`, `today.trade_date`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.symbols_succeeded`, `latest.symbols_total`, `latest.technical_market_date`, `latest.action_market_date`, `fundamentals.latest_date`; the D2 EOD Status stat displays the received flag, market-date context, latest stored EOD date, and success/total EOD symbol counts, using latest counts when today's run has not happened yet. The D2 Fundamentals row displays `fundamentals.latest_date` and marks synced only when it matches `latest.price_trade_date`.
-- Tracked snapshot card: `/quotes/tracked.items[]` + `/scanner/tracked-symbols` + `/eod/freshness` -> tracked counts, aggregate turnover, live/fallback/unavailable counts, lead feed mode, layer freshness
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
-- Tracked symbol list: `/scanner/tracked-symbols` -> `tracked_symbols`, `count`, `last_updated_at`
 - Momentum board: `/quotes/tracked` -> top absolute movers from `items[].change_pct`
 - Coverage notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 - Desktop audit feed: `/eod/freshness` + `/quotes/tracked` -> module freshness rows for price, technical, and action status
@@ -81,7 +77,7 @@ Important behavior:
 - The chart focus card updates from chart interaction, but the chart itself remains EOD-history based.
 - Quote polling stops entirely after the first response where both `/market/status.state` and `/quotes/{symbol}.market_state` are `CLOSED`.
 - `/agent-context/symbol-day`, `/eod/technical-snapshots`, `/eod/action-summaries`, `/disclosures/dart/fundamentals/history`, and `/symbols/{symbol}/price-bars` are one-shot per dependency change, not recurring quote polls.
-- `/scanner/tracked-symbols` is not requested by the symbol detail route anymore; tracked-universe coverage now remains a dashboard/search concern.
+- `/scanner/tracked-symbols` is not requested by the symbol detail route anymore; tracked-universe coverage remains limited to alternate dashboard routes that still consume that endpoint.
 - When a technical or action field is not confirmed upstream, the UI shows `[확인 필요]` instead of manufacturing indicator values.
 - The five dedicated detail routes reuse the same responsive chrome, dev tags, and API loaders as the overview card stack. They narrow the rendered body to the selected Stitch detail screen instead of duplicating data logic.
 

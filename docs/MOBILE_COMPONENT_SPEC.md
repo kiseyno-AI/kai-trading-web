@@ -23,7 +23,6 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 | Tag | File | Mobile component | API | Rendered fields | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `dashboard.operational-integrity` | `src/app/dashboard/live-dashboard-client.tsx` | Operational Integrity hero | `/api/trading/eod/freshness`, `/api/trading/market/status` | `today.received`, `today.trade_date`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.symbols_succeeded`, `latest.symbols_total`, `fundamentals.latest_date`, `market.state`, `market.server_time` | The EOD Status stat displays the core freshness received flag, market-date context, latest stored EOD date, and success/total EOD symbol counts, using latest counts when today's run has not happened yet. Fundamentals displays the latest update date and only marks synced when it matches the latest EOD date. |
-| `dashboard.watch-snapshot` | `src/app/dashboard/live-dashboard-client.tsx` | Tracked snapshot card | `/api/trading/quotes/tracked`, `/api/trading/scanner/tracked-symbols`, `/api/trading/eod/freshness` | aggregate tracked turnover, tracked count, live/fallback/unavailable counts, lead symbol, `latest.price_trade_date`, `latest.technical_market_date` | The large headline metric is still data-backed. Unsupported portfolio-like values stay `[확인 필요]`. |
 | `dashboard.symbol-card.{symbol}` | `src/app/dashboard/live-dashboard-client.tsx` | Per-symbol tracked card | `/api/trading/quotes/tracked`, `/api/trading/eod/freshness` | `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `available`, `is_live`, `trade_date`, `source`, `unavailable_reason`, `latest.technical_market_date` | Price freshness and TA freshness are intentionally separate. |
 | `dashboard.momentum-board` | `src/app/dashboard/live-dashboard-client.tsx` | Highest-movers note card | `/api/trading/quotes/tracked` | top absolute movers from `items[].change_pct` | Derived ordering only; no new backend fields are invented. |
 | `dashboard.coverage-note` | `src/app/dashboard/live-dashboard-client.tsx` | Mobile coverage note stack | `/api/trading/eod/freshness`, `/api/trading/quotes/tracked` | unavailable counts, fallback counts, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date` | Replaces the old search/notes dashboard column for mobile. |
@@ -70,7 +69,6 @@ Primary route:
 The dev-mode tag overlay shows short IDs while copying the full label/API payload. Current mappings:
 - `D1` dashboard core unavailable
 - `D2` dashboard operational integrity
-- `D3` dashboard watch/symbol cards
 - `D4` dashboard momentum board
 - `D5` dashboard coverage note
 - `Q1` search terminal shell

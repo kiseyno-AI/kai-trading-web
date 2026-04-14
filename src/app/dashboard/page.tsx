@@ -5,7 +5,6 @@ import {
   LiveDashboardClient,
   type CoreMarketStatus,
   type CoreTrackedQuotesResponse,
-  type CoreTrackedSymbolsResponse,
 } from "./live-dashboard-client";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 import type { EodFreshnessResponseDto } from "@/types/trading-api";
@@ -57,33 +56,26 @@ function getMockDashboardPayload() {
       as_of: now,
       items: trackedItems,
     } satisfies CoreTrackedQuotesResponse,
-    symbols: {
-      tracked_symbols: trackedItems.map((item) => item.symbol),
-      count: trackedItems.length,
-      last_updated_at: now,
-    } satisfies CoreTrackedSymbolsResponse,
   };
 }
 
 export default async function DashboardPage() {
   let market: CoreMarketStatus;
   let tracked: CoreTrackedQuotesResponse;
-  let symbols: CoreTrackedSymbolsResponse;
   let freshness: EodFreshnessResponseDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, symbols, freshness] = await Promise.all([
+    [market, tracked, freshness] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
-      fetchServerTradingApiJson<CoreTrackedSymbolsResponse>("/scanner/tracked-symbols", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
     ]);
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
     console.error("Dashboard server render failed", error);
-    ({ market, tracked, symbols } = getMockDashboardPayload());
+    ({ market, tracked } = getMockDashboardPayload());
   }
 
   return (
@@ -91,7 +83,6 @@ export default async function DashboardPage() {
       initialError={initialError}
       initialMarket={market}
       initialTracked={tracked}
-      initialSymbols={symbols}
       initialFreshness={freshness}
     />
   );
