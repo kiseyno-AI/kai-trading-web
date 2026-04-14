@@ -330,6 +330,8 @@ export type EodFreshnessLayerStatusDto = {
 
 export type EodFreshnessLatestDto = {
   price_trade_date: string | null;
+  symbols_total: number | null;
+  symbols_succeeded: number | null;
   technical_market_date: string | null;
   action_market_date: string | null;
 };
