@@ -1,6 +1,8 @@
 const CACHE_STORAGE_KEY = "kai.trading-api.cache.v1";
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const TRENDING_CACHE_TTL_MS = 10 * 60 * 1000;
+// Daily batch status can move after EOD or DART jobs finish, but it is not quote-level market polling.
+const DAILY_STATUS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 type TradingApiCacheEntry<T = unknown> = {
   cachedAt: number;
@@ -86,8 +88,8 @@ export function getTradingApiCacheTtlMs(path: string, init?: RequestInit) {
   if (!pathname.startsWith("/api/trading/")) return null;
   if (pathname.startsWith("/api/trading/quotes/")) return null;
   if (pathname === "/api/trading/market/status") return null;
-  if (pathname === "/api/trading/eod/freshness") return null;
-  if (pathname === "/api/trading/disclosures/dart/fundamentals/daily/inspect") return null;
+  if (pathname === "/api/trading/eod/freshness") return DAILY_STATUS_CACHE_TTL_MS;
+  if (pathname === "/api/trading/disclosures/dart/fundamentals/daily/inspect") return DAILY_STATUS_CACHE_TTL_MS;
 
   if (
     pathname.startsWith("/api/trading/scanner/realtime-trending") ||

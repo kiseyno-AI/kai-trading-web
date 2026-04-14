@@ -123,7 +123,7 @@ Bots and some overview calls may still use **mock** implementations in the same 
 
 ## Browser API cache
 
-Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF reads. Successful GET responses for stored EOD data, stored DART fundamentals history, technical/action summaries, favorites/tracked-symbol metadata, symbol search, aggregate symbol context, and price bars are cached in `sessionStorage` for up to 1 hour, so the data clears when the browser session ends. Trending scanner reads are cached for 10 minutes. Live quote, market-status, EOD freshness, and DART daily inspect paths stay uncached so polling continues to reflect current state.
+Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF reads. Successful GET responses for stored EOD data, stored DART fundamentals history, technical/action summaries, favorites/tracked-symbol metadata, symbol search, aggregate symbol context, and price bars are cached in `sessionStorage` for up to 1 hour, so the data clears when the browser session ends. Trending scanner reads are cached for 10 minutes. EOD freshness and DART daily inspect are daily batch-status surfaces cached for 10 minutes. Live quote and market-status paths stay uncached so polling continues to reflect current price and market-open state.
 
 ---
 
