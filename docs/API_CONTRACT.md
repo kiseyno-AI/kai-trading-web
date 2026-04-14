@@ -14,6 +14,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /disclosures/dart/fundamentals/daily/inspect`
     - D2 Fundamentals displays the latest fundamentals layer date when `/eod/freshness` exposes one; otherwise it falls back to `latest_run.market_date` or the date portion of `latest_run.completed_at`
     - D2 Fundamentals uses `latest_run.status` from the daily inspect response when available instead of keeping a stale `[확인 필요]` placeholder
+    - When the latest DART fundamentals run has a failed/partial signal, D2 Fundamentals exposes a failure dialog from the status control using `latest_run.error_message`, `symbols_failed`, `events_failed`, run timing/count fields, and failure-related `run_metadata` keys when present
 - `/dashboard/symbol/[symbol]` now mixes:
   - `GET /quotes/{symbol}` for the live price, volume, turnover, and quote provenance
   - `GET /market/status` only as the polling stop gate for the symbol quote loop

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
@@ -56,6 +57,19 @@ type LiveDashboardClientProps = {
   initialTracked: CoreTrackedQuotesResponse;
   initialFreshness: EodFreshnessResponseDto | null;
   initialFundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null;
+};
+
+type DetailItem = {
+  label: string;
+  value: string;
+};
+
+type FundamentalsFailureDetails = {
+  key: string;
+  title: string;
+  reason: string;
+  details: DetailItem[];
+  metadata: DetailItem[];
 };
 
 function hasNumber(value: number | null | undefined): value is number {
@@ -180,8 +194,133 @@ function getFundamentalsTone(statusLabel: string, latestFundamentalsDate: string
   const normalized = statusLabel.toLowerCase();
   if (normalized === "completed" || normalized === "available") return "info";
   if (normalized === "running") return "info";
+  if (normalized === "failed" || normalized === "partial" || normalized === "needs review") return "warning";
   if (hasTextValue(latestFundamentalsDate)) return "warning";
   return "warning";
+}
+
+function getHumanCount(value: number | null | undefined) {
+  if (!hasNumber(value)) return UNKNOWN_LABEL;
+  return value.toLocaleString("ko-KR");
+}
+
+function getFailureCountPhrase(count: number, singularLabel: string, pluralLabel: string) {
+  const label = count === 1 ? singularLabel : pluralLabel;
+  return `${count.toLocaleString("ko-KR")} ${label}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatMetadataValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return hasTextValue(value) ? value : null;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function getFailureMetadata(run: DartFundamentalsDailyRunDto | null): DetailItem[] {
+  if (!isRecord(run?.run_metadata)) return [];
+
+  return Object.entries(run.run_metadata)
+    .filter(([key, value]) => /(error|fail|reason|exception|message|missing|stale)/i.test(key) && value !== null)
+    .map(([key, value]) => ({
+      label: humanizeToken(key, key),
+      value: formatMetadataValue(value) ?? UNKNOWN_LABEL,
+    }))
+    .filter((item) => item.value !== UNKNOWN_LABEL)
+    .slice(0, 8);
+}
+
+function hasFundamentalsFailureSignal(
+  freshness: EodFreshnessResponseDto | null,
+  run: DartFundamentalsDailyRunDto | null,
+  statusLabel: string,
+) {
+  const normalizedStatus = statusLabel.toLowerCase();
+  const symbolsFailed = run?.symbols_failed;
+  const eventsFailed = run?.events_failed;
+  return (
+    normalizedStatus === "failed" ||
+    normalizedStatus === "partial" ||
+    normalizedStatus === "needs review" ||
+    (hasNumber(symbolsFailed) && symbolsFailed > 0) ||
+    (hasNumber(eventsFailed) && eventsFailed > 0) ||
+    Boolean(hasTextValue(run?.error_message)) ||
+    getFundamentalsFreshnessLayer(freshness)?.success === false
+  );
+}
+
+function getFundamentalsFailureReason(
+  freshness: EodFreshnessResponseDto | null,
+  run: DartFundamentalsDailyRunDto | null,
+  statusLabel: string,
+) {
+  if (hasTextValue(run?.error_message)) return run.error_message.trim();
+
+  const failedCounts: string[] = [];
+  const symbolsFailed = run?.symbols_failed;
+  const eventsFailed = run?.events_failed;
+  if (hasNumber(symbolsFailed) && symbolsFailed > 0) {
+    failedCounts.push(getFailureCountPhrase(symbolsFailed, "failed symbol", "failed symbols"));
+  }
+  if (hasNumber(eventsFailed) && eventsFailed > 0) {
+    failedCounts.push(getFailureCountPhrase(eventsFailed, "failed event", "failed events"));
+  }
+
+  if (failedCounts.length > 0) {
+    return `Trading-core reported ${failedCounts.join(" and ")} for this fundamentals run.`;
+  }
+
+  if (getFundamentalsFreshnessLayer(freshness)?.success === false) {
+    return "The freshness registry marked the fundamentals layer as unsuccessful.";
+  }
+
+  return `Trading-core marked this fundamentals run as ${statusLabel}.`;
+}
+
+function getFundamentalsFailureDetails(
+  freshness: EodFreshnessResponseDto | null,
+  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
+  latestFundamentalsDate: string | null,
+  statusLabel: string,
+): FundamentalsFailureDetails | null {
+  const run = getLatestFundamentalsRun(fundamentalsStatus);
+
+  if (!hasFundamentalsFailureSignal(freshness, run, statusLabel)) return null;
+
+  const runDate = getFundamentalsRunDate(run) ?? latestFundamentalsDate ?? UNKNOWN_LABEL;
+
+  return {
+    key: `${run?.id ?? "freshness"}:${runDate}:${statusLabel}`,
+    title: `DART fundamentals ${statusLabel.toLowerCase()}`,
+    reason: getFundamentalsFailureReason(freshness, run, statusLabel),
+    details: [
+      { label: "Run date", value: runDate },
+      { label: "Status", value: statusLabel },
+      { label: "FS division", value: run?.fs_div ?? UNKNOWN_LABEL },
+      { label: "Trigger", value: humanizeToken(run?.trigger) },
+      { label: "Symbols total", value: getHumanCount(run?.symbols_total) },
+      { label: "Symbols checked", value: getHumanCount(run?.symbols_checked) },
+      { label: "Symbols missing", value: getHumanCount(run?.symbols_missing) },
+      { label: "Symbols stale", value: getHumanCount(run?.symbols_stale) },
+      { label: "Symbols fresh", value: getHumanCount(run?.symbols_fresh) },
+      { label: "Symbols refreshed", value: getHumanCount(run?.symbols_refreshed) },
+      { label: "Symbols failed", value: getHumanCount(run?.symbols_failed) },
+      { label: "Events detected", value: getHumanCount(run?.events_detected) },
+      { label: "Events captured", value: getHumanCount(run?.events_captured) },
+      { label: "Events failed", value: getHumanCount(run?.events_failed) },
+      { label: "Started", value: formatDisplayTimestamp(run?.started_at, UNKNOWN_LABEL) },
+      { label: "Completed", value: formatDisplayTimestamp(run?.completed_at, UNKNOWN_LABEL) },
+    ],
+    metadata: getFailureMetadata(run),
+  };
 }
 
 function getEodReceivedTone(received: boolean | null | undefined) {
@@ -256,6 +395,7 @@ export function LiveDashboardClient({
   const [fundamentalsStatus, setFundamentalsStatus] = useState<DartFundamentalsDailyInspectResponseDto | null>(
     initialFundamentalsStatus,
   );
+  const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError);
   const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "OFFLINE PLACEHOLDER");
 
@@ -349,6 +489,16 @@ export function LiveDashboardClient({
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
   const fundamentalsStatusLabel = getFundamentalsStatusLabel(freshness, fundamentalsStatus, latestFundamentalsDate);
   const fundamentalsTone = getFundamentalsTone(fundamentalsStatusLabel, latestFundamentalsDate);
+  const fundamentalsFailureDetails = useMemo(
+    () =>
+      getFundamentalsFailureDetails(
+        freshness,
+        fundamentalsStatus,
+        latestFundamentalsDate,
+        fundamentalsStatusLabel,
+      ),
+    [freshness, fundamentalsStatus, latestFundamentalsDate, fundamentalsStatusLabel],
+  );
   const movers = useMemo(
     () =>
       [...tracked.items]
@@ -408,6 +558,27 @@ export function LiveDashboardClient({
   const eodSuccessCount = formatEodSymbolCount(getEodSymbolsSucceeded(freshness));
   const eodTotalCount = formatEodSymbolCount(getEodSymbolsTotal(freshness));
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
+  const fundamentalsDialogOpen =
+    Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
+
+  useEffect(() => {
+    if (!fundamentalsDialogOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenFundamentalsFailureKey(null);
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [fundamentalsDialogOpen]);
 
   return (
     <MobileAppChrome
@@ -486,7 +657,20 @@ export function LiveDashboardClient({
                   </div>
                   <div className={styles.moduleAside}>
                     <span>{row.meta}</span>
-                    <span className={`pill ${row.tone} ${emphasizeSynced ? styles.syncedStatusPill : ""}`}>{row.status}</span>
+                    {row.id === "fundamentals" && fundamentalsFailureDetails ? (
+                      <button
+                        type="button"
+                        className={`pill ${row.tone} ${styles.statusButton}`}
+                        aria-haspopup="dialog"
+                        aria-expanded={fundamentalsDialogOpen}
+                        aria-controls="fundamentals-failure-dialog"
+                        onClick={() => setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key)}
+                      >
+                        {row.status}
+                      </button>
+                    ) : (
+                      <span className={`pill ${row.tone} ${emphasizeSynced ? styles.syncedStatusPill : ""}`}>{row.status}</span>
+                    )}
                   </div>
                 </article>
               );
@@ -614,6 +798,68 @@ export function LiveDashboardClient({
           </section>
         </section>
       </div>
+
+      {fundamentalsDialogOpen && fundamentalsFailureDetails
+        ? createPortal(
+            <div className={styles.dialogBackdrop} onMouseDown={() => setOpenFundamentalsFailureKey(null)}>
+              <section
+                id="fundamentals-failure-dialog"
+                className={styles.failureDialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="fundamentals-failure-title"
+                aria-describedby="fundamentals-failure-reason"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className={styles.dialogHeader}>
+                  <div>
+                    <p className={styles.sectionEyebrow}>D2 Fundamentals</p>
+                    <h2 id="fundamentals-failure-title" className={styles.dialogTitle}>
+                      {fundamentalsFailureDetails.title}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.dialogCloseButton}
+                    onClick={() => setOpenFundamentalsFailureKey(null)}
+                    aria-label="Close fundamentals failure details"
+                    autoFocus
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <p id="fundamentals-failure-reason" className={styles.failureReason}>
+                  {fundamentalsFailureDetails.reason}
+                </p>
+
+                <dl className={styles.failureDetailGrid}>
+                  {fundamentalsFailureDetails.details.map((item) => (
+                    <div key={item.label} className={styles.failureDetailItem}>
+                      <dt>{item.label}</dt>
+                      <dd>{item.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                {fundamentalsFailureDetails.metadata.length > 0 ? (
+                  <div className={styles.metadataBlock}>
+                    <strong>Failure metadata</strong>
+                    <dl>
+                      {fundamentalsFailureDetails.metadata.map((item) => (
+                        <div key={item.label}>
+                          <dt>{item.label}</dt>
+                          <dd>{item.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ) : null}
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </MobileAppChrome>
   );
 }
