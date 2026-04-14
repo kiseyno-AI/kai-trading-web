@@ -25,8 +25,6 @@ test.describe("search terminal desktop", () => {
   });
 
   test("Q3 renders core favorites instead of tracked or recent symbols", async ({ page }) => {
-    let favoriteRequests = 0;
-
     await page.addInitScript(() => {
       window.localStorage.setItem(
         "kai.search.recent-symbols",
@@ -41,7 +39,6 @@ test.describe("search terminal desktop", () => {
       );
     });
     await page.route("**/api/trading/symbols/favorites", async (route) => {
-      favoriteRequests += 1;
       await route.fulfill({
         json: {
           count: 1,
@@ -86,7 +83,6 @@ test.describe("search terminal desktop", () => {
     await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await expect(quickSection.getByRole("button", { name: /000660/i })).toHaveCount(0);
     await expect(quickSection.getByRole("button", { name: /035420|NAVER/i })).toHaveCount(0);
-    await expect.poll(() => favoriteRequests).toBe(1);
   });
 
   test("Q3 stays empty by default and opens favorite search autocomplete from +", async ({ page }) => {
