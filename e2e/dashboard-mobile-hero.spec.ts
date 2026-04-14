@@ -1,6 +1,8 @@
-import { devices, expect, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-test.use({ ...devices["iPhone 13"] });
+import { chromiumIPhone13 } from "./devices";
+
+test.use(chromiumIPhone13);
 
 test.describe("dashboard mobile hero", () => {
   test("mobile shell and overview stay within the first viewport", async ({ page }) => {
