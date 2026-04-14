@@ -95,6 +95,8 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/quotes/{symbol}` | `/quotes/{symbol}` | — |
 | `GET` | `/api/trading/scanner/tracked-symbols` | `/scanner/tracked-symbols` | — |
 | `POST` | `/api/trading/scanner/tracked-symbols` | `/scanner/tracked-symbols` | JSON `{ "symbols": [...] }` |
+| `GET` | `/api/trading/scanner/realtime-trending` | `/scanner/realtime-trending` | `limit`, `market_code`, `sources` |
+| `GET` | `/api/trading/scanner/trending-stocks` | `/scanner/trending-stocks` | optional `market_date`, `period`, `direction`, `limit`, repeatable `markets` |
 | `GET` | `/api/trading/disclosures/dart/fundamentals/daily/inspect` | `/disclosures/dart/fundamentals/daily/inspect` | optional `runs_limit`, optional `market_date`, optional `fs_div` |
 | `GET` | `/api/trading/disclosures/dart/fundamentals/history` | `/disclosures/dart/fundamentals/history` | repeatable `symbols`, `start_date`, `end_date`, optional `fs_div` |
 | `GET` | `/api/trading/symbols/favorites` | `/symbols/favorites` | — |
@@ -135,7 +137,7 @@ Bots and some overview calls may still use **mock** implementations in the same 
 | `/dashboard/symbol/[symbol]/system-freshness` | Stitch System Freshness Detail; reuses `/eod/freshness` and quote provenance |
 | `/markets` | Markets overview (client data via adapter / mock) |
 | `/bots` | Automation overview (mock-heavy today) |
-| `/search` | Stitch terminal search entry backed by `/api/trading/symbols/search`; selected rows poll `/api/trading/quotes/{symbol}` |
+| `/search` | Stitch terminal search entry backed by `/api/trading/symbols/search`; selected rows poll `/api/trading/quotes/{symbol}` and Q4 trending reads `/scanner/realtime-trending` plus stored `/scanner/trending-stocks` periods |
 | `/kis-dashboard` | Alternate KIS-oriented dashboard experiment |
 | `/real-dashboard` | Alternate dashboard variant |
 | `/scanner-tracker` | Scanner / tracking UI |

@@ -22,6 +22,227 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByText(/Network Integrity/i)).toBeVisible();
   });
 
+  test("Q4 shows exact trending symbols by source and extends from the More button", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market_code: "J",
+          market: "KRX",
+          limit_per_source: 5,
+          sources: [],
+          summary: {
+            item_count: 6,
+          },
+          items: [
+            {
+              symbol: "005930",
+              name: "Samsung Electronics",
+              market: "KRX",
+              price: 71500,
+              change_pct: 0.84,
+              best_rank: 1,
+              source_count: 2,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 1,
+                  metric: { name: "volume", value: 250000, unit: "shares" },
+                },
+              ],
+            },
+            {
+              symbol: "000660",
+              name: "SK hynix",
+              market: "KRX",
+              price: 182000,
+              change_pct: -1.5,
+              best_rank: 2,
+              source_count: 1,
+              sources: [
+                {
+                  source: "fluctuation",
+                  source_label: "fluctuation",
+                  rank: 2,
+                  metric: { name: "change_pct", value: -1.5, unit: "percent" },
+                },
+              ],
+            },
+            {
+              symbol: "373220",
+              name: "LG Energy Solution",
+              market: "KRX",
+              change_pct: 2.12,
+              best_rank: 3,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 3,
+                  metric: { name: "volume", value: 180000, unit: "shares" },
+                },
+              ],
+            },
+            {
+              symbol: "207940",
+              name: "Samsung Biologics",
+              market: "KRX",
+              change_pct: 1.42,
+              best_rank: 4,
+              source_count: 1,
+              sources: [
+                {
+                  source: "hts-top-view",
+                  source_label: "hts-top-view",
+                  rank: 4,
+                  metric: { name: "view_rank", value: 4, unit: "rank" },
+                },
+              ],
+            },
+            {
+              symbol: "006400",
+              name: "Samsung SDI",
+              market: "KRX",
+              change_pct: -0.32,
+              best_rank: 5,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 5,
+                  metric: { name: "volume", value: 130000, unit: "shares" },
+                },
+              ],
+            },
+            {
+              symbol: "035420",
+              name: "NAVER",
+              market: "KRX",
+              change_pct: 0.21,
+              best_rank: 6,
+              source_count: 1,
+              sources: [
+                {
+                  source: "fluctuation",
+                  source_label: "fluctuation",
+                  rank: 6,
+                  metric: { name: "change_pct", value: 0.21, unit: "percent" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/trending-stocks?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const period = requestUrl.searchParams.get("period") ?? "5d";
+      const items =
+        period === "5d"
+          ? [
+              {
+                rank: 1,
+                symbol: "086520",
+                name_ko: "EcoPro",
+                market: "KOSDAQ",
+                market_date: "2026-04-14",
+                trend_direction: "up",
+                metric: { period: "5d", name: "return_5d_pct", value: 12.45 },
+                price: null,
+                technical: { close_price: 94200 },
+                action_summary: null,
+              },
+            ]
+          : [
+              {
+                rank: 1,
+                symbol: "068270",
+                name_ko: "Celltrion",
+                market: "KOSPI",
+                market_date: "2026-04-14",
+                trend_direction: "up",
+                metric: { period, name: `${period}_return_pct`, value: 4.2 },
+                price: null,
+                technical: { close_price: 184500 },
+                action_summary: null,
+              },
+            ];
+
+      await route.fulfill({
+        json: {
+          request: {
+            resolved_market_date: "2026-04-14",
+            period,
+            direction: "both",
+            limit: Number(requestUrl.searchParams.get("limit") ?? 5),
+            markets: null,
+          },
+          summary: {
+            count: items.length,
+            data_available: true,
+          },
+          items,
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const trendingSection = page.locator("section").filter({ has: page.getByRole("heading", { name: /Trending Symbols/i }) }).first();
+    const trendingMetricFor = (symbol: string) =>
+      trendingSection.getByRole("button", { name: new RegExp(symbol) }).locator("[class*='trendingMetric'] strong");
+
+    await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
+    await expect(trendingMetricFor("005930")).toHaveText("250,000");
+    await expect(trendingSection.getByText("000660", { exact: true })).toBeVisible();
+    await expect(trendingMetricFor("000660")).toHaveText("-1.50%");
+    await expect(trendingMetricFor("207940")).toHaveText("#4");
+    await expect(trendingSection.getByText("035420", { exact: true })).toHaveCount(0);
+
+    await trendingSection.getByRole("tab", { name: /KIS/i }).click();
+    await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
+    await expect(trendingSection.getByText("000660", { exact: true })).toBeVisible();
+
+    await trendingSection.getByRole("button", { name: /^More$/i }).click();
+    await expect(trendingSection.getByText("035420", { exact: true })).toBeVisible();
+    await expect(trendingMetricFor("035420")).toHaveText("+0.21%");
+
+    await trendingSection.getByRole("tab", { name: /5D/i }).click();
+    await expect(trendingSection.getByText("086520", { exact: true })).toBeVisible();
+    await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
+  });
+
   test("opens the candlestick detail page from the Q2 symbol list without rendering quote prices in the list", async ({ page }) => {
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       await route.fulfill({

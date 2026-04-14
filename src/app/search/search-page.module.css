@@ -299,7 +299,8 @@
 
 .resultIdentity span,
 .quickCard small,
-.trendingFooter small,
+.trendingIdentity small,
+.trendingMetric small,
 .selectedName,
 .emptyState p,
 .integrityPanel p {
@@ -510,34 +511,100 @@
   color: #f1b7b7;
 }
 
-.trendingGrid {
+.trendingTabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
 }
 
-.trendingCard {
+.trendingTabs button {
   display: grid;
-  gap: 1rem;
-  min-height: 9.4rem;
-  border: 1px solid rgba(143, 162, 190, 0.1);
-  background: rgba(18, 34, 55, 0.86);
-  padding: 1rem;
-  color: inherit;
+  gap: 0.18rem;
+  min-height: 3.4rem;
+  border: 1px solid rgba(143, 162, 190, 0.14);
+  background: rgba(8, 22, 39, 0.48);
+  color: rgba(213, 227, 252, 0.62);
   cursor: pointer;
+  font-family: var(--font-space-grotesk), sans-serif;
+  padding: 0.55rem;
   text-align: left;
 }
 
-.trendingTopline,
-.trendingFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+.trendingTabs button[aria-selected="true"],
+.trendingTabActive {
+  border-color: rgba(197, 200, 255, 0.38);
+  background: rgba(197, 200, 255, 0.14);
+  color: #f6f8ff;
 }
 
-.trendingTopline strong,
-.trendingFooter strong {
+.trendingTabs span {
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.trendingTabs small {
+  overflow: hidden;
+  color: rgba(213, 227, 252, 0.48);
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trendingList {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.trendingRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 4.6rem;
+  border: 1px solid rgba(143, 162, 190, 0.12);
+  background: rgba(18, 34, 55, 0.82);
+  color: inherit;
+  cursor: pointer;
+  padding: 0.72rem;
+  text-align: left;
+}
+
+.trendingRowActive {
+  border-color: rgba(197, 200, 255, 0.42);
+  background: rgba(23, 43, 68, 0.94);
+}
+
+.trendingRank {
+  display: grid;
+  min-width: 2.4rem;
+  height: 2.4rem;
+  place-items: center;
+  border: 1px solid rgba(197, 200, 255, 0.18);
+  background: rgba(5, 18, 34, 0.52);
+  color: #dce6fb;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.trendingIdentity,
+.trendingMetric {
+  display: grid;
+  min-width: 0;
+  gap: 0.24rem;
+}
+
+.trendingMetric {
+  justify-items: end;
+  text-align: right;
+}
+
+.trendingIdentity strong,
+.trendingMetric strong {
   color: #dce6fb;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1rem;
@@ -545,41 +612,27 @@
   letter-spacing: 0.05em;
 }
 
-.sparkline {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  align-items: end;
-  height: 2.7rem;
-  gap: 0.18rem;
-  padding: 0.4rem 0.25rem;
-  background: rgba(8, 22, 39, 0.45);
+.trendingStatus,
+.trendingMoreButton {
+  margin: 0.8rem 0 0;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-.sparkline i {
-  display: block;
-  height: 36%;
-  background: rgba(197, 200, 255, 0.36);
-  animation: barPulse 1.8s ease-in-out infinite;
+.trendingStatus {
+  color: rgba(213, 227, 252, 0.56);
 }
 
-.sparkline i:nth-child(2) {
-  height: 58%;
-  animation-delay: 120ms;
-}
-
-.sparkline i:nth-child(3) {
-  height: 76%;
-  animation-delay: 220ms;
-}
-
-.sparkline i:nth-child(4) {
-  height: 66%;
-  animation-delay: 320ms;
-}
-
-.sparkline i:nth-child(5) {
-  height: 88%;
-  animation-delay: 420ms;
+.trendingMoreButton {
+  width: 100%;
+  min-height: 2.85rem;
+  border: 1px solid rgba(197, 200, 255, 0.26);
+  background: rgba(197, 200, 255, 0.12);
+  color: #e5e8ff;
+  cursor: pointer;
 }
 
 .integrityPanel {
@@ -787,26 +840,22 @@
   white-space: nowrap;
 }
 
-@keyframes barPulse {
-  0%,
-  100% {
-    opacity: 0.58;
-    transform: scaleY(0.82);
-  }
-
-  50% {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-}
-
 @media (max-width: 420px) {
-  .trendingGrid,
   .quickGrid,
   .selectedPriceGrid,
   .favoriteSearchForm,
   .favoriteSuggestions button {
     grid-template-columns: 1fr;
+  }
+
+  .trendingRow {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .trendingMetric {
+    grid-column: 2;
+    justify-items: start;
+    text-align: left;
   }
 }
 
