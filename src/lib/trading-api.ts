@@ -364,7 +364,11 @@ function getBrowserTradingApiBaseUrl() {
     return trimTrailingSlash(configuredBaseUrl);
   }
 
-  if (typeof window !== "undefined" && !isLocalHostname(window.location.hostname)) {
+  if (typeof window !== "undefined") {
+    if (!isLocalHostname(window.location.hostname)) {
+      return "/trading";
+    }
+
     return "/api/trading";
   }
 
