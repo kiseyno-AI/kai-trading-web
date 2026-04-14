@@ -147,6 +147,67 @@ test.describe("search terminal desktop", () => {
     await expect(quickSection.getByText(/005930 saved to core favorites/i)).toBeVisible();
   });
 
+  test("Q3 add favorite does not post when tracked symbols fail to load", async ({ page }) => {
+    let postAttempted = false;
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      if (route.request().method() === "POST") {
+        postAttempted = true;
+        await route.fulfill({
+          status: 500,
+          json: { error: "unexpected POST" },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 503,
+        json: { error: "tracked symbols unavailable" },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+
+      await route.fulfill({
+        json: {
+          query: query ?? "",
+          count: query === "005930" ? 1 : 0,
+          items:
+            query === "005930"
+              ? [
+                  {
+                    symbol: "005930",
+                    standard_code: "KR7005930003",
+                    name_ko: "Samsung Electronics",
+                    market: "KOSPI",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    const quickSection = page.locator("section").filter({ hasText: "Quick Access / Recent" }).first();
+
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
+    await expect(quickSection.getByRole("button", { name: /005930/i })).toBeVisible();
+
+    await quickSection.getByRole("button", { name: "+ Favorite" }).click();
+
+    await expect(quickSection.getByText(/Favorite save blocked until tracked symbols load successfully. HTTP 503/i)).toBeVisible();
+    expect(postAttempted).toBe(false);
+  });
+
   test("omits placeholder metadata from symbol detail links", async ({ page }) => {
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       const requestUrl = new URL(route.request().url());

@@ -156,6 +156,7 @@ export default function SearchPage() {
   const [quickAccessCleared, setQuickAccessCleared] = useState(false);
   const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>([]);
   const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
+  const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
   const [favoriteSymbolInput, setFavoriteSymbolInput] = useState("");
   const [favoriteSavingSymbol, setFavoriteSavingSymbol] = useState<string | null>(null);
   const [favoriteStatus, setFavoriteStatus] = useState<string | null>(null);
@@ -213,12 +214,15 @@ export default function SearchPage() {
         if (!active) return;
         if (!result.ok) {
           setTrackedSymbols([]);
+          setTrackedSymbolsLoaded(false);
           return;
         }
         setTrackedSymbols(result.data.tracked_symbols.map(normalizeSymbolCode));
+        setTrackedSymbolsLoaded(true);
       } catch {
         if (!active) return;
         setTrackedSymbols([]);
+        setTrackedSymbolsLoaded(false);
       }
     };
 
@@ -353,11 +357,17 @@ export default function SearchPage() {
 
     try {
       let currentTrackedSymbols = trackedSymbols;
-      if (currentTrackedSymbols.length === 0) {
+      if (!trackedSymbolsLoaded) {
         const currentResult = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
-        if (currentResult.ok) {
-          currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
+        if (!currentResult.ok) {
+          setTrackedSymbols([]);
+          setTrackedSymbolsLoaded(false);
+          setFavoriteError(`Favorite save blocked until tracked symbols load successfully. HTTP ${currentResult.status}`);
+          return;
         }
+        currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
+        setTrackedSymbols(currentTrackedSymbols);
+        setTrackedSymbolsLoaded(true);
       }
 
       const nextSymbols = [symbol, ...currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol)];
