@@ -65,11 +65,18 @@ test.describe("search terminal mobile", () => {
 
     const resultCard = page.getByRole("button", { name: /005930.*Samsung Electronics/i }).first();
     await expect(resultCard).toBeVisible();
+    const quoteResponse = page.waitForResponse(
+      (response) => response.url().includes("/api/trading/quotes/005930") && response.ok(),
+    );
     await resultCard.click();
+    await quoteResponse;
+
+    const selectedInspector = page.getByRole("complementary");
+    await expect(selectedInspector.getByText("Last Price")).toBeVisible();
+    await expect(selectedInspector.getByText("₩71,500")).toBeVisible();
+    await expect(selectedInspector.getByText("+0.84%")).toBeVisible();
 
     await expect(resultCard).not.toContainText("₩71,500");
     await expect(resultCard).not.toContainText("+0.84%");
-    await expect(page.getByText("Last Price")).toBeVisible();
-    await expect(page.getByRole("complementary").getByText("₩71,500")).toBeVisible();
   });
 });
