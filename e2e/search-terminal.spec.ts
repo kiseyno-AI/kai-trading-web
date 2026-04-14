@@ -24,6 +24,67 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
   });
 
+  test("Q3 renders core favorites instead of tracked or recent symbols", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "kai.search.recent-symbols",
+        JSON.stringify([
+          {
+            symbol: "035420",
+            standard_code: "KR7035420009",
+            name_ko: "NAVER",
+            market: "KOSPI",
+          },
+        ]),
+      );
+    });
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 1,
+          items: [
+            {
+              symbol: "005930",
+              standard_code: "KR7005930003",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+              instrument_type: "equity",
+              is_active: true,
+              sort_order: 0,
+              favorited_at: "2026-04-14T13:35:00+09:00",
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: ["000660"],
+          count: 1,
+          last_updated_at: "2026-04-14T08:55:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const quickSection = getQuickAccessSection(page);
+    await expect(quickSection.getByText(/Core favorites/i)).toBeVisible();
+    await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect(quickSection.getByRole("button", { name: /000660/i })).toHaveCount(0);
+    await expect(quickSection.getByRole("button", { name: /035420|NAVER/i })).toHaveCount(0);
+  });
+
   test("Q3 stays empty by default and opens favorite search autocomplete from +", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem(
