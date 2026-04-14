@@ -46,6 +46,114 @@ type TrackedSymbolsResponse = {
   last_updated_at: string | null;
 };
 
+type TrendingMode = "kis" | "1d" | "5d" | "20d";
+
+type TrendingTab = {
+  mode: TrendingMode;
+  label: string;
+  description: string;
+};
+
+type TrendingMetric = {
+  period?: string | null;
+  name: string;
+  value: number | null;
+  unit?: string | null;
+};
+
+type RealtimeTrendingSource = {
+  source: string;
+  source_label: string;
+  rank: number | null;
+  metric: TrendingMetric;
+  market?: string | null;
+  market_code?: string | null;
+};
+
+type RealtimeTrendingItem = {
+  symbol: string;
+  name?: string | null;
+  market?: string | null;
+  market_code?: string | null;
+  price?: number | null;
+  change?: number | null;
+  change_pct?: number | null;
+  volume?: number | null;
+  turnover?: number | null;
+  best_rank?: number | null;
+  source_count?: number | null;
+  sources?: RealtimeTrendingSource[];
+};
+
+type RealtimeTrendingResponse = {
+  status: string;
+  source: string;
+  as_of?: string | null;
+  market?: string | null;
+  items: RealtimeTrendingItem[];
+  summary?: {
+    item_count?: number | null;
+  };
+};
+
+type StoredTrendingItem = {
+  rank: number;
+  symbol: string;
+  name_ko?: string | null;
+  market?: string | null;
+  market_date?: string | null;
+  trend_direction?: string | null;
+  metric?: TrendingMetric | null;
+  price?: {
+    close_price?: number | null;
+    change?: number | null;
+    change_pct?: number | null;
+    volume?: number | null;
+    turnover?: number | null;
+  } | null;
+  technical?: {
+    close_price?: number | null;
+    volume?: number | null;
+    trend_state?: string | null;
+    return_5d?: number | null;
+    return_20d?: number | null;
+    volume_ratio_20d?: number | null;
+  } | null;
+  action_summary?: {
+    action_label?: string | null;
+    signal_score?: number | null;
+  } | null;
+};
+
+type StoredTrendingResponse = {
+  request?: {
+    resolved_market_date?: string | null;
+    period?: string | null;
+    direction?: string | null;
+    limit?: number | null;
+    markets?: string[] | null;
+  };
+  summary?: {
+    count?: number | null;
+    data_available?: boolean | null;
+  };
+  items: StoredTrendingItem[];
+};
+
+type TrendingDisplayItem = {
+  symbol: string;
+  name: string;
+  market: string;
+  rank: number | null;
+  sourceLabel: string;
+  metricName: string;
+  metricUnit: string | null;
+  metricValue: number | null;
+  changePct: number | null;
+  price: number | null;
+  searchItem: SymbolSearchItem;
+};
+
 type QuoteResponse = {
   symbol: string;
   company_name?: string;
@@ -68,6 +176,15 @@ type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const SEARCH_RECENTS_STORAGE_KEY = "kai.search.recent-symbols";
 const UNKNOWN = UNKNOWN_SYMBOL_META;
+const TRENDING_INITIAL_LIMIT = 5;
+const TRENDING_LIMIT_STEP = 5;
+const TRENDING_REALTIME_SOURCES = "volume-rank,fluctuation,hts-top-view";
+const TRENDING_TABS: TrendingTab[] = [
+  { mode: "kis", label: "KIS", description: "Live KIS ranks" },
+  { mode: "1d", label: "1D", description: "One-day movers" },
+  { mode: "5d", label: "5D", description: "Five-day movers" },
+  { mode: "20d", label: "20D", description: "Twenty-day movers" },
+];
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -147,6 +264,122 @@ function buildFallbackFavoriteItem(symbol: string): SymbolSearchItem {
   });
 }
 
+function getTrendingEndpoint(mode: TrendingMode, limit: number) {
+  if (mode === "kis") {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      market_code: "J",
+      sources: TRENDING_REALTIME_SOURCES,
+    });
+    return `/api/trading/scanner/realtime-trending?${params.toString()}`;
+  }
+
+  const params = new URLSearchParams({
+    period: mode,
+    direction: "both",
+    limit: String(limit),
+  });
+  return `/api/trading/scanner/trending-stocks?${params.toString()}`;
+}
+
+function isPercentTrendingMetric(item: TrendingDisplayItem) {
+  const metricName = item.metricName.toLowerCase();
+  const metricUnit = item.metricUnit?.toLowerCase();
+  return metricUnit === "percent" || metricName.includes("pct") || metricName.includes("return");
+}
+
+function getTrendingMetricValue(item: TrendingDisplayItem) {
+  if (isPercentTrendingMetric(item)) {
+    return hasNumber(item.changePct) ? item.changePct : item.metricValue;
+  }
+  return item.metricValue;
+}
+
+function formatTrendingMetric(item: TrendingDisplayItem) {
+  const metricUnit = item.metricUnit?.toLowerCase();
+  const value = getTrendingMetricValue(item);
+
+  if (!hasNumber(value)) return UNKNOWN;
+  if (isPercentTrendingMetric(item)) {
+    return formatChangePct(value);
+  }
+  if (metricUnit === "shares") {
+    return value.toLocaleString("ko-KR");
+  }
+  if (metricUnit === "rank") {
+    return `#${Math.round(value)}`;
+  }
+  return value.toLocaleString("ko-KR");
+}
+
+function getTrendingMetricClass(item: TrendingDisplayItem) {
+  const value = getTrendingMetricValue(item);
+  if (!hasNumber(value)) return styles.neutralText;
+  return value >= 0 ? styles.positiveText : styles.negativeText;
+}
+
+function getTrendingPrice(item: StoredTrendingItem) {
+  return item.price?.close_price ?? item.technical?.close_price ?? null;
+}
+
+function mapRealtimeTrendingItems(response: RealtimeTrendingResponse): TrendingDisplayItem[] {
+  return response.items.map((item, index) => {
+    const primarySource = item.sources?.[0];
+    const sourceCount = item.source_count ?? item.sources?.length ?? 0;
+    const sourceLabel =
+      sourceCount > 1 ? `${sourceCount} KIS lists` : primarySource?.source_label ?? response.source.toUpperCase();
+    const market = normalizeSymbolMetaSeedValue(item.market ?? item.market_code ?? response.market ?? "KRX");
+    const name = normalizeSymbolMetaSeedValue(item.name ?? item.symbol);
+    const searchItem = normalizeSearchItem({
+      symbol: item.symbol,
+      standard_code: "",
+      name_ko: name,
+      market,
+    });
+
+    return {
+      symbol: searchItem.symbol,
+      name,
+      market,
+      rank: item.best_rank ?? primarySource?.rank ?? index + 1,
+      sourceLabel,
+      metricName: primarySource?.metric.name ?? "change_pct",
+      metricUnit: primarySource?.metric.unit ?? "percent",
+      metricValue: primarySource?.metric.value ?? null,
+      changePct: item.change_pct ?? null,
+      price: item.price ?? null,
+      searchItem,
+    };
+  });
+}
+
+function mapStoredTrendingItems(response: StoredTrendingResponse, mode: Exclude<TrendingMode, "kis">): TrendingDisplayItem[] {
+  return response.items.map((item, index) => {
+    const market = normalizeSymbolMetaSeedValue(item.market ?? "KRX");
+    const name = normalizeSymbolMetaSeedValue(item.name_ko ?? item.symbol);
+    const searchItem = normalizeSearchItem({
+      symbol: item.symbol,
+      standard_code: "",
+      name_ko: name,
+      market,
+    });
+
+    return {
+      symbol: searchItem.symbol,
+      name,
+      market,
+      rank: item.rank ?? index + 1,
+      sourceLabel: `${mode.toUpperCase()} stored rank`,
+      metricName: item.metric?.name ?? `${mode}_return_pct`,
+      metricUnit: "percent",
+      metricValue: item.metric?.value ?? null,
+      changePct: item.price?.change_pct ?? item.metric?.value ?? null,
+      price: getTrendingPrice(item),
+      searchItem,
+    };
+  });
+}
+
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
@@ -163,6 +396,13 @@ export default function SearchPage() {
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
+  const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>([]);
+  const [trendingVisibleLimit, setTrendingVisibleLimit] = useState(TRENDING_INITIAL_LIMIT);
+  const [trendingResultCount, setTrendingResultCount] = useState(0);
+  const [trendingMeta, setTrendingMeta] = useState<string | null>(null);
+  const [trendingLoading, setTrendingLoading] = useState(false);
+  const [trendingError, setTrendingError] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -260,6 +500,63 @@ export default function SearchPage() {
   }, [query]);
 
   useEffect(() => {
+    let active = true;
+
+    const loadTrending = async () => {
+      setTrendingLoading(true);
+      setTrendingError(null);
+
+      try {
+        if (trendingMode === "kis") {
+          const result = await getJson<RealtimeTrendingResponse>(getTrendingEndpoint(trendingMode, trendingVisibleLimit));
+          if (!active) return;
+          if (!result.ok) {
+            setTrendingItems([]);
+            setTrendingResultCount(0);
+            setTrendingMeta(null);
+            setTrendingError(`KIS trending unavailable. HTTP ${result.status}`);
+            return;
+          }
+
+          const mappedItems = mapRealtimeTrendingItems(result.data);
+          setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
+          setTrendingResultCount(result.data.summary?.item_count ?? mappedItems.length);
+          setTrendingMeta(`${result.data.status.toUpperCase()} · ${formatDisplayTimestamp(result.data.as_of, UNKNOWN)}`);
+          return;
+        }
+
+        const result = await getJson<StoredTrendingResponse>(getTrendingEndpoint(trendingMode, trendingVisibleLimit));
+        if (!active) return;
+        if (!result.ok) {
+          setTrendingItems([]);
+          setTrendingResultCount(0);
+          setTrendingMeta(null);
+          setTrendingError(`${trendingMode.toUpperCase()} trending unavailable. HTTP ${result.status}`);
+          return;
+        }
+
+        const mappedItems = mapStoredTrendingItems(result.data, trendingMode);
+        setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
+        setTrendingResultCount(result.data.summary?.count ?? mappedItems.length);
+        setTrendingMeta(`Stored ${trendingMode.toUpperCase()} · ${result.data.request?.resolved_market_date ?? UNKNOWN}`);
+      } catch {
+        if (!active) return;
+        setTrendingItems([]);
+        setTrendingResultCount(0);
+        setTrendingMeta(null);
+        setTrendingError("Trending symbols unavailable. Check trading-core connectivity.");
+      } finally {
+        if (active) setTrendingLoading(false);
+      }
+    };
+
+    void loadTrending();
+    return () => {
+      active = false;
+    };
+  }, [trendingMode, trendingVisibleLimit]);
+
+  useEffect(() => {
     if (!selected) return;
     let active = true;
 
@@ -296,6 +593,8 @@ export default function SearchPage() {
   const favoriteCandidate = selected ?? items[0] ?? null;
   const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput || favoriteCandidate?.symbol || "");
   const canAddFavorite = favoriteSymbolCandidate.length > 0 && favoriteSavingSymbol === null;
+  const selectedTrendingTab = TRENDING_TABS.find((tab) => tab.mode === trendingMode) ?? TRENDING_TABS[0];
+  const canShowMoreTrending = trendingItems.length > 0 && trendingResultCount >= trendingVisibleLimit && !trendingLoading;
 
   const quickAccessItems = useMemo(() => {
     if (favoriteItems.length > 0) return favoriteItems;
@@ -308,6 +607,21 @@ export default function SearchPage() {
       return true;
     }).slice(0, 4);
   }, [favoriteItems, items, quickAccessCleared, recentItems]);
+
+  const handleTrendingModeChange = (nextMode: TrendingMode) => {
+    if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
+
+    setTrendingMode(nextMode);
+    setTrendingVisibleLimit(TRENDING_INITIAL_LIMIT);
+    setTrendingItems([]);
+    setTrendingResultCount(0);
+    setTrendingError(null);
+    setTrendingMeta(null);
+  };
+
+  const handleShowMoreTrending = () => {
+    setTrendingVisibleLimit((current) => current + TRENDING_LIMIT_STEP);
+  };
 
   const handleQueryChange = (nextQuery: string) => {
     setQuery(nextQuery);
@@ -557,44 +871,67 @@ export default function SearchPage() {
         </section>
 
         <section className={styles.trendingPanel}>
-          <ComponentTag label="search.trending-symbols" api="/api/trading/symbols/search metadata, quote only after selection" />
+          <ComponentTag
+            label="search.trending-symbols"
+            api="/api/trading/scanner/realtime-trending + /api/trading/scanner/trending-stocks"
+          />
           <div className={styles.sectionHeader}>
             <h2>Trending Symbols</h2>
-            <span>Rank source {UNKNOWN}</span>
+            <span>{trendingMeta ?? selectedTrendingTab.description}</span>
           </div>
-          <div className={styles.trendingGrid}>
-            {items.slice(0, 4).map((item, index) => {
+          <div className={styles.trendingTabs} role="tablist" aria-label="Trending source">
+            {TRENDING_TABS.map((tab) => (
+              <button
+                key={tab.mode}
+                type="button"
+                role="tab"
+                aria-selected={tab.mode === trendingMode}
+                className={tab.mode === trendingMode ? styles.trendingTabActive : undefined}
+                onClick={() => handleTrendingModeChange(tab.mode)}
+              >
+                <span>{tab.label}</span>
+                <small>{tab.description}</small>
+              </button>
+            ))}
+          </div>
+          {trendingError ? <div className={styles.feedback}>{trendingError}</div> : null}
+          <div className={styles.trendingList}>
+            {trendingItems.map((item) => {
               const isSelected = selected?.symbol === item.symbol;
-              const canShowSelectedQuote = isSelected && quote;
               return (
-                <button key={item.symbol} type="button" className={styles.trendingCard} onClick={() => handleSelect(item)}>
-                  <span className={styles.trendingTopline}>
+                <button
+                  key={`${trendingMode}-${item.symbol}`}
+                  type="button"
+                  className={`${styles.trendingRow} ${isSelected ? styles.trendingRowActive : ""}`.trim()}
+                  onClick={() => handleSelect(item.searchItem)}
+                >
+                  <span className={styles.trendingRank}>#{item.rank ?? UNKNOWN}</span>
+                  <span className={styles.trendingIdentity}>
                     <strong className="clamp-3">{item.symbol}</strong>
-                    <small className={index % 2 === 0 ? styles.positiveText : styles.negativeText}>
-                      {canShowSelectedQuote ? formatChangePct(quote.change_pct) : UNKNOWN}
+                    <small className="clamp-3">{item.name}</small>
+                  </span>
+                  <span className={styles.trendingMetric}>
+                    <strong className={getTrendingMetricClass(item)}>{formatTrendingMetric(item)}</strong>
+                    <small className="clamp-3">
+                      {item.sourceLabel} · {item.market}
                     </small>
-                  </span>
-                  <span className={styles.sparkline} aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                  <span className={styles.trendingFooter}>
-                    <strong>{canShowSelectedQuote && hasNumber(quote.price) ? `₩${formatPrice(quote.price)}` : UNKNOWN}</strong>
-                    <small className="clamp-3">{item.market}</small>
                   </span>
                 </button>
               );
             })}
-            {items.length === 0 ? (
+            {trendingItems.length === 0 && !trendingLoading && !trendingError ? (
               <div className={styles.emptyState}>
                 <strong>{UNKNOWN}</strong>
-                <p className="clamp-3">No confirmed trending API is exposed for this route yet.</p>
+                <p className="clamp-3">No symbols returned for {selectedTrendingTab.label} trending.</p>
               </div>
             ) : null}
           </div>
+          {trendingLoading ? <p className={styles.trendingStatus}>Loading {selectedTrendingTab.label} symbols...</p> : null}
+          {canShowMoreTrending ? (
+            <button type="button" className={styles.trendingMoreButton} onClick={handleShowMoreTrending}>
+              More
+            </button>
+          ) : null}
         </section>
 
         <section className={styles.integrityPanel}>

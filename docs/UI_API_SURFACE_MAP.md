@@ -94,13 +94,15 @@ Client polling:
 - `GET /api/trading/symbols/favorites`
 - `GET /api/trading/scanner/tracked-symbols`
 - `POST /api/trading/scanner/tracked-symbols`
+- `GET /api/trading/scanner/realtime-trending?limit=...&market_code=J&sources=volume-rank,fluctuation,hts-top-view`
+- `GET /api/trading/scanner/trending-stocks?period=1d|5d|20d&direction=both&limit=...`
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed Search terminal top bar + bottom tab bar, desktop Obsidian Ledger rail + centered terminal search surface -> navigation only, no direct backend dependency
 - Terminal search input and result count: `/symbols/search` -> `query`, `count`, `items.length`
 - Mobile result cards: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; price, change, and quote freshness are not rendered in the list
 - Quick access / recent cards: `/symbols/favorites.items[]` first, then local recent selections plus current `/symbols/search.items[]`; the visible add-favorite action posts the updated symbol set through `/scanner/tracked-symbols` because that is the current core write path that persists scanner membership
-- Trending symbols cards: current `/symbols/search.items[]` metadata only; ranking source, market cap, and unselected prices remain `[확인 필요]` until confirmed upstream
+- Trending symbols cards: `/scanner/realtime-trending.items[]` for the KIS tab and `/scanner/trending-stocks.items[]` for stored `1d`, `5d`, and `20d` tabs -> exact `symbol`, display name, market, rank, metric/change percentage, source label, and selected symbol metadata seed. The first fetch shows five rows; the More button raises the requested limit by five.
 - Desktop results table: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; selected row also uses `/quotes/{symbol}` for `price`, `change_pct`, `cached_at`, `trade_date`
 - Selected quote panel: `/quotes/{symbol}` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `source`, `available`, `fallback`, `is_live`, `cached_at`, `trade_date`, `unavailable_reason`
 
