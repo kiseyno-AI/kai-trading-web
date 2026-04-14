@@ -121,6 +121,10 @@ function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
   return freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]";
 }
 
+function getFundamentalsFreshnessDate(freshness: EodFreshnessResponseDto | null) {
+  return freshness?.fundamentals?.latest_date ?? null;
+}
+
 function getEodReceivedTone(received: boolean | null | undefined) {
   if (received === true) return "positive";
   if (received === false) return "warning";
@@ -260,6 +264,9 @@ export function LiveDashboardClient({
   const positiveCount = availableItems.filter((item) => (item.change_pct ?? 0) >= 0).length;
   const totalTurnover = availableItems.reduce((sum, item) => sum + (item.turnover ?? 0), 0);
   const breadthRatio = availableItems.length ? Math.round((positiveCount / availableItems.length) * 100) : 0;
+  const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness);
+  const latestEodDate = freshness?.latest?.price_trade_date;
+  const isFundamentalsSynced = hasTextValue(latestFundamentalsDate) && latestFundamentalsDate === latestEodDate;
   const movers = useMemo(
     () =>
       [...tracked.items]
@@ -303,10 +310,10 @@ export function LiveDashboardClient({
     {
       id: "fundamentals",
       label: "Fundamentals",
-      status: "[확인 필요]",
-      meta: "[확인 필요]",
-      coverage: "Freshness API not exposed in current web layer",
-      tone: "neutral",
+      status: isFundamentalsSynced ? "Synced" : "[확인 필요]",
+      meta: latestFundamentalsDate ?? "[확인 필요]",
+      coverage: "Latest fundamentals update date",
+      tone: isFundamentalsSynced ? "info" : "warning",
     },
   ] as const;
   const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");
@@ -386,7 +393,9 @@ export function LiveDashboardClient({
 
           <div className={styles.moduleList}>
             {integrityModuleRows.map((row) => {
-              const emphasizeSynced = row.status === "Synced" && (row.id === "technical" || row.id === "action");
+              const emphasizeSynced =
+                row.status === "Synced" &&
+                (row.id === "technical" || row.id === "action" || row.id === "fundamentals");
 
               return (
                 <article key={row.id} className={styles.moduleRow}>

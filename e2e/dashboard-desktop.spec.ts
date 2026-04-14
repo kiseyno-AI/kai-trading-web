@@ -121,6 +121,77 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("[확인 필요]")).toHaveCount(0);
   });
 
+  test("D2 fundamentals row shows synced when latest update matches latest EOD", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-13",
+            eod_status: "completed",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            symbols_failed: 0,
+            received: true,
+          },
+          latest: {
+            price_trade_date: "2026-04-10",
+            technical_market_date: "2026-04-10",
+            action_market_date: "2026-04-10",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-10",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
+    await expect(fundamentalsRow).toBeVisible();
+    await expect(fundamentalsRow).toContainText("Latest fundamentals update date");
+    await expect(fundamentalsRow).toContainText("2026-04-10");
+    await expect(fundamentalsRow.getByText("Synced")).toBeVisible();
+    await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
+  });
+
+  test("D2 fundamentals row keeps confirmation status when latest update lags EOD", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-13",
+            eod_status: "completed",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            symbols_failed: 0,
+            received: true,
+          },
+          latest: {
+            price_trade_date: "2026-04-10",
+            technical_market_date: "2026-04-10",
+            action_market_date: "2026-04-10",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-09",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
+    await expect(fundamentalsRow).toBeVisible();
+    await expect(fundamentalsRow).toContainText("2026-04-09");
+    await expect(fundamentalsRow.getByText("[확인 필요]")).toBeVisible();
+    await expect(fundamentalsRow.getByText("Synced")).toHaveCount(0);
+  });
+
   test("D2 EOD status does not mark a market-date-only stub as available", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({

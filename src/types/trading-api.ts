@@ -342,6 +342,7 @@ export type EodFreshnessResponseDto = {
   price?: EodFreshnessLayerStatusDto | null;
   technical?: EodFreshnessLayerStatusDto | null;
   action?: EodFreshnessLayerStatusDto | null;
+  fundamentals?: EodFreshnessLayerStatusDto | null;
 };
 
 export type DartFundamentalsHistoryMetricDto = {
