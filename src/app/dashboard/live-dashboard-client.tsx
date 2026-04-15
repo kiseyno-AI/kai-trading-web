@@ -877,10 +877,10 @@ export function LiveDashboardClient({
 
               <div className={styles.trackedCardTop}>
                 <div>
-                  <strong className={styles.symbolLabel}>{item.symbol}</strong>
-                  <p className={`clamp-3 ${styles.companyLabel}`}>
+                  <strong className={styles.companyName}>
                     {getCompanyName(item, symbolMetaBySymbol[item.symbol])}
-                  </p>
+                  </strong>
+                  <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
                 </div>
                 <span className={`pill ${item.available ? (item.change_pct ?? 0) >= 0 ? "positive" : "negative" : "warning"}`}>
                   {item.available ? (item.is_live ? "Live" : "Fallback") : "Unavailable"}
