@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { defaultLocale, messages, type MessageTree } from "@/i18n/messages";
 import { readStoredValue, storeValue, writeCookie } from "@/lib/persistence";
+import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { Locale } from "@/types/trading-api";
 
 type AppStateContextValue = {
@@ -33,26 +34,38 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [locale]);
 
-  const setLocale = (nextLocale: Locale) => {
+  const setLocale = useCallback((nextLocale: Locale) => {
+    logWebDiagnostic("state", "locale-change", {
+      from: locale,
+      to: nextLocale,
+    });
     setLocaleState(nextLocale);
     storeValue(LOCALE_KEY, nextLocale);
     writeCookie("trading-web-locale", nextLocale);
     if (typeof document !== "undefined") {
       document.documentElement.lang = nextLocale;
     }
-  };
+  }, [locale]);
 
-  const setNotificationsOn = (value: boolean) => {
+  const setNotificationsOn = useCallback((value: boolean) => {
+    logWebDiagnostic("state", "notifications-toggle", {
+      from: notificationsOn,
+      to: value,
+    });
     setNotificationsOnState(value);
     storeValue(NOTIFICATIONS_KEY, value);
     writeCookie("trading-web-notifications", value ? "on" : "off");
-  };
+  }, [notificationsOn]);
 
-  const setDevMode = (value: boolean) => {
+  const setDevMode = useCallback((value: boolean) => {
+    logWebDiagnostic("state", "dev-mode-toggle", {
+      from: devMode,
+      to: value,
+    });
     setDevModeState(value);
     storeValue(DEV_MODE_KEY, value);
     writeCookie("trading-web-dev-mode", value ? "on" : "off");
-  };
+  }, [devMode]);
 
   const value = useMemo<AppStateContextValue>(
     () => ({
@@ -64,7 +77,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setDevMode,
       t: messages[locale],
     }),
-    [devMode, locale, notificationsOn],
+    [devMode, locale, notificationsOn, setDevMode, setLocale, setNotificationsOn],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

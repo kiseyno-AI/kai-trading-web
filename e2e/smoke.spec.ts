@@ -8,6 +8,7 @@ import {
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { getTradingApiCacheTtlMs } from "@/lib/trading-api-cache";
+import { sanitizeDiagnosticUrl } from "@/lib/web-diagnostics";
 
 test.describe("smoke", () => {
   test("home redirects to dashboard", async ({ page }) => {
@@ -99,6 +100,18 @@ test.describe("smoke", () => {
     expect(getTradingApiCacheTtlMs("/api/trading/quotes/005930")).toBeNull();
     expect(getTradingApiCacheTtlMs("/api/trading/market/status")).toBeNull();
     expect(getTradingApiCacheTtlMs("/api/trading/scanner/tracked-symbols", { method: "POST" })).toBeNull();
+  });
+
+  test("web diagnostics URL sanitizer redacts sensitive query values", async () => {
+    const sanitized = sanitizeDiagnosticUrl(
+      "/api/trading/symbols/search?q=005930&token=secret-token&api_key=secret-key",
+    );
+
+    expect(sanitized).toContain("q=005930");
+    expect(sanitized).toContain("token=%5Bredacted%5D");
+    expect(sanitized).toContain("api_key=%5Bredacted%5D");
+    expect(sanitized).not.toContain("secret-token");
+    expect(sanitized).not.toContain("secret-key");
   });
 
   test("kis dashboard renders even when an upstream section is unavailable", async ({ page }) => {

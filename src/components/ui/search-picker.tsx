@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { Button } from "@/components/ui/button";
+import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { SearchSuggestionDto } from "@/types/trading-api";
 
 type SearchPickerProps = {
@@ -22,9 +23,15 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
       const isOpenShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
       if (isOpenShortcut) {
         event.preventDefault();
+        logWebDiagnostic("interaction", "search-picker-open", {
+          source: "keyboard",
+        });
         setOpen(true);
       }
       if (event.key === "Escape") {
+        logWebDiagnostic("interaction", "search-picker-close", {
+          source: "keyboard",
+        });
         setOpen(false);
       }
     };
@@ -71,6 +78,11 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
               key={suggestion.id}
               className="suggestion"
               onClick={() => {
+                logWebDiagnostic("interaction", "search-suggestion-select", {
+                  label: suggestion.label,
+                  route: suggestion.route,
+                  type: suggestion.type,
+                });
                 setQuery(suggestion.label);
                 setOpen(false);
                 router.push(suggestion.route);

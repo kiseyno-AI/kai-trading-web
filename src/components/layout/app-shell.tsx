@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { MobileNav } from "@/components/navigation/mobile-nav";
 import { Topbar } from "@/components/navigation/topbar";
+import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { DashboardSnapshotDto, NavItemDto, SearchSuggestionDto } from "@/types/trading-api";
 
 const DEFAULT_NAV_ITEMS: NavItemDto[] = [
@@ -44,6 +45,16 @@ export function AppShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const resolvedNavItems = navItems.length > 0 ? navItems : DEFAULT_NAV_ITEMS;
   const resolvedSuggestions = suggestions.length > 0 ? suggestions : DEFAULT_SUGGESTIONS;
+  const handleToggleMobileNav = () => {
+    setMobileNavOpen((value) => {
+      const nextValue = !value;
+      logWebDiagnostic("interaction", "mobile-nav-toggle", {
+        currentPath,
+        to: nextValue,
+      });
+      return nextValue;
+    });
+  };
 
   return (
     <div className="dashboard-shell">
@@ -56,7 +67,7 @@ export function AppShell({
           eyebrow={eyebrow}
           compactMobileChrome={compactMobileChrome}
           suggestions={resolvedSuggestions}
-          onToggleMobileNav={() => setMobileNavOpen((value) => !value)}
+          onToggleMobileNav={handleToggleMobileNav}
         />
         <MobileNav open={mobileNavOpen} items={resolvedNavItems} currentPath={currentPath} />
         {children}

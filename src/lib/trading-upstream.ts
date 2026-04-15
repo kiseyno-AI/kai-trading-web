@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { logWebDiagnostic, startWebDiagnosticSpan } from "@/lib/web-diagnostics";
+
 const LOCAL_TRADING_UPSTREAM_FALLBACK = "http://127.0.0.1:8000";
 
 function trimTrailingSlash(value: string) {
@@ -42,6 +44,10 @@ class TradingUpstreamConfigurationError extends Error {
 
 function getTradingUpstreamAuthMode(): TradingUpstreamTarget["authMode"] {
   return process.env.TRADING_API_UPSTREAM_BEARER_TOKEN ? "bearer" : "none";
+}
+
+function getRequestMethod(init?: RequestInit) {
+  return (init?.method ?? "GET").toUpperCase();
 }
 
 function buildTradingUpstreamConfigurationDetails() {
@@ -110,14 +116,46 @@ export function getTradingUpstreamHeaders(init?: HeadersInit) {
   return headers;
 }
 
-export function fetchTradingUpstream(path: string, init?: RequestInit) {
+export async function fetchTradingUpstream(path: string, init?: RequestInit) {
   const upstreamTarget = resolveTradingUpstreamTarget();
-
-  return fetch(`${upstreamTarget.baseUrl}${path}`, {
-    ...init,
-    headers: getTradingUpstreamHeaders(init?.headers),
-    cache: "no-store",
+  const method = getRequestMethod(init);
+  const requestUrl = `${upstreamTarget.baseUrl}${path}`;
+  const span = startWebDiagnosticSpan("http", "request", {
+    authMode: upstreamTarget.authMode,
+    method,
+    path: requestUrl,
+    scope: "server-upstream",
+    upstreamSource: upstreamTarget.source,
   });
+
+  try {
+    const response = await fetch(requestUrl, {
+      ...init,
+      headers: getTradingUpstreamHeaders(init?.headers),
+      cache: "no-store",
+    });
+
+    span.end({
+      authMode: upstreamTarget.authMode,
+      method,
+      ok: response.ok,
+      path: requestUrl,
+      scope: "server-upstream",
+      status: response.status,
+      upstreamSource: upstreamTarget.source,
+    });
+
+    return response;
+  } catch (error) {
+    span.fail(error, {
+      authMode: upstreamTarget.authMode,
+      method,
+      path: requestUrl,
+      scope: "server-upstream",
+      upstreamSource: upstreamTarget.source,
+    });
+    throw error;
+  }
 }
 
 function formatFetchErrorMessage(error: unknown) {
@@ -163,14 +201,38 @@ export async function fetchTradingUpstreamJson<T>(path: string): Promise<T> {
 
 export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?: Headers): Promise<T> {
   const serverTarget = getServerTradingApiBaseUrl(requestHeaders);
+  const requestUrl = `${serverTarget.baseUrl}${path}`;
+  const span = startWebDiagnosticSpan("http", "request", {
+    authMode: serverTarget.authMode,
+    method: "GET",
+    path: requestUrl,
+    scope: "server-render",
+    upstreamSource: serverTarget.source,
+  });
   let response: Response;
 
   try {
-    response = await fetch(`${serverTarget.baseUrl}${path}`, {
+    response = await fetch(requestUrl, {
       headers: getTradingUpstreamHeaders(),
       cache: "no-store",
     });
+    span.end({
+      authMode: serverTarget.authMode,
+      method: "GET",
+      ok: response.ok,
+      path: requestUrl,
+      scope: "server-render",
+      status: response.status,
+      upstreamSource: serverTarget.source,
+    });
   } catch (error) {
+    span.fail(error, {
+      authMode: serverTarget.authMode,
+      method: "GET",
+      path: requestUrl,
+      scope: "server-render",
+      upstreamSource: serverTarget.source,
+    });
     throw new Error(`Failed to load ${path} from ${serverTarget.baseUrl}: ${formatFetchErrorMessage(error)}`);
   }
 
@@ -188,6 +250,15 @@ export async function proxyTradingUpstreamJson(path: string, init?: RequestInit)
     const body = await response.text();
     const contentType = response.headers.get("content-type") ?? "application/json";
 
+    logWebDiagnostic("http", "proxy-response", {
+      contentType,
+      method: getRequestMethod(init),
+      path,
+      scope: "server-bff",
+      status: response.status,
+      upstreamSource: upstreamTarget.source,
+    });
+
     return new NextResponse(body, {
       status: response.status,
       headers: {
@@ -197,6 +268,13 @@ export async function proxyTradingUpstreamJson(path: string, init?: RequestInit)
       },
     });
   } catch (error) {
+    logWebDiagnostic("http", "proxy-error", {
+      error,
+      method: getRequestMethod(init),
+      path,
+      scope: "server-bff",
+    });
+
     if (error instanceof TradingUpstreamConfigurationError) {
       return NextResponse.json(
         {

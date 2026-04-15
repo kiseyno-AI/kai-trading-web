@@ -1,4 +1,5 @@
 import { botPlaybooks, botStatusMap, dashboardData, marketSpotlight } from "@/data/trading-dashboard";
+import { startWebDiagnosticSpan } from "@/lib/web-diagnostics";
 import type {
   ApiEnvelope,
   BotCommandRequestDto,
@@ -114,18 +115,42 @@ const formatCompactCurrency = (value: number) => {
 };
 
 async function getJson<T>(baseUrl: string, path: string): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    headers: {
-      Accept: "application/json",
-    },
-    cache: "no-store",
+  const url = `${baseUrl}${path}`;
+  const span = startWebDiagnosticSpan("http", "request", {
+    method: "GET",
+    path: url,
+    scope: "client-adapter",
   });
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} for ${path}`);
-  }
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
 
-  return (await response.json()) as T;
+    span.end({
+      method: "GET",
+      ok: response.ok,
+      path: response.url || url,
+      scope: "client-adapter",
+      status: response.status,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} for ${path}`);
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    span.fail(error, {
+      method: "GET",
+      path: url,
+      scope: "client-adapter",
+    });
+    throw error;
+  }
 }
 
 function buildDashboardSnapshotFromCore(
