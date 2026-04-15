@@ -64,11 +64,9 @@ Desktop reference:
 
 | Tag | Component | API | Desktop behavior |
 | --- | --- | --- | --- |
-| `search.terminal-shell` | Centered Universal Search hero | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | Large centered terminal input, desktop top links, market-open badge, and dev toggle. |
+| `search.terminal-shell` | Centered Universal Search hero | `/api/trading/symbols/search` | Large centered terminal input, desktop top links, market-open badge, and dev toggle. |
 | `search.quick-access` | Quick Access favorites and `+` search dialog | `/api/trading/symbols/favorites`, `/api/trading/symbols/search`, `/api/trading/scanner/tracked-symbols` | Four wide cards render core favorites only. Empty Q3 stays empty until `+` opens the autocomplete dialog and saves through the tracked-symbol write route. |
 | `search.desktop-results-table` | Desktop results table | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | Rows render symbol metadata from search. Only the selected row shows quote-backed price, change, and freshness; market cap and unsupported coverage are `[확인 필요]`. |
-| `search.selected-quote` | Sticky selected quote inspector | `/api/trading/quotes/{symbol}` | Shows live/fallback/unavailable mode, price, change, volume, turnover, source, freshness, and a metadata-preserving symbol detail link. |
-| `search.network-integrity` | Mobile integrity strip | client fetch states | Hidden on desktop; mobile uses endpoint error state to degrade the meter. |
 
 ## Implementation notes
 

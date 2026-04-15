@@ -917,7 +917,7 @@
     width: min(100%, 112rem);
     margin: 0 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 23rem;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.5rem;
   }
 

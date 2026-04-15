@@ -19,7 +19,7 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByLabel(/Search markets, symbols, or analysis/i)).toBeVisible();
     await expect(page.getByRole("heading", { name: /Search Results/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
-    await expect(page.getByText(/Network Integrity/i)).toBeVisible();
+    await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
   });
 
   test("keeps Q2 empty for a blank search even if the endpoint has default matches", async ({ page }) => {
@@ -180,8 +180,7 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByRole("link", { name: /005930.*Samsung Electronics/i }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /000660.*SK hynix/i })).toBeVisible();
-    const integritySection = page.locator("section").filter({ hasText: "Network Integrity" }).first();
-    await expect(integritySection.getByText("Degraded")).toBeVisible();
+    await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
   });
 
   test("Q4 shows exact trending symbols by source and extends from the More button", async ({ page }) => {
