@@ -492,12 +492,10 @@ export function LiveDashboardClient({
     () =>
       Array.from(
         new Set(
-          tracked.items
-            .filter((item) => !getQuoteCompanyName(item) && symbolMetaBySymbol[item.symbol] === undefined)
-            .map((item) => item.symbol),
+          tracked.items.filter((item) => !getQuoteCompanyName(item)).map((item) => item.symbol),
         ),
       ),
-    [tracked.items, symbolMetaBySymbol],
+    [tracked.items],
   );
   const symbolMetadataLookupKey = symbolsNeedingCompanyName.join("|");
 
