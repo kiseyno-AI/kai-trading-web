@@ -28,7 +28,27 @@ function isSensitiveKey(key: string) {
 }
 
 function isUrlLikeKey(key: string) {
-  return /endpoint|from|href|path|route|target|to|url/i.test(key);
+  return /currentscreen|endpoint|from|href|path|route|target|to|url/i.test(key);
+}
+
+function sanitizeDiagnosticHash(hash: string) {
+  if (!hash) return "";
+
+  const rawHash = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!rawHash) return "#";
+
+  const hashParams = new URLSearchParams(rawHash);
+  if ([...hashParams.keys()].length === 0) return `#${truncateString(rawHash, 80)}`;
+
+  const safeHashParams = new URLSearchParams();
+  for (const [key, paramValue] of hashParams.entries()) {
+    safeHashParams.append(
+      key,
+      isSensitiveKey(key) ? REDACTED_VALUE : truncateString(paramValue, 80),
+    );
+  }
+
+  return `#${safeHashParams.toString()}`;
 }
 
 function getDiagnosticTimerValue() {
@@ -58,9 +78,10 @@ export function sanitizeDiagnosticUrl(value: string) {
     }
 
     url.search = safeSearchParams.toString();
+    const safeHash = sanitizeDiagnosticHash(url.hash);
     const renderedUrl = shouldRenderAbsoluteUrl(value)
-      ? `${url.origin}${url.pathname}${url.search}${url.hash}`
-      : `${url.pathname}${url.search}${url.hash}`;
+      ? `${url.origin}${url.pathname}${url.search}${safeHash}`
+      : `${url.pathname}${url.search}${safeHash}`;
 
     return truncateString(renderedUrl);
   } catch {

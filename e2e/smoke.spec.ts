@@ -102,6 +102,18 @@ test.describe("smoke", () => {
     expect(getTradingApiCacheTtlMs("/api/trading/scanner/tracked-symbols", { method: "POST" })).toBeNull();
   });
 
+  test("web diagnostics URL sanitizer redacts current screen and hash secrets", async () => {
+    const sanitized = sanitizeDiagnosticUrl(
+      "/dashboard?token=secret-token#access_token=secret-fragment&tab=overview",
+    );
+
+    expect(sanitized).toContain("token=%5Bredacted%5D");
+    expect(sanitized).toContain("tab=overview");
+    expect(sanitized).toContain("access_token=%5Bredacted%5D");
+    expect(sanitized).not.toContain("secret-token");
+    expect(sanitized).not.toContain("secret-fragment");
+  });
+
   test("web diagnostics URL sanitizer redacts sensitive query values", async () => {
     const sanitized = sanitizeDiagnosticUrl(
       "/api/trading/symbols/search?q=005930&token=secret-token&api_key=secret-key",
