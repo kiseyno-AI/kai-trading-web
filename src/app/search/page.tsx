@@ -754,6 +754,7 @@ export default function SearchPage() {
       ]);
       setTrackedSymbols(normalizedTrackedSymbols);
       setTrackedSymbolsError(null);
+      setFavoriteListError(null);
       setFavoriteItems((current) => {
         const next = [favoriteItem, ...current.filter((currentItem) => currentItem.symbol !== symbol)];
         return next.slice(0, 4);
