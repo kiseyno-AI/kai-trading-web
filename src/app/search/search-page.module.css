@@ -313,7 +313,8 @@
   gap: 0.7rem;
 }
 
-.quickGrid > .emptyState {
+.quickGrid > .emptyState,
+.quickGrid > .feedback {
   grid-column: 1 / -1;
 }
 
@@ -810,10 +811,15 @@
 }
 
 .emptyState p,
+.feedback p,
 .integrityPanel p {
   margin: 0.45rem 0 0;
   font-size: 0.78rem;
   line-height: 1.55;
+}
+
+.feedback strong {
+  display: block;
 }
 
 .positiveText {

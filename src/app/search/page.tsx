@@ -238,6 +238,15 @@ function getQuoteMode(quote: QuoteResponse | null) {
   return "DELAYED";
 }
 
+function PanelUnavailable({ message }: { message: string }) {
+  return (
+    <div className={styles.feedback} role="status">
+      <strong>Unavailable</strong>
+      <p className="clamp-3">{message}</p>
+    </div>
+  );
+}
+
 function normalizeSymbolCode(value: string) {
   return value.trim().toUpperCase();
 }
@@ -378,8 +387,10 @@ export default function SearchPage() {
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>([]);
+  const [favoriteListError, setFavoriteListError] = useState<string | null>(null);
   const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
   const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
+  const [trackedSymbolsError, setTrackedSymbolsError] = useState<string | null>(null);
   const [favoriteDialogOpen, setFavoriteDialogOpen] = useState(false);
   const [favoriteSymbolInput, setFavoriteSymbolInput] = useState("");
   const [favoriteSearchItems, setFavoriteSearchItems] = useState<SymbolSearchItem[]>([]);
@@ -409,15 +420,15 @@ export default function SearchPage() {
         if (!active) return;
         if (!result.ok) {
           setFavoriteItems([]);
-          setFavoriteError(`Favorite list unavailable. HTTP ${result.status}`);
+          setFavoriteListError(`Favorite list unavailable. HTTP ${result.status}`);
           return;
         }
         setFavoriteItems(result.data.items.map(normalizeSearchItem).slice(0, 4));
-        setFavoriteError(null);
+        setFavoriteListError(null);
       } catch {
         if (!active) return;
         setFavoriteItems([]);
-        setFavoriteError("Favorite list unavailable.");
+        setFavoriteListError("Favorite list unavailable.");
       }
     };
 
@@ -437,14 +448,17 @@ export default function SearchPage() {
         if (!result.ok) {
           setTrackedSymbols([]);
           setTrackedSymbolsLoaded(false);
+          setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${result.status}`);
           return;
         }
         setTrackedSymbols(result.data.tracked_symbols.map(normalizeSymbolCode));
         setTrackedSymbolsLoaded(true);
+        setTrackedSymbolsError(null);
       } catch {
         if (!active) return;
         setTrackedSymbols([]);
         setTrackedSymbolsLoaded(false);
+        setTrackedSymbolsError("Favorite updates unavailable.");
       }
     };
 
@@ -635,6 +649,7 @@ export default function SearchPage() {
   const quickAccessItems = favoriteItems;
   const selectedTrendingTab = TRENDING_TABS.find((tab) => tab.mode === trendingMode) ?? TRENDING_TABS[0];
   const canShowMoreTrending = trendingItems.length > 0 && trendingResultCount >= trendingVisibleLimit && !trendingLoading;
+  const screenDegraded = Boolean(searchError || quoteError || favoriteListError || trackedSymbolsError || trendingError);
 
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
@@ -706,12 +721,14 @@ export default function SearchPage() {
         if (!currentResult.ok) {
           setTrackedSymbols([]);
           setTrackedSymbolsLoaded(false);
+          setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${currentResult.status}`);
           setFavoriteError(`Favorite save blocked until tracked symbols load successfully. HTTP ${currentResult.status}`);
           return;
         }
         currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
         setTrackedSymbols(currentTrackedSymbols);
         setTrackedSymbolsLoaded(true);
+        setTrackedSymbolsError(null);
       }
 
       const nextSymbols = [symbol, ...currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol)];
@@ -736,6 +753,7 @@ export default function SearchPage() {
         "/api/trading/symbols/favorites",
       ]);
       setTrackedSymbols(normalizedTrackedSymbols);
+      setTrackedSymbolsError(null);
       setFavoriteItems((current) => {
         const next = [favoriteItem, ...current.filter((currentItem) => currentItem.symbol !== symbol)];
         return next.slice(0, 4);
@@ -806,7 +824,7 @@ export default function SearchPage() {
             <h2>{resultTitle}</h2>
             <span>{items.length} matches</span>
           </div>
-          {searchError ? <div className={styles.feedback}>{searchError}</div> : null}
+          {searchError ? <PanelUnavailable message={searchError} /> : null}
           <div className={styles.mobileResultList}>
             {items.slice(0, 6).map((item) => {
               const isSelected = selected?.symbol === item.symbol;
@@ -854,11 +872,13 @@ export default function SearchPage() {
               >
                 +
               </button>
-              <span>{favoriteItems.length > 0 ? "Core favorites" : "No favorites"}</span>
+              <span>{favoriteListError ? "Unavailable" : favoriteItems.length > 0 ? "Core favorites" : "No favorites"}</span>
             </div>
           </div>
           <div className={styles.quickGrid}>
-            {quickAccessItems.length > 0 ? (
+            {favoriteListError ? (
+              <PanelUnavailable message={favoriteListError} />
+            ) : quickAccessItems.length > 0 ? (
               quickAccessItems.map((item) => (
                 <button key={item.symbol} type="button" className={styles.quickCard} onClick={() => handleSelect(item)}>
                   <span>
@@ -971,6 +991,7 @@ export default function SearchPage() {
               )
             : null}
           {favoriteStatus ? <p className={styles.favoriteStatus}>{favoriteStatus}</p> : null}
+          {trackedSymbolsError ? <p className={styles.favoriteError}>{trackedSymbolsError}</p> : null}
           {favoriteError && !favoriteDialogOpen ? <p className={styles.favoriteError}>{favoriteError}</p> : null}
         </section>
 
@@ -998,7 +1019,7 @@ export default function SearchPage() {
               </button>
             ))}
           </div>
-          {trendingError ? <div className={styles.feedback}>{trendingError}</div> : null}
+          {trendingError ? <PanelUnavailable message={trendingError} /> : null}
           <div className={styles.trendingList}>
             {trendingItems.map((item) => {
               const isSelected = selected?.symbol === item.symbol;
@@ -1042,15 +1063,16 @@ export default function SearchPage() {
           <ComponentTag label="search.network-integrity" api="client fetch states" />
           <div>
             <span>Network Integrity</span>
-            <strong>{searchError || quoteError ? "Degraded" : "99.9%"}</strong>
+            <strong>{screenDegraded ? "Degraded" : "99.9%"}</strong>
           </div>
           <div className={styles.integrityTrack} aria-hidden="true">
             <i />
             <i />
             <i />
             <i />
-            <i className={searchError || quoteError ? styles.integritySegmentDown : ""} />
+            <i className={screenDegraded ? styles.integritySegmentDown : ""} />
           </div>
+          {screenDegraded ? <p className="clamp-3">One or more API-backed panels are unavailable; the remaining screen stays interactive.</p> : null}
           {quoteError ? <p className="clamp-3">{quoteError}</p> : null}
         </section>
 
@@ -1068,7 +1090,7 @@ export default function SearchPage() {
               <button type="button">Export</button>
             </div>
           </div>
-          {searchError ? <div className={styles.feedback}>{searchError}</div> : null}
+          {searchError ? <PanelUnavailable message={searchError} /> : null}
           <div className={styles.resultsTableWrap}>
             <table className={styles.resultsTable}>
               <thead>
