@@ -20,6 +20,7 @@ import type {
 import styles from "./live-dashboard-client.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
+const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 
 export type CoreMarketStatus = {
   state: string;
@@ -139,6 +140,17 @@ function pickSymbolMetadata(symbol: string, response: SymbolSearchResponse): Sym
 
 function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
+}
+
+function getDashboardLoadErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Failed to refresh dashboard data.";
+}
+
+function isOfflineTrackedPlaceholder(tracked: CoreTrackedQuotesResponse) {
+  return (
+    tracked.market_state === "offline-placeholder" ||
+    tracked.items.some((item) => item.source === "mock" || item.fallback_reason === "offline_placeholder")
+  );
 }
 
 function getQuoteToneClass(value: number | null | undefined): string {
@@ -445,8 +457,8 @@ export function LiveDashboardClient({
   );
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(initialError);
-  const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "OFFLINE PLACEHOLDER");
+  const [marketError, setMarketError] = useState<string | null>(initialError);
+  const [trackedError, setTrackedError] = useState<string | null>(initialError);
 
   useEffect(() => {
     seedTradingApiJsonCache("/api/trading/eod/freshness", initialFreshness);
@@ -458,29 +470,66 @@ export function LiveDashboardClient({
 
   useEffect(() => {
     let active = true;
+    let retryIndex = 0;
+    let retryTimer: ReturnType<typeof window.setTimeout> | null = null;
 
-    const load = async () => {
+    function clearRetryTimer() {
+      if (retryTimer === null) return;
+      window.clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+
+    function scheduleRetry() {
+      if (!active || retryIndex >= TRACKED_QUOTES_RETRY_DELAYS_MS.length) return;
+      const retryDelayMs = TRACKED_QUOTES_RETRY_DELAYS_MS[retryIndex];
+      retryIndex += 1;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        void loadTracked();
+      }, retryDelayMs);
+    }
+
+    async function loadTracked() {
       try {
-        const [marketData, trackedData] = await Promise.all([
-          getJson<CoreMarketStatus>("/api/trading/market/status"),
-          getJson<CoreTrackedQuotesResponse>("/api/trading/quotes/tracked"),
-        ]);
+        const trackedData = await getJson<CoreTrackedQuotesResponse>("/api/trading/quotes/tracked");
+        if (!active) return;
+        clearRetryTimer();
+        setTracked(trackedData);
+        setTrackedError(null);
+      } catch (loadError) {
+        console.error("Dashboard tracked quote load failed", loadError);
+        if (!active) return;
+        setTrackedError(getDashboardLoadErrorMessage(loadError));
+        scheduleRetry();
+      }
+    }
 
+    void loadTracked();
+
+    return () => {
+      active = false;
+      clearRetryTimer();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMarket = async () => {
+      try {
+        const marketData = await getJson<CoreMarketStatus>("/api/trading/market/status");
         if (!active) return;
         setMarket(marketData);
-        setTracked(trackedData);
-        setError(null);
-        setCoreUnavailable(false);
+        setMarketError(null);
       } catch (loadError) {
-        console.error("Dashboard polling failed", loadError);
+        console.error("Dashboard market status polling failed", loadError);
         if (!active) return;
-        setCoreUnavailable(true);
-        setError(loadError instanceof Error ? loadError.message : "Failed to refresh dashboard data.");
+        setMarketError(getDashboardLoadErrorMessage(loadError));
       }
     };
 
-    load();
-    const timer = window.setInterval(load, 4_000);
+    void loadMarket();
+    const timer = window.setInterval(loadMarket, 60_000);
 
     return () => {
       active = false;
@@ -664,6 +713,11 @@ export function LiveDashboardClient({
   const eodSuccessCount = formatEodSymbolCount(getEodSymbolsSucceeded(freshness));
   const eodTotalCount = formatEodSymbolCount(getEodSymbolsTotal(freshness));
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
+  const coreUnavailable =
+    market.state === "OFFLINE PLACEHOLDER" ||
+    isOfflineTrackedPlaceholder(tracked) ||
+    Boolean(marketError || trackedError);
+  const error = trackedError ?? marketError;
   const fundamentalsDialogOpen =
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
 
