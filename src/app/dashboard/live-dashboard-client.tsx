@@ -471,7 +471,7 @@ export function LiveDashboardClient({
   useEffect(() => {
     let active = true;
     let retryIndex = 0;
-    let retryTimer: ReturnType<typeof window.setTimeout> | null = null;
+    let retryTimer: number | null = null;
 
     function clearRetryTimer() {
       if (retryTimer === null) return;
