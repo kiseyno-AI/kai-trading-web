@@ -50,6 +50,12 @@ type TrackedSymbolsResponse = {
   last_updated_at: string | null;
 };
 
+type CoreMarketStatus = {
+  state: string;
+  is_open: boolean;
+  server_time: string;
+};
+
 type TrendingMode = "kis" | "1d" | "5d" | "20d";
 
 type TrendingTab = {
@@ -184,6 +190,11 @@ const FAVORITE_SUGGESTIONS_ID = "favorite-symbol-suggestions";
 const TRENDING_INITIAL_LIMIT = 5;
 const TRENDING_LIMIT_STEP = 5;
 const TRENDING_REALTIME_SOURCES = "volume-rank,fluctuation,hts-top-view";
+const DEFAULT_MARKET_STATUS: CoreMarketStatus = {
+  state: "MARKET STATUS PENDING",
+  is_open: false,
+  server_time: "",
+};
 const TRENDING_TABS: TrendingTab[] = [
   { mode: "kis", label: "KIS", description: "Live KIS ranks" },
   { mode: "1d", label: "1D", description: "One-day movers" },
@@ -398,6 +409,34 @@ export default function SearchPage() {
   const [trendingMeta, setTrendingMeta] = useState<string | null>(null);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingError, setTrendingError] = useState<string | null>(null);
+  const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(DEFAULT_MARKET_STATUS);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMarketStatus = async () => {
+      try {
+        const result = await getJson<CoreMarketStatus>("/api/trading/market/status");
+        if (!active) return;
+        if (!result.ok) {
+          setMarketStatus(DEFAULT_MARKET_STATUS);
+          return;
+        }
+        setMarketStatus(result.data);
+      } catch {
+        if (!active) return;
+        setMarketStatus(DEFAULT_MARKET_STATUS);
+      }
+    };
+
+    void loadMarketStatus();
+    const timer = window.setInterval(loadMarketStatus, 60_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -642,6 +681,7 @@ export default function SearchPage() {
   const quickAccessItems = favoriteItems;
   const selectedTrendingTab = TRENDING_TABS.find((tab) => tab.mode === trendingMode) ?? TRENDING_TABS[0];
   const canShowMoreTrending = trendingItems.length > 0 && trendingResultCount >= trendingVisibleLimit && !trendingLoading;
+  const marketBadgeLabel = marketStatus.is_open ? "Market Open" : "Market Closed";
 
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
@@ -779,7 +819,9 @@ export default function SearchPage() {
           </div>
 
           <div className={styles.appHeaderActions}>
-            <span className="pill positive">Market Open</span>
+            <span className={`pill ${styles.marketStatusPill} ${marketStatus.is_open ? "positive" : styles.marketStatusClosedPill}`}>
+              {marketBadgeLabel}
+            </span>
             <DevModeToggle />
           </div>
         </>

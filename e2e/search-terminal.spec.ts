@@ -17,6 +17,72 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByText(/Search workspace/i)).toHaveCount(0);
   });
 
+  test("resets the header badge to the closed fallback when market status fails", async ({ page }) => {
+    let marketStatusRequests = 0;
+    await page.clock.install({ time: new Date("2026-04-14T09:00:00+09:00") });
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      marketStatusRequests += 1;
+      if (marketStatusRequests > 1) {
+        await route.fulfill({
+          status: 503,
+          json: { error: "market status unavailable" },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          state: "OPEN",
+          is_open: true,
+          server_time: "2026-04-14T09:00:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T16:00:00+09:00",
+          market: "KRX",
+          summary: {
+            item_count: 0,
+          },
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    await expect.poll(() => marketStatusRequests).toBe(1);
+    await expect(page.getByText("Market Open")).toBeVisible();
+
+    await page.clock.runFor(60_000);
+
+    await expect.poll(() => marketStatusRequests).toBe(2);
+    await expect(page.getByText("Market Closed")).toBeVisible();
+    await expect(page.getByText("Market Open")).toHaveCount(0);
+  });
+
   test("updates the terminal result title from the query", async ({ page }) => {
     await page.goto("/search");
 

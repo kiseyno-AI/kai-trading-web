@@ -58,6 +58,17 @@
   gap: 0.45rem;
 }
 
+.marketStatusPill {
+  text-align: center;
+  line-height: 1.15;
+}
+
+.marketStatusClosedPill {
+  background: rgba(143, 144, 158, 0.2);
+  color: #f3f7ff;
+  box-shadow: inset 0 0 0 1px rgba(186, 195, 255, 0.2);
+}
+
 .desktopHeaderLinks {
   display: none;
 }
