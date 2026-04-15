@@ -29,7 +29,9 @@ export type CoreMarketStatus = {
 
 export type CoreTrackedQuote = {
   symbol: string;
-  company_name?: string;
+  company_name?: string | null;
+  name?: string | null;
+  name_ko?: string | null;
   price: number | null;
   change: number | null;
   change_pct: number | null;
@@ -74,6 +76,19 @@ type FundamentalsFailureDetails = {
   metadata: DetailItem[];
 };
 
+type SymbolMetadataItem = {
+  symbol: string;
+  company_name?: string | null;
+  name?: string | null;
+  name_ko?: string | null;
+  market?: string | null;
+  standard_code?: string | null;
+};
+
+type SymbolSearchResponse = {
+  items: SymbolMetadataItem[];
+};
+
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
@@ -88,9 +103,38 @@ function formatSignedNumber(value: number | null | undefined, fallback = "Unavai
   return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
 }
 
-function getCompanyName(item: CoreTrackedQuote | undefined): string {
+function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>): string | null {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed && trimmed.toUpperCase() !== normalizedSymbol) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+function getQuoteCompanyName(item: CoreTrackedQuote | undefined): string | null {
+  if (!item) return null;
+  return getUsableCompanyName(item.symbol, item.company_name, item.name_ko, item.name);
+}
+
+function getMetadataCompanyName(
+  item: CoreTrackedQuote,
+  metadata: SymbolMetadataItem | null | undefined,
+): string | null {
+  return getUsableCompanyName(item.symbol, metadata?.name_ko, metadata?.name, metadata?.company_name);
+}
+
+function getCompanyName(item: CoreTrackedQuote | undefined, metadata?: SymbolMetadataItem | null): string {
   if (!item) return "N/A";
-  return item.company_name || item.symbol;
+  return getQuoteCompanyName(item) ?? getMetadataCompanyName(item, metadata) ?? UNKNOWN_LABEL;
+}
+
+function pickSymbolMetadata(symbol: string, response: SymbolSearchResponse): SymbolMetadataItem | null {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  return response.items.find((item) => item.symbol.trim().toUpperCase() === normalizedSymbol) ?? null;
 }
 
 function getJson<T>(path: string): Promise<T> {
@@ -375,10 +419,15 @@ function getEodSymbolsTotal(freshness: EodFreshnessResponseDto | null) {
   return freshness?.today?.symbols_total ?? freshness?.latest?.symbols_total;
 }
 
-function buildTrackedDetailHref(item: CoreTrackedQuote) {
+function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {
   const params = new URLSearchParams();
-  params.set("name", item.company_name ?? item.symbol);
-  return `/dashboard/symbol/${encodeURIComponent(item.symbol)}?${params.toString()}`;
+  const companyName = getQuoteCompanyName(item) ?? getMetadataCompanyName(item, metadata);
+  if (companyName) {
+    params.set("name", companyName);
+  }
+
+  const query = params.toString();
+  return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
 
 export function LiveDashboardClient({
@@ -394,6 +443,7 @@ export function LiveDashboardClient({
   const [fundamentalsStatus, setFundamentalsStatus] = useState<DartFundamentalsDailyInspectResponseDto | null>(
     initialFundamentalsStatus,
   );
+  const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError);
   const [coreUnavailable, setCoreUnavailable] = useState(() => initialMarket.state === "OFFLINE PLACEHOLDER");
@@ -437,6 +487,57 @@ export function LiveDashboardClient({
       window.clearInterval(timer);
     };
   }, []);
+
+  const symbolsNeedingCompanyName = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          tracked.items
+            .filter((item) => !getQuoteCompanyName(item) && symbolMetaBySymbol[item.symbol] === undefined)
+            .map((item) => item.symbol),
+        ),
+      ),
+    [tracked.items, symbolMetaBySymbol],
+  );
+  const symbolMetadataLookupKey = symbolsNeedingCompanyName.join("|");
+
+  useEffect(() => {
+    if (!symbolMetadataLookupKey) return;
+
+    let active = true;
+    const symbols = symbolMetadataLookupKey.split("|").filter(Boolean);
+
+    const loadSymbolMetadata = async () => {
+      const entries = await Promise.all(
+        symbols.map(async (symbol) => {
+          try {
+            const data = await getJson<SymbolSearchResponse>(
+              `/api/trading/symbols/search?q=${encodeURIComponent(symbol)}&limit=8`,
+            );
+            return [symbol, pickSymbolMetadata(symbol, data)] as const;
+          } catch (metadataError) {
+            console.error("Dashboard symbol metadata load failed", metadataError);
+            return [symbol, null] as const;
+          }
+        }),
+      );
+
+      if (!active) return;
+      setSymbolMetaBySymbol((current) => {
+        const next = { ...current };
+        for (const [symbol, metadata] of entries) {
+          next[symbol] = metadata;
+        }
+        return next;
+      });
+    };
+
+    void loadSymbolMetadata();
+
+    return () => {
+      active = false;
+    };
+  }, [symbolMetadataLookupKey]);
 
   useEffect(() => {
     let active = true;
@@ -717,7 +818,7 @@ export function LiveDashboardClient({
           {tracked.items.map((item) => (
             <Link
               key={item.symbol}
-              href={buildTrackedDetailHref(item)}
+              href={buildTrackedDetailHref(item, symbolMetaBySymbol[item.symbol])}
               className={`${styles.trackedCard} ${!item.available ? styles.trackedCardMuted : ""}`.trim()}
             >
               <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
@@ -725,7 +826,9 @@ export function LiveDashboardClient({
               <div className={styles.trackedCardTop}>
                 <div>
                   <strong className={styles.symbolLabel}>{item.symbol}</strong>
-                  <p className={`clamp-3 ${styles.companyLabel}`}>{getCompanyName(item)}</p>
+                  <p className={`clamp-3 ${styles.companyLabel}`}>
+                    {getCompanyName(item, symbolMetaBySymbol[item.symbol])}
+                  </p>
                 </div>
                 <span className={`pill ${item.available ? (item.change_pct ?? 0) >= 0 ? "positive" : "negative" : "warning"}`}>
                   {item.available ? (item.is_live ? "Live" : "Fallback") : "Unavailable"}
