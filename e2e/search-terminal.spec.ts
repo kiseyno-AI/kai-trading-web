@@ -134,6 +134,88 @@ test.describe("search terminal desktop", () => {
     });
   });
 
+  test("keeps the search screen composed when quick access API is unavailable", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        status: 503,
+        json: { error: "favorites unavailable" },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: ["005930"],
+          count: 1,
+          last_updated_at: "2026-04-14T09:00:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+
+      await route.fulfill({
+        json: {
+          query: query ?? "",
+          count: query === "005930" ? 1 : 0,
+          items:
+            query === "005930"
+              ? [
+                  {
+                    symbol: "005930",
+                    standard_code: "KR7005930003",
+                    name_ko: "Samsung Electronics",
+                    market: "KOSPI",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: {
+            item_count: 1,
+          },
+          items: [
+            {
+              symbol: "000660",
+              name: "SK hynix",
+              market: "KRX",
+              price: 182000,
+              change_pct: -1.5,
+              best_rank: 1,
+              source_count: 1,
+              sources: [
+                {
+                  source: "fluctuation",
+                  source_label: "fluctuation",
+                  rank: 1,
+                  metric: { name: "change_pct", value: -1.5, unit: "percent" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
+
+    const quickSection = getQuickAccessSection(page);
+    await expect(quickSection.locator("strong").filter({ hasText: /^Unavailable$/ })).toBeVisible();
+    await expect(quickSection.getByText(/Favorite list unavailable\. HTTP 503/i)).toBeVisible();
+    await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
+    await expect(page.getByText(/Selected Terminal Feed/i)).toBeVisible();
+  });
+
   test("Q3 renders core favorites instead of tracked or recent symbols", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem(
