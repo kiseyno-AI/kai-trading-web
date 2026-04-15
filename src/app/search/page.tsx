@@ -417,10 +417,15 @@ export default function SearchPage() {
     const loadMarketStatus = async () => {
       try {
         const result = await getJson<CoreMarketStatus>("/api/trading/market/status");
-        if (!active || !result.ok) return;
+        if (!active) return;
+        if (!result.ok) {
+          setMarketStatus(DEFAULT_MARKET_STATUS);
+          return;
+        }
         setMarketStatus(result.data);
       } catch {
-        // Keep the closed fallback so search never advertises an open market without core confirmation.
+        if (!active) return;
+        setMarketStatus(DEFAULT_MARKET_STATUS);
       }
     };
 

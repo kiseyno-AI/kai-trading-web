@@ -17,16 +17,25 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByText(/Search workspace/i)).toHaveCount(0);
   });
 
-  test("uses the market status endpoint for the header badge", async ({ page }) => {
+  test("resets the header badge to the closed fallback when market status fails", async ({ page }) => {
     let marketStatusRequests = 0;
+    await page.clock.install({ time: new Date("2026-04-14T09:00:00+09:00") });
 
     await page.route("**/api/trading/market/status", async (route) => {
       marketStatusRequests += 1;
+      if (marketStatusRequests > 1) {
+        await route.fulfill({
+          status: 503,
+          json: { error: "market status unavailable" },
+        });
+        return;
+      }
+
       await route.fulfill({
         json: {
-          state: "CLOSED",
-          is_open: false,
-          server_time: "2026-04-14T16:00:00+09:00",
+          state: "OPEN",
+          is_open: true,
+          server_time: "2026-04-14T09:00:00+09:00",
         },
       });
     });
@@ -65,6 +74,11 @@ test.describe("search terminal desktop", () => {
     await page.goto("/search");
 
     await expect.poll(() => marketStatusRequests).toBe(1);
+    await expect(page.getByText("Market Open")).toBeVisible();
+
+    await page.clock.runFor(60_000);
+
+    await expect.poll(() => marketStatusRequests).toBe(2);
     await expect(page.getByText("Market Closed")).toBeVisible();
     await expect(page.getByText("Market Open")).toHaveCount(0);
   });
