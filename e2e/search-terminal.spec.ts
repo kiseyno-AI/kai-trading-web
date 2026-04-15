@@ -13,7 +13,7 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByLabel(/Search markets, symbols, or analysis/i)).toBeVisible();
     await expect(page.getByRole("heading", { name: "Quick Access" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Search Results/i })).toBeVisible();
-    await expect(page.getByText(/Selected Terminal Feed/i)).toBeVisible();
+    await expect(page.getByText(/Selected Terminal Feed/i)).toHaveCount(0);
     await expect(page.getByText(/Search workspace/i)).toHaveCount(0);
   });
 
@@ -227,7 +227,7 @@ test.describe("search terminal desktop", () => {
     await expect(quickSection.getByText(/Favorite list unavailable\. HTTP 503/i)).toBeVisible();
     await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
-    await expect(page.getByText(/Selected Terminal Feed/i)).toBeVisible();
+    await expect(page.getByText(/Selected Terminal Feed/i)).toHaveCount(0);
   });
 
   test("Q3 renders core favorites instead of tracked or recent symbols", async ({ page }) => {

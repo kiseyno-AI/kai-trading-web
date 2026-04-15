@@ -104,12 +104,11 @@ UI surfaces and fields:
 - Quick access cards: `/symbols/favorites.items[]` only; the `+` action opens a symbol-search dialog backed by `/symbols/search`, then posts the updated symbol set through `/scanner/tracked-symbols` because that is the current core write path that persists scanner membership
 - Trending symbols cards: `/scanner/realtime-trending.items[]` for the KIS tab and `/scanner/trending-stocks.items[]` for stored `1d`, `5d`, and `20d` tabs -> exact `symbol`, display name, market, rank, metric/change percentage, source label, and selected symbol metadata seed. The first fetch shows five rows; the More button raises the requested limit by five.
 - Desktop results table: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; selected row also uses `/quotes/{symbol}` for `price`, `change_pct`, `cached_at`, `trade_date`
-- Selected quote panel: `/quotes/{symbol}` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `source`, `available`, `fallback`, `is_live`, `cached_at`, `trade_date`, `unavailable_reason`
 
 Important behavior:
 - Symbol detail links preserve only actual metadata returned by `/symbols/search`; `market` is never hardcoded.
 - Desktop Stitch-only fields such as market cap, terminal coverage tier, result ranking, and bulk freshness are rendered as `[확인 필요]` unless backed by the selected quote response or returned search metadata.
-- Dev-mode tags for this route are `search.terminal-shell`, `search.mobile-results`, `search.quick-access`, `search.trending-symbols`, `search.network-integrity`, `search.desktop-results-table`, and `search.selected-quote`.
+- Dev-mode tags for this route are `search.terminal-shell`, `search.mobile-results`, `search.quick-access`, `search.trending-symbols`, and `search.desktop-results-table`.
 
 ## Alternate dashboard routes
 

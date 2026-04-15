@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   UNKNOWN_SYMBOL_META,
@@ -225,19 +225,6 @@ function formatChangePct(value: number | null | undefined) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatChangeValue(value: number | null | undefined) {
-  if (!hasNumber(value)) return UNKNOWN;
-  return `${value >= 0 ? "+" : ""}${formatPrice(value)}`;
-}
-
-function getQuoteMode(quote: QuoteResponse | null) {
-  if (!quote) return UNKNOWN;
-  if (!quote.available) return "UNAVAILABLE";
-  if (quote.is_live) return "LIVE";
-  if (quote.fallback) return "FALLBACK";
-  return "DELAYED";
-}
-
 function PanelUnavailable({ message }: { message: string }) {
   return (
     <div className={styles.feedback} role="status">
@@ -400,7 +387,6 @@ export default function SearchPage() {
   const [favoriteStatus, setFavoriteStatus] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
   const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
@@ -622,16 +608,13 @@ export default function SearchPage() {
         if (!active) return;
         if (!result.ok) {
           setQuote(null);
-          setQuoteError(`Quote endpoint unavailable. Select stays pinned, but live fields need confirmation. HTTP ${result.status}`);
           return;
         }
         const data = result.data;
         setQuote(data);
-        setQuoteError(null);
       } catch {
         if (!active) return;
         setQuote(null);
-        setQuoteError("Quote endpoint unavailable. Select stays pinned, but live fields need confirmation.");
       }
     };
 
@@ -651,14 +634,12 @@ export default function SearchPage() {
 
   const resultTitle = query.trim() ? `Results for "${query.trim()}"` : "Search Results";
   const selectedQuoteDate = quote ? formatDisplayTimestamp(quote.cached_at ?? quote.trade_date, UNKNOWN) : UNKNOWN;
-  const selectedHref = selected ? buildSymbolHref(selected) : "/dashboard#tracked-symbols";
   const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput);
   const favoriteInputItem = favoriteSymbolCandidate ? getValidatedFavoriteItem(favoriteSymbolCandidate) : null;
   const canAddFavorite = favoriteInputItem !== null && favoriteSavingSymbol === null;
   const quickAccessItems = favoriteItems;
   const selectedTrendingTab = TRENDING_TABS.find((tab) => tab.mode === trendingMode) ?? TRENDING_TABS[0];
   const canShowMoreTrending = trendingItems.length > 0 && trendingResultCount >= trendingVisibleLimit && !trendingLoading;
-  const screenDegraded = Boolean(searchError || quoteError || favoriteListError || trackedSymbolsError || trendingError);
 
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
@@ -683,7 +664,6 @@ export default function SearchPage() {
 
   const handleSelect = (item: SymbolSearchItem) => {
     setQuote(null);
-    setQuoteError(null);
     setSelected(item);
   };
 
@@ -802,7 +782,7 @@ export default function SearchPage() {
     >
       <div className={styles.searchTerminal}>
         <section className={styles.heroPanel}>
-          <ComponentTag label="search.terminal-shell" api="/api/trading/symbols/search + /api/trading/quotes/{symbol}" />
+          <ComponentTag label="search.terminal-shell" api="/api/trading/symbols/search" />
           <p className={styles.desktopBreadcrumb}>Terminal &gt; Symbol Search</p>
           <h1>Universal Search</h1>
           <p className={`${styles.heroCopy} clamp-3`}>
@@ -1069,23 +1049,6 @@ export default function SearchPage() {
           ) : null}
         </section>
 
-        <section className={styles.integrityPanel}>
-          <ComponentTag label="search.network-integrity" api="client fetch states" />
-          <div>
-            <span>Network Integrity</span>
-            <strong>{screenDegraded ? "Degraded" : "99.9%"}</strong>
-          </div>
-          <div className={styles.integrityTrack} aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
-            <i className={screenDegraded ? styles.integritySegmentDown : ""} />
-          </div>
-          {screenDegraded ? <p className="clamp-3">One or more API-backed panels are unavailable; the remaining screen stays interactive.</p> : null}
-          {quoteError ? <p className="clamp-3">{quoteError}</p> : null}
-        </section>
-
         <section className={styles.desktopResultsPanel}>
           <ComponentTag label="search.desktop-results-table" api="/api/trading/symbols/search + selected /api/trading/quotes/{symbol}" />
           <div className={styles.desktopResultsHeader}>
@@ -1159,56 +1122,6 @@ export default function SearchPage() {
             ) : null}
           </div>
         </section>
-
-        <aside className={styles.selectedPanel}>
-          <ComponentTag label="search.selected-quote" api="/api/trading/quotes/{symbol}" />
-          <div className={styles.selectedPanelHeader}>
-            <div>
-              <span>Selected Terminal Feed</span>
-              <h2>{selected ? selected.symbol : UNKNOWN}</h2>
-            </div>
-            <span className={styles.modeBadge}>{getQuoteMode(quote)}</span>
-          </div>
-          {selected ? (
-            <>
-              <p className={`${styles.selectedName} clamp-3`}>{quote?.company_name || selected.name_ko}</p>
-              <div className={styles.selectedPriceGrid}>
-                <div>
-                  <span>Last Price</span>
-                  <strong>{quote && hasNumber(quote.price) ? `₩${formatPrice(quote.price)}` : UNKNOWN}</strong>
-                </div>
-                <div>
-                  <span>Change</span>
-                  <strong className={getChangeClass(quote?.change_pct)}>{quote ? formatChangePct(quote.change_pct) : UNKNOWN}</strong>
-                  <small>{quote ? formatChangeValue(quote.change) : UNKNOWN}</small>
-                </div>
-              </div>
-              <div className={styles.selectedStats}>
-                <span>
-                  Volume <strong>{quote && hasNumber(quote.volume) ? quote.volume.toLocaleString("ko-KR") : UNKNOWN}</strong>
-                </span>
-                <span>
-                  Turnover <strong>{quote ? formatTurnover(quote.turnover, "₩", UNKNOWN) : UNKNOWN}</strong>
-                </span>
-                <span>
-                  Source <strong>{quote?.source ?? UNKNOWN}</strong>
-                </span>
-                <span>
-                  Updated <strong>{selectedQuoteDate}</strong>
-                </span>
-              </div>
-              {quoteError ? <div className={styles.feedback}>{quoteError}</div> : null}
-              <Link className={styles.detailLink} href={selectedHref}>
-                Open Symbol Detail
-              </Link>
-            </>
-          ) : (
-            <div className={styles.emptyState}>
-              <strong>Select a result to inspect live quote fields.</strong>
-              <p className="clamp-3">The terminal avoids placeholder quote data until a real quote response arrives.</p>
-            </div>
-          )}
-        </aside>
       </div>
     </MobileAppChrome>
   );
