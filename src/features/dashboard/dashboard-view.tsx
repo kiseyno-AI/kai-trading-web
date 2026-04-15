@@ -9,6 +9,7 @@ import { WatchlistItem } from "@/components/dashboard/watchlist-item";
 import { Button } from "@/components/ui/button";
 import { readStoredValue, storeValue } from "@/lib/persistence";
 import { tradingApi } from "@/lib/trading-api";
+import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { BotCommand, DashboardSnapshotDto } from "@/types/trading-api";
 
 const ACTIVE_TAB_KEY = "trading-web.dashboard.active-tab";
@@ -34,15 +35,29 @@ export function DashboardView({ snapshot }: DashboardViewProps) {
   }
 
   const handleSetTab = (tab: string) => {
+    logWebDiagnostic("interaction", "chart-tab-change", {
+      from: resolvedActiveTab,
+      symbol: snapshot.chart.symbol,
+      to: tab,
+    });
     setActiveTab(tab);
     storeValue(ACTIVE_TAB_KEY, tab);
   };
 
   const handleBotCommand = async (command: BotCommand) => {
+    logWebDiagnostic("interaction", "bot-command-request", {
+      botId: "bot-1",
+      command,
+    });
     setActiveBotAction(command);
     storeValue(ACTIVE_BOT_ACTION_KEY, command);
 
     const response = await tradingApi.sendBotCommand("bot-1", { command });
+    logWebDiagnostic("interaction", "bot-command-response", {
+      botId: response.data.botId,
+      command: response.data.command,
+      status: response.data.status,
+    });
     setBotStatus(response.data.statusLabel);
   };
 

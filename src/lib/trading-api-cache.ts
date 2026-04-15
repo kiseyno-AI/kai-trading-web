@@ -1,4 +1,5 @@
 import { getTradingApiClientBasePath, resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
+import { logWebDiagnostic, startWebDiagnosticSpan } from "@/lib/web-diagnostics";
 
 const CACHE_STORAGE_KEY = "kai.trading-api.cache.v1";
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
@@ -175,27 +176,88 @@ function readCacheEntry<T>(cacheKey: string) {
 }
 
 async function fetchTradingApiJsonResult<T>(path: string, init?: RequestInit): Promise<TradingApiJsonResult<T>> {
-  const response = await fetch(path, { ...init, cache: "no-store" });
-  if (!response.ok) return { ok: false, status: response.status };
-  const data = (await response.json()) as T;
-  return { ok: true, data };
+  const method = getRequestMethod(init);
+  const span = startWebDiagnosticSpan("http", "request", {
+    method,
+    path,
+    scope: "client-cache",
+  });
+
+  try {
+    const response = await fetch(path, { ...init, cache: "no-store" });
+    span.end({
+      method,
+      ok: response.ok,
+      path: response.url || path,
+      scope: "client-cache",
+      status: response.status,
+    });
+
+    if (!response.ok) return { ok: false, status: response.status };
+
+    const data = (await response.json()) as T;
+    return { ok: true, data };
+  } catch (error) {
+    span.fail(error, {
+      method,
+      path,
+      scope: "client-cache",
+    });
+    throw error;
+  }
 }
 
 export async function getTradingApiJsonResult<T>(path: string, init?: RequestInit): Promise<TradingApiJsonResult<T>> {
+  const method = getRequestMethod(init);
   const policy = getCachePolicy(path, init);
-  if (!policy) return fetchTradingApiJsonResult<T>(path, init);
+  if (!policy) {
+    logWebDiagnostic("http", "cache-bypass", {
+      method,
+      path,
+      scope: "client-cache",
+    });
+    return fetchTradingApiJsonResult<T>(path, init);
+  }
 
   const cacheKey = getCacheKey(path, init);
   const cached = readCacheEntry<T>(cacheKey);
-  if (cached) return { ok: true, data: cached.data };
+  if (cached) {
+    logWebDiagnostic("http", "cache-hit", {
+      expiresInMs: Math.max(0, cached.expiresAt - getNow()),
+      method,
+      path,
+      scope: "client-cache",
+    });
+    return { ok: true, data: cached.data };
+  }
+
+  logWebDiagnostic("http", "cache-miss", {
+    method,
+    path,
+    scope: "client-cache",
+    ttlMs: policy.ttlMs,
+  });
 
   const inFlight = inFlightRequests.get(cacheKey);
-  if (inFlight) return inFlight as Promise<TradingApiJsonResult<T>>;
+  if (inFlight) {
+    logWebDiagnostic("http", "cache-inflight-reuse", {
+      method,
+      path,
+      scope: "client-cache",
+    });
+    return inFlight as Promise<TradingApiJsonResult<T>>;
+  }
 
   const request = fetchTradingApiJsonResult<T>(path, init)
     .then((result) => {
       if (result.ok) {
         writeCacheEntry(cacheKey, result.data, policy.ttlMs);
+        logWebDiagnostic("http", "cache-write", {
+          method,
+          path,
+          scope: "client-cache",
+          ttlMs: policy.ttlMs,
+        });
       }
       return result;
     })

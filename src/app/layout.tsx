@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 
 import { AppStateProvider } from "@/components/providers/app-state-provider";
+import { WebDiagnosticsProvider } from "@/components/providers/web-diagnostics-provider";
 import "./globals.css";
 
 const sora = localFont({
@@ -24,7 +25,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sora.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <AppStateProvider>{children}</AppStateProvider>
+        <AppStateProvider>
+          <WebDiagnosticsProvider>{children}</WebDiagnosticsProvider>
+        </AppStateProvider>
       </body>
     </html>
   );
