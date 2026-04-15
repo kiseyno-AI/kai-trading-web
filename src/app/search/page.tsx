@@ -469,10 +469,19 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
+    const searchQuery = query.trim();
+    if (!searchQuery) {
+      setItems([]);
+      setSearchError(null);
+      return;
+    }
+
     let active = true;
     const load = async () => {
       try {
-        const result = await getJson<SymbolSearchResponse>(`/api/trading/symbols/search?q=${encodeURIComponent(query)}&limit=20`);
+        const result = await getJson<SymbolSearchResponse>(
+          `/api/trading/symbols/search?q=${encodeURIComponent(searchQuery)}&limit=20`,
+        );
         if (!active) return;
         if (!result.ok) {
           setItems([]);
