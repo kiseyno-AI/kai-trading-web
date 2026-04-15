@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -369,6 +370,7 @@ function mapStoredTrendingItems(response: StoredTrendingResponse, mode: Exclude<
 }
 
 export default function SearchPage() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
@@ -662,9 +664,12 @@ export default function SearchPage() {
     setFavoriteError(null);
   };
 
-  const handleSelect = (item: SymbolSearchItem) => {
+  const handleSelect = (item: SymbolSearchItem, options?: { navigate?: boolean }) => {
     setQuote(null);
     setSelected(item);
+    if (options?.navigate) {
+      router.push(buildSymbolHref(item));
+    }
   };
 
   const handleOpenFavoriteDialog = () => {
@@ -870,7 +875,12 @@ export default function SearchPage() {
               <PanelUnavailable message={favoriteListError} />
             ) : quickAccessItems.length > 0 ? (
               quickAccessItems.map((item) => (
-                <button key={item.symbol} type="button" className={styles.quickCard} onClick={() => handleSelect(item)}>
+                <button
+                  key={item.symbol}
+                  type="button"
+                  className={styles.quickCard}
+                  onClick={() => handleSelect(item, { navigate: true })}
+                >
                   <span>
                     <strong className="clamp-3">{item.symbol}</strong>
                     <small className="clamp-3">{item.name_ko}</small>
@@ -1018,7 +1028,7 @@ export default function SearchPage() {
                   key={`${trendingMode}-${item.symbol}`}
                   type="button"
                   className={`${styles.trendingRow} ${isSelected ? styles.trendingRowActive : ""}`.trim()}
-                  onClick={() => handleSelect(item.searchItem)}
+                  onClick={() => handleSelect(item.searchItem, { navigate: true })}
                 >
                   <span className={styles.trendingRank}>#{item.rank ?? UNKNOWN}</span>
                   <span className={styles.trendingIdentity}>
