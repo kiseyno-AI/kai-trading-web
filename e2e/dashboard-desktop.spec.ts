@@ -20,6 +20,85 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
   });
 
+  test("symbol cards use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {
+    const now = "2026-04-15T09:10:00+09:00";
+    const searchRequests: string[] = [];
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "123456",
+              company_name: "123456",
+              price: 42100,
+              change: 300,
+              change_pct: 0.72,
+              volume: 1200,
+              turnover: 50520000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const url = new URL(route.request().url());
+      const query = url.searchParams.get("q") ?? "";
+      searchRequests.push(query);
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          query,
+          count: query === "123456" ? 1 : 0,
+          items:
+            query === "123456"
+              ? [
+                  {
+                    symbol: "123456",
+                    standard_code: "KR7123456000",
+                    name_ko: "Acme Precision",
+                    market: "KOSPI",
+                  },
+                ]
+              : [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const symbolCard = page
+      .locator("a")
+      .filter({ hasText: "123456" })
+      .filter({ hasText: "Acme Precision" })
+      .first();
+    await expect(symbolCard).toBeVisible();
+    await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
+    await expect.poll(() => searchRequests).toContain("123456");
+  });
+
   test("D2 EOD status uses core freshness update flag and symbol counts", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
