@@ -459,28 +459,48 @@ export function LiveDashboardClient({
   useEffect(() => {
     let active = true;
 
-    const load = async () => {
+    const loadTracked = async () => {
       try {
-        const [marketData, trackedData] = await Promise.all([
-          getJson<CoreMarketStatus>("/api/trading/market/status"),
-          getJson<CoreTrackedQuotesResponse>("/api/trading/quotes/tracked"),
-        ]);
-
+        const trackedData = await getJson<CoreTrackedQuotesResponse>("/api/trading/quotes/tracked");
         if (!active) return;
-        setMarket(marketData);
         setTracked(trackedData);
         setError(null);
         setCoreUnavailable(false);
       } catch (loadError) {
-        console.error("Dashboard polling failed", loadError);
+        console.error("Dashboard tracked quote load failed", loadError);
         if (!active) return;
         setCoreUnavailable(true);
         setError(loadError instanceof Error ? loadError.message : "Failed to refresh dashboard data.");
       }
     };
 
-    load();
-    const timer = window.setInterval(load, 4_000);
+    void loadTracked();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMarket = async () => {
+      try {
+        const marketData = await getJson<CoreMarketStatus>("/api/trading/market/status");
+        if (!active) return;
+        setMarket(marketData);
+        setError(null);
+        setCoreUnavailable(false);
+      } catch (loadError) {
+        console.error("Dashboard market status polling failed", loadError);
+        if (!active) return;
+        setCoreUnavailable(true);
+        setError(loadError instanceof Error ? loadError.message : "Failed to refresh dashboard data.");
+      }
+    };
+
+    void loadMarket();
+    const timer = window.setInterval(loadMarket, 60_000);
 
     return () => {
       active = false;
