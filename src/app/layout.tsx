@@ -1,14 +1,27 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Geist_Mono, Inter, Manrope, Space_Grotesk } from "next/font/google";
 
 import { AppStateProvider } from "@/components/providers/app-state-provider";
 import "./globals.css";
 
-const sora = localFont({
-  src: "../../public/fonts/Sora-Variable.ttf",
-  variable: "--font-sora",
-  display: "swap",
-  weight: "100 800",
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+});
+
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
@@ -22,7 +35,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sora.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${manrope.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">
         <AppStateProvider>{children}</AppStateProvider>
       </body>

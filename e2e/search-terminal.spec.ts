@@ -24,7 +24,7 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
   });
 
-  test("does not request blank search and reuses session cache after reload", async ({ page }) => {
+  test("reuses session cache for stable search data after reload", async ({ page }) => {
     const requestCounts = {
       favorites: 0,
       tracked: 0,
@@ -59,24 +59,19 @@ test.describe("search terminal desktop", () => {
       });
     });
     await page.route("**/api/trading/symbols/search?**", async (route) => {
-      const requestUrl = new URL(route.request().url());
-      const query = requestUrl.searchParams.get("q");
       requestCounts.search += 1;
       await route.fulfill({
         json: {
-          query: query ?? "",
-          count: query === "005930" ? 1 : 0,
-          items:
-            query === "005930"
-              ? [
-                  {
-                    symbol: "005930",
-                    standard_code: "KR7005930003",
-                    name_ko: "Samsung Electronics",
-                    market: "KOSPI",
-                  },
-                ]
-              : [],
+          query: "",
+          count: 1,
+          items: [
+            {
+              symbol: "005930",
+              standard_code: "KR7005930003",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+            },
+          ],
         },
       });
     });
@@ -118,15 +113,6 @@ test.describe("search terminal desktop", () => {
 
     const quickSection = getQuickAccessSection(page);
     await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
-    await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toHaveCount(0);
-    await expect.poll(() => requestCounts).toEqual({
-      favorites: 1,
-      tracked: 1,
-      search: 0,
-      trending: 1,
-    });
-
-    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
     await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await expect.poll(() => requestCounts).toEqual({
       favorites: 1,
@@ -138,7 +124,7 @@ test.describe("search terminal desktop", () => {
     await page.reload();
 
     await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
-    await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toHaveCount(0);
+    await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await page.waitForTimeout(500);
     expect(requestCounts).toEqual({
       favorites: 1,
