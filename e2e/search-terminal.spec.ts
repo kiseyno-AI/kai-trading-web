@@ -17,6 +17,58 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByText(/Search workspace/i)).toHaveCount(0);
   });
 
+  test("uses the market status endpoint for the header badge", async ({ page }) => {
+    let marketStatusRequests = 0;
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      marketStatusRequests += 1;
+      await route.fulfill({
+        json: {
+          state: "CLOSED",
+          is_open: false,
+          server_time: "2026-04-14T16:00:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T16:00:00+09:00",
+          market: "KRX",
+          summary: {
+            item_count: 0,
+          },
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    await expect.poll(() => marketStatusRequests).toBe(1);
+    await expect(page.getByText("Market Closed")).toBeVisible();
+    await expect(page.getByText("Market Open")).toHaveCount(0);
+  });
+
   test("updates the terminal result title from the query", async ({ page }) => {
     await page.goto("/search");
 
