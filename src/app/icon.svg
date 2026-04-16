@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="KAI Trading">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="48" x2="432" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#13283f" />
+      <stop offset="0.58" stop-color="#0a1b2f" />
+      <stop offset="1" stop-color="#081423" />
+    </linearGradient>
+    <linearGradient id="signal" x1="96" y1="352" x2="416" y2="144" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#66e0b6" />
+      <stop offset="1" stop-color="#c9d2ff" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <path
+    d="M116 330L190 256L116 182"
+    fill="none"
+    stroke="#dce7ff"
+    stroke-width="36"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M220 342V170M220 256H288M326 342L396 170M350 286H424"
+    fill="none"
+    stroke="url(#signal)"
+    stroke-width="34"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect x="90" y="386" width="332" height="20" rx="10" fill="#66e0b6" opacity="0.9" />
+</svg>

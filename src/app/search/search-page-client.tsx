@@ -855,11 +855,11 @@ export default function SearchPageClient() {
       <div className={styles.searchTerminal}>
         <section className={styles.heroPanel}>
           <ComponentTag label="search.terminal-shell" api="/api/trading/symbols/search" />
-          <p className={styles.desktopBreadcrumb}>Terminal &gt; Symbol Search</p>
+          <p className={styles.desktopBreadcrumb}>Search &gt; Symbol Lookup</p>
           <h1>Universal Search</h1>
           <p className={`${styles.heroCopy} clamp-3`}>
             Query markets, symbols, and institutional intelligence through the trading-core BFF. Confirmed data renders from
-            live endpoints; unsupported terminal fields stay marked as {UNKNOWN}.
+            live endpoints; unsupported fields stay marked as {UNKNOWN}.
           </p>
           <div className={styles.searchInputStack}>
             <label className={styles.searchInputFrame}>

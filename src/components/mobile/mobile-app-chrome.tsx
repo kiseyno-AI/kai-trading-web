@@ -75,10 +75,10 @@ export function MobileAppChrome({
 
       <aside className={styles.desktopRail} aria-label="Desktop navigation">
         <div className={styles.desktopBrand}>
-          <div className={styles.desktopBrandMark}>OL</div>
+          <div className={styles.desktopBrandMark}>KAI</div>
           <div>
-            <strong>Obsidian</strong>
-            <span>Ledger Terminal</span>
+            <strong>KAI Trading</strong>
+            <span>Market Dashboard</span>
           </div>
         </div>
 

@@ -206,8 +206,9 @@
     background: linear-gradient(145deg, #d9ddff, #7f8dd6);
     color: #182038;
     font-family: var(--font-space-grotesk), sans-serif;
-    font-size: 1.45rem;
+    font-size: 1.08rem;
     font-weight: 800;
+    letter-spacing: 0;
   }
 
   .desktopBrand strong,
@@ -221,7 +222,7 @@
     display: block;
     font-size: 1.35rem;
     font-weight: 800;
-    letter-spacing: -0.04em;
+    letter-spacing: 0;
   }
 
   .desktopBrand span {
@@ -230,7 +231,7 @@
     color: #93a3b8;
     font-size: 0.7rem;
     font-weight: 800;
-    letter-spacing: 0.28em;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
