@@ -20,7 +20,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
   });
 
-  test("symbol cards use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {
+  test("dashboard quote surfaces use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
     const searchRequests: string[] = [];
 
@@ -96,6 +96,12 @@ test.describe("dashboard desktop", () => {
       .first();
     await expect(symbolCard).toBeVisible();
     await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
+
+    const momentumRow = page.locator("article").filter({ hasText: "123456" }).filter({ hasText: "+0.72%" });
+    await expect(momentumRow).toBeVisible();
+    await expect(momentumRow).toContainText("Acme Precision");
+    await expect(momentumRow).not.toContainText("[확인 필요]");
+
     await expect.poll(() => searchRequests).toContain("123456");
   });
 
