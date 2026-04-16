@@ -211,6 +211,64 @@ function humanizeToken(value: string | null | undefined, fallback = "[확인 필
     .join(" ");
 }
 
+function isDisplayableHighlightValue(value: unknown): value is DartFundamentalsHistoryMetricDto["value"] {
+  return typeof value === "number" || typeof value === "string" || value === null;
+}
+
+function normalizeHighlightMetric(
+  value: unknown,
+  fallbackKey: string | null,
+  index: number,
+): DartFundamentalsHistoryMetricDto | null {
+  if (typeof value === "number" || typeof value === "string" || value === null) {
+    return {
+      metric_key: fallbackKey,
+      label: fallbackKey ? humanizeToken(fallbackKey, `Metric ${index + 1}`) : null,
+      value,
+    };
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const metric = value as Record<string, unknown>;
+  const metricKey = typeof metric.metric_key === "string" ? metric.metric_key : fallbackKey;
+  const label = typeof metric.label === "string"
+    ? metric.label
+    : metricKey
+      ? humanizeToken(metricKey, `Metric ${index + 1}`)
+      : null;
+
+  return {
+    metric_key: metricKey,
+    label,
+    value: isDisplayableHighlightValue(metric.value) ? metric.value : null,
+  };
+}
+
+function normalizeHighlightMetrics(highlights: unknown) {
+  if (Array.isArray(highlights)) {
+    return highlights
+      .map((metric, index) => normalizeHighlightMetric(metric, null, index))
+      .filter((metric): metric is DartFundamentalsHistoryMetricDto => metric !== null);
+  }
+
+  if (!highlights || typeof highlights !== "object") {
+    return [];
+  }
+
+  const highlightRecord = highlights as Record<string, unknown>;
+  if ("value" in highlightRecord || "label" in highlightRecord || "metric_key" in highlightRecord) {
+    const metric = normalizeHighlightMetric(highlightRecord, null, 0);
+    return metric ? [metric] : [];
+  }
+
+  return Object.entries(highlightRecord)
+    .map(([key, value], index) => normalizeHighlightMetric(value, key, index))
+    .filter((metric): metric is DartFundamentalsHistoryMetricDto => metric !== null);
+}
+
 function getCurrentSeoulMarketDate(now = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -938,7 +996,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
   const companyHistory = pickFundamentalsCompany(fundamentalsHistory, symbol);
   const latestHistoryEntry = companyHistory?.entries[0] ?? null;
-  const latestHighlights = latestHistoryEntry?.highlights.slice(0, 3) ?? [];
+  const latestHighlights = normalizeHighlightMetrics(latestHistoryEntry?.highlights).slice(0, 3);
   const disclosureSectionState = getDisclosureSectionState(
     aggregateContextLoadState,
     aggregateContext !== null,
@@ -1544,34 +1602,38 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
 
             <div className={styles.historyList}>
               {companyHistory?.entries.length ? (
-                companyHistory.entries.slice(0, fundamentalsEntryLimit).map((entry) => (
-                  <article key={entry.filing.rcept_no} className={styles.historyCard}>
-                    <div className={styles.historyHeader}>
-                      <div>
-                        <strong className="clamp-3">
-                          {entry.period.report_label ??
-                            `${entry.period.business_year ?? "[확인 필요]"} ${entry.period.report_code ?? ""}`}
-                        </strong>
-                        <p className="clamp-3">
-                          {entry.filing.report_nm ?? "[확인 필요]"} · Receipt {entry.filing.receipt_date ?? "[확인 필요]"}
-                        </p>
+                companyHistory.entries.slice(0, fundamentalsEntryLimit).map((entry) => {
+                  const entryHighlights = normalizeHighlightMetrics(entry.highlights);
+                  const visibleHighlights = (entryHighlights.length > 0
+                    ? entryHighlights
+                    : [{ metric_key: null, label: "[확인 필요]", value: null }])
+                    .slice(0, 2);
+
+                  return (
+                    <article key={entry.filing.rcept_no} className={styles.historyCard}>
+                      <div className={styles.historyHeader}>
+                        <div>
+                          <strong className="clamp-3">
+                            {entry.period.report_label ??
+                              `${entry.period.business_year ?? "[확인 필요]"} ${entry.period.report_code ?? ""}`}
+                          </strong>
+                          <p className="clamp-3">
+                            {entry.filing.report_nm ?? "[확인 필요]"} · Receipt {entry.filing.receipt_date ?? "[확인 필요]"}
+                          </p>
+                        </div>
+                        <span className="pill neutral">{entry.statement.fs_div ?? "[확인 필요]"}</span>
                       </div>
-                      <span className="pill neutral">{entry.statement.fs_div ?? "[확인 필요]"}</span>
-                    </div>
-                    <div className={styles.historyMetrics}>
-                      {(entry.highlights.length > 0
-                        ? entry.highlights
-                        : [{ metric_key: null, label: "[확인 필요]", value: null }])
-                        .slice(0, 2)
-                        .map((metric, index) => (
-                          <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}`} className={styles.historyMetricRow}>
+                      <div className={styles.historyMetrics}>
+                        {visibleHighlights.map((metric, index) => (
+                          <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}-${index}`} className={styles.historyMetricRow}>
                             <span>{formatHighlightLabel(metric, index)}</span>
                             <strong>{formatHighlightValue(metric)}</strong>
                           </div>
                         ))}
-                    </div>
-                  </article>
-                ))
+                      </div>
+                    </article>
+                  );
+                })
               ) : fundamentalsLoading ? (
                 <div className={styles.emptyPanel}>
                   <strong>Loading fundamentals history</strong>
