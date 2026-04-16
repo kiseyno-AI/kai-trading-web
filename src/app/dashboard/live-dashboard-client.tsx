@@ -873,14 +873,6 @@ export function LiveDashboardClient({
       latestFundamentalsDate,
     ),
   ] as const;
-  const moduleRows = eodStageCards.map((row) => ({
-    id: row.id,
-    label: row.label,
-    status: row.statusLabel,
-    meta: row.latestDate ?? UNKNOWN_LABEL,
-    coverage: row.details.slice(0, 2).join(" · "),
-    tone: row.tone,
-  }));
   const displayedAgentFeedbackProgress =
     agentProgressMarketDate && agentFeedbackProgress?.request?.market_date === agentProgressMarketDate
       ? agentFeedbackProgress
@@ -1057,22 +1049,6 @@ export function LiveDashboardClient({
                 완료 {agentProgressCompleted} · 진행 중 {agentProgressInProgress}
               </p>
             </article>
-          </div>
-        </section>
-
-        <section className={`${styles.panel} ${styles.supportPanel} ${styles.desktopAuditPanel}`}>
-          <ComponentTag label="dashboard.audit-feed" api="/api/trading/eod/freshness + /api/trading/quotes/tracked" />
-          <p className={styles.sectionEyebrow}>Real-Time Audit Feed</p>
-          <h2 className={styles.sectionTitle}>Layer sync events</h2>
-          <div className={styles.auditList}>
-            {moduleRows.slice(0, 3).map((row) => (
-              <article key={row.id} className={styles.auditItem}>
-                <span>{row.meta}</span>
-                <p className="clamp-3">
-                  {row.label} status is {row.status}. {row.coverage}
-                </p>
-              </article>
-            ))}
           </div>
         </section>
 

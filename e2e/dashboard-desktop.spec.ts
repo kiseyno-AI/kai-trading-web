@@ -12,12 +12,13 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Highest absolute movers/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Layer sync events/i })).toBeVisible();
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
     await expect(page.getByText(/Manage Feed/i)).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
 
+    await expect(page.getByRole("heading", { name: /Layer sync events/i })).toHaveCount(0);
+    await expect(page.getByText(/Real-Time Audit Feed/i)).toHaveCount(0);
     await expect(page.getByText(/Readiness and breadth/i)).toHaveCount(0);
     await expect(page.getByText(/Top movers/i)).toHaveCount(0);
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
