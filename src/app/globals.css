@@ -387,9 +387,6 @@ kbd,
   gap: 20px;
   margin: 0 auto;
   padding: 18px 22px;
-  background:
-    linear-gradient(180deg, rgba(13, 18, 28, 0.94), rgba(10, 15, 24, 0.9)),
-    rgba(16, 20, 25, 0.9);
   border-radius: 26px;
 }
 
