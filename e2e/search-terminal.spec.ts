@@ -619,6 +619,139 @@ test.describe("search terminal desktop", () => {
     await expect(quickSection.getByText(/005930 saved to core favorites/i)).toBeVisible();
   });
 
+  test("Q3 preserves saved tracked symbols and validates the full favorites refresh payload", async ({ page }) => {
+    const postedSymbols: string[][] = [];
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      if (postedSymbols.length === 1) {
+        await route.fulfill({
+          status: 503,
+          json: { error: "favorites unavailable" },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          count: postedSymbols.length > 1 ? 5 : 0,
+          items:
+            postedSymbols.length > 1
+              ? [
+                  {
+                    symbol: "000660",
+                    standard_code: "KR7000660001",
+                    name_ko: "SK hynix",
+                    market: "KOSPI",
+                  },
+                  {
+                    symbol: "005930",
+                    standard_code: "KR7005930003",
+                    name_ko: "Samsung Electronics",
+                    market: "KOSPI",
+                  },
+                  {
+                    symbol: "051910",
+                    standard_code: "KR7051910008",
+                    name_ko: "LG Chem",
+                    market: "KOSPI",
+                  },
+                  {
+                    symbol: "035720",
+                    standard_code: "KR7035720002",
+                    name_ko: "Kakao",
+                    market: "KOSPI",
+                  },
+                  {
+                    symbol: "035420",
+                    standard_code: "KR7035420009",
+                    name_ko: "NAVER",
+                    market: "KOSPI",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      if (route.request().method() === "POST") {
+        const symbols = JSON.parse(route.request().postData() ?? "{}").symbols as string[];
+        postedSymbols.push(symbols);
+        await route.fulfill({
+          json: {
+            tracked_symbols: symbols,
+            count: symbols.length,
+            last_updated_at: "2026-04-14T09:05:00+09:00",
+          },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          tracked_symbols: ["000660"],
+          count: 1,
+          last_updated_at: "2026-04-14T08:55:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+
+      await route.fulfill({
+        json: {
+          query: query ?? "",
+          count: query === "005930" || query === "035420" ? 1 : 0,
+          items:
+            query === "005930"
+              ? [
+                  {
+                    symbol: "005930",
+                    standard_code: "KR7005930003",
+                    name_ko: "Samsung Electronics",
+                    market: "KOSPI",
+                  },
+                ]
+              : query === "035420"
+                ? [
+                    {
+                      symbol: "035420",
+                      standard_code: "KR7035420009",
+                      name_ko: "NAVER",
+                      market: "KOSPI",
+                    },
+                  ]
+                : [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    const quickSection = getQuickAccessSection(page);
+
+    await quickSection.getByRole("button", { name: /Open favorite search/i }).click();
+    const dialog = page.getByRole("dialog", { name: /Save Symbol/i });
+    const favoriteInput = page.getByLabel(/Favorite symbol search/i);
+
+    await favoriteInput.fill("005930");
+    await dialog.getByRole("button", { name: /005930.*Samsung Electronics/i }).click();
+
+    await expect(dialog.getByText(/Favorite saved but core favorites refresh failed. HTTP 503/i)).toBeVisible();
+    await expect.poll(() => postedSymbols).toEqual([["005930", "000660"]]);
+
+    await favoriteInput.fill("035420");
+    await dialog.getByRole("button", { name: /035420.*NAVER/i }).click();
+
+    await expect.poll(() => postedSymbols).toEqual([
+      ["005930", "000660"],
+      ["035420", "005930", "000660"],
+    ]);
+    await expect(dialog).toHaveCount(0);
+    await expect(quickSection.getByText(/035420 saved to core favorites/i)).toBeVisible();
+    await expect(quickSection.getByText(/035420 was not returned by core favorites/i)).toHaveCount(0);
+    await expect(quickSection.getByRole("button", { name: /035420.*NAVER/i })).toHaveCount(0);
+  });
+
   test("Q3 + favorite search does not submit company-name text as a symbol", async ({ page }) => {
     let postAttempted = false;
 

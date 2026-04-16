@@ -789,6 +789,9 @@ export default function SearchPage() {
       }
 
       const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
+      setTrackedSymbols(normalizedTrackedSymbols);
+      setTrackedSymbolsLoaded(true);
+      setTrackedSymbolsError(null);
 
       invalidateTradingApiCacheByPathPrefix([
         "/api/trading/scanner/tracked-symbols",
@@ -802,18 +805,18 @@ export default function SearchPage() {
       }
 
       const refreshedFavoriteItems = mapFavoriteItems(favoriteResult.data);
-      const savedSymbolIsVisible = refreshedFavoriteItems.some((currentItem) => currentItem.symbol === symbol);
+      const savedSymbolExists = favoriteResult.data.items.some(
+        (currentItem) => normalizeSymbolCode(currentItem.symbol) === symbol,
+      );
 
-      setTrackedSymbols(normalizedTrackedSymbols);
-      setTrackedSymbolsError(null);
       setFavoriteListError(null);
       setFavoriteItems(refreshedFavoriteItems);
       setFavoriteDialogOpen(false);
       setFavoriteSearchItems([]);
       setFavoriteSearchError(null);
       setFavoriteSymbolInput("");
-      setFavoriteStatus(savedSymbolIsVisible ? `${symbol} saved to core favorites.` : null);
-      setFavoriteError(savedSymbolIsVisible ? null : `${symbol} was not returned by core favorites after saving.`);
+      setFavoriteStatus(savedSymbolExists ? `${symbol} saved to core favorites.` : null);
+      setFavoriteError(savedSymbolExists ? null : `${symbol} was not returned by core favorites after saving.`);
       window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
     } catch {
       setFavoriteError("Favorite save failed. Check trading-core connectivity.");
