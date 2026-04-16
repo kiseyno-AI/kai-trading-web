@@ -206,6 +206,114 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("[확인 필요]")).toHaveCount(0);
   });
 
+  test("D2 agent feedback progress uses the latest price trade date", async ({ page }) => {
+    const now = "2026-04-15T10:20:00+09:00";
+    let requestedMarketDate: string | null = null;
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 600,
+              change_pct: 0.84,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-16",
+            eod_status: null,
+            symbols_total: null,
+            symbols_succeeded: null,
+            symbols_failed: null,
+            received: null,
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      const url = new URL(route.request().url());
+      requestedMarketDate = url.searchParams.get("market_date");
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: requestedMarketDate,
+            symbols: null,
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: {
+            total_symbols: 250,
+            processed_symbols: 126,
+            completed_symbols: 88,
+            in_progress_symbols: 38,
+            pending_symbols: 124,
+            progress_ratio: 0.504,
+            progress_percent: 50.4,
+            failed_items: 3,
+            completed_feedback_count: 302,
+            expected_feedback_count: 750,
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    await expect.poll(() => requestedMarketDate).toBe("2026-04-15");
+    await expect(page.locator("#dashboard-freshness").getByText("Market state OPEN")).toBeVisible();
+    await expect(page.locator("#dashboard-freshness").getByText(/Server time/)).toBeVisible();
+
+    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    await expect(progressCard).toBeVisible();
+    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(progressCard).toContainText("기준일 2026-04-15");
+    await expect(progressCard).toContainText("진행률 50%");
+    await expect(progressCard).toContainText("전체 대상 250개");
+    await expect(progressCard).toContainText("실패 3개");
+    await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
+  });
+
   test("D2 fundamentals row shows the latest update date from freshness status", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({

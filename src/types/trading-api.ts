@@ -292,6 +292,26 @@ export type AgentContextResponseDto = {
   items: AgentContextItemDto[];
 };
 
+export type AgentFeedbackProgressResponseDto = {
+  request: {
+    market_date: string;
+    symbols: string[] | null;
+    expected_agents: string[];
+  };
+  summary: {
+    total_symbols: number;
+    processed_symbols: number;
+    completed_symbols: number;
+    in_progress_symbols: number;
+    pending_symbols: number;
+    progress_ratio: number;
+    progress_percent: number;
+    failed_items: number;
+    completed_feedback_count: number;
+    expected_feedback_count: number;
+  };
+};
+
 export type SymbolPriceBarDto = {
   trade_date: string;
   open_price: number;

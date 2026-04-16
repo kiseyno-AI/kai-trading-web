@@ -7,10 +7,12 @@ import { createPortal } from "react-dom";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { getCachedTradingApiJson, seedTradingApiJsonCache } from "@/lib/trading-api-cache";
 import type {
+  AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   DartFundamentalsDailyRunDto,
   EodFreshnessLayerStatusDto,
@@ -62,6 +64,7 @@ type LiveDashboardClientProps = {
   initialTracked: CoreTrackedQuotesResponse;
   initialFreshness: EodFreshnessResponseDto | null;
   initialFundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null;
+  initialAgentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
 };
 
 type DetailItem = {
@@ -431,6 +434,35 @@ function getEodSymbolsTotal(freshness: EodFreshnessResponseDto | null) {
   return freshness?.today?.symbols_total ?? freshness?.latest?.symbols_total;
 }
 
+function formatAgentProgressCountLabel(value: number | null | undefined) {
+  if (!hasNumber(value)) return UNKNOWN_LABEL;
+  return `${value.toLocaleString("ko-KR")}개`;
+}
+
+function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null) {
+  const percent = progress?.summary?.progress_percent;
+  if (!hasNumber(percent)) return UNKNOWN_LABEL;
+  return `${Math.max(0, Math.min(100, Math.round(percent))).toLocaleString("ko-KR")}%`;
+}
+
+function getAgentProgressPercentValue(progress: AgentFeedbackProgressResponseDto | null) {
+  const percent = progress?.summary?.progress_percent;
+  if (!hasNumber(percent)) return 0;
+  return Math.max(0, Math.min(100, percent));
+}
+
+function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto | null, error: string | null) {
+  if (!progress) return error ? "에이전트 확인 필요" : UNKNOWN_LABEL;
+
+  const summary = progress.summary;
+  if (summary.total_symbols <= 0) return "에이전트 분석 대기";
+  if (summary.in_progress_symbols > 0 || summary.pending_symbols > 0 || summary.progress_percent < 100) {
+    return "에이전트 분석 중...";
+  }
+  if (summary.failed_items > 0) return "에이전트 확인 필요";
+  return "에이전트 분석 완료";
+}
+
 function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {
   const params = new URLSearchParams();
   const companyName = getQuoteCompanyName(item) ?? getMetadataCompanyName(item, metadata);
@@ -448,6 +480,7 @@ export function LiveDashboardClient({
   initialTracked,
   initialFreshness,
   initialFundamentalsStatus,
+  initialAgentFeedbackProgress,
 }: LiveDashboardClientProps) {
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
@@ -455,6 +488,10 @@ export function LiveDashboardClient({
   const [fundamentalsStatus, setFundamentalsStatus] = useState<DartFundamentalsDailyInspectResponseDto | null>(
     initialFundamentalsStatus,
   );
+  const [agentFeedbackProgress, setAgentFeedbackProgress] = useState<AgentFeedbackProgressResponseDto | null>(
+    initialAgentFeedbackProgress,
+  );
+  const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [marketError, setMarketError] = useState<string | null>(initialError);
@@ -636,6 +673,38 @@ export function LiveDashboardClient({
     };
   }, []);
 
+  const agentProgressMarketDate = getAgentFeedbackProgressMarketDate(freshness);
+
+  useEffect(() => {
+    if (!agentProgressMarketDate) return;
+
+    let active = true;
+    const progressPath = `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(
+      agentProgressMarketDate,
+    )}`;
+
+    const loadAgentFeedbackProgress = async () => {
+      try {
+        const data = await getJson<AgentFeedbackProgressResponseDto>(progressPath);
+        if (!active) return;
+        setAgentFeedbackProgress(data);
+        setAgentFeedbackProgressError(null);
+      } catch (progressError) {
+        console.error("Dashboard agent feedback progress load failed", progressError);
+        if (!active) return;
+        setAgentFeedbackProgressError(getDashboardLoadErrorMessage(progressError));
+      }
+    };
+
+    loadAgentFeedbackProgress();
+    const timer = window.setInterval(loadAgentFeedbackProgress, 30_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [agentProgressMarketDate]);
+
   const lead = tracked.items[0];
   const availableItems = tracked.items.filter((item) => item.available);
   const liveCount = tracked.items.filter((item) => item.is_live).length;
@@ -712,6 +781,27 @@ export function LiveDashboardClient({
   const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? UNKNOWN_LABEL;
   const eodSuccessCount = formatEodSymbolCount(getEodSymbolsSucceeded(freshness));
   const eodTotalCount = formatEodSymbolCount(getEodSymbolsTotal(freshness));
+  const displayedAgentFeedbackProgress =
+    agentProgressMarketDate && agentFeedbackProgress?.request?.market_date === agentProgressMarketDate
+      ? agentFeedbackProgress
+      : null;
+  const displayedAgentFeedbackProgressError = agentProgressMarketDate ? agentFeedbackProgressError : null;
+  const agentProgressStatusLabel = getAgentProgressStatusLabel(
+    displayedAgentFeedbackProgress,
+    displayedAgentFeedbackProgressError,
+  );
+  const agentProgressPercent = formatAgentProgressPercentLabel(displayedAgentFeedbackProgress);
+  const agentProgressPercentValue = getAgentProgressPercentValue(displayedAgentFeedbackProgress);
+  const agentProgressTotal = formatAgentProgressCountLabel(displayedAgentFeedbackProgress?.summary?.total_symbols);
+  const agentProgressFailed = formatAgentProgressCountLabel(displayedAgentFeedbackProgress?.summary?.failed_items);
+  const agentProgressCompleted = formatAgentProgressCountLabel(
+    displayedAgentFeedbackProgress?.summary?.completed_symbols,
+  );
+  const agentProgressInProgress = formatAgentProgressCountLabel(
+    displayedAgentFeedbackProgress?.summary?.in_progress_symbols,
+  );
+  const agentProgressDate =
+    displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
   const coreUnavailable =
     market.state === "OFFLINE PLACEHOLDER" ||
@@ -774,12 +864,20 @@ export function LiveDashboardClient({
         ) : null}
 
         <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
-          <ComponentTag label="dashboard.operational-integrity" api="/api/trading/eod/freshness + /api/trading/market/status" />
+          <ComponentTag
+            label="dashboard.operational-integrity"
+            api="/api/trading/eod/freshness + /api/trading/market/status + /api/trading/agent-context/feedback/progress"
+          />
 
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.sectionEyebrow}>Market Freshness Registry</p>
               <h1 className={styles.heroTitle}>Operational Integrity</h1>
+              <p className={styles.marketContext}>
+                Market state {market.state}
+                <br />
+                Server time {formatDisplayTimestamp(market.server_time)}
+              </p>
             </div>
             {hasEodStatusLabel ? <span className={`pill ${eodStatusTone}`}>{eodStatusLabel}</span> : null}
           </div>
@@ -799,9 +897,22 @@ export function LiveDashboardClient({
               </p>
             </article>
             <article className={styles.integrityStat}>
-              <span>Market State</span>
-              <strong>{market.state}</strong>
-              <p className="clamp-3">Server time {formatDisplayTimestamp(market.server_time)}</p>
+              <span>Agent Feedback</span>
+              <strong>{agentProgressStatusLabel}</strong>
+              <div className={styles.agentProgressTrack} aria-hidden="true">
+                <i style={{ width: `${agentProgressPercentValue}%` }} />
+              </div>
+              <p className={styles.eodStatusDetails}>
+                기준일 {agentProgressDate}
+                <br />
+                진행률 {agentProgressPercent}
+                <br />
+                전체 대상 {agentProgressTotal}
+                <br />
+                실패 {agentProgressFailed}
+                <br />
+                완료 {agentProgressCompleted} · 진행 중 {agentProgressInProgress}
+              </p>
             </article>
           </div>
 
