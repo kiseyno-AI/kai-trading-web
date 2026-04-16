@@ -243,6 +243,13 @@
   text-shadow: 0 0 10px rgba(111, 251, 190, 0.32);
 }
 
+.moduleAside :global(.pill).runningStatusPill {
+  border: 1px solid rgba(127, 184, 255, 0.45);
+  background: rgba(127, 184, 255, 0.24);
+  color: #f3f7ff;
+  box-shadow: 0 0 0 1px rgba(127, 184, 255, 0.12);
+}
+
 .statusButton {
   border: 1px solid rgba(227, 176, 74, 0.28);
   border-radius: 0.45rem;

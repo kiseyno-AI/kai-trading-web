@@ -713,15 +713,11 @@ export function LiveDashboardClient({
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
   const fundamentalsStatusLabel = getFundamentalsStatusLabel(freshness, fundamentalsStatus, latestFundamentalsDate);
   const fundamentalsTone = getFundamentalsTone(fundamentalsStatusLabel, latestFundamentalsDate);
-  const fundamentalsFailureDetails = useMemo(
-    () =>
-      getFundamentalsFailureDetails(
-        freshness,
-        fundamentalsStatus,
-        latestFundamentalsDate,
-        fundamentalsStatusLabel,
-      ),
-    [freshness, fundamentalsStatus, latestFundamentalsDate, fundamentalsStatusLabel],
+  const fundamentalsFailureDetails = getFundamentalsFailureDetails(
+    freshness,
+    fundamentalsStatus,
+    latestFundamentalsDate,
+    fundamentalsStatusLabel,
   );
   const movers = useMemo(
     () =>
@@ -921,6 +917,8 @@ export function LiveDashboardClient({
               const emphasizeSynced =
                 row.status === "Synced" &&
                 (row.id === "technical" || row.id === "action" || row.id === "fundamentals");
+              const emphasizeRunningFundamentals =
+                row.id === "fundamentals" && row.status.toLowerCase() === "running";
 
               return (
                 <article key={row.id} className={styles.moduleRow}>
@@ -942,7 +940,13 @@ export function LiveDashboardClient({
                         {row.status}
                       </button>
                     ) : (
-                      <span className={`pill ${row.tone} ${emphasizeSynced ? styles.syncedStatusPill : ""}`}>{row.status}</span>
+                      <span
+                        className={`pill ${row.tone} ${emphasizeSynced ? styles.syncedStatusPill : ""} ${
+                          emphasizeRunningFundamentals ? styles.runningStatusPill : ""
+                        }`}
+                      >
+                        {row.status}
+                      </span>
                     )}
                   </div>
                 </article>
