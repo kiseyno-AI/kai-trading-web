@@ -581,6 +581,72 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
   });
 
+  test("D2 fundamentals running status uses readable pill colors", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-14",
+            eod_status: "completed",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            symbols_failed: 0,
+            received: true,
+          },
+          latest: {
+            price_trade_date: "2026-04-14",
+            technical_market_date: "2026-04-14",
+            action_market_date: "2026-04-14",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 9,
+            market_date: "2026-04-14",
+            trigger: "internal_ops_cli",
+            status: "running",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 3583,
+            symbols_checked: 2400,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 2400,
+            symbols_refreshed: 0,
+            symbols_failed: 0,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-14T08:56:58.357390+09:00",
+            completed_at: null,
+          },
+          runs: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
+    const runningPill = fundamentalsRow.locator(".pill").filter({ hasText: "Running" });
+
+    await expect(fundamentalsRow).toBeVisible();
+    await expect(runningPill).toBeVisible();
+    await expect(runningPill).toHaveCSS("color", "rgb(243, 247, 255)");
+    await expect(runningPill).toHaveCSS("background-color", "rgba(127, 184, 255, 0.24)");
+    await expect(runningPill).toHaveCSS("border-top-color", "rgba(127, 184, 255, 0.45)");
+  });
+
   test("D2 module rows keep content inside cards at the narrow desktop breakpoint", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.route("**/api/trading/eod/freshness", async (route) => {
