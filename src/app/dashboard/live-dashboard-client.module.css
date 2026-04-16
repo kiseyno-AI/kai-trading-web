@@ -422,6 +422,7 @@
 .trackedCard {
   position: relative;
   overflow: hidden;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -441,11 +442,26 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.trackedCardTop > div,
+.priceBlock,
+.cardMeta > div,
+.cardFooter {
+  min-width: 0;
+}
+
+.trackedCardTop :global(.pill) {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 
 .companyName {
   display: block;
+  overflow-wrap: anywhere;
   color: #ffffff;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1rem;
@@ -462,6 +478,7 @@
 
 .priceBlock strong {
   display: block;
+  overflow-wrap: anywhere;
   color: #ffffff;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1.55rem;
@@ -728,7 +745,7 @@
 
   .trackedCard {
     display: grid;
-    grid-template-columns: minmax(15rem, 1fr) minmax(10rem, 0.7fr) minmax(16rem, 1fr) minmax(12rem, 0.8fr);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
     align-items: center;
     gap: 1.1rem;
     min-height: 7.6rem;
