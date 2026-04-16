@@ -1073,8 +1073,8 @@ export default function SearchPage() {
                 >
                   <span className={styles.trendingRank}>#{item.rank ?? UNKNOWN}</span>
                   <span className={styles.trendingIdentity}>
-                    <strong className="clamp-3">{item.symbol}</strong>
-                    <small className="clamp-3">{item.name}</small>
+                    <strong className="clamp-3">{item.name}</strong>
+                    <small className="clamp-3">{item.symbol}</small>
                   </span>
                   <span className={styles.trendingMetric}>
                     <strong className={getTrendingMetricClass(item)}>{formatTrendingMetric(item)}</strong>
