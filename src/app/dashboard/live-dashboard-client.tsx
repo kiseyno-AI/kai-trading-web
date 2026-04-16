@@ -381,12 +381,6 @@ function getFundamentalsFailureDetails(
   };
 }
 
-function getEodReceivedTone(received: boolean | null | undefined) {
-  if (received === true) return "positive";
-  if (received === false) return "warning";
-  return "neutral";
-}
-
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -397,13 +391,6 @@ function hasEodReadinessSignal(freshness: EodFreshnessResponseDto | null) {
     hasNumber(getEodSymbolsSucceeded(freshness)) ||
     hasNumber(getEodSymbolsTotal(freshness))
   );
-}
-
-function getEodFreshnessTone(freshness: EodFreshnessResponseDto | null) {
-  if (freshness?.today?.received !== null && freshness?.today?.received !== undefined) {
-    return getEodReceivedTone(freshness.today.received);
-  }
-  return hasEodReadinessSignal(freshness) ? "info" : "neutral";
 }
 
 function getEodStatusLabel(freshness: EodFreshnessResponseDto | null) {
@@ -774,9 +761,7 @@ export function LiveDashboardClient({
   ] as const;
   const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");
 
-  const eodStatusTone = getEodFreshnessTone(freshness);
   const eodStatusLabel = getEodStatusLabel(freshness);
-  const hasEodStatusLabel = eodStatusLabel !== UNKNOWN_LABEL;
   const eodMarketDate = freshness?.today?.trade_date ?? UNKNOWN_LABEL;
   const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? UNKNOWN_LABEL;
   const eodSuccessCount = formatEodSymbolCount(getEodSymbolsSucceeded(freshness));
@@ -879,7 +864,6 @@ export function LiveDashboardClient({
                 Server time {formatDisplayTimestamp(market.server_time)}
               </p>
             </div>
-            {hasEodStatusLabel ? <span className={`pill ${eodStatusTone}`}>{eodStatusLabel}</span> : null}
           </div>
 
           <div className={styles.integrityGrid}>
