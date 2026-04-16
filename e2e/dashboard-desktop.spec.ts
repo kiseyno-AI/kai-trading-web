@@ -422,6 +422,72 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
   });
 
+  test("D2 module rows keep content inside cards at the narrow desktop breakpoint", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-14",
+            eod_status: "completed",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            symbols_failed: 0,
+            received: true,
+          },
+          latest: {
+            price_trade_date: "2026-04-14",
+            technical_market_date: "2026-04-14",
+            action_market_date: "2026-04-14",
+          },
+          fundamental: {
+            success: true,
+            latest_date: "2026-04-14",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    for (const label of ["Technical Analysis", "Action Summary", "Fundamentals"]) {
+      const moduleRow = page.locator("#dashboard-freshness article").filter({ hasText: label });
+      await expect(moduleRow).toBeVisible();
+      await expect(moduleRow).toContainText("2026-04-14");
+
+      const overflowedText = await moduleRow.evaluate((element) => {
+        const rowRect = element.getBoundingClientRect();
+        const tolerance = 1;
+
+        return [...element.querySelectorAll("strong, p, span, button")]
+          .filter((child) => child.getClientRects().length > 0)
+          .map((child) => {
+            const childRect = child.getBoundingClientRect();
+            const overflows =
+              childRect.left < rowRect.left - tolerance ||
+              childRect.right > rowRect.right + tolerance ||
+              childRect.top < rowRect.top - tolerance ||
+              childRect.bottom > rowRect.bottom + tolerance;
+
+            return overflows ? child.textContent?.trim() ?? child.tagName : null;
+          })
+          .filter(Boolean);
+      });
+
+      expect(overflowedText).toEqual([]);
+    }
+  });
+
   test("D2 fundamentals failed control opens the 2026-04-14 failure reason dialog", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({

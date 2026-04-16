@@ -184,6 +184,7 @@
 }
 
 .moduleRow {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -192,6 +193,10 @@
   border-radius: 1rem;
   background: rgba(13, 28, 46, 0.68);
   border: 1px solid rgba(143, 144, 158, 0.12);
+}
+
+.moduleRow > div {
+  min-width: 0;
 }
 
 .moduleRow strong,
@@ -217,8 +222,20 @@
   align-items: flex-end;
   gap: 0.35rem;
   min-width: 6rem;
+  max-width: 100%;
   color: #d5e3fc;
   font-size: 0.74rem;
+}
+
+.moduleRow strong,
+.moduleAside span {
+  overflow-wrap: anywhere;
+}
+
+.moduleAside :global(.pill) {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 
 .moduleAside :global(.pill).syncedStatusPill {
@@ -679,7 +696,7 @@
 
   .moduleList {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
     gap: 0.85rem;
   }
 
