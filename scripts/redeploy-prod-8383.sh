@@ -18,7 +18,7 @@ export NEXT_PUBLIC_BASE_PATH=/trading-web
 
 SEARCH_BUILD_JS=".next/server/app/search/page.js"
 if [ -f "$SEARCH_BUILD_JS" ]; then
-  if grep -Eq '"/v-[^"]+/_next/static/|''/v-[^'"'"']+/_next/static/' "$SEARCH_BUILD_JS"; then
+  if grep -Fq '"/v-' "$SEARCH_BUILD_JS" || grep -Fq "'/v-" "$SEARCH_BUILD_JS"; then
     echo "search route build sanity check failed: root-relative asset path found in $SEARCH_BUILD_JS" >&2
     exit 1
   fi
