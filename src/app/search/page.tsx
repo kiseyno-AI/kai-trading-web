@@ -282,6 +282,11 @@ function getTrendingEndpoint(mode: TrendingMode, limit: number) {
   return `/api/trading/scanner/trending-stocks?${params.toString()}`;
 }
 
+function formatTrendingStatusDate(value?: string | null, fallback = UNKNOWN) {
+  const timestamp = formatDisplayTimestamp(value, fallback);
+  return timestamp.split(" : ")[0] || fallback;
+}
+
 function isPercentTrendingMetric(item: TrendingDisplayItem) {
   const metricName = item.metricName.toLowerCase();
   const metricUnit = item.metricUnit?.toLowerCase();
@@ -604,7 +609,7 @@ export default function SearchPage() {
           const mappedItems = mapRealtimeTrendingItems(result.data);
           setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
           setTrendingResultCount(result.data.summary?.item_count ?? mappedItems.length);
-          setTrendingMeta(`${result.data.status.toUpperCase()} · ${formatDisplayTimestamp(result.data.as_of, UNKNOWN)}`);
+          setTrendingMeta(`${result.data.status.toUpperCase()} · ${formatTrendingStatusDate(result.data.as_of)}`);
           return;
         }
 

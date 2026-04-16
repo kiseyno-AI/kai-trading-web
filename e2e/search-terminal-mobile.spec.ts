@@ -386,6 +386,8 @@ test.describe("search terminal mobile", () => {
     const trendingMetricFor = (symbol: string) =>
       trendingSection.getByRole("button", { name: new RegExp(symbol) }).locator("[class*='trendingMetric'] strong");
 
+    await expect(trendingSection.getByText("OK · 26-04-14", { exact: true })).toBeVisible();
+    await expect(trendingSection.getByText("OK · 26-04-14 : 18:00:00", { exact: true })).toHaveCount(0);
     await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
     await expect(trendingIdentityFor("005930").locator("strong")).toHaveText("Samsung Electronics");
     await expect(trendingIdentityFor("005930").locator("small")).toHaveText("005930");
