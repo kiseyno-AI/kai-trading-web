@@ -595,11 +595,13 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect.poll(() => requestedMarketDate).toBe("2026-04-15");
-    await expect(page.locator("#dashboard-freshness").getByText("Market state OPEN")).toBeVisible();
-    await expect(page.locator("#dashboard-freshness").getByText(/Server time/)).toBeVisible();
+    const freshnessPanel = page.locator("#dashboard-freshness");
+    await expect(page.getByText("Market Open")).toBeVisible();
+    await expect(freshnessPanel.getByText(/^Market state\b/)).toHaveCount(0);
+    await expect(freshnessPanel.getByText(/Server time/)).toBeVisible();
 
-    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const progressCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
+    const eodStatusCard = freshnessPanel.locator("article").filter({ hasText: "EOD Status" });
     await expect(progressCard).toBeVisible();
     await expect(progressCard).toContainText("에이전트 분석 중...");
     await expect(progressCard).toContainText("기준일 2026-04-15");
