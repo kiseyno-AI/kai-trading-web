@@ -17,6 +17,7 @@ import type {
   DartFundamentalsDailyRunDto,
   EodFreshnessLayerStatusDto,
   EodFreshnessResponseDto,
+  EodFreshnessStageDto,
 } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
@@ -91,6 +92,17 @@ type SymbolMetadataItem = {
 
 type SymbolSearchResponse = {
   items: SymbolMetadataItem[];
+};
+
+type EodStageId = "price" | "technical" | "action" | "fundamentals";
+
+type EodStageCard = {
+  id: EodStageId;
+  label: string;
+  latestDate: string | null;
+  statusLabel: "synced" | "running" | "not synced";
+  tone: "positive" | "info" | "warning";
+  details: string[];
 };
 
 function hasNumber(value: number | null | undefined): value is number {
@@ -248,15 +260,6 @@ function getFundamentalsStatusLabel(
   return UNKNOWN_LABEL;
 }
 
-function getFundamentalsTone(statusLabel: string, latestFundamentalsDate: string | null) {
-  const normalized = statusLabel.toLowerCase();
-  if (normalized === "completed" || normalized === "available") return "info";
-  if (normalized === "running") return "info";
-  if (normalized === "failed" || normalized === "partial" || normalized === "needs review") return "warning";
-  if (hasTextValue(latestFundamentalsDate)) return "warning";
-  return "warning";
-}
-
 function getHumanCount(value: number | null | undefined) {
   if (!hasNumber(value)) return UNKNOWN_LABEL;
   return value.toLocaleString("ko-KR");
@@ -393,32 +396,159 @@ function hasEodReadinessSignal(freshness: EodFreshnessResponseDto | null) {
   );
 }
 
-function getEodStatusLabel(freshness: EodFreshnessResponseDto | null) {
-  const received = freshness?.today?.received;
-  const eodStatus = freshness?.today?.eod_status;
-  if (received === true) return "Received";
-  if (received === false) return "Not received";
-
-  if (hasTextValue(eodStatus)) {
-    return eodStatus;
-  }
-  if (hasEodReadinessSignal(freshness)) {
-    return "Freshness available";
-  }
-  return UNKNOWN_LABEL;
-}
-
 function formatEodSymbolCount(value: number | null | undefined) {
   if (!hasNumber(value)) return UNKNOWN_LABEL;
   return value.toLocaleString("ko-KR");
 }
 
 function getEodSymbolsSucceeded(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.today?.symbols_succeeded ?? freshness?.latest?.symbols_succeeded;
+  return (
+    freshness?.today?.price?.symbols_succeeded ??
+    freshness?.today?.symbols_succeeded ??
+    freshness?.latest?.symbols_succeeded
+  );
 }
 
 function getEodSymbolsTotal(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.today?.symbols_total ?? freshness?.latest?.symbols_total;
+  return (
+    freshness?.today?.price?.symbols_total ??
+    freshness?.today?.symbols_total ??
+    freshness?.latest?.symbols_total
+  );
+}
+
+function getEodSymbolsFailed(freshness: EodFreshnessResponseDto | null) {
+  return (
+    freshness?.today?.price?.symbols_failed ??
+    freshness?.today?.symbols_failed ??
+    freshness?.latest?.symbols_failed
+  );
+}
+
+function buildStage(
+  status: string | null,
+  symbolsTotal: number | null | undefined,
+  symbolsSucceeded: number | null | undefined,
+  symbolsFailed: number | null | undefined,
+): EodFreshnessStageDto | null {
+  if (!hasTextValue(status)) return null;
+
+  return {
+    status,
+    symbols_total: symbolsTotal ?? null,
+    symbols_succeeded: symbolsSucceeded ?? null,
+    symbols_failed: symbolsFailed ?? null,
+  };
+}
+
+function normalizeStageStatus(stage: EodFreshnessStageDto | null | undefined) {
+  return stage?.status?.trim().toLowerCase() ?? null;
+}
+
+function getPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+  if (freshness?.today?.price) return freshness.today.price;
+
+  const status = freshness?.today?.eod_status ?? freshness?.latest?.eod_status ?? null;
+  const normalizedStatus = status?.trim().toLowerCase() ?? null;
+  const resolvedStatus =
+    normalizedStatus === "running"
+      ? "running"
+      : hasEodReadinessSignal(freshness)
+        ? "ready"
+        : hasTextValue(freshness?.today?.trade_date)
+          ? "missing"
+          : null;
+
+  return buildStage(
+    resolvedStatus,
+    getEodSymbolsTotal(freshness),
+    getEodSymbolsSucceeded(freshness),
+    getEodSymbolsFailed(freshness),
+  );
+}
+
+function getTechnicalFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+  if (freshness?.today?.technical_analysis) return freshness.today.technical_analysis;
+
+  if (freshness?.technical?.success === false) {
+    return buildStage("missing", null, null, null);
+  }
+
+  const hasTechnicalDate =
+    hasTextValue(freshness?.technical?.latest_date) || hasTextValue(freshness?.latest?.technical_market_date);
+  return hasTechnicalDate ? buildStage("ready", null, null, null) : null;
+}
+
+function getActionFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+  if (freshness?.today?.action_summary) return freshness.today.action_summary;
+
+  return hasTextValue(freshness?.latest?.action_market_date) ? buildStage("ready", null, null, null) : null;
+}
+
+function getFundamentalsFreshnessStage(
+  freshness: EodFreshnessResponseDto | null,
+  fundamentalsStatusLabel: string,
+  latestFundamentalsDate: string | null,
+): EodFreshnessStageDto | null {
+  if (freshness?.today?.fundamentals) return freshness.today.fundamentals;
+
+  const normalizedStatus = fundamentalsStatusLabel.trim().toLowerCase();
+  if (normalizedStatus === "running") return buildStage("running", null, null, null);
+  if (["completed", "available", "ready"].includes(normalizedStatus) || hasTextValue(latestFundamentalsDate)) {
+    return buildStage("ready", null, null, null);
+  }
+  if (["failed", "partial", "needs review"].includes(normalizedStatus)) {
+    return buildStage("missing", null, null, null);
+  }
+
+  return null;
+}
+
+function getEodStageStatusLabel(
+  stage: EodFreshnessStageDto | null,
+  todayTradeDate: string | null,
+  latestDate: string | null,
+): EodStageCard["statusLabel"] {
+  const status = normalizeStageStatus(stage);
+  if (status === "running") return "running";
+  if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
+    return "not synced";
+  }
+  if (status === "ready") return "synced";
+  return "not synced";
+}
+
+function getEodStageTone(statusLabel: EodStageCard["statusLabel"]): EodStageCard["tone"] {
+  if (statusLabel === "synced") return "positive";
+  if (statusLabel === "running") return "info";
+  return "warning";
+}
+
+function buildEodStageCard(
+  id: EodStageId,
+  label: string,
+  stage: EodFreshnessStageDto | null,
+  todayTradeDate: string | null,
+  latestDate: string | null,
+): EodStageCard {
+  const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate);
+  const details = [
+    `Succeeded ${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
+    `Failed ${formatEodSymbolCount(stage?.symbols_failed)}`,
+  ];
+
+  if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
+    details.push(`Latest date ${latestDate}`);
+  }
+
+  return {
+    id,
+    label,
+    latestDate,
+    statusLabel,
+    tone: getEodStageTone(statusLabel),
+    details,
+  };
 }
 
 function formatAgentProgressCountLabel(value: number | null | undefined) {
@@ -693,13 +823,11 @@ export function LiveDashboardClient({
   }, [agentProgressMarketDate]);
 
   const lead = tracked.items[0];
-  const availableItems = tracked.items.filter((item) => item.available);
   const liveCount = tracked.items.filter((item) => item.is_live).length;
   const fallbackCount = tracked.items.filter((item) => item.fallback).length;
   const unavailableCount = tracked.items.filter((item) => !item.available).length;
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
   const fundamentalsStatusLabel = getFundamentalsStatusLabel(freshness, fundamentalsStatus, latestFundamentalsDate);
-  const fundamentalsTone = getFundamentalsTone(fundamentalsStatusLabel, latestFundamentalsDate);
   const fundamentalsFailureDetails = getFundamentalsFailureDetails(
     freshness,
     fundamentalsStatus,
@@ -715,53 +843,46 @@ export function LiveDashboardClient({
     [tracked.items],
   );
 
-  const moduleRows = [
-    {
-      id: "price",
-      label: "Price Module",
-      status: lead?.available ? "Optimal" : "Unavailable",
-      meta: freshness?.latest?.price_trade_date ?? lead?.trade_date ?? "[확인 필요]",
-      coverage: `${availableItems.length}/${tracked.items.length} symbols ready`,
-      tone: lead?.available ? "positive" : "warning",
-    },
-    {
-      id: "technical",
-      label: "Technical Analysis",
-      status:
-        freshness?.technical?.success || freshness?.technical?.latest_date || freshness?.latest?.technical_market_date
-          ? "Synced"
-          : "[확인 필요]",
-      meta: freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]",
-      coverage: "EOD-derived snapshot date",
-      tone:
-        freshness?.technical?.success || freshness?.technical?.latest_date || freshness?.latest?.technical_market_date
-          ? "info"
-          : "warning",
-    },
-    {
-      id: "action",
-      label: "Action Summary",
-      status: freshness?.latest?.action_market_date ? "Synced" : "[확인 필요]",
-      meta: freshness?.latest?.action_market_date ?? "[확인 필요]",
-      coverage: "Deterministic action layer",
-      tone: freshness?.latest?.action_market_date ? "info" : "warning",
-    },
-    {
-      id: "fundamentals",
-      label: "Fundamentals",
-      status: fundamentalsStatusLabel,
-      meta: latestFundamentalsDate ?? "[확인 필요]",
-      coverage: "Latest fundamentals update date",
-      tone: fundamentalsTone,
-    },
+  const todayTradeDate = freshness?.today?.trade_date ?? null;
+  const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      "Price Fetch",
+      getPriceFreshnessStage(freshness),
+      todayTradeDate,
+      freshness?.latest?.price_trade_date ?? lead?.trade_date ?? null,
+    ),
+    buildEodStageCard(
+      "technical",
+      "Technical Analysis",
+      getTechnicalFreshnessStage(freshness),
+      todayTradeDate,
+      freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null,
+    ),
+    buildEodStageCard(
+      "action",
+      "Action Summary",
+      getActionFreshnessStage(freshness),
+      todayTradeDate,
+      freshness?.latest?.action_market_date ?? null,
+    ),
+    buildEodStageCard(
+      "fundamentals",
+      "Fundamentals",
+      getFundamentalsFreshnessStage(freshness, fundamentalsStatusLabel, latestFundamentalsDate),
+      todayTradeDate,
+      latestFundamentalsDate,
+    ),
   ] as const;
-  const integrityModuleRows = moduleRows.filter((row) => row.id !== "price");
-
-  const eodStatusLabel = getEodStatusLabel(freshness);
-  const eodMarketDate = freshness?.today?.trade_date ?? UNKNOWN_LABEL;
-  const eodLatestPriceDate = freshness?.latest?.price_trade_date ?? UNKNOWN_LABEL;
-  const eodSuccessCount = formatEodSymbolCount(getEodSymbolsSucceeded(freshness));
-  const eodTotalCount = formatEodSymbolCount(getEodSymbolsTotal(freshness));
+  const moduleRows = eodStageCards.map((row) => ({
+    id: row.id,
+    label: row.label,
+    status: row.statusLabel,
+    meta: row.latestDate ?? UNKNOWN_LABEL,
+    coverage: row.details.slice(0, 2).join(" · "),
+    tone: row.tone,
+  }));
   const displayedAgentFeedbackProgress =
     agentProgressMarketDate && agentFeedbackProgress?.request?.market_date === agentProgressMarketDate
       ? agentFeedbackProgress
@@ -863,20 +984,64 @@ export function LiveDashboardClient({
           </div>
 
           <div className={styles.integrityGrid}>
-            <article className={styles.integrityStat}>
-              <span>EOD Status</span>
-              <strong>{eodStatusLabel}</strong>
-              <p className={styles.eodStatusDetails}>
-                Market date {eodMarketDate}
-                <br />
-                Latest EOD date {eodLatestPriceDate}
-                <br />
-                Success count {eodSuccessCount}
-                <br />
-                Total count {eodTotalCount}
-              </p>
+            <article className={`${styles.integrityStat} ${styles.eodStatusCard}`}>
+              <div className={styles.eodStatusHeader}>
+                <div>
+                  <span>EOD Status</span>
+                  <strong>Market date {eodMarketDate}</strong>
+                </div>
+              </div>
+
+              <div className={styles.eodStageGrid}>
+                {eodStageCards.map((stage) => {
+                  const statusClass =
+                    stage.statusLabel === "synced"
+                      ? styles.syncedStatusPill
+                      : stage.statusLabel === "running"
+                        ? styles.runningStatusPill
+                        : "";
+
+                  return (
+                    <div
+                      key={stage.id}
+                      className={styles.eodStageCard}
+                      aria-label={`${stage.label} freshness`}
+                      data-status={stage.statusLabel}
+                    >
+                      <div className={styles.eodStageTop}>
+                        <span>{stage.label}</span>
+                        <span className={`pill ${stage.tone} ${statusClass}`}>{stage.statusLabel}</span>
+                      </div>
+                      <div className={styles.eodStageDetails}>
+                        {stage.details.map((detail) => (
+                          <span key={detail}>{detail}</span>
+                        ))}
+                        {stage.id === "fundamentals" &&
+                        hasTextValue(fundamentalsStatusLabel) &&
+                        fundamentalsStatusLabel !== UNKNOWN_LABEL ? (
+                          <span>Run status {fundamentalsStatusLabel}</span>
+                        ) : null}
+                        {stage.id === "fundamentals" && fundamentalsFailureDetails ? (
+                          <button
+                            type="button"
+                            className={`pill warning ${styles.statusButton}`}
+                            aria-label="Review fundamentals run details"
+                            aria-haspopup="dialog"
+                            aria-expanded={fundamentalsDialogOpen}
+                            aria-controls="fundamentals-failure-dialog"
+                            onClick={() => setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key)}
+                          >
+                            Review run
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </article>
-            <article className={styles.integrityStat}>
+
+            <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
               <span>Agent Feedback</span>
               <strong>{agentProgressStatusLabel}</strong>
               <div className={styles.agentProgressTrack} aria-hidden="true">
@@ -894,48 +1059,6 @@ export function LiveDashboardClient({
                 완료 {agentProgressCompleted} · 진행 중 {agentProgressInProgress}
               </p>
             </article>
-          </div>
-
-          <div className={styles.moduleList}>
-            {integrityModuleRows.map((row) => {
-              const emphasizeSynced =
-                row.status === "Synced" &&
-                (row.id === "technical" || row.id === "action" || row.id === "fundamentals");
-              const emphasizeRunningFundamentals =
-                row.id === "fundamentals" && row.status.toLowerCase() === "running";
-
-              return (
-                <article key={row.id} className={styles.moduleRow}>
-                  <div>
-                    <strong>{row.label}</strong>
-                    <p className="clamp-3">{row.coverage}</p>
-                  </div>
-                  <div className={styles.moduleAside}>
-                    <span>{row.meta}</span>
-                    {row.id === "fundamentals" && fundamentalsFailureDetails ? (
-                      <button
-                        type="button"
-                        className={`pill ${row.tone} ${styles.statusButton}`}
-                        aria-haspopup="dialog"
-                        aria-expanded={fundamentalsDialogOpen}
-                        aria-controls="fundamentals-failure-dialog"
-                        onClick={() => setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key)}
-                      >
-                        {row.status}
-                      </button>
-                    ) : (
-                      <span
-                        className={`pill ${row.tone} ${emphasizeSynced ? styles.syncedStatusPill : ""} ${
-                          emphasizeRunningFundamentals ? styles.runningStatusPill : ""
-                        }`}
-                      >
-                        {row.status}
-                      </span>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
           </div>
         </section>
 

@@ -121,20 +121,20 @@
 }
 
 .integrityGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
   margin-top: 1rem;
 }
 
 .integrityStat {
   padding: 0.85rem;
-  border-radius: 1rem;
+  border-radius: 0.5rem;
   background: rgba(13, 28, 46, 0.82);
   border: 1px solid rgba(143, 144, 158, 0.12);
 }
 
-.integrityStat span,
+.integrityStat > span,
 .cardMeta span,
 .cardFooter span,
 .supportRow p {
@@ -159,6 +159,77 @@
   color: #c5c5d4;
   font-size: 0.84rem;
   line-height: 1.55;
+}
+
+.eodStatusCard,
+.agentFeedbackCard {
+  min-width: 0;
+}
+
+.eodStatusCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.eodStatusHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.eodStageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+  gap: 0.7rem;
+}
+
+.eodStageCard {
+  min-width: 0;
+  min-height: 8.4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 0.5rem;
+  background: rgba(5, 20, 37, 0.56);
+}
+
+.eodStageTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.eodStageTop > span:first-child {
+  color: #f6f8ff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.eodStageTop :global(.pill) {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.eodStageDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #c5c5d4;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.eodStageDetails span {
+  overflow-wrap: anywhere;
 }
 
 .agentProgressTrack {
@@ -238,12 +309,14 @@
   text-align: center;
 }
 
-.moduleAside :global(.pill).syncedStatusPill {
+.moduleAside :global(.pill).syncedStatusPill,
+.eodStageTop :global(.pill).syncedStatusPill {
   color: #6ffbbe;
   text-shadow: 0 0 10px rgba(111, 251, 190, 0.32);
 }
 
-.moduleAside :global(.pill).runningStatusPill {
+.moduleAside :global(.pill).runningStatusPill,
+.eodStageTop :global(.pill).runningStatusPill {
   border: 1px solid rgba(127, 184, 255, 0.45);
   background: rgba(127, 184, 255, 0.24);
   color: #f3f7ff;
@@ -610,7 +683,7 @@
 }
 
 @media (max-width: 520px) {
-  .integrityGrid {
+  .eodStageGrid {
     grid-template-columns: 1fr;
   }
 
@@ -697,7 +770,6 @@
   }
 
   .integrityGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
     margin-top: 1.4rem;
   }

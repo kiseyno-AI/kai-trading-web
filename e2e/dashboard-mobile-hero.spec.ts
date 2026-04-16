@@ -32,9 +32,12 @@ test.describe("dashboard mobile hero", () => {
     expect(heroBox!.y).toBeLessThan(viewport!.height - 40);
     expect(heroBox!.x).toBeGreaterThanOrEqual(0);
     await expect(hero.getByText(/Market Freshness Registry/i)).toBeVisible();
-    await expect(hero.getByText(/Latest EOD date/i)).toBeVisible();
-    await expect(hero.getByText(/Success count/i)).toBeVisible();
-    await expect(hero.getByText(/Total count/i)).toBeVisible();
+    await expect(hero.getByText(/EOD Status/i)).toBeVisible();
+    await expect(hero.getByText(/Price Fetch/i)).toBeVisible();
+    await expect(hero.getByText(/Technical Analysis/i)).toBeVisible();
+    await expect(hero.getByText(/Action Summary/i)).toBeVisible();
+    await expect(hero.getByText(/Fundamentals/i)).toBeVisible();
+    await expect(hero.getByText(/Succeeded/i).first()).toBeVisible();
     await expect(hero.getByText(/Price Module/i)).toHaveCount(0);
   });
 });

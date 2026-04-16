@@ -8,9 +8,9 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /quotes/tracked`
   - `GET /symbols/search`
   - `GET /eod/freshness`
-    - D2 EOD Status uses `today.received` as the recent EOD update flag, `latest.price_trade_date` as the latest stored EOD date, `today.trade_date` as market-date context, and `today.symbols_succeeded` / `today.symbols_total` as the EOD symbol count context, falling back to `latest.symbols_succeeded` / `latest.symbols_total` when today's run has not happened yet
-    - web currently treats `latest.technical_market_date` as the stable technical freshness fallback
-    - optional layer objects such as `technical.success`, `technical.latest_date`, `fundamental.latest_date`, and `fundamentals.latest_date` may be consumed when present
+    - D2 EOD Status renders stage subcards for `today.price`, `today.technical_analysis`, `today.action_summary`, and `today.fundamentals`, each using `status`, `symbols_total`, `symbols_succeeded`, and `symbols_failed`
+    - Stage labels map to `synced` when `today.trade_date` matches the relevant latest date and the stage status is `ready`; `running` when the stage status is `running`; otherwise `not synced`, with the stale latest date shown on the subcard when present
+    - Relevant latest dates are `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, and the latest DART fundamentals date from the daily inspect response; legacy optional layer objects such as `technical.latest_date`, `fundamental.latest_date`, and `fundamentals.latest_date` remain tolerated as deployment-compatibility fallbacks
   - `GET /agent-context/feedback/progress`
     - D2 Agent Feedback progress uses `latest.price_trade_date` from `/eod/freshness` as the primary `market_date`, falling back to `today.trade_date` only when no latest price date exists
     - D2 Agent Feedback displays `summary.progress_percent`, `summary.total_symbols`, `summary.failed_items`, `summary.completed_symbols`, and `summary.in_progress_symbols`; the endpoint is not session-cached because active agent processing can change during the dashboard session
