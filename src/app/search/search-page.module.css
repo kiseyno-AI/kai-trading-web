@@ -350,14 +350,6 @@
   letter-spacing: 0.08em;
 }
 
-.quickCard i {
-  width: 0.95rem;
-  height: 0.95rem;
-  border: 0.14rem solid rgba(213, 227, 252, 0.24);
-  border-left-color: transparent;
-  border-radius: 50%;
-}
-
 .favoriteDialogOverlay {
   position: fixed;
   inset: 0;
@@ -1019,10 +1011,6 @@
 
   .quickCard strong {
     font-size: 1.55rem;
-  }
-
-  .quickCard i {
-    align-self: end;
   }
 
   .desktopResultsPanel {

@@ -927,7 +927,6 @@ export default function SearchPage() {
                     <strong className="clamp-3">{item.symbol}</strong>
                     <small className="clamp-3">{item.name_ko}</small>
                   </span>
-                  <i aria-hidden="true" />
                 </button>
               ))
             ) : (
