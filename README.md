@@ -76,6 +76,18 @@ NEXT_PUBLIC_TRADING_API_BASE_URL=http://localhost:3000/api/trading
 
 ---
 
+## Release version
+
+The visible release indicator reads from `package.json` through `src/lib/release-version.ts`. Bump `package.json` and `package-lock.json` together for each release, for example:
+
+```bash
+npm version patch --no-git-tag-version
+```
+
+The desktop rail and mobile web chrome update from that single source.
+
+---
+
 ## HTTP API this app exposes (Next.js BFF)
 
 Base URL (local dev): `http://localhost:3000`

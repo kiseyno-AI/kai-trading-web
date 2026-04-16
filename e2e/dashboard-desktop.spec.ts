@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
+
 test.describe("dashboard desktop", () => {
   test("dashboard labels match currently wired core data", async ({ page }) => {
     await page.goto("/dashboard");
@@ -14,10 +16,12 @@ test.describe("dashboard desktop", () => {
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
     await expect(page.getByText(/Manage Feed/i)).toBeVisible();
+    await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
 
     await expect(page.getByText(/Readiness and breadth/i)).toHaveCount(0);
     await expect(page.getByText(/Top movers/i)).toHaveCount(0);
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
+    await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
   test("dashboard quote surfaces use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {

@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { RELEASE_DISPLAY_LABEL, RELEASE_VERSION_LABEL } from "@/lib/release-version";
+
 import styles from "./mobile-app-chrome.module.css";
 
 type MobileNavKey = "dashboard" | "search" | "symbols";
@@ -99,11 +101,10 @@ export function MobileAppChrome({
           </Link>
         </nav>
 
-        <div className={styles.desktopRailStatus}>
-          <span>Live Connection</span>
-          <div className={styles.desktopStatusTrack}>
-            <i />
-          </div>
+        <div className={styles.desktopRailStatus} aria-label="Release version">
+          <span className={styles.releaseKicker}>Release</span>
+          <strong className={styles.releaseValue}>{RELEASE_VERSION_LABEL}</strong>
+          <div className={styles.releaseRule} aria-hidden="true" />
         </div>
       </aside>
 
@@ -114,6 +115,9 @@ export function MobileAppChrome({
       <main className={styles.main}>{children}</main>
 
       <div className={styles.bottomNavFrame}>
+        <div className={styles.mobileReleaseBadge} aria-label="Release version">
+          {RELEASE_DISPLAY_LABEL}
+        </div>
         <nav
           className={styles.bottomNav}
           aria-label="Primary"
