@@ -190,8 +190,8 @@
   min-height: 8.4rem;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 0.8rem;
+  justify-content: flex-start;
+  gap: 0.5rem;
   padding: 0.8rem;
   border: 1px solid rgba(143, 144, 158, 0.12);
   border-radius: 0.5rem;
