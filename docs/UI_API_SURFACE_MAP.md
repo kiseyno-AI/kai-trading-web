@@ -22,7 +22,7 @@ Client polling:
 - `GET /api/trading/symbols/search?q=...&limit=8`
 
 UI surfaces and fields:
-- Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> navigation only, no additional backend dependency
+- Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop KAI Trading rail + top bar -> navigation only, no additional backend dependency
 - Operational Integrity card: `/market/status` + `/eod/freshness` + `/agent-context/feedback/progress` + `/disclosures/dart/fundamentals/daily/inspect` -> `state`, `server_time`, `today.trade_date`, stage objects `today.price`, `today.technical_analysis`, `today.action_summary`, `today.fundamentals`, each stage `status`, `symbols_succeeded`, `symbols_total`, `symbols_failed`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, agent progress `request.market_date`, `summary.progress_percent`, `summary.total_symbols`, `summary.failed_items`, `summary.completed_symbols`, `summary.in_progress_symbols`, optional legacy `fundamental(s).latest_date`, and fundamentals `latest_run.status` / `latest_run.market_date`; the D2 EOD Status stat renders Price Fetch, Technical Analysis, Action Summary, and Fundamentals subcards. A stage shows `synced` when `today.trade_date` matches its relevant latest date and the stage status is `ready`, `running` when the stage status is `running`, and `not synced` when the latest date differs, with that latest date shown in the subcard details. The D2 Agent Feedback stat sits below the EOD Status card, displays active agent analysis progress for the latest stored price trade date, and keeps the progress endpoint uncached. If the latest fundamentals run is failed/partial, the review control opens a failure dialog from `latest_run.error_message`, failure counters, timing/count fields, and failure-related `run_metadata`.
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
 - Momentum board: `/quotes/tracked` -> top absolute movers from `items[].change_pct`
@@ -60,7 +60,7 @@ Client polling:
 - `GET /api/trading/symbols/search?q={symbol}&limit=20` when route seed metadata is incomplete
 
 UI surfaces and fields:
-- Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop Obsidian Ledger rail + top bar -> current symbol navigation state only, no additional backend dependency
+- Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop KAI Trading rail + top bar -> current symbol navigation state only, no additional backend dependency
 - Quote hero: `/quotes/{symbol}` + `/market/status` + `/symbols/search` + `/agent-context/symbol-day` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`, route metadata seed, aggregate availability summary
 - Market-status gate for quote polling: `/market/status` -> `state`
 - Chart: `/symbols/{symbol}/price-bars` -> `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`
@@ -97,7 +97,7 @@ Client polling:
 - `GET /api/trading/scanner/trending-stocks?period=1d|5d|20d&direction=both&limit=...`
 
 UI surfaces and fields:
-- Shared responsive chrome: mobile fixed Search terminal top bar + bottom tab bar, desktop Obsidian Ledger rail + centered terminal search surface -> navigation only, no direct backend dependency
+- Shared responsive chrome: mobile fixed search top bar + bottom tab bar, desktop KAI Trading rail + centered search surface -> navigation only, no direct backend dependency
 - Terminal search input and inline autocomplete: `/symbols/search` -> `query`, `count`, `items[].symbol`, `items[].standard_code`, `items[].name_ko`, `items[].market`; the autocomplete list is rendered directly under Q1 only while the query is non-empty
 - Quick access cards: `/symbols/favorites.items[]` only; the `+` action opens a symbol-search dialog backed by `/symbols/search`, then posts the updated symbol set through `/scanner/tracked-symbols` because that is the current core write path that persists scanner membership
 - Trending symbols cards: `/scanner/realtime-trending.items[]` for the KIS tab and `/scanner/trending-stocks.items[]` for stored `1d`, `5d`, and `20d` tabs -> exact `symbol`, display name, market, rank, metric/change percentage, source label, and selected symbol metadata seed. The first fetch shows five rows; the More button raises the requested limit by five.

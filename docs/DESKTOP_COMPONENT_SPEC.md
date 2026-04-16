@@ -29,7 +29,7 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 
 | Surface | File | API | Notes |
 | --- | --- | --- | --- |
-| Desktop rail | `src/components/mobile/mobile-app-chrome.tsx` | none | `MobileAppChrome` now renders a desktop-only Obsidian Ledger rail with `Dashboard`, `Search`, `Market Status`, and `My Symbols` navigation. |
+| Desktop rail | `src/components/mobile/mobile-app-chrome.tsx` | none | `MobileAppChrome` now renders a desktop-only KAI Trading rail with `Dashboard`, `Search`, `Market Status`, and `My Symbols` navigation. |
 | Desktop top bar | `src/components/mobile/mobile-app-chrome.tsx` | page-specific | Reuses each route header and keeps the dev-mode toggle visible. |
 
 ## Dashboard: `/dashboard`

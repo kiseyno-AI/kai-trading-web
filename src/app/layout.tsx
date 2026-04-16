@@ -13,8 +13,13 @@ const sora = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Kai Trading Web",
-  description: "Precision & Clarity trading dashboard prototype for Kai Trading",
+  title: "KAI Trading Dashboard",
+  description: "Market dashboard for symbols, watchlists, and trading system health.",
+  applicationName: "KAI Trading",
+  appleWebApp: {
+    title: "KAI Trading",
+    capable: true,
+  },
 };
 
 export default function RootLayout({
