@@ -966,8 +966,6 @@ export function LiveDashboardClient({
               <p className={styles.sectionEyebrow}>Market Freshness Registry</p>
               <h1 className={styles.heroTitle}>Operational Integrity</h1>
               <p className={styles.marketContext}>
-                Market state {market.state}
-                <br />
                 Server time {formatDisplayTimestamp(market.server_time)}
               </p>
             </div>
