@@ -264,23 +264,142 @@ test.describe("dashboard desktop", () => {
     }
   });
 
-  test("D2 EOD status uses core freshness update flag and symbol counts", async ({ page }) => {
+  test("D2 EOD status maps stage dates to synced and not synced subcards", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           today: {
-            trade_date: "2026-04-13",
-            eod_status: "missing",
-            symbols_total: 250,
-            symbols_succeeded: 237,
-            symbols_failed: null,
-            received: false,
+            trade_date: "2026-04-16",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 237,
+              symbols_failed: 13,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 248,
+              symbols_failed: 2,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 1,
+            },
           },
           latest: {
-            price_trade_date: "2026-04-10",
-            technical_market_date: "2026-04-10",
-            action_market_date: "2026-04-10",
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-16",
+            action_market_date: "2026-04-14",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 7,
+            market_date: "2026-04-16",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 42,
+            symbols_checked: 42,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 42,
+            symbols_refreshed: 42,
+            symbols_failed: 1,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-16T08:56:58.357390+09:00",
+            completed_at: "2026-04-16T09:11:08.375335+09:00",
+          },
+          runs: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard).toBeVisible();
+    await expect(eodStatusCard.getByText("Market date 2026-04-16")).toBeVisible();
+
+    const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
+    await expect(priceStage).toContainText("not synced");
+    await expect(priceStage).toContainText("Succeeded 237 / 250");
+    await expect(priceStage).toContainText("Failed 13");
+    await expect(priceStage).toContainText("Latest date 2026-04-15");
+
+    const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
+    await expect(technicalStage).toContainText("synced");
+    await expect(technicalStage).toContainText("Succeeded 250 / 250");
+    await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
+
+    const actionStage = page.locator('[aria-label="Action Summary freshness"]');
+    await expect(actionStage).toContainText("not synced");
+    await expect(actionStage).toContainText("Latest date 2026-04-14");
+
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    await expect(fundamentalsStage).toContainText("synced");
+    await expect(fundamentalsStage).toContainText("Succeeded 42 / 42");
+    await expect(fundamentalsStage).toContainText("Failed 1");
+  });
+
+  test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-16",
+            price: {
+              status: "running",
+              symbols_total: 250,
+              symbols_succeeded: 80,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "running",
+              symbols_total: 250,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "missing",
+              symbols_total: 250,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "missing",
+              symbols_total: 0,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
           },
         }),
       });
@@ -290,64 +409,62 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Not received")).toBeVisible();
-    await expect(eodStatusCard.getByText("Market date 2026-04-13")).toBeVisible();
-    await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
-    await expect(eodStatusCard.getByText("Success count 237")).toBeVisible();
-    await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
+    const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
+    const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
+    await expect(priceStage).toContainText("running");
+    await expect(priceStage).toContainText("Succeeded 80 / 250");
+    await expect(priceStage.getByText("not synced")).toHaveCount(0);
+    await expect(technicalStage).toContainText("running");
+    await expect(technicalStage.getByText("not synced")).toHaveCount(0);
   });
 
-  test("D2 EOD status uses freshness values when received flag is absent", async ({ page }) => {
-    await page.route("**/api/trading/eod/freshness", async (route) => {
+  test("D2 EOD status keeps ready price not synced without a latest price date", async ({ page }) => {
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          today: {
-            trade_date: "2026-04-13",
-            eod_status: null,
-            symbols_total: 250,
-            symbols_succeeded: 237,
-            symbols_failed: null,
-            received: null,
-          },
-          latest: {
-            price_trade_date: "2026-04-10",
-            technical_market_date: "2026-04-10",
-            action_market_date: "2026-04-10",
-          },
+          market_state: "OPEN",
+          as_of: "2026-04-14T09:10:00+09:00",
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 600,
+              change_pct: 0.84,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: "2026-04-14T09:10:00+09:00",
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-14",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
         }),
       });
     });
-
-    await page.goto("/dashboard");
-
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
-    await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Freshness available")).toBeVisible();
-    await expect(eodStatusCard.getByText("Market date 2026-04-13")).toBeVisible();
-    await expect(eodStatusCard.getByText("Latest EOD date 2026-04-10")).toBeVisible();
-    await expect(eodStatusCard.getByText("Success count 237")).toBeVisible();
-    await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
-    await expect(eodStatusCard.getByText("[확인 필요]")).toHaveCount(0);
-  });
-
-  test("D2 EOD status uses latest symbol counts when today's run has not happened", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           today: {
             trade_date: "2026-04-14",
-            eod_status: null,
-            symbols_failed: null,
-            received: null,
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
           },
           latest: {
-            price_trade_date: "2026-04-13",
-            symbols_total: 250,
-            symbols_succeeded: 248,
-            technical_market_date: "2026-04-13",
-            action_market_date: "2026-04-13",
+            price_trade_date: null,
+            technical_market_date: null,
+            action_market_date: null,
           },
         }),
       });
@@ -357,12 +474,10 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Freshness available")).toBeVisible();
     await expect(eodStatusCard.getByText("Market date 2026-04-14")).toBeVisible();
-    await expect(eodStatusCard.getByText("Latest EOD date 2026-04-13")).toBeVisible();
-    await expect(eodStatusCard.getByText("Success count 248")).toBeVisible();
-    await expect(eodStatusCard.getByText("Total count 250")).toBeVisible();
-    await expect(eodStatusCard.getByText("[확인 필요]")).toHaveCount(0);
+    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("not synced");
+    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("Succeeded 250 / 250");
+    await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
   test("D2 agent feedback progress uses the latest price trade date", async ({ page }) => {
@@ -414,11 +529,30 @@ test.describe("dashboard desktop", () => {
         body: JSON.stringify({
           today: {
             trade_date: "2026-04-16",
-            eod_status: null,
-            symbols_total: null,
-            symbols_succeeded: null,
-            symbols_failed: null,
-            received: null,
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 0,
+            },
           },
           latest: {
             price_trade_date: "2026-04-15",
@@ -464,6 +598,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.locator("#dashboard-freshness").getByText(/Server time/)).toBeVisible();
 
     const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(progressCard).toBeVisible();
     await expect(progressCard).toContainText("에이전트 분석 중...");
     await expect(progressCard).toContainText("기준일 2026-04-15");
@@ -471,29 +606,49 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toContainText("전체 대상 250개");
     await expect(progressCard).toContainText("실패 3개");
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
+
+    const [eodBox, progressBox] = await Promise.all([eodStatusCard.boundingBox(), progressCard.boundingBox()]);
+    expect(eodBox).not.toBeNull();
+    expect(progressBox).not.toBeNull();
+    expect(progressBox!.y).toBeGreaterThan(eodBox!.y + eodBox!.height - 1);
   });
 
-  test("D2 fundamentals row shows the latest update date from freshness status", async ({ page }) => {
+  test("D2 fundamentals subcard maps the ready stage to synced", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           today: {
-            trade_date: "2026-04-13",
-            eod_status: "completed",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            symbols_failed: 0,
-            received: true,
+            trade_date: "2026-04-16",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 1,
+            },
           },
           latest: {
-            price_trade_date: "2026-04-10",
-            technical_market_date: "2026-04-10",
-            action_market_date: "2026-04-10",
-          },
-          fundamental: {
-            success: true,
-            latest_date: "2026-04-10",
+            price_trade_date: "2026-04-16",
+            technical_market_date: "2026-04-16",
+            action_market_date: "2026-04-16",
           },
         }),
       });
@@ -502,7 +657,30 @@ test.describe("dashboard desktop", () => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          latest_run: null,
+          latest_run: {
+            id: 7,
+            market_date: "2026-04-16",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 42,
+            symbols_checked: 42,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 42,
+            symbols_refreshed: 42,
+            symbols_failed: 1,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-16T08:56:58.357390+09:00",
+            completed_at: "2026-04-16T09:11:08.375335+09:00",
+          },
           runs: [],
         }),
       });
@@ -510,31 +688,51 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
-    await expect(fundamentalsRow).toBeVisible();
-    await expect(fundamentalsRow).toContainText("Latest fundamentals update date");
-    await expect(fundamentalsRow).toContainText("2026-04-10");
-    await expect(fundamentalsRow.getByText("Available")).toBeVisible();
-    await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    await expect(fundamentalsStage).toBeVisible();
+    await expect(fundamentalsStage).toContainText("synced");
+    await expect(fundamentalsStage).toContainText("Succeeded 42 / 42");
+    await expect(fundamentalsStage).toContainText("Failed 1");
+    await expect(fundamentalsStage).toContainText("Run status Completed");
+    await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
 
-  test("D2 fundamentals row uses daily inspect status when freshness lacks a fundamentals date", async ({ page }) => {
+  test("D2 fundamentals subcard uses daily inspect date for stale checks", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           today: {
-            trade_date: "2026-04-13",
-            eod_status: "completed",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            symbols_failed: 0,
-            received: true,
+            trade_date: "2026-04-15",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 10,
+              symbols_succeeded: 10,
+              symbols_failed: 1406,
+            },
           },
           latest: {
-            price_trade_date: "2026-04-10",
-            technical_market_date: "2026-04-10",
-            action_market_date: "2026-04-10",
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
           },
         }),
       });
@@ -574,11 +772,13 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
-    await expect(fundamentalsRow).toBeVisible();
-    await expect(fundamentalsRow).toContainText("2026-04-14");
-    await expect(fundamentalsRow.getByText("Partial")).toBeVisible();
-    await expect(fundamentalsRow.getByText("[확인 필요]")).toHaveCount(0);
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    await expect(fundamentalsStage).toBeVisible();
+    await expect(fundamentalsStage).toContainText("not synced");
+    await expect(fundamentalsStage).toContainText("Latest date 2026-04-14");
+    await expect(fundamentalsStage).toContainText("Run status Partial");
+    await expect(fundamentalsStage.getByRole("button", { name: /Review fundamentals run details/i })).toBeVisible();
+    await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
 
   test("D2 fundamentals running status uses readable pill colors", async ({ page }) => {
@@ -588,11 +788,30 @@ test.describe("dashboard desktop", () => {
         body: JSON.stringify({
           today: {
             trade_date: "2026-04-14",
-            eod_status: "completed",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            symbols_failed: 0,
-            received: true,
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "running",
+              symbols_total: 5,
+              symbols_succeeded: 5,
+              symbols_failed: 1,
+            },
           },
           latest: {
             price_trade_date: "2026-04-14",
@@ -637,17 +856,17 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
-    const runningPill = fundamentalsRow.locator(".pill").filter({ hasText: "Running" });
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const runningPill = fundamentalsStage.locator(".pill").filter({ hasText: "running" });
 
-    await expect(fundamentalsRow).toBeVisible();
+    await expect(fundamentalsStage).toBeVisible();
     await expect(runningPill).toBeVisible();
     await expect(runningPill).toHaveCSS("color", "rgb(243, 247, 255)");
     await expect(runningPill).toHaveCSS("background-color", "rgba(127, 184, 255, 0.24)");
     await expect(runningPill).toHaveCSS("border-top-color", "rgba(127, 184, 255, 0.45)");
   });
 
-  test("D2 module rows keep content inside cards at the narrow desktop breakpoint", async ({ page }) => {
+  test("D2 EOD stage subcards keep content inside cards at the narrow desktop breakpoint", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
@@ -655,20 +874,35 @@ test.describe("dashboard desktop", () => {
         body: JSON.stringify({
           today: {
             trade_date: "2026-04-14",
-            eod_status: "completed",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            symbols_failed: 0,
-            received: true,
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 0,
+            },
           },
           latest: {
             price_trade_date: "2026-04-14",
             technical_market_date: "2026-04-14",
             action_market_date: "2026-04-14",
-          },
-          fundamental: {
-            success: true,
-            latest_date: "2026-04-14",
           },
         }),
       });
@@ -685,12 +919,12 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    for (const label of ["Technical Analysis", "Action Summary", "Fundamentals"]) {
-      const moduleRow = page.locator("#dashboard-freshness article").filter({ hasText: label });
-      await expect(moduleRow).toBeVisible();
-      await expect(moduleRow).toContainText("2026-04-14");
+    for (const label of ["Price Fetch", "Technical Analysis", "Action Summary", "Fundamentals"]) {
+      const stageCard = page.locator(`[aria-label="${label} freshness"]`);
+      await expect(stageCard).toBeVisible();
+      await expect(stageCard).toContainText("synced");
 
-      const overflowedText = await moduleRow.evaluate((element) => {
+      const overflowedText = await stageCard.evaluate((element) => {
         const rowRect = element.getBoundingClientRect();
         const tolerance = 1;
 
@@ -720,11 +954,30 @@ test.describe("dashboard desktop", () => {
         body: JSON.stringify({
           today: {
             trade_date: "2026-04-14",
-            eod_status: "completed",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            symbols_failed: 0,
-            received: true,
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 10,
+              symbols_succeeded: 10,
+              symbols_failed: 1406,
+            },
           },
           latest: {
             price_trade_date: "2026-04-14",
@@ -771,10 +1024,10 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsRow = page.locator("#dashboard-freshness article").filter({ hasText: "Fundamentals" });
-    await expect(fundamentalsRow).toBeVisible();
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    await expect(fundamentalsStage).toBeVisible();
 
-    await fundamentalsRow.getByRole("button", { name: "Failed" }).click();
+    await fundamentalsStage.getByRole("button", { name: /Review fundamentals run details/i }).click();
 
     const dialog = page.getByRole("dialog", { name: /DART fundamentals failed/i });
     await expect(dialog).toBeVisible();
@@ -792,37 +1045,4 @@ test.describe("dashboard desktop", () => {
     await expect(dialog).toHaveCount(0);
   });
 
-  test("D2 EOD status does not mark a market-date-only stub as available", async ({ page }) => {
-    await page.route("**/api/trading/eod/freshness", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          today: {
-            trade_date: "2026-04-13",
-            eod_status: null,
-            symbols_total: null,
-            symbols_succeeded: null,
-            symbols_failed: null,
-            received: null,
-          },
-          latest: {
-            price_trade_date: null,
-            technical_market_date: null,
-            action_market_date: null,
-          },
-        }),
-      });
-    });
-
-    await page.goto("/dashboard");
-
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
-    await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
-    await expect(eodStatusCard.locator("strong").filter({ hasText: "[확인 필요]" })).toBeVisible();
-    await expect(eodStatusCard).toContainText("Market date 2026-04-13");
-    await expect(eodStatusCard).toContainText("Latest EOD date [확인 필요]");
-    await expect(eodStatusCard).toContainText("Success count [확인 필요]");
-    await expect(eodStatusCard).toContainText("Total count [확인 필요]");
-  });
 });

@@ -334,13 +334,24 @@ export type SymbolPriceBarsResponseDto = {
   items: SymbolPriceBarDto[];
 };
 
-export type EodFreshnessTodayDto = {
-  trade_date: string | null;
-  eod_status: string | null;
+export type EodFreshnessStageDto = {
+  status: string | null;
   symbols_total: number | null;
   symbols_succeeded: number | null;
   symbols_failed: number | null;
-  received: boolean | null;
+};
+
+export type EodFreshnessTodayDto = {
+  trade_date: string | null;
+  price?: EodFreshnessStageDto | null;
+  technical_analysis?: EodFreshnessStageDto | null;
+  action_summary?: EodFreshnessStageDto | null;
+  fundamentals?: EodFreshnessStageDto | null;
+  eod_status?: string | null;
+  symbols_total?: number | null;
+  symbols_succeeded?: number | null;
+  symbols_failed?: number | null;
+  received?: boolean | null;
 };
 
 export type EodFreshnessLayerStatusDto = {
@@ -349,11 +360,13 @@ export type EodFreshnessLayerStatusDto = {
 };
 
 export type EodFreshnessLatestDto = {
-  price_trade_date: string | null;
-  symbols_total: number | null;
-  symbols_succeeded: number | null;
-  technical_market_date: string | null;
-  action_market_date: string | null;
+  price_trade_date?: string | null;
+  eod_status?: string | null;
+  symbols_total?: number | null;
+  symbols_succeeded?: number | null;
+  symbols_failed?: number | null;
+  technical_market_date?: string | null;
+  action_market_date?: string | null;
 };
 
 export type EodFreshnessResponseDto = {
