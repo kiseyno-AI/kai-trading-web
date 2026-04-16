@@ -202,6 +202,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.6rem;
 }
 
@@ -214,7 +215,11 @@
 }
 
 .eodStageTop :global(.pill) {
+  flex: 0 1 auto;
   max-width: 100%;
+  min-width: 0;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
   white-space: normal;
   text-align: center;
 }
@@ -247,30 +252,6 @@
   background: linear-gradient(90deg, #6ffbbe, #bac3ff);
 }
 
-.moduleList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-  margin-top: 0.9rem;
-}
-
-.moduleRow {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.9rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.68);
-  border: 1px solid rgba(143, 144, 158, 0.12);
-}
-
-.moduleRow > div {
-  min-width: 0;
-}
-
-.moduleRow strong,
 .supportRow strong,
 .noteCard strong {
   color: #ffffff;
@@ -279,7 +260,6 @@
   font-weight: 700;
 }
 
-.moduleRow p,
 .noteCard p {
   margin: 0.2rem 0 0;
   color: #c5c5d4;
@@ -287,35 +267,11 @@
   line-height: 1.5;
 }
 
-.moduleAside {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.35rem;
-  min-width: 6rem;
-  max-width: 100%;
-  color: #d5e3fc;
-  font-size: 0.74rem;
-}
-
-.moduleRow strong,
-.moduleAside span {
-  overflow-wrap: anywhere;
-}
-
-.moduleAside :global(.pill) {
-  max-width: 100%;
-  white-space: normal;
-  text-align: center;
-}
-
-.moduleAside :global(.pill).syncedStatusPill,
 .eodStageTop :global(.pill).syncedStatusPill {
   color: #6ffbbe;
   text-shadow: 0 0 10px rgba(111, 251, 190, 0.32);
 }
 
-.moduleAside :global(.pill).runningStatusPill,
 .eodStageTop :global(.pill).runningStatusPill {
   border: 1px solid rgba(127, 184, 255, 0.45);
   background: rgba(127, 184, 255, 0.24);
@@ -601,8 +557,7 @@
 }
 
 .supportList,
-.noteStack,
-.auditList {
+.noteStack {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
@@ -642,35 +597,6 @@
   background: rgba(13, 28, 46, 0.56);
   color: #c5c5d4;
   font-size: 0.82rem;
-  line-height: 1.5;
-}
-
-.desktopAuditPanel {
-  display: none;
-}
-
-.auditItem {
-  padding: 0.9rem 0;
-  border-bottom: 1px solid rgba(143, 144, 158, 0.1);
-}
-
-.auditItem:last-child {
-  border-bottom: none;
-}
-
-.auditItem span {
-  display: block;
-  color: #bac3ff;
-  font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.auditItem p {
-  margin: 0.35rem 0 0;
-  color: #c5c5d4;
   line-height: 1.5;
 }
 
@@ -726,26 +652,7 @@
   }
 
   .dashboardWideShell {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(20rem, 28vw);
-    align-items: start;
     gap: 1.2rem;
-  }
-
-  .alertPanel,
-  .integrityPanel,
-  .sectionHeaderRow,
-  .trackedList,
-  .supportGrid {
-    grid-column: 1;
-  }
-
-  .desktopAuditPanel {
-    grid-column: 2;
-  }
-
-  .desktopAuditPanel {
-    display: block;
   }
 
   .panel {
@@ -788,24 +695,6 @@
   .integrityStat strong,
   .cardMeta strong {
     font-size: clamp(1rem, 1.25vw, 1.25rem);
-  }
-
-  .moduleList {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-    gap: 0.85rem;
-  }
-
-  .moduleRow {
-    min-height: 8rem;
-    flex-direction: column;
-    align-items: flex-start;
-    border-radius: 0.16rem;
-  }
-
-  .moduleAside {
-    align-items: flex-start;
-    min-width: 0;
   }
 
   .sectionHeaderRow {
@@ -871,11 +760,6 @@
 
 @media (min-width: 1500px) {
   .dashboardWideShell {
-    grid-template-columns: minmax(0, 1fr) 34rem;
     gap: 1.6rem;
-  }
-
-  .integrityPanel {
-    min-height: 31rem;
   }
 }
