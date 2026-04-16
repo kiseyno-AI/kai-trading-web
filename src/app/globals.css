@@ -69,6 +69,10 @@
   --sidebar-accent-foreground: #d5e3fc;
   --sidebar-border: rgba(143, 144, 158, 0.18);
   --sidebar-ring: rgba(186, 195, 255, 0.3);
+  --app-canvas-background:
+    radial-gradient(circle at top center, rgba(63, 81, 181, 0.24), transparent 24%),
+    radial-gradient(circle at 15% 20%, rgba(186, 195, 255, 0.08), transparent 26%),
+    linear-gradient(180deg, #051425 0%, #08182a 34%, #010f20 100%);
 }
 
 @theme inline {
@@ -119,20 +123,27 @@
   box-sizing: border-box;
 }
 
-html {
-  background:
-    radial-gradient(circle at top center, rgba(63, 81, 181, 0.24), transparent 24%),
-    radial-gradient(circle at 15% 20%, rgba(186, 195, 255, 0.08), transparent 26%),
-    linear-gradient(180deg, #051425 0%, #08182a 34%, #010f20 100%);
+html,
+body {
+  min-width: 100%;
+  overflow-x: clip;
+  background: var(--app-canvas-background);
+  background-color: var(--background);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: transparent;
   color: var(--text);
   font-family: var(--font-sora), sans-serif;
   text-rendering: optimizeLegibility;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
 }
 
 button,
