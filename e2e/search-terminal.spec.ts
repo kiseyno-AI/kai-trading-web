@@ -443,19 +443,36 @@ test.describe("search terminal desktop", () => {
   });
 
   test("Q3 + favorite search saves an autocomplete result through the core tracked-symbol flow", async ({ page }) => {
+    let favoriteRequests = 0;
+    let trackedPostSucceeded = false;
     let postedSymbols: string[] | null = null;
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
+      favoriteRequests += 1;
       await route.fulfill({
         json: {
-          count: 0,
-          items: [],
+          count: trackedPostSucceeded ? 1 : 0,
+          items: trackedPostSucceeded
+            ? [
+                {
+                  symbol: "005930",
+                  standard_code: "KR7005930003",
+                  name_ko: "Samsung Electronics DB",
+                  market: "KOSPI",
+                  instrument_type: "equity",
+                  is_active: true,
+                  sort_order: 0,
+                  favorited_at: "2026-04-14T09:00:00+09:00",
+                },
+              ]
+            : [],
         },
       });
     });
     await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
       if (route.request().method() === "POST") {
         postedSymbols = JSON.parse(route.request().postData() ?? "{}").symbols;
+        trackedPostSucceeded = true;
         await route.fulfill({
           json: {
             tracked_symbols: postedSymbols,
@@ -507,24 +524,42 @@ test.describe("search terminal desktop", () => {
 
     await expect.poll(() => postedSymbols).toEqual(["005930", "000660"]);
     await expect(dialog).toHaveCount(0);
-    await expect(quickSection.getByRole("button", { name: /005930/i })).toBeVisible();
+    await expect.poll(() => favoriteRequests).toBe(2);
+    await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics DB/i })).toBeVisible();
     await expect(quickSection.getByText(/005930 saved to core favorites/i)).toBeVisible();
   });
 
   test("Q3 + favorite search saves a typed symbol through the dialog Add action", async ({ page }) => {
+    let favoriteRequests = 0;
+    let trackedPostSucceeded = false;
     let postedSymbols: string[] | null = null;
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
+      favoriteRequests += 1;
       await route.fulfill({
         json: {
-          count: 0,
-          items: [],
+          count: trackedPostSucceeded ? 1 : 0,
+          items: trackedPostSucceeded
+            ? [
+                {
+                  symbol: "005930",
+                  standard_code: "KR7005930003",
+                  name_ko: "Samsung Electronics DB",
+                  market: "KOSPI",
+                  instrument_type: "equity",
+                  is_active: true,
+                  sort_order: 0,
+                  favorited_at: "2026-04-14T09:02:00+09:00",
+                },
+              ]
+            : [],
         },
       });
     });
     await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
       if (route.request().method() === "POST") {
         postedSymbols = JSON.parse(route.request().postData() ?? "{}").symbols;
+        trackedPostSucceeded = true;
         await route.fulfill({
           json: {
             tracked_symbols: postedSymbols,
@@ -579,7 +614,8 @@ test.describe("search terminal desktop", () => {
 
     await expect.poll(() => postedSymbols).toEqual(["005930", "000660"]);
     await expect(dialog).toHaveCount(0);
-    await expect(quickSection.getByRole("button", { name: /005930/i })).toBeVisible();
+    await expect.poll(() => favoriteRequests).toBe(2);
+    await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics DB/i })).toBeVisible();
     await expect(quickSection.getByText(/005930 saved to core favorites/i)).toBeVisible();
   });
 

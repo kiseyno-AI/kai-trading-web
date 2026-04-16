@@ -264,6 +264,10 @@ function normalizeSearchItem(item: {
   };
 }
 
+function mapFavoriteItems(response: FavoriteSymbolsResponse) {
+  return response.items.map(normalizeSearchItem).slice(0, 4);
+}
+
 function getTrendingEndpoint(mode: TrendingMode, limit: number) {
   if (mode === "kis") {
     const params = new URLSearchParams({
@@ -455,7 +459,7 @@ export default function SearchPage() {
           setFavoriteListError(`Favorite list unavailable. HTTP ${result.status}`);
           return;
         }
-        setFavoriteItems(result.data.items.map(normalizeSearchItem).slice(0, 4));
+        setFavoriteItems(mapFavoriteItems(result.data));
         setFavoriteListError(null);
       } catch {
         if (!active) return;
@@ -785,24 +789,31 @@ export default function SearchPage() {
       }
 
       const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
-      const favoriteItem = normalizeSearchItem(favoriteSourceItem);
 
       invalidateTradingApiCacheByPathPrefix([
         "/api/trading/scanner/tracked-symbols",
         "/api/trading/symbols/favorites",
       ]);
+      const favoriteResult = await getJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites");
+      if (!favoriteResult.ok) {
+        setFavoriteListError(`Favorite list unavailable. HTTP ${favoriteResult.status}`);
+        setFavoriteError(`Favorite saved but core favorites refresh failed. HTTP ${favoriteResult.status}`);
+        return;
+      }
+
+      const refreshedFavoriteItems = mapFavoriteItems(favoriteResult.data);
+      const savedSymbolIsVisible = refreshedFavoriteItems.some((currentItem) => currentItem.symbol === symbol);
+
       setTrackedSymbols(normalizedTrackedSymbols);
       setTrackedSymbolsError(null);
       setFavoriteListError(null);
-      setFavoriteItems((current) => {
-        const next = [favoriteItem, ...current.filter((currentItem) => currentItem.symbol !== symbol)];
-        return next.slice(0, 4);
-      });
+      setFavoriteItems(refreshedFavoriteItems);
       setFavoriteDialogOpen(false);
       setFavoriteSearchItems([]);
       setFavoriteSearchError(null);
       setFavoriteSymbolInput("");
-      setFavoriteStatus(`${symbol} saved to core favorites.`);
+      setFavoriteStatus(savedSymbolIsVisible ? `${symbol} saved to core favorites.` : null);
+      setFavoriteError(savedSymbolIsVisible ? null : `${symbol} was not returned by core favorites after saving.`);
       window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
     } catch {
       setFavoriteError("Favorite save failed. Check trading-core connectivity.");
