@@ -113,6 +113,13 @@
   line-height: 1.5;
 }
 
+.marketContext {
+  margin: 0.55rem 0 0;
+  color: #c5c5d4;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
 .integrityGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -152,6 +159,21 @@
   color: #c5c5d4;
   font-size: 0.84rem;
   line-height: 1.55;
+}
+
+.agentProgressTrack {
+  height: 0.42rem;
+  margin-top: 0.75rem;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  background: rgba(143, 144, 158, 0.2);
+}
+
+.agentProgressTrack i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6ffbbe, #bac3ff);
 }
 
 .moduleList {

@@ -11,6 +11,9 @@ This document defines the first practical frontend contract for wiring `trading-
     - D2 EOD Status uses `today.received` as the recent EOD update flag, `latest.price_trade_date` as the latest stored EOD date, `today.trade_date` as market-date context, and `today.symbols_succeeded` / `today.symbols_total` as the EOD symbol count context, falling back to `latest.symbols_succeeded` / `latest.symbols_total` when today's run has not happened yet
     - web currently treats `latest.technical_market_date` as the stable technical freshness fallback
     - optional layer objects such as `technical.success`, `technical.latest_date`, `fundamental.latest_date`, and `fundamentals.latest_date` may be consumed when present
+  - `GET /agent-context/feedback/progress`
+    - D2 Agent Feedback progress uses `latest.price_trade_date` from `/eod/freshness` as the primary `market_date`, falling back to `today.trade_date` only when no latest price date exists
+    - D2 Agent Feedback displays `summary.progress_percent`, `summary.total_symbols`, `summary.failed_items`, `summary.completed_symbols`, and `summary.in_progress_symbols`; the endpoint is not session-cached because active agent processing can change during the dashboard session
   - `GET /disclosures/dart/fundamentals/daily/inspect`
     - D2 Fundamentals displays the latest fundamentals layer date when `/eod/freshness` exposes one; otherwise it falls back to `latest_run.market_date` or the date portion of `latest_run.completed_at`
     - D2 Fundamentals uses `latest_run.status` from the daily inspect response when available instead of keeping a stale `[확인 필요]` placeholder

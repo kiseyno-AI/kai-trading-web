@@ -6,8 +6,10 @@ import {
   type CoreMarketStatus,
   type CoreTrackedQuotesResponse,
 } from "./live-dashboard-client";
+import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 import type {
+  AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
 } from "@/types/trading-api";
@@ -16,6 +18,14 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Trading Dashboard Home",
 };
+
+function buildAgentFeedbackProgressPath(freshness: EodFreshnessResponseDto | null) {
+  const marketDate = getAgentFeedbackProgressMarketDate(freshness);
+  if (!marketDate) return null;
+
+  const params = new URLSearchParams({ market_date: marketDate });
+  return `/agent-context/feedback/progress?${params.toString()}`;
+}
 
 function getMockDashboardPayload() {
   const now = new Date().toISOString();
@@ -67,6 +77,7 @@ export default async function DashboardPage() {
   let tracked: CoreTrackedQuotesResponse;
   let freshness: EodFreshnessResponseDto | null = null;
   let fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null = null;
+  let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
 
@@ -80,6 +91,14 @@ export default async function DashboardPage() {
         requestHeaders,
       ).catch(() => null),
     ]);
+
+    const progressPath = buildAgentFeedbackProgressPath(freshness);
+    if (progressPath) {
+      agentFeedbackProgress = await fetchServerTradingApiJson<AgentFeedbackProgressResponseDto>(
+        progressPath,
+        requestHeaders,
+      ).catch(() => null);
+    }
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
     console.error("Dashboard server render failed", error);
@@ -93,6 +112,7 @@ export default async function DashboardPage() {
       initialTracked={tracked}
       initialFreshness={freshness}
       initialFundamentalsStatus={fundamentalsStatus}
+      initialAgentFeedbackProgress={agentFeedbackProgress}
     />
   );
 }
