@@ -926,7 +926,7 @@ export function LiveDashboardClient({
                   <article key={item.symbol} className={styles.supportRow}>
                     <div>
                       <strong>{item.symbol}</strong>
-                      <p className="clamp-3">{getCompanyName(item)}</p>
+                      <p className="clamp-3">{getCompanyName(item, symbolMetaBySymbol[item.symbol])}</p>
                     </div>
                     <span className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</span>
                   </article>
