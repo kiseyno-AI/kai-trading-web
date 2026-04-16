@@ -98,8 +98,7 @@ Client polling:
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed Search terminal top bar + bottom tab bar, desktop Obsidian Ledger rail + centered terminal search surface -> navigation only, no direct backend dependency
-- Terminal search input and result count: `/symbols/search` -> `query`, `count`, `items.length`
-- Mobile result cards: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; price, change, and quote freshness are not rendered in the list
+- Terminal search input and inline autocomplete: `/symbols/search` -> `query`, `count`, `items[].symbol`, `items[].standard_code`, `items[].name_ko`, `items[].market`; the autocomplete list is rendered directly under Q1 only while the query is non-empty
 - Quick access cards: `/symbols/favorites.items[]` only; the `+` action opens a symbol-search dialog backed by `/symbols/search`, then posts the updated symbol set through `/scanner/tracked-symbols` because that is the current core write path that persists scanner membership
 - Trending symbols cards: `/scanner/realtime-trending.items[]` for the KIS tab and `/scanner/trending-stocks.items[]` for stored `1d`, `5d`, and `20d` tabs -> exact `symbol`, display name, market, rank, metric/change percentage, source label, and selected symbol metadata seed. The first fetch shows five rows; the More button raises the requested limit by five.
 - Desktop results table: `/symbols/search.items[]` -> `symbol`, `standard_code`, `name_ko`, `market`; selected row also uses `/quotes/{symbol}` for `price`, `change_pct`, `cached_at`, `trade_date`
@@ -107,7 +106,7 @@ UI surfaces and fields:
 Important behavior:
 - Symbol detail links preserve only actual metadata returned by `/symbols/search`; `market` is never hardcoded.
 - Desktop Stitch-only fields such as market cap, terminal coverage tier, result ranking, and bulk freshness are rendered as `[확인 필요]` unless backed by the selected quote response or returned search metadata.
-- Dev-mode tags for this route are `search.terminal-shell`, `search.mobile-results`, `search.quick-access`, `search.trending-symbols`, and `search.desktop-results-table`.
+- Dev-mode tags for this route are `search.terminal-shell`, `search.quick-access`, `search.trending-symbols`, and `search.desktop-results-table`.
 
 ## Alternate dashboard routes
 

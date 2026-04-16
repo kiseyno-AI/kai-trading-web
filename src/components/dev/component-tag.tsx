@@ -16,7 +16,6 @@ const TAG_IDS: Record<string, string> = {
   "dashboard.momentum-board": "D4",
   "dashboard.coverage-note": "D5",
   "search.terminal-shell": "Q1",
-  "search.mobile-results": "Q2",
   "search.quick-access": "Q3",
   "search.trending-symbols": "Q4",
   "search.desktop-results-table": "Q6",

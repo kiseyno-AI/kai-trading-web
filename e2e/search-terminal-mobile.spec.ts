@@ -17,12 +17,12 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByRole("navigation", { name: /^Primary$/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Search/i })).toBeVisible();
     await expect(page.getByLabel(/Search markets, symbols, or analysis/i)).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Search Results/i })).toBeVisible();
+    await expect(page.getByLabel(/Search suggestions/i)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
     await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
   });
 
-  test("keeps Q2 empty for a blank search even if the endpoint has default matches", async ({ page }) => {
+  test("keeps Q1 autocomplete hidden for a blank search even if the endpoint has default matches", async ({ page }) => {
     const searchRequests: string[] = [];
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
@@ -89,7 +89,8 @@ test.describe("search terminal mobile", () => {
 
     await page.goto("/search");
 
-    await expect(page.getByText(/Start typing to search the symbol master/i)).toBeVisible();
+    await expect(page.getByLabel(/Search suggestions/i)).toHaveCount(0);
+    await expect(page.getByText(/Start typing to search the symbol master/i)).toHaveCount(0);
     await expect(page.getByRole("link", { name: /000001.*Default Result/i })).toHaveCount(0);
     await page.waitForTimeout(250);
     expect(searchRequests).toEqual([]);
@@ -410,7 +411,7 @@ test.describe("search terminal mobile", () => {
     await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
   });
 
-  test("opens the candlestick detail page from the Q2 symbol list without rendering quote prices in the list", async ({ page }) => {
+  test("opens the candlestick detail page from the Q1 autocomplete without rendering quote prices in the list", async ({ page }) => {
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       await route.fulfill({
         json: {

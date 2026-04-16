@@ -57,8 +57,7 @@ Primary route:
 
 | Tag | File | Mobile component | API | Rendered fields | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `search.terminal-shell` | `src/app/search/page.tsx` | Search app bar and terminal input | `/api/trading/symbols/search` | `query`, result count | Replaces the old `AppShell` search layout and keeps the bottom tab bar active on Search. |
-| `search.mobile-results` | `src/app/search/page.tsx` | Mobile result cards | `/api/trading/symbols/search` | `items[].symbol`, `items[].name_ko` | List rows do not render price, change, quote freshness, or a selected quote inspector until a confirmed data surface exists. |
+| `search.terminal-shell` | `src/app/search/page.tsx` | Search app bar, terminal input, and inline autocomplete | `/api/trading/symbols/search` | `query`, result count, `items[].symbol`, `items[].name_ko`, `items[].market` | Replaces the old `AppShell` search layout, keeps the bottom tab bar active on Search, and renders suggestions directly below Q1 only after the user types. |
 | `search.quick-access` | `src/app/search/page.tsx` | Favorite quick chips and `+` search dialog | `/api/trading/symbols/favorites`, `/api/trading/symbols/search`, `/api/trading/scanner/tracked-symbols` | favorite `symbol`, `name_ko`, dialog search result `symbol`, `name_ko`, `market` | Q3 no longer falls back to local recent or current query lists; the `+` action opens autocomplete before saving through the core tracked-symbol write route. |
 | `search.trending-symbols` | `src/app/search/page.tsx` | Trending symbol source card | `/api/trading/scanner/realtime-trending`, `/api/trading/scanner/trending-stocks` | `items[].symbol`, display name, market, rank, metric/change percentage, source label | Q4 has KIS, 1D, 5D, and 20D tabs. It renders exact symbols from core, starts with five rows, and extends the requested limit by five from the More button. |
 
@@ -70,7 +69,6 @@ The dev-mode tag overlay shows short IDs while copying the full label/API payloa
 - `D4` dashboard momentum board
 - `D5` dashboard coverage note
 - `Q1` search terminal shell
-- `Q2` search mobile results
 - `Q3` search quick access
 - `Q4` search trending symbols
 - `Q6` search desktop results table
