@@ -70,7 +70,7 @@
   z-index: 1;
   width: min(100%, 31rem);
   margin: 0 auto;
-  padding: 5.5rem 0.9rem calc(6rem + env(safe-area-inset-bottom));
+  padding: 5.5rem 0.9rem calc(7.6rem + env(safe-area-inset-bottom));
 }
 
 .bottomNavFrame {
@@ -78,9 +78,25 @@
   inset: auto 0 0;
   z-index: 45;
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 0.4rem;
   padding: 0 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
   pointer-events: none;
+}
+
+.mobileReleaseBadge {
+  width: min(100%, 31rem);
+  display: flex;
+  justify-content: flex-end;
+  color: #c5c8ff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  text-shadow: 0 1px 10px rgba(1, 15, 32, 0.7);
 }
 
 .bottomNav {
@@ -196,7 +212,8 @@
 
   .desktopBrand strong,
   .desktopNavItem span,
-  .desktopRailStatus span {
+  .desktopRailStatus span,
+  .releaseValue {
     font-family: var(--font-space-grotesk), sans-serif;
   }
 
@@ -270,33 +287,38 @@
 
   .desktopRailStatus {
     margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
     padding: 1rem;
     border: 1px solid rgba(143, 144, 158, 0.1);
     border-radius: 0.25rem;
     background: rgba(18, 32, 50, 0.7);
   }
 
-  .desktopRailStatus span {
+  .releaseKicker {
     display: block;
-    color: #c5c8ff;
+    color: #93a3b8;
     font-size: 0.7rem;
     font-weight: 800;
-    letter-spacing: 0.22em;
+    letter-spacing: 0;
     text-transform: uppercase;
   }
 
-  .desktopStatusTrack {
-    margin-top: 0.85rem;
-    height: 0.28rem;
-    border-radius: 999px;
-    background: rgba(143, 144, 158, 0.14);
+  .releaseValue {
+    display: block;
+    color: #f6f8ff;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1;
   }
 
-  .desktopStatusTrack i {
+  .releaseRule {
     display: block;
-    width: 22%;
-    height: 100%;
-    border-radius: inherit;
+    width: 3.5rem;
+    height: 0.28rem;
+    border-radius: 999px;
     background: #c5c8ff;
     box-shadow: 0 0 16px rgba(197, 200, 255, 0.45);
   }
@@ -324,6 +346,10 @@
   }
 
   .bottomNavFrame {
+    display: none;
+  }
+
+  .mobileReleaseBadge {
     display: none;
   }
 }
