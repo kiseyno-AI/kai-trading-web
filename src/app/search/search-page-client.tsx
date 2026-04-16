@@ -185,6 +185,7 @@ type QuoteResponse = {
 type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const UNKNOWN = UNKNOWN_SYMBOL_META;
+const SEARCH_SUGGESTIONS_ID = "search-symbol-suggestions";
 const FAVORITE_DIALOG_ID = "favorite-symbol-dialog";
 const FAVORITE_SUGGESTIONS_ID = "favorite-symbol-suggestions";
 const TRENDING_INITIAL_LIMIT = 5;
@@ -405,6 +406,7 @@ export default function SearchPageClient() {
   const [favoriteStatus, setFavoriteStatus] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
@@ -505,10 +507,14 @@ export default function SearchPageClient() {
     if (!searchQuery) {
       setItems([]);
       setSearchError(null);
+      setSearchLoading(false);
       return;
     }
 
     let active = true;
+    setItems([]);
+    setSearchError(null);
+    setSearchLoading(true);
     const load = async () => {
       try {
         const result = await getJson<SymbolSearchResponse>(
@@ -528,6 +534,8 @@ export default function SearchPageClient() {
         if (!active) return;
         setItems([]);
         setSearchError("Search endpoint unavailable. Check trading-core or BFF connectivity.");
+      } finally {
+        if (active) setSearchLoading(false);
       }
     };
     void load();
@@ -678,7 +686,9 @@ export default function SearchPageClient() {
     items.find((currentItem) => currentItem.symbol === symbol) ??
     null;
 
-  const resultTitle = query.trim() ? `Results for "${query.trim()}"` : "Search Results";
+  const trimmedQuery = query.trim();
+  const searchSuggestions = trimmedQuery ? items.slice(0, 6) : [];
+  const resultTitle = trimmedQuery ? `Results for "${trimmedQuery}"` : "Search Results";
   const selectedQuoteDate = quote ? formatDisplayTimestamp(quote.cached_at ?? quote.trade_date, UNKNOWN) : UNKNOWN;
   const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput);
   const favoriteInputItem = favoriteSymbolCandidate ? getValidatedFavoriteItem(favoriteSymbolCandidate) : null;
@@ -785,7 +795,6 @@ export default function SearchPageClient() {
       }
 
       const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
-      const favoriteItem = normalizeSearchItem(favoriteSourceItem);
 
       invalidateTradingApiCacheByPathPrefix([
         "/api/trading/scanner/tracked-symbols",
@@ -794,10 +803,21 @@ export default function SearchPageClient() {
       setTrackedSymbols(normalizedTrackedSymbols);
       setTrackedSymbolsError(null);
       setFavoriteListError(null);
-      setFavoriteItems((current) => {
-        const next = [favoriteItem, ...current.filter((currentItem) => currentItem.symbol !== symbol)];
-        return next.slice(0, 4);
-      });
+
+      let refreshedFavorites: JsonResult<FavoriteSymbolsResponse>;
+      try {
+        refreshedFavorites = await getJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites");
+      } catch {
+        setFavoriteError("Favorite saved but core favorites refresh failed.");
+        return;
+      }
+
+      if (!refreshedFavorites.ok) {
+        setFavoriteError(`Favorite saved but core favorites refresh failed. HTTP ${refreshedFavorites.status}`);
+        return;
+      }
+
+      setFavoriteItems(refreshedFavorites.data.items.map(normalizeSearchItem).slice(0, 4));
       setFavoriteDialogOpen(false);
       setFavoriteSearchItems([]);
       setFavoriteSearchError(null);
@@ -841,54 +861,64 @@ export default function SearchPageClient() {
             Query markets, symbols, and institutional intelligence through the trading-core BFF. Confirmed data renders from
             live endpoints; unsupported terminal fields stay marked as {UNKNOWN}.
           </p>
-          <label className={styles.searchInputFrame}>
-            <span className={styles.srOnly}>Search markets, symbols, or analysis</span>
-            <span className={styles.searchGlyph} aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(event) => handleQueryChange(event.target.value)}
-              placeholder="Search markets, symbols, or analysis..."
-              aria-label="Search markets, symbols, or analysis"
-            />
-            {query ? (
-              <button type="button" onClick={() => handleQueryChange("")} aria-label="Clear search query">
-                /
-              </button>
-            ) : (
-              <kbd>/</kbd>
-            )}
-          </label>
-        </section>
+          <div className={styles.searchInputStack}>
+            <label className={styles.searchInputFrame}>
+              <span className={styles.srOnly}>Search markets, symbols, or analysis</span>
+              <span className={styles.searchGlyph} aria-hidden="true" />
+              <input
+                value={query}
+                onChange={(event) => handleQueryChange(event.target.value)}
+                placeholder="Search markets, symbols, or analysis..."
+                aria-label="Search markets, symbols, or analysis"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={Boolean(trimmedQuery)}
+                aria-controls={trimmedQuery ? SEARCH_SUGGESTIONS_ID : undefined}
+                autoComplete="off"
+              />
+              {query ? (
+                <button type="button" onClick={() => handleQueryChange("")} aria-label="Clear search query">
+                  /
+                </button>
+              ) : (
+                <kbd>/</kbd>
+              )}
+            </label>
 
-        <section className={styles.mobileResultsPanel}>
-          <ComponentTag label="search.mobile-results" api="/api/trading/symbols/search" />
-          <div className={styles.sectionHeader}>
-            <h2>{resultTitle}</h2>
-            <span>{items.length} matches</span>
-          </div>
-          {searchError ? <PanelUnavailable message={searchError} /> : null}
-          <div className={styles.mobileResultList}>
-            {items.slice(0, 6).map((item) => {
-              const isSelected = selected?.symbol === item.symbol;
-              return (
-                <Link
-                  key={item.symbol}
-                  href={buildSymbolHref(item)}
-                  className={`${styles.mobileResultCard} ${isSelected ? styles.mobileResultCardActive : ""}`.trim()}
-                  onClick={() => handleSelect(item)}
-                >
-                  <span className={styles.symbolAvatar}>{getInitials(item)}</span>
-                  <span className={styles.resultIdentity}>
-                    <strong className="clamp-3">{item.symbol}</strong>
-                    <span className="clamp-3">{item.name_ko}</span>
-                  </span>
-                </Link>
-              );
-            })}
-            {items.length === 0 && !searchError ? (
-              <div className={styles.emptyState}>
-                <strong>Start typing to search the symbol master.</strong>
-                <p className="clamp-3">Results are fetched from `/api/trading/symbols/search`; no sample symbols are manufactured here.</p>
+            {trimmedQuery ? (
+              <div
+                id={SEARCH_SUGGESTIONS_ID}
+                className={styles.searchSuggestions}
+                aria-label="Search suggestions"
+                aria-busy={searchLoading}
+                aria-live="polite"
+              >
+                {searchError ? <PanelUnavailable message={searchError} /> : null}
+                {searchSuggestions.map((item) => {
+                  const isSelected = selected?.symbol === item.symbol;
+                  return (
+                    <Link
+                      key={item.symbol}
+                      href={buildSymbolHref(item)}
+                      className={`${styles.searchSuggestion} ${isSelected ? styles.searchSuggestionActive : ""}`.trim()}
+                      onClick={() => handleSelect(item)}
+                    >
+                      <span className={styles.symbolAvatar}>{getInitials(item)}</span>
+                      <span className={styles.resultIdentity}>
+                        <strong className="clamp-3">{item.symbol}</strong>
+                        <span className="clamp-3">{item.name_ko}</span>
+                      </span>
+                      <small className="clamp-3">{item.market}</small>
+                    </Link>
+                  );
+                })}
+                {searchLoading ? <p className={styles.searchSuggestionStatus}>Searching...</p> : null}
+                {!searchLoading && searchSuggestions.length === 0 && !searchError ? (
+                  <div className={styles.emptyState}>
+                    <strong>No matching symbols.</strong>
+                    <p className="clamp-3">Refine the symbol or company name and try again.</p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
