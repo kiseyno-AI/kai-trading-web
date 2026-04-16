@@ -418,13 +418,48 @@ test.describe("dashboard desktop", () => {
     await expect(technicalStage.getByText("not synced")).toHaveCount(0);
   });
 
-  test("D2 EOD status keeps a market-date-only stub not synced", async ({ page }) => {
+  test("D2 EOD status keeps ready price not synced without a latest price date", async ({ page }) => {
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: "2026-04-14T09:10:00+09:00",
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 600,
+              change_pct: 0.84,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: "2026-04-14T09:10:00+09:00",
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-14",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           today: {
             trade_date: "2026-04-14",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
           },
           latest: {
             price_trade_date: null,
@@ -441,7 +476,7 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Market date 2026-04-14")).toBeVisible();
     await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("not synced");
-    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("Succeeded [확인 필요] / [확인 필요]");
+    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("Succeeded 250 / 250");
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 

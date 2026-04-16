@@ -511,10 +511,9 @@ function getEodStageStatusLabel(
 ): EodStageCard["statusLabel"] {
   const status = normalizeStageStatus(stage);
   if (status === "running") return "running";
-  if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
-    return "not synced";
-  }
-  if (status === "ready") return "synced";
+  const hasMatchingDates =
+    hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate.trim() === latestDate.trim();
+  if (status === "ready" && hasMatchingDates) return "synced";
   return "not synced";
 }
 
@@ -822,7 +821,6 @@ export function LiveDashboardClient({
     };
   }, [agentProgressMarketDate]);
 
-  const lead = tracked.items[0];
   const liveCount = tracked.items.filter((item) => item.is_live).length;
   const fallbackCount = tracked.items.filter((item) => item.fallback).length;
   const unavailableCount = tracked.items.filter((item) => !item.available).length;
@@ -851,7 +849,7 @@ export function LiveDashboardClient({
       "Price Fetch",
       getPriceFreshnessStage(freshness),
       todayTradeDate,
-      freshness?.latest?.price_trade_date ?? lead?.trade_date ?? null,
+      freshness?.latest?.price_trade_date ?? null,
     ),
     buildEodStageCard(
       "technical",
