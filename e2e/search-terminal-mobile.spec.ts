@@ -179,7 +179,7 @@ test.describe("search terminal mobile", () => {
     await expect(quickSection.getByText(/Favorite list unavailable\. HTTP 503/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /005930.*Samsung Electronics/i }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /000660.*SK hynix/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /SK hynix.*000660/i })).toBeVisible();
     await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
   });
 
@@ -381,10 +381,14 @@ test.describe("search terminal mobile", () => {
     await page.goto("/search");
 
     const trendingSection = page.locator("section").filter({ has: page.getByRole("heading", { name: /Trending Symbols/i }) }).first();
+    const trendingIdentityFor = (symbol: string) =>
+      trendingSection.getByRole("button", { name: new RegExp(symbol) }).locator("[class*='trendingIdentity']");
     const trendingMetricFor = (symbol: string) =>
       trendingSection.getByRole("button", { name: new RegExp(symbol) }).locator("[class*='trendingMetric'] strong");
 
     await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
+    await expect(trendingIdentityFor("005930").locator("strong")).toHaveText("Samsung Electronics");
+    await expect(trendingIdentityFor("005930").locator("small")).toHaveText("005930");
     await expect(trendingMetricFor("005930")).toHaveText("250,000");
     await expect(trendingSection.getByText("000660", { exact: true })).toBeVisible();
     await expect(trendingMetricFor("000660")).toHaveText("-1.50%");
