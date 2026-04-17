@@ -122,6 +122,9 @@ test.describe("symbol detail desktop", () => {
 
     await page.goto(`/dashboard/symbol/005930/system-freshness?${symbolSeed}`);
 
+    const topbar = page.locator("header.topbar");
+    await expect(topbar).toContainText("Market Closed");
+    await expect(topbar).not.toContainText("Stable Mode");
     await expect(page.getByText(`최신 업데이트 : ${marketDate}`).first()).toBeVisible();
     await expect(page.getByText(`Daily price-bar fallback for ${marketDate}.`)).toHaveCount(0);
   });

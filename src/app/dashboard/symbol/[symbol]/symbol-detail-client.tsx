@@ -664,16 +664,19 @@ function buildDisclosureCoverageNote(
   return "No Disclosure Found for this symbol.";
 }
 
-function buildMarketStateTone(quote: QuoteResponse | null, marketStatus: MarketStatusResponse | null) {
-  if (!quote || !marketStatus) return "neutral";
-  if (quote.available && marketStatus.state === "OPEN") return "positive";
-  if (!quote.available) return "warning";
-  return "info";
-}
-
 function normalizeMarketCode(value: string | null | undefined) {
   if (!value) return null;
   return value.trim().toUpperCase();
+}
+
+function getMarketOpenState(marketStatus: MarketStatusResponse | null) {
+  if (!marketStatus) return null;
+  if (typeof marketStatus.is_open === "boolean") return marketStatus.is_open;
+
+  const state = normalizeMarketCode(marketStatus.state);
+  if (state === "OPEN") return true;
+  if (state === "CLOSED") return false;
+  return null;
 }
 
 function resolveMarketStateValue(value: string | null | undefined) {
@@ -1336,8 +1339,12 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const actionTone = buildActionTone(resolvedActionSummary);
   const technicalTone = buildTechnicalTone(resolvedTechnicalSnapshot);
   const freshnessTone = buildFreshnessTone(freshness?.today?.eod_status);
-  const marketStateTone = buildMarketStateTone(quote, marketStatus);
   const marketStateRows = useMemo(() => buildMarketStateRows(marketStatus, metaMarket), [marketStatus, metaMarket]);
+  const toolbarMarketOpenState = getMarketOpenState(marketStatus);
+  const toolbarMarketBadgeLabel =
+    toolbarMarketOpenState === null ? "Market Pending" : toolbarMarketOpenState ? "Market Open" : "Market Closed";
+  const toolbarMarketBadgeTone =
+    toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : styles.marketStatusClosedPill;
   const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
 
   const moduleRows = [
@@ -1446,8 +1453,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
           </div>
 
           <div className={styles.headerActions}>
-            <span className={`pill ${quotePollingStopped ? "info" : marketStateTone}`}>
-              {quotePollingStopped ? "Stable Mode" : marketStatus?.state ?? "Market Pending"}
+            <span className={`pill ${styles.marketStatusPill} ${toolbarMarketBadgeTone}`}>
+              {toolbarMarketBadgeLabel}
             </span>
             <DevModeToggle />
           </div>
