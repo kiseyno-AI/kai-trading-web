@@ -4,27 +4,36 @@ const symbolSeed =
   "name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10";
 
 test.describe("symbol detail desktop", () => {
-  test("overview uses desktop rail and wide Stitch sections", async ({ page }) => {
+  test("overview shows only Insights chart and freshness sections", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
 
     await expect(page.getByRole("navigation", { name: /Primary desktop/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Deterministic action layer/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Stored snapshot metrics/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Stored DART filing history/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Layer-specific freshness registry/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Deterministic action layer/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Stored snapshot metrics/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Stored DART filing history/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Recent filing coverage/i })).toHaveCount(0);
   });
 
-  test("action detail button does not add a back-stack entry", async ({ page }) => {
+  test("detail tabs update in place without resetting scroll or adding a back-stack entry", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/dashboard");
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
 
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
-    await page.getByRole("link", { name: /Open action detail/i }).click();
+    const actionTab = page.getByRole("link", { name: /^Action$/i });
+    await page.evaluate(() => window.scrollTo(0, 420));
+    await actionTab.scrollIntoViewIfNeeded();
+    const beforeScroll = await page.evaluate(() => window.scrollY);
+    expect(beforeScroll).toBeGreaterThan(0);
+
+    await actionTab.click();
 
     await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/action-summary\?/);
     await expect(page.getByText(/Action Summary Detail/i)).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
     await page.goBack();
 
