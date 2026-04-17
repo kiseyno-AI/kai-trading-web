@@ -15,6 +15,23 @@ test.describe("symbol detail desktop", () => {
     await expect(page.getByRole("heading", { name: /Stored DART filing history/i })).toBeVisible();
   });
 
+  test("action detail button does not add a back-stack entry", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/dashboard");
+    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+    await page.getByRole("link", { name: /Open action detail/i }).click();
+
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/action-summary\?/);
+    await expect(page.getByText(/Action Summary Detail/i)).toBeVisible();
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+  });
+
   test("technical detail renders the desktop candlestick view", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const priceBarsRequest = page.waitForRequest((request) =>
