@@ -17,6 +17,72 @@ test.describe("symbol detail desktop", () => {
     await expect(page.getByRole("heading", { name: /Recent filing coverage/i })).toHaveCount(0);
   });
 
+  test("daily price-bar fallback copy uses the latest update date", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const marketDate = "2026-04-17";
+
+    await page.route("**/api/trading/quotes/005930", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "005930",
+          company_name: "Samsung Electronics",
+          price: 70000,
+          change: 0,
+          change_pct: 0,
+          volume: 1000,
+          turnover: 70000000,
+          market_state: "CLOSED",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          trade_date: marketDate,
+        }),
+      });
+    });
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "CLOSED",
+          is_open: false,
+          server_time: `${marketDate}T16:00:00+09:00`,
+        }),
+      });
+    });
+
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: marketDate,
+            eod_status: "completed",
+            symbols_total: 1,
+            symbols_succeeded: 1,
+            symbols_failed: 0,
+          },
+          latest: {
+            price_trade_date: marketDate,
+            technical_market_date: marketDate,
+            action_market_date: marketDate,
+          },
+          technical: {
+            success: true,
+            latest_date: marketDate,
+          },
+        }),
+      });
+    });
+
+    await page.goto(`/dashboard/symbol/005930/system-freshness?${symbolSeed}`);
+
+    await expect(page.getByText(`최신 업데이트 : ${marketDate}`).first()).toBeVisible();
+    await expect(page.getByText(`Daily price-bar fallback for ${marketDate}.`)).toHaveCount(0);
+  });
+
   test("detail tabs update in place without resetting scroll or adding a back-stack entry", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/dashboard");

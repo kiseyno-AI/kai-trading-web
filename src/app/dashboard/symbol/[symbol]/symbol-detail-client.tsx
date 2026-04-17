@@ -318,7 +318,7 @@ function buildQuoteSourceLabel(quote: QuoteResponse | null) {
   if (quote.is_live) return "Live feed.";
   if (quote.source === "daily_price_bar") {
     return quote.trade_date
-      ? `Daily price-bar fallback for ${quote.trade_date}.`
+      ? `최신 업데이트 : ${quote.trade_date}`
       : "Daily price-bar fallback path.";
   }
   if (quote.fallback) return `${quote.source} fallback path.`;
