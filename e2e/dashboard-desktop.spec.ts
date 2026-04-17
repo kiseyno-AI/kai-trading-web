@@ -854,7 +854,8 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
 
-  test("D2 fundamentals running status uses readable pill colors", async ({ page }) => {
+  test("D2 fundamentals running status uses readable pill colors and truncates the title", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 900 });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -930,13 +931,35 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const fundamentalsTitle = fundamentalsStage.getByText("Fundamentals", { exact: true });
     const runningPill = fundamentalsStage.locator(".pill").filter({ hasText: "running" });
 
     await expect(fundamentalsStage).toBeVisible();
+    await expect(fundamentalsTitle).toHaveCSS("overflow-x", "hidden");
+    await expect(fundamentalsTitle).toHaveCSS("text-overflow", "ellipsis");
+    await expect(fundamentalsTitle).toHaveCSS("white-space", "nowrap");
     await expect(runningPill).toBeVisible();
     await expect(runningPill).toHaveCSS("color", "rgb(243, 247, 255)");
     await expect(runningPill).toHaveCSS("background-color", "rgba(127, 184, 255, 0.24)");
     await expect(runningPill).toHaveCSS("border-top-color", "rgba(127, 184, 255, 0.45)");
+
+    const titleRowLayout = await fundamentalsStage.evaluate((element) => {
+      const title = [...element.querySelectorAll("span")].find((child) => child.textContent?.trim() === "Fundamentals");
+      const pill = [...element.querySelectorAll(".pill")].find((child) => child.textContent?.trim() === "running");
+
+      if (!title || !pill) return null;
+
+      const titleRect = title.getBoundingClientRect();
+      const pillRect = pill.getBoundingClientRect();
+
+      return {
+        pillLeft: pillRect.left,
+        titleRight: titleRect.right,
+      };
+    });
+
+    expect(titleRowLayout).not.toBeNull();
+    expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.pillLeft);
   });
 
   test("D2 EOD stage subcards keep content inside cards at the narrow desktop breakpoint", async ({ page }) => {

@@ -205,13 +205,19 @@
   gap: 0.6rem;
 }
 
-.eodStageTop > span:first-child {
+.eodStageTitle {
   min-width: 0;
   color: #f6f8ff;
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.86rem;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.eodStageCard[data-stage="fundamentals"] .eodStageTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .eodStageTop :global(.pill) {
