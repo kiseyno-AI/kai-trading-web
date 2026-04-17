@@ -20,6 +20,10 @@
   min-width: 0;
 }
 
+.headerBrand > div {
+  min-width: 0;
+}
+
 .backButton {
   width: 2.35rem;
   height: 2.35rem;
@@ -45,6 +49,10 @@
 
 .headerTitle {
   display: block;
+  max-width: min(52vw, 28rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #f6f8ff;
   font-family: var(--font-manrope), sans-serif;
   font-size: 1rem;

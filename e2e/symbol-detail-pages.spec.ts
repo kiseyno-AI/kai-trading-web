@@ -40,7 +40,10 @@ test.describe("symbol detail mobile pages", () => {
     for (const detailPage of detailPages) {
       await page.goto(`/dashboard/symbol/005930/${detailPage.path}?${symbolSeed}`);
 
-      await expect(page.locator("header.topbar")).toBeVisible();
+      const topbar = page.locator("header.topbar");
+      await expect(topbar).toBeVisible();
+      await expect(topbar).toContainText("Samsung Electronics");
+      await expect(topbar).not.toContainText("005930");
       await expect(page.getByRole("navigation", { name: /Primary/i })).toBeVisible();
       await expect(page.getByText(detailPage.eyebrow)).toBeVisible();
       await expect(page.getByRole("heading", { name: detailPage.heading }).first()).toBeVisible();
