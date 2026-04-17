@@ -197,6 +197,11 @@ test.describe("dashboard desktop", () => {
             expected_agents: [],
           },
           summary: {
+            run_status: "completed",
+            is_live: false,
+            latest_feedback_at: "2026-04-15T10:20:00+09:00",
+            seconds_since_last_feedback: 120,
+            stalled_threshold_seconds: 300,
             total_symbols: 1,
             processed_symbols: 1,
             completed_symbols: 1,
@@ -481,9 +486,27 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
-  test("D2 agent feedback progress uses the latest price trade date", async ({ page }) => {
+  test("D2 agent feedback progress uses the latest price trade date and API live status", async ({ page }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
+    let progressRequestCount = 0;
+    let agentProgressSummary = {
+      run_status: "active",
+      is_live: true,
+      latest_feedback_at: "2026-04-15T10:18:00+09:00",
+      seconds_since_last_feedback: 15,
+      stalled_threshold_seconds: 300,
+      total_symbols: 250,
+      processed_symbols: 126,
+      completed_symbols: 88,
+      in_progress_symbols: 38,
+      pending_symbols: 124,
+      progress_ratio: 0.504,
+      progress_percent: 50.4,
+      failed_items: 3,
+      completed_feedback_count: 302,
+      expected_feedback_count: 750,
+    };
 
     await page.route("**/api/trading/market/status", async (route) => {
       await route.fulfill({
@@ -568,6 +591,7 @@ test.describe("dashboard desktop", () => {
     await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
       const url = new URL(route.request().url());
       requestedMarketDate = url.searchParams.get("market_date");
+      progressRequestCount += 1;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -576,18 +600,7 @@ test.describe("dashboard desktop", () => {
             symbols: null,
             expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
           },
-          summary: {
-            total_symbols: 250,
-            processed_symbols: 126,
-            completed_symbols: 88,
-            in_progress_symbols: 38,
-            pending_symbols: 124,
-            progress_ratio: 0.504,
-            progress_percent: 50.4,
-            failed_items: 3,
-            completed_feedback_count: 302,
-            expected_feedback_count: 750,
-          },
+          summary: agentProgressSummary,
         }),
       });
     });
@@ -614,6 +627,22 @@ test.describe("dashboard desktop", () => {
     expect(eodBox).not.toBeNull();
     expect(progressBox).not.toBeNull();
     expect(progressBox!.y).toBeGreaterThan(eodBox!.y + eodBox!.height - 1);
+
+    const previousProgressRequestCount = progressRequestCount;
+    agentProgressSummary = {
+      ...agentProgressSummary,
+      run_status: "stalled",
+      is_live: false,
+      failed_items: 0,
+      latest_feedback_at: "2026-04-15T10:10:00+09:00",
+      seconds_since_last_feedback: 600,
+    };
+
+    await page.reload();
+
+    await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
+    await expect(progressCard).toContainText("에이전트 확인 필요");
+    await expect(progressCard).not.toContainText("에이전트 분석 중...");
   });
 
   test("D2 fundamentals subcard maps the ready stage to synced", async ({ page }) => {

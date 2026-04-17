@@ -571,12 +571,12 @@ function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto 
   if (!progress) return error ? "에이전트 확인 필요" : UNKNOWN_LABEL;
 
   const summary = progress.summary;
-  if (summary.total_symbols <= 0) return "에이전트 분석 대기";
-  if (summary.in_progress_symbols > 0 || summary.pending_symbols > 0 || summary.progress_percent < 100) {
-    return "에이전트 분석 중...";
-  }
-  if (summary.failed_items > 0) return "에이전트 확인 필요";
-  return "에이전트 분석 완료";
+  const runStatus = typeof summary.run_status === "string" ? summary.run_status.toLowerCase() : null;
+  if (summary.is_live) return "에이전트 분석 중...";
+  if (runStatus === "stalled" || summary.failed_items > 0) return "에이전트 확인 필요";
+  if (summary.total_symbols <= 0 || runStatus === "pending") return "에이전트 분석 대기";
+  if (runStatus === "completed" || summary.progress_percent >= 100) return "에이전트 분석 완료";
+  return "에이전트 분석 대기";
 }
 
 function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {
