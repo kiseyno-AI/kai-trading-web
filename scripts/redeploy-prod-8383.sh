@@ -9,11 +9,30 @@ PORT=8383
 APP_HEALTH_URL="http://127.0.0.1:${PORT}/trading-web/dashboard"
 DATA_HEALTH_URL="http://127.0.0.1:4181/trading/quotes/tracked"
 
+bump_version() {
+  /opt/homebrew/bin/node <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const packageJsonPath = path.join(process.cwd(), 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+const current = String(packageJson.version || '0.1.0').split('.').map((part) => Number(part));
+while (current.length < 3) current.push(0);
+current[2] += 1;
+packageJson.version = current.join('.');
+fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+process.stdout.write(packageJson.version);
+NODE
+}
+
+NEW_VERSION=$(bump_version)
+echo "bumped trading-web version to ${NEW_VERSION}"
+
 if [ -f package-lock.json ]; then
   /opt/homebrew/bin/npm install
 fi
 
 export NEXT_PUBLIC_BASE_PATH=/trading-web
+export NEXT_PUBLIC_APP_VERSION="$NEW_VERSION"
 /opt/homebrew/bin/npm run build
 
 SEARCH_BUILD_JS=".next/server/app/search/page.js"
