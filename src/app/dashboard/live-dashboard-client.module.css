@@ -80,6 +80,7 @@
 
 .alertPanel,
 .integrityPanel,
+.trackedPanel,
 .supportPanel {
   padding: 1rem;
 }
@@ -454,6 +455,12 @@
   gap: 0.75rem;
 }
 
+.trackedPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
 .sectionTitle {
   margin: 0.24rem 0 0;
   color: #ffffff;
@@ -691,6 +698,7 @@
 
   .alertPanel,
   .integrityPanel,
+  .trackedPanel,
   .supportPanel {
     padding: 1.55rem;
   }
@@ -726,8 +734,7 @@
   }
 
   .sectionHeaderRow {
-    margin-top: 1.5rem;
-    padding: 0.4rem 0 0;
+    padding: 0;
   }
 
   .sectionTitle {
@@ -736,6 +743,10 @@
   }
 
   .trackedList {
+    gap: 1rem;
+  }
+
+  .trackedPanel {
     gap: 1rem;
   }
 
