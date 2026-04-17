@@ -142,6 +142,7 @@ export function DisclosureReportClient() {
           <div className={styles.reportFrameShell}>
             <iframe
               className={styles.reportFrame}
+              sandbox=""
               src={documentUrl}
               title={`${reportName} filing document`}
             />

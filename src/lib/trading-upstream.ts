@@ -3,6 +3,21 @@ import { NextResponse } from "next/server";
 import { logWebDiagnostic, startWebDiagnosticSpan } from "@/lib/web-diagnostics";
 
 const LOCAL_TRADING_UPSTREAM_FALLBACK = "http://127.0.0.1:8000";
+const PROXIED_SECURITY_RESPONSE_HEADERS = [
+  "content-security-policy",
+  "content-security-policy-report-only",
+  "cross-origin-embedder-policy",
+  "cross-origin-opener-policy",
+  "cross-origin-resource-policy",
+  "origin-agent-cluster",
+  "permissions-policy",
+  "referrer-policy",
+  "x-content-type-options",
+  "x-download-options",
+  "x-frame-options",
+  "x-permitted-cross-domain-policies",
+  "x-xss-protection",
+] as const;
 
 function trimTrailingSlash(value: string) {
   return value.endsWith("/") ? value.slice(0, -1) : value;
@@ -162,6 +177,15 @@ function formatFetchErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+function forwardProxiedSecurityHeaders(source: Headers, target: Headers) {
+  for (const headerName of PROXIED_SECURITY_RESPONSE_HEADERS) {
+    const value = source.get(headerName);
+    if (value) {
+      target.set(headerName, value);
+    }
+  }
+}
+
 async function parseJsonResponse<T>(response: Response, requestLabel: string): Promise<T> {
   try {
     return (await response.json()) as T;
@@ -310,6 +334,7 @@ export async function proxyTradingUpstreamResponse(path: string, init?: RequestI
       "x-kai-trading-auth-mode": upstreamTarget.authMode,
       "x-kai-trading-upstream-source": upstreamTarget.source,
     });
+    forwardProxiedSecurityHeaders(response.headers, headers);
 
     if (contentDisposition) {
       headers.set("content-disposition", contentDisposition);
