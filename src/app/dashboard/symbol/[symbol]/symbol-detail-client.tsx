@@ -10,7 +10,11 @@ import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
-import { getCachedTradingApiJson } from "@/lib/trading-api-cache";
+import {
+  getCachedTradingApiJson,
+  getTradingApiJsonResult,
+  invalidateTradingApiCacheByPathPrefix,
+} from "@/lib/trading-api-cache";
 import type {
   AgentContextActionSummaryDto,
   AgentContextDisclosureDto,
@@ -81,6 +85,12 @@ type MarketStatusResponse = {
   is_open?: boolean;
   server_time?: string;
   markets?: MarketStatusItem[];
+};
+
+type TrackedSymbolsResponse = {
+  tracked_symbols: string[];
+  count: number;
+  last_updated_at: string | null;
 };
 
 type PriceHistoryRange = "3M" | "1Y" | "5Y" | "MAX";
@@ -173,8 +183,35 @@ async function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
 }
 
+async function getJsonResult<T>(path: string, init?: RequestInit) {
+  return getTradingApiJsonResult<T>(resolveTradingApiClientPath(path), init);
+}
+
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
+}
+
+function normalizeSymbolCode(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function normalizeTrackedSymbols(symbols: string[]) {
+  return Array.from(new Set(symbols.map(normalizeSymbolCode).filter(Boolean)));
+}
+
+async function loadTrackedSymbolsSnapshot() {
+  const result = await getJsonResult<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
+  if (!result.ok) {
+    return {
+      ok: false as const,
+      message: `Tracking status unavailable. HTTP ${result.status}`,
+    };
+  }
+
+  return {
+    ok: true as const,
+    symbols: normalizeTrackedSymbols(result.data.tracked_symbols),
+  };
 }
 
 function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable") {
@@ -701,6 +738,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const params = useParams<{ symbol: string }>();
   const searchParams = useSearchParams();
   const symbol = useMemo(() => decodeURIComponent(params.symbol), [params.symbol]);
+  const normalizedSymbol = useMemo(() => normalizeSymbolCode(symbol), [symbol]);
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
@@ -723,17 +761,21 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const [actionSummary, setActionSummary] = useState<AgentContextActionSummaryDto | null>(null);
   const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(null);
   const [fundamentalsHistory, setFundamentalsHistory] = useState<DartFundamentalsHistoryResponseDto | null>(null);
+  const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
+  const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
   const [aggregateContextLoadState, setAggregateContextLoadState] =
     useState<AggregateContextLoadState>("loading");
   const [quotePollingStopped, setQuotePollingStopped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [fundamentalsLoading, setFundamentalsLoading] = useState(true);
+  const [trackingSaving, setTrackingSaving] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
 
   const marketDate = useMemo(() => {
     if (requestedMarketDate) return requestedMarketDate;
@@ -756,17 +798,53 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     setActionSummary(null);
     setFreshness(null);
     setFundamentalsHistory(null);
+    setTrackedSymbols([]);
+    setTrackedSymbolsLoaded(false);
     setAggregateContextLoadState("loading");
     setQuotePollingStopped(false);
     setLoading(true);
     setHistoryLoading(true);
     setFundamentalsLoading(true);
+    setTrackingSaving(false);
     setMetaError(null);
     setQuoteError(null);
     setHistoryError(null);
     setContextError(null);
     setFundamentalsError(null);
+    setTrackingError(null);
   }, [initialMeta, metaResetToken]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTrackedSymbols = async () => {
+      try {
+        const result = await loadTrackedSymbolsSnapshot();
+        if (!active) return;
+
+        if (!result.ok) {
+          setTrackedSymbols([]);
+          setTrackedSymbolsLoaded(false);
+          setTrackingError(result.message);
+          return;
+        }
+
+        setTrackedSymbols(result.symbols);
+        setTrackedSymbolsLoaded(true);
+        setTrackingError(null);
+      } catch {
+        if (!active) return;
+        setTrackedSymbols([]);
+        setTrackedSymbolsLoaded(false);
+        setTrackingError("Tracking status unavailable.");
+      }
+    };
+
+    void loadTrackedSymbols();
+    return () => {
+      active = false;
+    };
+  }, [normalizedSymbol]);
 
   useEffect(() => {
     let active = true;
@@ -1120,6 +1198,72 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const detailErrors = [quoteError, metaError, historyError, contextError, fundamentalsError].filter(
     (value): value is string => Boolean(value),
   );
+  const isTrackedSymbol = trackedSymbols.includes(normalizedSymbol);
+  const trackingButtonLabel = trackingSaving
+    ? "Updating tracked symbol"
+    : !trackedSymbolsLoaded
+      ? `Set tracked status for ${normalizedSymbol}`
+      : isTrackedSymbol
+        ? `Remove ${normalizedSymbol} from tracked symbols`
+        : `Add ${normalizedSymbol} to tracked symbols`;
+
+  const handleToggleTrackedSymbol = async () => {
+    if (trackingSaving) return;
+
+    if (!normalizedSymbol) {
+      setTrackingError("Tracking update unavailable for this symbol.");
+      return;
+    }
+
+    setTrackingSaving(true);
+    setTrackingError(null);
+
+    try {
+      invalidateTradingApiCacheByPathPrefix(["/api/trading/scanner/tracked-symbols"]);
+      const currentResult = await loadTrackedSymbolsSnapshot();
+      if (!currentResult.ok) {
+        setTrackedSymbols([]);
+        setTrackedSymbolsLoaded(false);
+        setTrackingError(currentResult.message);
+        return;
+      }
+
+      const currentTrackedSymbols = currentResult.symbols;
+      const currentlyTracked = currentTrackedSymbols.includes(normalizedSymbol);
+      const nextSymbols = currentlyTracked
+        ? currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== normalizedSymbol)
+        : [normalizedSymbol, ...currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== normalizedSymbol)];
+
+      setTrackedSymbols(currentTrackedSymbols);
+      setTrackedSymbolsLoaded(true);
+
+      const result = await getJsonResult<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ symbols: nextSymbols }),
+      });
+
+      if (!result.ok) {
+        setTrackingError(`Tracking update failed. HTTP ${result.status}`);
+        return;
+      }
+
+      const normalizedTrackedSymbols = normalizeTrackedSymbols(result.data.tracked_symbols);
+      invalidateTradingApiCacheByPathPrefix([
+        "/api/trading/scanner/tracked-symbols",
+        "/api/trading/symbols/favorites",
+      ]);
+      setTrackedSymbols(normalizedTrackedSymbols);
+      setTrackedSymbolsLoaded(true);
+      setTrackingError(null);
+    } catch {
+      setTrackingError("Tracking update failed.");
+    } finally {
+      setTrackingSaving(false);
+    }
+  };
 
   const chartMetrics = useMemo(() => {
     if (!priceHistory || priceHistory.items.length === 0) return null;
@@ -1330,7 +1474,23 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <button type="button" className={styles.tradeButton} disabled title="Execution route is disabled on this read-only screen">
                 Trade
               </button>
-              <span className={styles.watchBadge}>★</span>
+              <button
+                type="button"
+                className={`${styles.watchBadge} ${isTrackedSymbol ? styles.watchBadgeActive : ""}`.trim()}
+                aria-label={trackingButtonLabel}
+                aria-pressed={isTrackedSymbol}
+                aria-busy={trackingSaving}
+                disabled={trackingSaving}
+                title={trackingButtonLabel}
+                onClick={handleToggleTrackedSymbol}
+              >
+                <span aria-hidden="true">{isTrackedSymbol ? "★" : "☆"}</span>
+              </button>
+              {trackingError ? (
+                <p className={styles.trackingFeedback} role="status">
+                  {trackingError}
+                </p>
+              ) : null}
             </div>
           </div>
 

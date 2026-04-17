@@ -17,6 +17,49 @@ test.describe("symbol detail desktop", () => {
     await expect(page.getByRole("heading", { name: /Recent filing coverage/i })).toHaveCount(0);
   });
 
+  test("hero star reflects and toggles tracked-symbol membership", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+
+    let trackedSymbols = ["005930", "000660"];
+    const postedSymbols: string[][] = [];
+
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      if (route.request().method() === "POST") {
+        const payload = route.request().postDataJSON() as { symbols?: string[] };
+        trackedSymbols = Array.isArray(payload.symbols) ? payload.symbols : [];
+        postedSymbols.push([...trackedSymbols]);
+      }
+
+      await route.fulfill({
+        json: {
+          tracked_symbols: trackedSymbols,
+          count: trackedSymbols.length,
+          last_updated_at: "2026-04-18T09:00:00+09:00",
+        },
+      });
+    });
+
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+
+    const removeButton = page.getByRole("button", { name: /Remove 005930 from tracked symbols/i });
+    await expect(removeButton).toBeVisible();
+    await expect(removeButton).toHaveAttribute("aria-pressed", "true");
+    await expect(removeButton).toContainText("★");
+
+    await removeButton.click();
+
+    const addButton = page.getByRole("button", { name: /Add 005930 to tracked symbols/i });
+    await expect(addButton).toHaveAttribute("aria-pressed", "false");
+    await expect(addButton).toContainText("☆");
+    expect(postedSymbols).toEqual([["000660"]]);
+
+    await addButton.click();
+
+    await expect(removeButton).toHaveAttribute("aria-pressed", "true");
+    await expect(removeButton).toContainText("★");
+    expect(postedSymbols).toEqual([["000660"], ["005930", "000660"]]);
+  });
+
   test("daily price-bar fallback copy uses the latest update date", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const marketDate = "2026-04-17";
