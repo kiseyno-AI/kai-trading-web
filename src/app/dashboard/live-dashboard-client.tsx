@@ -1102,7 +1102,7 @@ export function LiveDashboardClient({
             <h2 className={styles.sectionTitle}>Today&apos;s ledger recommendations</h2>
           </div>
           <Link href="/search" className={styles.sectionLink}>
-            Manage Feed
+            More
           </Link>
         </section>
 
