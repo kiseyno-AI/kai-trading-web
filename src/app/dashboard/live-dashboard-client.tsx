@@ -603,8 +603,8 @@ function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto 
   const runStatus = normalizeAgentProgressRunStatus(summary.run_status);
   if (runStatus) return AGENT_PROGRESS_STATUS_LABELS[runStatus];
 
-  if (summary.failed_items > 0) return AGENT_PROGRESS_STATUS_LABELS.stalled;
   if (summary.is_live) return AGENT_PROGRESS_STATUS_LABELS.running;
+  if (summary.failed_items > 0) return AGENT_PROGRESS_STATUS_LABELS.stalled;
   if (summary.progress_percent >= 100) return AGENT_PROGRESS_STATUS_LABELS.completed;
   return AGENT_PROGRESS_STATUS_LABELS.pending;
 }

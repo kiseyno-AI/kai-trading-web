@@ -637,6 +637,17 @@ test.describe("dashboard desktop", () => {
 
     agentProgressSummary = {
       ...agentProgressSummary,
+      run_status: "legacy-running",
+      is_live: true,
+      failed_items: 3,
+      latest_feedback_at: "2026-04-15T10:19:55+09:00",
+      seconds_since_last_feedback: 5,
+    };
+    await reloadAndExpectAgentStatus("에이전트 분석 중...");
+    await expect(progressCard).not.toContainText("에이전트 확인 필요");
+
+    agentProgressSummary = {
+      ...agentProgressSummary,
       run_status: "stalled",
       is_live: true,
       failed_items: 0,
