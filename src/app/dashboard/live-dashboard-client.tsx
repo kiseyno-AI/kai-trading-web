@@ -13,6 +13,7 @@ import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { getCachedTradingApiJson, seedTradingApiJsonCache } from "@/lib/trading-api-cache";
 import type {
   AgentFeedbackProgressResponseDto,
+  AgentFeedbackRunStatus,
   DartFundamentalsDailyInspectResponseDto,
   DartFundamentalsDailyRunDto,
   EodFreshnessLayerStatusDto,
@@ -24,6 +25,12 @@ import styles from "./live-dashboard-client.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
+const AGENT_PROGRESS_STATUS_LABELS = {
+  pending: "에이전트 분석 대기",
+  running: "에이전트 분석 중...",
+  stalled: "에이전트 확인 필요",
+  completed: "에이전트 분석 완료",
+} satisfies Record<AgentFeedbackRunStatus, string>;
 
 export type CoreMarketStatus = {
   state: string;
@@ -583,16 +590,23 @@ function getAgentProgressPercentValue(progress: AgentFeedbackProgressResponseDto
   return Math.max(0, Math.min(100, percent));
 }
 
+function normalizeAgentProgressRunStatus(status: unknown): AgentFeedbackRunStatus | null {
+  if (typeof status !== "string") return null;
+  const normalized = status.trim().toLowerCase();
+  return normalized in AGENT_PROGRESS_STATUS_LABELS ? (normalized as AgentFeedbackRunStatus) : null;
+}
+
 function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto | null, error: string | null) {
   if (!progress) return error ? "에이전트 확인 필요" : UNKNOWN_LABEL;
 
   const summary = progress.summary;
-  const runStatus = typeof summary.run_status === "string" ? summary.run_status.toLowerCase() : null;
-  if (summary.is_live) return "에이전트 분석 중...";
-  if (runStatus === "stalled" || summary.failed_items > 0) return "에이전트 확인 필요";
-  if (summary.total_symbols <= 0 || runStatus === "pending") return "에이전트 분석 대기";
-  if (runStatus === "completed" || summary.progress_percent >= 100) return "에이전트 분석 완료";
-  return "에이전트 분석 대기";
+  const runStatus = normalizeAgentProgressRunStatus(summary.run_status);
+  if (runStatus) return AGENT_PROGRESS_STATUS_LABELS[runStatus];
+
+  if (summary.is_live) return AGENT_PROGRESS_STATUS_LABELS.running;
+  if (summary.failed_items > 0) return AGENT_PROGRESS_STATUS_LABELS.stalled;
+  if (summary.progress_percent >= 100) return AGENT_PROGRESS_STATUS_LABELS.completed;
+  return AGENT_PROGRESS_STATUS_LABELS.pending;
 }
 
 function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {

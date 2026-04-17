@@ -292,6 +292,8 @@ export type AgentContextResponseDto = {
   items: AgentContextItemDto[];
 };
 
+export type AgentFeedbackRunStatus = "pending" | "running" | "stalled" | "completed";
+
 export type AgentFeedbackProgressResponseDto = {
   request: {
     market_date: string;
@@ -299,7 +301,7 @@ export type AgentFeedbackProgressResponseDto = {
     expected_agents: string[];
   };
   summary: {
-    run_status: string;
+    run_status: AgentFeedbackRunStatus;
     is_live: boolean;
     latest_feedback_at: string | null;
     seconds_since_last_feedback: number | null;

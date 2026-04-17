@@ -486,13 +486,13 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
-  test("D2 agent feedback progress uses the latest price trade date and API live status", async ({ page }) => {
+  test("D2 agent feedback progress uses the latest price trade date and explicit API status labels", async ({ page }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
     let agentProgressSummary = {
-      run_status: "active",
-      is_live: true,
+      run_status: "running",
+      is_live: false,
       latest_feedback_at: "2026-04-15T10:18:00+09:00",
       seconds_since_last_feedback: 15,
       stalled_threshold_seconds: 300,
@@ -628,21 +628,62 @@ test.describe("dashboard desktop", () => {
     expect(progressBox).not.toBeNull();
     expect(progressBox!.y).toBeGreaterThan(eodBox!.y + eodBox!.height - 1);
 
-    const previousProgressRequestCount = progressRequestCount;
+    async function reloadAndExpectAgentStatus(expectedLabel: string) {
+      const previousProgressRequestCount = progressRequestCount;
+      await page.reload();
+      await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
+      await expect(progressCard).toContainText(expectedLabel);
+    }
+
+    agentProgressSummary = {
+      ...agentProgressSummary,
+      run_status: "legacy-running",
+      is_live: true,
+      failed_items: 3,
+      latest_feedback_at: "2026-04-15T10:19:55+09:00",
+      seconds_since_last_feedback: 5,
+    };
+    await reloadAndExpectAgentStatus("에이전트 분석 중...");
+    await expect(progressCard).not.toContainText("에이전트 확인 필요");
+
     agentProgressSummary = {
       ...agentProgressSummary,
       run_status: "stalled",
-      is_live: false,
+      is_live: true,
       failed_items: 0,
       latest_feedback_at: "2026-04-15T10:10:00+09:00",
       seconds_since_last_feedback: 600,
     };
-
-    await page.reload();
-
-    await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
-    await expect(progressCard).toContainText("에이전트 확인 필요");
+    await reloadAndExpectAgentStatus("에이전트 확인 필요");
     await expect(progressCard).not.toContainText("에이전트 분석 중...");
+
+    agentProgressSummary = {
+      ...agentProgressSummary,
+      run_status: "pending",
+      is_live: false,
+      processed_symbols: 0,
+      completed_symbols: 0,
+      in_progress_symbols: 0,
+      pending_symbols: 250,
+      progress_ratio: 0,
+      progress_percent: 0,
+      completed_feedback_count: 0,
+    };
+    await reloadAndExpectAgentStatus("에이전트 분석 대기");
+
+    agentProgressSummary = {
+      ...agentProgressSummary,
+      run_status: "completed",
+      is_live: false,
+      processed_symbols: 250,
+      completed_symbols: 250,
+      in_progress_symbols: 0,
+      pending_symbols: 0,
+      progress_ratio: 1,
+      progress_percent: 100,
+      completed_feedback_count: 750,
+    };
+    await reloadAndExpectAgentStatus("에이전트 분석 완료");
   });
 
   test("D2 fundamentals subcard maps the ready stage to synced", async ({ page }) => {
