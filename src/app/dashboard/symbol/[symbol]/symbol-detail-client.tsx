@@ -461,6 +461,28 @@ function buildSymbolDetailHref(symbol: string, mode: SymbolDetailMode, queryStri
   return queryString ? `${path}?${queryString}` : path;
 }
 
+function buildDisclosureReportHref(symbol: string, disclosure: AgentContextDisclosureDto, queryString: string) {
+  const params = new URLSearchParams(queryString);
+  params.set("reportName", disclosure.report_nm);
+  params.set("corpName", disclosure.corp_name);
+
+  if (disclosure.receipt_date) {
+    params.set("receiptDate", disclosure.receipt_date);
+  }
+
+  if (disclosure.filing_category) {
+    params.set("filingCategory", humanizeToken(disclosure.filing_category));
+  }
+
+  if (disclosure.fundamentals_capture_status) {
+    params.set("captureStatus", humanizeToken(disclosure.fundamentals_capture_status));
+  }
+
+  const path = `/dashboard/symbol/${encodeURIComponent(symbol)}/disclosure-coverage/${encodeURIComponent(disclosure.rcept_no)}`;
+  const nextQueryString = params.toString();
+  return nextQueryString ? `${path}?${nextQueryString}` : path;
+}
+
 function buildLatestDisclosure(disclosures: AgentContextDisclosureDto[]) {
   return disclosures[0] ?? null;
 }
@@ -1804,7 +1826,12 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             {disclosureSectionState === "list" ? (
               <div className={styles.disclosureList}>
                 {aggregateContext?.recent_disclosures.items.slice(0, disclosureItemLimit).map((item) => (
-                  <article key={item.rcept_no} className={styles.disclosureCard}>
+                  <Link
+                    key={item.rcept_no}
+                    className={styles.disclosureCard}
+                    href={buildDisclosureReportHref(symbol, item, routeQueryString)}
+                    aria-label={`Open report detail for ${item.report_nm}`}
+                  >
                     <div className={styles.disclosureHeader}>
                       <strong className="clamp-3">{item.report_nm}</strong>
                       <span className="pill neutral">{item.receipt_date ?? "No receipt date"}</span>
@@ -1817,7 +1844,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
                       <span>Receipt {item.receipt_date ?? "No receipt date"}</span>
                       <span>Rcept {item.rcept_no}</span>
                     </div>
-                  </article>
+                    <span className={styles.disclosureAction}>View report detail</span>
+                  </Link>
                 ))}
               </div>
             ) : disclosureSectionState === "loading" ? (

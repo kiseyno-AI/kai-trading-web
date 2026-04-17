@@ -46,6 +46,7 @@ Dedicated detail routes:
 - `/dashboard/symbol/[symbol]/technical-analysis`
 - `/dashboard/symbol/[symbol]/fundamentals-history`
 - `/dashboard/symbol/[symbol]/disclosure-coverage`
+- `/dashboard/symbol/[symbol]/disclosure-coverage/[receiptNo]`
 - `/dashboard/symbol/[symbol]/system-freshness`
 
 Client polling:
@@ -56,6 +57,7 @@ Client polling:
 - `GET /api/trading/eod/technical-snapshots?market_date=...&symbols={symbol}`
 - `GET /api/trading/eod/action-summaries?market_date=...&symbols={symbol}`
 - `GET /api/trading/disclosures/dart/fundamentals/history?symbols={symbol}&start_date=...&end_date=...[&fs_div=...]`
+- `GET /api/trading/disclosures/dart/filings/document?rcept_no={receiptNo}`
 - `GET /api/trading/symbols/{symbol}/price-bars?...`
 - `GET /api/trading/symbols/search?q={symbol}&limit=20` when route seed metadata is incomplete
 
@@ -68,6 +70,7 @@ UI surfaces and fields:
 - Technical Analysis section: `/eod/technical-snapshots` with fallback `/agent-context/symbol-day.technical_snapshot` -> `trend_state`, `ma_alignment`, `breakout_20d`, `breakdown_20d`, `return_5d`, `return_20d`, `volume_ratio_20d`, `atr_14`, `atr_pct_14`, `signal_payload`
 - Fundamentals section: `/disclosures/dart/fundamentals/history` with fallback `/agent-context/symbol-day.fundamentals.latest_snapshot` -> `companies[].entries[].filing`, `period`, `statement.fs_div`, `highlights[]`
 - Disclosures section: `/agent-context/symbol-day` -> `recent_disclosures.count`, `recent_disclosures.items[]`, `availability.recent_disclosures`
+- Disclosure report detail: `/disclosures/dart/filings/document` -> document stream keyed by `recent_disclosures.items[].rcept_no`
 - System Freshness section: `/eod/freshness` -> `today.trade_date`, `today.eod_status`, `today.symbols_succeeded`, `today.symbols_total`, `latest.price_trade_date`, `latest.symbols_succeeded`, `latest.symbols_total`, `latest.technical_market_date`, `latest.action_market_date`
 - Fusion note and fallback messaging: `/agent-context/symbol-day` -> `company`, `technical_snapshot`, `action_summary`, `fundamentals`, `recent_disclosures`, `availability`
 - Symbol metadata fallback seed: `/symbols/search` -> `symbol`, `standard_code`, `name_ko`, `market`

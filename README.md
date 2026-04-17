@@ -112,6 +112,7 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/scanner/trending-stocks` | `/scanner/trending-stocks` | optional `market_date`, `period`, `direction`, `limit`, repeatable `markets` |
 | `GET` | `/api/trading/disclosures/dart/fundamentals/daily/inspect` | `/disclosures/dart/fundamentals/daily/inspect` | optional `runs_limit`, optional `market_date`, optional `fs_div` |
 | `GET` | `/api/trading/disclosures/dart/fundamentals/history` | `/disclosures/dart/fundamentals/history` | repeatable `symbols`, `start_date`, `end_date`, optional `fs_div` |
+| `GET` | `/api/trading/disclosures/dart/filings/document` | `/disclosures/dart/filings/document` | `rcept_no` |
 | `GET` | `/api/trading/symbols/favorites` | `/symbols/favorites` | — |
 | `GET` | `/api/trading/symbols/{symbol}/price-bars` | `/symbols/{symbol}/price-bars` | `start_date`, `end_date`, `limit` |
 | `GET` | `/api/trading/symbols/search` | `/symbols/search` | `q` (optional), `limit` (optional, forwarded) |
@@ -151,6 +152,7 @@ Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF 
 | `/dashboard/symbol/[symbol]/technical-analysis` | Stitch Technical Analysis Detail; reuses `/eod/technical-snapshots` with aggregate fallback and renders the desktop candlestick view from `/symbols/{symbol}/price-bars` |
 | `/dashboard/symbol/[symbol]/fundamentals-history` | Stitch Fundamentals History Detail; reuses `/disclosures/dart/fundamentals/history` with aggregate fallback |
 | `/dashboard/symbol/[symbol]/disclosure-coverage` | Stitch Disclosure & Coverage Detail; reuses `/agent-context/symbol-day.recent_disclosures` |
+| `/dashboard/symbol/[symbol]/disclosure-coverage/[receiptNo]` | DART disclosure report detail; opens from S7 disclosure rows and streams `/disclosures/dart/filings/document?rcept_no=...` through the BFF |
 | `/dashboard/symbol/[symbol]/system-freshness` | Stitch System Freshness Detail; reuses `/eod/freshness` and quote provenance |
 | `/markets` | Markets overview (client data via adapter / mock) |
 | `/bots` | Automation overview (mock-heavy today) |

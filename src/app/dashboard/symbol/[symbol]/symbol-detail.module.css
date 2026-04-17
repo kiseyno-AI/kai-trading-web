@@ -492,6 +492,17 @@
   border: 1px solid rgba(143, 144, 158, 0.1);
 }
 
+.disclosureCard {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.disclosureCard:focus-visible {
+  outline: 2px solid rgba(78, 222, 163, 0.78);
+  outline-offset: 3px;
+}
+
 .historyMetrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -514,6 +525,21 @@
   margin-top: 0.7rem;
   color: #93a3b8;
   font-size: 0.72rem;
+}
+
+.disclosureAction {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.78rem;
+  border-radius: 0.5rem;
+  background: rgba(78, 222, 163, 0.14);
+  color: #dfffe8;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.44rem 0.58rem;
+  text-transform: uppercase;
 }
 
 .coverageNote {
@@ -553,6 +579,64 @@
 
 .negative {
   color: #ffb3b6;
+}
+
+.reportDetailPage {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.reportHero,
+.reportViewerPanel {
+  padding: 1rem;
+}
+
+.reportHeroTop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.reportTitle {
+  margin: 0.28rem 0 0;
+  color: #ffffff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.reportMetaGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+  margin-top: 0.95rem;
+}
+
+.reportActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.reportFrameShell {
+  overflow: hidden;
+  margin-top: 0.95rem;
+  min-height: 32rem;
+  border: 1px solid rgba(143, 144, 158, 0.16);
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+
+.reportFrame {
+  display: block;
+  width: 100%;
+  min-height: 32rem;
+  height: 70vh;
+  border: 0;
+  background: #ffffff;
 }
 
 @keyframes chartReveal {
@@ -832,6 +916,32 @@
   .moduleAside {
     align-items: flex-start;
     min-width: 0;
+  }
+
+  .reportHero,
+  .reportViewerPanel {
+    padding: 1.55rem;
+  }
+
+  .reportHeroTop {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .reportTitle {
+    font-size: clamp(2.4rem, 4vw, 4.2rem);
+    max-width: 68rem;
+  }
+
+  .reportMetaGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  .reportFrameShell,
+  .reportFrame {
+    min-height: 46rem;
   }
 }
 

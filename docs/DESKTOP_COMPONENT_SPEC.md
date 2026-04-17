@@ -51,6 +51,7 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 | `symbol.technical-analysis` | Technical analysis detail | `/api/trading/eod/technical-snapshots`, fallback `/api/trading/agent-context/symbol-day` | Trend state, MA alignment, returns, volume ratio, ATR, and signal payload keys. Unsupported RSI/MACD/ADX values are not invented. |
 | `symbol.fundamentals-history` | Fundamentals history detail | `/api/trading/disclosures/dart/fundamentals/history`, fallback `/api/trading/agent-context/symbol-day` | Filing cards become a desktop grid using available `entries[].highlights`; missing statement rows remain `[확인 필요]`. |
 | `symbol.disclosures` | Disclosure coverage detail | `/api/trading/agent-context/symbol-day` | Recent filing cards use `report_nm`, `receipt_date`, `filing_category`, `fundamentals_capture_status`, and `rcept_no`. |
+| `symbol.disclosure-report` | Disclosure report document detail | `/api/trading/disclosures/dart/filings/document` | S7 filing cards open a full-width document screen under `/dashboard/symbol/[symbol]/disclosure-coverage/[receiptNo]`. |
 | `symbol.system-freshness` | Freshness registry | `/api/trading/eod/freshness`, `/api/trading/quotes/{symbol}` | Price, technical, action, fundamentals, and disclosure rows preserve layer-specific status. |
 
 ## Search: `/search`
