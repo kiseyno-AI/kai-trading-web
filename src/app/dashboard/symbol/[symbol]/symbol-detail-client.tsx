@@ -315,7 +315,7 @@ function buildQuoteSourceLabel(quote: QuoteResponse | null) {
       ? `Quote unavailable: ${quote.unavailable_reason}.`
       : "Quote source is currently unavailable.";
   }
-  if (quote.is_live) return "Primary KIS live quote source.";
+  if (quote.is_live) return "Live feed.";
   if (quote.source === "daily_price_bar") {
     return quote.trade_date
       ? `Daily price-bar fallback for ${quote.trade_date}.`
@@ -323,56 +323,6 @@ function buildQuoteSourceLabel(quote: QuoteResponse | null) {
   }
   if (quote.fallback) return `${quote.source} fallback path.`;
   return `${quote.source} quote source.`;
-}
-
-function buildAggregateContextSummary(
-  aggregateContext: AgentContextItemDto | null,
-  quote: QuoteResponse | null,
-  marketDate: string | null,
-) {
-  if (!aggregateContext) {
-    if (!marketDate) {
-      return "Waiting for the quote trade date before requesting the aggregate symbol-day packet.";
-    }
-
-    return "Waiting for trading-core to resolve the symbol-day aggregate packet for this requested market date.";
-  }
-
-  const fragments = [
-    `Quote rendering uses /quotes/${aggregateContext.symbol} while insight and evidence modules are layered from the symbol-day aggregate payload.`,
-  ];
-
-  if (aggregateContext.technical_snapshot) {
-    fragments.push(
-      `${humanizeToken(aggregateContext.technical_snapshot.trend_state)} trend with ${humanizeToken(aggregateContext.technical_snapshot.ma_alignment)} alignment.`,
-    );
-  }
-
-  if (aggregateContext.action_summary) {
-    fragments.push(
-      `${humanizeToken(aggregateContext.action_summary.action_label)} bias at score ${aggregateContext.action_summary.signal_score}.`,
-    );
-  }
-
-  if (aggregateContext.fundamentals.latest_snapshot) {
-    fragments.push(
-      `Latest filing snapshot received ${aggregateContext.fundamentals.latest_snapshot.filing.receipt_date ?? "with no receipt date"}.`,
-    );
-  } else {
-    fragments.push("No stored fundamentals snapshot is attached yet.");
-  }
-
-  if (aggregateContext.recent_disclosures.count > 0) {
-    fragments.push(`${aggregateContext.recent_disclosures.count} recent disclosure item(s) are available.`);
-  } else {
-    fragments.push("Recent disclosure coverage is empty for this packet.");
-  }
-
-  if (quote?.available) {
-    fragments.push(quote.is_live ? "Price card is on a live feed." : "Price card is on a fallback quote path.");
-  }
-
-  return fragments.join(" ");
 }
 
 function shiftIsoDate(isoDate: string, { months = 0, years = 0 }: { months?: number; years?: number }) {
@@ -689,18 +639,27 @@ function normalizeMarketCode(value: string | null | undefined) {
   return value.trim().toUpperCase();
 }
 
-function resolveMarketStateLabel(item: MarketStatusItem) {
-  const state = normalizeMarketCode(item.state);
-  if (item.ready === false || item.available === false) return "Not ready";
+function resolveMarketStateValue(value: string | null | undefined) {
+  const state = normalizeMarketCode(value);
   if (state === "OPEN") return "OPEN";
   if (state === "CLOSED") return "CLOSED";
   if (state === "PREOPEN") return "PREOPEN";
   if (state === "POSTCLOSE") return "POSTCLOSE";
-  return item.state ?? "Not ready";
+  return value ?? "Not ready";
+}
+
+function resolveMarketStateLabel(item: MarketStatusItem) {
+  if (item.ready === false || item.available === false) return "Not ready";
+  return resolveMarketStateValue(item.state);
+}
+
+function getRelevantMarketStatusCodes(market: string) {
+  if (market === "KOSPI") return ["KOSPI", "KRX"];
+  if (market === "KONEX") return ["KONEX", "KRX"];
+  return [market];
 }
 
 function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbackMarket: string | null | undefined) {
-  const preferredMarkets = ["KRX", "KOSDAQ", "NASDAQ"];
   const normalizedFallback = normalizeMarketCode(fallbackMarket);
   const items = Array.isArray(marketStatus?.markets) ? marketStatus.markets : [];
   const byCode = new Map<string, MarketStatusItem>();
@@ -711,18 +670,25 @@ function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbac
     byCode.set(code, item);
   }
 
-  const orderedCodes = [...preferredMarkets];
-  if (normalizedFallback && !orderedCodes.includes(normalizedFallback)) {
-    orderedCodes.unshift(normalizedFallback);
+  if (normalizedFallback) {
+    const relevantCode = getRelevantMarketStatusCodes(normalizedFallback).find((code) => byCode.has(code));
+
+    if (relevantCode) {
+      const item = byCode.get(relevantCode);
+      return item ? [{ market: relevantCode, state: resolveMarketStateLabel(item) }] : [];
+    }
+
+    const fallbackState = resolveMarketStateValue(marketStatus?.state);
+    return fallbackState === "Not ready" ? [] : [{ market: normalizedFallback, state: fallbackState }];
   }
 
-  return orderedCodes.map((code) => {
-    const item = byCode.get(code);
-    return {
-      market: code,
-      state: item ? resolveMarketStateLabel(item) : code === "KRX" || code === "KOSDAQ" ? (marketStatus?.state ?? "Not ready") : "Not ready",
-    };
-  });
+  return items
+    .map((item) => {
+      const market = normalizeMarketCode(item.market ?? item.label);
+      if (!market) return null;
+      return { market, state: resolveMarketStateLabel(item) };
+    })
+    .filter((row): row is { market: string; state: string } => row !== null);
 }
 
 export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProps) {
@@ -1150,7 +1116,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const metaMarket = getForwardableSymbolMetaSeedValue(meta?.market);
   const introTitle = aggregateCompanyName ?? metaCompanyName ?? quoteCompanyName ?? dartCompanyName ?? symbol;
   const marketLabel = aggregateMarket ?? metaMarket ?? quote?.market_state ?? "Market pending";
-  const contextSummary = buildAggregateContextSummary(aggregateContext, quote, marketDate);
+  const quoteSourceCopy = quote?.is_live ? null : buildQuoteSourceLabel(quote);
   const detailErrors = [quoteError, metaError, historyError, contextError, fundamentalsError].filter(
     (value): value is string => Boolean(value),
   );
@@ -1210,17 +1176,13 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     },
     {
       label: "TA latest",
-      value: technicalFreshnessDate ?? (marketDate ? "No snapshot" : DATE_PENDING_LABEL),
-      detail: resolvedTechnicalSnapshot
-        ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
-        : "No technical snapshot resolved yet.",
+      value: technicalFreshnessDate ?? DATE_PENDING_LABEL,
+      detail: null,
     },
     {
       label: "Action latest",
-      value: actionFreshnessDate ?? (marketDate ? "No summary" : DATE_PENDING_LABEL),
-      detail: resolvedActionSummary
-        ? `${humanizeToken(resolvedActionSummary.action_label)} · ${humanizeToken(resolvedActionSummary.confidence_tier)} confidence`
-        : "No deterministic action summary resolved yet.",
+      value: actionFreshnessDate ?? DATE_PENDING_LABEL,
+      detail: null,
     },
   ];
 
@@ -1359,8 +1321,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <div>
               <p className={styles.sectionEyebrow}>Market Insights</p>
               <div className={styles.heroTitleRow}>
-                <h1>{symbol}</h1>
-                <p className={`clamp-3 ${styles.heroCompany}`}>{introTitle}</p>
+                <h1 className="clamp-3">{introTitle}</h1>
+                <p className={styles.heroCompany}>{symbol}</p>
               </div>
             </div>
 
@@ -1387,7 +1349,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
                 ? `${formatSignedPercent(quote.change_pct)} · ${formatSignedNumber(quote.change)}`
                 : quote?.unavailable_reason ?? "Awaiting a fresh quote source"}
             </span>
-            <p className={`clamp-3 ${styles.heroCopy}`}>{buildQuoteSourceLabel(quote)}</p>
+            {quoteSourceCopy ? <p className={`clamp-3 ${styles.heroCopy}`}>{quoteSourceCopy}</p> : null}
           </div>
 
           <div className={styles.heroPills}>
@@ -1405,16 +1367,12 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             </span>
           </div>
 
-          <p className={`clamp-3 ${styles.fusionCopy}`}>
-            Layer-specific freshness stays explicit. {contextSummary}
-          </p>
-
           <div className={styles.heroMetrics}>
             {heroMetrics.map((metric) => (
               <article key={metric.label} className={styles.heroMetricCard}>
                 <span>{metric.label}</span>
                 <strong>{metric.value}</strong>
-                <p className="clamp-3">{metric.detail}</p>
+                {metric.detail ? <p className="clamp-3">{metric.detail}</p> : null}
               </article>
             ))}
           </div>
@@ -1438,9 +1396,6 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
           <div>
             <p className={styles.sectionEyebrow}>{activeDetailMode.eyebrow}</p>
             <h2 className={styles.cardTitle}>{activeDetailMode.title}</h2>
-            <p className={`clamp-3 ${styles.supportingCopy}`}>
-              Each detail page uses the same source packets as the overview cards and labels unavailable fields explicitly.
-            </p>
           </div>
           <nav className={styles.detailTabs} aria-label="Symbol detail pages">
             {SYMBOL_DETAIL_MODES.map((item) => (

@@ -36,9 +36,62 @@ test.describe("smoke", () => {
 
   test("symbol detail route renders as an in-app screen", async ({ page }) => {
     await page.goto("/dashboard/symbol/005930?name=Samsung%20Electronics&market=KRX&standardCode=KR7005930003");
+    await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
+    await expect(page.getByText("005930", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
-    await expect(page.getByText(/Layer-specific freshness stays explicit/i)).toBeVisible();
+    await expect(page.getByText(/Layer-specific freshness stays explicit/i)).toHaveCount(0);
+    await expect(page.getByText(/Each detail page uses the same source packets/i)).toHaveCount(0);
+    await expect(page.getByText(/No technical snapshot resolved yet/i)).toHaveCount(0);
+    await expect(page.getByText(/No deterministic action summary resolved yet/i)).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Back to dashboard/i })).toBeVisible();
+  });
+
+  test("symbol detail only shows the relevant market status pill", async ({ page }) => {
+    await page.route("**/api/trading/quotes/005930", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "005930",
+          company_name: "Samsung Electronics",
+          price: 71000,
+          change: 500,
+          change_pct: 0.71,
+          volume: 1000,
+          turnover: 71000000,
+          market_state: "OPEN",
+          source: "kis_live",
+          fallback: false,
+          is_live: true,
+          available: true,
+          trade_date: "2026-04-10",
+        }),
+      });
+    });
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: "2026-04-10T09:30:00+09:00",
+          markets: [
+            { market: "KRX", state: "OPEN", available: true, ready: true },
+            { market: "KOSDAQ", state: "OPEN", available: true, ready: true },
+            { market: "NASDAQ", state: null, available: false, ready: false },
+          ],
+        }),
+      });
+    });
+
+    await page.goto(
+      "/dashboard/symbol/005930?name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10",
+    );
+
+    await expect(page.getByText("KRX: OPEN", { exact: true })).toBeVisible();
+    await expect(page.getByText("KOSPI: Not ready", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("KOSDAQ: OPEN", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("NASDAQ: Not ready", { exact: true })).toHaveCount(0);
   });
 
   test("symbol detail state helpers reset and refetch when symbol changes without query params", async () => {
