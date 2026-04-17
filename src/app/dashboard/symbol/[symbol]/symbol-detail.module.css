@@ -74,6 +74,10 @@
   padding: 1rem;
 }
 
+.freshnessCard {
+  color: #d5e3fc;
+}
+
 .heroCard {
   background:
     radial-gradient(circle at top right, rgba(186, 195, 255, 0.18), transparent 34%),
@@ -88,6 +92,10 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.cardHeader > div {
+  min-width: 0;
 }
 
 .heroTitleRow h1 {
@@ -191,6 +199,7 @@
 .heroMetricCard,
 .metricCard,
 .focusCard {
+  min-width: 0;
   padding: 0.85rem;
   border-radius: 1rem;
   background: rgba(13, 28, 46, 0.72);
@@ -486,6 +495,7 @@
 .disclosureCard,
 .moduleRow,
 .coverageNote {
+  min-width: 0;
   padding: 0.9rem;
   border-radius: 1rem;
   background: rgba(13, 28, 46, 0.68);
@@ -547,15 +557,27 @@
 }
 
 .moduleRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.9rem;
+  gap: 0.75rem;
+}
+
+.moduleRow > div {
+  min-width: 0;
+}
+
+.moduleRow strong,
+.moduleRow p,
+.moduleApi,
+.moduleAside span,
+.freshnessCard .metricCard strong {
+  overflow-wrap: anywhere;
 }
 
 .moduleRow p {
   margin: 0.25rem 0 0;
-  color: #c5c5d4;
+  color: #d3d9e6;
   font-size: 0.82rem;
   line-height: 1.48;
 }
@@ -563,14 +585,56 @@
 .moduleApi {
   display: block;
   margin-top: 0.42rem;
+  color: #aeb8c8;
   font-size: 0.7rem;
 }
 
 .moduleAside {
-  flex-direction: column;
-  align-items: flex-end;
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 0;
-  min-width: 6rem;
+  min-width: 0;
+  color: #d5e3fc;
+  line-height: 1.35;
+}
+
+.moduleAside > span:first-child {
+  min-width: 0;
+}
+
+.moduleAside :global(.pill) {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  text-align: center;
+  white-space: normal;
+}
+
+.freshnessCard :global(.pill.positive) {
+  background: rgba(78, 222, 163, 0.18);
+  border-color: rgba(78, 222, 163, 0.28);
+  color: #b9ffdd;
+}
+
+.freshnessCard :global(.pill.info) {
+  background: rgba(127, 184, 255, 0.18);
+  border-color: rgba(127, 184, 255, 0.28);
+  color: #cfe4ff;
+}
+
+.freshnessCard :global(.pill.warning) {
+  background: rgba(255, 204, 102, 0.16);
+  border-color: rgba(255, 204, 102, 0.28);
+  color: #ffe4a3;
+}
+
+.freshnessCard :global(.pill.neutral) {
+  background: rgba(213, 227, 252, 0.1);
+  border-color: rgba(213, 227, 252, 0.18);
+  color: #d5e3fc;
 }
 
 .positive {
@@ -904,18 +968,20 @@
 
   .moduleRows {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
     gap: 0.85rem;
   }
 
   .moduleRow {
-    flex-direction: column;
     min-height: 11rem;
+    align-content: space-between;
   }
 
   .moduleAside {
     align-items: flex-start;
     min-width: 0;
+    flex-direction: column;
+    justify-content: flex-start;
   }
 
   .reportHero,

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { chromiumIPhone13 } from "./devices";
 
@@ -35,6 +35,70 @@ const detailPages = [
   },
 ];
 
+async function mockSystemFreshnessApis(page: Page) {
+  const marketDate = "2026-04-10";
+
+  await page.route("**/api/trading/quotes/005930", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        symbol: "005930",
+        company_name: "Samsung Electronics",
+        price: null,
+        change: null,
+        change_pct: null,
+        volume: null,
+        turnover: null,
+        market_state: "CLOSED",
+        source: "daily_price_bar",
+        fallback: true,
+        is_live: false,
+        available: false,
+        trade_date: marketDate,
+        unavailable_reason:
+          "Quote coverage is unavailable while the upstream quote cache waits for the next confirmed daily price packet.",
+      }),
+    });
+  });
+
+  await page.route("**/api/trading/market/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        state: "CLOSED",
+        is_open: false,
+        server_time: "2026-04-10T16:00:00+09:00",
+      }),
+    });
+  });
+
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        today: {
+          trade_date: marketDate,
+          eod_status: "running",
+          symbols_total: 2500,
+          symbols_succeeded: 1840,
+          symbols_failed: 0,
+        },
+        latest: {
+          price_trade_date: marketDate,
+          symbols_total: 2500,
+          symbols_succeeded: 1840,
+          technical_market_date: marketDate,
+          action_market_date: marketDate,
+        },
+        technical: {
+          success: true,
+          latest_date: marketDate,
+        },
+      }),
+    });
+  });
+}
+
 test.describe("symbol detail mobile pages", () => {
   test("remaining Stitch detail pages render with mobile chrome and section tabs", async ({ page }) => {
     for (const detailPage of detailPages) {
@@ -50,6 +114,38 @@ test.describe("symbol detail mobile pages", () => {
       await expect(page.getByRole("link", { name: /Insights/i })).toBeVisible();
       await expect(page.getByRole("link", { name: /Freshness/i })).toBeVisible();
     }
+  });
+
+  test("system freshness card keeps status text readable and contained on mobile", async ({ page }) => {
+    await mockSystemFreshnessApis(page);
+
+    await page.goto(`/dashboard/symbol/005930/system-freshness?${symbolSeed}`);
+
+    const freshnessCard = page.locator("#freshness");
+    await expect(freshnessCard.getByRole("heading", { name: /Layer-specific freshness registry/i })).toBeVisible();
+
+    const runningStatus = freshnessCard.locator(".pill.info", { hasText: "Running" });
+    await expect(runningStatus).toBeVisible();
+    await expect(runningStatus).toHaveCSS("color", "rgb(207, 228, 255)");
+
+    const overflowingNodes = await freshnessCard.evaluate((card) => {
+      const cardRect = card.getBoundingClientRect();
+      return Array.from(
+        card.querySelectorAll(".moduleRow, .metricCard, .moduleAside, .moduleApi, .pill, strong, p, span"),
+      ).flatMap((node) => {
+        const rect = node.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return [];
+        if (rect.left >= cardRect.left - 1 && rect.right <= cardRect.right + 1) return [];
+
+        const label = node.textContent?.trim().replace(/\s+/g, " ").slice(0, 80) ?? node.nodeName;
+        return [label];
+      });
+    });
+
+    expect(overflowingNodes).toEqual([]);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+      .toBeLessThanOrEqual(1);
   });
 
   test("disclosure detail requests the same row cap it can render", async ({ page }) => {
