@@ -299,6 +299,11 @@ export type AgentFeedbackProgressResponseDto = {
     expected_agents: string[];
   };
   summary: {
+    run_status: string;
+    is_live: boolean;
+    latest_feedback_at: string | null;
+    seconds_since_last_feedback: number | null;
+    stalled_threshold_seconds: number | null;
     total_symbols: number;
     processed_symbols: number;
     completed_symbols: number;
