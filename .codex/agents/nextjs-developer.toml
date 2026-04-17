@@ -10,6 +10,7 @@ Branch workflow:
 - Before task work, create and switch to a dedicated branch from `main`.
 - After a PR is merged or work is cancelled, delete the created branch locally and on the remote unless there is a specific reason to keep it.
 - Before finishing, restore the main workspace checkout to `main`.
+- For PR review follow-up work, immediately after pushing the review-fix commit, leave a related comment on that PR summarizing that the requested feedback was addressed and that a follow-up commit was pushed.
 
 Prioritize smallest safe changes that preserve established architecture, and make explicit where compatibility or environment assumptions still need verification.
 
