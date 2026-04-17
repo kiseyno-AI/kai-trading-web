@@ -102,7 +102,14 @@ type EodStageCard = {
   latestDate: string | null;
   statusLabel: "synced" | "running" | "not synced";
   tone: "positive" | "info" | "warning";
-  details: string[];
+  details: EodStageDetail[];
+};
+
+type EodStageDetail = {
+  key: string;
+  label: string;
+  value: string;
+  tone?: "count" | "text";
 };
 
 function hasNumber(value: number | null | undefined): value is number {
@@ -529,15 +536,16 @@ function buildEodStageCard(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
+  countDetail: Pick<EodStageDetail, "label" | "value"> = {
+    label: "Succeeded",
+    value: `${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
+  },
 ): EodStageCard {
   const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate);
-  const details = [
-    `Succeeded ${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
-    `Failed ${formatEodSymbolCount(stage?.symbols_failed)}`,
-  ];
+  const details: EodStageDetail[] = [{ key: "count", tone: "count", ...countDetail }];
 
   if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
-    details.push(`Latest date ${latestDate}`);
+    details.push({ key: "latest-date", label: "Latest date", value: latestDate, tone: "text" });
   }
 
   return {
@@ -548,6 +556,14 @@ function buildEodStageCard(
     tone: getEodStageTone(statusLabel),
     details,
   };
+}
+
+function getFundamentalsCheckedCount(
+  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
+  stage: EodFreshnessStageDto | null,
+) {
+  const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
+  return latestRun?.symbols_checked ?? stage?.symbols_total ?? stage?.symbols_succeeded ?? null;
 }
 
 function formatAgentProgressCountLabel(value: number | null | undefined) {
@@ -826,6 +842,11 @@ export function LiveDashboardClient({
   const unavailableCount = tracked.items.filter((item) => !item.available).length;
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
   const fundamentalsStatusLabel = getFundamentalsStatusLabel(freshness, fundamentalsStatus, latestFundamentalsDate);
+  const fundamentalsFreshnessStage = getFundamentalsFreshnessStage(
+    freshness,
+    fundamentalsStatusLabel,
+    latestFundamentalsDate,
+  );
   const fundamentalsFailureDetails = getFundamentalsFailureDetails(
     freshness,
     fundamentalsStatus,
@@ -868,9 +889,13 @@ export function LiveDashboardClient({
     buildEodStageCard(
       "fundamentals",
       "Fundamentals",
-      getFundamentalsFreshnessStage(freshness, fundamentalsStatusLabel, latestFundamentalsDate),
+      fundamentalsFreshnessStage,
       todayTradeDate,
       latestFundamentalsDate,
+      {
+        label: "Checked",
+        value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),
+      },
     ),
   ] as const;
   const displayedAgentFeedbackProgress =
@@ -1002,7 +1027,14 @@ export function LiveDashboardClient({
                       </div>
                       <div className={styles.eodStageDetails}>
                         {stage.details.map((detail) => (
-                          <span key={detail}>{detail}</span>
+                          <span
+                            key={detail.key}
+                            className={styles.eodStageDetailLine}
+                            data-detail-tone={detail.tone ?? "text"}
+                          >
+                            <span>{detail.label}</span>{" "}
+                            <span className={styles.eodStageDetailValue}>{detail.value}</span>
+                          </span>
                         ))}
                         {stage.id === "fundamentals" &&
                         hasTextValue(fundamentalsStatusLabel) &&
