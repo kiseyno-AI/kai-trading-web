@@ -19,6 +19,7 @@ import type {
   AgentContextResponseDto,
   AgentContextTechnicalSnapshotDto,
   DartFundamentalsHistoryCompanyDto,
+  DartFundamentalsHistoryEntryDto,
   DartFundamentalsHistoryMetricDto,
   DartFundamentalsHistoryResponseDto,
   EodActionSummariesResponseDto,
@@ -83,6 +84,10 @@ type MarketStatusResponse = {
 };
 
 type PriceHistoryRange = "3M" | "1Y" | "5Y" | "MAX";
+
+const DATA_UNAVAILABLE_LABEL = "Unavailable";
+const DATE_PENDING_LABEL = "Date pending";
+const LOADING_LABEL = "Loading...";
 
 export type SymbolDetailMode =
   | "overview"
@@ -182,7 +187,7 @@ function formatSignedNumber(value: number | null | undefined, fallback = "Unavai
   return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
 }
 
-function formatCompactNumber(value: number | string | null | undefined, fallback = "[확인 필요]") {
+function formatCompactNumber(value: number | string | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
   if (typeof value === "number") {
     return new Intl.NumberFormat("ko-KR", {
       notation: "compact",
@@ -199,11 +204,11 @@ function formatCompactNumber(value: number | string | null | undefined, fallback
   return fallback;
 }
 
-function formatNumberOrDash(value: number | null | undefined) {
-  return hasNumber(value) ? value.toFixed(2) : "[확인 필요]";
+function formatNumberOrDash(value: number | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
+  return hasNumber(value) ? value.toFixed(2) : fallback;
 }
 
-function humanizeToken(value: string | null | undefined, fallback = "[확인 필요]") {
+function humanizeToken(value: string | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
   if (!value) return fallback;
   return value
     .split("_")
@@ -283,7 +288,7 @@ function getCurrentSeoulMarketDate(now = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function formatIsoDateLabel(value: string | null | undefined, fallback = "[확인 필요]") {
+function formatIsoDateLabel(value: string | null | undefined, fallback = DATE_PENDING_LABEL) {
   if (!value) return fallback;
   const [year, month, day] = value.split("-");
 
@@ -351,7 +356,7 @@ function buildAggregateContextSummary(
 
   if (aggregateContext.fundamentals.latest_snapshot) {
     fragments.push(
-      `Latest filing snapshot received ${aggregateContext.fundamentals.latest_snapshot.filing.receipt_date ?? "[확인 필요]"}.`,
+      `Latest filing snapshot received ${aggregateContext.fundamentals.latest_snapshot.filing.receipt_date ?? "with no receipt date"}.`,
     );
   } else {
     fragments.push("No stored fundamentals snapshot is attached yet.");
@@ -496,7 +501,7 @@ function buildConfidenceTone(value: string | null | undefined) {
 function buildInsightTags(payload: Record<string, unknown> | null | undefined) {
   const keys = payload ? Object.keys(payload) : [];
   if (keys.length === 0) {
-    return ["[확인 필요]"];
+    return ["No payload keys"];
   }
 
   return keys.slice(0, 4).map((key) => humanizeToken(key, key));
@@ -507,7 +512,7 @@ function formatHighlightLabel(metric: DartFundamentalsHistoryMetricDto, index: n
 }
 
 function formatHighlightValue(metric: DartFundamentalsHistoryMetricDto) {
-  return formatCompactNumber(metric.value);
+  return formatCompactNumber(metric.value, "Not reported");
 }
 
 function pickFundamentalsCompany(
@@ -522,6 +527,108 @@ function pickFundamentalsCompany(
   );
 }
 
+function buildTechnicalFreshnessDate(
+  technicalSnapshot: AgentContextTechnicalSnapshotDto | null,
+  freshness: EodFreshnessResponseDto | null,
+) {
+  return technicalSnapshot?.market_date ?? freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null;
+}
+
+function buildActionFreshnessDate(
+  actionSummary: AgentContextActionSummaryDto | null,
+  freshness: EodFreshnessResponseDto | null,
+) {
+  return actionSummary?.market_date ?? freshness?.latest?.action_market_date ?? null;
+}
+
+function buildFundamentalsDate(
+  companyHistory: DartFundamentalsHistoryCompanyDto | null,
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
+  aggregateContext: AgentContextItemDto | null,
+) {
+  return (
+    companyHistory?.entries[0]?.filing.receipt_date ??
+    latestFundamentals?.filing.receipt_date ??
+    aggregateContext?.fundamentals.history_summary.latest_receipt_date ??
+    latestFundamentals?.period.period_end_date ??
+    aggregateContext?.fundamentals.history_summary.latest_period_end_date ??
+    null
+  );
+}
+
+function buildFundamentalsLatestLabel(
+  latestHistoryEntry: DartFundamentalsHistoryEntryDto | null,
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
+) {
+  return (
+    latestHistoryEntry?.filing.report_nm ??
+    latestFundamentals?.filing.report_name ??
+    latestHistoryEntry?.period.report_label ??
+    latestFundamentals?.period.report_label ??
+    (latestFundamentals?.period.business_year ? `FY ${latestFundamentals.period.business_year}` : null) ??
+    "No filing loaded"
+  );
+}
+
+function buildFundamentalsMetricFallbacks(
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
+  latestHistoryEntry: DartFundamentalsHistoryEntryDto | null,
+) {
+  const metrics: DartFundamentalsHistoryMetricDto[] = [];
+  const filingLabel = buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals);
+  metrics.push({ metric_key: "latest_filing", label: "Latest filing", value: filingLabel });
+
+  const periodLabel =
+    latestHistoryEntry?.period.report_label ??
+    latestFundamentals?.period.report_label ??
+    latestHistoryEntry?.period.period_end_date ??
+    latestFundamentals?.period.period_end_date ??
+    null;
+  if (periodLabel) {
+    metrics.push({ metric_key: "period", label: "Period", value: periodLabel });
+  }
+
+  if (hasNumber(latestFundamentals?.statement.row_count)) {
+    metrics.push({ metric_key: "statement_rows", label: "Statement rows", value: latestFundamentals.statement.row_count });
+  }
+
+  return metrics.slice(0, 3);
+}
+
+function buildHistoryEntryMetrics(entry: DartFundamentalsHistoryEntryDto) {
+  const highlightMetrics = normalizeHighlightMetrics(entry.highlights);
+  if (highlightMetrics.length > 0) {
+    return highlightMetrics.slice(0, 2);
+  }
+
+  const statementMetrics =
+    entry.statements
+      ?.filter((statement) => statement.account_name && statement.current_amount !== null)
+      .slice(0, 2)
+      .map((statement) => ({
+        metric_key: statement.account_name,
+        label: statement.account_name,
+        value: statement.current_amount,
+      })) ?? [];
+
+  if (statementMetrics.length > 0) {
+    return statementMetrics;
+  }
+
+  return [
+    {
+      metric_key: "period_end",
+      label: "Period end",
+      value: entry.period.period_end_date ?? entry.period.report_label ?? "No period date",
+    },
+    {
+      metric_key: "filing_receipt",
+      label: "Receipt",
+      value: entry.filing.receipt_date ?? "No receipt date",
+    },
+  ];
+}
+
 function buildFundamentalsCoverageNote(
   companyHistory: DartFundamentalsHistoryCompanyDto | null,
   latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
@@ -531,7 +638,7 @@ function buildFundamentalsCoverageNote(
   }
 
   if (latestFundamentals) {
-    return `Aggregate context still has a latest filing snapshot from ${latestFundamentals.filing.receipt_date ?? "[확인 필요]"}.`;
+    return `Aggregate context has ${latestFundamentals.filing.report_name ?? "the latest filing snapshot"} from ${latestFundamentals.filing.receipt_date ?? latestFundamentals.period.period_end_date ?? "an undated filing period"}.`;
   }
 
   return "Current web layer cannot confirm a stored fundamentals history row for this symbol yet.";
@@ -542,7 +649,7 @@ function buildDisclosureCoverageNote(
   disclosureCount: number,
 ) {
   if (disclosureCount > 0 && latestDisclosure) {
-    return `${disclosureCount} disclosure item(s) loaded. Latest filing landed on ${latestDisclosure.receipt_date ?? "[확인 필요]"}.`;
+    return `${disclosureCount} disclosure item(s) loaded. Latest filing landed on ${latestDisclosure.receipt_date ?? "an unavailable receipt date"}.`;
   }
 
   return "No Disclosure Found for this symbol.";
@@ -996,21 +1103,31 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
   const companyHistory = pickFundamentalsCompany(fundamentalsHistory, symbol);
   const latestHistoryEntry = companyHistory?.entries[0] ?? null;
-  const latestHighlights = normalizeHighlightMetrics(latestHistoryEntry?.highlights).slice(0, 3);
+  const technicalFreshnessDate = buildTechnicalFreshnessDate(resolvedTechnicalSnapshot, freshness);
+  const actionFreshnessDate = buildActionFreshnessDate(resolvedActionSummary, freshness);
+  const fundamentalsDate = buildFundamentalsDate(companyHistory, latestFundamentals, aggregateContext);
+  const latestHistoryHighlights = normalizeHighlightMetrics(latestHistoryEntry?.highlights).slice(0, 3);
+  const latestAggregateHighlights = normalizeHighlightMetrics(latestFundamentals?.highlights).slice(0, 3);
+  const latestHighlights =
+    latestHistoryHighlights.length > 0
+      ? latestHistoryHighlights
+      : latestAggregateHighlights.length > 0
+        ? latestAggregateHighlights
+        : buildFundamentalsMetricFallbacks(latestFundamentals, latestHistoryEntry);
   const disclosureSectionState = getDisclosureSectionState(
     aggregateContextLoadState,
     aggregateContext !== null,
     aggregateContext?.recent_disclosures.count ?? 0,
   );
 
-  const introTitle =
-    aggregateContext?.company.name_ko ??
-    meta?.name_ko ??
-    quote?.company_name ??
-    aggregateContext?.company.dart.corp_name ??
-    symbol;
-  const marketLabel =
-    aggregateContext?.company.market ?? meta?.market ?? quote?.market_state ?? "[확인 필요]";
+  const aggregateCompanyName = getForwardableSymbolMetaSeedValue(aggregateContext?.company.name_ko);
+  const metaCompanyName = getForwardableSymbolMetaSeedValue(meta?.name_ko);
+  const quoteCompanyName = getForwardableSymbolMetaSeedValue(quote?.company_name);
+  const dartCompanyName = getForwardableSymbolMetaSeedValue(aggregateContext?.company.dart.corp_name);
+  const aggregateMarket = getForwardableSymbolMetaSeedValue(aggregateContext?.company.market);
+  const metaMarket = getForwardableSymbolMetaSeedValue(meta?.market);
+  const introTitle = aggregateCompanyName ?? metaCompanyName ?? quoteCompanyName ?? dartCompanyName ?? symbol;
+  const marketLabel = aggregateMarket ?? metaMarket ?? quote?.market_state ?? "Market pending";
   const contextSummary = buildAggregateContextSummary(aggregateContext, quote, marketDate);
   const detailErrors = [quoteError, metaError, historyError, contextError, fundamentalsError].filter(
     (value): value is string => Boolean(value),
@@ -1057,31 +1174,28 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       label: "Quote freshness",
       value: quote?.is_live
         ? "Live"
-        : quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, "[확인 필요]"),
+        : quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, loading ? LOADING_LABEL : "Quote pending"),
       detail: buildQuoteFeedLabel(quote),
     },
     {
       label: "Focus candle",
-      value: focusBar?.trade_date ? formatIsoDateLabel(focusBar.trade_date) : "[확인 필요]",
+      value: focusBar?.trade_date
+        ? formatIsoDateLabel(focusBar.trade_date)
+        : historyLoading
+          ? LOADING_LABEL
+          : "No candle selected",
       detail: focusBar ? `O ${formatPrice(focusBar.open_price)} · C ${formatPrice(focusBar.close_price)}` : "Swipe or tap chart to inspect a date.",
     },
     {
       label: "TA latest",
-      value:
-        resolvedTechnicalSnapshot?.market_date ??
-        freshness?.technical?.latest_date ??
-        freshness?.latest?.technical_market_date ??
-        "[확인 필요]",
+      value: technicalFreshnessDate ?? (marketDate ? "No snapshot" : DATE_PENDING_LABEL),
       detail: resolvedTechnicalSnapshot
         ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
         : "No technical snapshot resolved yet.",
     },
     {
       label: "Action latest",
-      value:
-        resolvedActionSummary?.market_date ??
-        freshness?.latest?.action_market_date ??
-        "[확인 필요]",
+      value: actionFreshnessDate ?? (marketDate ? "No summary" : DATE_PENDING_LABEL),
       detail: resolvedActionSummary
         ? `${humanizeToken(resolvedActionSummary.action_label)} · ${humanizeToken(resolvedActionSummary.confidence_tier)} confidence`
         : "No deterministic action summary resolved yet.",
@@ -1095,14 +1209,14 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const technicalTone = buildTechnicalTone(resolvedTechnicalSnapshot);
   const freshnessTone = buildFreshnessTone(freshness?.today?.eod_status);
   const marketStateTone = buildMarketStateTone(quote, marketStatus);
-  const marketStateRows = useMemo(() => buildMarketStateRows(marketStatus, meta?.market), [marketStatus, meta?.market]);
+  const marketStateRows = useMemo(() => buildMarketStateRows(marketStatus, metaMarket), [marketStatus, metaMarket]);
   const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
 
   const moduleRows = [
     {
       id: "price",
       label: "Price Module",
-      date: freshness?.latest?.price_trade_date ?? quote?.trade_date ?? "[확인 필요]",
+      date: freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, "Quote pending"),
       detail: quote?.available ? buildQuoteSourceLabel(quote) : quote?.unavailable_reason ?? "Quote coverage unavailable.",
       tone: buildModuleStatusTone(Boolean(quote?.available)),
       status: quote?.available ? (quote?.is_live ? "Live" : "Fallback") : "Unavailable",
@@ -1111,48 +1225,44 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     {
       id: "technical",
       label: "Technical Analysis",
-      date:
-        resolvedTechnicalSnapshot?.market_date ??
-        freshness?.technical?.latest_date ??
-        freshness?.latest?.technical_market_date ??
-        "[확인 필요]",
+      date: technicalFreshnessDate ?? "No technical date",
       detail: resolvedTechnicalSnapshot
         ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
         : "Technical snapshot unavailable or still lagging the latest close.",
       tone: resolvedTechnicalSnapshot || freshness?.technical?.success ? technicalTone : "warning",
-      status: resolvedTechnicalSnapshot ? "Synced" : freshness?.technical?.success ? "Synced" : "[확인 필요]",
+      status: resolvedTechnicalSnapshot ? "Synced" : freshness?.technical?.success ? "Synced" : "Pending",
       api: "/api/trading/eod/technical-snapshots",
     },
     {
       id: "action",
       label: "Action Summary",
-      date:
-        resolvedActionSummary?.market_date ??
-        freshness?.latest?.action_market_date ??
-        "[확인 필요]",
+      date: actionFreshnessDate ?? "No action date",
       detail: resolvedActionSummary
         ? `${humanizeToken(resolvedActionSummary.action_label)} · ${humanizeToken(resolvedActionSummary.risk_tier)} risk`
         : "Action summary unavailable or not yet derived for this date.",
       tone: resolvedActionSummary ? actionTone : "warning",
-      status: resolvedActionSummary ? "Resolved" : "[확인 필요]",
+      status: resolvedActionSummary ? "Resolved" : "Pending",
       api: "/api/trading/eod/action-summaries",
     },
     {
       id: "fundamentals",
       label: "Fundamentals",
-      date:
-        latestHistoryEntry?.filing.receipt_date ??
-        latestFundamentals?.filing.receipt_date ??
-        "[확인 필요]",
+      date: fundamentalsDate ?? "No filing date",
       detail: buildFundamentalsCoverageNote(companyHistory, latestFundamentals),
-      tone: companyHistory?.entries.length ? "info" : "warning",
-      status: companyHistory?.entries.length ? "History loaded" : "[확인 필요]",
+      tone: companyHistory?.entries.length || latestFundamentals ? "info" : "warning",
+      status: companyHistory?.entries.length ? "History loaded" : latestFundamentals ? "Aggregate only" : "No history",
       api: "/api/trading/disclosures/dart/fundamentals/history",
     },
     {
       id: "disclosures",
       label: "DART Disclosures",
-      date: latestDisclosure?.receipt_date ?? "[확인 필요]",
+      date:
+        latestDisclosure?.receipt_date ??
+        (disclosureSectionState === "loading"
+          ? LOADING_LABEL
+          : disclosureSectionState === "empty"
+            ? "No disclosures"
+            : "Unavailable"),
       detail: buildDisclosureCoverageNote(
         latestDisclosure,
         aggregateContext?.recent_disclosures.count ?? 0,
@@ -1168,7 +1278,9 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
           ? "Coverage"
           : disclosureSectionState === "empty"
             ? "Empty"
-            : "[확인 필요]",
+            : disclosureSectionState === "loading"
+              ? "Loading"
+              : "Unavailable",
       api: "/api/trading/agent-context/symbol-day",
     },
   ] as const;
@@ -1228,7 +1340,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             </div>
 
             <div className={styles.heroControls}>
-              <button type="button" className={styles.tradeButton} disabled title="Execution route [확인 필요]">
+              <button type="button" className={styles.tradeButton} disabled title="Execution route is disabled on this read-only screen">
                 Trade
               </button>
               <span className={styles.watchBadge}>★</span>
@@ -1243,7 +1355,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
                   : "N/A"
                 : loading
                   ? "Loading..."
-                  : "[확인 필요]"}
+                  : "Quote pending"}
             </strong>
             <span className={hasNumber(quote?.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : ""}>
               {quote?.available
@@ -1302,7 +1414,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <p className={styles.sectionEyebrow}>{activeDetailMode.eyebrow}</p>
             <h2 className={styles.cardTitle}>{activeDetailMode.title}</h2>
             <p className={`clamp-3 ${styles.supportingCopy}`}>
-              Each detail page keeps the same data contract as the overview cards. Missing upstream fields stay marked as [확인 필요].
+              Each detail page uses the same source packets as the overview cards and labels unavailable fields explicitly.
             </p>
           </div>
           <nav className={styles.detailTabs} aria-label="Symbol detail pages">
@@ -1352,7 +1464,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
           <div className={styles.focusGrid}>
             <article className={styles.focusCard}>
               <span>Focus date</span>
-              <strong>{focusBar?.trade_date ? formatIsoDateLabel(focusBar.trade_date) : "[확인 필요]"}</strong>
+              <strong>{focusBar?.trade_date ? formatIsoDateLabel(focusBar.trade_date) : historyLoading ? LOADING_LABEL : "No candle selected"}</strong>
               <p className="clamp-3">
                 {focusBar
                   ? `Open ${formatPrice(focusBar.open_price)} · High ${formatPrice(focusBar.high_price)} · Low ${formatPrice(focusBar.low_price)}`
@@ -1362,7 +1474,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <article className={styles.focusCard}>
               <span>Close move</span>
               <strong className={hasNumber(focusMovePct) ? (focusMovePct >= 0 ? styles.positive : styles.negative) : ""}>
-                {hasNumber(focusMovePct) ? formatSignedPercent(focusMovePct) : "[확인 필요]"}
+                {hasNumber(focusMovePct) ? formatSignedPercent(focusMovePct) : "No prior candle"}
               </strong>
               <p className="clamp-3">
                 {previousFocusBar
@@ -1404,7 +1516,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <span>
               {chartMetrics
                 ? `${selectedRange} return ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
-                : `${selectedRange} return [확인 필요]`}
+                : `${selectedRange} return pending`}
             </span>
             <span>{marketDate ? `Requested market date ${formatIsoDateLabel(marketDate)}` : "Market date pending"}</span>
             <span>Swipe or drag the chart to move date focus.</span>
@@ -1450,7 +1562,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <p className={`clamp-3 ${styles.supportingCopy}`}>
               {actionReasons.length > 0
                 ? actionReasons.join(" ")
-                : "Historical action rationale is [확인 필요] until a dedicated multi-day signal route exists."}
+                : "No historical action rationale returned for this symbol-date packet yet."}
             </p>
 
             <div className={styles.metricGrid}>
@@ -1467,13 +1579,13 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
                 <strong>
                   {hasNumber(resolvedActionSummary?.trigger_price)
                     ? `₩${formatPrice(resolvedActionSummary?.trigger_price)}`
-                    : "[확인 필요]"}
+                    : "No trigger price"}
                 </strong>
               </article>
             </div>
 
             <div className={styles.tagGroup}>
-              {(actionReasons.length > 0 ? actionReasons : ["[확인 필요] Historical rationale endpoint"]).map((reason) => (
+              {(actionReasons.length > 0 ? actionReasons : ["No rationale rows returned"]).map((reason) => (
                 <span key={reason} className={styles.tagChip}>
                   {reason}
                 </span>
@@ -1514,17 +1626,17 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <p className={`clamp-3 ${styles.supportingCopy}`}>
               {resolvedTechnicalSnapshot
                 ? `Breakout 20D ${resolvedTechnicalSnapshot.breakout_20d ? "yes" : "no"} · Breakdown 20D ${resolvedTechnicalSnapshot.breakdown_20d ? "yes" : "no"} · Source ${resolvedTechnicalSnapshot.source}`
-                : "Unsupported indicators stay labeled [확인 필요] instead of being manufactured in the client."}
+                : "Only confirmed technical fields from trading-core are rendered here."}
             </p>
 
             <div className={styles.metricGrid}>
               <article className={styles.metricCard}>
                 <span>5D return</span>
-                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, "[확인 필요]")}</strong>
+                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, "No 5D return")}</strong>
               </article>
               <article className={styles.metricCard}>
                 <span>20D return</span>
-                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, "[확인 필요]")}</strong>
+                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, "No 20D return")}</strong>
               </article>
               <article className={styles.metricCard}>
                 <span>Volume ratio 20D</span>
@@ -1545,7 +1657,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             </div>
 
             <p className={styles.metaCaption}>
-              Source date {resolvedTechnicalSnapshot?.market_date ?? "[확인 필요]"} · Layer freshness is independent from price freshness.
+              Source date {resolvedTechnicalSnapshot?.market_date ?? technicalFreshnessDate ?? "No source date"} · Layer freshness is independent from price freshness.
             </p>
           </section>
           ) : null}
@@ -1579,7 +1691,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <div>
                 <strong>{introTitle}</strong>
                 <p className="clamp-3">
-                  Latest filing {latestHistoryEntry?.filing.report_nm ?? latestFundamentals?.filing.report_name ?? "[확인 필요]"}.
+                  Latest filing {buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals)}.
                 </p>
               </div>
             </div>
@@ -1595,7 +1707,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               ) : (
                 <article className={styles.metricCard}>
                   <span>Latest filing</span>
-                  <strong>{latestFundamentals?.filing.report_name ?? "[확인 필요]"}</strong>
+                  <strong>{buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals)}</strong>
                 </article>
               )}
             </div>
@@ -1603,11 +1715,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <div className={styles.historyList}>
               {companyHistory?.entries.length ? (
                 companyHistory.entries.slice(0, fundamentalsEntryLimit).map((entry) => {
-                  const entryHighlights = normalizeHighlightMetrics(entry.highlights);
-                  const visibleHighlights = (entryHighlights.length > 0
-                    ? entryHighlights
-                    : [{ metric_key: null, label: "[확인 필요]", value: null }])
-                    .slice(0, 2);
+                  const visibleHighlights = buildHistoryEntryMetrics(entry);
 
                   return (
                     <article key={entry.filing.rcept_no} className={styles.historyCard}>
@@ -1615,13 +1723,13 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
                         <div>
                           <strong className="clamp-3">
                             {entry.period.report_label ??
-                              `${entry.period.business_year ?? "[확인 필요]"} ${entry.period.report_code ?? ""}`}
+                              `${entry.period.business_year ?? "Unknown year"} ${entry.period.report_code ?? ""}`}
                           </strong>
                           <p className="clamp-3">
-                            {entry.filing.report_nm ?? "[확인 필요]"} · Receipt {entry.filing.receipt_date ?? "[확인 필요]"}
+                            {entry.filing.report_nm ?? "Unnamed filing"} · Receipt {entry.filing.receipt_date ?? "No receipt date"}
                           </p>
                         </div>
-                        <span className="pill neutral">{entry.statement.fs_div ?? "[확인 필요]"}</span>
+                        <span className="pill neutral">{entry.statement.fs_div ?? "FS pending"}</span>
                       </div>
                       <div className={styles.historyMetrics}>
                         {visibleHighlights.map((metric, index) => (
@@ -1674,14 +1782,14 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
                   <article key={item.rcept_no} className={styles.disclosureCard}>
                     <div className={styles.disclosureHeader}>
                       <strong className="clamp-3">{item.report_nm}</strong>
-                      <span className="pill neutral">{item.receipt_date ?? "[확인 필요]"}</span>
+                      <span className="pill neutral">{item.receipt_date ?? "No receipt date"}</span>
                     </div>
                     <p className="clamp-3">
                       {humanizeToken(item.filing_category, "No category")} · Capture{" "}
-                      {humanizeToken(item.fundamentals_capture_status, "[확인 필요]")}
+                      {humanizeToken(item.fundamentals_capture_status, "Not captured")}
                     </p>
                     <div className={styles.disclosureMeta}>
-                      <span>Receipt {item.receipt_date ?? "[확인 필요]"}</span>
+                      <span>Receipt {item.receipt_date ?? "No receipt date"}</span>
                       <span>Rcept {item.rcept_no}</span>
                     </div>
                   </article>
@@ -1727,7 +1835,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <p className={styles.sectionEyebrow}>Operational Integrity</p>
               <h2 className={styles.cardTitle}>Layer-specific freshness registry</h2>
             </div>
-            <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, "[확인 필요]")}</span>
+            <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, "Status pending")}</span>
           </div>
           {showOverview ? (
             <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "system-freshness", routeQueryString)}>
@@ -1738,19 +1846,19 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
           <div className={styles.metricGrid}>
             <article className={styles.metricCard}>
               <span>EOD trade date</span>
-              <strong>{freshness?.today?.trade_date ?? "[확인 필요]"}</strong>
+              <strong>{freshness?.today?.trade_date ?? marketDate ?? DATE_PENDING_LABEL}</strong>
             </article>
             <article className={styles.metricCard}>
               <span>Price latest</span>
-              <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? "[확인 필요]"}</strong>
+              <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, "Quote pending")}</strong>
             </article>
             <article className={styles.metricCard}>
               <span>Technical latest</span>
-              <strong>{freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]"}</strong>
+              <strong>{technicalFreshnessDate ?? "No technical date"}</strong>
             </article>
             <article className={styles.metricCard}>
               <span>Action latest</span>
-              <strong>{freshness?.latest?.action_market_date ?? "[확인 필요]"}</strong>
+              <strong>{actionFreshnessDate ?? "No action date"}</strong>
             </article>
           </div>
 
