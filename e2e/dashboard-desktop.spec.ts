@@ -352,7 +352,7 @@ test.describe("dashboard desktop", () => {
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     await expect(priceStage).toContainText("not synced");
     await expect(priceStage).toContainText("Succeeded 237 / 250");
-    await expect(priceStage).toContainText("Failed 13");
+    await expect(priceStage.getByText(/Failed/i)).toHaveCount(0);
     await expect(priceStage).toContainText("Latest date 2026-04-15");
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
@@ -366,8 +366,8 @@ test.describe("dashboard desktop", () => {
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toContainText("synced");
-    await expect(fundamentalsStage).toContainText("Succeeded 42 / 42");
-    await expect(fundamentalsStage).toContainText("Failed 1");
+    await expect(fundamentalsStage).toContainText("Checked 42");
+    await expect(fundamentalsStage.getByText(/Succeeded|Failed|\//i)).toHaveCount(0);
   });
 
   test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
@@ -723,8 +723,8 @@ test.describe("dashboard desktop", () => {
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
     await expect(fundamentalsStage).toContainText("synced");
-    await expect(fundamentalsStage).toContainText("Succeeded 42 / 42");
-    await expect(fundamentalsStage).toContainText("Failed 1");
+    await expect(fundamentalsStage).toContainText("Checked 42");
+    await expect(fundamentalsStage.getByText(/Succeeded|Failed|\//i)).toHaveCount(0);
     await expect(fundamentalsStage).toContainText("Run status Completed");
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
