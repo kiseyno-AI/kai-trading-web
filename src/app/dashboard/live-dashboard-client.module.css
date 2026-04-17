@@ -199,14 +199,14 @@
 }
 
 .eodStageTop {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 0.6rem;
 }
 
 .eodStageTop > span:first-child {
+  min-width: 0;
   color: #f6f8ff;
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.86rem;
@@ -215,12 +215,10 @@
 }
 
 .eodStageTop :global(.pill) {
-  flex: 0 1 auto;
+  justify-self: end;
   max-width: 100%;
-  min-width: 0;
   letter-spacing: 0;
-  overflow-wrap: anywhere;
-  white-space: normal;
+  white-space: nowrap;
   text-align: center;
 }
 
