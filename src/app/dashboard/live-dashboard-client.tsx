@@ -1033,10 +1033,11 @@ export function LiveDashboardClient({
                       key={stage.id}
                       className={styles.eodStageCard}
                       aria-label={`${stage.label} freshness`}
+                      data-stage={stage.id}
                       data-status={stage.statusLabel}
                     >
                       <div className={styles.eodStageTop}>
-                        <span>{stage.label}</span>
+                        <span className={styles.eodStageTitle}>{stage.label}</span>
                         <span className={`pill ${stage.tone} ${statusClass}`}>{stage.statusLabel}</span>
                       </div>
                       <div className={styles.eodStageDetails}>
