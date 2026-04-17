@@ -298,3 +298,64 @@ export async function proxyTradingUpstreamJson(path: string, init?: RequestInit)
     );
   }
 }
+
+export async function proxyTradingUpstreamResponse(path: string, init?: RequestInit) {
+  try {
+    const upstreamTarget = resolveTradingUpstreamTarget();
+    const response = await fetchTradingUpstream(path, init);
+    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+    const contentDisposition = response.headers.get("content-disposition");
+    const headers = new Headers({
+      "content-type": contentType,
+      "x-kai-trading-auth-mode": upstreamTarget.authMode,
+      "x-kai-trading-upstream-source": upstreamTarget.source,
+    });
+
+    if (contentDisposition) {
+      headers.set("content-disposition", contentDisposition);
+    }
+
+    logWebDiagnostic("http", "proxy-response", {
+      contentType,
+      method: getRequestMethod(init),
+      path,
+      scope: "server-bff",
+      status: response.status,
+      upstreamSource: upstreamTarget.source,
+    });
+
+    return new NextResponse(response.body, {
+      status: response.status,
+      headers,
+    });
+  } catch (error) {
+    logWebDiagnostic("http", "proxy-error", {
+      error,
+      method: getRequestMethod(init),
+      path,
+      scope: "server-bff",
+    });
+
+    if (error instanceof TradingUpstreamConfigurationError) {
+      return NextResponse.json(
+        {
+          error: "Trading upstream misconfigured",
+          message: error.message,
+          path,
+          details: error.details,
+        },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        error: "Upstream fetch failed",
+        message: formatFetchErrorMessage(error),
+        path,
+        details: buildTradingUpstreamConfigurationDetails(),
+      },
+      { status: 502 },
+    );
+  }
+}
