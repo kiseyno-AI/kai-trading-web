@@ -1291,6 +1291,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   );
   const activeDetailMode = SYMBOL_DETAIL_MODE_BY_ID[mode];
   const currentDetailHref = buildSymbolDetailHref(symbol, mode, routeQueryString);
+  const toolbarTitle = introTitle;
   const showOverview = isOverviewMode;
   const showChartSection = showOverview || mode === "technical-analysis";
   const showActionSection = showOverview || mode === "action-summary";
@@ -1310,7 +1311,9 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               ←
             </Link>
             <div>
-              <strong className={styles.headerTitle}>{symbol}</strong>
+              <strong className={styles.headerTitle} title={toolbarTitle}>
+                {toolbarTitle}
+              </strong>
             </div>
           </div>
 
