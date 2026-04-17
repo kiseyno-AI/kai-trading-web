@@ -837,7 +837,10 @@
     padding-inline: 0.85rem;
   }
 
-  .detailPage[data-mode="overview"] .chartCard,
+  .detailPage[data-mode="overview"] .chartCard {
+    grid-column: 1 / -1;
+  }
+
   .detailPage[data-mode="technical-analysis"] .chartCard {
     grid-column: 1;
   }
