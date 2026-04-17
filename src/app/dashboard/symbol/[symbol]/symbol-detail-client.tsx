@@ -1425,6 +1425,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <Link
                 key={item.mode}
                 href={buildSymbolDetailHref(symbol, item.mode, routeQueryString)}
+                replace
                 className={`${styles.detailTab} ${mode === item.mode ? styles.detailTabActive : ""}`.trim()}
               >
                 {item.label}
@@ -1544,7 +1545,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : "Unavailable"}</span>
             </div>
             {showOverview ? (
-              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "action-summary", routeQueryString)}>
+              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "action-summary", routeQueryString)} replace>
                 Open action detail
               </Link>
             ) : null}
@@ -1616,7 +1617,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               </span>
             </div>
             {showOverview ? (
-              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "technical-analysis", routeQueryString)}>
+              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "technical-analysis", routeQueryString)} replace>
                 Open technical detail
               </Link>
             ) : null}
@@ -1684,7 +1685,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? "Default FS"}</span>
             </div>
             {showOverview ? (
-              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "fundamentals-history", routeQueryString)}>
+              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "fundamentals-history", routeQueryString)} replace>
                 Open fundamentals detail
               </Link>
             ) : null}
@@ -1774,7 +1775,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               </span>
             </div>
             {showOverview ? (
-              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "disclosure-coverage", routeQueryString)}>
+              <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "disclosure-coverage", routeQueryString)} replace>
                 Open disclosure detail
               </Link>
             ) : null}
@@ -1841,7 +1842,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, "Status pending")}</span>
           </div>
           {showOverview ? (
-            <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "system-freshness", routeQueryString)}>
+            <Link className={styles.detailLink} href={buildSymbolDetailHref(symbol, "system-freshness", routeQueryString)} replace>
               Open freshness detail
             </Link>
           ) : null}
