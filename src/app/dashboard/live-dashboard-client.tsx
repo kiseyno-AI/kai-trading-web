@@ -1097,64 +1097,66 @@ export function LiveDashboardClient({
           </div>
         </section>
 
-        <section className={styles.sectionHeaderRow} id="tracked-symbols">
-          <div>
-            <p className={styles.sectionEyebrow}>Tracked Symbols</p>
-            <h2 className={styles.sectionTitle}>Today&apos;s ledger recommendations</h2>
-          </div>
-          <Link href="/search" className={styles.sectionLink} aria-label="View more tracked symbols in search">
-            More
-          </Link>
-        </section>
-
-        <div className={styles.trackedList}>
-          {tracked.items.map((item) => (
-            <Link
-              key={item.symbol}
-              href={buildTrackedDetailHref(item, symbolMetaBySymbol[item.symbol])}
-              className={`${styles.trackedCard} ${!item.available ? styles.trackedCardMuted : ""}`.trim()}
-            >
-              <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
-
-              <div className={styles.trackedCardTop}>
-                <div>
-                  <strong className={styles.companyName}>
-                    {getCompanyName(item, symbolMetaBySymbol[item.symbol])}
-                  </strong>
-                  <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
-                </div>
-                <span className={`pill ${item.available ? (item.change_pct ?? 0) >= 0 ? "positive" : "negative" : "warning"}`}>
-                  {item.available ? (item.is_live ? "Live" : "Fallback") : "Unavailable"}
-                </span>
-              </div>
-
-              <div className={styles.priceBlock}>
-                <strong>{item.available ? `₩${formatPrice(item.price)}` : "N/A"}</strong>
-                <span className={getQuoteToneClass(item.change_pct)}>
-                  {item.available
-                    ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change)}`
-                    : item.unavailable_reason ?? "No fresh quote source"}
-                </span>
-              </div>
-
-              <div className={styles.cardMeta}>
-                <div>
-                  <span>Price Freshness</span>
-                  <strong>{getPriceFreshnessLabel(item)}</strong>
-                </div>
-                <div>
-                  <span>TA Freshness</span>
-                  <strong>{getTechnicalFreshnessLabel(freshness)}</strong>
-                </div>
-              </div>
-
-              <div className={styles.cardFooter}>
-                <span className="clamp-3">{describeQuoteSource(item)}</span>
-                <span className="clamp-3">Turnover {formatTurnover(item.turnover)}</span>
-              </div>
+        <section className={`${styles.panel} ${styles.trackedPanel}`} id="tracked-symbols">
+          <div className={styles.sectionHeaderRow}>
+            <div>
+              <p className={styles.sectionEyebrow}>Tracked Symbols</p>
+              <h2 className={styles.sectionTitle}>Today&apos;s ledger recommendations</h2>
+            </div>
+            <Link href="/search" className={styles.sectionLink} aria-label="View more tracked symbols in search">
+              More
             </Link>
-          ))}
-        </div>
+          </div>
+
+          <div className={styles.trackedList}>
+            {tracked.items.map((item) => (
+              <Link
+                key={item.symbol}
+                href={buildTrackedDetailHref(item, symbolMetaBySymbol[item.symbol])}
+                className={`${styles.trackedCard} ${!item.available ? styles.trackedCardMuted : ""}`.trim()}
+              >
+                <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
+
+                <div className={styles.trackedCardTop}>
+                  <div>
+                    <strong className={styles.companyName}>
+                      {getCompanyName(item, symbolMetaBySymbol[item.symbol])}
+                    </strong>
+                    <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
+                  </div>
+                  <span className={`pill ${item.available ? (item.change_pct ?? 0) >= 0 ? "positive" : "negative" : "warning"}`}>
+                    {item.available ? (item.is_live ? "Live" : "Fallback") : "Unavailable"}
+                  </span>
+                </div>
+
+                <div className={styles.priceBlock}>
+                  <strong>{item.available ? `₩${formatPrice(item.price)}` : "N/A"}</strong>
+                  <span className={getQuoteToneClass(item.change_pct)}>
+                    {item.available
+                      ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change)}`
+                      : item.unavailable_reason ?? "No fresh quote source"}
+                  </span>
+                </div>
+
+                <div className={styles.cardMeta}>
+                  <div>
+                    <span>Price Freshness</span>
+                    <strong>{getPriceFreshnessLabel(item)}</strong>
+                  </div>
+                  <div>
+                    <span>TA Freshness</span>
+                    <strong>{getTechnicalFreshnessLabel(freshness)}</strong>
+                  </div>
+                </div>
+
+                <div className={styles.cardFooter}>
+                  <span className="clamp-3">{describeQuoteSource(item)}</span>
+                  <span className="clamp-3">Turnover {formatTurnover(item.turnover)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <section className={styles.supportGrid}>
           <section className={`${styles.panel} ${styles.supportPanel}`}>
