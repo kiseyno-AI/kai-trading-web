@@ -28,6 +28,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /disclosures/dart/fundamentals/history` for stored DART fundamentals history
   - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures
   - `GET /disclosures/dart/filings/document?rcept_no=...` for the S7 disclosure report detail document stream
+  - `GET /scanner/tracked-symbols` and `POST /scanner/tracked-symbols` for the hero star toggle beside the disabled Trade action; the star is filled when the current symbol is already tracked, and toggling posts the replacement tracked-symbol set
 - The symbol detail card stack also powers dedicated mobile Stitch detail routes:
   - `/dashboard/symbol/[symbol]/action-summary`
   - `/dashboard/symbol/[symbol]/technical-analysis`

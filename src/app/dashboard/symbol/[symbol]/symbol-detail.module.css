@@ -116,6 +116,8 @@
 .heroControls {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.55rem;
 }
 
@@ -138,10 +140,53 @@
   height: 2.6rem;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border: 1px solid rgba(143, 144, 158, 0.2);
+  border-radius: 0.5rem;
   background: rgba(13, 28, 46, 0.78);
   color: #dee0ff;
+  cursor: pointer;
+  padding: 0;
+  appearance: none;
+  font-family: inherit;
   font-size: 1rem;
+  line-height: 1;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.watchBadge:hover:not(:disabled),
+.watchBadge:focus-visible {
+  border-color: rgba(247, 201, 72, 0.68);
+  color: #f7c948;
+  transform: translateY(-1px);
+}
+
+.watchBadge:focus-visible {
+  outline: 2px solid rgba(247, 201, 72, 0.52);
+  outline-offset: 2px;
+}
+
+.watchBadge:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.watchBadgeActive {
+  border-color: rgba(247, 201, 72, 0.58);
+  background: rgba(247, 201, 72, 0.14);
+  color: #f7c948;
+}
+
+.trackingFeedback {
+  flex-basis: 100%;
+  margin: 0;
+  color: #ffd9a3;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .heroQuoteBlock {

@@ -60,10 +60,13 @@ Client polling:
 - `GET /api/trading/disclosures/dart/filings/document?rcept_no={receiptNo}`
 - `GET /api/trading/symbols/{symbol}/price-bars?...`
 - `GET /api/trading/symbols/search?q={symbol}&limit=20` when route seed metadata is incomplete
+- `GET /api/trading/scanner/tracked-symbols`
+- `POST /api/trading/scanner/tracked-symbols`
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop KAI Trading rail + top bar -> current symbol navigation state only, no additional backend dependency
 - Quote hero: `/quotes/{symbol}` + `/market/status` + `/symbols/search` + `/agent-context/symbol-day` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`, route metadata seed, aggregate availability summary
+- Hero tracked-symbol star: `/scanner/tracked-symbols` -> `tracked_symbols`; clicking the star posts the replacement symbol list, fills the star when the current symbol is present, and clears the fill when it is removed
 - Market-status gate for quote polling: `/market/status` -> `state`
 - Chart: `/symbols/{symbol}/price-bars` -> `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`
 - Action Summary section: `/eod/action-summaries` with fallback `/agent-context/symbol-day.action_summary` -> `action_label`, `signal_score`, `confidence_tier`, `risk_tier`, `trigger_price`, `support_price`, `resistance_price`, `reasons`, `summary_payload`
@@ -81,7 +84,7 @@ Important behavior:
 - The chart focus card updates from chart interaction, but the chart itself remains EOD-history based.
 - Quote polling stops entirely after the first response where both `/market/status.state` and `/quotes/{symbol}.market_state` are `CLOSED`.
 - `/agent-context/symbol-day`, `/eod/technical-snapshots`, `/eod/action-summaries`, `/disclosures/dart/fundamentals/history`, and `/symbols/{symbol}/price-bars` are one-shot per dependency change, not recurring quote polls.
-- `/scanner/tracked-symbols` is not requested by the symbol detail route anymore; tracked-universe coverage remains limited to alternate dashboard routes that still consume that endpoint.
+- `/scanner/tracked-symbols` is requested by the symbol detail route only for the hero star state and toggle; it does not enable order execution.
 - When a technical or action field is not confirmed upstream, the UI shows `[확인 필요]` instead of manufacturing indicator values.
 - The five dedicated detail routes reuse the same responsive chrome, dev tags, and API loaders as the overview card stack. They narrow the rendered body to the selected Stitch detail screen instead of duplicating data logic.
 
