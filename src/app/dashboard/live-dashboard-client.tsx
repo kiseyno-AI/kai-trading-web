@@ -569,14 +569,16 @@ function getEodStageStatusLabel(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
-  isBreakDay: boolean,
+  canShowBreakDay: boolean,
 ): EodStageCard["statusLabel"] {
   const status = normalizeStageStatus(stage);
   if (status === "running") return "running";
+  const hasStaleDate =
+    hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate.trim() !== latestDate.trim();
   const hasMatchingDates =
     hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate.trim() === latestDate.trim();
   if (status === "ready" && hasMatchingDates) return "synced";
-  if (isBreakDay) return "break day";
+  if (status === "ready" && canShowBreakDay && hasStaleDate) return "break day";
   return "not synced";
 }
 
@@ -593,13 +595,13 @@ function buildEodStageCard(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
-  isBreakDay: boolean,
+  canShowBreakDay: boolean,
   countDetail: Pick<EodStageDetail, "label" | "value"> = {
     label: "Succeeded",
     value: `${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
   },
 ): EodStageCard {
-  const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate, isBreakDay);
+  const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate, canShowBreakDay);
   const details: EodStageDetail[] = [{ key: "count", tone: "count", ...countDetail }];
 
   if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
@@ -963,30 +965,33 @@ export function LiveDashboardClient({
   const todayTradeDate = freshness?.today?.trade_date ?? null;
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
   const isBreakDay = isBreakDayMarket(market);
+  const priceFreshnessStage = getPriceFreshnessStage(freshness);
+  const technicalFreshnessStage = getTechnicalFreshnessStage(freshness);
+  const actionFreshnessStage = getActionFreshnessStage(freshness);
   const eodStageCards = [
     buildEodStageCard(
       "price",
       "Price Fetch",
-      getPriceFreshnessStage(freshness),
+      priceFreshnessStage,
       todayTradeDate,
       freshness?.latest?.price_trade_date ?? null,
-      isBreakDay,
+      isBreakDay && freshness?.today?.price != null,
     ),
     buildEodStageCard(
       "technical",
       "Technical Analysis",
-      getTechnicalFreshnessStage(freshness),
+      technicalFreshnessStage,
       todayTradeDate,
       freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null,
-      isBreakDay,
+      isBreakDay && freshness?.today?.technical_analysis != null,
     ),
     buildEodStageCard(
       "action",
       "Action Summary",
-      getActionFreshnessStage(freshness),
+      actionFreshnessStage,
       todayTradeDate,
       freshness?.latest?.action_market_date ?? null,
-      isBreakDay,
+      isBreakDay && freshness?.today?.action_summary != null,
     ),
     buildEodStageCard(
       "fundamentals",
@@ -994,7 +999,7 @@ export function LiveDashboardClient({
       fundamentalsFreshnessStage,
       todayTradeDate,
       latestFundamentalsDate,
-      isBreakDay,
+      isBreakDay && freshness?.today?.fundamentals != null,
       {
         label: "Checked",
         value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),

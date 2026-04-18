@@ -514,6 +514,142 @@ test.describe("dashboard desktop", () => {
     await expect(technicalStage.getByText("not synced")).toHaveCount(0);
   });
 
+  test("D2 EOD status keeps missing weekend stages as not synced", async ({ page }) => {
+    const now = "2026-04-18T10:00:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market: "KRX",
+          state: "WEEKEND",
+          is_trading_day: false,
+          is_open: false,
+          server_time: now,
+          session_open_at: null,
+          session_close_at: null,
+          reason: "weekend",
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "WEEKEND",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 0,
+              change_pct: 0,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "WEEKEND",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-17",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-18",
+            price: {
+              status: "missing",
+              symbols_total: 250,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "failed",
+              symbols_total: 250,
+              symbols_succeeded: 0,
+              symbols_failed: 250,
+            },
+            fundamentals: {
+              status: "missing",
+              symbols_total: 42,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-17",
+            technical_market_date: "2026-04-17",
+            action_market_date: "2026-04-17",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-17",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 8,
+            market_date: "2026-04-17",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 42,
+            symbols_checked: 42,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 42,
+            symbols_refreshed: 42,
+            symbols_failed: 0,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-17T08:56:58.357390+09:00",
+            completed_at: "2026-04-17T09:11:08.375335+09:00",
+          },
+          runs: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard).toBeVisible();
+
+    const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
+    await expect(priceStage).toContainText("not synced");
+    await expect(priceStage.getByText("break day")).toHaveCount(0);
+
+    const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
+    await expect(technicalStage).toContainText("not synced");
+    await expect(technicalStage).toContainText("Latest date 2026-04-17");
+    await expect(technicalStage.getByText("break day")).toHaveCount(0);
+
+    const actionStage = page.locator('[aria-label="Action Summary freshness"]');
+    await expect(actionStage).toContainText("not synced");
+    await expect(actionStage.getByText("break day")).toHaveCount(0);
+  });
+
   test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
