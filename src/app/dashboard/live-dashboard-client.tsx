@@ -611,7 +611,10 @@ function formatAgentProgressFeedbackBasisLabel(progress: AgentFeedbackProgressRe
 function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null) {
   const percent = progress?.summary?.progress_percent;
   if (!hasNumber(percent)) return UNKNOWN_LABEL;
-  return `${Math.max(0, Math.min(100, Math.round(percent))).toLocaleString("ko-KR")}%`;
+  return `${Math.max(0, Math.min(100, percent)).toLocaleString("ko-KR", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })}%`;
 }
 
 function getAgentProgressPercentValue(progress: AgentFeedbackProgressResponseDto | null) {
