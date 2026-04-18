@@ -109,6 +109,8 @@ test.describe("dashboard desktop", () => {
     await expect(momentumRow).toBeVisible();
     await expect(momentumRow).toContainText("Acme Precision");
     await expect(momentumRow).not.toContainText("[확인 필요]");
+    await expect(momentumRow.locator("strong")).toHaveText("Acme Precision");
+    await expect(momentumRow.locator("p")).toHaveText("123456");
 
     await expect.poll(() => searchRequests).toContain("123456");
   });
