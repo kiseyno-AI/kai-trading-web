@@ -1206,15 +1206,19 @@ export function LiveDashboardClient({
             <h2 className={styles.sectionTitle}>Highest absolute movers</h2>
             <div className={styles.supportList}>
               {movers.length > 0 ? (
-                movers.map((item) => (
-                  <article key={item.symbol} className={styles.supportRow}>
-                    <div>
-                      <strong>{item.symbol}</strong>
-                      <p className="clamp-3">{getCompanyName(item, symbolMetaBySymbol[item.symbol])}</p>
-                    </div>
-                    <span className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</span>
-                  </article>
-                ))
+                movers.map((item) => {
+                  const companyName = getCompanyName(item, symbolMetaBySymbol[item.symbol]);
+
+                  return (
+                    <article key={item.symbol} className={styles.supportRow}>
+                      <div>
+                        <strong>{companyName}</strong>
+                        <p className="clamp-3">{item.symbol}</p>
+                      </div>
+                      <span className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</span>
+                    </article>
+                  );
+                })
               ) : (
                 <div className={styles.emptyState}>Tracked momentum is waiting for live quote coverage.</div>
               )}
