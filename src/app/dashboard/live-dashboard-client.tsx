@@ -975,7 +975,7 @@ export function LiveDashboardClient({
       priceFreshnessStage,
       todayTradeDate,
       freshness?.latest?.price_trade_date ?? null,
-      isBreakDay && freshness?.today?.price != null,
+      isBreakDay,
     ),
     buildEodStageCard(
       "technical",
@@ -983,7 +983,7 @@ export function LiveDashboardClient({
       technicalFreshnessStage,
       todayTradeDate,
       freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null,
-      isBreakDay && freshness?.today?.technical_analysis != null,
+      isBreakDay,
     ),
     buildEodStageCard(
       "action",
@@ -991,7 +991,7 @@ export function LiveDashboardClient({
       actionFreshnessStage,
       todayTradeDate,
       freshness?.latest?.action_market_date ?? null,
-      isBreakDay && freshness?.today?.action_summary != null,
+      isBreakDay,
     ),
     buildEodStageCard(
       "fundamentals",
@@ -999,7 +999,7 @@ export function LiveDashboardClient({
       fundamentalsFreshnessStage,
       todayTradeDate,
       latestFundamentalsDate,
-      isBreakDay && freshness?.today?.fundamentals != null,
+      isBreakDay,
       {
         label: "Checked",
         value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),
