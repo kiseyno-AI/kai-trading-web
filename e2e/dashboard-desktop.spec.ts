@@ -623,7 +623,7 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toBeVisible();
     await expect(progressCard).toContainText("에이전트 분석 중...");
     await expect(progressCard).toContainText("기준일 2026-04-15");
-    await expect(progressCard).toContainText("진행률 50%");
+    await expect(progressCard).toContainText("진행률 50.40%");
     await expect(progressCard).toContainText("전체 대상 250개");
     await expect(progressCard).toContainText("실패 3개");
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
