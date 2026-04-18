@@ -33,9 +33,15 @@ const AGENT_PROGRESS_STATUS_LABELS = {
 } satisfies Record<AgentFeedbackRunStatus, string>;
 
 export type CoreMarketStatus = {
+  market?: string | null;
   state: string;
+  is_trading_day?: boolean | null;
   is_open: boolean;
-  server_time: string;
+  server_time?: string | null;
+  as_of?: string | null;
+  session_open_at?: string | null;
+  session_close_at?: string | null;
+  reason?: string | null;
 };
 
 export type CoreTrackedQuote = {
@@ -107,8 +113,8 @@ type EodStageCard = {
   id: EodStageId;
   label: string;
   latestDate: string | null;
-  statusLabel: "synced" | "running" | "not synced";
-  tone: "positive" | "info" | "warning";
+  statusLabel: "synced" | "running" | "break day" | "not synced";
+  tone: "positive" | "info" | "neutral" | "warning";
   details: EodStageDetail[];
 };
 
@@ -459,6 +465,47 @@ function normalizeStageStatus(stage: EodFreshnessStageDto | null | undefined) {
   return stage?.status?.trim().toLowerCase() ?? null;
 }
 
+function normalizeMarketState(value: string | null | undefined) {
+  return value?.trim().toUpperCase().replace(/[\s-]+/g, "_") ?? null;
+}
+
+function getIsoDatePart(value: string | null | undefined) {
+  return value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
+}
+
+function isWeekendIsoDate(value: string | null | undefined) {
+  const datePart = getIsoDatePart(value);
+  if (!datePart) return false;
+
+  const [year, month, day] = datePart.split("-").map(Number);
+  if (!year || !month || !day) return false;
+
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return dayOfWeek === 0 || dayOfWeek === 6;
+}
+
+function hasBreakDayText(value: string | null | undefined) {
+  const normalizedValue = value?.trim().toLowerCase() ?? "";
+  return (
+    normalizedValue.includes("weekend") ||
+    normalizedValue.includes("holiday") ||
+    normalizedValue.includes("break_day") ||
+    normalizedValue.includes("break day") ||
+    normalizedValue.includes("휴장") ||
+    normalizedValue.includes("휴일")
+  );
+}
+
+function isBreakDayMarket(market: CoreMarketStatus) {
+  if (market.is_trading_day === false) return true;
+  if (market.is_trading_day === true) return false;
+  if (hasBreakDayText(market.state) || hasBreakDayText(market.reason)) return true;
+
+  const state = normalizeMarketState(market.state);
+  const canUseWeekendFallback = state === "CLOSED" || state === "WEEKEND";
+  return canUseWeekendFallback && isWeekendIsoDate(market.server_time ?? market.as_of);
+}
+
 function getPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   if (freshness?.today?.price) return freshness.today.price;
 
@@ -522,18 +569,21 @@ function getEodStageStatusLabel(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
+  isBreakDay: boolean,
 ): EodStageCard["statusLabel"] {
   const status = normalizeStageStatus(stage);
   if (status === "running") return "running";
   const hasMatchingDates =
     hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate.trim() === latestDate.trim();
   if (status === "ready" && hasMatchingDates) return "synced";
+  if (isBreakDay) return "break day";
   return "not synced";
 }
 
 function getEodStageTone(statusLabel: EodStageCard["statusLabel"]): EodStageCard["tone"] {
   if (statusLabel === "synced") return "positive";
   if (statusLabel === "running") return "info";
+  if (statusLabel === "break day") return "neutral";
   return "warning";
 }
 
@@ -543,12 +593,13 @@ function buildEodStageCard(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
+  isBreakDay: boolean,
   countDetail: Pick<EodStageDetail, "label" | "value"> = {
     label: "Succeeded",
     value: `${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
   },
 ): EodStageCard {
-  const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate);
+  const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate, isBreakDay);
   const details: EodStageDetail[] = [{ key: "count", tone: "count", ...countDetail }];
 
   if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
@@ -911,6 +962,7 @@ export function LiveDashboardClient({
 
   const todayTradeDate = freshness?.today?.trade_date ?? null;
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
+  const isBreakDay = isBreakDayMarket(market);
   const eodStageCards = [
     buildEodStageCard(
       "price",
@@ -918,6 +970,7 @@ export function LiveDashboardClient({
       getPriceFreshnessStage(freshness),
       todayTradeDate,
       freshness?.latest?.price_trade_date ?? null,
+      isBreakDay,
     ),
     buildEodStageCard(
       "technical",
@@ -925,6 +978,7 @@ export function LiveDashboardClient({
       getTechnicalFreshnessStage(freshness),
       todayTradeDate,
       freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null,
+      isBreakDay,
     ),
     buildEodStageCard(
       "action",
@@ -932,6 +986,7 @@ export function LiveDashboardClient({
       getActionFreshnessStage(freshness),
       todayTradeDate,
       freshness?.latest?.action_market_date ?? null,
+      isBreakDay,
     ),
     buildEodStageCard(
       "fundamentals",
@@ -939,6 +994,7 @@ export function LiveDashboardClient({
       fundamentalsFreshnessStage,
       todayTradeDate,
       latestFundamentalsDate,
+      isBreakDay,
       {
         label: "Checked",
         value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),
