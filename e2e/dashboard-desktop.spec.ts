@@ -622,6 +622,8 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toContainText("전체 대상 250개");
     await expect(progressCard).toContainText("실패 3개");
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
+    await expect(progressCard).toContainText("피드백 완료 302개 / 750개");
+    await expect(progressCard).toContainText("예상 기준 250개 x 3 agents = 750개");
 
     const [eodBox, progressBox] = await Promise.all([eodStatusCard.boundingBox(), progressCard.boundingBox()]);
     expect(eodBox).not.toBeNull();

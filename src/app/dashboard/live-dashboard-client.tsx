@@ -578,6 +578,36 @@ function formatAgentProgressCountLabel(value: number | null | undefined) {
   return `${value.toLocaleString("ko-KR")}개`;
 }
 
+function getAgentProgressExpectedAgentCount(progress: AgentFeedbackProgressResponseDto | null) {
+  const expectedAgents = progress?.request?.expected_agents;
+  if (expectedAgents && expectedAgents.length > 0) return expectedAgents.length;
+
+  const totalSymbols = progress?.summary?.total_symbols;
+  const expectedFeedbackCount = progress?.summary?.expected_feedback_count;
+  if (!hasNumber(totalSymbols) || totalSymbols <= 0 || !hasNumber(expectedFeedbackCount)) return null;
+
+  const derivedAgentCount = expectedFeedbackCount / totalSymbols;
+  if (!Number.isFinite(derivedAgentCount) || derivedAgentCount <= 0 || !Number.isInteger(derivedAgentCount)) {
+    return null;
+  }
+
+  return derivedAgentCount;
+}
+
+function formatAgentProgressFeedbackBasisLabel(progress: AgentFeedbackProgressResponseDto | null) {
+  const totalSymbols = progress?.summary?.total_symbols;
+  const expectedFeedbackCount = progress?.summary?.expected_feedback_count;
+  const expectedAgentCount = getAgentProgressExpectedAgentCount(progress);
+
+  if (!hasNumber(totalSymbols) || !hasNumber(expectedFeedbackCount) || !hasNumber(expectedAgentCount)) {
+    return UNKNOWN_LABEL;
+  }
+
+  return `${totalSymbols.toLocaleString("ko-KR")}개 x ${expectedAgentCount.toLocaleString(
+    "ko-KR",
+  )} agents = ${expectedFeedbackCount.toLocaleString("ko-KR")}개`;
+}
+
 function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null) {
   const percent = progress?.summary?.progress_percent;
   if (!hasNumber(percent)) return UNKNOWN_LABEL;
@@ -931,6 +961,13 @@ export function LiveDashboardClient({
   const agentProgressInProgress = formatAgentProgressCountLabel(
     displayedAgentFeedbackProgress?.summary?.in_progress_symbols,
   );
+  const agentProgressCompletedFeedback = formatAgentProgressCountLabel(
+    displayedAgentFeedbackProgress?.summary?.completed_feedback_count,
+  );
+  const agentProgressExpectedFeedback = formatAgentProgressCountLabel(
+    displayedAgentFeedbackProgress?.summary?.expected_feedback_count,
+  );
+  const agentProgressFeedbackBasis = formatAgentProgressFeedbackBasisLabel(displayedAgentFeedbackProgress);
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
@@ -1092,6 +1129,10 @@ export function LiveDashboardClient({
                 실패 {agentProgressFailed}
                 <br />
                 완료 {agentProgressCompleted} · 진행 중 {agentProgressInProgress}
+                <br />
+                피드백 완료 {agentProgressCompletedFeedback} / {agentProgressExpectedFeedback}
+                <br />
+                예상 기준 {agentProgressFeedbackBasis}
               </p>
             </article>
           </div>
