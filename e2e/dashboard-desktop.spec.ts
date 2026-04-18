@@ -7,7 +7,10 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
-    await expect(page.getByRole("navigation", { name: /Primary desktop/i })).toBeVisible();
+    const desktopNav = page.getByRole("navigation", { name: /Primary desktop/i });
+    await expect(desktopNav).toBeVisible();
+    await expect(desktopNav.getByRole("link", { name: /Market Status/i })).toHaveCount(0);
+    await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Highest absolute movers/i })).toBeVisible();

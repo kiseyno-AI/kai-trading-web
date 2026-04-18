@@ -91,14 +91,6 @@ export function MobileAppChrome({
             <SearchIcon />
             <span>Search</span>
           </Link>
-          <Link href="/dashboard#dashboard-freshness" className={getDesktopItemClass(false)}>
-            <span className={styles.desktopNavGlyph}>MS</span>
-            <span>Market Status</span>
-          </Link>
-          <Link href={mySymbolsHref} className={getDesktopItemClass(activeNav === "symbols")}>
-            <SymbolsIcon />
-            <span>My Symbols</span>
-          </Link>
         </nav>
 
         <div className={styles.desktopRailStatus} aria-label="Release version">
