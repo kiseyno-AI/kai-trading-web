@@ -9,7 +9,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /symbols/search`
   - `GET /eod/freshness`
     - D2 EOD Status renders stage subcards for `today.price`, `today.technical_analysis`, `today.action_summary`, and `today.fundamentals`; price/technical/action show `symbols_succeeded / symbols_total`, while fundamentals shows a single checked count from the daily inspect run when available
-    - Stage labels map to `synced` when `today.trade_date` matches the relevant latest date and the stage status is `ready`; `running` when the stage status is `running`; otherwise `not synced`, with the stale latest date shown on the subcard when present
+    - Stage labels map to `synced` when `today.trade_date` matches the relevant latest date and the stage status is `ready`; `running` when the stage status is `running`; `break day` when market status says the current day is not a trading day; otherwise `not synced`, with the stale latest date shown on the subcard when present
     - Relevant latest dates are `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, and the latest DART fundamentals date from the daily inspect response; legacy optional layer objects such as `technical.latest_date`, `fundamental.latest_date`, and `fundamentals.latest_date` remain tolerated as deployment-compatibility fallbacks
   - `GET /agent-context/feedback/progress`
     - D2 Agent Feedback progress uses `latest.price_trade_date` from `/eod/freshness` as the primary `market_date`, falling back to `today.trade_date` only when no latest price date exists

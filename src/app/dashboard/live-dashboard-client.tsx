@@ -35,6 +35,7 @@ const AGENT_PROGRESS_STATUS_LABELS = {
 export type CoreMarketStatus = {
   state: string;
   is_open: boolean;
+  is_trading_day?: boolean | null;
   server_time: string;
 };
 
@@ -107,8 +108,8 @@ type EodStageCard = {
   id: EodStageId;
   label: string;
   latestDate: string | null;
-  statusLabel: "synced" | "running" | "not synced";
-  tone: "positive" | "info" | "warning";
+  statusLabel: "synced" | "running" | "break day" | "not synced";
+  tone: "positive" | "info" | "neutral" | "warning";
   details: EodStageDetail[];
 };
 
@@ -459,6 +460,13 @@ function normalizeStageStatus(stage: EodFreshnessStageDto | null | undefined) {
   return stage?.status?.trim().toLowerCase() ?? null;
 }
 
+function isMarketBreakDay(market: CoreMarketStatus) {
+  if (market.is_trading_day === false) return true;
+
+  const normalizedState = market.state.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return ["break_day", "holiday", "weekend", "non_trading", "non_trading_day"].includes(normalizedState);
+}
+
 function getPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   if (freshness?.today?.price) return freshness.today.price;
 
@@ -522,18 +530,21 @@ function getEodStageStatusLabel(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
+  marketBreakDay: boolean,
 ): EodStageCard["statusLabel"] {
   const status = normalizeStageStatus(stage);
   if (status === "running") return "running";
   const hasMatchingDates =
     hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate.trim() === latestDate.trim();
   if (status === "ready" && hasMatchingDates) return "synced";
+  if (marketBreakDay) return "break day";
   return "not synced";
 }
 
 function getEodStageTone(statusLabel: EodStageCard["statusLabel"]): EodStageCard["tone"] {
   if (statusLabel === "synced") return "positive";
   if (statusLabel === "running") return "info";
+  if (statusLabel === "break day") return "neutral";
   return "warning";
 }
 
@@ -543,12 +554,13 @@ function buildEodStageCard(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
+  marketBreakDay: boolean,
   countDetail: Pick<EodStageDetail, "label" | "value"> = {
     label: "Succeeded",
     value: `${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
   },
 ): EodStageCard {
-  const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate);
+  const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate, marketBreakDay);
   const details: EodStageDetail[] = [{ key: "count", tone: "count", ...countDetail }];
 
   if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
@@ -911,6 +923,7 @@ export function LiveDashboardClient({
 
   const todayTradeDate = freshness?.today?.trade_date ?? null;
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
+  const marketBreakDay = isMarketBreakDay(market);
   const eodStageCards = [
     buildEodStageCard(
       "price",
@@ -918,6 +931,7 @@ export function LiveDashboardClient({
       getPriceFreshnessStage(freshness),
       todayTradeDate,
       freshness?.latest?.price_trade_date ?? null,
+      marketBreakDay,
     ),
     buildEodStageCard(
       "technical",
@@ -925,6 +939,7 @@ export function LiveDashboardClient({
       getTechnicalFreshnessStage(freshness),
       todayTradeDate,
       freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null,
+      marketBreakDay,
     ),
     buildEodStageCard(
       "action",
@@ -932,6 +947,7 @@ export function LiveDashboardClient({
       getActionFreshnessStage(freshness),
       todayTradeDate,
       freshness?.latest?.action_market_date ?? null,
+      marketBreakDay,
     ),
     buildEodStageCard(
       "fundamentals",
@@ -939,6 +955,7 @@ export function LiveDashboardClient({
       fundamentalsFreshnessStage,
       todayTradeDate,
       latestFundamentalsDate,
+      marketBreakDay,
       {
         label: "Checked",
         value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),

@@ -375,6 +375,106 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage.getByText(/Succeeded|Failed|\//i)).toHaveCount(0);
   });
 
+  test("D2 EOD status maps non-trading day stale stages to break day", async ({ page }) => {
+    const now = "2026-04-18T10:20:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "CLOSED",
+          is_trading_day: false,
+          is_open: false,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "CLOSED",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 600,
+              change_pct: 0.84,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "CLOSED",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-17",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-18",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-17",
+            technical_market_date: "2026-04-17",
+            action_market_date: "2026-04-17",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-17",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard).toBeVisible();
+    await expect(eodStatusCard.getByText("Market date 2026-04-18")).toBeVisible();
+
+    for (const label of ["Price Fetch", "Technical Analysis", "Action Summary", "Fundamentals"]) {
+      const stage = page.locator(`[aria-label="${label} freshness"]`);
+      await expect(stage).toContainText("break day");
+      await expect(stage.getByText("not synced")).toHaveCount(0);
+    }
+  });
+
   test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
