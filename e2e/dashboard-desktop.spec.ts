@@ -428,35 +428,19 @@ test.describe("dashboard desktop", () => {
         body: JSON.stringify({
           today: {
             trade_date: "2026-04-18",
-            price: {
-              status: "ready",
-              symbols_total: 250,
-              symbols_succeeded: 250,
-              symbols_failed: 0,
-            },
-            technical_analysis: {
-              status: "ready",
-              symbols_total: 250,
-              symbols_succeeded: 250,
-              symbols_failed: 0,
-            },
-            action_summary: {
-              status: "ready",
-              symbols_total: 250,
-              symbols_succeeded: 250,
-              symbols_failed: 0,
-            },
-            fundamentals: {
-              status: "ready",
-              symbols_total: 42,
-              symbols_succeeded: 42,
-              symbols_failed: 0,
-            },
+            eod_status: "completed",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            symbols_failed: 0,
           },
           latest: {
             price_trade_date: "2026-04-17",
             technical_market_date: "2026-04-17",
             action_market_date: "2026-04-17",
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-17",
           },
           fundamentals: {
             success: true,
@@ -511,7 +495,18 @@ test.describe("dashboard desktop", () => {
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     await expect(technicalStage).toContainText("break day");
+    await expect(technicalStage).toContainText("Latest date 2026-04-17");
     await expect(technicalStage.getByText("not synced")).toHaveCount(0);
+
+    const actionStage = page.locator('[aria-label="Action Summary freshness"]');
+    await expect(actionStage).toContainText("break day");
+    await expect(actionStage).toContainText("Latest date 2026-04-17");
+    await expect(actionStage.getByText("not synced")).toHaveCount(0);
+
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    await expect(fundamentalsStage).toContainText("break day");
+    await expect(fundamentalsStage).toContainText("Latest date 2026-04-17");
+    await expect(fundamentalsStage.getByText("not synced")).toHaveCount(0);
   });
 
   test("D2 EOD status keeps missing weekend stages as not synced", async ({ page }) => {
@@ -591,6 +586,10 @@ test.describe("dashboard desktop", () => {
             technical_market_date: "2026-04-17",
             action_market_date: "2026-04-17",
           },
+          technical: {
+            success: false,
+            latest_date: "2026-04-17",
+          },
           fundamentals: {
             success: true,
             latest_date: "2026-04-17",
@@ -648,6 +647,10 @@ test.describe("dashboard desktop", () => {
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     await expect(actionStage).toContainText("not synced");
     await expect(actionStage.getByText("break day")).toHaveCount(0);
+
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    await expect(fundamentalsStage).toContainText("not synced");
+    await expect(fundamentalsStage.getByText("break day")).toHaveCount(0);
   });
 
   test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
