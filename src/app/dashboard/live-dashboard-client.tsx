@@ -1197,6 +1197,16 @@ export function LiveDashboardClient({
                 피드백 완료 {agentProgressCompletedFeedback} / {agentProgressExpectedFeedback}
                 <br />
                 예상 기준 {agentProgressFeedbackBasis}
+                <br />
+                현재 롤 {displayedAgentFeedbackProgress?.summary?.current_role ?? UNKNOWN_LABEL}
+                <br />
+                롤당 병렬 {displayedAgentFeedbackProgress?.summary?.parallel_per_role ?? UNKNOWN_LABEL}
+                <br />
+                마지막 적재 {formatDisplayTimestamp(displayedAgentFeedbackProgress?.summary?.latest_feedback_at, UNKNOWN_LABEL)}
+                <br />
+                무응답 경과 {displayedAgentFeedbackProgress?.summary?.seconds_since_last_feedback ?? UNKNOWN_LABEL}s
+                <br />
+                Run ID {displayedAgentFeedbackProgress?.summary?.run_id ?? UNKNOWN_LABEL}
               </p>
             </article>
           </div>
