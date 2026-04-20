@@ -316,6 +316,9 @@ export type AgentFeedbackProgressResponseDto = {
     failed_items: number;
     completed_feedback_count: number;
     expected_feedback_count: number;
+    current_role?: string | null;
+    parallel_per_role?: number | null;
+    run_id?: string | null;
   };
 };
 

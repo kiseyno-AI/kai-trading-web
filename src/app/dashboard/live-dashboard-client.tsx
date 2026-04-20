@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -25,6 +25,8 @@ import styles from "./live-dashboard-client.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
+const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
+const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
 const AGENT_PROGRESS_STATUS_LABELS = {
   pending: "에이전트 분석 대기",
   running: "에이전트 분석 중...",
@@ -682,6 +684,22 @@ function normalizeAgentProgressRunStatus(status: unknown): AgentFeedbackRunStatu
   return normalized in AGENT_PROGRESS_STATUS_LABELS ? (normalized as AgentFeedbackRunStatus) : null;
 }
 
+function isAgentFeedbackProgressRunning(progress: AgentFeedbackProgressResponseDto | null) {
+  if (!progress) return false;
+
+  const summary = progress.summary;
+  const runStatus = normalizeAgentProgressRunStatus(summary.run_status);
+  if (runStatus) return runStatus === "running";
+
+  return summary.is_live;
+}
+
+function getAgentFeedbackProgressPollDelayMs(progress: AgentFeedbackProgressResponseDto | null) {
+  return isAgentFeedbackProgressRunning(progress)
+    ? AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS
+    : AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS;
+}
+
 function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto | null, error: string | null) {
   if (!progress) return error ? "에이전트 확인 필요" : UNKNOWN_LABEL;
 
@@ -723,6 +741,7 @@ export function LiveDashboardClient({
   const [agentFeedbackProgress, setAgentFeedbackProgress] = useState<AgentFeedbackProgressResponseDto | null>(
     initialAgentFeedbackProgress,
   );
+  const agentFeedbackProgressRef = useRef<AgentFeedbackProgressResponseDto | null>(initialAgentFeedbackProgress);
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
@@ -914,26 +933,45 @@ export function LiveDashboardClient({
     const progressPath = `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(
       agentProgressMarketDate,
     )}`;
+    let timer: number | null = null;
 
-    const loadAgentFeedbackProgress = async () => {
+    if (agentFeedbackProgressRef.current?.request.market_date !== agentProgressMarketDate) {
+      agentFeedbackProgressRef.current = null;
+    }
+
+    function clearTimer() {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function scheduleNextLoad(progress: AgentFeedbackProgressResponseDto | null) {
+      if (!active) return;
+      clearTimer();
+      timer = window.setTimeout(loadAgentFeedbackProgress, getAgentFeedbackProgressPollDelayMs(progress));
+    }
+
+    async function loadAgentFeedbackProgress() {
       try {
         const data = await getJson<AgentFeedbackProgressResponseDto>(progressPath);
         if (!active) return;
+        agentFeedbackProgressRef.current = data;
         setAgentFeedbackProgress(data);
         setAgentFeedbackProgressError(null);
+        scheduleNextLoad(data);
       } catch (progressError) {
         console.error("Dashboard agent feedback progress load failed", progressError);
         if (!active) return;
         setAgentFeedbackProgressError(getDashboardLoadErrorMessage(progressError));
+        scheduleNextLoad(agentFeedbackProgressRef.current);
       }
-    };
+    }
 
     loadAgentFeedbackProgress();
-    const timer = window.setInterval(loadAgentFeedbackProgress, 30_000);
 
     return () => {
       active = false;
-      window.clearInterval(timer);
+      clearTimer();
     };
   }, [agentProgressMarketDate]);
 
@@ -1034,6 +1072,7 @@ export function LiveDashboardClient({
   const agentProgressFeedbackBasis = formatAgentProgressFeedbackBasisLabel(displayedAgentFeedbackProgress);
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
+  const showAgentProgressDetails = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
   const coreUnavailable =
     market.state === "OFFLINE PLACEHOLDER" ||
@@ -1183,31 +1222,33 @@ export function LiveDashboardClient({
               <div className={styles.agentProgressTrack} aria-hidden="true">
                 <i style={{ width: `${agentProgressPercentValue}%` }} />
               </div>
-              <p className={styles.eodStatusDetails}>
-                기준일 {agentProgressDate}
-                <br />
-                진행률 {agentProgressPercent}
-                <br />
-                전체 대상 {agentProgressTotal}
-                <br />
-                실패 {agentProgressFailed}
-                <br />
-                완료 {agentProgressCompleted} · 진행 중 {agentProgressInProgress}
-                <br />
-                피드백 완료 {agentProgressCompletedFeedback} / {agentProgressExpectedFeedback}
-                <br />
-                예상 기준 {agentProgressFeedbackBasis}
-                <br />
-                현재 롤 {displayedAgentFeedbackProgress?.summary?.current_role ?? UNKNOWN_LABEL}
-                <br />
-                롤당 병렬 {displayedAgentFeedbackProgress?.summary?.parallel_per_role ?? UNKNOWN_LABEL}
-                <br />
-                마지막 적재 {formatDisplayTimestamp(displayedAgentFeedbackProgress?.summary?.latest_feedback_at, UNKNOWN_LABEL)}
-                <br />
-                무응답 경과 {displayedAgentFeedbackProgress?.summary?.seconds_since_last_feedback ?? UNKNOWN_LABEL}s
-                <br />
-                Run ID {displayedAgentFeedbackProgress?.summary?.run_id ?? UNKNOWN_LABEL}
-              </p>
+              {showAgentProgressDetails ? (
+                <p className={styles.eodStatusDetails}>
+                  기준일 {agentProgressDate}
+                  <br />
+                  진행률 {agentProgressPercent}
+                  <br />
+                  전체 대상 {agentProgressTotal}
+                  <br />
+                  실패 {agentProgressFailed}
+                  <br />
+                  완료 {agentProgressCompleted} · 진행 중 {agentProgressInProgress}
+                  <br />
+                  피드백 완료 {agentProgressCompletedFeedback} / {agentProgressExpectedFeedback}
+                  <br />
+                  예상 기준 {agentProgressFeedbackBasis}
+                  <br />
+                  현재 롤 {displayedAgentFeedbackProgress?.summary?.current_role ?? UNKNOWN_LABEL}
+                  <br />
+                  롤당 병렬 {displayedAgentFeedbackProgress?.summary?.parallel_per_role ?? UNKNOWN_LABEL}
+                  <br />
+                  마지막 적재 {formatDisplayTimestamp(displayedAgentFeedbackProgress?.summary?.latest_feedback_at, UNKNOWN_LABEL)}
+                  <br />
+                  무응답 경과 {displayedAgentFeedbackProgress?.summary?.seconds_since_last_feedback ?? UNKNOWN_LABEL}s
+                  <br />
+                  Run ID {displayedAgentFeedbackProgress?.summary?.run_id ?? UNKNOWN_LABEL}
+                </p>
+              ) : null}
             </article>
           </div>
         </section>

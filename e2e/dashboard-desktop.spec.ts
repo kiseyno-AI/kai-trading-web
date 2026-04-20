@@ -907,6 +907,7 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
     await expect(progressCard).toContainText("피드백 완료 302개 / 750개");
     await expect(progressCard).toContainText("예상 기준 250개 x 3 agents = 750개");
+    await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(2);
 
     const [eodBox, progressBox] = await Promise.all([eodStatusCard.boundingBox(), progressCard.boundingBox()]);
     expect(eodBox).not.toBeNull();
@@ -941,6 +942,8 @@ test.describe("dashboard desktop", () => {
     };
     await reloadAndExpectAgentStatus("에이전트 확인 필요");
     await expect(progressCard).not.toContainText("에이전트 분석 중...");
+    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).not.toContainText("피드백 완료");
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -955,6 +958,8 @@ test.describe("dashboard desktop", () => {
       completed_feedback_count: 0,
     };
     await reloadAndExpectAgentStatus("에이전트 분석 대기");
+    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).not.toContainText("피드백 완료");
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -969,6 +974,112 @@ test.describe("dashboard desktop", () => {
       completed_feedback_count: 750,
     };
     await reloadAndExpectAgentStatus("에이전트 분석 완료");
+    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).not.toContainText("피드백 완료");
+  });
+
+  test("D2 agent feedback progress preserves active polling cadence after a transient fetch error", async ({ page }) => {
+    const now = "2026-04-15T10:20:00+09:00";
+    let progressRequestCount = 0;
+    const runningSummary = {
+      run_status: "running",
+      is_live: false,
+      latest_feedback_at: "2026-04-15T10:18:00+09:00",
+      seconds_since_last_feedback: 15,
+      stalled_threshold_seconds: 300,
+      total_symbols: 250,
+      processed_symbols: 126,
+      completed_symbols: 88,
+      in_progress_symbols: 38,
+      pending_symbols: 124,
+      progress_ratio: 0.504,
+      progress_percent: 50.4,
+      failed_items: 3,
+      completed_feedback_count: 302,
+      expected_feedback_count: 750,
+    };
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-16",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      progressRequestCount += 1;
+
+      if (progressRequestCount === 2) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "temporarily unavailable" }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-15",
+            symbols: null,
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: runningSummary,
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(3);
   });
 
   test("D2 fundamentals subcard maps the ready stage to synced", async ({ page }) => {
