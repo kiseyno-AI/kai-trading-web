@@ -33,6 +33,17 @@ const AGENT_PROGRESS_STATUS_LABELS = {
   stalled: "에이전트 확인 필요",
   completed: "에이전트 분석 완료",
 } satisfies Record<AgentFeedbackRunStatus, string>;
+type KnownAgentRole = "eod-summarizer" | "technical-summarizer" | "fundamental-summarizer";
+const AGENT_ROLE_LABELS = {
+  "eod-summarizer": "EOD summarizer",
+  "technical-summarizer": "Technical summarizer",
+  "fundamental-summarizer": "Fundamental summarizer",
+} satisfies Record<KnownAgentRole, string>;
+const AGENT_ROLE_STATUS_LABELS = {
+  completed: "확인 완료",
+  running: "실행 중",
+  pending: "대기",
+} satisfies Record<AgentRoleStatus, string>;
 
 export type CoreMarketStatus = {
   market?: string | null;
@@ -125,6 +136,24 @@ type EodStageDetail = {
   label: string;
   value: string;
   tone?: "count" | "text";
+};
+
+type AgentRoleStatus = "completed" | "running" | "pending";
+
+type AgentRoleDependencyStatus = "confirmed" | "running" | "failed" | "pending";
+
+type AgentRoleDependency = {
+  key: string;
+  label: string;
+  status: AgentRoleDependencyStatus;
+  failedCount: number | null;
+};
+
+type AgentRoleCard = {
+  role: string;
+  label: string;
+  status: AgentRoleStatus;
+  dependencies: AgentRoleDependency[];
 };
 
 function hasNumber(value: number | null | undefined): value is number {
@@ -713,6 +742,126 @@ function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto 
   return AGENT_PROGRESS_STATUS_LABELS.pending;
 }
 
+function normalizeAgentRole(role: string | null | undefined) {
+  return role?.trim().toLowerCase() ?? null;
+}
+
+function getAgentRoleLabel(role: string) {
+  const normalizedRole = normalizeAgentRole(role);
+  if (normalizedRole && normalizedRole in AGENT_ROLE_LABELS) {
+    return AGENT_ROLE_LABELS[normalizedRole as keyof typeof AGENT_ROLE_LABELS];
+  }
+
+  return humanizeToken(role, role);
+}
+
+function getOrderedAgentRoles(progress: AgentFeedbackProgressResponseDto | null) {
+  const roles: string[] = [];
+  const seenRoles = new Set<string>();
+  const addRole = (role: string | null | undefined) => {
+    if (!hasTextValue(role)) return;
+
+    const normalizedRole = normalizeAgentRole(role);
+    if (!normalizedRole || seenRoles.has(normalizedRole)) return;
+
+    seenRoles.add(normalizedRole);
+    roles.push(normalizedRole);
+  };
+
+  progress?.request?.expected_agents?.forEach(addRole);
+  addRole(progress?.summary?.current_role);
+
+  return roles;
+}
+
+function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: string | null): AgentRoleStatus {
+  if (currentRole === normalizeAgentRole(role)) return "running";
+  if (!currentRole) return "pending";
+
+  const roleIndex = orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === normalizeAgentRole(role));
+  const currentRoleIndex = orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === currentRole);
+
+  if (roleIndex >= 0 && currentRoleIndex >= 0 && roleIndex < currentRoleIndex) return "completed";
+  return "pending";
+}
+
+function getStageFailedCount(stage: EodFreshnessStageDto | null | undefined) {
+  const failedCount = stage?.symbols_failed;
+  return hasNumber(failedCount) && failedCount > 0 ? failedCount : null;
+}
+
+function buildAgentRoleDependency(
+  key: string,
+  label: string,
+  stage: EodFreshnessStageDto | null | undefined,
+): AgentRoleDependency {
+  const failedCount = getStageFailedCount(stage);
+  if (failedCount !== null) {
+    return { key, label, failedCount, status: "failed" };
+  }
+
+  const stageStatus = normalizeStageStatus(stage);
+  if (stageStatus === "running") {
+    return { key, label, failedCount: null, status: "running" };
+  }
+  if (stageStatus === "ready") {
+    return { key, label, failedCount: null, status: "confirmed" };
+  }
+
+  return { key, label, failedCount: null, status: "pending" };
+}
+
+function getAgentRoleDependencies(
+  role: string,
+  eodStage: EodFreshnessStageDto | null,
+  technicalStage: EodFreshnessStageDto | null,
+) {
+  const normalizedRole = normalizeAgentRole(role) ?? "";
+  const dependencies: AgentRoleDependency[] = [];
+
+  if (normalizedRole.includes("technical") || normalizedRole.includes("fundamental")) {
+    dependencies.push(buildAgentRoleDependency("eod", "EOD", eodStage));
+  }
+  if (normalizedRole.includes("fundamental")) {
+    dependencies.push(buildAgentRoleDependency("technical", "Tech", technicalStage));
+  }
+
+  return dependencies;
+}
+
+function buildAgentRoleCards(
+  progress: AgentFeedbackProgressResponseDto | null,
+  eodStage: EodFreshnessStageDto | null,
+  technicalStage: EodFreshnessStageDto | null,
+): AgentRoleCard[] {
+  if (!isAgentFeedbackProgressRunning(progress)) return [];
+
+  const orderedRoles = getOrderedAgentRoles(progress);
+  const currentRole = normalizeAgentRole(progress?.summary?.current_role);
+
+  return orderedRoles.map((role) => ({
+    role,
+    label: getAgentRoleLabel(role),
+    status: getAgentRoleStatus(role, orderedRoles, currentRole),
+    dependencies: getAgentRoleDependencies(role, eodStage, technicalStage),
+  }));
+}
+
+function getAgentRoleDependencyIcon(status: AgentRoleDependencyStatus) {
+  if (status === "confirmed") return "✓";
+  if (status === "pending") return "·";
+  return "";
+}
+
+function getAgentRoleDependencyText(dependency: AgentRoleDependency) {
+  if (dependency.status === "failed") {
+    return `${dependency.label} -- 실패 ${formatEodSymbolCount(dependency.failedCount)}`;
+  }
+  if (dependency.status === "confirmed") return `${dependency.label} 확인`;
+  if (dependency.status === "running") return `${dependency.label} 진행 중`;
+  return `${dependency.label} 확인 필요`;
+}
+
 function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {
   const params = new URLSearchParams();
   const companyName = getQuoteCompanyName(item) ?? getMetadataCompanyName(item, metadata);
@@ -1073,6 +1222,11 @@ export function LiveDashboardClient({
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const showAgentProgressDetails = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
+  const agentRoleCards = buildAgentRoleCards(
+    displayedAgentFeedbackProgress,
+    priceFreshnessStage,
+    technicalFreshnessStage,
+  );
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
   const coreUnavailable =
     market.state === "OFFLINE PLACEHOLDER" ||
@@ -1222,6 +1376,41 @@ export function LiveDashboardClient({
               <div className={styles.agentProgressTrack} aria-hidden="true">
                 <i style={{ width: `${agentProgressPercentValue}%` }} />
               </div>
+              {agentRoleCards.length > 0 ? (
+                <div className={styles.agentRoleList} role="list" aria-label="Agent role progress">
+                  {agentRoleCards.map((role) => (
+                    <div
+                      key={role.role}
+                      className={styles.agentRoleRow}
+                      data-role-status={role.status}
+                      role="listitem"
+                      aria-label={`${role.label} ${AGENT_ROLE_STATUS_LABELS[role.status]}`}
+                    >
+                      <span className={styles.agentRoleStatusIcon} data-role-icon={role.status} aria-hidden="true" />
+                      <div className={styles.agentRoleContent}>
+                        <span className={styles.agentRoleName}>{role.label}</span>
+                        <span className={styles.agentRoleStatusText}>{AGENT_ROLE_STATUS_LABELS[role.status]}</span>
+                        {role.dependencies.length > 0 ? (
+                          <span className={styles.agentRoleDependencies}>
+                            {role.dependencies.map((dependency) => (
+                              <span
+                                key={dependency.key}
+                                className={styles.agentRoleDependency}
+                                data-dependency-status={dependency.status}
+                              >
+                                <span className={styles.agentRoleDependencyIcon} aria-hidden="true">
+                                  {getAgentRoleDependencyIcon(dependency.status)}
+                                </span>
+                                {getAgentRoleDependencyText(dependency)}
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               {showAgentProgressDetails ? (
                 <p className={styles.eodStatusDetails}>
                   기준일 {agentProgressDate}

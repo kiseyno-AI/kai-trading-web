@@ -769,7 +769,9 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
-  test("D2 agent feedback progress uses the latest price trade date and explicit API status labels", async ({ page }) => {
+  test("D2 agent feedback progress uses the latest price trade date and preserves backend role order", async ({
+    page,
+  }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
@@ -788,7 +790,44 @@ test.describe("dashboard desktop", () => {
       progress_percent: 50.4,
       failed_items: 3,
       completed_feedback_count: 302,
-      expected_feedback_count: 750,
+      expected_feedback_count: 1000,
+      current_role: "technical-summarizer",
+    };
+    const freshnessPayload = {
+      today: {
+        trade_date: "2026-04-16",
+        price: {
+          status: "ready",
+          symbols_total: 250,
+          symbols_succeeded: 250,
+          symbols_failed: 0,
+        },
+        technical_analysis: {
+          status: "ready",
+          symbols_total: 250,
+          symbols_succeeded: 250,
+          symbols_failed: 0,
+        },
+        action_summary: {
+          status: "ready",
+          symbols_total: 250,
+          symbols_succeeded: 250,
+          symbols_failed: 0,
+        },
+        fundamentals: {
+          status: "ready",
+          symbols_total: 42,
+          symbols_succeeded: 42,
+          symbols_failed: 0,
+        },
+      },
+      latest: {
+        price_trade_date: "2026-04-15",
+        symbols_total: 250,
+        symbols_succeeded: 250,
+        technical_market_date: "2026-04-15",
+        action_market_date: "2026-04-15",
+      },
     };
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -833,42 +872,7 @@ test.describe("dashboard desktop", () => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          today: {
-            trade_date: "2026-04-16",
-            price: {
-              status: "ready",
-              symbols_total: 250,
-              symbols_succeeded: 250,
-              symbols_failed: 0,
-            },
-            technical_analysis: {
-              status: "ready",
-              symbols_total: 250,
-              symbols_succeeded: 250,
-              symbols_failed: 0,
-            },
-            action_summary: {
-              status: "ready",
-              symbols_total: 250,
-              symbols_succeeded: 250,
-              symbols_failed: 0,
-            },
-            fundamentals: {
-              status: "ready",
-              symbols_total: 42,
-              symbols_succeeded: 42,
-              symbols_failed: 0,
-            },
-          },
-          latest: {
-            price_trade_date: "2026-04-15",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            technical_market_date: "2026-04-15",
-            action_market_date: "2026-04-15",
-          },
-        }),
+        body: JSON.stringify(freshnessPayload),
       });
     });
     await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
@@ -881,7 +885,12 @@ test.describe("dashboard desktop", () => {
           request: {
             market_date: requestedMarketDate,
             symbols: null,
-            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+            expected_agents: [
+              "preflight-gate",
+              "eod-summarizer",
+              "technical-summarizer",
+              "fundamental-summarizer",
+            ],
           },
           summary: agentProgressSummary,
         }),
@@ -905,8 +914,33 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toContainText("전체 대상 250개");
     await expect(progressCard).toContainText("실패 3개");
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
-    await expect(progressCard).toContainText("피드백 완료 302개 / 750개");
-    await expect(progressCard).toContainText("예상 기준 250개 x 3 agents = 750개");
+    await expect(progressCard).toContainText("피드백 완료 302개 / 1,000개");
+    await expect(progressCard).toContainText("예상 기준 250개 x 4 agents = 1,000개");
+    const roleRows = progressCard.locator('[aria-label="Agent role progress"] [role="listitem"]');
+    await expect(roleRows).toHaveCount(4);
+    await expect(roleRows.nth(0)).toContainText("Preflight Gate");
+    await expect(roleRows.nth(1)).toContainText("EOD summarizer");
+    await expect(roleRows.nth(2)).toContainText("Technical summarizer");
+    await expect(roleRows.nth(3)).toContainText("Fundamental summarizer");
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Preflight Gate" }),
+    ).toBeVisible();
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
+    ).toBeVisible();
+    const activeTechnicalRole = progressCard
+      .locator('[data-role-status="running"]')
+      .filter({ hasText: "Technical summarizer" });
+    await expect(activeTechnicalRole).toBeVisible();
+    await expect(activeTechnicalRole.locator('[data-role-icon="running"]')).toBeVisible();
+    await expect(activeTechnicalRole).toContainText("EOD 확인");
+    await expect(
+      progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
+    ).toBeVisible();
+    const activeRoleAnimation = await activeTechnicalRole
+      .locator('[data-role-icon="running"]')
+      .evaluate((element) => getComputedStyle(element).animationName);
+    expect(activeRoleAnimation).toContain("agentRoleSpin");
     await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(2);
 
     const [eodBox, progressBox] = await Promise.all([eodStatusCard.boundingBox(), progressCard.boundingBox()]);
@@ -976,6 +1010,118 @@ test.describe("dashboard desktop", () => {
     await reloadAndExpectAgentStatus("에이전트 분석 완료");
     await expect(progressCard).not.toContainText("기준일");
     await expect(progressCard).not.toContainText("피드백 완료");
+  });
+
+  test("D2 agent feedback role dependencies show EOD and Tech failure counts", async ({ page }) => {
+    const now = "2026-04-15T10:20:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-15",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 237,
+              symbols_failed: 13,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 248,
+              symbols_failed: 2,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-15",
+            symbols: null,
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: {
+            run_status: "running",
+            is_live: false,
+            latest_feedback_at: "2026-04-15T10:18:00+09:00",
+            seconds_since_last_feedback: 15,
+            stalled_threshold_seconds: 300,
+            total_symbols: 250,
+            processed_symbols: 126,
+            completed_symbols: 88,
+            in_progress_symbols: 38,
+            pending_symbols: 124,
+            progress_ratio: 0.504,
+            progress_percent: 50.4,
+            failed_items: 3,
+            completed_feedback_count: 302,
+            expected_feedback_count: 750,
+            current_role: "fundamental-summarizer",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const activeFundamentalRole = progressCard
+      .locator('[data-role-status="running"]')
+      .filter({ hasText: "Fundamental summarizer" });
+
+    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
+    ).toBeVisible();
+    await expect(activeFundamentalRole).toBeVisible();
+    await expect(activeFundamentalRole).toContainText("EOD -- 실패 13");
+    await expect(activeFundamentalRole).toContainText("Tech -- 실패 2");
   });
 
   test("D2 agent feedback progress preserves active polling cadence after a transient fetch error", async ({ page }) => {
