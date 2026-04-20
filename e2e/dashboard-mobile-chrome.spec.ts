@@ -216,6 +216,18 @@ test.describe("dashboard mobile chrome", () => {
 
       expect(overflow.overflowedText).toEqual([]);
       expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
+
+      const titleToCountGap = await stageCard.evaluate((element) => {
+        const title = element.querySelector("span");
+        const countLine = element.querySelector('[data-detail-tone="count"]');
+
+        if (!title || !countLine) return null;
+
+        return countLine.getBoundingClientRect().top - title.getBoundingClientRect().bottom;
+      });
+
+      expect(titleToCountGap).not.toBeNull();
+      expect(titleToCountGap!).toBeLessThanOrEqual(24);
     }
   });
 });
