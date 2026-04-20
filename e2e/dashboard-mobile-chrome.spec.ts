@@ -26,9 +26,9 @@ test.describe("dashboard mobile chrome", () => {
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_DISPLAY_LABEL);
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Dashboard/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Search/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /My Symbols/i })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 

@@ -907,6 +907,7 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
     await expect(progressCard).toContainText("피드백 완료 302개 / 750개");
     await expect(progressCard).toContainText("예상 기준 250개 x 3 agents = 750개");
+    await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(2);
 
     const [eodBox, progressBox] = await Promise.all([eodStatusCard.boundingBox(), progressCard.boundingBox()]);
     expect(eodBox).not.toBeNull();
@@ -941,6 +942,8 @@ test.describe("dashboard desktop", () => {
     };
     await reloadAndExpectAgentStatus("에이전트 확인 필요");
     await expect(progressCard).not.toContainText("에이전트 분석 중...");
+    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).not.toContainText("피드백 완료");
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -955,6 +958,8 @@ test.describe("dashboard desktop", () => {
       completed_feedback_count: 0,
     };
     await reloadAndExpectAgentStatus("에이전트 분석 대기");
+    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).not.toContainText("피드백 완료");
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -969,6 +974,8 @@ test.describe("dashboard desktop", () => {
       completed_feedback_count: 750,
     };
     await reloadAndExpectAgentStatus("에이전트 분석 완료");
+    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).not.toContainText("피드백 완료");
   });
 
   test("D2 fundamentals subcard maps the ready stage to synced", async ({ page }) => {
