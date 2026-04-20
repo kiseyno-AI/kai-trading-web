@@ -915,7 +915,9 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toContainText("실패 3개");
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
     await expect(progressCard).toContainText("피드백 완료 302개 / 1,000개");
-    await expect(progressCard).toContainText("예상 기준 250개 x 4 agents = 1,000개");
+    await expect(progressCard).not.toContainText("예상 기준");
+    await expect(progressCard).not.toContainText("현재 롤");
+    await expect(progressCard).not.toContainText("롤당 병렬");
     const roleRows = progressCard.locator('[aria-label="Agent role progress"] [role="listitem"]');
     await expect(roleRows).toHaveCount(4);
     await expect(roleRows.nth(0)).toContainText("Preflight Gate");
