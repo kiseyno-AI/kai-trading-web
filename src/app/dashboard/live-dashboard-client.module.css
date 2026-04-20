@@ -281,6 +281,145 @@
   background: linear-gradient(90deg, #6ffbbe, #bac3ff);
 }
 
+.agentRoleList {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.agentRoleRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.62rem 0.68rem;
+  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 0.5rem;
+  background: rgba(5, 20, 37, 0.46);
+}
+
+.agentRoleStatusIcon {
+  width: 0.82rem;
+  height: 0.82rem;
+  margin-top: 0.18rem;
+  border: 1px solid rgba(147, 163, 184, 0.42);
+  border-radius: 999px;
+  background: rgba(147, 163, 184, 0.22);
+}
+
+.agentRoleRow[data-role-status="completed"] .agentRoleStatusIcon {
+  display: grid;
+  place-items: center;
+  border-color: rgba(111, 251, 190, 0.42);
+  background: rgba(111, 251, 190, 0.12);
+  color: #6ffbbe;
+}
+
+.agentRoleRow[data-role-status="completed"] .agentRoleStatusIcon::before {
+  content: "✓";
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.agentRoleRow[data-role-status="running"] .agentRoleStatusIcon {
+  border: 2px solid rgba(127, 184, 255, 0.36);
+  border-top-color: #6ffbbe;
+  background: transparent;
+  animation: agentRoleSpin 0.82s linear infinite;
+}
+
+.agentRoleContent {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.agentRoleName {
+  color: #f6f8ff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.agentRoleStatusText {
+  color: #93a3b8;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.agentRoleRow[data-role-status="running"] .agentRoleStatusText {
+  color: #cfe4ff;
+}
+
+.agentRoleDependencies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.32rem;
+}
+
+.agentRoleDependency {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.45rem;
+  padding: 0 0.45rem;
+  border: 1px solid rgba(143, 144, 158, 0.14);
+  border-radius: 0.45rem;
+  background: rgba(13, 28, 46, 0.72);
+  color: #c5c5d4;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.agentRoleDependency[data-dependency-status="confirmed"] {
+  border-color: rgba(111, 251, 190, 0.22);
+  color: #dfffee;
+}
+
+.agentRoleDependency[data-dependency-status="failed"] {
+  border-color: rgba(227, 176, 74, 0.32);
+  background: rgba(50, 37, 12, 0.42);
+  color: #fff4dd;
+}
+
+.agentRoleDependency[data-dependency-status="running"] {
+  color: #cfe4ff;
+}
+
+.agentRoleDependencyIcon {
+  flex: 0 0 auto;
+  min-width: 0.6rem;
+  color: currentColor;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.agentRoleDependency[data-dependency-status="running"] .agentRoleDependencyIcon {
+  width: 0.58rem;
+  height: 0.58rem;
+  min-width: 0.58rem;
+  border: 1px solid rgba(127, 184, 255, 0.36);
+  border-top-color: #bac3ff;
+  border-radius: 999px;
+  animation: agentRoleSpin 0.82s linear infinite;
+}
+
+@keyframes agentRoleSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .supportRow strong,
 .noteCard strong {
   color: #ffffff;
