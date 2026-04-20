@@ -1711,6 +1711,20 @@ test.describe("dashboard desktop", () => {
       });
 
       expect(overflowedText).toEqual([]);
+
+      const titleToCountGap = await stageCard.evaluate((element, expectedLabel) => {
+        const title = [...element.querySelectorAll("span")].find(
+          (child) => child.textContent?.trim() === expectedLabel,
+        );
+        const countLine = element.querySelector('[data-detail-tone="count"]');
+
+        if (!title || !countLine) return null;
+
+        return countLine.getBoundingClientRect().top - title.getBoundingClientRect().bottom;
+      }, label);
+
+      expect(titleToCountGap).not.toBeNull();
+      expect(titleToCountGap!).toBeLessThanOrEqual(24);
     }
   });
 
