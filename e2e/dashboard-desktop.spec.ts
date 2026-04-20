@@ -769,7 +769,9 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
-  test("D2 agent feedback progress uses the latest price trade date and explicit API status labels", async ({ page }) => {
+  test("D2 agent feedback progress uses the latest price trade date and preserves backend role order", async ({
+    page,
+  }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
@@ -788,7 +790,7 @@ test.describe("dashboard desktop", () => {
       progress_percent: 50.4,
       failed_items: 3,
       completed_feedback_count: 302,
-      expected_feedback_count: 750,
+      expected_feedback_count: 1000,
       current_role: "technical-summarizer",
     };
     const freshnessPayload = {
@@ -883,7 +885,12 @@ test.describe("dashboard desktop", () => {
           request: {
             market_date: requestedMarketDate,
             symbols: null,
-            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+            expected_agents: [
+              "preflight-gate",
+              "eod-summarizer",
+              "technical-summarizer",
+              "fundamental-summarizer",
+            ],
           },
           summary: agentProgressSummary,
         }),
@@ -907,8 +914,17 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toContainText("전체 대상 250개");
     await expect(progressCard).toContainText("실패 3개");
     await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
-    await expect(progressCard).toContainText("피드백 완료 302개 / 750개");
-    await expect(progressCard).toContainText("예상 기준 250개 x 3 agents = 750개");
+    await expect(progressCard).toContainText("피드백 완료 302개 / 1,000개");
+    await expect(progressCard).toContainText("예상 기준 250개 x 4 agents = 1,000개");
+    const roleRows = progressCard.locator('[aria-label="Agent role progress"] [role="listitem"]');
+    await expect(roleRows).toHaveCount(4);
+    await expect(roleRows.nth(0)).toContainText("Preflight Gate");
+    await expect(roleRows.nth(1)).toContainText("EOD summarizer");
+    await expect(roleRows.nth(2)).toContainText("Technical summarizer");
+    await expect(roleRows.nth(3)).toContainText("Fundamental summarizer");
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Preflight Gate" }),
+    ).toBeVisible();
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
     ).toBeVisible();

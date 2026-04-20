@@ -33,12 +33,12 @@ const AGENT_PROGRESS_STATUS_LABELS = {
   stalled: "에이전트 확인 필요",
   completed: "에이전트 분석 완료",
 } satisfies Record<AgentFeedbackRunStatus, string>;
-const DEFAULT_AGENT_ROLE_ORDER = ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"] as const;
+type KnownAgentRole = "eod-summarizer" | "technical-summarizer" | "fundamental-summarizer";
 const AGENT_ROLE_LABELS = {
   "eod-summarizer": "EOD summarizer",
   "technical-summarizer": "Technical summarizer",
   "fundamental-summarizer": "Fundamental summarizer",
-} satisfies Record<(typeof DEFAULT_AGENT_ROLE_ORDER)[number], string>;
+} satisfies Record<KnownAgentRole, string>;
 const AGENT_ROLE_STATUS_LABELS = {
   completed: "확인 완료",
   running: "실행 중",
@@ -746,11 +746,6 @@ function normalizeAgentRole(role: string | null | undefined) {
   return role?.trim().toLowerCase() ?? null;
 }
 
-function getDefaultAgentRoleIndex(role: string) {
-  const normalizedRole = normalizeAgentRole(role);
-  return DEFAULT_AGENT_ROLE_ORDER.findIndex((agentRole) => agentRole === normalizedRole);
-}
-
 function getAgentRoleLabel(role: string) {
   const normalizedRole = normalizeAgentRole(role);
   if (normalizedRole && normalizedRole in AGENT_ROLE_LABELS) {
@@ -776,15 +771,7 @@ function getOrderedAgentRoles(progress: AgentFeedbackProgressResponseDto | null)
   progress?.request?.expected_agents?.forEach(addRole);
   addRole(progress?.summary?.current_role);
 
-  return roles
-    .map((role, index) => ({ index, role, defaultIndex: getDefaultAgentRoleIndex(role) }))
-    .sort((left, right) => {
-      if (left.defaultIndex >= 0 && right.defaultIndex >= 0) return left.defaultIndex - right.defaultIndex;
-      if (left.defaultIndex >= 0) return -1;
-      if (right.defaultIndex >= 0) return 1;
-      return left.index - right.index;
-    })
-    .map((item) => item.role);
+  return roles;
 }
 
 function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: string | null): AgentRoleStatus {
