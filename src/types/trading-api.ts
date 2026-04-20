@@ -397,6 +397,22 @@ export type EodFreshnessResponseDto = {
   fundamentals?: EodFreshnessLayerStatusDto | null;
 };
 
+export type DartFundamentalsSymbolSampleItemDto =
+  | string
+  | {
+      symbol?: string | null;
+      stock_code?: string | null;
+      stockCode?: string | null;
+      [key: string]: unknown;
+    };
+
+export type DartFundamentalsDailyRunMetadataDto = Record<string, unknown> & {
+  refreshed_symbols_sample?: DartFundamentalsSymbolSampleItemDto[] | null;
+  samples?: {
+    refreshed_symbols?: DartFundamentalsSymbolSampleItemDto[] | null;
+  } | null;
+};
+
 export type DartFundamentalsDailyRunDto = {
   id: number;
   market_date: string;
@@ -417,7 +433,7 @@ export type DartFundamentalsDailyRunDto = {
   events_captured: number | null;
   events_failed: number | null;
   error_message: string | null;
-  run_metadata: Record<string, unknown> | null;
+  run_metadata: DartFundamentalsDailyRunMetadataDto | null;
   started_at: string | null;
   completed_at: string | null;
 };

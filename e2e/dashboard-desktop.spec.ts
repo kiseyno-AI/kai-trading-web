@@ -1348,6 +1348,8 @@ test.describe("dashboard desktop", () => {
   });
 
   test("D2 fundamentals subcard maps the ready stage to synced", async ({ page }) => {
+    const fundamentalsMarketDateRequests: Array<string | null> = [];
+
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -1388,6 +1390,9 @@ test.describe("dashboard desktop", () => {
       });
     });
     await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      fundamentalsMarketDateRequests.push(requestUrl.searchParams.get("market_date"));
+
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -1411,7 +1416,9 @@ test.describe("dashboard desktop", () => {
             events_captured: 0,
             events_failed: 0,
             error_message: null,
-            run_metadata: {},
+            run_metadata: {
+              refreshed_symbols_sample: ["005930", "000660", "035420", "005380", "012450"],
+            },
             started_at: "2026-04-16T08:56:58.357390+09:00",
             completed_at: "2026-04-16T09:11:08.375335+09:00",
           },
@@ -1426,9 +1433,11 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage).toBeVisible();
     await expect(fundamentalsStage).toContainText("synced");
     await expect(fundamentalsStage).toContainText("Checked 42");
+    await expect(fundamentalsStage).toContainText("Updated today 42 (005930, 000660, 035420, 005380 +38)");
     await expect(fundamentalsStage.getByText(/Succeeded|Failed|\//i)).toHaveCount(0);
     await expect(fundamentalsStage).toContainText("Run status Completed");
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
+    await expect.poll(() => fundamentalsMarketDateRequests).toContain("2026-04-16");
   });
 
   test("D2 fundamentals subcard uses daily inspect date for stale checks", async ({ page }) => {

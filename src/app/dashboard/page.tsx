@@ -7,6 +7,10 @@ import {
   type CoreTrackedQuotesResponse,
 } from "./live-dashboard-client";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
+import {
+  buildDartFundamentalsDailyInspectPath,
+  DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
+} from "@/lib/dart-fundamentals-daily";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 import type {
   AgentFeedbackProgressResponseDto,
@@ -82,15 +86,19 @@ export default async function DashboardPage() {
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, freshness, fundamentalsStatus] = await Promise.all([
+    [market, tracked, freshness] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
-      fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
-        "/disclosures/dart/fundamentals/daily/inspect?runs_limit=1",
-        requestHeaders,
-      ).catch(() => null),
     ]);
+
+    fundamentalsStatus = await fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
+      buildDartFundamentalsDailyInspectPath(
+        DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
+        freshness?.today?.trade_date ?? market.server_time,
+      ),
+      requestHeaders,
+    ).catch(() => null);
 
     const progressPath = buildAgentFeedbackProgressPath(freshness);
     if (progressPath) {

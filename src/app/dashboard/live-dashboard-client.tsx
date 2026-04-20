@@ -8,6 +8,11 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
+import {
+  buildDartFundamentalsDailyInspectPath,
+  DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
+  normalizeDartFundamentalsMarketDate,
+} from "@/lib/dart-fundamentals-daily";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { getCachedTradingApiJson, seedTradingApiJsonCache } from "@/lib/trading-api-cache";
@@ -27,6 +32,7 @@ const UNKNOWN_LABEL = "[확인 필요]";
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
 const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
+const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
 const AGENT_PROGRESS_STATUS_LABELS = {
   pending: "에이전트 분석 대기",
   running: "에이전트 분석 중...",
@@ -657,6 +663,79 @@ function getFundamentalsCheckedCount(
   return latestRun?.symbols_checked ?? stage?.symbols_total ?? stage?.symbols_succeeded ?? null;
 }
 
+function getSymbolCodeFromSampleItem(item: unknown): string | null {
+  if (typeof item === "string") {
+    return hasTextValue(item) ? item.trim() : null;
+  }
+
+  if (!isRecord(item)) return null;
+
+  for (const key of ["symbol", "stock_code", "stockCode"]) {
+    const value = item[key];
+    if (typeof value === "string" && hasTextValue(value)) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function getSymbolCodesFromSample(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const symbols: string[] = [];
+
+  for (const item of value) {
+    const symbol = getSymbolCodeFromSampleItem(item);
+    if (!symbol || seen.has(symbol)) continue;
+    seen.add(symbol);
+    symbols.push(symbol);
+  }
+
+  return symbols;
+}
+
+function getFundamentalsUpdatedSymbolSample(run: DartFundamentalsDailyRunDto | null) {
+  const metadata = run?.run_metadata;
+  if (!isRecord(metadata)) return [];
+
+  const directSample = getSymbolCodesFromSample(metadata.refreshed_symbols_sample);
+  if (directSample.length > 0) return directSample;
+
+  const samples = metadata.samples;
+  if (!isRecord(samples)) return [];
+
+  return getSymbolCodesFromSample(samples.refreshed_symbols);
+}
+
+function getFundamentalsUpdatedSymbolsDetail(
+  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
+): EodStageDetail | null {
+  const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
+  const refreshedCount = latestRun?.symbols_refreshed;
+  const symbolSample = getFundamentalsUpdatedSymbolSample(latestRun);
+
+  if (!hasNumber(refreshedCount) && symbolSample.length === 0) return null;
+
+  const visibleSymbols = symbolSample.slice(0, FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT);
+  const remainingSymbols = hasNumber(refreshedCount)
+    ? Math.max(0, refreshedCount - visibleSymbols.length)
+    : Math.max(0, symbolSample.length - visibleSymbols.length);
+  const countLabel = formatEodSymbolCount(refreshedCount ?? symbolSample.length);
+  const symbolLabel =
+    visibleSymbols.length > 0
+      ? ` (${visibleSymbols.join(", ")}${remainingSymbols > 0 ? ` +${formatEodSymbolCount(remainingSymbols)}` : ""})`
+      : "";
+
+  return {
+    key: "updated-symbols",
+    label: "Updated today",
+    value: `${countLabel}${symbolLabel}`,
+    tone: "text",
+  };
+}
+
 function formatAgentProgressCountLabel(value: number | null | undefined) {
   if (!hasNumber(value)) return UNKNOWN_LABEL;
   return `${value.toLocaleString("ko-KR")}개`;
@@ -878,14 +957,24 @@ export function LiveDashboardClient({
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [marketError, setMarketError] = useState<string | null>(initialError);
   const [trackedError, setTrackedError] = useState<string | null>(initialError);
+  const fundamentalsMarketDate = normalizeDartFundamentalsMarketDate(
+    freshness?.today?.trade_date ?? market.server_time,
+  );
+  const fundamentalsInspectPath = useMemo(
+    () => buildDartFundamentalsDailyInspectPath(DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH, fundamentalsMarketDate),
+    [fundamentalsMarketDate],
+  );
 
   useEffect(() => {
     seedTradingApiJsonCache("/api/trading/eod/freshness", initialFreshness);
     seedTradingApiJsonCache(
-      "/api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1",
+      buildDartFundamentalsDailyInspectPath(
+        DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
+        initialFreshness?.today?.trade_date ?? initialMarket.server_time,
+      ),
       initialFundamentalsStatus,
     );
-  }, [initialFreshness, initialFundamentalsStatus]);
+  }, [initialFreshness, initialFundamentalsStatus, initialMarket.server_time]);
 
   useEffect(() => {
     let active = true;
@@ -1035,7 +1124,7 @@ export function LiveDashboardClient({
     const loadFundamentalsStatus = async () => {
       try {
         const data = await getJson<DartFundamentalsDailyInspectResponseDto>(
-          "/api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1",
+          fundamentalsInspectPath,
         );
         if (!active) return;
         setFundamentalsStatus(data);
@@ -1053,7 +1142,7 @@ export function LiveDashboardClient({
       active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [fundamentalsInspectPath]);
 
   const agentProgressMarketDate = getAgentFeedbackProgressMarketDate(freshness);
 
@@ -1137,6 +1226,19 @@ export function LiveDashboardClient({
   const priceFreshnessStage = getPriceFreshnessStage(freshness);
   const technicalFreshnessStage = getTechnicalFreshnessStage(freshness);
   const actionFreshnessStage = getActionFreshnessStage(freshness);
+  const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus);
+  const fundamentalsStageCard = buildEodStageCard(
+    "fundamentals",
+    "Fundamentals",
+    fundamentalsFreshnessStage,
+    todayTradeDate,
+    latestFundamentalsDate,
+    isBreakDay,
+    {
+      label: "Checked",
+      value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),
+    },
+  );
   const eodStageCards = [
     buildEodStageCard(
       "price",
@@ -1162,18 +1264,12 @@ export function LiveDashboardClient({
       freshness?.latest?.action_market_date ?? null,
       isBreakDay,
     ),
-    buildEodStageCard(
-      "fundamentals",
-      "Fundamentals",
-      fundamentalsFreshnessStage,
-      todayTradeDate,
-      latestFundamentalsDate,
-      isBreakDay,
-      {
-        label: "Checked",
-        value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),
-      },
-    ),
+    fundamentalsUpdatedSymbolsDetail
+      ? {
+          ...fundamentalsStageCard,
+          details: [...fundamentalsStageCard.details, fundamentalsUpdatedSymbolsDetail],
+        }
+      : fundamentalsStageCard,
   ] as const;
   const displayedAgentFeedbackProgress =
     agentProgressMarketDate && agentFeedbackProgress?.request?.market_date === agentProgressMarketDate
@@ -1272,7 +1368,7 @@ export function LiveDashboardClient({
         <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.operational-integrity"
-            api="/api/trading/eod/freshness + /api/trading/market/status + /api/trading/agent-context/feedback/progress"
+            api="/api/trading/eod/freshness + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/disclosures/dart/fundamentals/daily/inspect"
           />
 
           <div className={styles.panelHeader}>
