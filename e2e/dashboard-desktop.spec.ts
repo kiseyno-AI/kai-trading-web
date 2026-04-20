@@ -1126,6 +1126,123 @@ test.describe("dashboard desktop", () => {
     await expect(activeFundamentalRole).toContainText("Tech -- 실패 2");
   });
 
+  test("D2 agent feedback role dependencies hide upstream failure counts while EOD is running", async ({ page }) => {
+    const now = "2026-04-15T10:20:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-15",
+            price: {
+              status: "running",
+              symbols_total: 250,
+              symbols_succeeded: 120,
+              symbols_failed: 13,
+            },
+            technical_analysis: {
+              status: "running",
+              symbols_total: 250,
+              symbols_succeeded: 30,
+              symbols_failed: 2,
+            },
+            action_summary: {
+              status: "missing",
+              symbols_total: 250,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: null,
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-15",
+            symbols: null,
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: {
+            run_status: "running",
+            is_live: false,
+            latest_feedback_at: "2026-04-15T10:18:00+09:00",
+            seconds_since_last_feedback: 15,
+            stalled_threshold_seconds: 300,
+            total_symbols: 250,
+            processed_symbols: 126,
+            completed_symbols: 88,
+            in_progress_symbols: 38,
+            pending_symbols: 124,
+            progress_ratio: 0.504,
+            progress_percent: 50.4,
+            failed_items: 3,
+            completed_feedback_count: 302,
+            expected_feedback_count: 750,
+            current_role: "technical-summarizer",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const activeTechnicalRole = progressCard
+      .locator('[data-role-status="running"]')
+      .filter({ hasText: "Technical summarizer" });
+    const pendingFundamentalRole = progressCard
+      .locator('[data-role-status="pending"]')
+      .filter({ hasText: "Fundamental summarizer" });
+
+    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(activeTechnicalRole).toBeVisible();
+    await expect(activeTechnicalRole).toContainText("EOD 진행 중");
+    await expect(activeTechnicalRole).not.toContainText("EOD -- 실패 13");
+    await expect(pendingFundamentalRole).toBeVisible();
+    await expect(pendingFundamentalRole).toContainText("EOD 진행 중");
+    await expect(pendingFundamentalRole).toContainText("Tech 진행 중");
+    await expect(pendingFundamentalRole).not.toContainText("EOD -- 실패 13");
+    await expect(pendingFundamentalRole).not.toContainText("Tech -- 실패 2");
+  });
+
   test("D2 agent feedback progress preserves active polling cadence after a transient fetch error", async ({ page }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let progressRequestCount = 0;
