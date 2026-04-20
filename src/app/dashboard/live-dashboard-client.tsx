@@ -711,8 +711,13 @@ function getFundamentalsUpdatedSymbolSample(run: DartFundamentalsDailyRunDto | n
 
 function getFundamentalsUpdatedSymbolsDetail(
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
+  todayTradeDate: string | null,
 ): EodStageDetail | null {
   const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
+  const latestRunDate = getFundamentalsRunDate(latestRun);
+
+  if (!hasTextValue(todayTradeDate) || latestRunDate !== todayTradeDate) return null;
+
   const refreshedCount = latestRun?.symbols_refreshed;
   const symbolSample = getFundamentalsUpdatedSymbolSample(latestRun);
 
@@ -1226,7 +1231,7 @@ export function LiveDashboardClient({
   const priceFreshnessStage = getPriceFreshnessStage(freshness);
   const technicalFreshnessStage = getTechnicalFreshnessStage(freshness);
   const actionFreshnessStage = getActionFreshnessStage(freshness);
-  const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus);
+  const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, todayTradeDate);
   const fundamentalsStageCard = buildEodStageCard(
     "fundamentals",
     "Fundamentals",

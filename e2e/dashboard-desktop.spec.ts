@@ -1520,6 +1520,7 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage).toContainText("not synced");
     await expect(fundamentalsStage).toContainText("Latest date 2026-04-14");
     await expect(fundamentalsStage).toContainText("Run status Partial");
+    await expect(fundamentalsStage.getByText("Updated today")).toHaveCount(0);
     await expect(fundamentalsStage.getByRole("button", { name: /Review fundamentals run details/i })).toBeVisible();
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
