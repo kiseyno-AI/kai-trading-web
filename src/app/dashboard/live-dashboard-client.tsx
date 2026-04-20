@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -741,6 +741,7 @@ export function LiveDashboardClient({
   const [agentFeedbackProgress, setAgentFeedbackProgress] = useState<AgentFeedbackProgressResponseDto | null>(
     initialAgentFeedbackProgress,
   );
+  const agentFeedbackProgressRef = useRef<AgentFeedbackProgressResponseDto | null>(initialAgentFeedbackProgress);
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
@@ -934,6 +935,10 @@ export function LiveDashboardClient({
     )}`;
     let timer: number | null = null;
 
+    if (agentFeedbackProgressRef.current?.request.market_date !== agentProgressMarketDate) {
+      agentFeedbackProgressRef.current = null;
+    }
+
     function clearTimer() {
       if (timer === null) return;
       window.clearTimeout(timer);
@@ -950,6 +955,7 @@ export function LiveDashboardClient({
       try {
         const data = await getJson<AgentFeedbackProgressResponseDto>(progressPath);
         if (!active) return;
+        agentFeedbackProgressRef.current = data;
         setAgentFeedbackProgress(data);
         setAgentFeedbackProgressError(null);
         scheduleNextLoad(data);
@@ -957,7 +963,7 @@ export function LiveDashboardClient({
         console.error("Dashboard agent feedback progress load failed", progressError);
         if (!active) return;
         setAgentFeedbackProgressError(getDashboardLoadErrorMessage(progressError));
-        scheduleNextLoad(null);
+        scheduleNextLoad(agentFeedbackProgressRef.current);
       }
     }
 
