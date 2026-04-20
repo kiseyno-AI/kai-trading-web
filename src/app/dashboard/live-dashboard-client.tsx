@@ -760,20 +760,32 @@ function getStageFailedCount(stage: EodFreshnessStageDto | null | undefined) {
   return hasNumber(failedCount) && failedCount > 0 ? failedCount : null;
 }
 
+function canShowStageFailedCount(stage: EodFreshnessStageDto | null | undefined) {
+  const stageStatus = normalizeStageStatus(stage);
+  return (
+    stageStatus === "ready" ||
+    stageStatus === "completed" ||
+    stageStatus === "completed_with_errors" ||
+    stageStatus === "failed" ||
+    stageStatus === "partial"
+  );
+}
+
 function buildAgentRoleDependency(
   key: string,
   label: string,
   stage: EodFreshnessStageDto | null | undefined,
 ): AgentRoleDependency {
-  const failedCount = getStageFailedCount(stage);
-  if (failedCount !== null) {
-    return { key, label, failedCount, status: "failed" };
-  }
-
   const stageStatus = normalizeStageStatus(stage);
   if (stageStatus === "running") {
     return { key, label, failedCount: null, status: "running" };
   }
+
+  const failedCount = getStageFailedCount(stage);
+  if (failedCount !== null && canShowStageFailedCount(stage)) {
+    return { key, label, failedCount, status: "failed" };
+  }
+
   if (stageStatus === "ready") {
     return { key, label, failedCount: null, status: "confirmed" };
   }
