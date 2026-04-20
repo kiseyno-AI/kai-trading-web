@@ -301,8 +301,14 @@ export type AgentFeedbackProgressResponseDto = {
     expected_agents: string[];
   };
   summary: {
-    run_status: AgentFeedbackRunStatus;
+    run_id: string | null;
+    run_status: AgentFeedbackRunStatus | string;
+    run_table_status: string | null;
     is_live: boolean;
+    run_started_at: string | null;
+    run_completed_at: string | null;
+    current_role?: string | null;
+    parallel_per_role?: number | null;
     latest_feedback_at: string | null;
     seconds_since_last_feedback: number | null;
     stalled_threshold_seconds: number | null;
@@ -316,9 +322,11 @@ export type AgentFeedbackProgressResponseDto = {
     failed_items: number;
     completed_feedback_count: number;
     expected_feedback_count: number;
-    current_role?: string | null;
-    parallel_per_role?: number | null;
-    run_id?: string | null;
+    completed_feedback_per_minute?: number | null;
+    completed_symbols_per_minute?: number | null;
+    estimated_remaining_seconds?: number | null;
+    estimated_completion_at?: string | null;
+    eta_confidence?: string | null;
   };
 };
 
