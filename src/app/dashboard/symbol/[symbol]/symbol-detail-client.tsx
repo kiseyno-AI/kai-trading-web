@@ -1392,12 +1392,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   }, [hasFinishedInitialLoad, initialRouteReady]);
 
   if (!hasFinishedInitialLoad) {
-    return (
-      <FullPageLoadingScreen
-        label="Loading symbol workspace"
-        detail="Switching the full symbol surface and preparing the next packet from trading-core."
-      />
-    );
+    return <FullPageLoadingScreen label="Loading symbol workspace" />;
   }
 
   const moduleRows = [
