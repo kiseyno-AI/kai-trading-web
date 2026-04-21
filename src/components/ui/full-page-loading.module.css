@@ -48,52 +48,20 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  width: clamp(108px, 18vw, 144px);
+  width: clamp(60px, 8vw, 88px);
   aspect-ratio: 1;
-  border: 1px solid rgba(213, 227, 252, 0.12);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(127, 184, 255, 0.14), transparent 56%),
-    linear-gradient(180deg, rgba(18, 32, 50, 0.9), rgba(10, 22, 38, 0.88)),
-    rgba(18, 32, 50, 0.88);
-  box-shadow:
-    0 24px 72px rgba(0, 11, 28, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .ring {
   position: relative;
-  width: 64%;
-  height: 64%;
+  width: 100%;
+  height: 100%;
   border-radius: 999px;
   border: 3px solid rgba(213, 227, 252, 0.12);
   border-top-color: rgba(127, 184, 255, 0.96);
   border-right-color: rgba(78, 222, 163, 0.82);
-  box-shadow: 0 0 24px rgba(127, 184, 255, 0.16);
-  animation: spin 1s linear infinite;
-}
-
-.ring::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: inherit;
-  border: 3px solid transparent;
-  border-bottom-color: rgba(255, 255, 255, 0.12);
-  animation: spin 1.6s linear infinite reverse;
-}
-
-.core {
-  position: absolute;
-  width: 18%;
-  aspect-ratio: 1;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(243, 247, 255, 0.95) 0%, rgba(127, 184, 255, 0.72) 58%, rgba(127, 184, 255, 0) 100%);
-  box-shadow:
-    0 0 28px rgba(127, 184, 255, 0.34),
-    0 0 48px rgba(78, 222, 163, 0.12);
-  animation: pulse 1.4s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(127, 184, 255, 0.16);
+  animation: spin 0.9s linear infinite;
 }
 
 @keyframes spin {
@@ -106,25 +74,12 @@
   }
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    transform: scale(0.9);
-    opacity: 0.72;
-  }
-
-  50% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
-}
-
 @media (max-width: 640px) {
   .shell {
     padding: 24px 16px;
   }
 
   .loader {
-    width: clamp(96px, 28vw, 124px);
+    width: clamp(56px, 18vw, 72px);
   }
 }

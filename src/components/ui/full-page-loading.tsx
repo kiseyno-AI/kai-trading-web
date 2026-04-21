@@ -22,7 +22,6 @@ export function FullPageLoadingScreen({
 
       <div className={styles.loader} aria-hidden="true">
         <span className={styles.ring} />
-        <span className={styles.core} />
       </div>
     </div>
   );
