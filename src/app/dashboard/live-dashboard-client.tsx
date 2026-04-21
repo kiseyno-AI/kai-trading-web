@@ -1588,7 +1588,8 @@ export function LiveDashboardClient({
   const agentProgressPercentValue = getAgentProgressPercentValue(displayedAgentFeedbackProgress);
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
-  const showAgentProgressDetails = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
+  const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
+  const showAgentProgressDetails = isAgentFeedbackRunning;
   const agentRoleCards = buildAgentRoleCards(
     displayedAgentFeedbackProgress,
     priceFreshnessStage,
@@ -1605,6 +1606,7 @@ export function LiveDashboardClient({
   const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen;
 
   function openAgentFeedbackStopDialog() {
+    if (!isAgentFeedbackRunning) return;
     setAgentFeedbackStopError(null);
     setAgentFeedbackStopDialogOpen(true);
   }
@@ -1634,6 +1636,12 @@ export function LiveDashboardClient({
       setAgentFeedbackStopPending(false);
     }
   }
+
+  useEffect(() => {
+    if (isAgentFeedbackRunning) return;
+    setAgentFeedbackStopError(null);
+    setAgentFeedbackStopDialogOpen(false);
+  }, [isAgentFeedbackRunning]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -1832,19 +1840,21 @@ export function LiveDashboardClient({
                   ))}
                 </div>
               ) : null}
-              <div className={styles.agentFeedbackActions}>
-                <button
-                  type="button"
-                  className={styles.agentFeedbackStopButton}
-                  aria-label="중단"
-                  aria-haspopup="dialog"
-                  aria-expanded={agentFeedbackStopDialogOpen}
-                  aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
-                  onClick={openAgentFeedbackStopDialog}
-                >
-                  중단
-                </button>
-              </div>
+              {isAgentFeedbackRunning ? (
+                <div className={styles.agentFeedbackActions}>
+                  <button
+                    type="button"
+                    className={styles.agentFeedbackStopButton}
+                    aria-label="중단"
+                    aria-haspopup="dialog"
+                    aria-expanded={agentFeedbackStopDialogOpen}
+                    aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
+                    onClick={openAgentFeedbackStopDialog}
+                  >
+                    중단
+                  </button>
+                </div>
+              ) : null}
             </article>
           </div>
         </section>

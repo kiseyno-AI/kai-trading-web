@@ -1257,9 +1257,9 @@ test.describe("dashboard desktop", () => {
 
     const progressCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
     const eodStatusCard = freshnessPanel.locator("article").filter({ hasText: "EOD Status" });
+    const stopButton = progressCard.getByRole("button", { name: "중단" });
     await expect(progressCard).toBeVisible();
     await expect(progressCard).toContainText("에이전트 분석 중...");
-    const stopButton = progressCard.getByRole("button", { name: "중단" });
     await expect(stopButton).toBeVisible();
     await stopButton.click();
     const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
@@ -1345,6 +1345,7 @@ test.describe("dashboard desktop", () => {
     };
     await reloadAndExpectAgentStatus("에이전트 분석 중...");
     await expect(progressCard).not.toContainText("에이전트 확인 필요");
+    await expect(stopButton).toBeVisible();
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -1358,6 +1359,7 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).not.toContainText("에이전트 분석 중...");
     await expect(progressCard).not.toContainText("기준일");
     await expect(progressCard).not.toContainText("피드백 완료");
+    await expect(stopButton).toHaveCount(0);
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -1374,6 +1376,7 @@ test.describe("dashboard desktop", () => {
     await reloadAndExpectAgentStatus("에이전트 분석 대기");
     await expect(progressCard).not.toContainText("기준일");
     await expect(progressCard).not.toContainText("피드백 완료");
+    await expect(stopButton).toHaveCount(0);
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -1390,6 +1393,7 @@ test.describe("dashboard desktop", () => {
     await reloadAndExpectAgentStatus("에이전트 분석 완료");
     await expect(progressCard).not.toContainText("기준일");
     await expect(progressCard).not.toContainText("피드백 완료");
+    await expect(stopButton).toHaveCount(0);
   });
 
   test("D2 agent feedback role dependencies keep confirmation badges without separate failure-count pills", async ({
