@@ -1281,14 +1281,12 @@ test.describe("dashboard desktop", () => {
     );
     await expect(stopDialog).toHaveCount(0);
     await expect(progressCard).toContainText("기준일 2026-04-15");
-    await expect(progressCard).toContainText("진행률 50.40%");
-    await expect(progressCard).toContainText("전체 대상 250개");
-    await expect(progressCard).toContainText("실패 3개");
-    await expect(progressCard).toContainText("완료 88개 · 진행 중 38개");
-    await expect(progressCard).toContainText("피드백 완료 302개 / 1,000개");
+    await expect(progressCard.locator("p")).toHaveCount(0);
+    await expect(progressCard).not.toContainText("피드백 완료 302개 / 1,000개");
     await expect(progressCard).not.toContainText("예상 기준");
     await expect(progressCard).not.toContainText("현재 롤");
     await expect(progressCard).not.toContainText("롤당 병렬");
+    await expect(progressCard).not.toContainText("Run ID");
     const roleRows = progressCard.locator('[aria-label="Agent role progress"] [role="listitem"]');
     await expect(roleRows).toHaveCount(4);
     await expect(roleRows.nth(0)).toContainText("Preflight Gate");
@@ -1305,11 +1303,20 @@ test.describe("dashboard desktop", () => {
       .locator('[data-role-status="running"]')
       .filter({ hasText: "Technical summarizer" });
     await expect(activeTechnicalRole).toBeVisible();
+    await expect(activeTechnicalRole).toContainText(/진행률\s*50\.40%/);
+    await expect(activeTechnicalRole).toContainText(/전체 대상\s*250개/);
+    await expect(activeTechnicalRole).toContainText(/실패\s*3개/);
+    await expect(activeTechnicalRole).toContainText(/완료\s*88개/);
+    await expect(activeTechnicalRole).toContainText(/무응답 경과\s*15s/);
+    await expect(activeTechnicalRole).toContainText(/마지막 적재\s*26-04-15 : 10:18:00/);
     await expect(activeTechnicalRole.locator('[data-role-icon="running"]')).toBeVisible();
     await expect(activeTechnicalRole).toContainText("EOD 확인");
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
     ).toBeVisible();
+    await expect(roleRows.nth(0)).not.toContainText("진행률");
+    await expect(roleRows.nth(1)).not.toContainText("진행률");
+    await expect(roleRows.nth(3)).not.toContainText("진행률");
     const activeRoleAnimation = await activeTechnicalRole
       .locator('[data-role-icon="running"]')
       .evaluate((element) => getComputedStyle(element).animationName);
@@ -1385,7 +1392,9 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).not.toContainText("피드백 완료");
   });
 
-  test("D2 agent feedback role dependencies show EOD and Tech failure counts", async ({ page }) => {
+  test("D2 agent feedback role dependencies keep confirmation badges without separate failure-count pills", async ({
+    page,
+  }) => {
     const now = "2026-04-15T10:20:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -1493,8 +1502,10 @@ test.describe("dashboard desktop", () => {
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
     ).toBeVisible();
     await expect(activeFundamentalRole).toBeVisible();
-    await expect(activeFundamentalRole).toContainText("EOD -- 실패 13");
-    await expect(activeFundamentalRole).toContainText("Tech -- 실패 2");
+    await expect(activeFundamentalRole).toContainText("EOD 확인");
+    await expect(activeFundamentalRole).toContainText("Tech 확인");
+    await expect(activeFundamentalRole).not.toContainText("EOD -- 실패 13");
+    await expect(activeFundamentalRole).not.toContainText("Tech -- 실패 2");
   });
 
   test("D2 agent feedback role dependencies hide upstream failure counts while EOD is running", async ({ page }) => {

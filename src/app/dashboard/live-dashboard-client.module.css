@@ -179,6 +179,12 @@
   gap: 0.65rem;
 }
 
+.agentProgressDate {
+  color: #93a3b8;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .eodStatusHeader {
   display: flex;
   align-items: flex-start;
@@ -442,6 +448,37 @@
   border-top-color: #bac3ff;
   border-radius: 999px;
   animation: agentRoleSpin 0.82s linear infinite;
+}
+
+.agentRoleMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.4rem), 1fr));
+  gap: 0.42rem;
+  margin: 0.42rem 0 0;
+}
+
+.agentRoleMetric {
+  min-width: 0;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 0.45rem;
+  background: rgba(13, 28, 46, 0.72);
+}
+
+.agentRoleMetric dt {
+  color: #93a3b8;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.agentRoleMetric dd {
+  margin: 0.18rem 0 0;
+  color: #f6f8ff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 @keyframes agentRoleSpin {
