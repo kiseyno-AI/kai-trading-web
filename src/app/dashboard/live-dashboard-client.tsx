@@ -1073,8 +1073,10 @@ function isSummarizerRole(role: string) {
   return (normalizeAgentRole(role) ?? "").includes("summarizer");
 }
 
-function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus) {
-  return isSummarizerRole(role) && status === "running";
+function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus, fallbackRole: string | null) {
+  if (!isSummarizerRole(role)) return false;
+  if (status === "running") return true;
+  return fallbackRole !== null && normalizeAgentRole(role) === fallbackRole;
 }
 
 function getAgentRoleDependencies(
@@ -1105,6 +1107,11 @@ function buildAgentRoleCards(
   const orderedRoles = getOrderedAgentRoles(progress);
   const currentRole = normalizeAgentRole(progress?.summary?.current_role);
   const metrics = buildAgentRoleMetrics(progress);
+  // Keep run-level metrics visible for legacy/transient payloads that are live but omit current_role.
+  const fallbackMetricsRole =
+    currentRole === null
+      ? normalizeAgentRole(orderedRoles.find((role) => isSummarizerRole(role)) ?? orderedRoles[0])
+      : null;
 
   return orderedRoles.map((role) => {
     const status = getAgentRoleStatus(role, orderedRoles, currentRole);
@@ -1114,7 +1121,7 @@ function buildAgentRoleCards(
       label: getAgentRoleLabel(role),
       status,
       dependencies: getAgentRoleDependencies(role, eodStage, technicalStage),
-      metrics: shouldShowAgentRoleMetrics(role, status) ? metrics : [],
+      metrics: shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole) ? metrics : [],
     };
   });
 }
