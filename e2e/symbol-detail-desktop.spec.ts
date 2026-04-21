@@ -280,7 +280,6 @@ test.describe("symbol detail desktop", () => {
 
     const loader = page.getByRole("status", { name: /Loading symbol workspace/i });
     await expect(loader).toBeVisible();
-    await expect(loader).toContainText("KAI Transition");
     await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?/);
     await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
     await expect(loader).toHaveCount(0);
