@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { FullPageLoadingScreen } from "@/components/ui/full-page-loading";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
@@ -770,8 +771,10 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     useState<AggregateContextLoadState>("loading");
   const [quotePollingStopped, setQuotePollingStopped] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [insightLoading, setInsightLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [fundamentalsLoading, setFundamentalsLoading] = useState(true);
+  const [hasFinishedInitialLoad, setHasFinishedInitialLoad] = useState(false);
   const [trackingSaving, setTrackingSaving] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
@@ -806,8 +809,10 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     setAggregateContextLoadState("loading");
     setQuotePollingStopped(false);
     setLoading(true);
+    setInsightLoading(true);
     setHistoryLoading(true);
     setFundamentalsLoading(true);
+    setHasFinishedInitialLoad(false);
     setTrackingSaving(false);
     setMetaError(null);
     setQuoteError(null);
@@ -1037,15 +1042,18 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       if (!shouldLoadTechnicalSnapshot && !shouldLoadActionSummary) {
         setTechnicalSnapshot(null);
         setActionSummary(null);
+        setInsightLoading(false);
         return;
       }
 
       if (!marketDate) {
         setTechnicalSnapshot(null);
         setActionSummary(null);
+        setInsightLoading(true);
         return;
       }
 
+      setInsightLoading(true);
       const insightQuery = new URLSearchParams();
       insightQuery.set("market_date", marketDate);
       insightQuery.append("symbols", symbol);
@@ -1086,6 +1094,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         console.error("Action summary load failed", actionResult.reason);
         setActionSummary(null);
       }
+
+      setInsightLoading(false);
     };
 
     loadDerivedInsights();
@@ -1346,6 +1356,49 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const toolbarMarketBadgeTone =
     toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : styles.marketStatusClosedPill;
   const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
+  const routeQueryString = useMemo(
+    () => buildSymbolRouteQuery(meta, marketDate, fsDiv),
+    [fsDiv, marketDate, meta],
+  );
+  const initialRouteReady = useMemo(() => {
+    if (loading) return false;
+
+    if (mode === "system-freshness") {
+      return true;
+    }
+
+    if (mode === "disclosure-coverage") {
+      return aggregateContextLoadState !== "loading";
+    }
+
+    if (mode === "fundamentals-history") {
+      return aggregateContextLoadState !== "loading" && !fundamentalsLoading;
+    }
+
+    if (mode === "action-summary") {
+      return aggregateContextLoadState !== "loading" && !insightLoading;
+    }
+
+    if (mode === "technical-analysis") {
+      return aggregateContextLoadState !== "loading" && !historyLoading && !insightLoading;
+    }
+
+    return aggregateContextLoadState !== "loading" && !historyLoading && !fundamentalsLoading && !insightLoading;
+  }, [aggregateContextLoadState, fundamentalsLoading, historyLoading, insightLoading, loading, mode]);
+
+  useEffect(() => {
+    if (hasFinishedInitialLoad || !initialRouteReady) return;
+    setHasFinishedInitialLoad(true);
+  }, [hasFinishedInitialLoad, initialRouteReady]);
+
+  if (!hasFinishedInitialLoad) {
+    return (
+      <FullPageLoadingScreen
+        label="Loading symbol workspace"
+        detail="Switching the full symbol surface and preparing the next packet from trading-core."
+      />
+    );
+  }
 
   const moduleRows = [
     {
@@ -1419,11 +1472,6 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       api: "/api/trading/agent-context/symbol-day",
     },
   ] as const;
-
-  const routeQueryString = useMemo(
-    () => buildSymbolRouteQuery(meta, marketDate, fsDiv),
-    [fsDiv, marketDate, meta],
-  );
   const activeDetailMode = SYMBOL_DETAIL_MODE_BY_ID[mode];
   const currentDetailHref = buildSymbolDetailHref(symbol, mode, routeQueryString);
   const toolbarTitle = introTitle;

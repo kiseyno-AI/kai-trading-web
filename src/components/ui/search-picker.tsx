@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
+import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import { Button } from "@/components/ui/button";
 import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { SearchSuggestionDto } from "@/types/trading-api";
@@ -15,6 +16,7 @@ type SearchPickerProps = {
 export function SearchPicker({ suggestions }: SearchPickerProps) {
   const { t } = useAppState();
   const router = useRouter();
+  const { beginNavigation } = useNavigationLoading();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -85,6 +87,7 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
                 });
                 setQuery(suggestion.label);
                 setOpen(false);
+                beginNavigation(suggestion.route);
                 router.push(suggestion.route);
               }}
             >
