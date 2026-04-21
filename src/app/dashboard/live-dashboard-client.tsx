@@ -38,6 +38,7 @@ const EOD_PIPELINE_STATUS_RUNNING_POLL_MS = 1_000;
 const EOD_PIPELINE_STATUS_IDLE_POLL_MS = 30_000;
 const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
 const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
+const AGENT_FEEDBACK_STOP_DIALOG_ID = "agent-feedback-stop-dialog";
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
 const EOD_PIPELINE_STAGE_DEFINITIONS = [
   { key: "price_collection", label: "Price Collection", showWhenMissing: true },
@@ -1178,6 +1179,7 @@ export function LiveDashboardClient({
   const agentFeedbackProgressRef = useRef<AgentFeedbackProgressResponseDto | null>(initialAgentFeedbackProgress);
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
+  const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [marketError, setMarketError] = useState<string | null>(initialError);
   const [trackedError, setTrackedError] = useState<string | null>(initialError);
@@ -1618,12 +1620,17 @@ export function LiveDashboardClient({
   const error = trackedError ?? marketError;
   const fundamentalsDialogOpen =
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
+  const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen;
 
   useEffect(() => {
-    if (!fundamentalsDialogOpen) return;
+    if (!dialogOpen) return;
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (agentFeedbackStopDialogOpen) {
+          setAgentFeedbackStopDialogOpen(false);
+          return;
+        }
         setOpenFundamentalsFailureKey(null);
       }
     };
@@ -1636,7 +1643,7 @@ export function LiveDashboardClient({
       window.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
     };
-  }, [fundamentalsDialogOpen]);
+  }, [agentFeedbackStopDialogOpen, dialogOpen, fundamentalsDialogOpen]);
 
   return (
     <MobileAppChrome
@@ -1874,6 +1881,19 @@ export function LiveDashboardClient({
                   Run ID {displayedAgentFeedbackProgress?.summary?.run_id ?? UNKNOWN_LABEL}
                 </p>
               ) : null}
+              <div className={styles.agentFeedbackActions}>
+                <button
+                  type="button"
+                  className={styles.agentFeedbackStopButton}
+                  aria-label="중단"
+                  aria-haspopup="dialog"
+                  aria-expanded={agentFeedbackStopDialogOpen}
+                  aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
+                  onClick={() => setAgentFeedbackStopDialogOpen(true)}
+                >
+                  중단
+                </button>
+              </div>
             </article>
           </div>
         </section>
@@ -2051,6 +2071,62 @@ export function LiveDashboardClient({
                     </dl>
                   </div>
                 ) : null}
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {agentFeedbackStopDialogOpen
+        ? createPortal(
+            <div className={styles.dialogBackdrop} onMouseDown={() => setAgentFeedbackStopDialogOpen(false)}>
+              <section
+                id={AGENT_FEEDBACK_STOP_DIALOG_ID}
+                className={`${styles.failureDialog} ${styles.confirmationDialog}`}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="agent-feedback-stop-title"
+                aria-describedby="agent-feedback-stop-description"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className={styles.dialogHeader}>
+                  <div>
+                    <p className={styles.sectionEyebrow}>Agent Feedback</p>
+                    <h2 id="agent-feedback-stop-title" className={styles.dialogTitle}>
+                      중단하시겠습니까?
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.dialogCloseButton}
+                    onClick={() => setAgentFeedbackStopDialogOpen(false)}
+                    aria-label="Close agent feedback stop confirmation"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <p id="agent-feedback-stop-description" className={styles.confirmationMessage}>
+                  예 또는 아니요를 선택하면 확인창이 닫히며 실제 중단 동작은 추후 연결할 예정입니다.
+                </p>
+
+                <div className={styles.dialogActions}>
+                  <button
+                    type="button"
+                    className={`${styles.dialogActionButton} ${styles.dialogActionSecondary}`}
+                    onClick={() => setAgentFeedbackStopDialogOpen(false)}
+                    autoFocus
+                  >
+                    아니요
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.dialogActionButton} ${styles.dialogActionDanger}`}
+                    onClick={() => setAgentFeedbackStopDialogOpen(false)}
+                  >
+                    예
+                  </button>
+                </div>
               </section>
             </div>,
             document.body,

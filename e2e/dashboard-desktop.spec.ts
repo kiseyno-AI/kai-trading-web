@@ -1253,6 +1253,18 @@ test.describe("dashboard desktop", () => {
     const eodStatusCard = freshnessPanel.locator("article").filter({ hasText: "EOD Status" });
     await expect(progressCard).toBeVisible();
     await expect(progressCard).toContainText("에이전트 분석 중...");
+    const stopButton = progressCard.getByRole("button", { name: "중단" });
+    await expect(stopButton).toBeVisible();
+    await stopButton.click();
+    const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
+    await expect(stopDialog).toBeVisible();
+    await expect(stopDialog).toContainText("예 또는 아니요를 선택하면 확인창이 닫히며 실제 중단 동작은 추후 연결할 예정입니다.");
+    await stopDialog.getByRole("button", { name: "아니요" }).click();
+    await expect(stopDialog).toHaveCount(0);
+    await stopButton.click();
+    await expect(stopDialog).toBeVisible();
+    await stopDialog.getByRole("button", { name: "예" }).click();
+    await expect(stopDialog).toHaveCount(0);
     await expect(progressCard).toContainText("기준일 2026-04-15");
     await expect(progressCard).toContainText("진행률 50.40%");
     await expect(progressCard).toContainText("전체 대상 250개");
