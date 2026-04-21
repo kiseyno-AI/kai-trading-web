@@ -234,7 +234,8 @@ function getJson<T>(path: string): Promise<T> {
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
+  const resolvedPath = resolveTradingApiClientPath(path);
+  const response = await fetch(resolvedPath, {
     method: "POST",
     headers: {
       Accept: "application/json",
