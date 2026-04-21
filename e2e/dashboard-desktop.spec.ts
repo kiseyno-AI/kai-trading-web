@@ -1981,6 +1981,110 @@ test.describe("dashboard desktop", () => {
     expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.pillLeft);
   });
 
+  test("D2 not synced status wraps without colliding with long stage titles", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-16",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 237,
+              symbols_failed: 13,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 248,
+              symbols_failed: 2,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 1,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-14",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 7,
+            market_date: "2026-04-16",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 42,
+            symbols_checked: 42,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 42,
+            symbols_refreshed: 42,
+            symbols_failed: 1,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-16T08:56:58.357390+09:00",
+            completed_at: "2026-04-16T09:11:08.375335+09:00",
+          },
+          runs: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const actionStage = page.locator('[aria-label="Action Summary freshness"]');
+    await expect(actionStage).toContainText("not synced");
+
+    const titleRowLayout = await actionStage.evaluate((element) => {
+      const title = [...element.querySelectorAll("span")].find(
+        (child) => child.textContent?.trim() === "Action Summary",
+      );
+      const pill = [...element.querySelectorAll(".pill")].find(
+        (child) => child.textContent?.replace(/\s+/g, " ").trim() === "not synced",
+      );
+
+      if (!title || !pill) return null;
+
+      const titleRect = title.getBoundingClientRect();
+      const pillRect = pill.getBoundingClientRect();
+
+      return {
+        pillHeight: pillRect.height,
+        pillLeft: pillRect.left,
+        titleRight: titleRect.right,
+      };
+    });
+
+    expect(titleRowLayout).not.toBeNull();
+    expect(titleRowLayout!.pillHeight).toBeGreaterThan(28);
+    expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.pillLeft);
+  });
+
   test("D2 EOD stage subcards keep content inside cards at the narrow desktop breakpoint", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.route("**/api/trading/eod/freshness", async (route) => {
