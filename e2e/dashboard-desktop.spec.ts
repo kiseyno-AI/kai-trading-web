@@ -1111,6 +1111,7 @@ test.describe("dashboard desktop", () => {
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
+    let stopControlRequestBody: Record<string, unknown> | null = null;
     let agentProgressSummary = {
       run_status: "running",
       is_live: false,
@@ -1232,6 +1233,19 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/agent-context/internal/core/control", async (route) => {
+      stopControlRequestBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "killed",
+          port: 8000,
+          signal: "SIGKILL",
+          pids: [12345],
+          self_targeted: false,
+        }),
+      });
+    });
 
     await page.goto("/dashboard");
 
@@ -1250,12 +1264,21 @@ test.describe("dashboard desktop", () => {
     await stopButton.click();
     const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
     await expect(stopDialog).toBeVisible();
-    await expect(stopDialog).toContainText("예 또는 아니요를 선택하면 확인창이 닫히며 실제 중단 동작은 추후 연결할 예정입니다.");
+    await expect(stopDialog.getByRole("button", { name: /close/i })).toHaveCount(0);
+    await expect(stopDialog).not.toContainText("실제 중단 동작은 추후 연결할 예정입니다.");
     await stopDialog.getByRole("button", { name: "아니요" }).click();
     await expect(stopDialog).toHaveCount(0);
+    expect(stopControlRequestBody).toBeNull();
     await stopButton.click();
     await expect(stopDialog).toBeVisible();
     await stopDialog.getByRole("button", { name: "예" }).click();
+    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
+      JSON.stringify({
+        action: "kill",
+        signal_name: "SIGKILL",
+        port: 8000,
+      }),
+    );
     await expect(stopDialog).toHaveCount(0);
     await expect(progressCard).toContainText("기준일 2026-04-15");
     await expect(progressCard).toContainText("진행률 50.40%");
