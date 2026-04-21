@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
 import { FullPageLoadingScreen } from "@/components/ui/full-page-loading";
@@ -41,9 +41,15 @@ function resolveInternalRouteKey(href: string | URL | null | undefined) {
   }
 }
 
+function getCurrentRouteKey(pathname: string | null) {
+  if (typeof window === "undefined") return pathname ?? "";
+
+  return `${window.location.pathname}${window.location.search}`;
+}
+
 export function NavigationLoadingProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const routeKey = useMemo(() => pathname ?? "", [pathname]);
+  const routeKey = getCurrentRouteKey(pathname);
   const [visible, setVisible] = useState(false);
   const showTimerRef = useRef<number | null>(null);
   const hideTimerRef = useRef<number | null>(null);
