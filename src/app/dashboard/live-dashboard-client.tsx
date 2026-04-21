@@ -165,13 +165,18 @@ type EodStageDetail = {
 
 type AgentRoleStatus = "completed" | "running" | "pending";
 
-type AgentRoleDependencyStatus = "confirmed" | "running" | "failed" | "pending";
+type AgentRoleDependencyStatus = "confirmed" | "running" | "pending";
 
 type AgentRoleDependency = {
   key: string;
   label: string;
   status: AgentRoleDependencyStatus;
-  failedCount: number | null;
+};
+
+type AgentRoleMetric = {
+  key: string;
+  label: string;
+  value: string;
 };
 
 type AgentRoleCard = {
@@ -179,6 +184,7 @@ type AgentRoleCard = {
   label: string;
   status: AgentRoleStatus;
   dependencies: AgentRoleDependency[];
+  metrics: AgentRoleMetric[];
 };
 
 function hasNumber(value: number | null | undefined): value is number {
@@ -996,12 +1002,7 @@ function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: s
   return "pending";
 }
 
-function getStageFailedCount(stage: EodFreshnessStageDto | null | undefined) {
-  const failedCount = stage?.symbols_failed;
-  return hasNumber(failedCount) && failedCount > 0 ? failedCount : null;
-}
-
-function canShowStageFailedCount(stage: EodFreshnessStageDto | null | undefined) {
+function isTerminalAgentRoleDependencyStage(stage: EodFreshnessStageDto | null | undefined) {
   const stageStatus = normalizeStageStatus(stage);
   return (
     stageStatus === "ready" ||
@@ -1019,19 +1020,61 @@ function buildAgentRoleDependency(
 ): AgentRoleDependency {
   const stageStatus = normalizeStageStatus(stage);
   if (stageStatus === "running") {
-    return { key, label, failedCount: null, status: "running" };
+    return { key, label, status: "running" };
   }
 
-  const failedCount = getStageFailedCount(stage);
-  if (failedCount !== null && canShowStageFailedCount(stage)) {
-    return { key, label, failedCount, status: "failed" };
+  if (isTerminalAgentRoleDependencyStage(stage)) {
+    return { key, label, status: "confirmed" };
   }
 
-  if (stageStatus === "ready") {
-    return { key, label, failedCount: null, status: "confirmed" };
-  }
+  return { key, label, status: "pending" };
+}
 
-  return { key, label, failedCount: null, status: "pending" };
+function buildAgentRoleMetrics(progress: AgentFeedbackProgressResponseDto | null): AgentRoleMetric[] {
+  if (!isAgentFeedbackProgressRunning(progress)) return [];
+
+  return [
+    {
+      key: "progress",
+      label: "진행률",
+      value: formatAgentProgressPercentLabel(progress),
+    },
+    {
+      key: "total",
+      label: "전체 대상",
+      value: formatAgentProgressCountLabel(progress?.summary?.total_symbols),
+    },
+    {
+      key: "failed",
+      label: "실패",
+      value: formatAgentProgressCountLabel(progress?.summary?.failed_items),
+    },
+    {
+      key: "completed",
+      label: "완료",
+      value: formatAgentProgressCountLabel(progress?.summary?.completed_symbols),
+    },
+    {
+      key: "no-response",
+      label: "무응답 경과",
+      value: hasNumber(progress?.summary?.seconds_since_last_feedback)
+        ? `${progress.summary.seconds_since_last_feedback.toLocaleString("ko-KR")}s`
+        : UNKNOWN_LABEL,
+    },
+    {
+      key: "latest-feedback",
+      label: "마지막 적재",
+      value: formatDisplayTimestamp(progress?.summary?.latest_feedback_at, UNKNOWN_LABEL),
+    },
+  ];
+}
+
+function isSummarizerRole(role: string) {
+  return (normalizeAgentRole(role) ?? "").includes("summarizer");
+}
+
+function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus) {
+  return isSummarizerRole(role) && status === "running";
 }
 
 function getAgentRoleDependencies(
@@ -1061,13 +1104,19 @@ function buildAgentRoleCards(
 
   const orderedRoles = getOrderedAgentRoles(progress);
   const currentRole = normalizeAgentRole(progress?.summary?.current_role);
+  const metrics = buildAgentRoleMetrics(progress);
 
-  return orderedRoles.map((role) => ({
-    role,
-    label: getAgentRoleLabel(role),
-    status: getAgentRoleStatus(role, orderedRoles, currentRole),
-    dependencies: getAgentRoleDependencies(role, eodStage, technicalStage),
-  }));
+  return orderedRoles.map((role) => {
+    const status = getAgentRoleStatus(role, orderedRoles, currentRole);
+
+    return {
+      role,
+      label: getAgentRoleLabel(role),
+      status,
+      dependencies: getAgentRoleDependencies(role, eodStage, technicalStage),
+      metrics: shouldShowAgentRoleMetrics(role, status) ? metrics : [],
+    };
+  });
 }
 
 function getAgentRoleDependencyIcon(status: AgentRoleDependencyStatus) {
@@ -1077,9 +1126,6 @@ function getAgentRoleDependencyIcon(status: AgentRoleDependencyStatus) {
 }
 
 function getAgentRoleDependencyText(dependency: AgentRoleDependency) {
-  if (dependency.status === "failed") {
-    return `${dependency.label} -- 실패 ${formatEodSymbolCount(dependency.failedCount)}`;
-  }
   if (dependency.status === "confirmed") return `${dependency.label} 확인`;
   if (dependency.status === "running") return `${dependency.label} 진행 중`;
   return `${dependency.label} 확인 필요`;
@@ -1532,22 +1578,7 @@ export function LiveDashboardClient({
     displayedAgentFeedbackProgress,
     displayedAgentFeedbackProgressError,
   );
-  const agentProgressPercent = formatAgentProgressPercentLabel(displayedAgentFeedbackProgress);
   const agentProgressPercentValue = getAgentProgressPercentValue(displayedAgentFeedbackProgress);
-  const agentProgressTotal = formatAgentProgressCountLabel(displayedAgentFeedbackProgress?.summary?.total_symbols);
-  const agentProgressFailed = formatAgentProgressCountLabel(displayedAgentFeedbackProgress?.summary?.failed_items);
-  const agentProgressCompleted = formatAgentProgressCountLabel(
-    displayedAgentFeedbackProgress?.summary?.completed_symbols,
-  );
-  const agentProgressInProgress = formatAgentProgressCountLabel(
-    displayedAgentFeedbackProgress?.summary?.in_progress_symbols,
-  );
-  const agentProgressCompletedFeedback = formatAgentProgressCountLabel(
-    displayedAgentFeedbackProgress?.summary?.completed_feedback_count,
-  );
-  const agentProgressExpectedFeedback = formatAgentProgressCountLabel(
-    displayedAgentFeedbackProgress?.summary?.expected_feedback_count,
-  );
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const showAgentProgressDetails = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
@@ -1745,6 +1776,7 @@ export function LiveDashboardClient({
             <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
               <span>Agent Feedback</span>
               <strong>{agentProgressStatusLabel}</strong>
+              {showAgentProgressDetails ? <span className={styles.agentProgressDate}>기준일 {agentProgressDate}</span> : null}
               <div className={styles.agentProgressTrack} aria-hidden="true">
                 <i style={{ width: `${agentProgressPercentValue}%` }} />
               </div>
@@ -1778,31 +1810,20 @@ export function LiveDashboardClient({
                             ))}
                           </span>
                         ) : null}
+                        {role.metrics.length > 0 ? (
+                          <dl className={styles.agentRoleMetrics}>
+                            {role.metrics.map((metric) => (
+                              <div key={metric.key} className={styles.agentRoleMetric}>
+                                <dt>{metric.label}</dt>
+                                <dd>{metric.value}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        ) : null}
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : null}
-              {showAgentProgressDetails ? (
-                <p className={styles.eodStatusDetails}>
-                  기준일 {agentProgressDate}
-                  <br />
-                  진행률 {agentProgressPercent}
-                  <br />
-                  전체 대상 {agentProgressTotal}
-                  <br />
-                  실패 {agentProgressFailed}
-                  <br />
-                  완료 {agentProgressCompleted} · 진행 중 {agentProgressInProgress}
-                  <br />
-                  피드백 완료 {agentProgressCompletedFeedback} / {agentProgressExpectedFeedback}
-                  <br />
-                  마지막 적재 {formatDisplayTimestamp(displayedAgentFeedbackProgress?.summary?.latest_feedback_at, UNKNOWN_LABEL)}
-                  <br />
-                  무응답 경과 {displayedAgentFeedbackProgress?.summary?.seconds_since_last_feedback ?? UNKNOWN_LABEL}s
-                  <br />
-                  Run ID {displayedAgentFeedbackProgress?.summary?.run_id ?? UNKNOWN_LABEL}
-                </p>
               ) : null}
               <div className={styles.agentFeedbackActions}>
                 <button
