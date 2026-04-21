@@ -243,6 +243,22 @@
   text-overflow: ellipsis;
 }
 
+.eodStageCard[data-status="not synced"] .eodStageTop {
+  grid-template-columns: minmax(0, 1fr) fit-content(4.9rem);
+}
+
+.eodStageCard[data-status="not synced"] .eodStageTop :global(.pill) {
+  padding-block: 0.25rem;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+.eodStageCard[data-status="not synced"] .statusPillLabel {
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
 .eodStageDetails {
   display: flex;
   flex-direction: column;
