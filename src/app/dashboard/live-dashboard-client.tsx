@@ -1008,6 +1008,8 @@ export function LiveDashboardClient({
   );
   const [pipelineStatus, setPipelineStatus] = useState<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
   const pipelineStatusRef = useRef<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
+  const marketServerTimeRef = useRef<string | null>(initialMarket.server_time ?? null);
+  const freshnessTradeDateRef = useRef<string | null>(initialFreshness?.today?.trade_date ?? null);
   const [agentFeedbackProgress, setAgentFeedbackProgress] = useState<AgentFeedbackProgressResponseDto | null>(
     initialAgentFeedbackProgress,
   );
@@ -1091,6 +1093,13 @@ export function LiveDashboardClient({
       try {
         const marketData = await getJson<CoreMarketStatus>("/api/trading/market/status");
         if (!active) return;
+        const nextServerTime = marketData.server_time ?? null;
+        marketServerTimeRef.current = nextServerTime;
+        const nextMarketDate = normalizeDartFundamentalsMarketDate(freshnessTradeDateRef.current ?? nextServerTime);
+        if (pipelineStatusRef.current?.market_date !== nextMarketDate) {
+          pipelineStatusRef.current = null;
+          setPipelineStatus((current) => (current?.market_date === nextMarketDate ? current : null));
+        }
         setMarket(marketData);
         setMarketError(null);
       } catch (loadError) {
@@ -1165,6 +1174,13 @@ export function LiveDashboardClient({
       try {
         const data = await getJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
         if (!active) return;
+        const nextTradeDate = data?.today?.trade_date ?? null;
+        freshnessTradeDateRef.current = nextTradeDate;
+        const nextMarketDate = normalizeDartFundamentalsMarketDate(nextTradeDate ?? marketServerTimeRef.current);
+        if (pipelineStatusRef.current?.market_date !== nextMarketDate) {
+          pipelineStatusRef.current = null;
+          setPipelineStatus((current) => (current?.market_date === nextMarketDate ? current : null));
+        }
         setFreshness(data);
       } catch (freshnessError) {
         console.error("Dashboard freshness load failed", freshnessError);
