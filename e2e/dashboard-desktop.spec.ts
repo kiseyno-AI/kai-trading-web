@@ -1396,6 +1396,366 @@ test.describe("dashboard desktop", () => {
     await expect(stopButton).toHaveCount(0);
   });
 
+  test("agent feedback stop confirmation accepts an upstream disconnect on desktop", async ({ page }) => {
+    const now = "2026-04-15T10:20:00+09:00";
+    let stopControlRequestBody: Record<string, unknown> | null = null;
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 600,
+              change_pct: 0.84,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-16",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      const url = new URL(route.request().url());
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: url.searchParams.get("market_date"),
+            symbols: null,
+            expected_agents: [
+              "preflight-gate",
+              "eod-summarizer",
+              "technical-summarizer",
+              "fundamental-summarizer",
+            ],
+          },
+          summary: {
+            run_id: "run_246",
+            run_status: "running",
+            run_table_status: "running",
+            is_live: false,
+            run_started_at: "2026-04-15T10:00:00+09:00",
+            run_completed_at: null,
+            latest_feedback_at: "2026-04-15T10:18:00+09:00",
+            seconds_since_last_feedback: 15,
+            stalled_threshold_seconds: 300,
+            total_symbols: 250,
+            processed_symbols: 126,
+            completed_symbols: 88,
+            in_progress_symbols: 38,
+            pending_symbols: 124,
+            progress_ratio: 0.504,
+            progress_percent: 50.4,
+            failed_items: 3,
+            completed_feedback_count: 302,
+            expected_feedback_count: 1000,
+            current_role: "technical-summarizer",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          status: "completed",
+          stage_order: [],
+          stages: {},
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/internal/core/control", async (route) => {
+      stopControlRequestBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Upstream fetch failed",
+          message: "fetch failed",
+          path: "/agent-context/internal/core/control",
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const stopButton = progressCard.getByRole("button", { name: "중단" });
+    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(stopButton).toBeVisible();
+    await stopButton.click();
+
+    const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
+    await expect(stopDialog).toBeVisible();
+    await stopDialog.getByRole("button", { name: "예" }).click();
+
+    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
+      JSON.stringify({
+        action: "kill",
+        signal_name: "SIGKILL",
+        port: 8000,
+      }),
+    );
+    await expect(stopDialog).toHaveCount(0);
+    await expect(progressCard).toContainText("에이전트 확인 필요");
+    await expect(stopButton).toHaveCount(0);
+    await expect(progressCard).not.toContainText("fetch failed");
+  });
+
+  test("agent feedback stop confirmation keeps real upstream 502 failures visible on desktop", async ({
+    page,
+  }) => {
+    const now = "2026-04-15T10:20:00+09:00";
+    let stopControlRequestBody: Record<string, unknown> | null = null;
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 600,
+              change_pct: 0.84,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-16",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 42,
+              symbols_succeeded: 42,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            symbols_total: 250,
+            symbols_succeeded: 250,
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      const url = new URL(route.request().url());
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: url.searchParams.get("market_date"),
+            symbols: null,
+            expected_agents: [
+              "preflight-gate",
+              "eod-summarizer",
+              "technical-summarizer",
+              "fundamental-summarizer",
+            ],
+          },
+          summary: {
+            run_status: "running",
+            is_live: false,
+            latest_feedback_at: "2026-04-15T10:18:00+09:00",
+            seconds_since_last_feedback: 15,
+            stalled_threshold_seconds: 300,
+            total_symbols: 250,
+            processed_symbols: 126,
+            completed_symbols: 88,
+            in_progress_symbols: 38,
+            pending_symbols: 124,
+            progress_ratio: 0.504,
+            progress_percent: 50.4,
+            failed_items: 3,
+            completed_feedback_count: 302,
+            expected_feedback_count: 1000,
+            current_role: "technical-summarizer",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          status: "completed",
+          stage_order: [],
+          stages: {},
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/internal/core/control", async (route) => {
+      stopControlRequestBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Upstream kill failed",
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const stopButton = progressCard.getByRole("button", { name: "중단" });
+    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(stopButton).toBeVisible();
+    await stopButton.click();
+
+    const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
+    await expect(stopDialog).toBeVisible();
+    await stopDialog.getByRole("button", { name: "예" }).click();
+
+    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
+      JSON.stringify({
+        action: "kill",
+        signal_name: "SIGKILL",
+        port: 8000,
+      }),
+    );
+    await expect(stopDialog).toBeVisible();
+    await expect(stopDialog).toContainText("HTTP 502 for /api/trading/agent-context/internal/core/control");
+    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(stopButton).toBeVisible();
+  });
+
   test("D2 agent feedback role dependencies keep confirmation badges without separate failure-count pills", async ({
     page,
   }) => {

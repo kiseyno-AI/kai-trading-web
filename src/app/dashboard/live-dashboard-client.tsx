@@ -289,6 +289,29 @@ function getDashboardLoadErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Failed to refresh dashboard data.";
 }
 
+function shouldTreatAgentFeedbackStopDisconnectAsAccepted(error: unknown) {
+  // Only accept hard disconnects that can happen when the control endpoint kills its own process.
+  // Generic 502 responses can still represent real upstream kill failures that operators need to see.
+  const normalizedMessage = getDashboardLoadErrorMessage(error).trim().toLowerCase();
+
+  return normalizedMessage === "fetch failed" || normalizedMessage === "failed to fetch";
+}
+
+function markAgentFeedbackProgressStopped(
+  progress: AgentFeedbackProgressResponseDto | null,
+): AgentFeedbackProgressResponseDto | null {
+  if (!progress) return null;
+
+  return {
+    ...progress,
+    summary: {
+      ...progress.summary,
+      is_live: false,
+      run_status: "stalled",
+    },
+  };
+}
+
 function isOfflineTrackedPlaceholder(tracked: CoreTrackedQuotesResponse) {
   return (
     tracked.market_state === "offline-placeholder" ||
@@ -1630,6 +1653,15 @@ export function LiveDashboardClient({
       );
       setAgentFeedbackStopDialogOpen(false);
     } catch (stopError) {
+      if (shouldTreatAgentFeedbackStopDisconnectAsAccepted(stopError)) {
+        const stoppedProgress = markAgentFeedbackProgressStopped(agentFeedbackProgressRef.current);
+        agentFeedbackProgressRef.current = stoppedProgress;
+        setAgentFeedbackProgress(stoppedProgress);
+        setAgentFeedbackProgressError(null);
+        setAgentFeedbackStopDialogOpen(false);
+        return;
+      }
+
       console.error("Dashboard agent feedback stop request failed", stopError);
       setAgentFeedbackStopError(getDashboardLoadErrorMessage(stopError));
     } finally {
