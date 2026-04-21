@@ -1590,13 +1590,17 @@ export function LiveDashboardClient({
                   const companyName = getCompanyName(item, symbolMetaBySymbol[item.symbol]);
 
                   return (
-                    <article key={item.symbol} className={styles.supportRow}>
+                    <Link
+                      key={item.symbol}
+                      href={buildTrackedDetailHref(item, symbolMetaBySymbol[item.symbol])}
+                      className={styles.supportRow}
+                    >
                       <div>
                         <strong>{companyName}</strong>
                         <p className="clamp-3">{item.symbol}</p>
                       </div>
                       <span className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</span>
-                    </article>
+                    </Link>
                   );
                 })
               ) : (

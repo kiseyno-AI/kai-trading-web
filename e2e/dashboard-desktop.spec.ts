@@ -115,6 +115,144 @@ test.describe("dashboard desktop", () => {
     await expect.poll(() => searchRequests).toContain("123456");
   });
 
+  test("D4 highest absolute movers rows navigate to the symbol detail page", async ({ page }) => {
+    const now = "2026-04-15T09:10:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 1900,
+              change_pct: 2.73,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+            {
+              symbol: "000660",
+              company_name: "SK hynix",
+              price: 183400,
+              change: -900,
+              change_pct: -0.49,
+              volume: 98000,
+              turnover: 17973200000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-15",
+            eod_status: "completed",
+            symbols_total: 2,
+            symbols_succeeded: 2,
+            symbols_failed: 0,
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          runs: [],
+          latest_run: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-15",
+            symbols: null,
+            expected_agents: [],
+          },
+          summary: {
+            run_status: "completed",
+            is_live: false,
+            latest_feedback_at: now,
+            seconds_since_last_feedback: 120,
+            stalled_threshold_seconds: 300,
+            total_symbols: 2,
+            processed_symbols: 2,
+            completed_symbols: 2,
+            in_progress_symbols: 0,
+            pending_symbols: 0,
+            progress_ratio: 1,
+            progress_percent: 100,
+            failed_items: 0,
+            completed_feedback_count: 0,
+            expected_feedback_count: 0,
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const moversSection = page.locator("section").filter({
+      has: page.getByRole("heading", { name: /Highest absolute movers/i }),
+    });
+    const moverLink = moversSection
+      .getByRole("link")
+      .filter({ hasText: "Samsung Electronics" })
+      .filter({ hasText: "005930" });
+
+    await expect(moverLink).toBeVisible();
+    await moverLink.click();
+
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930(?:\?name=Samsung(?:\+|%20)Electronics)?$/);
+  });
+
   test("tracked symbol cards keep quote content inside the card during desktop resizes", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
