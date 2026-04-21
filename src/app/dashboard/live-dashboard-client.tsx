@@ -290,14 +290,11 @@ function getDashboardLoadErrorMessage(error: unknown) {
 }
 
 function shouldTreatAgentFeedbackStopDisconnectAsAccepted(error: unknown) {
-  // The upstream control endpoint can terminate its own process before the proxy receives a response.
+  // Only accept hard disconnects that can happen when the control endpoint kills its own process.
+  // Generic 502 responses can still represent real upstream kill failures that operators need to see.
   const normalizedMessage = getDashboardLoadErrorMessage(error).trim().toLowerCase();
 
-  return (
-    normalizedMessage === "fetch failed" ||
-    normalizedMessage === "failed to fetch" ||
-    normalizedMessage.startsWith("http 502")
-  );
+  return normalizedMessage === "fetch failed" || normalizedMessage === "failed to fetch";
 }
 
 function markAgentFeedbackProgressStopped(
