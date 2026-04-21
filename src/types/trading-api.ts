@@ -397,6 +397,32 @@ export type EodFreshnessResponseDto = {
   fundamentals?: EodFreshnessLayerStatusDto | null;
 };
 
+export type EodPipelineStageKey =
+  | "price_collection"
+  | "technical_snapshots"
+  | "action_summaries"
+  | "trending_ranks"
+  | "fundamentals_daily_refresh";
+
+export type EodPipelineStageDto = {
+  status: string | null;
+  processed: number | null;
+  total: number | null;
+  failed: number | null;
+  current_step?: string | null;
+  current_activity?: string | null;
+  current_symbol?: string | null;
+  source_run_ids?: Record<string, unknown> | null;
+};
+
+export type EodPipelineStatusResponseDto = {
+  market_date: string | null;
+  fs_div?: string | null;
+  status: string | null;
+  stage_order: EodPipelineStageKey[];
+  stages: Partial<Record<EodPipelineStageKey, EodPipelineStageDto>>;
+};
+
 export type DartFundamentalsSymbolSampleItemDto =
   | string
   | {

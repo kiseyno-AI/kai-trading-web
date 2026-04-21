@@ -102,6 +102,7 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/agent-context/symbol-day` | `/agent-context/symbol-day` | `market_date`, repeatable `symbols`, optional `fs_div`, optional `disclosures_limit` |
 | `GET` | `/api/trading/agent-context/feedback/progress` | `/agent-context/feedback/progress` | `market_date`, optional repeatable `symbols` |
 | `GET` | `/api/trading/eod/freshness` | `/eod/freshness` | — |
+| `GET` | `/api/trading/eod/pipeline/status` | `/eod/pipeline/status` | optional `market_date` |
 | `GET` | `/api/trading/eod/technical-snapshots` | `/eod/technical-snapshots` | `market_date`, repeatable `symbols` |
 | `GET` | `/api/trading/eod/action-summaries` | `/eod/action-summaries` | `market_date`, repeatable `symbols` |
 | `GET` | `/api/trading/quotes/tracked` | `/quotes/tracked` | — |
@@ -137,7 +138,7 @@ Bots and some overview calls may still use **mock** implementations in the same 
 
 ## Browser API cache
 
-Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF reads. Successful GET responses for stored EOD data, stored DART fundamentals history, technical/action summaries, favorites/tracked-symbol metadata, symbol search, aggregate symbol context, and price bars are cached in `sessionStorage` for up to 1 hour, so the data clears when the browser session ends. Trending scanner reads are cached for 10 minutes. EOD freshness and DART daily inspect are daily batch-status surfaces cached for 10 minutes. Live quote, market-status, and agent feedback progress paths stay uncached so polling continues to reflect current price, market-open state, and active agent processing.
+Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF reads. Successful GET responses for stored EOD data, stored DART fundamentals history, technical/action summaries, favorites/tracked-symbol metadata, symbol search, aggregate symbol context, and price bars are cached in `sessionStorage` for up to 1 hour, so the data clears when the browser session ends. Trending scanner reads are cached for 10 minutes. EOD freshness and DART daily inspect are daily batch-status surfaces cached for 10 minutes. Live quote, market-status, agent feedback progress, and EOD pipeline-status paths stay uncached so polling continues to reflect current price, market-open state, active agent processing, and live post-close stage progress.
 
 ---
 

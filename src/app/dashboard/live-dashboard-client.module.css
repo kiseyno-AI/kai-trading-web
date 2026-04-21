@@ -441,10 +441,23 @@
 }
 
 .eodStageTop :global(.pill).runningStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
   border: 1px solid rgba(127, 184, 255, 0.45);
   background: rgba(127, 184, 255, 0.24);
   color: #f3f7ff;
   box-shadow: 0 0 0 1px rgba(127, 184, 255, 0.12);
+}
+
+.eodStageTop :global(.pill).runningStatusPill::before {
+  content: "";
+  width: 0.58rem;
+  height: 0.58rem;
+  border: 1px solid rgba(127, 184, 255, 0.36);
+  border-top-color: #bac3ff;
+  border-radius: 999px;
+  animation: agentRoleSpin 0.82s linear infinite;
 }
 
 .statusButton {

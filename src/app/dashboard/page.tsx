@@ -11,11 +11,16 @@ import {
   buildDartFundamentalsDailyInspectPath,
   DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
 } from "@/lib/dart-fundamentals-daily";
+import {
+  buildEodPipelineStatusPath,
+  EOD_PIPELINE_STATUS_UPSTREAM_PATH,
+} from "@/lib/eod-pipeline-status";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 import type {
   AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
+  EodPipelineStatusResponseDto,
 } from "@/types/trading-api";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +86,7 @@ export default async function DashboardPage() {
   let tracked: CoreTrackedQuotesResponse;
   let freshness: EodFreshnessResponseDto | null = null;
   let fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null = null;
+  let pipelineStatus: EodPipelineStatusResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
@@ -92,13 +98,22 @@ export default async function DashboardPage() {
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
     ]);
 
-    fundamentalsStatus = await fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
-      buildDartFundamentalsDailyInspectPath(
-        DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
-        freshness?.today?.trade_date ?? market.server_time,
-      ),
-      requestHeaders,
-    ).catch(() => null);
+    [fundamentalsStatus, pipelineStatus] = await Promise.all([
+      fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
+        buildDartFundamentalsDailyInspectPath(
+          DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
+          freshness?.today?.trade_date ?? market.server_time,
+        ),
+        requestHeaders,
+      ).catch(() => null),
+      fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
+        buildEodPipelineStatusPath(
+          EOD_PIPELINE_STATUS_UPSTREAM_PATH,
+          freshness?.today?.trade_date ?? market.server_time,
+        ),
+        requestHeaders,
+      ).catch(() => null),
+    ]);
 
     const progressPath = buildAgentFeedbackProgressPath(freshness);
     if (progressPath) {
@@ -120,6 +135,7 @@ export default async function DashboardPage() {
       initialTracked={tracked}
       initialFreshness={freshness}
       initialFundamentalsStatus={fundamentalsStatus}
+      initialPipelineStatus={pipelineStatus}
       initialAgentFeedbackProgress={agentFeedbackProgress}
     />
   );

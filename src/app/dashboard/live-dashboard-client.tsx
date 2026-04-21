@@ -13,6 +13,7 @@ import {
   DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
   normalizeDartFundamentalsMarketDate,
 } from "@/lib/dart-fundamentals-daily";
+import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { getCachedTradingApiJson, seedTradingApiJsonCache } from "@/lib/trading-api-cache";
@@ -24,15 +25,25 @@ import type {
   EodFreshnessLayerStatusDto,
   EodFreshnessResponseDto,
   EodFreshnessStageDto,
+  EodPipelineStageDto,
+  EodPipelineStageKey,
+  EodPipelineStatusResponseDto,
 } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
+const EOD_PIPELINE_STATUS_RUNNING_POLL_MS = 1_000;
+const EOD_PIPELINE_STATUS_IDLE_POLL_MS = 30_000;
 const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
 const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
+const DASHBOARD_EOD_PIPELINE_STAGE_KEYS = [
+  "price_collection",
+  "technical_snapshots",
+  "fundamentals_daily_refresh",
+] as const satisfies readonly EodPipelineStageKey[];
 const AGENT_PROGRESS_STATUS_LABELS = {
   pending: "에이전트 분석 대기",
   running: "에이전트 분석 중...",
@@ -97,6 +108,7 @@ type LiveDashboardClientProps = {
   initialTracked: CoreTrackedQuotesResponse;
   initialFreshness: EodFreshnessResponseDto | null;
   initialFundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null;
+  initialPipelineStatus: EodPipelineStatusResponseDto | null;
   initialAgentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
 };
 
@@ -305,7 +317,10 @@ function getFundamentalsStatusLabel(
   freshness: EodFreshnessResponseDto | null,
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   latestFundamentalsDate: string | null,
+  pipelineStage: EodPipelineStageDto | null,
 ) {
+  if (normalizePipelineStageStatus(pipelineStage) === "running") return "Running";
+
   const runStatus = getLatestFundamentalsRun(fundamentalsStatus)?.status;
   if (hasTextValue(runStatus)) return humanizeToken(runStatus);
 
@@ -502,6 +517,43 @@ function normalizeStageStatus(stage: EodFreshnessStageDto | null | undefined) {
   return stage?.status?.trim().toLowerCase() ?? null;
 }
 
+function normalizePipelineStageStatus(stage: EodPipelineStageDto | null | undefined) {
+  return stage?.status?.trim().toLowerCase() ?? null;
+}
+
+function getPipelineStage(
+  pipelineStatus: EodPipelineStatusResponseDto | null,
+  key: EodPipelineStageKey,
+) {
+  return pipelineStatus?.stages?.[key] ?? null;
+}
+
+function mergeRunningPipelineStage(
+  stage: EodFreshnessStageDto | null,
+  pipelineStage: EodPipelineStageDto | null | undefined,
+) {
+  if (normalizePipelineStageStatus(pipelineStage) !== "running") return stage;
+
+  return buildStage(
+    "running",
+    pipelineStage?.total ?? stage?.symbols_total,
+    pipelineStage?.processed ?? stage?.symbols_succeeded,
+    pipelineStage?.failed ?? stage?.symbols_failed,
+  );
+}
+
+function hasRunningDashboardPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  return DASHBOARD_EOD_PIPELINE_STAGE_KEYS.some(
+    (key) => normalizePipelineStageStatus(getPipelineStage(pipelineStatus, key)) === "running",
+  );
+}
+
+function getEodPipelineStatusPollDelayMs(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  return hasRunningDashboardPipelineStage(pipelineStatus)
+    ? EOD_PIPELINE_STATUS_RUNNING_POLL_MS
+    : EOD_PIPELINE_STATUS_IDLE_POLL_MS;
+}
+
 function normalizeMarketState(value: string | null | undefined) {
   return value?.trim().toUpperCase().replace(/[\s-]+/g, "_") ?? null;
 }
@@ -660,7 +712,7 @@ function getFundamentalsCheckedCount(
   stage: EodFreshnessStageDto | null,
 ) {
   const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
-  return latestRun?.symbols_checked ?? stage?.symbols_total ?? stage?.symbols_succeeded ?? null;
+  return latestRun?.symbols_checked ?? stage?.symbols_succeeded ?? stage?.symbols_total ?? null;
 }
 
 function getSymbolCodeFromSampleItem(item: unknown): string | null {
@@ -945,6 +997,7 @@ export function LiveDashboardClient({
   initialTracked,
   initialFreshness,
   initialFundamentalsStatus,
+  initialPipelineStatus,
   initialAgentFeedbackProgress,
 }: LiveDashboardClientProps) {
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
@@ -953,6 +1006,8 @@ export function LiveDashboardClient({
   const [fundamentalsStatus, setFundamentalsStatus] = useState<DartFundamentalsDailyInspectResponseDto | null>(
     initialFundamentalsStatus,
   );
+  const [pipelineStatus, setPipelineStatus] = useState<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
+  const pipelineStatusRef = useRef<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
   const [agentFeedbackProgress, setAgentFeedbackProgress] = useState<AgentFeedbackProgressResponseDto | null>(
     initialAgentFeedbackProgress,
   );
@@ -967,6 +1022,10 @@ export function LiveDashboardClient({
   );
   const fundamentalsInspectPath = useMemo(
     () => buildDartFundamentalsDailyInspectPath(DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH, fundamentalsMarketDate),
+    [fundamentalsMarketDate],
+  );
+  const pipelineStatusPath = useMemo(
+    () => buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_CLIENT_PATH, fundamentalsMarketDate),
     [fundamentalsMarketDate],
   );
 
@@ -1125,6 +1184,48 @@ export function LiveDashboardClient({
 
   useEffect(() => {
     let active = true;
+    let timer: number | null = null;
+
+    if (pipelineStatusRef.current?.market_date !== fundamentalsMarketDate) {
+      pipelineStatusRef.current = null;
+    }
+
+    function clearTimer() {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function scheduleNextLoad(nextPipelineStatus: EodPipelineStatusResponseDto | null) {
+      if (!active) return;
+      clearTimer();
+      timer = window.setTimeout(loadPipelineStatus, getEodPipelineStatusPollDelayMs(nextPipelineStatus));
+    }
+
+    async function loadPipelineStatus() {
+      try {
+        const data = await getJson<EodPipelineStatusResponseDto>(pipelineStatusPath);
+        if (!active) return;
+        pipelineStatusRef.current = data;
+        setPipelineStatus(data);
+        scheduleNextLoad(data);
+      } catch (pipelineStatusError) {
+        console.error("Dashboard EOD pipeline status load failed", pipelineStatusError);
+        if (!active) return;
+        scheduleNextLoad(pipelineStatusRef.current);
+      }
+    }
+
+    void loadPipelineStatus();
+
+    return () => {
+      active = false;
+      clearTimer();
+    };
+  }, [fundamentalsMarketDate, pipelineStatusPath]);
+
+  useEffect(() => {
+    let active = true;
 
     const loadFundamentalsStatus = async () => {
       try {
@@ -1204,7 +1305,15 @@ export function LiveDashboardClient({
   const fallbackCount = tracked.items.filter((item) => item.fallback).length;
   const unavailableCount = tracked.items.filter((item) => !item.available).length;
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
-  const fundamentalsStatusLabel = getFundamentalsStatusLabel(freshness, fundamentalsStatus, latestFundamentalsDate);
+  const pricePipelineStage = getPipelineStage(pipelineStatus, "price_collection");
+  const technicalPipelineStage = getPipelineStage(pipelineStatus, "technical_snapshots");
+  const fundamentalsPipelineStage = getPipelineStage(pipelineStatus, "fundamentals_daily_refresh");
+  const fundamentalsStatusLabel = getFundamentalsStatusLabel(
+    freshness,
+    fundamentalsStatus,
+    latestFundamentalsDate,
+    fundamentalsPipelineStage,
+  );
   const fundamentalsFreshnessStage = getFundamentalsFreshnessStage(
     freshness,
     fundamentalsStatusLabel,
@@ -1228,20 +1337,29 @@ export function LiveDashboardClient({
   const todayTradeDate = freshness?.today?.trade_date ?? null;
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
   const isBreakDay = isBreakDayMarket(market);
-  const priceFreshnessStage = getPriceFreshnessStage(freshness);
-  const technicalFreshnessStage = getTechnicalFreshnessStage(freshness);
+  const priceFreshnessStage = mergeRunningPipelineStage(getPriceFreshnessStage(freshness), pricePipelineStage);
+  const technicalFreshnessStage = mergeRunningPipelineStage(
+    getTechnicalFreshnessStage(freshness),
+    technicalPipelineStage,
+  );
   const actionFreshnessStage = getActionFreshnessStage(freshness);
+  const fundamentalsFreshnessWithPipelineStage = mergeRunningPipelineStage(
+    fundamentalsFreshnessStage,
+    fundamentalsPipelineStage,
+  );
   const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, todayTradeDate);
   const fundamentalsStageCard = buildEodStageCard(
     "fundamentals",
     "Fundamentals",
-    fundamentalsFreshnessStage,
+    fundamentalsFreshnessWithPipelineStage,
     todayTradeDate,
     latestFundamentalsDate,
     isBreakDay,
     {
       label: "Checked",
-      value: formatEodSymbolCount(getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessStage)),
+      value: formatEodSymbolCount(
+        getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
+      ),
     },
   );
   const eodStageCards = [
@@ -1373,7 +1491,7 @@ export function LiveDashboardClient({
         <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.operational-integrity"
-            api="/api/trading/eod/freshness + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/disclosures/dart/fundamentals/daily/inspect"
+            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/disclosures/dart/fundamentals/daily/inspect"
           />
 
           <div className={styles.panelHeader}>
