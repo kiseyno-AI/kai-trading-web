@@ -28,7 +28,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
-  test("dashboard surfaces live EOD pipeline stages and current work detail", async ({ page }) => {
+  test("dashboard surfaces running EOD pipeline progress inside the matching stage cards", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -210,22 +210,14 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const pipelineList = page.getByRole("list", { name: /EOD pipeline stages/i });
-    await expect(pipelineList).toBeVisible();
-    await expect(page.getByText(/Pipeline activity/i)).toBeVisible();
-    await expect(page.getByText(/Action Summaries in progress/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Price Collection/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Technical Snapshots/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Action Summaries/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Trending Ranks/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Signal Features/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Fundamentals Daily Refresh/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Current activity Rendering EOD summaries/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Current step Build Symbol Summary/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Current symbol 005930/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Progress 1,180 \/ 3,200/i)).toBeVisible();
-    await expect(pipelineList.getByText(/Failed 12/i)).toBeVisible();
-    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/running/i);
+    await expect(page.getByRole("list", { name: /EOD pipeline stages/i })).toHaveCount(0);
+    await expect(page.getByText(/Pipeline activity/i)).toHaveCount(0);
+    await expect(page.getByText(/Current step/i)).toHaveCount(0);
+    await expect(page.getByText(/Current activity/i)).toHaveCount(0);
+    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/Build Symbol Summary/i);
+    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/1,180 \/ 3,200/i);
+    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/Failed 12/i);
+    await expect(page.locator('[aria-label="Fundamentals freshness"]')).toContainText(/Refresh Company Metrics/i);
   });
 
   test("dashboard quote surfaces use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {
