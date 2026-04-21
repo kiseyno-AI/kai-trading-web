@@ -1468,7 +1468,6 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     },
   ] as const;
   const activeDetailMode = SYMBOL_DETAIL_MODE_BY_ID[mode];
-  const currentDetailHref = buildSymbolDetailHref(symbol, mode, routeQueryString);
   const toolbarTitle = introTitle;
   const showOverview = isOverviewMode;
   const showChartSection = showOverview || mode === "technical-analysis";
@@ -1481,7 +1480,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   return (
     <MobileAppChrome
       activeNav="symbols"
-      mySymbolsHref={currentDetailHref}
+      mySymbolsHref="/my-symbols"
       header={
         <>
           <div className={styles.headerBrand}>

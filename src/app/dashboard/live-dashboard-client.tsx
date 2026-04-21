@@ -1884,7 +1884,7 @@ export function LiveDashboardClient({
               <p className={styles.sectionEyebrow}>Tracked Symbols</p>
               <h2 className={styles.sectionTitle}>Today&apos;s ledger recommendations</h2>
             </div>
-            <Link href="/search" className={styles.sectionLink} aria-label="View more tracked symbols in search">
+            <Link href="/my-symbols" className={styles.sectionLink} aria-label="Open the full My Symbols screen">
               More
             </Link>
           </div>

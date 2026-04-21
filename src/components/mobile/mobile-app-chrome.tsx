@@ -63,7 +63,7 @@ export function MobileAppChrome({
   activeNav,
   header,
   children,
-  mySymbolsHref = "/dashboard#tracked-symbols",
+  mySymbolsHref = "/my-symbols",
   searchHref = "/search",
 }: MobileAppChromeProps) {
   const router = useRouter();
@@ -119,6 +119,9 @@ export function MobileAppChrome({
             }
             if (activeNav !== "search") {
               router.prefetch(searchHref);
+            }
+            if (activeNav !== "symbols") {
+              router.prefetch(mySymbolsHref);
             }
           }}
         >
