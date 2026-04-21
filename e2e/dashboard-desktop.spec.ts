@@ -28,6 +28,206 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
+  test("dashboard surfaces live EOD pipeline stages and current work detail", async ({ page }) => {
+    const now = "2026-04-15T09:10:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          is_trading_day: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 1900,
+              change_pct: 2.73,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-15",
+            price: {
+              status: "ready",
+              symbols_total: 3200,
+              symbols_succeeded: 3200,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 3200,
+              symbols_succeeded: 3200,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 3200,
+              symbols_succeeded: 3200,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          status: "running",
+          stage_order: [
+            "price_collection",
+            "technical_snapshots",
+            "action_summaries",
+            "trending_ranks",
+            "signal_features",
+            "fundamentals_daily_refresh",
+          ],
+          stages: {
+            price_collection: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            technical_snapshots: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            action_summaries: {
+              status: "running",
+              processed: 1180,
+              total: 3200,
+              failed: 12,
+              current_step: "build_symbol_summary",
+              current_activity: "Rendering EOD summaries",
+              current_symbol: "005930",
+            },
+            trending_ranks: {
+              status: "pending",
+              processed: 0,
+              total: 3200,
+              failed: 0,
+            },
+            signal_features: {
+              status: "pending",
+              processed: 0,
+              total: 3200,
+              failed: 0,
+            },
+            fundamentals_daily_refresh: {
+              status: "running",
+              processed: 42,
+              total: 60,
+              failed: 1,
+              current_step: "refresh_company_metrics",
+              current_activity: "Refreshing DART fundamentals",
+              current_symbol: "000660",
+            },
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          runs: [],
+          latest_run: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-15",
+            symbols: null,
+            expected_agents: [],
+          },
+          summary: {
+            run_status: "completed",
+            is_live: false,
+            latest_feedback_at: now,
+            seconds_since_last_feedback: 120,
+            stalled_threshold_seconds: 300,
+            total_symbols: 3200,
+            processed_symbols: 3200,
+            completed_symbols: 3200,
+            in_progress_symbols: 0,
+            pending_symbols: 0,
+            progress_ratio: 1,
+            progress_percent: 100,
+            failed_items: 0,
+            completed_feedback_count: 0,
+            expected_feedback_count: 0,
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const pipelineList = page.getByRole("list", { name: /EOD pipeline stages/i });
+    await expect(pipelineList).toBeVisible();
+    await expect(page.getByText(/Pipeline activity/i)).toBeVisible();
+    await expect(page.getByText(/Action Summaries in progress/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Price Collection/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Technical Snapshots/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Action Summaries/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Trending Ranks/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Signal Features/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Fundamentals Daily Refresh/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Current activity Rendering EOD summaries/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Current step Build Symbol Summary/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Current symbol 005930/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Progress 1,180 \/ 3,200/i)).toBeVisible();
+    await expect(pipelineList.getByText(/Failed 12/i)).toBeVisible();
+    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/running/i);
+  });
+
   test("dashboard quote surfaces use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
     const searchRequests: string[] = [];

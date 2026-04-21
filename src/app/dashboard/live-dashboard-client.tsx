@@ -39,11 +39,18 @@ const EOD_PIPELINE_STATUS_IDLE_POLL_MS = 30_000;
 const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
 const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
-const DASHBOARD_EOD_PIPELINE_STAGE_KEYS = [
-  "price_collection",
-  "technical_snapshots",
-  "fundamentals_daily_refresh",
-] as const satisfies readonly EodPipelineStageKey[];
+const EOD_PIPELINE_STAGE_DEFINITIONS = [
+  { key: "price_collection", label: "Price Collection", showWhenMissing: true },
+  { key: "technical_snapshots", label: "Technical Snapshots", showWhenMissing: true },
+  { key: "action_summaries", label: "Action Summaries", showWhenMissing: true },
+  { key: "trending_ranks", label: "Trending Ranks", showWhenMissing: true },
+  { key: "signal_features", label: "Signal Features", showWhenMissing: true },
+  { key: "fundamentals_daily_refresh", label: "Fundamentals Daily Refresh", showWhenMissing: false },
+] as const satisfies ReadonlyArray<{
+  key: EodPipelineStageKey;
+  label: string;
+  showWhenMissing?: boolean;
+}>;
 const AGENT_PROGRESS_STATUS_LABELS = {
   pending: "에이전트 분석 대기",
   running: "에이전트 분석 중...",
@@ -154,6 +161,15 @@ type EodStageDetail = {
   label: string;
   value: string;
   tone?: "count" | "text";
+};
+
+type PipelineStageCard = {
+  key: EodPipelineStageKey;
+  label: string;
+  statusLabel: string;
+  tone: "positive" | "info" | "neutral" | "warning";
+  details: EodStageDetail[];
+  isActive: boolean;
 };
 
 type AgentRoleStatus = "completed" | "running" | "pending";
@@ -517,8 +533,12 @@ function normalizeStageStatus(stage: EodFreshnessStageDto | null | undefined) {
   return stage?.status?.trim().toLowerCase() ?? null;
 }
 
+function normalizePipelineStatus(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? null;
+}
+
 function normalizePipelineStageStatus(stage: EodPipelineStageDto | null | undefined) {
-  return stage?.status?.trim().toLowerCase() ?? null;
+  return normalizePipelineStatus(stage?.status);
 }
 
 function getPipelineStage(
@@ -543,8 +563,10 @@ function mergeRunningPipelineStage(
 }
 
 function hasRunningDashboardPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
-  return DASHBOARD_EOD_PIPELINE_STAGE_KEYS.some(
-    (key) => normalizePipelineStageStatus(getPipelineStage(pipelineStatus, key)) === "running",
+  if (normalizePipelineStatus(pipelineStatus?.status) === "running") return true;
+
+  return Object.values(pipelineStatus?.stages ?? {}).some(
+    (stage) => normalizePipelineStageStatus(stage) === "running",
   );
 }
 
@@ -705,6 +727,146 @@ function buildEodStageCard(
     tone: getEodStageTone(statusLabel),
     details,
   };
+}
+
+function getPipelineStageLabel(key: EodPipelineStageKey) {
+  return EOD_PIPELINE_STAGE_DEFINITIONS.find((item) => item.key === key)?.label ?? humanizeToken(key, key);
+}
+
+function getPipelineStageTone(status: string | null | undefined): PipelineStageCard["tone"] {
+  const normalizedStatus = normalizePipelineStatus(status);
+  if (normalizedStatus === "running") return "info";
+  if (
+    normalizedStatus === "ready" ||
+    normalizedStatus === "completed" ||
+    normalizedStatus === "success" ||
+    normalizedStatus === "succeeded"
+  ) {
+    return "positive";
+  }
+  if (
+    normalizedStatus === "failed" ||
+    normalizedStatus === "error" ||
+    normalizedStatus === "partial" ||
+    normalizedStatus === "stalled"
+  ) {
+    return "warning";
+  }
+  return "neutral";
+}
+
+function formatPipelineDetailText(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+
+  const trimmed = value.trim();
+  return /[_-]/.test(trimmed) && !trimmed.includes(" ") ? humanizeToken(trimmed, trimmed) : trimmed;
+}
+
+function buildPipelineStageDetails(stage: EodPipelineStageDto | null | undefined) {
+  const details: EodStageDetail[] = [];
+  const currentActivity = formatPipelineDetailText(stage?.current_activity);
+  const currentStep = formatPipelineDetailText(stage?.current_step);
+  const currentSymbol = stage?.current_symbol?.trim() || null;
+
+  if (currentActivity) {
+    details.push({ key: "activity", label: "Current activity", value: currentActivity, tone: "text" });
+  }
+  if (currentStep) {
+    details.push({ key: "step", label: "Current step", value: currentStep, tone: "text" });
+  }
+  if (currentSymbol) {
+    details.push({ key: "symbol", label: "Current symbol", value: currentSymbol, tone: "text" });
+  }
+  if (hasNumber(stage?.processed) || hasNumber(stage?.total)) {
+    details.push({
+      key: "progress",
+      label: "Progress",
+      value: `${formatEodSymbolCount(stage?.processed)} / ${formatEodSymbolCount(stage?.total)}`,
+      tone: "count",
+    });
+  }
+  if (hasNumber(stage?.failed) && stage.failed > 0) {
+    details.push({
+      key: "failed",
+      label: "Failed",
+      value: formatEodSymbolCount(stage.failed),
+      tone: "count",
+    });
+  }
+
+  return details;
+}
+
+function shouldDisplayPipelineStage(
+  pipelineStatus: EodPipelineStatusResponseDto | null,
+  definition: (typeof EOD_PIPELINE_STAGE_DEFINITIONS)[number],
+) {
+  if (definition.showWhenMissing) return true;
+
+  const stageOrder = pipelineStatus?.stage_order ?? [];
+  return stageOrder.includes(definition.key) || Boolean(getPipelineStage(pipelineStatus, definition.key));
+}
+
+function getVisiblePipelineStageKeys(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  if (!pipelineStatus) return [];
+
+  const stageKeys: EodPipelineStageKey[] = [];
+  const seen = new Set<EodPipelineStageKey>();
+  const stageOrder = pipelineStatus?.stage_order ?? [];
+  const knownStageKeys = new Set(EOD_PIPELINE_STAGE_DEFINITIONS.map((item) => item.key));
+
+  const addStageKey = (key: EodPipelineStageKey) => {
+    if (seen.has(key) || !knownStageKeys.has(key)) return;
+    seen.add(key);
+    stageKeys.push(key);
+  };
+
+  stageOrder.forEach(addStageKey);
+  EOD_PIPELINE_STAGE_DEFINITIONS.forEach((definition) => {
+    if (shouldDisplayPipelineStage(pipelineStatus, definition)) {
+      addStageKey(definition.key);
+    }
+  });
+
+  return stageKeys;
+}
+
+function getActivePipelineStageKey(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  const visibleStageKeys = getVisiblePipelineStageKeys(pipelineStatus);
+
+  for (const key of visibleStageKeys) {
+    if (normalizePipelineStageStatus(getPipelineStage(pipelineStatus, key)) === "running") {
+      return key;
+    }
+  }
+
+  if (normalizePipelineStatus(pipelineStatus?.status) !== "running") return null;
+
+  for (const key of visibleStageKeys) {
+    const stage = getPipelineStage(pipelineStatus, key);
+    if (hasTextValue(stage?.current_activity) || hasTextValue(stage?.current_step)) {
+      return key;
+    }
+  }
+
+  return null;
+}
+
+function buildPipelineStageCards(pipelineStatus: EodPipelineStatusResponseDto | null): PipelineStageCard[] {
+  const activeStageKey = getActivePipelineStageKey(pipelineStatus);
+
+  return getVisiblePipelineStageKeys(pipelineStatus).map((key) => {
+    const stage = getPipelineStage(pipelineStatus, key);
+
+    return {
+      key,
+      label: getPipelineStageLabel(key),
+      statusLabel: humanizeToken(stage?.status, "Not Reported"),
+      tone: getPipelineStageTone(stage?.status),
+      details: buildPipelineStageDetails(stage),
+      isActive: key === activeStageKey,
+    };
+  });
 }
 
 function getFundamentalsCheckedCount(
@@ -1358,11 +1520,16 @@ export function LiveDashboardClient({
     getTechnicalFreshnessStage(freshness),
     technicalPipelineStage,
   );
-  const actionFreshnessStage = getActionFreshnessStage(freshness);
+  const actionPipelineStage = getPipelineStage(pipelineStatus, "action_summaries");
+  const actionFreshnessStage = mergeRunningPipelineStage(getActionFreshnessStage(freshness), actionPipelineStage);
   const fundamentalsFreshnessWithPipelineStage = mergeRunningPipelineStage(
     fundamentalsFreshnessStage,
     fundamentalsPipelineStage,
   );
+  const pipelineStageCards = buildPipelineStageCards(pipelineStatus);
+  const activePipelineStage = pipelineStageCards.find((stage) => stage.isActive) ?? null;
+  const pipelineStatusLabel = hasTextValue(pipelineStatus?.status) ? humanizeToken(pipelineStatus.status) : null;
+  const pipelineStatusTone = getPipelineStageTone(pipelineStatus?.status);
   const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, todayTradeDate);
   const fundamentalsStageCard = buildEodStageCard(
     "fundamentals",
@@ -1584,6 +1751,65 @@ export function LiveDashboardClient({
                   );
                 })}
               </div>
+
+              {pipelineStageCards.length > 0 ? (
+                <div className={styles.pipelineActivitySection}>
+                  <div className={styles.pipelineActivityHeader}>
+                    <div>
+                      <span>Pipeline activity</span>
+                      <strong>
+                        {activePipelineStage
+                          ? `${activePipelineStage.label} in progress`
+                          : pipelineStatusLabel
+                            ? `Pipeline ${pipelineStatusLabel}`
+                            : "Pipeline detail"}
+                      </strong>
+                    </div>
+                    {pipelineStatusLabel ? (
+                      <span
+                        className={`pill ${pipelineStatusTone} ${pipelineStatusTone === "info" ? styles.runningStatusPill : ""}`}
+                      >
+                        {pipelineStatusLabel}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className={styles.pipelineStageList} role="list" aria-label="EOD pipeline stages">
+                    {pipelineStageCards.map((stage) => {
+                      const statusClass = stage.tone === "info" ? styles.runningStatusPill : "";
+
+                      return (
+                        <div
+                          key={stage.key}
+                          className={styles.pipelineStageRow}
+                          role="listitem"
+                          data-active={stage.isActive}
+                          aria-label={`${stage.label} pipeline stage`}
+                        >
+                          <div className={styles.pipelineStageTop}>
+                            <span className={styles.pipelineStageTitle}>{stage.label}</span>
+                            <span className={`pill ${stage.tone} ${statusClass}`}>{stage.statusLabel}</span>
+                          </div>
+                          {stage.details.length > 0 ? (
+                            <div className={styles.pipelineStageDetails}>
+                              {stage.details.map((detail) => (
+                                <span
+                                  key={`${stage.key}-${detail.key}`}
+                                  className={styles.eodStageDetailLine}
+                                  data-detail-tone={detail.tone ?? "text"}
+                                >
+                                  <span>{detail.label}</span>{" "}
+                                  <span className={styles.eodStageDetailValue}>{detail.value}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </article>
 
             <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>

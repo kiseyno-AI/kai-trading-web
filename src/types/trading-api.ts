@@ -402,6 +402,7 @@ export type EodPipelineStageKey =
   | "technical_snapshots"
   | "action_summaries"
   | "trending_ranks"
+  | "signal_features"
   | "fundamentals_daily_refresh";
 
 export type EodPipelineStageDto = {
