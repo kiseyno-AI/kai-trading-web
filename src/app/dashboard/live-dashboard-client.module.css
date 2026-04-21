@@ -173,6 +173,12 @@
   gap: 0.9rem;
 }
 
+.agentFeedbackCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 .eodStatusHeader {
   display: flex;
   align-items: flex-start;
@@ -518,6 +524,33 @@
   }
 }
 
+.agentFeedbackActions {
+  margin-top: auto;
+  padding-top: 0.2rem;
+}
+
+.agentFeedbackStopButton {
+  width: 100%;
+  min-height: 2.6rem;
+  border: 1px solid rgba(227, 176, 74, 0.28);
+  border-radius: 0.55rem;
+  background: rgba(50, 37, 12, 0.42);
+  color: #fff4dd;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.agentFeedbackStopButton:hover {
+  border-color: rgba(227, 176, 74, 0.52);
+  background: rgba(78, 53, 12, 0.6);
+}
+
 .supportRow strong,
 .noteCard strong {
   color: #ffffff;
@@ -570,7 +603,9 @@
 }
 
 .statusButton:focus-visible,
-.dialogCloseButton:focus-visible {
+.dialogCloseButton:focus-visible,
+.agentFeedbackStopButton:focus-visible,
+.dialogActionButton:focus-visible {
   outline: 2px solid rgba(186, 195, 255, 0.88);
   outline-offset: 2px;
 }
@@ -597,6 +632,10 @@
   background: rgba(13, 28, 46, 0.98);
   box-shadow: 0 28px 70px rgba(1, 15, 32, 0.46);
   padding: 1rem;
+}
+
+.confirmationDialog {
+  width: min(26rem, 100%);
 }
 
 .dialogHeader {
@@ -632,6 +671,54 @@
 
 .dialogCloseButton:hover {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.confirmationMessage {
+  margin: 0.95rem 0 0;
+  color: #c5c5d4;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.dialogActionButton {
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(186, 195, 255, 0.2);
+  border-radius: 0.5rem;
+  background: rgba(18, 32, 50, 0.82);
+  color: #f6f8ff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.dialogActionSecondary:hover {
+  border-color: rgba(186, 195, 255, 0.36);
+  background: rgba(25, 40, 60, 0.9);
+}
+
+.dialogActionDanger {
+  border-color: rgba(227, 176, 74, 0.28);
+  background: rgba(50, 37, 12, 0.54);
+  color: #fff4dd;
+}
+
+.dialogActionDanger:hover {
+  border-color: rgba(227, 176, 74, 0.5);
+  background: rgba(78, 53, 12, 0.62);
 }
 
 .failureReason {
@@ -929,6 +1016,14 @@
   .dialogHeader {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .dialogActions {
+    flex-direction: column-reverse;
+  }
+
+  .dialogActionButton {
+    width: 100%;
   }
 
   .failureDetailGrid {
