@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
@@ -388,6 +389,7 @@ function mapStoredTrendingItems(response: StoredTrendingResponse, mode: Exclude<
 
 export default function SearchPageClient() {
   const router = useRouter();
+  const { beginNavigation } = useNavigationLoading();
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
@@ -723,7 +725,9 @@ export default function SearchPageClient() {
     setQuote(null);
     setSelected(item);
     if (options?.navigate) {
-      router.push(buildSymbolHref(item));
+      const href = buildSymbolHref(item);
+      beginNavigation(href);
+      router.push(href);
     }
   };
 
