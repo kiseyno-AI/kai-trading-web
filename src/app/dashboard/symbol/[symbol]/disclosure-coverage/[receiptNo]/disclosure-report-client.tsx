@@ -69,7 +69,7 @@ export function DisclosureReportClient() {
   return (
     <MobileAppChrome
       activeNav="symbols"
-      mySymbolsHref={backHref}
+      mySymbolsHref="/my-symbols"
       header={
         <>
           <div className={styles.headerBrand}>

@@ -1,0 +1,379 @@
+.page {
+  display: grid;
+  gap: 18px;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(18, 32, 50, 0.96), rgba(12, 23, 37, 0.94)),
+    radial-gradient(circle at top right, rgba(127, 184, 255, 0.16), transparent 32%);
+  box-shadow: var(--shadow-soft);
+}
+
+.heroPanel {
+  gap: 20px;
+}
+
+.heroEyebrow,
+.sectionEyebrow,
+.brandMeta,
+.summaryCard span,
+.summaryCard small,
+.favoriteCard span,
+.sectionMeta,
+.metaGrid dt,
+.notice {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.heroTitle,
+.sectionTitle {
+  color: var(--text-strong);
+}
+
+.heroTitle {
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.heroCopy {
+  max-width: 64ch;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summaryCard {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--outline);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.summaryCard strong {
+  color: var(--text-strong);
+  font-size: 1.2rem;
+  line-height: 1.4;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.primaryLink,
+.secondaryLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.primaryLink {
+  border: 1px solid rgba(127, 184, 255, 0.32);
+  background: linear-gradient(135deg, rgba(127, 184, 255, 0.24), rgba(186, 195, 255, 0.14));
+  color: var(--text-strong);
+}
+
+.secondaryLink {
+  border: 1px solid var(--outline);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+}
+
+.primaryLink:hover,
+.secondaryLink:hover,
+.favoriteCard:hover,
+.trackedCard:hover {
+  transform: translateY(-1px);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sectionHeader > div {
+  display: grid;
+  gap: 6px;
+}
+
+.favoriteGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.favoriteCard {
+  display: grid;
+  gap: 12px;
+  min-height: 120px;
+  padding: 16px;
+  border: 1px solid var(--outline);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(127, 184, 255, 0.08)),
+    rgba(255, 255, 255, 0.02);
+}
+
+.favoriteCard strong,
+.trackedCard strong,
+.headerBrand strong {
+  color: var(--text-strong);
+}
+
+.favoriteCard p,
+.trackedCard p,
+.identityBlock p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trackedList {
+  display: grid;
+  gap: 12px;
+}
+
+.trackedCard {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--outline);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, rgba(78, 222, 163, 0.08), transparent 30%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.cardHeader,
+.priceRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.identityBlock {
+  display: grid;
+  gap: 4px;
+}
+
+.identityBlock strong {
+  font-size: 1.05rem;
+}
+
+.badgeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.badge,
+.marketPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.badgeFavorite {
+  border: 1px solid rgba(186, 195, 255, 0.28);
+  background: rgba(186, 195, 255, 0.14);
+  color: var(--accent);
+}
+
+.badgePositive,
+.marketPillPositive {
+  border: 1px solid rgba(78, 222, 163, 0.28);
+  background: rgba(78, 222, 163, 0.14);
+  color: var(--positive);
+}
+
+.badgeInfo {
+  border: 1px solid rgba(127, 184, 255, 0.28);
+  background: rgba(127, 184, 255, 0.14);
+  color: var(--blue);
+}
+
+.badgeWarning,
+.marketPillNeutral {
+  border: 1px solid rgba(255, 204, 102, 0.24);
+  background: rgba(255, 204, 102, 0.12);
+  color: var(--warning);
+}
+
+.priceRow strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: clamp(1.3rem, 2vw, 1.55rem);
+}
+
+.priceRow span {
+  display: block;
+  font-size: 13px;
+}
+
+.updatedAt {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.metaGrid div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.metaGrid dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.positiveText {
+  color: var(--positive);
+}
+
+.negativeText {
+  color: var(--negative);
+}
+
+.neutralText {
+  color: var(--muted);
+}
+
+.panelState {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--outline-strong);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.panelState strong {
+  color: var(--text-strong);
+}
+
+.panelState p,
+.notice {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.headerBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandMark {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(127, 184, 255, 0.92), rgba(186, 195, 255, 0.86));
+  color: #041423;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.brandTitle {
+  display: block;
+  font-size: 15px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .summaryGrid,
+  .metaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trackedCard,
+  .favoriteCard,
+  .summaryCard,
+  .panel {
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: 14px;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+
+  .summaryGrid,
+  .metaGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cardHeader,
+  .priceRow,
+  .sectionHeader {
+    flex-direction: column;
+  }
+
+  .badgeGroup {
+    justify-content: flex-start;
+  }
+
+  .updatedAt {
+    white-space: normal;
+  }
+}
