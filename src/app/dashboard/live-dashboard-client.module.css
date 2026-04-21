@@ -606,6 +606,10 @@
   line-height: 1.55;
 }
 
+.confirmationError {
+  color: #fff4dd;
+}
+
 .dialogActions {
   display: flex;
   justify-content: flex-end;

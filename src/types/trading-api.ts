@@ -330,6 +330,27 @@ export type AgentFeedbackProgressResponseDto = {
   };
 };
 
+export type AgentContextCoreControlAction = "kill" | "restart";
+export type AgentContextCoreControlSignal = "SIGTERM" | "SIGKILL";
+
+export type AgentContextCoreControlRequestDto = {
+  action: AgentContextCoreControlAction;
+  signal_name: AgentContextCoreControlSignal;
+  port: number;
+};
+
+export type AgentContextCoreControlResponseDto = {
+  status: "killed" | "no_process" | "restarted" | string;
+  port: number;
+  signal: AgentContextCoreControlSignal | string;
+  pids?: number[];
+  killed_pids?: number[];
+  self_targeted?: boolean;
+  launchctl_stdout?: string;
+  launchctl_stderr?: string;
+  plist_path?: string;
+};
+
 export type SymbolPriceBarDto = {
   trade_date: string;
   open_price: number;

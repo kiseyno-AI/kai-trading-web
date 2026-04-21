@@ -18,6 +18,8 @@ import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/forma
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { getCachedTradingApiJson, seedTradingApiJsonCache } from "@/lib/trading-api-cache";
 import type {
+  AgentContextCoreControlRequestDto,
+  AgentContextCoreControlResponseDto,
   AgentFeedbackProgressResponseDto,
   AgentFeedbackRunStatus,
   DartFundamentalsDailyInspectResponseDto,
@@ -39,7 +41,14 @@ const EOD_PIPELINE_STATUS_IDLE_POLL_MS = 30_000;
 const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
 const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
 const AGENT_FEEDBACK_STOP_DIALOG_ID = "agent-feedback-stop-dialog";
+const AGENT_FEEDBACK_STOP_ERROR_ID = "agent-feedback-stop-error";
+const AGENT_FEEDBACK_STOP_CONTROL_CLIENT_PATH = "/api/trading/agent-context/internal/core/control";
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
+const AGENT_FEEDBACK_STOP_REQUEST = {
+  action: "kill",
+  signal_name: "SIGKILL",
+  port: 8000,
+} satisfies AgentContextCoreControlRequestDto;
 const AGENT_PROGRESS_STATUS_LABELS = {
   pending: "에이전트 분석 대기",
   running: "에이전트 분석 중...",
@@ -222,6 +231,52 @@ function pickSymbolMetadata(symbol: string, response: SymbolSearchResponse): Sym
 
 function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const resolvedPath = resolveTradingApiClientPath(path);
+  const response = await fetch(resolvedPath, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const responseText = await response.text();
+  let parsedBody: unknown = null;
+
+  if (responseText) {
+    try {
+      parsedBody = JSON.parse(responseText) as T;
+    } catch (error) {
+      throw new Error(`Failed to parse JSON for ${path}: ${getDashboardLoadErrorMessage(error)}`);
+    }
+  }
+
+  if (!response.ok) {
+    if (
+      parsedBody &&
+      typeof parsedBody === "object" &&
+      "message" in parsedBody &&
+      typeof parsedBody.message === "string"
+    ) {
+      throw new Error(parsedBody.message);
+    }
+
+    if (
+      parsedBody &&
+      typeof parsedBody === "object" &&
+      "detail" in parsedBody &&
+      typeof parsedBody.detail === "string"
+    ) {
+      throw new Error(parsedBody.detail);
+    }
+
+    throw new Error(`HTTP ${response.status} for ${path}`);
+  }
+
+  return parsedBody as T;
 }
 
 function getDashboardLoadErrorMessage(error: unknown) {
@@ -1065,6 +1120,8 @@ export function LiveDashboardClient({
   );
   const agentFeedbackProgressRef = useRef<AgentFeedbackProgressResponseDto | null>(initialAgentFeedbackProgress);
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
+  const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
+  const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
@@ -1509,12 +1566,45 @@ export function LiveDashboardClient({
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
   const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen;
 
+  function openAgentFeedbackStopDialog() {
+    setAgentFeedbackStopError(null);
+    setAgentFeedbackStopDialogOpen(true);
+  }
+
+  function closeAgentFeedbackStopDialog() {
+    if (agentFeedbackStopPending) return;
+    setAgentFeedbackStopError(null);
+    setAgentFeedbackStopDialogOpen(false);
+  }
+
+  async function handleAgentFeedbackStopConfirm() {
+    if (agentFeedbackStopPending) return;
+
+    setAgentFeedbackStopPending(true);
+    setAgentFeedbackStopError(null);
+
+    try {
+      await postJson<AgentContextCoreControlResponseDto>(
+        AGENT_FEEDBACK_STOP_CONTROL_CLIENT_PATH,
+        AGENT_FEEDBACK_STOP_REQUEST,
+      );
+      setAgentFeedbackStopDialogOpen(false);
+    } catch (stopError) {
+      console.error("Dashboard agent feedback stop request failed", stopError);
+      setAgentFeedbackStopError(getDashboardLoadErrorMessage(stopError));
+    } finally {
+      setAgentFeedbackStopPending(false);
+    }
+  }
+
   useEffect(() => {
     if (!dialogOpen) return;
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (agentFeedbackStopPending) return;
         if (agentFeedbackStopDialogOpen) {
+          setAgentFeedbackStopError(null);
           setAgentFeedbackStopDialogOpen(false);
           return;
         }
@@ -1530,7 +1620,7 @@ export function LiveDashboardClient({
       window.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
     };
-  }, [agentFeedbackStopDialogOpen, dialogOpen, fundamentalsDialogOpen]);
+  }, [agentFeedbackStopDialogOpen, agentFeedbackStopPending, dialogOpen, fundamentalsDialogOpen]);
 
   return (
     <MobileAppChrome
@@ -1568,7 +1658,7 @@ export function LiveDashboardClient({
         <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.operational-integrity"
-            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/disclosures/dart/fundamentals/daily/inspect"
+            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect"
           />
 
           <div className={styles.panelHeader}>
@@ -1722,7 +1812,7 @@ export function LiveDashboardClient({
                   aria-haspopup="dialog"
                   aria-expanded={agentFeedbackStopDialogOpen}
                   aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
-                  onClick={() => setAgentFeedbackStopDialogOpen(true)}
+                  onClick={openAgentFeedbackStopDialog}
                 >
                   중단
                 </button>
@@ -1912,14 +2002,14 @@ export function LiveDashboardClient({
 
       {agentFeedbackStopDialogOpen
         ? createPortal(
-            <div className={styles.dialogBackdrop} onMouseDown={() => setAgentFeedbackStopDialogOpen(false)}>
+            <div className={styles.dialogBackdrop} onMouseDown={closeAgentFeedbackStopDialog}>
               <section
                 id={AGENT_FEEDBACK_STOP_DIALOG_ID}
                 className={`${styles.failureDialog} ${styles.confirmationDialog}`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="agent-feedback-stop-title"
-                aria-describedby="agent-feedback-stop-description"
+                aria-describedby={agentFeedbackStopError ? AGENT_FEEDBACK_STOP_ERROR_ID : undefined}
                 onMouseDown={(event) => event.stopPropagation()}
               >
                 <div className={styles.dialogHeader}>
@@ -1929,35 +2019,35 @@ export function LiveDashboardClient({
                       중단하시겠습니까?
                     </h2>
                   </div>
-                  <button
-                    type="button"
-                    className={styles.dialogCloseButton}
-                    onClick={() => setAgentFeedbackStopDialogOpen(false)}
-                    aria-label="Close agent feedback stop confirmation"
-                  >
-                    Close
-                  </button>
                 </div>
 
-                <p id="agent-feedback-stop-description" className={styles.confirmationMessage}>
-                  예 또는 아니요를 선택하면 확인창이 닫히며 실제 중단 동작은 추후 연결할 예정입니다.
-                </p>
+                {agentFeedbackStopError ? (
+                  <p
+                    id={AGENT_FEEDBACK_STOP_ERROR_ID}
+                    className={`${styles.confirmationMessage} ${styles.confirmationError}`}
+                    role="alert"
+                  >
+                    {agentFeedbackStopError}
+                  </p>
+                ) : null}
 
                 <div className={styles.dialogActions}>
                   <button
                     type="button"
                     className={`${styles.dialogActionButton} ${styles.dialogActionSecondary}`}
-                    onClick={() => setAgentFeedbackStopDialogOpen(false)}
+                    onClick={closeAgentFeedbackStopDialog}
                     autoFocus
+                    disabled={agentFeedbackStopPending}
                   >
                     아니요
                   </button>
                   <button
                     type="button"
                     className={`${styles.dialogActionButton} ${styles.dialogActionDanger}`}
-                    onClick={() => setAgentFeedbackStopDialogOpen(false)}
+                    onClick={() => void handleAgentFeedbackStopConfirm()}
+                    disabled={agentFeedbackStopPending}
                   >
-                    예
+                    {agentFeedbackStopPending ? "중단 중..." : "예"}
                   </button>
                 </div>
               </section>
