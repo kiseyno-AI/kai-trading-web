@@ -105,7 +105,13 @@ test.describe("dashboard desktop", () => {
     await expect(symbolCard).toBeVisible();
     await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
 
-    const momentumRow = page.locator("article").filter({ hasText: "123456" }).filter({ hasText: "+0.72%" });
+    const moversSection = page.locator("section").filter({
+      has: page.getByRole("heading", { name: /Highest absolute movers/i }),
+    });
+    const momentumRow = moversSection
+      .getByRole("link")
+      .filter({ hasText: "123456" })
+      .filter({ hasText: "+0.72%" });
     await expect(momentumRow).toBeVisible();
     await expect(momentumRow).toContainText("Acme Precision");
     await expect(momentumRow).not.toContainText("[확인 필요]");
