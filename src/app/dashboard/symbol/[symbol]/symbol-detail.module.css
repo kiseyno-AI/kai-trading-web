@@ -297,6 +297,38 @@
   line-height: 1.48;
 }
 
+.heroMetricList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.36rem;
+  margin: 0.45rem 0 0;
+}
+
+.heroMetricRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.heroMetricRow dt {
+  min-width: 0;
+  color: #93a3b8;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.heroMetricRow dd {
+  margin: 0;
+  min-width: 0;
+  color: #ffffff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: right;
+}
+
 .alertCard {
   background: rgba(50, 37, 12, 0.9);
   border-color: rgba(227, 176, 74, 0.28);

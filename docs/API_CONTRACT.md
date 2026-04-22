@@ -32,9 +32,10 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /symbols/{symbol}/price-bars` for the mobile candlestick chart
   - `GET /eod/technical-snapshots` for the dedicated technical-analysis section
   - `GET /eod/action-summaries` for the dedicated action-summary section
+  - `GET /eod/piotroski-filter-results?market_date=YYYY-MM-DD&symbol=005930` for the S1 hero Piotroski pass/fail card
   - `GET /eod/freshness` for layer-specific freshness labels, with `latest.technical_market_date` as the stable technical freshness field and optional layer status fields like `technical.success` and `technical.latest_date` consumed when present
   - `GET /disclosures/dart/fundamentals/history` for stored DART fundamentals history
-  - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures
+  - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures; the S1 hero also uses the latest disclosure name/date from this payload for the Fundamental latest card
   - `GET /disclosures/dart/filings/document?rcept_no=...` for the S7 disclosure report detail document stream
   - `GET /scanner/tracked-symbols` and `POST /scanner/tracked-symbols` for the hero star toggle beside the disabled Trade action; the star is filled when the current symbol is already tracked, and toggling posts the replacement tracked-symbol set
 - The symbol detail card stack also powers dedicated mobile Stitch detail routes:

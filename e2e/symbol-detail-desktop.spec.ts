@@ -311,6 +311,295 @@ test.describe("symbol detail desktop", () => {
     await expect(page.getByRole("heading", { name: /Recent filing coverage/i })).toHaveCount(0);
   });
 
+  test("hero cards swap date-only summaries for focus candle, fundamentals, and Piotroski content", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const marketDate = "2026-04-18";
+
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+
+    await page.route("**/api/trading/quotes/005930", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "005930",
+          company_name: "Samsung Electronics",
+          price: 71500,
+          change: 500,
+          change_pct: 0.7,
+          volume: 1250000,
+          turnover: 89375000000,
+          market_state: "CLOSED",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          trade_date: marketDate,
+        }),
+      });
+    });
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "CLOSED",
+          is_open: false,
+          server_time: `${marketDate}T16:00:00+09:00`,
+        }),
+      });
+    });
+
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: marketDate,
+            eod_status: "completed",
+            symbols_total: 1,
+            symbols_succeeded: 1,
+            symbols_failed: 0,
+          },
+          latest: {
+            price_trade_date: marketDate,
+            technical_market_date: marketDate,
+            action_market_date: marketDate,
+          },
+          technical: {
+            success: true,
+            latest_date: marketDate,
+          },
+        }),
+      });
+    });
+
+    await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: marketDate,
+            symbols: ["005930"],
+            fs_div: null,
+            fs_label: null,
+            disclosures_limit: 4,
+          },
+          summary: {
+            requested_symbol_count: 1,
+            matched_symbol_count: 1,
+            technical_snapshot_count: 0,
+            action_summary_count: 0,
+            fundamentals_count: 1,
+            recent_disclosure_symbol_count: 1,
+            missing_symbols: [],
+          },
+          items: [
+            {
+              symbol: "005930",
+              market_date: marketDate,
+              company: {
+                symbol: "005930",
+                name_ko: "Samsung Electronics",
+                market: "KOSPI",
+                instrument_type: "stock",
+                standard_code: "KR7005930003",
+                source: "test",
+                is_active: true,
+                last_refreshed_at: null,
+                dart: {
+                  corp_code: "00126380",
+                  corp_name: "Samsung Electronics",
+                },
+              },
+              technical_snapshot: null,
+              action_summary: null,
+              fundamentals: {
+                latest_snapshot: {
+                  filing: {
+                    rcept_no: "202604180001",
+                    report_name: "Annual report",
+                    filing_category: "annual",
+                    receipt_date: marketDate,
+                    captured_at: null,
+                  },
+                  period: {
+                    business_year: 2025,
+                    report_code: "11011",
+                    report_label: "FY 2025",
+                    period_type: "annual",
+                    period_scope: null,
+                    quarter: null,
+                    period_end_month: 12,
+                    period_end_date: "2025-12-31",
+                  },
+                  statement: {
+                    fs_div: "CFS",
+                    fs_label: "Consolidated",
+                    statement_type: "income_statement",
+                    currency: "KRW",
+                    source_status: "ok",
+                    source_message: null,
+                    row_count: 2,
+                  },
+                  highlights: {},
+                },
+                history_summary: {
+                  entries: 1,
+                  latest_receipt_date: marketDate,
+                  latest_period_end_date: "2025-12-31",
+                  available_business_years: [2025],
+                  recent_periods: [],
+                },
+              },
+              recent_disclosures: {
+                count: 1,
+                items: [
+                  {
+                    rcept_no: "202604180001",
+                    corp_code: "00126380",
+                    corp_name: "Samsung Electronics",
+                    report_nm: "Annual report",
+                    filing_category: "annual",
+                    is_financial_report: true,
+                    receipt_date: marketDate,
+                    remark: null,
+                    fundamentals_capture_status: "captured",
+                  },
+                ],
+              },
+              availability: {
+                company: true,
+                technical_snapshot: false,
+                action_summary: false,
+                fundamentals: true,
+                recent_disclosures: true,
+              },
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.route("**/api/trading/eod/technical-snapshots?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          items: [],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/action-summaries?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          items: [],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/disclosures/dart/fundamentals/history?**", async (route) => {
+      await route.fulfill({
+        json: {
+          request: {
+            symbols: ["005930"],
+            start_date: "2021-04-18",
+            end_date: marketDate,
+            fs_div: null,
+          },
+          companies: [],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          summary: {
+            entries: 1,
+            requested_symbol: "005930",
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 1,
+            not_passed_count: 0,
+          },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            passed_filter: true,
+            piotroski_score: 8,
+            passes_piotroski_score: true,
+            captured_at: `${marketDate}T15:42:09+09:00`,
+          },
+        },
+      });
+    });
+
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      await route.fulfill({
+        json: {
+          symbol: "005930",
+          count: 1,
+          start_date: marketDate,
+          end_date: marketDate,
+          requested_start_date: "2025-04-18",
+          requested_end_date: marketDate,
+          items: [
+            {
+              trade_date: marketDate,
+              open_price: 71000,
+              high_price: 71800,
+              low_price: 70800,
+              close_price: 71500,
+              volume: 1250000,
+              turnover: 89375000000,
+              source: "test",
+              captured_at: `${marketDate}T16:00:00+09:00`,
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+
+    const summary = page.locator("#summary");
+    await expect(summary.getByText("Quote freshness")).toHaveCount(0);
+    await expect(summary.getByText("TA latest")).toHaveCount(0);
+    await expect(summary.getByText("Action latest")).toHaveCount(0);
+
+    const focusCard = summary.locator("article").filter({ hasText: "Focus candle" });
+    await expect(focusCard).toContainText("Open");
+    await expect(focusCard).toContainText("71,000");
+    await expect(focusCard).toContainText("Close");
+    await expect(focusCard).toContainText("71,500");
+    await expect(focusCard).toContainText("Volume");
+    await expect(focusCard).toContainText("1,250,000");
+    await expect(focusCard).toContainText("Highest");
+    await expect(focusCard).toContainText("71,800");
+    await expect(focusCard).toContainText("Lowest");
+    await expect(focusCard).toContainText("70,800");
+
+    const fundamentalsCard = summary.locator("article").filter({ hasText: "Fundamental latest" });
+    await expect(fundamentalsCard).toContainText("Annual report");
+    await expect(fundamentalsCard).toContainText("2026.04.18");
+
+    const piotroskiCard = summary.locator("article").filter({ hasText: "Piotroski filter" });
+    await expect(piotroskiCard).toContainText("Pass");
+
+    const recommendationCard = summary.locator("article").filter({ hasText: "Recommendation" });
+    await expect(recommendationCard).toContainText("Coming soon");
+  });
+
   test("hero star reflects and toggles tracked-symbol membership", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
 

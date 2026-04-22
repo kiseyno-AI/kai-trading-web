@@ -29,6 +29,8 @@ import type {
   DartFundamentalsHistoryResponseDto,
   EodActionSummariesResponseDto,
   EodFreshnessResponseDto,
+  EodPiotroskiFilterResultItemDto,
+  EodPiotroskiFilterResultsResponseDto,
   EodTechnicalSnapshotsResponseDto,
   SymbolPriceBarDto,
   SymbolPriceBarsResponseDto,
@@ -110,6 +112,20 @@ export type SymbolDetailMode =
 
 type SymbolDetailClientProps = {
   mode?: SymbolDetailMode;
+};
+
+type HeroMetricRow = {
+  label: string;
+  value: string;
+  valueClassName?: string;
+};
+
+type HeroMetric = {
+  label: string;
+  value?: string | null;
+  valueClassName?: string;
+  detail?: string | null;
+  rows?: HeroMetricRow[];
 };
 
 const PRICE_HISTORY_RANGES: PriceHistoryRange[] = ["3M", "1Y", "5Y", "MAX"];
@@ -242,6 +258,10 @@ function formatCompactNumber(value: number | string | null | undefined, fallback
   return fallback;
 }
 
+function formatQuantity(value: number | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
+  return hasNumber(value) ? value.toLocaleString("ko-KR") : fallback;
+}
+
 function formatNumberOrDash(value: number | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
   return hasNumber(value) ? value.toFixed(2) : fallback;
 }
@@ -335,15 +355,6 @@ function formatIsoDateLabel(value: string | null | undefined, fallback = DATE_PE
   }
 
   return `${year}.${month}.${day}`;
-}
-
-function buildQuoteFeedLabel(quote: QuoteResponse | null) {
-  if (!quote) return "Feed pending";
-  if (!quote.available) return "Quote unavailable";
-  if (quote.is_live) return "Live feed";
-  if (quote.source === "daily_price_bar") return "DB EOD fallback";
-  if (quote.fallback) return "Quote fallback";
-  return "Delayed feed";
 }
 
 function buildQuoteSourceLabel(quote: QuoteResponse | null) {
@@ -654,6 +665,18 @@ function buildFundamentalsCoverageNote(
   return "Current web layer cannot confirm a stored fundamentals history row for this symbol yet.";
 }
 
+function buildFocusCandleRows(focusBar: SymbolPriceBarDto | null): HeroMetricRow[] {
+  if (!focusBar) return [];
+
+  return [
+    { label: "Open", value: formatPrice(focusBar.open_price) },
+    { label: "Close", value: formatPrice(focusBar.close_price) },
+    { label: "Volume", value: formatQuantity(focusBar.volume) },
+    { label: "Highest", value: formatPrice(focusBar.high_price) },
+    { label: "Lowest", value: formatPrice(focusBar.low_price) },
+  ];
+}
+
 function buildDisclosureCoverageNote(
   latestDisclosure: AgentContextDisclosureDto | null,
   disclosureCount: number,
@@ -765,6 +788,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const [actionSummary, setActionSummary] = useState<AgentContextActionSummaryDto | null>(null);
   const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(null);
   const [fundamentalsHistory, setFundamentalsHistory] = useState<DartFundamentalsHistoryResponseDto | null>(null);
+  const [piotroskiResult, setPiotroskiResult] = useState<EodPiotroskiFilterResultItemDto | null>(null);
+  const [piotroskiLoadState, setPiotroskiLoadState] = useState<AggregateContextLoadState>("loading");
   const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
   const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
   const [aggregateContextLoadState, setAggregateContextLoadState] =
@@ -804,6 +829,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     setActionSummary(null);
     setFreshness(null);
     setFundamentalsHistory(null);
+    setPiotroskiResult(null);
+    setPiotroskiLoadState("loading");
     setTrackedSymbols([]);
     setTrackedSymbolsLoaded(false);
     setAggregateContextLoadState("loading");
@@ -1038,6 +1065,43 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   useEffect(() => {
     let active = true;
 
+    const loadPiotroskiResult = async () => {
+      if (!marketDate) {
+        setPiotroskiResult(null);
+        setPiotroskiLoadState("loading");
+        return;
+      }
+
+      setPiotroskiLoadState("loading");
+      const query = new URLSearchParams();
+      query.set("market_date", marketDate);
+      query.set("symbol", normalizedSymbol);
+
+      try {
+        const data = await getJson<EodPiotroskiFilterResultsResponseDto>(
+          `/api/trading/eod/piotroski-filter-results?${query.toString()}`,
+        );
+        if (!active) return;
+        setPiotroskiResult(data.item ?? null);
+        setPiotroskiLoadState("success");
+      } catch (piotroskiLoadError) {
+        console.error("Piotroski filter load failed", piotroskiLoadError);
+        if (!active) return;
+        setPiotroskiResult(null);
+        setPiotroskiLoadState("error");
+      }
+    };
+
+    loadPiotroskiResult();
+
+    return () => {
+      active = false;
+    };
+  }, [marketDate, normalizedSymbol]);
+
+  useEffect(() => {
+    let active = true;
+
     const loadDerivedInsights = async () => {
       if (!shouldLoadTechnicalSnapshot && !shouldLoadActionSummary) {
         setTechnicalSnapshot(null);
@@ -1185,6 +1249,26 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const technicalFreshnessDate = buildTechnicalFreshnessDate(resolvedTechnicalSnapshot, freshness);
   const actionFreshnessDate = buildActionFreshnessDate(resolvedActionSummary, freshness);
   const fundamentalsDate = buildFundamentalsDate(companyHistory, latestFundamentals, aggregateContext);
+  const latestFundamentalEventLabel =
+    latestDisclosure?.report_nm ??
+    (latestHistoryEntry || latestFundamentals
+      ? buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals)
+      : null);
+  const latestFundamentalEventDate = latestDisclosure?.receipt_date ?? fundamentalsDate;
+  const piotroskiLabel = piotroskiResult
+    ? piotroskiResult.passed_filter
+      ? "Pass"
+      : "Fail"
+    : piotroskiLoadState === "loading"
+      ? LOADING_LABEL
+      : piotroskiLoadState === "error"
+        ? DATA_UNAVAILABLE_LABEL
+        : "Pending";
+  const piotroskiValueClassName = piotroskiResult
+    ? piotroskiResult.passed_filter
+      ? styles.positive
+      : styles.negative
+    : undefined;
   const latestHistoryHighlights = normalizeHighlightMetrics(latestHistoryEntry?.highlights).slice(0, 3);
   const latestAggregateHighlights = normalizeHighlightMetrics(latestFundamentals?.highlights).slice(0, 3);
   const latestHighlights =
@@ -1317,32 +1401,45 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     focusBar && previousFocusBar && previousFocusBar.close_price > 0
       ? ((focusBar.close_price - previousFocusBar.close_price) / previousFocusBar.close_price) * 100
       : null;
+  const focusCandleRows = buildFocusCandleRows(focusBar);
+  const focusCandleValue =
+    focusCandleRows.length > 0
+      ? null
+      : shouldLoadPriceHistory
+        ? historyLoading
+          ? LOADING_LABEL
+          : "No candle selected"
+        : "Open chart detail";
+  const focusCandleDetail =
+    focusCandleRows.length > 0
+      ? null
+      : shouldLoadPriceHistory
+        ? "Select a candle to inspect OHLCV details."
+        : "Open the overview or technical view to inspect stored OHLCV data.";
 
-  const heroMetrics = [
-    {
-      label: "Quote freshness",
-      value: quote?.is_live
-        ? "Live"
-        : quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, loading ? LOADING_LABEL : "Quote pending"),
-      detail: buildQuoteFeedLabel(quote),
-    },
+  const heroMetrics: HeroMetric[] = [
     {
       label: "Focus candle",
-      value: focusBar?.trade_date
-        ? formatIsoDateLabel(focusBar.trade_date)
-        : historyLoading
-          ? LOADING_LABEL
-          : "No candle selected",
-      detail: focusBar ? `O ${formatPrice(focusBar.open_price)} · C ${formatPrice(focusBar.close_price)}` : "Swipe or tap chart to inspect a date.",
+      value: focusCandleValue,
+      detail: focusCandleDetail,
+      rows: focusCandleRows,
     },
     {
-      label: "TA latest",
-      value: technicalFreshnessDate ?? DATE_PENDING_LABEL,
+      label: "Fundamental latest",
+      value:
+        latestFundamentalEventLabel ??
+        (aggregateContextLoadState === "loading" || fundamentalsLoading ? LOADING_LABEL : "No DART event"),
+      detail: latestFundamentalEventDate ? formatIsoDateLabel(latestFundamentalEventDate) : null,
+    },
+    {
+      label: "Piotroski filter",
+      value: piotroskiLabel,
+      valueClassName: piotroskiValueClassName,
       detail: null,
     },
     {
-      label: "Action latest",
-      value: actionFreshnessDate ?? DATE_PENDING_LABEL,
+      label: "Recommendation",
+      value: "Coming soon",
       detail: null,
     },
   ];
@@ -1511,7 +1608,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         <section className={`${styles.panel} ${styles.heroCard}`} id="summary">
           <ComponentTag
             label="symbol.hero"
-            api="/api/trading/quotes/{symbol} + /api/trading/market/status + /api/trading/symbols/search"
+            api="/api/trading/quotes/{symbol} + /api/trading/market/status + /api/trading/symbols/search + /api/trading/symbols/{symbol}/price-bars + /api/trading/agent-context/symbol-day + /api/trading/eod/piotroski-filter-results"
           />
 
           <div className={styles.heroTopRow}>
@@ -1584,7 +1681,17 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             {heroMetrics.map((metric) => (
               <article key={metric.label} className={styles.heroMetricCard}>
                 <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
+                {metric.value ? <strong className={metric.valueClassName}>{metric.value}</strong> : null}
+                {metric.rows?.length ? (
+                  <dl className={styles.heroMetricList}>
+                    {metric.rows.map((row) => (
+                      <div key={`${metric.label}-${row.label}`} className={styles.heroMetricRow}>
+                        <dt>{row.label}</dt>
+                        <dd className={row.valueClassName}>{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
                 {metric.detail ? <p className="clamp-3">{metric.detail}</p> : null}
               </article>
             ))}

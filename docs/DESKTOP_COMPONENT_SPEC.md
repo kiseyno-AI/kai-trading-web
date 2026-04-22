@@ -44,7 +44,7 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 
 | Tag | Component | API | Desktop behavior |
 | --- | --- | --- | --- |
-| `symbol.hero` | Large instrument hero | `/api/trading/quotes/{symbol}`, `/api/trading/market/status`, `/api/trading/symbols/search`, `/api/trading/agent-context/symbol-day` | Wide symbol/price heading with route metadata and quote provenance. |
+| `symbol.hero` | Large instrument hero | `/api/trading/quotes/{symbol}`, `/api/trading/market/status`, `/api/trading/symbols/search`, `/api/trading/symbols/{symbol}/price-bars`, `/api/trading/agent-context/symbol-day`, `/api/trading/eod/piotroski-filter-results` | Wide symbol/price heading with route metadata, quote provenance, focus-candle OHLCV lines, latest DART event/date, Piotroski pass/fail, and a recommendation placeholder. |
 | `symbol.chart` | Candlestick chart | `/api/trading/symbols/{symbol}/price-bars`, `/api/trading/quotes/{symbol}` | Desktop chart has a larger viewport and still updates focus data from swipe/drag/click. Technical detail also renders this chart. |
 | `symbol.action-summary` | Action summary detail | `/api/trading/eod/action-summaries`, fallback `/api/trading/agent-context/symbol-day` | Signal score, confidence/risk, trigger price, reasons, and payload keys. Multi-day signal history remains `[확인 필요]` until exposed upstream. |
 | `symbol.technical-analysis` | Technical analysis detail | `/api/trading/eod/technical-snapshots`, fallback `/api/trading/agent-context/symbol-day` | Trend state, MA alignment, returns, volume ratio, ATR, and signal payload keys. Unsupported RSI/MACD/ADX values are not invented. |

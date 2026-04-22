@@ -418,6 +418,29 @@ export type EodFreshnessResponseDto = {
   fundamentals?: EodFreshnessLayerStatusDto | null;
 };
 
+export type EodPiotroskiFilterResultItemDto = {
+  symbol: string;
+  market_date: string;
+  passed_filter: boolean;
+  piotroski_score: number | null;
+  passes_piotroski_score: boolean | null;
+  captured_at: string | null;
+};
+
+export type EodPiotroskiFilterResultsResponseDto = {
+  market_date: string;
+  summary: {
+    entries: number;
+    requested_symbol: string | null;
+    matched_symbols: string[];
+    missing_symbols: string[];
+    passed_count: number;
+    not_passed_count: number;
+  };
+  item?: EodPiotroskiFilterResultItemDto | null;
+  items?: EodPiotroskiFilterResultItemDto[] | null;
+};
+
 export type EodPipelineStageKey =
   | "price_collection"
   | "technical_snapshots"
