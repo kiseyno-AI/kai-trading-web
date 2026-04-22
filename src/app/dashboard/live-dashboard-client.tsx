@@ -20,6 +20,13 @@ import {
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
   warmMobileToolbarViewData,
 } from "@/lib/mobile-toolbar-data";
+import {
+  buildPiotroskiListHref,
+  buildPiotroskiSymbolHref,
+  getPiotroskiMarketDate,
+  loadPiotroskiPassList,
+  type PiotroskiPassListResult,
+} from "@/lib/piotroski-pass-list";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   getCachedTradingApiJson,
@@ -208,6 +215,11 @@ function formatSignedPercent(value: number | null | undefined, fallback = "Unava
 function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable"): string {
   if (!hasNumber(value)) return fallback;
   return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
+}
+
+function formatPiotroskiScore(value: number | null | undefined, fallback = UNKNOWN_LABEL) {
+  if (!hasNumber(value)) return fallback;
+  return value.toLocaleString("ko-KR");
 }
 
 function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>): string | null {
@@ -1208,6 +1220,11 @@ export function LiveDashboardClient({
   const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
   const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
+  const [piotroskiBoard, setPiotroskiBoard] = useState<PiotroskiPassListResult | null>(null);
+  const [piotroskiBoardError, setPiotroskiBoardError] = useState<string | null>(null);
+  const [piotroskiBoardLoadState, setPiotroskiBoardLoadState] = useState<"idle" | "loading" | "ready" | "error">(
+    initialFreshness?.today?.trade_date ? "loading" : "idle",
+  );
   const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [marketError, setMarketError] = useState<string | null>(initialError);
@@ -1396,6 +1413,46 @@ export function LiveDashboardClient({
     };
   }, []);
 
+  const piotroskiMarketDate = getPiotroskiMarketDate(freshness, market.server_time);
+
+  useEffect(() => {
+    if (!piotroskiMarketDate) {
+      setPiotroskiBoard(null);
+      setPiotroskiBoardError(null);
+      setPiotroskiBoardLoadState("idle");
+      return;
+    }
+
+    let active = true;
+    setPiotroskiBoard(null);
+    setPiotroskiBoardError(null);
+    setPiotroskiBoardLoadState("loading");
+
+    const loadPiotroskiBoard = async () => {
+      try {
+        const data = await loadPiotroskiPassList({
+          marketDate: piotroskiMarketDate,
+          limit: 3,
+        });
+        if (!active) return;
+        setPiotroskiBoard(data);
+        setPiotroskiBoardLoadState("ready");
+      } catch (piotroskiBoardLoadError) {
+        console.error("Dashboard Piotroski board load failed", piotroskiBoardLoadError);
+        if (!active) return;
+        setPiotroskiBoard(null);
+        setPiotroskiBoardError(getDashboardLoadErrorMessage(piotroskiBoardLoadError));
+        setPiotroskiBoardLoadState("error");
+      }
+    };
+
+    void loadPiotroskiBoard();
+
+    return () => {
+      active = false;
+    };
+  }, [piotroskiMarketDate]);
+
   useEffect(() => {
     let active = true;
     let timer: number | null = null;
@@ -1535,14 +1592,6 @@ export function LiveDashboardClient({
     fundamentalsStatus,
     latestFundamentalsDate,
     fundamentalsStatusLabel,
-  );
-  const movers = useMemo(
-    () =>
-      [...tracked.items]
-        .filter((item) => item.available && hasNumber(item.change_pct))
-        .sort((left, right) => Math.abs((right.change_pct ?? 0)) - Math.abs((left.change_pct ?? 0)))
-        .slice(0, 3),
-    [tracked.items],
   );
 
   const todayTradeDate = freshness?.today?.trade_date ?? null;
@@ -1965,30 +2014,71 @@ export function LiveDashboardClient({
 
         <section className={styles.supportGrid}>
           <section className={`${styles.panel} ${styles.supportPanel}`}>
-            <ComponentTag label="dashboard.momentum-board" api="/api/trading/quotes/tracked" />
-            <p className={styles.sectionEyebrow}>Global Sentiment Distribution</p>
-            <h2 className={styles.sectionTitle}>Highest absolute movers</h2>
+            <div className={styles.sectionHeaderRow}>
+              <div>
+                <ComponentTag
+                  label="dashboard.piotroski-board"
+                  api="/api/trading/eod/piotroski-filter-results + /api/trading/quotes/{symbol} + /api/trading/symbols/search"
+                />
+                <p className={styles.sectionEyebrow}>Piotroski Filter</p>
+                <h2 className={styles.sectionTitle}>Piotroski filter passes</h2>
+              </div>
+              <Link
+                href={buildPiotroskiListHref(piotroskiMarketDate)}
+                className={styles.sectionLink}
+                aria-label="Open the full Piotroski filter pass list"
+              >
+                More
+              </Link>
+            </div>
             <div className={styles.supportList}>
-              {movers.length > 0 ? (
-                movers.map((item) => {
-                  const companyName = getCompanyName(item, symbolMetaBySymbol[item.symbol]);
+              {piotroskiBoardLoadState === "loading" ? (
+                <div className={styles.emptyState}>Loading Piotroski pass symbols...</div>
+              ) : piotroskiBoardLoadState === "error" ? (
+                <div className={styles.emptyState}>
+                  {piotroskiBoardError
+                    ? `Piotroski filter results are unavailable. ${piotroskiBoardError}`
+                    : "Piotroski filter results are unavailable."}
+                </div>
+              ) : piotroskiBoard && piotroskiBoard.items.length > 0 ? (
+                piotroskiBoard.items.map((item) => {
+                  const priceLabel =
+                    item.quote?.available && hasNumber(item.quote.price)
+                      ? `₩${formatPrice(item.quote.price)}`
+                      : "Quote unavailable";
+                  const changeLabel = item.quote?.available
+                    ? formatSignedPercent(item.quote.change_pct)
+                    : item.quote?.unavailable_reason ?? "Unavailable";
+                  const companyName = item.companyName ?? UNKNOWN_LABEL;
 
                   return (
                     <Link
                       key={item.symbol}
-                      href={buildTrackedDetailHref(item, symbolMetaBySymbol[item.symbol])}
+                      href={buildPiotroskiSymbolHref({
+                        symbol: item.symbol,
+                        companyName: item.companyName,
+                        marketDate: item.marketDate,
+                      })}
                       className={styles.supportRow}
                     >
                       <div>
                         <strong>{companyName}</strong>
                         <p className="clamp-3">{item.symbol}</p>
                       </div>
-                      <span className={getQuoteToneClass(item.change_pct)}>{formatSignedPercent(item.change_pct)}</span>
+                      <div className={styles.supportMetrics}>
+                        <span className={styles.supportPrice}>{priceLabel}</span>
+                        <span className={getQuoteToneClass(item.quote?.change_pct)}>{changeLabel}</span>
+                        <span className={styles.supportScore}>Score {formatPiotroskiScore(item.piotroskiScore)}</span>
+                      </div>
                     </Link>
                   );
                 })
               ) : (
-                <div className={styles.emptyState}>Tracked momentum is waiting for live quote coverage.</div>
+                <div className={styles.emptyState}>
+                  {piotroskiMarketDate
+                    ? `No Piotroski pass symbols were stored for ${piotroskiMarketDate}.`
+                    : "Piotroski market date is pending."}
+                </div>
               )}
             </div>
           </section>

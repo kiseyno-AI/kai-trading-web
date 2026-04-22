@@ -930,6 +930,25 @@
   font-weight: 700;
 }
 
+.supportMetrics {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.18rem;
+  text-align: right;
+}
+
+.supportPrice {
+  color: #ffffff;
+}
+
+.supportScore {
+  color: #93a3b8;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
 .emptyState {
   padding: 0.95rem;
   border-radius: 1rem;

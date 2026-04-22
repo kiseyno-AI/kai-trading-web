@@ -13,6 +13,7 @@ type ComponentTagProps = {
 const TAG_IDS: Record<string, string> = {
   "dashboard.core-unavailable": "D1",
   "dashboard.operational-integrity": "D2",
+  "dashboard.piotroski-board": "D4",
   "dashboard.momentum-board": "D4",
   "search.terminal-shell": "Q1",
   "search.quick-access": "Q3",

@@ -6,11 +6,16 @@ This document defines the first practical frontend contract for wiring `trading-
 - `/dashboard` currently renders from these live endpoints where available:
   - `GET /market/status`
   - `GET /quotes/tracked`
+  - `GET /quotes/{symbol}`
   - `GET /symbols/search`
   - `GET /eod/freshness`
     - D2 EOD Status renders stage subcards for `today.price`, `today.technical_analysis`, `today.action_summary`, and `today.fundamentals`; price/technical/action show `symbols_succeeded / symbols_total`, while fundamentals shows a single checked count from the daily inspect run when available
     - Stage labels map to `synced` when `today.trade_date` matches the relevant latest date and the resolved stage status is `ready`; `running` when the resolved stage status is `running`; `break day` when `/market/status` marks a non-trading day and a resolved `ready` stage is stale; otherwise `not synced`, with the stale latest date shown on the subcard when present
     - Relevant latest dates are `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, and the latest DART fundamentals date from the daily inspect response; legacy optional layer objects such as `technical.latest_date`, `fundamental.latest_date`, and `fundamentals.latest_date` remain tolerated as deployment-compatibility fallbacks
+  - `GET /eod/piotroski-filter-results?market_date=YYYY-MM-DD`
+    - D4 now renders Piotroski filter pass symbols instead of absolute movers
+    - The dashboard filters to `passed_filter: true`, sorts the pass rows by `piotroski_score` descending on the client, and shows only the top three symbols in the dashboard card
+    - The D4 `More` link opens `/dashboard/piotroski-filter?marketDate=YYYY-MM-DD`, which renders the full passed-symbol list for the same market date and keeps row clicks routed to `/dashboard/symbol/[symbol]`
   - `GET /eod/pipeline/status`
     - `/dashboard` requests this endpoint with the active `market_date` from `/eod/freshness.today.trade_date`, falling back to the market server date when freshness has not loaded
     - D2 EOD Status treats `stages.price_collection`, `stages.technical_snapshots`, `stages.action_summaries`, and `stages.fundamentals_daily_refresh` as the live running-state override for the matching freshness subcards; when one of those pipeline stages is `running`, the dashboard keeps the subcard in `running`, uses the pipeline processed/total counters for the visible count, and replaces the usual `synced` pill copy on that same subcard with the reported `current_step`, falling back to `current_activity` and the animated running badge when step text is unavailable
