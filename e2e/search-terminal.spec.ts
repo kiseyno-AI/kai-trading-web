@@ -621,6 +621,7 @@ test.describe("search terminal desktop", () => {
 
   test("Q3 preserves saved tracked symbols and validates the full favorites refresh payload", async ({ page }) => {
     const postedSymbols: string[][] = [];
+    let trackedSymbols = ["000660"];
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       if (postedSymbols.length === 1) {
@@ -675,6 +676,7 @@ test.describe("search terminal desktop", () => {
     await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
       if (route.request().method() === "POST") {
         const symbols = JSON.parse(route.request().postData() ?? "{}").symbols as string[];
+        trackedSymbols = symbols;
         postedSymbols.push(symbols);
         await route.fulfill({
           json: {
@@ -688,8 +690,8 @@ test.describe("search terminal desktop", () => {
 
       await route.fulfill({
         json: {
-          tracked_symbols: ["000660"],
-          count: 1,
+          tracked_symbols: trackedSymbols,
+          count: trackedSymbols.length,
           last_updated_at: "2026-04-14T08:55:00+09:00",
         },
       });
@@ -883,7 +885,7 @@ test.describe("search terminal desktop", () => {
     await page.getByLabel(/Favorite symbol search/i).fill("005930");
     await dialog.getByRole("button", { name: /005930.*Samsung Electronics/i }).click();
 
-    await expect(dialog.getByText(/Favorite save blocked until tracked symbols load successfully. HTTP 503/i)).toBeVisible();
+    await expect(dialog.getByText(/Favorite save blocked until tracked symbols refresh succeeds. HTTP 503/i)).toBeVisible();
     expect(postAttempted).toBe(false);
   });
 

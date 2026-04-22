@@ -18,6 +18,10 @@ const MOBILE_TOOLBAR_TRENDING_SOURCES = "volume-rank,fluctuation,hts-top-view";
 let searchViewWarmPromise: Promise<void> | null = null;
 let trackedQuotesWarmPromise: Promise<void> | null = null;
 
+function resolveMobileToolbarClientPath(path: string) {
+  return resolveTradingApiClientPath(path);
+}
+
 export function buildMobileToolbarTrendingPath(limit = MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT) {
   const params = new URLSearchParams({
     limit: String(limit),
@@ -33,9 +37,9 @@ function warmSearchViewData() {
   if (searchViewWarmPromise) return searchViewWarmPromise;
 
   searchViewWarmPromise = Promise.allSettled([
-    getTradingApiJsonResult(MOBILE_TOOLBAR_FAVORITES_PATH),
-    getTradingApiJsonResult(MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH),
-    getTradingApiJsonResult(buildMobileToolbarTrendingPath()),
+    getTradingApiJsonResult(resolveMobileToolbarClientPath(MOBILE_TOOLBAR_FAVORITES_PATH)),
+    getTradingApiJsonResult(resolveMobileToolbarClientPath(MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH)),
+    getTradingApiJsonResult(resolveMobileToolbarClientPath(buildMobileToolbarTrendingPath())),
   ])
     .then(() => undefined)
     .finally(() => {
@@ -49,7 +53,7 @@ function warmTrackedQuotesData() {
   if (typeof window === "undefined") return Promise.resolve();
   if (trackedQuotesWarmPromise) return trackedQuotesWarmPromise;
 
-  trackedQuotesWarmPromise = fetch(resolveTradingApiClientPath(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH), {
+  trackedQuotesWarmPromise = fetch(resolveMobileToolbarClientPath(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH), {
     cache: "no-store",
   })
     .then(async (response) => {

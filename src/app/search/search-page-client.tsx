@@ -16,7 +16,6 @@ import {
   MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT,
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
-  MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH,
   warmMobileToolbarViewData,
 } from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
@@ -336,21 +335,6 @@ function getInitialFavoriteItems() {
   );
 }
 
-function getInitialTrackedSymbolsState() {
-  const cachedData = readTradingApiJsonCacheData<TrackedSymbolsResponse>(MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH);
-  if (!cachedData) {
-    return {
-      loaded: false,
-      symbols: [] as string[],
-    };
-  }
-
-  return {
-    loaded: true,
-    symbols: cachedData.tracked_symbols.map(normalizeSymbolCode),
-  };
-}
-
 function getInitialTrendingState() {
   const cachedData = readTradingApiJsonCacheData<RealtimeTrendingResponse>(
     buildMobileToolbarTrendingPath(TRENDING_INITIAL_LIMIT),
@@ -448,8 +432,6 @@ export default function SearchPageClient() {
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>(() => getInitialFavoriteItems());
   const [favoriteListError, setFavoriteListError] = useState<string | null>(null);
-  const [trackedSymbols, setTrackedSymbols] = useState<string[]>(() => getInitialTrackedSymbolsState().symbols);
-  const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(() => getInitialTrackedSymbolsState().loaded);
   const [trackedSymbolsError, setTrackedSymbolsError] = useState<string | null>(null);
   const [favoriteDialogOpen, setFavoriteDialogOpen] = useState(false);
   const [favoriteSymbolInput, setFavoriteSymbolInput] = useState("");
@@ -536,8 +518,6 @@ export default function SearchPageClient() {
           setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${result.status}`);
           return;
         }
-        setTrackedSymbols(result.data.tracked_symbols.map(normalizeSymbolCode));
-        setTrackedSymbolsLoaded(true);
         setTrackedSymbolsError(null);
       } catch {
         if (!active) return;
@@ -806,21 +786,14 @@ export default function SearchPageClient() {
     setFavoriteError(null);
 
     try {
-      let currentTrackedSymbols = trackedSymbols;
-      if (!trackedSymbolsLoaded) {
-        const currentResult = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
-        if (!currentResult.ok) {
-          setTrackedSymbols([]);
-          setTrackedSymbolsLoaded(false);
-          setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${currentResult.status}`);
-          setFavoriteError(`Favorite save blocked until tracked symbols load successfully. HTTP ${currentResult.status}`);
-          return;
-        }
-        currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
-        setTrackedSymbols(currentTrackedSymbols);
-        setTrackedSymbolsLoaded(true);
-        setTrackedSymbolsError(null);
+      const currentResult = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
+      if (!currentResult.ok) {
+        setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${currentResult.status}`);
+        setFavoriteError(`Favorite save blocked until tracked symbols refresh succeeds. HTTP ${currentResult.status}`);
+        return;
       }
+      const currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
+      setTrackedSymbolsError(null);
 
       const nextSymbols = [symbol, ...currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol)];
       const result = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols", {
@@ -835,15 +808,11 @@ export default function SearchPageClient() {
         setFavoriteError(`Favorite save failed. HTTP ${result.status}`);
         return;
       }
-
-      const normalizedTrackedSymbols = result.data.tracked_symbols.map(normalizeSymbolCode);
-
       invalidateTradingApiCacheByPathPrefix([
         "/api/trading/scanner/tracked-symbols",
         "/api/trading/symbols/favorites",
         MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
       ]);
-      setTrackedSymbols(normalizedTrackedSymbols);
       setTrackedSymbolsError(null);
       setFavoriteListError(null);
 
