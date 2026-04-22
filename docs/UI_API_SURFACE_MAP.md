@@ -18,7 +18,9 @@ SSR bootstrap:
 Client polling:
 - `GET /api/trading/market/status`
 - `GET /api/trading/quotes/tracked`
+- `GET /api/trading/quotes/{symbol}`
 - `GET /api/trading/eod/freshness`
+- `GET /api/trading/eod/piotroski-filter-results?market_date={today.trade_date}`
 - `GET /api/trading/eod/pipeline/status?market_date={today.trade_date}`
 - `GET /api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1&market_date={today.trade_date}`
 - `GET /api/trading/symbols/search?q=...&limit=8`
@@ -27,7 +29,7 @@ UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop KAI Trading rail + top bar -> navigation only, no additional backend dependency
 - Operational Integrity card: `/market/status` + `/eod/freshness` + `/eod/pipeline/status` + `/agent-context/feedback/progress` + `/disclosures/dart/fundamentals/daily/inspect` -> `state`, `server_time`, `is_trading_day`, `today.trade_date`, stage objects `today.price`, `today.technical_analysis`, `today.action_summary`, `today.fundamentals`, each stage `status`, `symbols_succeeded`, `symbols_total`, `symbols_failed`, live pipeline stages `stages.price_collection`, `stages.technical_snapshots`, `stages.action_summaries`, `stages.trending_ranks`, `stages.signal_features`, and optional `stages.fundamentals_daily_refresh` with `status`, `processed`, `total`, `failed`, `current_step`, `current_activity`, `current_symbol`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`, agent progress `request.market_date`, `request.expected_agents`, `summary.is_live`, `summary.run_status`, `summary.progress_percent`, `summary.total_symbols`, `summary.failed_items`, `summary.completed_symbols`, `summary.latest_feedback_at`, `summary.seconds_since_last_feedback`, `summary.current_role`, optional legacy `fundamental(s).latest_date`, and fundamentals `latest_run.status` / `latest_run.market_date` / `latest_run.symbols_checked` / `latest_run.symbols_refreshed` / `latest_run.run_metadata.refreshed_symbols_sample`; the D2 EOD Status stat renders Price Fetch, Technical Analysis, Action Summary, and Fundamentals subcards. Price, Technical Analysis, Action Summary, and Fundamentals keep their freshness tiles, and a mapped running pipeline stage now reuses the existing animated status pill on the matching tile to show `current_step` or `current_activity` instead of adding a second pipeline list below the grid. A stage shows `synced` when `today.trade_date` matches its relevant latest date and the resolved stage status is `ready`, `running` when the resolved stage status is `running`, `break day` on non-trading market days when a resolved `ready` stage is stale, and `not synced` otherwise, with stale latest dates shown in the subcard details. The pipeline endpoint is uncached and re-polled every second while the overall pipeline status or any reported stage is running. The D2 Agent Feedback stat sits below the EOD Status card, displays active agent analysis progress for the latest stored price trade date, places the running market date under the top status line, renders progress/total/failure/completed/no-response/latest-feedback metrics inside the active summarizer row, keeps animated role progress from `summary.current_role`, limits EOD / Tech dependency badges to confirmation/running/pending states without separate failure-count pills, and keeps the progress endpoint uncached. If the latest fundamentals run is failed/partial, the review control opens a failure dialog from `latest_run.error_message`, failure counters, timing/count fields, and failure-related `run_metadata`.
 - Quote board rows: `/quotes/tracked.items[]` -> `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `volume`, `as_of`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `trade_date`
-- Momentum board: `/quotes/tracked` -> top absolute movers from `items[].change_pct`
+- Piotroski board: `/eod/piotroski-filter-results.items[]` + `/quotes/{symbol}` + `/symbols/search` -> pass rows only, sorted by `piotroski_score` descending on the client, with the dashboard capped at three rows and the `More` route showing the full passed-symbol list
 - Coverage notes: `/quotes/tracked` + `/eod/freshness` -> derived counts plus `today.eod_status`, `latest.price_trade_date`, `latest.technical_market_date`, `latest.action_market_date`
 
 Important behavior:
@@ -35,6 +37,26 @@ Important behavior:
 - `source: "daily_price_bar"` means the backend is serving DB-backed EOD fallback from `daily_price_bars`.
 - Dashboard cards intentionally keep price freshness and technical freshness separate.
 - Search entry on mobile lives in the bottom tab bar / manage-feed CTA; desktop uses the left rail plus top command bar treatment from the Stitch wide view.
+
+## Piotroski pass route: `/dashboard/piotroski-filter`
+
+Entry point:
+- `src/app/dashboard/piotroski-filter/page.tsx`
+- `src/app/dashboard/piotroski-filter/piotroski-filter-page-client.tsx`
+
+Client loading:
+- `GET /api/trading/eod/freshness` when the route is opened without `marketDate`
+- `GET /api/trading/eod/piotroski-filter-results?market_date={marketDate}`
+- `GET /api/trading/quotes/{symbol}`
+- `GET /api/trading/symbols/search?q={symbol}&limit=8` when the quote payload does not provide a usable company name
+
+UI surfaces and fields:
+- Shared responsive chrome: same dashboard shell and top app bar as `/dashboard`
+- Full pass list: `/eod/piotroski-filter-results.items[]` -> `symbol`, `passed_filter`, `piotroski_score`; `/quotes/{symbol}` -> `price`, `change_pct`; `/symbols/search` -> fallback `name_ko` / `name` / `company_name`
+
+Important behavior:
+- The route preserves the dashboard market date by forwarding `marketDate` from the D4 `More` link.
+- Row clicks forward the resolved symbol name and `marketDate` into `/dashboard/symbol/[symbol]`.
 
 ## Symbol detail route: `/dashboard/symbol/[symbol]`
 

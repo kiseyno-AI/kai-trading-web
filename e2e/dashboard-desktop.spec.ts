@@ -13,11 +13,12 @@ test.describe("dashboard desktop", () => {
     await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Highest absolute movers/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Piotroski filter passes/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
-    await expect(page.getByText(/More/i)).toBeVisible();
+    await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Open the full Piotroski filter pass list/i })).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
 
     await expect(page.getByRole("heading", { name: /Layer sync events/i })).toHaveCount(0);
@@ -263,6 +264,86 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/quotes/123456", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "123456",
+          company_name: "123456",
+          price: 43100,
+          change: 530,
+          change_pct: 1.25,
+          volume: 2400,
+          turnover: 103440000,
+          market_state: "OPEN",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          cached_at: now,
+          trade_date: "2026-04-15",
+          fallback_reason: "daily_price_bar_current_trade_date",
+          unavailable_reason: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-15",
+            eod_status: "completed",
+            symbols_total: 1,
+            symbols_succeeded: 1,
+            symbols_failed: 0,
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          summary: {
+            entries: 2,
+            requested_symbol: null,
+            matched_symbols: ["123456", "654321"],
+            missing_symbols: [],
+            passed_count: 1,
+            not_passed_count: 1,
+          },
+          items: [
+            {
+              symbol: "123456",
+              market_date: "2026-04-15",
+              passed_filter: true,
+              piotroski_score: 8,
+              passes_piotroski_score: true,
+              captured_at: now,
+            },
+            {
+              symbol: "654321",
+              market_date: "2026-04-15",
+              passed_filter: false,
+              piotroski_score: 5,
+              passes_piotroski_score: false,
+              captured_at: now,
+            },
+          ],
+        }),
+      });
+    });
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       const url = new URL(route.request().url());
       const query = url.searchParams.get("q") ?? "";
@@ -286,6 +367,44 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          runs: [],
+          latest_run: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-15",
+            symbols: null,
+            expected_agents: [],
+          },
+          summary: {
+            run_status: "completed",
+            is_live: false,
+            latest_feedback_at: now,
+            seconds_since_last_feedback: 120,
+            stalled_threshold_seconds: 300,
+            total_symbols: 1,
+            processed_symbols: 1,
+            completed_symbols: 1,
+            in_progress_symbols: 0,
+            pending_symbols: 0,
+            progress_ratio: 1,
+            progress_percent: 100,
+            failed_items: 0,
+            completed_feedback_count: 0,
+            expected_feedback_count: 0,
+          },
+        }),
+      });
+    });
 
     await page.goto("/dashboard");
 
@@ -297,23 +416,22 @@ test.describe("dashboard desktop", () => {
     await expect(symbolCard).toBeVisible();
     await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
 
-    const moversSection = page.locator("section").filter({
-      has: page.getByRole("heading", { name: /Highest absolute movers/i }),
+    const piotroskiSection = page.locator("section").filter({
+      has: page.getByRole("heading", { name: /Piotroski filter passes/i }),
     });
-    const momentumRow = moversSection
-      .getByRole("link")
+    const piotroskiRow = piotroskiSection
+      .locator('a[href*="/dashboard/symbol/"]')
       .filter({ hasText: "123456" })
-      .filter({ hasText: "+0.72%" });
-    await expect(momentumRow).toBeVisible();
-    await expect(momentumRow).toContainText("Acme Precision");
-    await expect(momentumRow).not.toContainText("[확인 필요]");
-    await expect(momentumRow.locator("strong")).toHaveText("Acme Precision");
-    await expect(momentumRow.locator("p")).toHaveText("123456");
+      .filter({ hasText: "+1.25%" });
+    await expect(piotroskiRow).toBeVisible();
+    await expect(piotroskiRow).toContainText("Acme Precision");
+    await expect(piotroskiRow).not.toContainText("[확인 필요]");
+    await expect(piotroskiRow).toContainText("Score 8");
 
     await expect.poll(() => searchRequests).toContain("123456");
   });
 
-  test("D4 highest absolute movers rows navigate to the symbol detail page", async ({ page }) => {
+  test("D4 Piotroski filter More opens the full pass list and rows navigate to the symbol detail page", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -373,6 +491,98 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/quotes/005930", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "005930",
+          company_name: "Samsung Electronics",
+          price: 71500,
+          change: 1900,
+          change_pct: 2.73,
+          volume: 120000,
+          turnover: 8580000000,
+          market_state: "OPEN",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          cached_at: now,
+          trade_date: "2026-04-15",
+          fallback_reason: "daily_price_bar_current_trade_date",
+          unavailable_reason: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/000660", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "000660",
+          company_name: "SK hynix",
+          price: 183400,
+          change: -900,
+          change_pct: -0.49,
+          volume: 98000,
+          turnover: 17973200000,
+          market_state: "OPEN",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          cached_at: now,
+          trade_date: "2026-04-15",
+          fallback_reason: "daily_price_bar_current_trade_date",
+          unavailable_reason: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/035420", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "035420",
+          company_name: "NAVER",
+          price: 202500,
+          change: 2200,
+          change_pct: 1.10,
+          volume: 54000,
+          turnover: 10935000000,
+          market_state: "OPEN",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          cached_at: now,
+          trade_date: "2026-04-15",
+          fallback_reason: "daily_price_bar_current_trade_date",
+          unavailable_reason: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/005380", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "005380",
+          company_name: "Hyundai Motor",
+          price: 238000,
+          change: 800,
+          change_pct: 0.34,
+          volume: 46000,
+          turnover: 10948000000,
+          market_state: "OPEN",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          cached_at: now,
+          trade_date: "2026-04-15",
+          fallback_reason: "daily_price_bar_current_trade_date",
+          unavailable_reason: null,
+        }),
+      });
+    });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -380,8 +590,8 @@ test.describe("dashboard desktop", () => {
           today: {
             trade_date: "2026-04-15",
             eod_status: "completed",
-            symbols_total: 2,
-            symbols_succeeded: 2,
+            symbols_total: 4,
+            symbols_succeeded: 4,
             symbols_failed: 0,
           },
           latest: {
@@ -393,6 +603,56 @@ test.describe("dashboard desktop", () => {
             success: true,
             latest_date: "2026-04-15",
           },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          summary: {
+            entries: 4,
+            requested_symbol: null,
+            matched_symbols: ["000660", "005930", "005380", "035420"],
+            missing_symbols: [],
+            passed_count: 4,
+            not_passed_count: 0,
+          },
+          items: [
+            {
+              symbol: "000660",
+              market_date: "2026-04-15",
+              passed_filter: true,
+              piotroski_score: 9,
+              passes_piotroski_score: true,
+              captured_at: now,
+            },
+            {
+              symbol: "005930",
+              market_date: "2026-04-15",
+              passed_filter: true,
+              piotroski_score: 8,
+              passes_piotroski_score: true,
+              captured_at: now,
+            },
+            {
+              symbol: "005380",
+              market_date: "2026-04-15",
+              passed_filter: true,
+              piotroski_score: 7,
+              passes_piotroski_score: true,
+              captured_at: now,
+            },
+            {
+              symbol: "035420",
+              market_date: "2026-04-15",
+              passed_filter: true,
+              piotroski_score: 6,
+              passes_piotroski_score: true,
+              captured_at: now,
+            },
+          ],
         }),
       });
     });
@@ -420,9 +680,9 @@ test.describe("dashboard desktop", () => {
             latest_feedback_at: now,
             seconds_since_last_feedback: 120,
             stalled_threshold_seconds: 300,
-            total_symbols: 2,
-            processed_symbols: 2,
-            completed_symbols: 2,
+            total_symbols: 4,
+            processed_symbols: 4,
+            completed_symbols: 4,
             in_progress_symbols: 0,
             pending_symbols: 0,
             progress_ratio: 1,
@@ -437,18 +697,35 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const moversSection = page.locator("section").filter({
-      has: page.getByRole("heading", { name: /Highest absolute movers/i }),
+    const piotroskiSection = page.locator("section").filter({
+      has: page.getByRole("heading", { name: /Piotroski filter passes/i }),
     });
-    const moverLink = moversSection
-      .getByRole("link")
-      .filter({ hasText: "Samsung Electronics" })
-      .filter({ hasText: "005930" });
+    const dashboardRows = piotroskiSection.locator('a[href*="/dashboard/symbol/"]');
+    await expect(dashboardRows).toHaveCount(3);
+    await expect(dashboardRows.nth(0)).toContainText("SK hynix");
+    await expect(dashboardRows.nth(0)).toContainText("Score 9");
+    await expect(dashboardRows.nth(1)).toContainText("Samsung Electronics");
+    await expect(dashboardRows.nth(1)).toContainText("Score 8");
+    await expect(dashboardRows.nth(2)).toContainText("Hyundai Motor");
+    await expect(dashboardRows.nth(2)).toContainText("Score 7");
 
-    await expect(moverLink).toBeVisible();
-    await moverLink.click();
+    await piotroskiSection.getByRole("link", { name: "More" }).click();
 
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930(?:\?name=Samsung(?:\+|%20)Electronics)?$/);
+    await expect(page).toHaveURL(/\/dashboard\/piotroski-filter\?marketDate=2026-04-15$/);
+    await expect(page.getByRole("heading", { name: /Piotroski filter pass list/i })).toBeVisible();
+
+    const fullListRows = page.locator('a[href*="/dashboard/symbol/"]');
+    await expect(fullListRows).toHaveCount(4);
+    await expect(fullListRows.nth(0)).toContainText("SK hynix");
+    await expect(fullListRows.nth(1)).toContainText("Samsung Electronics");
+    await expect(fullListRows.nth(2)).toContainText("Hyundai Motor");
+    await expect(fullListRows.nth(3)).toContainText("NAVER");
+
+    await fullListRows.nth(0).click();
+
+    await expect(page).toHaveURL(
+      /\/dashboard\/symbol\/000660\?name=SK(?:\+|%20)hynix&marketDate=2026-04-15$/,
+    );
   });
 
   test("tracked symbol cards keep quote content inside the card during desktop resizes", async ({ page }) => {
