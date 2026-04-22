@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
@@ -756,12 +756,7 @@ function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbac
 }
 
 export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProps) {
-  const isOverviewMode = mode === "overview";
-  const shouldLoadAggregateContext = mode !== "system-freshness";
-  const shouldLoadPriceHistory = isOverviewMode || mode === "technical-analysis";
-  const shouldLoadTechnicalSnapshot = isOverviewMode || mode === "technical-analysis";
-  const shouldLoadActionSummary = isOverviewMode || mode === "action-summary";
-  const shouldLoadFundamentalsHistory = isOverviewMode || mode === "fundamentals-history";
+  const [activeMode, setActiveMode] = useState(mode);
   const params = useParams<{ symbol: string }>();
   const searchParams = useSearchParams();
   const symbol = useMemo(() => decodeURIComponent(params.symbol), [params.symbol]);
@@ -807,6 +802,21 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
   const [contextError, setContextError] = useState<string | null>(null);
   const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
+  const priceHistoryRequestKeyRef = useRef<string | null>(null);
+  const technicalSnapshotRequestKeyRef = useRef<string | null>(null);
+  const actionSummaryRequestKeyRef = useRef<string | null>(null);
+  const fundamentalsHistoryRequestKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setActiveMode(mode);
+  }, [mode]);
+
+  const isOverviewMode = activeMode === "overview";
+  const shouldLoadAggregateContext = activeMode !== "system-freshness";
+  const shouldLoadPriceHistory = isOverviewMode || activeMode === "technical-analysis";
+  const shouldLoadTechnicalSnapshot = isOverviewMode || activeMode === "technical-analysis";
+  const shouldLoadActionSummary = isOverviewMode || activeMode === "action-summary";
+  const shouldLoadFundamentalsHistory = isOverviewMode || activeMode === "fundamentals-history";
 
   const marketDate = useMemo(() => {
     if (requestedMarketDate) return requestedMarketDate;
@@ -814,8 +824,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     if (!loading) return defaultMarketDate;
     return null;
   }, [defaultMarketDate, loading, quote?.trade_date, requestedMarketDate]);
-  const fundamentalsEntryLimit = mode === "fundamentals-history" ? 8 : 4;
-  const disclosureItemLimit = mode === "disclosure-coverage" ? 8 : 4;
+  const fundamentalsEntryLimit = activeMode === "fundamentals-history" ? 8 : 4;
+  const disclosureItemLimit = activeMode === "disclosure-coverage" ? 8 : 4;
 
   useEffect(() => {
     setMeta(initialMeta);
@@ -847,6 +857,10 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     setContextError(null);
     setFundamentalsError(null);
     setTrackingError(null);
+    priceHistoryRequestKeyRef.current = null;
+    technicalSnapshotRequestKeyRef.current = null;
+    actionSummaryRequestKeyRef.current = null;
+    fundamentalsHistoryRequestKeyRef.current = null;
   }, [initialMeta, metaResetToken]);
 
   useEffect(() => {
@@ -963,10 +977,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
 
     const loadPriceHistory = async () => {
       if (!shouldLoadPriceHistory) {
-        setPriceHistory(null);
-        setSelectedBar(null);
         setHistoryLoading(false);
-        setHistoryError(null);
         return;
       }
 
@@ -978,10 +989,16 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         return;
       }
 
+      const query = buildPriceHistoryQuery(selectedRange, marketDate);
+      const priceHistoryRequestKey = `${symbol}|${query}`;
+      if (priceHistoryRequestKeyRef.current === priceHistoryRequestKey && priceHistory) {
+        setHistoryLoading(false);
+        return;
+      }
+
       setHistoryLoading(true);
 
       try {
-        const query = buildPriceHistoryQuery(selectedRange, marketDate);
         const data = await getJson<SymbolPriceBarsResponseDto>(
           `/api/trading/symbols/${encodeURIComponent(symbol)}/price-bars?${query}`,
         );
@@ -989,12 +1006,14 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         setPriceHistory(data);
         setSelectedBar(data.items[data.items.length - 1] ?? null);
         setHistoryError(null);
+        priceHistoryRequestKeyRef.current = priceHistoryRequestKey;
       } catch (priceHistoryLoadError) {
         console.error("Symbol price history load failed", priceHistoryLoadError);
         if (!active) return;
         setPriceHistory(null);
         setSelectedBar(null);
         setHistoryError("Unable to load stored historical price bars from trading-core.");
+        priceHistoryRequestKeyRef.current = null;
       } finally {
         if (active) {
           setHistoryLoading(false);
@@ -1007,14 +1026,13 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [marketDate, selectedRange, shouldLoadPriceHistory, symbol]);
+  }, [marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol]);
 
   useEffect(() => {
     let active = true;
 
     const loadAggregateContext = async () => {
       if (!shouldLoadAggregateContext) {
-        setAggregateContext(null);
         setAggregateContextLoadState("success");
         setContextError(null);
         return;
@@ -1104,8 +1122,6 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
 
     const loadDerivedInsights = async () => {
       if (!shouldLoadTechnicalSnapshot && !shouldLoadActionSummary) {
-        setTechnicalSnapshot(null);
-        setActionSummary(null);
         setInsightLoading(false);
         return;
       }
@@ -1117,46 +1133,61 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         return;
       }
 
-      setInsightLoading(true);
       const insightQuery = new URLSearchParams();
       insightQuery.set("market_date", marketDate);
       insightQuery.append("symbols", symbol);
+      const insightRequestKey = `${symbol}|${marketDate}`;
+      const needsTechnicalSnapshot =
+        shouldLoadTechnicalSnapshot && technicalSnapshotRequestKeyRef.current !== insightRequestKey;
+      const needsActionSummary =
+        shouldLoadActionSummary && actionSummaryRequestKeyRef.current !== insightRequestKey;
+
+      if (!needsTechnicalSnapshot && !needsActionSummary) {
+        setInsightLoading(false);
+        return;
+      }
+
+      setInsightLoading(true);
 
       const [technicalResult, actionResult] = await Promise.allSettled([
-        shouldLoadTechnicalSnapshot
+        needsTechnicalSnapshot
           ? getJson<EodTechnicalSnapshotsResponseDto>(
               `/api/trading/eod/technical-snapshots?${insightQuery.toString()}`,
             )
-          : Promise.resolve<EodTechnicalSnapshotsResponseDto>({ market_date: marketDate, items: [] }),
-        shouldLoadActionSummary
+          : Promise.resolve<EodTechnicalSnapshotsResponseDto | null>(null),
+        needsActionSummary
           ? getJson<EodActionSummariesResponseDto>(
               `/api/trading/eod/action-summaries?${insightQuery.toString()}`,
             )
-          : Promise.resolve<EodActionSummariesResponseDto>({ market_date: marketDate, items: [] }),
+          : Promise.resolve<EodActionSummariesResponseDto | null>(null),
       ]);
 
       if (!active) return;
 
-      if (technicalResult.status === "fulfilled") {
+      if (needsTechnicalSnapshot && technicalResult.status === "fulfilled" && technicalResult.value) {
         setTechnicalSnapshot(
           technicalResult.value.items.find((item) => item.symbol === symbol) ??
             technicalResult.value.items[0] ??
             null,
         );
-      } else {
+        technicalSnapshotRequestKeyRef.current = insightRequestKey;
+      } else if (needsTechnicalSnapshot && technicalResult.status === "rejected") {
         console.error("Technical snapshot load failed", technicalResult.reason);
         setTechnicalSnapshot(null);
+        technicalSnapshotRequestKeyRef.current = null;
       }
 
-      if (actionResult.status === "fulfilled") {
+      if (needsActionSummary && actionResult.status === "fulfilled" && actionResult.value) {
         setActionSummary(
           actionResult.value.items.find((item) => item.symbol === symbol) ??
             actionResult.value.items[0] ??
             null,
         );
-      } else {
+        actionSummaryRequestKeyRef.current = insightRequestKey;
+      } else if (needsActionSummary && actionResult.status === "rejected") {
         console.error("Action summary load failed", actionResult.reason);
         setActionSummary(null);
+        actionSummaryRequestKeyRef.current = null;
       }
 
       setInsightLoading(false);
@@ -1198,9 +1229,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
 
     const loadFundamentalsHistory = async () => {
       if (!shouldLoadFundamentalsHistory) {
-        setFundamentalsHistory(null);
         setFundamentalsLoading(false);
-        setFundamentalsError(null);
         return;
       }
 
@@ -1211,21 +1240,29 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         return;
       }
 
+      const query = buildFundamentalsHistoryQuery(symbol, marketDate, fsDiv);
+      const fundamentalsHistoryRequestKey = query;
+      if (fundamentalsHistoryRequestKeyRef.current === fundamentalsHistoryRequestKey && fundamentalsHistory) {
+        setFundamentalsLoading(false);
+        return;
+      }
+
       setFundamentalsLoading(true);
 
       try {
-        const query = buildFundamentalsHistoryQuery(symbol, marketDate, fsDiv);
         const data = await getJson<DartFundamentalsHistoryResponseDto>(
           `/api/trading/disclosures/dart/fundamentals/history?${query}`,
         );
         if (!active) return;
         setFundamentalsHistory(data);
         setFundamentalsError(null);
+        fundamentalsHistoryRequestKeyRef.current = fundamentalsHistoryRequestKey;
       } catch (fundamentalsLoadError) {
         console.error("Fundamentals history load failed", fundamentalsLoadError);
         if (!active) return;
         setFundamentalsHistory(null);
         setFundamentalsError("Unable to load DART fundamentals history from trading-core.");
+        fundamentalsHistoryRequestKeyRef.current = null;
       } finally {
         if (active) {
           setFundamentalsLoading(false);
@@ -1238,7 +1275,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [fsDiv, marketDate, shouldLoadFundamentalsHistory, symbol]);
+  }, [fsDiv, fundamentalsHistory, marketDate, shouldLoadFundamentalsHistory, symbol]);
 
   const resolvedTechnicalSnapshot = technicalSnapshot ?? aggregateContext?.technical_snapshot ?? null;
   const resolvedActionSummary = actionSummary ?? aggregateContext?.action_summary ?? null;
@@ -1461,31 +1498,42 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     () => buildSymbolRouteQuery(meta, marketDate, fsDiv),
     [fsDiv, marketDate, meta],
   );
+
+  const handleDetailModeNavigation = (event: ReactMouseEvent<HTMLAnchorElement>, nextMode: SymbolDetailMode) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    event.preventDefault();
+    if (activeMode === nextMode) return;
+
+    setActiveMode(nextMode);
+  };
+
   const initialRouteReady = useMemo(() => {
     if (loading) return false;
 
-    if (mode === "system-freshness") {
+    if (activeMode === "system-freshness") {
       return true;
     }
 
-    if (mode === "disclosure-coverage") {
+    if (activeMode === "disclosure-coverage") {
       return aggregateContextLoadState !== "loading";
     }
 
-    if (mode === "fundamentals-history") {
+    if (activeMode === "fundamentals-history") {
       return aggregateContextLoadState !== "loading" && !fundamentalsLoading;
     }
 
-    if (mode === "action-summary") {
+    if (activeMode === "action-summary") {
       return aggregateContextLoadState !== "loading" && !insightLoading;
     }
 
-    if (mode === "technical-analysis") {
+    if (activeMode === "technical-analysis") {
       return aggregateContextLoadState !== "loading" && !historyLoading && !insightLoading;
     }
 
     return aggregateContextLoadState !== "loading" && !historyLoading && !fundamentalsLoading && !insightLoading;
-  }, [aggregateContextLoadState, fundamentalsLoading, historyLoading, insightLoading, loading, mode]);
+  }, [activeMode, aggregateContextLoadState, fundamentalsLoading, historyLoading, insightLoading, loading]);
 
   useEffect(() => {
     if (hasFinishedInitialLoad || !initialRouteReady) return;
@@ -1568,15 +1616,15 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       api: "/api/trading/agent-context/symbol-day",
     },
   ] as const;
-  const activeDetailMode = SYMBOL_DETAIL_MODE_BY_ID[mode];
+  const activeDetailMode = SYMBOL_DETAIL_MODE_BY_ID[activeMode];
   const toolbarTitle = introTitle;
   const showOverview = isOverviewMode;
-  const showChartSection = showOverview || mode === "technical-analysis";
-  const showActionSection = mode === "action-summary";
-  const showTechnicalSection = mode === "technical-analysis";
-  const showFundamentalsSection = mode === "fundamentals-history";
-  const showDisclosureSection = mode === "disclosure-coverage";
-  const showFreshnessSection = showOverview || mode === "system-freshness";
+  const showChartSection = showOverview || activeMode === "technical-analysis";
+  const showActionSection = activeMode === "action-summary";
+  const showTechnicalSection = activeMode === "technical-analysis";
+  const showFundamentalsSection = activeMode === "fundamentals-history";
+  const showDisclosureSection = activeMode === "disclosure-coverage";
+  const showFreshnessSection = showOverview || activeMode === "system-freshness";
 
   return (
     <MobileAppChrome
@@ -1604,7 +1652,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         </>
       }
     >
-      <div className={styles.detailPage} data-mode={mode}>
+      <div className={styles.detailPage} data-mode={activeMode}>
         <section className={`${styles.panel} ${styles.heroCard}`} id="summary">
           <ComponentTag
             label="symbol.hero"
@@ -1722,9 +1770,9 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <Link
                 key={item.mode}
                 href={buildSymbolDetailHref(symbol, item.mode, routeQueryString)}
-                replace
-                scroll={false}
-                className={`${styles.detailTab} ${mode === item.mode ? styles.detailTabActive : ""}`.trim()}
+                data-skip-navigation-loading="true"
+                className={`${styles.detailTab} ${activeMode === item.mode ? styles.detailTabActive : ""}`.trim()}
+                onClick={(event) => handleDetailModeNavigation(event, item.mode)}
               >
                 {item.label}
               </Link>
@@ -1742,10 +1790,10 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
           <div className={styles.cardHeader}>
             <div>
               <p className={styles.sectionEyebrow}>
-                {mode === "technical-analysis" ? "Momentum Intelligence Score" : "Historical Performance"}
+                {activeMode === "technical-analysis" ? "Momentum Intelligence Score" : "Historical Performance"}
               </p>
               <h2 className={styles.cardTitle}>
-                {mode === "technical-analysis" ? "Candlestick view" : "Swipe-aware candlestick chart"}
+                {activeMode === "technical-analysis" ? "Candlestick view" : "Swipe-aware candlestick chart"}
               </h2>
             </div>
 
@@ -1846,8 +1894,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <Link
                 className={styles.detailLink}
                 href={buildSymbolDetailHref(symbol, "action-summary", routeQueryString)}
-                replace
-                scroll={false}
+                data-skip-navigation-loading="true"
+                onClick={(event) => handleDetailModeNavigation(event, "action-summary")}
               >
                 Open action detail
               </Link>
@@ -1923,8 +1971,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <Link
                 className={styles.detailLink}
                 href={buildSymbolDetailHref(symbol, "technical-analysis", routeQueryString)}
-                replace
-                scroll={false}
+                data-skip-navigation-loading="true"
+                onClick={(event) => handleDetailModeNavigation(event, "technical-analysis")}
               >
                 Open technical detail
               </Link>
@@ -1996,8 +2044,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <Link
                 className={styles.detailLink}
                 href={buildSymbolDetailHref(symbol, "fundamentals-history", routeQueryString)}
-                replace
-                scroll={false}
+                data-skip-navigation-loading="true"
+                onClick={(event) => handleDetailModeNavigation(event, "fundamentals-history")}
               >
                 Open fundamentals detail
               </Link>
@@ -2091,8 +2139,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <Link
                 className={styles.detailLink}
                 href={buildSymbolDetailHref(symbol, "disclosure-coverage", routeQueryString)}
-                replace
-                scroll={false}
+                data-skip-navigation-loading="true"
+                onClick={(event) => handleDetailModeNavigation(event, "disclosure-coverage")}
               >
                 Open disclosure detail
               </Link>
@@ -2169,8 +2217,8 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
             <Link
               className={styles.detailLink}
               href={buildSymbolDetailHref(symbol, "system-freshness", routeQueryString)}
-              replace
-              scroll={false}
+              data-skip-navigation-loading="true"
+              onClick={(event) => handleDetailModeNavigation(event, "system-freshness")}
             >
               Open freshness detail
             </Link>
