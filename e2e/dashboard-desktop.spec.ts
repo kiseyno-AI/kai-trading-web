@@ -14,7 +14,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Highest absolute movers/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
     await expect(page.getByText(/More/i)).toBeVisible();

@@ -514,19 +514,11 @@
   background: rgba(78, 53, 12, 0.6);
 }
 
-.supportRow strong,
-.noteCard strong {
+.supportRow strong {
   color: #ffffff;
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.94rem;
   font-weight: 700;
-}
-
-.noteCard p {
-  margin: 0.2rem 0 0;
-  color: #c5c5d4;
-  font-size: 0.82rem;
-  line-height: 1.5;
 }
 
 .eodStageTop :global(.pill).syncedStatusPill {
@@ -895,16 +887,14 @@
   font-size: 0.72rem;
 }
 
-.supportList,
-.noteStack {
+.supportList {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
   margin-top: 0.9rem;
 }
 
-.supportRow,
-.noteCard {
+.supportRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -938,11 +928,6 @@
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.88rem;
   font-weight: 700;
-}
-
-.noteCard {
-  align-items: flex-start;
-  flex-direction: column;
 }
 
 .emptyState {
@@ -1121,6 +1106,10 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.2rem;
+  }
+
+  .supportGrid > .supportPanel:only-child {
+    grid-column: 1 / -1;
   }
 }
 
