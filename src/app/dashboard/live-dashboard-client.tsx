@@ -1515,9 +1515,6 @@ export function LiveDashboardClient({
     };
   }, [agentProgressMarketDate]);
 
-  const liveCount = tracked.items.filter((item) => item.is_live).length;
-  const fallbackCount = tracked.items.filter((item) => item.fallback).length;
-  const unavailableCount = tracked.items.filter((item) => !item.available).length;
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
   const pricePipelineStage = getPipelineStage(pipelineStatus, "price_collection");
   const technicalPipelineStage = getPipelineStage(pipelineStatus, "technical_snapshots");
@@ -1993,30 +1990,6 @@ export function LiveDashboardClient({
               ) : (
                 <div className={styles.emptyState}>Tracked momentum is waiting for live quote coverage.</div>
               )}
-            </div>
-          </section>
-
-          <section className={`${styles.panel} ${styles.supportPanel}`}>
-            <ComponentTag label="dashboard.coverage-note" api="/api/trading/eod/freshness + /api/trading/quotes/tracked" />
-            <p className={styles.sectionEyebrow}>Coverage Notes</p>
-            <h2 className={styles.sectionTitle}>Ledger coverage notes</h2>
-            <div className={styles.noteStack}>
-              <article className={styles.noteCard}>
-                <strong>{unavailableCount > 0 ? `${unavailableCount} symbol(s) need attention` : "Fallback pressure is contained"}</strong>
-                <p className="clamp-3">
-                  {unavailableCount > 0
-                    ? "Unavailable quotes stay explicit instead of collapsing to zero, so gaps are visible before action."
-                    : `${fallbackCount} symbol(s) are on fallback paths, but live coverage is still present for ${liveCount} names.`}
-                </p>
-              </article>
-              <article className={styles.noteCard}>
-                <strong>Freshness stays layer-specific</strong>
-                <p className="clamp-3">
-                  Price latest {freshness?.latest?.price_trade_date ?? "[확인 필요]"} · Technical latest{" "}
-                  {freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]"} · Action latest{" "}
-                  {freshness?.latest?.action_market_date ?? "[확인 필요]"}.
-                </p>
-              </article>
             </div>
           </section>
         </section>

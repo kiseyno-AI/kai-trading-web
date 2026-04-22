@@ -14,7 +14,6 @@ const TAG_IDS: Record<string, string> = {
   "dashboard.core-unavailable": "D1",
   "dashboard.operational-integrity": "D2",
   "dashboard.momentum-board": "D4",
-  "dashboard.coverage-note": "D5",
   "search.terminal-shell": "Q1",
   "search.quick-access": "Q3",
   "search.trending-symbols": "Q4",
