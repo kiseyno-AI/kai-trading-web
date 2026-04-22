@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { RELEASE_DISPLAY_LABEL, RELEASE_VERSION_LABEL } from "@/lib/release-version";
@@ -17,6 +18,8 @@ type MobileAppChromeProps = {
   mySymbolsHref?: string;
   searchHref?: string;
 };
+
+const DASHBOARD_HREF = "/dashboard";
 
 function DashboardIcon() {
   return (
@@ -66,9 +69,28 @@ export function MobileAppChrome({
   mySymbolsHref = "/my-symbols",
   searchHref = "/search",
 }: MobileAppChromeProps) {
+  const router = useRouter();
+  const prefetchTargets = useMemo(() => {
+    const targets = [
+      activeNav === "dashboard" ? null : DASHBOARD_HREF,
+      activeNav === "search" ? null : searchHref,
+      activeNav === "symbols" ? null : mySymbolsHref,
+    ];
+
+    return [...new Set(targets.filter((target): target is string => typeof target === "string" && target.startsWith("/")))];
+  }, [activeNav, mySymbolsHref, searchHref]);
+
   useEffect(() => {
     void warmMobileToolbarViewData(activeNav);
   }, [activeNav]);
+
+  useEffect(() => {
+    // Warm the sibling full-screen routes immediately so the first toolbar tap
+    // does not wait on viewport-based Link prefetch to finish.
+    for (const target of prefetchTargets) {
+      void router.prefetch(target);
+    }
+  }, [prefetchTargets, router]);
 
   return (
     <div className={styles.surface}>
@@ -85,7 +107,7 @@ export function MobileAppChrome({
         </div>
 
         <nav className={styles.desktopNav} aria-label="Primary desktop">
-          <Link href="/dashboard" prefetch className={getDesktopItemClass(activeNav === "dashboard")}>
+          <Link href={DASHBOARD_HREF} prefetch className={getDesktopItemClass(activeNav === "dashboard")}>
             <DashboardIcon />
             <span>Dashboard</span>
           </Link>
@@ -113,7 +135,7 @@ export function MobileAppChrome({
           {RELEASE_DISPLAY_LABEL}
         </div>
         <nav className={styles.bottomNav} aria-label="Primary">
-          <Link href="/dashboard" prefetch className={getItemClass(activeNav === "dashboard")}>
+          <Link href={DASHBOARD_HREF} prefetch className={getItemClass(activeNav === "dashboard")}>
             <DashboardIcon />
             <span className={styles.navLabel}>Dashboard</span>
           </Link>
