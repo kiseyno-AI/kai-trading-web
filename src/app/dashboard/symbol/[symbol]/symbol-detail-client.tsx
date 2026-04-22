@@ -1232,7 +1232,10 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     setTrackingError(null);
 
     try {
-      invalidateTradingApiCacheByPathPrefix(["/api/trading/scanner/tracked-symbols"]);
+      invalidateTradingApiCacheByPathPrefix([
+        "/api/trading/scanner/tracked-symbols",
+        "/api/trading/quotes/tracked",
+      ]);
       const currentResult = await loadTrackedSymbolsSnapshot();
       if (!currentResult.ok) {
         setTrackedSymbols([]);
@@ -1267,6 +1270,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
       invalidateTradingApiCacheByPathPrefix([
         "/api/trading/scanner/tracked-symbols",
         "/api/trading/symbols/favorites",
+        "/api/trading/quotes/tracked",
       ]);
       setTrackedSymbols(normalizedTrackedSymbols);
       setTrackedSymbolsLoaded(true);

@@ -10,13 +10,28 @@ import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
+import {
+  buildMobileToolbarTrendingPath,
+  MOBILE_TOOLBAR_FAVORITES_PATH,
+  MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT,
+  MOBILE_TOOLBAR_MARKET_STATUS_PATH,
+  MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
+  MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH,
+  warmMobileToolbarViewData,
+} from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   UNKNOWN_SYMBOL_META,
   getForwardableSymbolMetaSeedValue,
   normalizeSymbolMetaSeedValue,
 } from "@/lib/symbol-meta";
-import { getTradingApiJsonResult, invalidateTradingApiCacheByPathPrefix } from "@/lib/trading-api-cache";
+import {
+  getTradingApiJsonResult,
+  invalidateTradingApiCacheByPathPrefix,
+  readTradingApiJsonCacheData,
+  readTradingApiJsonSnapshot,
+  seedTradingApiJsonSnapshot,
+} from "@/lib/trading-api-cache";
 
 import styles from "./search-page.module.css";
 
@@ -189,9 +204,8 @@ const UNKNOWN = UNKNOWN_SYMBOL_META;
 const SEARCH_SUGGESTIONS_ID = "search-symbol-suggestions";
 const FAVORITE_DIALOG_ID = "favorite-symbol-dialog";
 const FAVORITE_SUGGESTIONS_ID = "favorite-symbol-suggestions";
-const TRENDING_INITIAL_LIMIT = 5;
+const TRENDING_INITIAL_LIMIT = MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT;
 const TRENDING_LIMIT_STEP = 5;
-const TRENDING_REALTIME_SOURCES = "volume-rank,fluctuation,hts-top-view";
 const DEFAULT_MARKET_STATUS: CoreMarketStatus = {
   state: "MARKET STATUS PENDING",
   is_open: false,
@@ -268,12 +282,7 @@ function normalizeSearchItem(item: {
 
 function getTrendingEndpoint(mode: TrendingMode, limit: number) {
   if (mode === "kis") {
-    const params = new URLSearchParams({
-      limit: String(limit),
-      market_code: "J",
-      sources: TRENDING_REALTIME_SOURCES,
-    });
-    return `/api/trading/scanner/realtime-trending?${params.toString()}`;
+    return buildMobileToolbarTrendingPath(limit);
   }
 
   const params = new URLSearchParams({
@@ -317,6 +326,49 @@ function formatTrendingMetric(item: TrendingDisplayItem) {
     return `#${Math.round(value)}`;
   }
   return value.toLocaleString("ko-KR");
+}
+
+function getInitialFavoriteItems() {
+  return (
+    readTradingApiJsonCacheData<FavoriteSymbolsResponse>(MOBILE_TOOLBAR_FAVORITES_PATH)
+      ?.items.map(normalizeSearchItem)
+      .slice(0, 4) ?? []
+  );
+}
+
+function getInitialTrackedSymbolsState() {
+  const cachedData = readTradingApiJsonCacheData<TrackedSymbolsResponse>(MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH);
+  if (!cachedData) {
+    return {
+      loaded: false,
+      symbols: [] as string[],
+    };
+  }
+
+  return {
+    loaded: true,
+    symbols: cachedData.tracked_symbols.map(normalizeSymbolCode),
+  };
+}
+
+function getInitialTrendingState() {
+  const cachedData = readTradingApiJsonCacheData<RealtimeTrendingResponse>(
+    buildMobileToolbarTrendingPath(TRENDING_INITIAL_LIMIT),
+  );
+  if (!cachedData) {
+    return {
+      items: [] as TrendingDisplayItem[],
+      meta: null as string | null,
+      resultCount: 0,
+    };
+  }
+
+  const mappedItems = mapRealtimeTrendingItems(cachedData);
+  return {
+    items: mappedItems.slice(0, TRENDING_INITIAL_LIMIT),
+    meta: `${cachedData.status.toUpperCase()} · ${formatTrendingStatusDate(cachedData.as_of)}`,
+    resultCount: cachedData.summary?.item_count ?? mappedItems.length,
+  };
 }
 
 function getTrendingMetricClass(item: TrendingDisplayItem) {
@@ -394,10 +446,10 @@ export default function SearchPageClient() {
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
-  const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>([]);
+  const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>(() => getInitialFavoriteItems());
   const [favoriteListError, setFavoriteListError] = useState<string | null>(null);
-  const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
-  const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
+  const [trackedSymbols, setTrackedSymbols] = useState<string[]>(() => getInitialTrackedSymbolsState().symbols);
+  const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(() => getInitialTrackedSymbolsState().loaded);
   const [trackedSymbolsError, setTrackedSymbolsError] = useState<string | null>(null);
   const [favoriteDialogOpen, setFavoriteDialogOpen] = useState(false);
   const [favoriteSymbolInput, setFavoriteSymbolInput] = useState("");
@@ -412,13 +464,15 @@ export default function SearchPageClient() {
   const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
-  const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>([]);
+  const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>(() => getInitialTrendingState().items);
   const [trendingVisibleLimit, setTrendingVisibleLimit] = useState(TRENDING_INITIAL_LIMIT);
-  const [trendingResultCount, setTrendingResultCount] = useState(0);
-  const [trendingMeta, setTrendingMeta] = useState<string | null>(null);
+  const [trendingResultCount, setTrendingResultCount] = useState(() => getInitialTrendingState().resultCount);
+  const [trendingMeta, setTrendingMeta] = useState<string | null>(() => getInitialTrendingState().meta);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingError, setTrendingError] = useState<string | null>(null);
-  const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(DEFAULT_MARKET_STATUS);
+  const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(
+    () => readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) ?? DEFAULT_MARKET_STATUS,
+  );
 
   useEffect(() => {
     let active = true;
@@ -428,13 +482,12 @@ export default function SearchPageClient() {
         const result = await getJson<CoreMarketStatus>("/api/trading/market/status");
         if (!active) return;
         if (!result.ok) {
-          setMarketStatus(DEFAULT_MARKET_STATUS);
           return;
         }
         setMarketStatus(result.data);
+        seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, result.data);
       } catch {
         if (!active) return;
-        setMarketStatus(DEFAULT_MARKET_STATUS);
       }
     };
 
@@ -455,7 +508,6 @@ export default function SearchPageClient() {
         const result = await getJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites");
         if (!active) return;
         if (!result.ok) {
-          setFavoriteItems([]);
           setFavoriteListError(`Favorite list unavailable. HTTP ${result.status}`);
           return;
         }
@@ -463,7 +515,6 @@ export default function SearchPageClient() {
         setFavoriteListError(null);
       } catch {
         if (!active) return;
-        setFavoriteItems([]);
         setFavoriteListError("Favorite list unavailable.");
       }
     };
@@ -482,8 +533,6 @@ export default function SearchPageClient() {
         const result = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
         if (!active) return;
         if (!result.ok) {
-          setTrackedSymbols([]);
-          setTrackedSymbolsLoaded(false);
           setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${result.status}`);
           return;
         }
@@ -492,8 +541,6 @@ export default function SearchPageClient() {
         setTrackedSymbolsError(null);
       } catch {
         if (!active) return;
-        setTrackedSymbols([]);
-        setTrackedSymbolsLoaded(false);
         setTrackedSymbolsError("Favorite updates unavailable.");
       }
     };
@@ -609,9 +656,6 @@ export default function SearchPageClient() {
           const result = await getJson<RealtimeTrendingResponse>(getTrendingEndpoint(trendingMode, trendingVisibleLimit));
           if (!active) return;
           if (!result.ok) {
-            setTrendingItems([]);
-            setTrendingResultCount(0);
-            setTrendingMeta(null);
             setTrendingError(`KIS trending unavailable. HTTP ${result.status}`);
             return;
           }
@@ -626,9 +670,6 @@ export default function SearchPageClient() {
         const result = await getJson<StoredTrendingResponse>(getTrendingEndpoint(trendingMode, trendingVisibleLimit));
         if (!active) return;
         if (!result.ok) {
-          setTrendingItems([]);
-          setTrendingResultCount(0);
-          setTrendingMeta(null);
           setTrendingError(`${trendingMode.toUpperCase()} trending unavailable. HTTP ${result.status}`);
           return;
         }
@@ -639,9 +680,6 @@ export default function SearchPageClient() {
         setTrendingMeta(`Stored ${trendingMode.toUpperCase()} · ${result.data.request?.resolved_market_date ?? UNKNOWN}`);
       } catch {
         if (!active) return;
-        setTrendingItems([]);
-        setTrendingResultCount(0);
-        setTrendingMeta(null);
         setTrendingError("Trending symbols unavailable. Check trading-core connectivity.");
       } finally {
         if (active) setTrendingLoading(false);
@@ -803,6 +841,7 @@ export default function SearchPageClient() {
       invalidateTradingApiCacheByPathPrefix([
         "/api/trading/scanner/tracked-symbols",
         "/api/trading/symbols/favorites",
+        MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
       ]);
       setTrackedSymbols(normalizedTrackedSymbols);
       setTrackedSymbolsError(null);
@@ -827,6 +866,7 @@ export default function SearchPageClient() {
       setFavoriteSearchError(null);
       setFavoriteSymbolInput("");
       setFavoriteStatus(`${symbol} saved to core favorites.`);
+      void warmMobileToolbarViewData("search");
       window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
     } catch {
       setFavoriteError("Favorite save failed. Check trading-core connectivity.");

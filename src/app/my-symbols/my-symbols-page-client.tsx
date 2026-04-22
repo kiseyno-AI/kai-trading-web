@@ -7,8 +7,18 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import {
+  MOBILE_TOOLBAR_FAVORITES_PATH,
+  MOBILE_TOOLBAR_MARKET_STATUS_PATH,
+  MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
+} from "@/lib/mobile-toolbar-data";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
-import { getTradingApiJsonResult } from "@/lib/trading-api-cache";
+import {
+  getTradingApiJsonResult,
+  readTradingApiJsonCacheData,
+  readTradingApiJsonSnapshot,
+  seedTradingApiJsonSnapshot,
+} from "@/lib/trading-api-cache";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 
 import styles from "./my-symbols-page.module.css";
@@ -202,21 +212,32 @@ function PanelUnavailable({ message }: { message: string }) {
   );
 }
 
+function getInitialFavoriteItems() {
+  return readTradingApiJsonCacheData<FavoriteSymbolsResponse>(MOBILE_TOOLBAR_FAVORITES_PATH)?.items ?? [];
+}
+
 export default function MySymbolsPageClient() {
-  const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(DEFAULT_MARKET_STATUS);
+  const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(
+    () => readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) ?? DEFAULT_MARKET_STATUS,
+  );
   const [marketError, setMarketError] = useState<string | null>(null);
-  const [favoriteItems, setFavoriteItems] = useState<FavoriteSymbolItem[]>([]);
+  const [favoriteItems, setFavoriteItems] = useState<FavoriteSymbolItem[]>(() => getInitialFavoriteItems());
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
-  const [trackedQuotes, setTrackedQuotes] = useState<TrackedQuotesResponse>(DEFAULT_TRACKED_QUOTES);
+  const [trackedQuotes, setTrackedQuotes] = useState<TrackedQuotesResponse>(
+    () => readTradingApiJsonSnapshot<TrackedQuotesResponse>(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH) ?? DEFAULT_TRACKED_QUOTES,
+  );
   const [trackedError, setTrackedError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () =>
+      readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) === null &&
+      readTradingApiJsonCacheData<FavoriteSymbolsResponse>(MOBILE_TOOLBAR_FAVORITES_PATH) === null &&
+      readTradingApiJsonSnapshot<TrackedQuotesResponse>(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH) === null,
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     const loadPage = async () => {
-      setLoading(true);
-
       const [marketResult, favoriteResult, trackedResult] = await Promise.all([
         loadJson<CoreMarketStatus>("/api/trading/market/status", "Market status"),
         loadJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites", "Favorite symbols"),
@@ -225,11 +246,18 @@ export default function MySymbolsPageClient() {
 
       if (cancelled) return;
 
-      setMarketStatus(marketResult.data ?? DEFAULT_MARKET_STATUS);
+      if (marketResult.data) {
+        seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, marketResult.data);
+      }
+      if (trackedResult.data) {
+        seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH, trackedResult.data);
+      }
+
+      setMarketStatus((current) => marketResult.data ?? current);
       setMarketError(marketResult.error);
-      setFavoriteItems(favoriteResult.data?.items ?? []);
+      setFavoriteItems((current) => favoriteResult.data?.items ?? current);
       setFavoriteError(favoriteResult.error);
-      setTrackedQuotes(trackedResult.data ?? DEFAULT_TRACKED_QUOTES);
+      setTrackedQuotes((current) => trackedResult.data ?? current);
       setTrackedError(trackedResult.error);
       setLoading(false);
     };
