@@ -99,6 +99,318 @@ async function mockSystemFreshnessApis(page: Page) {
   });
 }
 
+async function mockDetailModeSwitchApis(
+  page: Page,
+  requestCounts: { priceHistory: number; technical: number; action: number; fundamentals: number },
+) {
+  const marketDate = "2026-04-10";
+
+  await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+    await route.fulfill({
+      json: {
+        tracked_symbols: [],
+        count: 0,
+        last_updated_at: null,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        summary: {
+          entries: 0,
+          requested_symbol: "005930",
+          matched_symbols: [],
+          missing_symbols: [],
+          passed_count: 0,
+          not_passed_count: 0,
+        },
+        item: null,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/quotes/005930", async (route) => {
+    await route.fulfill({
+      json: {
+        symbol: "005930",
+        company_name: "Samsung Electronics",
+        price: 70000,
+        change: 500,
+        change_pct: 0.72,
+        volume: 1250000,
+        turnover: 87500000000,
+        market_state: "CLOSED",
+        source: "daily_price_bar",
+        fallback: true,
+        is_live: false,
+        available: true,
+        trade_date: marketDate,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/market/status", async (route) => {
+    await route.fulfill({
+      json: {
+        state: "CLOSED",
+        is_open: false,
+        server_time: `${marketDate}T16:00:00+09:00`,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      json: {
+        today: {
+          trade_date: marketDate,
+          eod_status: "completed",
+          symbols_total: 1,
+          symbols_succeeded: 1,
+          symbols_failed: 0,
+        },
+        latest: {
+          price_trade_date: marketDate,
+          technical_market_date: marketDate,
+          action_market_date: marketDate,
+        },
+        technical: {
+          success: true,
+          latest_date: marketDate,
+        },
+      },
+    });
+  });
+
+  await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+    await route.fulfill({
+      json: {
+        request: {
+          market_date: marketDate,
+          symbols: ["005930"],
+          fs_div: null,
+          fs_label: null,
+          disclosures_limit: 4,
+        },
+        summary: {
+          requested_symbol_count: 1,
+          matched_symbol_count: 1,
+          technical_snapshot_count: 0,
+          action_summary_count: 0,
+          fundamentals_count: 0,
+          recent_disclosure_symbol_count: 0,
+          missing_symbols: [],
+        },
+        items: [
+          {
+            symbol: "005930",
+            market_date: marketDate,
+            company: {
+              symbol: "005930",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+              instrument_type: "stock",
+              standard_code: "KR7005930003",
+              source: "test",
+              is_active: true,
+              last_refreshed_at: null,
+              dart: {
+                corp_code: "00126380",
+                corp_name: "Samsung Electronics",
+              },
+            },
+            technical_snapshot: null,
+            action_summary: null,
+            fundamentals: {
+              latest_snapshot: null,
+              history_summary: {
+                entries: 0,
+                latest_receipt_date: null,
+                latest_period_end_date: null,
+                available_business_years: [],
+                recent_periods: [],
+              },
+            },
+            recent_disclosures: {
+              count: 0,
+              items: [],
+            },
+            availability: {
+              company: true,
+              technical_snapshot: false,
+              action_summary: false,
+              fundamentals: false,
+              recent_disclosures: false,
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/technical-snapshots?**", async (route) => {
+    requestCounts.technical += 1;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        items: [
+          {
+            symbol: "005930",
+            market_date: marketDate,
+            source: "test",
+            close_price: 70000,
+            volume: 1250000,
+            trend_state: "uptrend",
+            ma_alignment: "bullish_stack",
+            breakout_20d: true,
+            breakdown_20d: false,
+            return_5d: 1.5,
+            return_20d: 4.2,
+            volume_ratio_20d: 1.3,
+            atr_14: 1200,
+            atr_pct_14: 1.7,
+            signal_payload: {
+              trend: "uptrend",
+            },
+            captured_at: `${marketDate}T16:00:00+09:00`,
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/action-summaries?**", async (route) => {
+    requestCounts.action += 1;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        items: [
+          {
+            symbol: "005930",
+            market_date: marketDate,
+            source: "test",
+            action_label: "buy",
+            bias_direction: "long",
+            signal_score: 78,
+            confidence_tier: "high",
+            risk_tier: "medium",
+            trigger_price: 70100,
+            invalidation_price: 68000,
+            support_price: 69000,
+            resistance_price: 72000,
+            reasons: ["Trend support confirmed", "Volume expansion detected"],
+            summary_payload: {
+              trigger: "breakout",
+            },
+            captured_at: `${marketDate}T16:00:00+09:00`,
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/disclosures/dart/fundamentals/history?**", async (route) => {
+    requestCounts.fundamentals += 1;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await route.fulfill({
+      json: {
+        request: {
+          symbols: ["005930"],
+          start_date: "2021-04-10",
+          end_date: marketDate,
+          fs_div: null,
+        },
+        companies: [
+          {
+            symbol: "005930",
+            name: "Samsung Electronics",
+            entries: [
+              {
+                filing: {
+                  rcept_no: "202604100001",
+                  report_nm: "Annual report",
+                  receipt_date: marketDate,
+                },
+                period: {
+                  business_year: 2025,
+                  report_code: "11011",
+                  report_label: "FY 2025",
+                  period_end_date: "2025-12-31",
+                },
+                statement: {
+                  fs_div: "CFS",
+                },
+                highlights: [
+                  {
+                    metric_key: "revenue",
+                    label: "Revenue",
+                    value: "302T KRW",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+    requestCounts.priceHistory += 1;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await route.fulfill({
+      json: {
+        symbol: "005930",
+        count: 3,
+        start_date: "2026-04-08",
+        end_date: marketDate,
+        requested_start_date: "2025-04-10",
+        requested_end_date: marketDate,
+        items: [
+          {
+            trade_date: "2026-04-08",
+            open_price: 68400,
+            high_price: 69400,
+            low_price: 68000,
+            close_price: 68900,
+            volume: 1000000,
+            turnover: 68900000000,
+            source: "test",
+            captured_at: "2026-04-08T16:00:00+09:00",
+          },
+          {
+            trade_date: "2026-04-09",
+            open_price: 69000,
+            high_price: 69900,
+            low_price: 68800,
+            close_price: 69500,
+            volume: 1110000,
+            turnover: 77145000000,
+            source: "test",
+            captured_at: "2026-04-09T16:00:00+09:00",
+          },
+          {
+            trade_date: marketDate,
+            open_price: 69600,
+            high_price: 70300,
+            low_price: 69400,
+            close_price: 70000,
+            volume: 1250000,
+            turnover: 87500000000,
+            source: "test",
+            captured_at: `${marketDate}T16:00:00+09:00`,
+          },
+        ],
+      },
+    });
+  });
+}
+
 test.describe("symbol detail mobile pages", () => {
   test("remaining Stitch detail pages render with mobile chrome and section tabs", async ({ page }) => {
     for (const detailPage of detailPages) {
@@ -157,6 +469,64 @@ test.describe("symbol detail mobile pages", () => {
     await page.goto(`/dashboard/symbol/005930/disclosure-coverage?${symbolSeed}`);
     await expect(page.getByText(/Disclosure & Coverage Detail/i)).toBeVisible();
     await aggregateRequest;
+  });
+
+  test("detail tabs switch in place without reopening the full-page loading screen", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+
+    await mockDetailModeSwitchApis(page, requestCounts);
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+
+    const workspaceLoader = page.getByRole("status", { name: /Loading symbol workspace/i });
+
+    await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
+    await expect(workspaceLoader).toHaveCount(0);
+    expect(requestCounts).toEqual({
+      priceHistory: 1,
+      technical: 1,
+      action: 1,
+      fundamentals: 1,
+    });
+
+    const actionTab = page.getByRole("link", { name: "Action" });
+    await actionTab.scrollIntoViewIfNeeded();
+    await actionTab.click();
+    await page.waitForTimeout(100);
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/action-summary\?/);
+    await expect(page.locator('[data-mode="action-summary"]')).toBeVisible();
+    await expect(page.locator("#action")).toBeVisible();
+    await expect(workspaceLoader).toHaveCount(0);
+
+    const technicalTab = page.getByRole("link", { name: "Technical" });
+    await technicalTab.scrollIntoViewIfNeeded();
+    await technicalTab.click();
+    await page.waitForTimeout(100);
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/technical-analysis\?/);
+    await expect(page.locator('[data-mode="technical-analysis"]')).toBeVisible();
+    await expect(page.locator("#technical")).toBeVisible();
+    await expect(workspaceLoader).toHaveCount(0);
+
+    const fundamentalsTab = page.getByRole("link", { name: "Fundamentals" });
+    await fundamentalsTab.scrollIntoViewIfNeeded();
+    await fundamentalsTab.click();
+    await page.waitForTimeout(100);
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/fundamentals-history\?/);
+    await expect(page.locator('[data-mode="fundamentals-history"]')).toBeVisible();
+    await expect(page.locator("#fundamentals")).toBeVisible();
+    await expect(workspaceLoader).toHaveCount(0);
+
+    expect(requestCounts).toEqual({
+      priceHistory: 1,
+      technical: 1,
+      action: 1,
+      fundamentals: 1,
+    });
   });
 
   test("disclosure report cards open a readable report detail screen", async ({ page }) => {
