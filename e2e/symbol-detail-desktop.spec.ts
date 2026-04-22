@@ -280,6 +280,19 @@ test.describe("symbol detail desktop", () => {
 
     const loader = page.getByRole("status", { name: /Loading symbol workspace/i });
     await expect(loader).toBeVisible();
+    const loaderInteractionLock = await loader.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        overscrollBehaviorX: style.overscrollBehaviorX,
+        overscrollBehaviorY: style.overscrollBehaviorY,
+        touchAction: style.touchAction,
+      };
+    });
+    expect(loaderInteractionLock).toEqual({
+      overscrollBehaviorX: "none",
+      overscrollBehaviorY: "none",
+      touchAction: "none",
+    });
     await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?/);
     await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
     await expect(loader).toHaveCount(0);
