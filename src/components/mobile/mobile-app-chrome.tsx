@@ -1,9 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
+import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { RELEASE_DISPLAY_LABEL, RELEASE_VERSION_LABEL } from "@/lib/release-version";
 
 import styles from "./mobile-app-chrome.module.css";
@@ -66,7 +66,9 @@ export function MobileAppChrome({
   mySymbolsHref = "/my-symbols",
   searchHref = "/search",
 }: MobileAppChromeProps) {
-  const router = useRouter();
+  useEffect(() => {
+    void warmMobileToolbarViewData(activeNav);
+  }, [activeNav]);
 
   return (
     <div className={styles.surface}>
@@ -83,11 +85,11 @@ export function MobileAppChrome({
         </div>
 
         <nav className={styles.desktopNav} aria-label="Primary desktop">
-          <Link href="/dashboard" className={getDesktopItemClass(activeNav === "dashboard")}>
+          <Link href="/dashboard" prefetch className={getDesktopItemClass(activeNav === "dashboard")}>
             <DashboardIcon />
             <span>Dashboard</span>
           </Link>
-          <Link href={searchHref} className={getDesktopItemClass(activeNav === "search")}>
+          <Link href={searchHref} prefetch className={getDesktopItemClass(activeNav === "search")}>
             <SearchIcon />
             <span>Search</span>
           </Link>
@@ -110,30 +112,16 @@ export function MobileAppChrome({
         <div className={styles.mobileReleaseBadge} aria-label="Release version">
           {RELEASE_DISPLAY_LABEL}
         </div>
-        <nav
-          className={styles.bottomNav}
-          aria-label="Primary"
-          onPointerDown={() => {
-            if (activeNav !== "dashboard") {
-              router.prefetch("/dashboard");
-            }
-            if (activeNav !== "search") {
-              router.prefetch(searchHref);
-            }
-            if (activeNav !== "symbols") {
-              router.prefetch(mySymbolsHref);
-            }
-          }}
-        >
-          <Link href="/dashboard" className={getItemClass(activeNav === "dashboard")}>
+        <nav className={styles.bottomNav} aria-label="Primary">
+          <Link href="/dashboard" prefetch className={getItemClass(activeNav === "dashboard")}>
             <DashboardIcon />
             <span className={styles.navLabel}>Dashboard</span>
           </Link>
-          <Link href={searchHref} className={getItemClass(activeNav === "search")}>
+          <Link href={searchHref} prefetch className={getItemClass(activeNav === "search")}>
             <SearchIcon />
             <span className={styles.navLabel}>Search</span>
           </Link>
-          <Link href={mySymbolsHref} className={getItemClass(activeNav === "symbols")}>
+          <Link href={mySymbolsHref} prefetch className={getItemClass(activeNav === "symbols")}>
             <SymbolsIcon />
             <span className={styles.navLabel}>My Symbols</span>
           </Link>

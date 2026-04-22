@@ -15,8 +15,17 @@ import {
 } from "@/lib/dart-fundamentals-daily";
 import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import {
+  MOBILE_TOOLBAR_MARKET_STATUS_PATH,
+  MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
+  warmMobileToolbarViewData,
+} from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
-import { getCachedTradingApiJson, seedTradingApiJsonCache } from "@/lib/trading-api-cache";
+import {
+  getCachedTradingApiJson,
+  seedTradingApiJsonCache,
+  seedTradingApiJsonSnapshot,
+} from "@/lib/trading-api-cache";
 import type {
   AgentContextCoreControlRequestDto,
   AgentContextCoreControlResponseDto,
@@ -1216,6 +1225,8 @@ export function LiveDashboardClient({
   );
 
   useEffect(() => {
+    seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, initialMarket);
+    seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH, initialTracked);
     seedTradingApiJsonCache("/api/trading/eod/freshness", initialFreshness);
     seedTradingApiJsonCache(
       buildDartFundamentalsDailyInspectPath(
@@ -1224,7 +1235,8 @@ export function LiveDashboardClient({
       ),
       initialFundamentalsStatus,
     );
-  }, [initialFreshness, initialFundamentalsStatus, initialMarket.server_time]);
+    void warmMobileToolbarViewData("dashboard");
+  }, [initialFreshness, initialFundamentalsStatus, initialMarket, initialTracked]);
 
   useEffect(() => {
     let active = true;
@@ -1253,6 +1265,7 @@ export function LiveDashboardClient({
         if (!active) return;
         clearRetryTimer();
         setTracked(trackedData);
+        seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH, trackedData);
         setTrackedError(null);
       } catch (loadError) {
         console.error("Dashboard tracked quote load failed", loadError);
@@ -1285,6 +1298,7 @@ export function LiveDashboardClient({
           setPipelineStatus((current) => (current?.market_date === nextMarketDate ? current : null));
         }
         setMarket(marketData);
+        seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, marketData);
         setMarketError(null);
       } catch (loadError) {
         console.error("Dashboard market status polling failed", loadError);

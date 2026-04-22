@@ -6,6 +6,7 @@ import {
   getDisclosureSectionState,
   shouldFetchSymbolMeta,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
+import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { getTradingApiCacheTtlMs } from "@/lib/trading-api-cache";
 import { sanitizeDiagnosticUrl } from "@/lib/web-diagnostics";
@@ -153,6 +154,59 @@ test.describe("smoke", () => {
     expect(getTradingApiCacheTtlMs("/api/trading/quotes/005930")).toBeNull();
     expect(getTradingApiCacheTtlMs("/api/trading/market/status")).toBeNull();
     expect(getTradingApiCacheTtlMs("/api/trading/scanner/tracked-symbols", { method: "POST" })).toBeNull();
+  });
+
+  test("mobile toolbar warm-up resolves client base paths before fetching", async () => {
+    const originalBaseUrl = process.env.NEXT_PUBLIC_TRADING_API_BASE_URL;
+    const originalFetch = globalThis.fetch;
+    const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+    const requestedUrls: string[] = [];
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: { origin: "https://desk.example.com" },
+        sessionStorage: {
+          getItem: () => null,
+          setItem: () => undefined,
+        },
+      },
+    });
+
+    process.env.NEXT_PUBLIC_TRADING_API_BASE_URL = "https://api.example.com/custom/trading";
+    globalThis.fetch = async (input: string | URL | Request) => {
+      requestedUrls.push(String(input));
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    try {
+      await warmMobileToolbarViewData("dashboard");
+      await warmMobileToolbarViewData("search");
+    } finally {
+      if (originalBaseUrl === undefined) {
+        delete process.env.NEXT_PUBLIC_TRADING_API_BASE_URL;
+      } else {
+        process.env.NEXT_PUBLIC_TRADING_API_BASE_URL = originalBaseUrl;
+      }
+
+      globalThis.fetch = originalFetch;
+
+      if (originalWindowDescriptor) {
+        Object.defineProperty(globalThis, "window", originalWindowDescriptor);
+      } else {
+        delete (globalThis as { window?: unknown }).window;
+      }
+    }
+
+    expect(requestedUrls).toEqual([
+      "https://api.example.com/custom/trading/symbols/favorites",
+      "https://api.example.com/custom/trading/scanner/tracked-symbols",
+      "https://api.example.com/custom/trading/scanner/realtime-trending?limit=5&market_code=J&sources=volume-rank%2Cfluctuation%2Chts-top-view",
+      "https://api.example.com/custom/trading/quotes/tracked",
+    ]);
   });
 
   test("web diagnostics URL sanitizer redacts current screen and hash secrets", async () => {

@@ -4,8 +4,10 @@ import { logWebDiagnostic, startWebDiagnosticSpan } from "@/lib/web-diagnostics"
 const CACHE_STORAGE_KEY = "kai.trading-api.cache.v1";
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const TRENDING_CACHE_TTL_MS = 10 * 60 * 1000;
+const SNAPSHOT_CACHE_KEY_PREFIX = "SNAPSHOT ";
 // Daily batch status can move after EOD or DART jobs finish, but it is not quote-level market polling.
 const DAILY_STATUS_CACHE_TTL_MS = 10 * 60 * 1000;
+export const DEFAULT_TRADING_API_SNAPSHOT_TTL_MS = 60_000;
 
 type TradingApiCacheEntry<T = unknown> = {
   cachedAt: number;
@@ -127,6 +129,10 @@ function getCacheKey(path: string, init?: RequestInit) {
   return `${getRequestMethod(init)} ${normalizeTradingApiPath(path)}`;
 }
 
+function getSnapshotCacheKey(path: string, init?: RequestInit) {
+  return `${SNAPSHOT_CACHE_KEY_PREFIX}${getCacheKey(path, init)}`;
+}
+
 function getFreshMemoryEntry<T>(cacheKey: string, now: number) {
   const entry = memoryCache.get(cacheKey);
   if (!entry) return null;
@@ -175,6 +181,17 @@ function writeCacheEntry<T>(cacheKey: string, data: T, ttlMs: number) {
 function readCacheEntry<T>(cacheKey: string) {
   const now = getNow();
   return getFreshMemoryEntry<T>(cacheKey, now) ?? getFreshSessionEntry<T>(cacheKey, now);
+}
+
+export function readTradingApiJsonCacheData<T>(path: string, init?: RequestInit) {
+  const policy = getCachePolicy(path, init);
+  if (!policy) return null;
+
+  return readCacheEntry<T>(getCacheKey(path, init))?.data ?? null;
+}
+
+export function readTradingApiJsonSnapshot<T>(path: string, init?: RequestInit) {
+  return readCacheEntry<T>(getSnapshotCacheKey(path, init))?.data ?? null;
 }
 
 async function fetchTradingApiJsonResult<T>(path: string, init?: RequestInit): Promise<TradingApiJsonResult<T>> {
@@ -281,6 +298,16 @@ export function seedTradingApiJsonCache<T>(path: string, data: T, init?: Request
   const policy = getCachePolicy(path, init);
   if (!policy || data === null || data === undefined) return;
   writeCacheEntry(getCacheKey(path, init), data, policy.ttlMs);
+}
+
+export function seedTradingApiJsonSnapshot<T>(
+  path: string,
+  data: T,
+  ttlMs = DEFAULT_TRADING_API_SNAPSHOT_TTL_MS,
+  init?: RequestInit,
+) {
+  if (data === null || data === undefined) return;
+  writeCacheEntry(getSnapshotCacheKey(path, init), data, ttlMs);
 }
 
 export function invalidateTradingApiCacheByPathPrefix(prefixes: string[]) {
