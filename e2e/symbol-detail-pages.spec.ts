@@ -498,7 +498,7 @@ test.describe("symbol detail mobile pages", () => {
     await actionTab.scrollIntoViewIfNeeded();
     await actionTab.click();
     await page.waitForTimeout(100);
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?/);
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/action-summary\?/);
     await expect(page.locator('[data-mode="action-summary"]')).toBeVisible();
     await expect(page.locator("#action")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
@@ -507,7 +507,7 @@ test.describe("symbol detail mobile pages", () => {
     await technicalTab.scrollIntoViewIfNeeded();
     await technicalTab.click();
     await page.waitForTimeout(100);
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?/);
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/technical-analysis\?/);
     await expect(page.locator('[data-mode="technical-analysis"]')).toBeVisible();
     await expect(page.locator("#technical")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
@@ -516,7 +516,7 @@ test.describe("symbol detail mobile pages", () => {
     await fundamentalsTab.scrollIntoViewIfNeeded();
     await fundamentalsTab.click();
     await page.waitForTimeout(100);
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?/);
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/fundamentals-history\?/);
     await expect(page.locator('[data-mode="fundamentals-history"]')).toBeVisible();
     await expect(page.locator("#fundamentals")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);

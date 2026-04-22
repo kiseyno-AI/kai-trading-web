@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -758,6 +758,7 @@ function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbac
 export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProps) {
   const [activeMode, setActiveMode] = useState(mode);
   const params = useParams<{ symbol: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const symbol = useMemo(() => decodeURIComponent(params.symbol), [params.symbol]);
   const normalizedSymbol = useMemo(() => normalizeSymbolCode(symbol), [symbol]);
@@ -1499,14 +1500,26 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     [fsDiv, marketDate, meta],
   );
 
-  const handleDetailModeNavigation = (event: ReactMouseEvent<HTMLAnchorElement>, nextMode: SymbolDetailMode) => {
+  const handleDetailModeNavigation = (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    nextMode: SymbolDetailMode,
+    navigationMode: "push" | "replace" = "push",
+  ) => {
     if (event.defaultPrevented || event.button !== 0) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 
     event.preventDefault();
-    if (activeMode === nextMode) return;
+    const href = buildSymbolDetailHref(symbol, nextMode, routeQueryString);
 
-    setActiveMode(nextMode);
+    if (navigationMode === "replace") {
+      router.replace(href, { scroll: false });
+    } else {
+      router.push(href, { scroll: false });
+    }
+
+    if (activeMode !== nextMode) {
+      setActiveMode(nextMode);
+    }
   };
 
   const initialRouteReady = useMemo(() => {
@@ -1770,9 +1783,11 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
               <Link
                 key={item.mode}
                 href={buildSymbolDetailHref(symbol, item.mode, routeQueryString)}
+                replace
+                scroll={false}
                 data-skip-navigation-loading="true"
                 className={`${styles.detailTab} ${activeMode === item.mode ? styles.detailTabActive : ""}`.trim()}
-                onClick={(event) => handleDetailModeNavigation(event, item.mode)}
+                onClick={(event) => handleDetailModeNavigation(event, item.mode, "replace")}
               >
                 {item.label}
               </Link>
