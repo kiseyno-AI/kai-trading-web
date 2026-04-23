@@ -1178,18 +1178,6 @@ function buildAgentRoleMetrics(progress: AgentFeedbackProgressResponseDto | null
           : progress?.summary?.completed_symbols,
       ),
     },
-    {
-      key: "no-response",
-      label: "무응답 경과",
-      value: hasNumber(progress?.summary?.seconds_since_last_feedback)
-        ? `${progress.summary.seconds_since_last_feedback.toLocaleString("ko-KR")}s`
-        : UNKNOWN_LABEL,
-    },
-    {
-      key: "latest-feedback",
-      label: "마지막 적재",
-      value: formatDisplayTimestamp(progress?.summary?.latest_feedback_at, UNKNOWN_LABEL),
-    },
   ];
 }
 
