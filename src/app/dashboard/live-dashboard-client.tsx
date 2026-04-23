@@ -210,6 +210,8 @@ type AgentRoleCard = {
   role: string;
   label: string;
   status: AgentRoleStatus;
+  progressPercent: number;
+  progressLabel: string;
   metrics: AgentRoleMetric[];
 };
 
@@ -217,6 +219,7 @@ type AgentRoleProgressSnapshot = {
   role: string;
   status: AgentRoleStatus;
   completedCount: number | null;
+  progressPercent: number | null;
 };
 
 type AgentRoleResultSnapshot = {
@@ -1061,19 +1064,50 @@ function formatAgentProgressCountLabel(value: number | null | undefined) {
   return `${value.toLocaleString("ko-KR")}개`;
 }
 
-function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null) {
-  const percent = progress?.summary?.progress_percent;
+function clampAgentProgressPercent(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function formatAgentProgressPercentValueLabel(value: number | null | undefined) {
+  const percent = value;
   if (!hasNumber(percent)) return UNKNOWN_LABEL;
-  return `${Math.max(0, Math.min(100, percent)).toLocaleString("ko-KR", {
+  return `${clampAgentProgressPercent(percent).toLocaleString("ko-KR", {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   })}%`;
 }
 
+function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null) {
+  return formatAgentProgressPercentValueLabel(progress?.summary?.progress_percent);
+}
+
 function getAgentProgressPercentValue(progress: AgentFeedbackProgressResponseDto | null) {
   const percent = progress?.summary?.progress_percent;
   if (!hasNumber(percent)) return 0;
-  return Math.max(0, Math.min(100, percent));
+  return clampAgentProgressPercent(percent);
+}
+
+function getAgentProgressPercentFromCounts(
+  completedCount: number | null | undefined,
+  totalCount: number | null | undefined,
+) {
+  if (!hasNumber(completedCount) || !hasNumber(totalCount) || totalCount <= 0) return null;
+  return clampAgentProgressPercent((completedCount / totalCount) * 100);
+}
+
+function getAgentProgressPercentFromRecord(record: Record<string, unknown>) {
+  const percent = getRecordNumberValue(record, [
+    "progress_percent",
+    "percent",
+    "completion_percent",
+    "completed_percent",
+  ]);
+  if (hasNumber(percent)) return clampAgentProgressPercent(percent);
+
+  const ratio = getRecordNumberValue(record, ["progress_ratio", "ratio", "completion_ratio", "completed_ratio"]);
+  if (!hasNumber(ratio)) return null;
+
+  return clampAgentProgressPercent(ratio <= 1 ? ratio * 100 : ratio);
 }
 
 function normalizeAgentProgressRunStatus(status: unknown): AgentFeedbackRunStatus | null {
@@ -1245,15 +1279,33 @@ function extractAgentRoleSnapshot(role: string, value: unknown): AgentRoleProgre
     "completed_feedback_count",
     "count",
   ]);
+  const progressCount = getRecordNumberValue(value, [
+    "processed_symbols",
+    "processed_count",
+    "completed_symbols",
+    "completed_count",
+    "completed_feedback_count",
+    "count",
+  ]);
+  const totalCount = getRecordNumberValue(value, [
+    "total_symbols",
+    "expected_symbols",
+    "total_count",
+    "expected_count",
+    "expected_feedback_count",
+  ]);
   const status =
     normalizeAgentRoleCardStatus(
       getRecordStringValue(value, ["status", "run_status", "role_status", "progress_status"]),
     ) ?? "pending";
+  const progressPercent =
+    getAgentProgressPercentFromRecord(value) ?? getAgentProgressPercentFromCounts(progressCount, totalCount);
 
   return {
     role,
     status,
     completedCount,
+    progressPercent,
   };
 }
 
@@ -1359,6 +1411,14 @@ function buildAgentRoleResultMetrics(snapshot: AgentRoleResultSnapshot): AgentRo
   ];
 }
 
+function getAgentRoleResultProgressPercent(snapshot: AgentRoleResultSnapshot) {
+  if (!hasNumber(snapshot.requestedCount) || snapshot.requestedCount <= 0) return null;
+
+  const completedCount = hasNumber(snapshot.completedCount) ? snapshot.completedCount : 0;
+  const errorCount = hasNumber(snapshot.errorCount) ? snapshot.errorCount : 0;
+  return clampAgentProgressPercent(((completedCount + errorCount) / snapshot.requestedCount) * 100);
+}
+
 function isSummarizerRole(role: string) {
   return (normalizeAgentRole(role) ?? "").includes("summarizer");
 }
@@ -1425,6 +1485,46 @@ function getNonRunningAgentRoleCompletedCount(
   return completedSymbols;
 }
 
+function getAgentRoleProgressPercent(
+  progress: AgentFeedbackProgressResponseDto | null,
+  status: AgentRoleStatus,
+  completedCount: number | null | undefined,
+  snapshot: AgentRoleProgressSnapshot | null | undefined,
+) {
+  if (hasNumber(snapshot?.progressPercent)) return snapshot.progressPercent;
+
+  const totalSymbols = progress?.summary.total_symbols ?? null;
+  const countedPercent = getAgentProgressPercentFromCounts(completedCount, totalSymbols);
+  if (countedPercent !== null) return countedPercent;
+
+  if (status === "completed") return 100;
+  if (status === "pending") return 0;
+
+  return getAgentProgressPercentValue(progress);
+}
+
+function buildAgentRoleCard(
+  progress: AgentFeedbackProgressResponseDto | null,
+  role: string,
+  status: AgentRoleStatus,
+  completedCount: number | null | undefined,
+  snapshot: AgentRoleProgressSnapshot | null | undefined,
+  metrics: AgentRoleMetric[],
+  progressPercentOverride: number | null = null,
+): AgentRoleCard {
+  const progressPercent =
+    progressPercentOverride ?? getAgentRoleProgressPercent(progress, status, completedCount, snapshot);
+
+  return {
+    role,
+    label: getAgentRoleLabel(role),
+    status,
+    progressPercent,
+    progressLabel: formatAgentProgressPercentValueLabel(progressPercent),
+    metrics,
+  };
+}
+
 function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null): AgentRoleCard[] {
   const orderedRoles = getOrderedAgentRoles(progress);
   if (orderedRoles.length === 0) return [];
@@ -1459,12 +1559,15 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
             },
           ];
 
-      return {
+      return buildAgentRoleCard(
+        progress,
         role,
-        label: getAgentRoleLabel(role),
         status,
+        completedCount,
+        snapshot,
         metrics,
-      };
+        resultSnapshot ? getAgentRoleResultProgressPercent(resultSnapshot) : null,
+      );
     });
   }
 
@@ -1476,14 +1579,18 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
       : null;
 
   return orderedRoles.map((role) => {
-    const status = getAgentRoleStatus(role, orderedRoles, currentRole);
+    const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
+    const status = snapshot?.status ?? getAgentRoleStatus(role, orderedRoles, currentRole);
+    const roleMetrics = shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole) ? metrics : [];
 
-    return {
+    return buildAgentRoleCard(
+      progress,
       role,
-      label: getAgentRoleLabel(role),
       status,
-      metrics: shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole) ? metrics : [],
-    };
+      snapshot?.completedCount,
+      snapshot,
+      roleMetrics,
+    );
   });
 }
 
@@ -2018,7 +2125,6 @@ export function LiveDashboardClient({
     displayedAgentFeedbackProgress,
     displayedAgentFeedbackProgressError,
   );
-  const agentProgressPercentValue = getAgentProgressPercentValue(displayedAgentFeedbackProgress);
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
@@ -2326,11 +2432,6 @@ export function LiveDashboardClient({
                 </div>
                 <span className={`pill ${agentFeedbackStatusTone}`}>{agentProgressStatusLabel}</span>
               </div>
-              {isAgentFeedbackRunning ? (
-                <div className={styles.agentProgressTrack} aria-hidden="true">
-                  <i style={{ width: `${agentProgressPercentValue}%` }} />
-                </div>
-              ) : null}
               {agentRoleCards.length > 0 ? (
                 <div className={styles.agentRoleList} role="list" aria-label="Agent role progress">
                   {agentRoleCards.map((role) => (
@@ -2352,6 +2453,21 @@ export function LiveDashboardClient({
                             />
                           ) : null}
                         </span>
+                        {isSummarizerRole(role.role) ? (
+                          <div
+                            className={styles.agentRoleProgressTrack}
+                            data-role-progress-track={role.status}
+                            data-role-progress-value={role.progressPercent}
+                            role="progressbar"
+                            aria-label={`${role.label} progress`}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={role.progressPercent}
+                            aria-valuetext={role.progressLabel}
+                          >
+                            <i style={{ width: `${role.progressPercent}%` }} />
+                          </div>
+                        ) : null}
                         <span className={styles.agentRoleStatusText}>{AGENT_ROLE_STATUS_LABELS[role.status]}</span>
                         {role.metrics.length > 0 ? (
                           <dl className={styles.agentRoleMetrics}>

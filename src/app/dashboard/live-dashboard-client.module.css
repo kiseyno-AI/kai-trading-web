@@ -329,21 +329,6 @@
   overflow-wrap: normal;
 }
 
-.agentProgressTrack {
-  height: 0.42rem;
-  margin-top: 0.75rem;
-  overflow: hidden;
-  border-radius: 0.45rem;
-  background: rgba(143, 144, 158, 0.2);
-}
-
-.agentProgressTrack i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #6ffbbe, #bac3ff);
-}
-
 .agentRoleList {
   display: grid;
   gap: 0.45rem;
@@ -438,6 +423,33 @@
   font-size: 0.6rem;
   font-weight: 900;
   line-height: 1;
+}
+
+.agentRoleProgressTrack {
+  width: 100%;
+  height: 0.34rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(143, 144, 158, 0.2);
+}
+
+.agentRoleProgressTrack i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6ffbbe, #bac3ff);
+}
+
+.agentRoleProgressTrack[data-role-progress-track="completed"] i {
+  background: linear-gradient(90deg, #6ffbbe, #9df7d1);
+}
+
+.agentRoleProgressTrack[data-role-progress-track="pending"] i {
+  background: #93a3b8;
+}
+
+.agentRoleProgressTrack[data-role-progress-track="attention"] i {
+  background: linear-gradient(90deg, #ffd49f, #fff4dd);
 }
 
 .agentRoleStatusText {
