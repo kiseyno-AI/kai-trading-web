@@ -6,7 +6,7 @@ type EodStageStatus = "synced" | "running" | "break day" | "not synced";
 
 async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
   await expect(stage).toHaveAttribute("data-status", status);
-  const badge = stage.locator(`.pill[data-status-badge="${status}"]`);
+  const badge = stage.locator(`[data-status-badge="${status}"]`);
   await expect(badge).toBeVisible();
 
   if (status === "break day") {
@@ -2678,6 +2678,7 @@ test.describe("dashboard desktop", () => {
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
     await expectEodStageStatus(fundamentalsStage, "synced");
+    await expect(fundamentalsStage.locator('.pill[data-status-badge="synced"]')).toHaveCount(0);
     await expect(fundamentalsStage).toContainText("Checked 42");
     await expect(fundamentalsStage).toContainText("Updated today 42 (005930, 000660, 035420, 005380 +38)");
     await expect(fundamentalsStage).toContainText("Failed 1");

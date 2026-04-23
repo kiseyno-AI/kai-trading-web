@@ -2212,13 +2212,12 @@ export function LiveDashboardClient({
               <div className={styles.eodStageGrid}>
                 {eodStageCards.map((stage) => {
                   const isIconOnlyStatus = isIconOnlyEodStageStatus(stage.statusLabel);
+                  const isStandaloneStatusIcon = stage.statusLabel === "synced";
                   const statusClass =
-                    stage.statusLabel === "synced"
-                      ? styles.syncedStatusPill
-                      : stage.statusLabel === "running"
-                        ? styles.runningStatusPill
-                        : stage.statusLabel === "not synced"
-                          ? styles.notSyncedStatusPill
+                    stage.statusLabel === "running"
+                      ? styles.runningStatusPill
+                      : stage.statusLabel === "not synced"
+                        ? styles.notSyncedStatusPill
                           : "";
                   const statusAriaLabel = getEodStageStatusAriaLabel(stage);
                   const statusTitle = stage.statusBadgeTitle ?? (isIconOnlyStatus ? statusAriaLabel : undefined);
@@ -2233,19 +2232,29 @@ export function LiveDashboardClient({
                     >
                       <div className={styles.eodStageTop}>
                         <span className={styles.eodStageTitle}>{stage.label}</span>
-                        <span
-                          className={`pill ${stage.tone} ${statusClass} ${isIconOnlyStatus ? styles.iconStatusPill : ""}`}
-                          title={statusTitle}
-                          data-status-badge={stage.statusLabel}
-                          role={isIconOnlyStatus ? "img" : undefined}
-                          aria-label={isIconOnlyStatus ? statusAriaLabel : undefined}
-                        >
-                          {isIconOnlyStatus ? (
-                            <span className={styles.statusPillIcon} aria-hidden="true" />
-                          ) : (
-                            <span className={styles.statusPillLabel}>{stage.statusBadgeLabel}</span>
-                          )}
-                        </span>
+                        {isStandaloneStatusIcon ? (
+                          <span
+                            className={`${styles.statusIconBadge} ${styles.syncedStatusIcon}`}
+                            title={statusTitle}
+                            data-status-badge={stage.statusLabel}
+                            role="img"
+                            aria-label={statusAriaLabel}
+                          />
+                        ) : (
+                          <span
+                            className={`pill ${stage.tone} ${statusClass} ${isIconOnlyStatus ? styles.iconStatusPill : ""}`}
+                            title={statusTitle}
+                            data-status-badge={stage.statusLabel}
+                            role={isIconOnlyStatus ? "img" : undefined}
+                            aria-label={isIconOnlyStatus ? statusAriaLabel : undefined}
+                          >
+                            {isIconOnlyStatus ? (
+                              <span className={styles.statusPillIcon} aria-hidden="true" />
+                            ) : (
+                              <span className={styles.statusPillLabel}>{stage.statusBadgeLabel}</span>
+                            )}
+                          </span>
+                        )}
                       </div>
                       <div className={styles.eodStageDetails}>
                         {stage.details.map((detail) => (
