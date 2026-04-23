@@ -592,6 +592,32 @@
   transform: translate(-50%, -50%) rotate(42deg);
 }
 
+.notSyncedStatusIcon {
+  color: #ffd49f;
+  border: 1px solid rgba(255, 212, 159, 0.36);
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.16), rgba(255, 212, 159, 0.2) 56%, transparent 100%);
+}
+
+.notSyncedStatusIcon::before,
+.notSyncedStatusIcon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.54rem;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.notSyncedStatusIcon::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.notSyncedStatusIcon::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 .eodStageTop :global(.pill).runningStatusPill {
   border: 1px solid rgba(127, 184, 255, 0.45);
   background: rgba(127, 184, 255, 0.24);
@@ -604,40 +630,6 @@
   border-top-color: #6ffbbe;
   background: transparent;
   animation: agentRoleSpin 0.82s linear infinite;
-}
-
-.eodStageTop :global(.pill).notSyncedStatusPill {
-  border: 1px solid rgba(255, 191, 115, 0.34);
-  background: linear-gradient(145deg, rgba(74, 42, 10, 0.94), rgba(167, 106, 39, 0.32));
-  color: #ffd49f;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 212, 159, 0.08),
-    0 0 16px rgba(227, 176, 74, 0.12);
-}
-
-.eodStageTop :global(.pill).notSyncedStatusPill .statusPillIcon {
-  border: 1px solid rgba(255, 212, 159, 0.36);
-  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.16), rgba(255, 212, 159, 0.2) 56%, transparent 100%);
-}
-
-.eodStageTop :global(.pill).notSyncedStatusPill .statusPillIcon::before,
-.eodStageTop :global(.pill).notSyncedStatusPill .statusPillIcon::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0.54rem;
-  height: 2px;
-  border-radius: 999px;
-  background: currentColor;
-}
-
-.eodStageTop :global(.pill).notSyncedStatusPill .statusPillIcon::before {
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-
-.eodStageTop :global(.pill).notSyncedStatusPill .statusPillIcon::after {
-  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .detailButton {
