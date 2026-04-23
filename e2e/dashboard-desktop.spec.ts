@@ -1800,6 +1800,28 @@ test.describe("dashboard desktop", () => {
     await expect(activeTechnicalRole).toContainText(/무응답 경과\s*15s/);
     await expect(activeTechnicalRole).toContainText(/마지막 적재\s*26-04-15 : 10:18:00/);
     await expect(progressCard.locator("[data-role-icon]")).toHaveCount(0);
+    await expect(progressCard.locator("[data-role-progress-icon]")).toHaveCount(3);
+    await expect(activeTechnicalRole.locator('[data-role-progress-icon="running"]')).toBeVisible();
+    const activeRoleIconLayout = await activeTechnicalRole.evaluate((element) => {
+      const title = [...element.querySelectorAll("span")].find(
+        (child) => child.children.length === 0 && child.textContent?.trim() === "Technical summarizer",
+      );
+      const icon = element.querySelector('[data-role-progress-icon="running"]');
+
+      if (!title || !icon) return null;
+
+      const titleRect = title.getBoundingClientRect();
+      const iconRect = icon.getBoundingClientRect();
+
+      return {
+        iconLeft: iconRect.left,
+        iconWidth: iconRect.width,
+        titleRight: titleRect.right,
+      };
+    });
+    expect(activeRoleIconLayout).not.toBeNull();
+    expect(activeRoleIconLayout!.iconWidth).toBeLessThanOrEqual(22);
+    expect(activeRoleIconLayout!.titleRight).toBeLessThanOrEqual(activeRoleIconLayout!.iconLeft);
     await expect(activeTechnicalRole).not.toContainText("EOD 확인");
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),

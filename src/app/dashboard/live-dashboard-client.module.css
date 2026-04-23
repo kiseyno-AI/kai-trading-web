@@ -368,13 +368,76 @@
   gap: 0.12rem;
 }
 
+.agentRoleTitleRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .agentRoleName {
+  min-width: 0;
   color: #f6f8ff;
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.82rem;
   font-weight: 800;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.agentRoleProgressIcon {
+  position: relative;
+  display: inline-grid;
+  width: 0.86rem;
+  height: 0.86rem;
+  place-items: center;
+  border: 1px solid rgba(147, 163, 184, 0.42);
+  border-radius: 999px;
+  background: rgba(147, 163, 184, 0.18);
+}
+
+.agentRoleProgressIcon[data-role-progress-icon="completed"] {
+  border-color: rgba(111, 251, 190, 0.42);
+  background: rgba(111, 251, 190, 0.12);
+  color: #6ffbbe;
+}
+
+.agentRoleProgressIcon[data-role-progress-icon="completed"]::before {
+  content: "";
+  width: 0.26rem;
+  height: 0.48rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-0.05rem) rotate(42deg);
+}
+
+.agentRoleProgressIcon[data-role-progress-icon="running"] {
+  border: 2px solid rgba(127, 184, 255, 0.36);
+  border-top-color: #6ffbbe;
+  background: transparent;
+  animation: agentRoleSpin 0.82s linear infinite;
+}
+
+.agentRoleProgressIcon[data-role-progress-icon="pending"]::before {
+  content: "";
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: #93a3b8;
+}
+
+.agentRoleProgressIcon[data-role-progress-icon="attention"] {
+  border-color: rgba(227, 176, 74, 0.42);
+  background: rgba(227, 176, 74, 0.12);
+  color: #fff4dd;
+}
+
+.agentRoleProgressIcon[data-role-progress-icon="attention"]::before {
+  content: "!";
+  font-size: 0.6rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .agentRoleStatusText {
