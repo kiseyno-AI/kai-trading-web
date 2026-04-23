@@ -35,6 +35,12 @@ const detailPages = [
   },
 ];
 
+type PriceHistoryRequestSnapshot = {
+  startDate: string | null;
+  endDate: string | null;
+  limit: string | null;
+};
+
 async function mockSystemFreshnessApis(page: Page) {
   const marketDate = "2026-04-10";
 
@@ -102,6 +108,7 @@ async function mockSystemFreshnessApis(page: Page) {
 async function mockDetailModeSwitchApis(
   page: Page,
   requestCounts: { priceHistory: number; technical: number; action: number; fundamentals: number },
+  priceHistoryRequests: PriceHistoryRequestSnapshot[],
 ) {
   const marketDate = "2026-04-10";
 
@@ -362,50 +369,76 @@ async function mockDetailModeSwitchApis(
 
   await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
     requestCounts.priceHistory += 1;
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    const requestUrl = new URL(route.request().url());
+    const startDate = requestUrl.searchParams.get("start_date");
+    const endDate = requestUrl.searchParams.get("end_date");
+    const limit = requestUrl.searchParams.get("limit");
+
+    priceHistoryRequests.push({
+      startDate,
+      endDate,
+      limit,
+    });
+
+    const isBootstrapRequest = startDate === marketDate && endDate === marketDate && limit === null;
+    await new Promise((resolve) => setTimeout(resolve, isBootstrapRequest ? 150 : 400));
     await route.fulfill({
       json: {
         symbol: "005930",
-        count: 3,
-        start_date: "2026-04-08",
+        count: isBootstrapRequest ? 1 : 3,
+        start_date: isBootstrapRequest ? marketDate : "2026-04-08",
         end_date: marketDate,
-        requested_start_date: "2025-04-10",
+        requested_start_date: startDate,
         requested_end_date: marketDate,
-        items: [
-          {
-            trade_date: "2026-04-08",
-            open_price: 68400,
-            high_price: 69400,
-            low_price: 68000,
-            close_price: 68900,
-            volume: 1000000,
-            turnover: 68900000000,
-            source: "test",
-            captured_at: "2026-04-08T16:00:00+09:00",
-          },
-          {
-            trade_date: "2026-04-09",
-            open_price: 69000,
-            high_price: 69900,
-            low_price: 68800,
-            close_price: 69500,
-            volume: 1110000,
-            turnover: 77145000000,
-            source: "test",
-            captured_at: "2026-04-09T16:00:00+09:00",
-          },
-          {
-            trade_date: marketDate,
-            open_price: 69600,
-            high_price: 70300,
-            low_price: 69400,
-            close_price: 70000,
-            volume: 1250000,
-            turnover: 87500000000,
-            source: "test",
-            captured_at: `${marketDate}T16:00:00+09:00`,
-          },
-        ],
+        items: isBootstrapRequest
+          ? [
+              {
+                trade_date: marketDate,
+                open_price: 69600,
+                high_price: 70300,
+                low_price: 69400,
+                close_price: 70000,
+                volume: 1250000,
+                turnover: 87500000000,
+                source: "test",
+                captured_at: `${marketDate}T16:00:00+09:00`,
+              },
+            ]
+          : [
+              {
+                trade_date: "2026-04-08",
+                open_price: 68400,
+                high_price: 69400,
+                low_price: 68000,
+                close_price: 68900,
+                volume: 1000000,
+                turnover: 68900000000,
+                source: "test",
+                captured_at: "2026-04-08T16:00:00+09:00",
+              },
+              {
+                trade_date: "2026-04-09",
+                open_price: 69000,
+                high_price: 69900,
+                low_price: 68800,
+                close_price: 69500,
+                volume: 1110000,
+                turnover: 77145000000,
+                source: "test",
+                captured_at: "2026-04-09T16:00:00+09:00",
+              },
+              {
+                trade_date: marketDate,
+                open_price: 69600,
+                high_price: 70300,
+                low_price: 69400,
+                close_price: 70000,
+                volume: 1250000,
+                turnover: 87500000000,
+                source: "test",
+                captured_at: `${marketDate}T16:00:00+09:00`,
+              },
+            ],
       },
     });
   });
@@ -478,8 +511,9 @@ test.describe("symbol detail mobile pages", () => {
       action: 0,
       fundamentals: 0,
     };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
 
-    await mockDetailModeSwitchApis(page, requestCounts);
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests);
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
 
     const workspaceLoader = page.getByRole("status", { name: /Loading symbol workspace/i });
@@ -488,11 +522,23 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
     expect(requestCounts).toEqual({
-      priceHistory: 1,
+      priceHistory: 2,
       technical: 1,
       action: 1,
       fundamentals: 1,
     });
+    expect(priceHistoryRequests).toEqual([
+      {
+        startDate: "2026-04-10",
+        endDate: "2026-04-10",
+        limit: null,
+      },
+      {
+        startDate: "2025-04-10",
+        endDate: "2026-04-10",
+        limit: null,
+      },
+    ]);
 
     const actionTab = page.getByRole("link", { name: "Action" });
     await actionTab.scrollIntoViewIfNeeded();
@@ -522,7 +568,7 @@ test.describe("symbol detail mobile pages", () => {
     await expect(workspaceLoader).toHaveCount(0);
 
     expect(requestCounts).toEqual({
-      priceHistory: 1,
+      priceHistory: 2,
       technical: 1,
       action: 1,
       fundamentals: 1,
