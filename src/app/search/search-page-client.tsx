@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -457,12 +457,16 @@ export default function SearchPageClient() {
   const [searchLoading, setSearchLoading] = useState(false);
   const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
+  const trendingListRef = useRef<HTMLDivElement>(null);
+  const pendingTrendingViewportCompensationRef = useRef(false);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
   const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>(() => getInitialTrendingState(copy).items);
   const [trendingVisibleLimit, setTrendingVisibleLimit] = useState(TRENDING_INITIAL_LIMIT);
   const [trendingResultCount, setTrendingResultCount] = useState(() => getInitialTrendingState(copy).resultCount);
   const [trendingMeta, setTrendingMeta] = useState<string | null>(() => getInitialTrendingState(copy).meta);
   const [trendingLoading, setTrendingLoading] = useState(false);
+  const [trendingReservedHeight, setTrendingReservedHeight] = useState<number | null>(null);
+  const [trendingViewportSpacerHeight, setTrendingViewportSpacerHeight] = useState(0);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(
     () => readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) ?? DEFAULT_MARKET_STATUS,
@@ -473,6 +477,12 @@ export default function SearchPageClient() {
     { mode: "5d", label: "5D", description: copy.trending.tabs["5d"] },
     { mode: "20d", label: "20D", description: copy.trending.tabs["20d"] },
   ];
+
+  const resetTrendingResults = () => {
+    setTrendingItems([]);
+    setTrendingResultCount(0);
+    setTrendingMeta(null);
+  };
 
   useEffect(() => {
     let active = true;
@@ -702,6 +712,29 @@ export default function SearchPageClient() {
     };
   }, [copy, copy.errors.trendingUnavailable, trendingMode, trendingVisibleLimit]);
 
+  useLayoutEffect(() => {
+    if (trendingLoading || !trendingListRef.current) return;
+
+    const list = trendingListRef.current;
+    const previousMinHeight = list.style.minHeight;
+    list.style.minHeight = "0px";
+    const nextHeight = Math.ceil(list.getBoundingClientRect().height);
+    list.style.minHeight = previousMinHeight;
+    const nextReservedHeight = nextHeight > 0 ? nextHeight : null;
+    const previousReservedHeight = trendingReservedHeight ?? 0;
+    const resolvedReservedHeight = nextReservedHeight ?? 0;
+
+    setTrendingReservedHeight(nextReservedHeight);
+
+    if (pendingTrendingViewportCompensationRef.current) {
+      setTrendingViewportSpacerHeight(
+        resolvedReservedHeight < previousReservedHeight ? previousReservedHeight - resolvedReservedHeight : 0,
+      );
+      pendingTrendingViewportCompensationRef.current = false;
+    }
+
+  }, [trendingError, trendingItems, trendingLoading, trendingReservedHeight]);
+
   useEffect(() => {
     if (!selected) return;
     let active = true;
@@ -760,12 +793,14 @@ export default function SearchPageClient() {
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
 
+    if (nextMode !== trendingMode) {
+      pendingTrendingViewportCompensationRef.current = true;
+      setTrendingLoading(true);
+      resetTrendingResults();
+    }
     setTrendingMode(nextMode);
     setTrendingVisibleLimit(TRENDING_INITIAL_LIMIT);
-    setTrendingItems([]);
-    setTrendingResultCount(0);
     setTrendingError(null);
-    setTrendingMeta(null);
   };
 
   const handleShowMoreTrending = () => {
@@ -1157,12 +1192,17 @@ export default function SearchPageClient() {
             ))}
           </div>
           {trendingError ? <PanelUnavailable message={trendingError} label={copy.status.unavailable} /> : null}
-          <div className={styles.trendingList}>
+          <div
+            ref={trendingListRef}
+            className={styles.trendingList}
+            aria-busy={trendingLoading || undefined}
+            style={{ minHeight: trendingReservedHeight ? `${trendingReservedHeight}px` : undefined }}
+          >
             {trendingItems.map((item) => {
               const isSelected = selected?.symbol === item.symbol;
               return (
                 <button
-                  key={`${trendingMode}-${item.symbol}`}
+                  key={item.symbol}
                   type="button"
                   className={`${styles.trendingRow} ${isSelected ? styles.trendingRowActive : ""}`.trim()}
                   onClick={() => handleSelect(item.searchItem, { navigate: true })}
@@ -1275,6 +1315,13 @@ export default function SearchPageClient() {
             ) : null}
           </div>
         </section>
+        {trendingViewportSpacerHeight > 0 ? (
+          <div
+            aria-hidden="true"
+            className={styles.viewportSpacer}
+            style={{ height: `${trendingViewportSpacerHeight}px` }}
+          />
+        ) : null}
       </div>
     </MobileAppChrome>
   );

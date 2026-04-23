@@ -411,6 +411,305 @@ test.describe("search terminal mobile", () => {
     await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
   });
 
+  test("clears stale Q4 rows and shrinks the reserved height after a smaller source result set", async ({ page }) => {
+    let releaseStoredTrending: (() => void) | null = null;
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: {
+            item_count: 5,
+          },
+          items: [
+            {
+              symbol: "005930",
+              name: "Samsung Electronics",
+              market: "KRX",
+              price: 71500,
+              change_pct: 0.84,
+              best_rank: 1,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 1,
+                  metric: { name: "volume", value: 250000, unit: "shares" },
+                },
+              ],
+            },
+            {
+              symbol: "000660",
+              name: "SK hynix",
+              market: "KRX",
+              price: 182000,
+              change_pct: -1.5,
+              best_rank: 2,
+              source_count: 1,
+              sources: [
+                {
+                  source: "fluctuation",
+                  source_label: "fluctuation",
+                  rank: 2,
+                  metric: { name: "change_pct", value: -1.5, unit: "percent" },
+                },
+              ],
+            },
+            {
+              symbol: "373220",
+              name: "LG Energy Solution",
+              market: "KRX",
+              change_pct: 2.12,
+              best_rank: 3,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 3,
+                  metric: { name: "volume", value: 180000, unit: "shares" },
+                },
+              ],
+            },
+            {
+              symbol: "207940",
+              name: "Samsung Biologics",
+              market: "KRX",
+              change_pct: 1.42,
+              best_rank: 4,
+              source_count: 1,
+              sources: [
+                {
+                  source: "hts-top-view",
+                  source_label: "hts-top-view",
+                  rank: 4,
+                  metric: { name: "view_rank", value: 4, unit: "rank" },
+                },
+              ],
+            },
+            {
+              symbol: "006400",
+              name: "Samsung SDI",
+              market: "KRX",
+              change_pct: -0.32,
+              best_rank: 5,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 5,
+                  metric: { name: "volume", value: 130000, unit: "shares" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/trending-stocks?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const period = requestUrl.searchParams.get("period") ?? "5d";
+
+      if (period === "5d") {
+        await new Promise<void>((resolve) => {
+          releaseStoredTrending = resolve;
+        });
+      }
+
+      await route.fulfill({
+        json: {
+          request: {
+            resolved_market_date: "2026-04-14",
+            period,
+            direction: "both",
+            limit: Number(requestUrl.searchParams.get("limit") ?? 5),
+            markets: null,
+          },
+          summary: {
+            count: 1,
+            data_available: true,
+          },
+          items: [
+            {
+              rank: 1,
+              symbol: "086520",
+              name_ko: "EcoPro",
+              market: "KOSDAQ",
+              market_date: "2026-04-14",
+              trend_direction: "up",
+              metric: { period, name: `${period}_return_pct`, value: 12.45 },
+              price: null,
+              technical: { close_price: 94200 },
+              action_summary: null,
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const trendingSection = page.locator("section").filter({ has: page.getByRole("heading", { name: /Trending Symbols/i }) }).first();
+    const trendingMeta = trendingSection.locator("h2 + span");
+    const trendingList = trendingSection.locator("[class*='trendingList']");
+    await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
+    await expect(trendingMeta).toHaveText("OK · 26-04-14");
+    const startingListHeight = await trendingList.evaluate((element) => element.getBoundingClientRect().height);
+    expect(startingListHeight).toBeGreaterThan(0);
+    const startingScrollY = await page.evaluate(() => {
+      const trendingHeading = Array.from(document.querySelectorAll("section h2")).find(
+        (heading) => heading.textContent?.trim() === "Trending Symbols",
+      );
+      const section = trendingHeading?.closest("section");
+      if (!section) return window.scrollY;
+
+      const sectionTop = section.getBoundingClientRect().top + window.scrollY;
+      const targetScrollY = Math.max(sectionTop - 96, 0);
+      window.scrollTo(0, targetScrollY);
+      return window.scrollY;
+    });
+
+    expect(startingScrollY).toBeGreaterThan(0);
+    const startingSectionTop = await trendingSection.evaluate((element) => element.getBoundingClientRect().top);
+
+    await trendingSection.getByRole("tab", { name: /5D/i }).click();
+
+    await expect(trendingSection.getByText(/Loading 5D symbols/i)).toBeVisible();
+    await expect(trendingMeta).toHaveText("Five-day movers");
+    await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
+    await expect(trendingSection.locator("[aria-busy=\"true\"]")).toBeVisible();
+    await expect(trendingSection.getByText("086520", { exact: true })).toHaveCount(0);
+    const loadingListHeight = await trendingList.evaluate((element) => element.getBoundingClientRect().height);
+    expect(Math.abs(loadingListHeight - startingListHeight)).toBeLessThanOrEqual(24);
+    const loadingScrollY = await page.evaluate(() => window.scrollY);
+    expect(Math.abs(loadingScrollY - startingScrollY)).toBeLessThanOrEqual(24);
+
+    releaseStoredTrending?.();
+
+    await expect(trendingMeta).toHaveText("Stored 5D · 2026-04-14");
+    await expect(trendingSection.getByText("086520", { exact: true })).toBeVisible();
+    await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
+    await expect(trendingSection.locator("[aria-busy=\"true\"]")).toHaveCount(0);
+    const finalListHeight = await trendingList.evaluate((element) => element.getBoundingClientRect().height);
+    expect(finalListHeight).toBeLessThan(startingListHeight);
+    const finalSectionTop = await trendingSection.evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.abs(finalSectionTop - startingSectionTop)).toBeLessThanOrEqual(24);
+  });
+
+  test("keeps Q4 stale rows and meta cleared when a source switch fails", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: {
+            item_count: 5,
+          },
+          items: [
+            {
+              symbol: "005930",
+              name: "Samsung Electronics",
+              market: "KRX",
+              price: 71500,
+              change_pct: 0.84,
+              best_rank: 1,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 1,
+                  metric: { name: "volume", value: 250000, unit: "shares" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/trending-stocks?**", async (route) => {
+      await route.fulfill({
+        status: 503,
+        json: {
+          detail: "Unavailable",
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const trendingSection = page.locator("section").filter({ has: page.getByRole("heading", { name: /Trending Symbols/i }) }).first();
+    const trendingMeta = trendingSection.locator("h2 + span");
+    await expect(trendingSection.getByText("005930", { exact: true })).toBeVisible();
+    await expect(trendingMeta).toHaveText("OK · 26-04-14");
+
+    await trendingSection.getByRole("tab", { name: /5D/i }).click();
+
+    await expect(trendingSection.getByText(/Trending symbols unavailable\..*HTTP 503/i)).toBeVisible();
+    await expect(trendingMeta).toHaveText("Five-day movers");
+    await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
+    await expect(trendingSection.locator("[aria-busy=\"true\"]")).toHaveCount(0);
+  });
+
   test("opens the candlestick detail page from the Q1 autocomplete without rendering quote prices in the list", async ({ page }) => {
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       await route.fulfill({
