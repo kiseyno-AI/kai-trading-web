@@ -1,5 +1,11 @@
 import { SymbolDetailClient } from "../symbol-detail-client";
 
-export default function TechnicalAnalysisDetailPage() {
-  return <SymbolDetailClient mode="technical-analysis" />;
+type TechnicalAnalysisDetailPageProps = {
+  params: Promise<{ symbol: string }>;
+};
+
+export default async function TechnicalAnalysisDetailPage({ params }: TechnicalAnalysisDetailPageProps) {
+  const { symbol } = await params;
+
+  return <SymbolDetailClient mode="technical-analysis" symbol={symbol} />;
 }

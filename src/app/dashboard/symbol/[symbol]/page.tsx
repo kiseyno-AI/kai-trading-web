@@ -1,5 +1,11 @@
 import { SymbolDetailClient } from "./symbol-detail-client";
 
-export default function SymbolDetailPage() {
-  return <SymbolDetailClient />;
+type SymbolDetailPageProps = {
+  params: Promise<{ symbol: string }>;
+};
+
+export default async function SymbolDetailPage({ params }: SymbolDetailPageProps) {
+  const { symbol } = await params;
+
+  return <SymbolDetailClient symbol={symbol} />;
 }

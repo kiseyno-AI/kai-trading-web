@@ -112,6 +112,7 @@ export type SymbolDetailMode =
 
 type SymbolDetailClientProps = {
   mode?: SymbolDetailMode;
+  symbol?: string;
 };
 
 type HeroMetricRow = {
@@ -214,6 +215,18 @@ function normalizeSymbolCode(value: string) {
 
 function normalizeTrackedSymbols(symbols: string[]) {
   return Array.from(new Set(symbols.map(normalizeSymbolCode).filter(Boolean)));
+}
+
+function readRouteParam(value: string | string[] | undefined) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return "";
 }
 
 async function loadTrackedSymbolsSnapshot() {
@@ -755,13 +768,20 @@ function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbac
     .filter((row): row is { market: string; state: string } => row !== null);
 }
 
-export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProps) {
+export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: SymbolDetailClientProps) {
   const [activeMode, setActiveMode] = useState(mode);
-  const params = useParams<{ symbol: string }>();
+  const params = useParams<{ symbol?: string | string[] }>();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const symbol = useMemo(() => decodeURIComponent(params.symbol), [params.symbol]);
+  const symbol = useMemo(() => {
+    if (typeof serverSymbol === "string" && serverSymbol.trim().length > 0) {
+      return serverSymbol;
+    }
+
+    return readRouteParam(params.symbol);
+  }, [params.symbol, serverSymbol]);
   const normalizedSymbol = useMemo(() => normalizeSymbolCode(symbol), [symbol]);
+  const symbolReady = normalizedSymbol.length > 0;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
@@ -868,6 +888,13 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     let active = true;
 
     const loadTrackedSymbols = async () => {
+      if (!symbolReady) {
+        setTrackedSymbols([]);
+        setTrackedSymbolsLoaded(false);
+        setTrackingError(null);
+        return;
+      }
+
       try {
         const result = await loadTrackedSymbolsSnapshot();
         if (!active) return;
@@ -894,12 +921,18 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [normalizedSymbol]);
+  }, [symbolReady]);
 
   useEffect(() => {
     let active = true;
 
     const loadMeta = async () => {
+      if (!symbolReady) {
+        setMeta(null);
+        setMetaError(null);
+        return;
+      }
+
       if (!shouldFetchSymbolMeta(initialMeta)) {
         if (!active) return;
         setMeta(initialMeta);
@@ -926,13 +959,22 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [initialMeta, symbol]);
+  }, [initialMeta, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
     let timer: number | null = null;
 
     const loadQuote = async () => {
+      if (!symbolReady) {
+        setQuote(null);
+        setMarketStatus(null);
+        setQuotePollingStopped(false);
+        setQuoteError(null);
+        setLoading(true);
+        return;
+      }
+
       try {
         const [quoteData, marketData] = await Promise.all([
           getJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`),
@@ -971,12 +1013,20 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
         window.clearTimeout(timer);
       }
     };
-  }, [symbol]);
+  }, [symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
 
     const loadPriceHistory = async () => {
+      if (!symbolReady) {
+        setPriceHistory(null);
+        setSelectedBar(null);
+        setHistoryLoading(true);
+        setHistoryError(null);
+        return;
+      }
+
       if (!shouldLoadPriceHistory) {
         setHistoryLoading(false);
         return;
@@ -1027,12 +1077,19 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol]);
+  }, [marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
 
     const loadAggregateContext = async () => {
+      if (!symbolReady) {
+        setAggregateContext(null);
+        setAggregateContextLoadState("loading");
+        setContextError(null);
+        return;
+      }
+
       if (!shouldLoadAggregateContext) {
         setAggregateContextLoadState("success");
         setContextError(null);
@@ -1079,12 +1136,18 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [disclosureItemLimit, fsDiv, marketDate, shouldLoadAggregateContext, symbol]);
+  }, [disclosureItemLimit, fsDiv, marketDate, shouldLoadAggregateContext, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
 
     const loadPiotroskiResult = async () => {
+      if (!symbolReady) {
+        setPiotroskiResult(null);
+        setPiotroskiLoadState("loading");
+        return;
+      }
+
       if (!marketDate) {
         setPiotroskiResult(null);
         setPiotroskiLoadState("loading");
@@ -1116,12 +1179,19 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [marketDate, normalizedSymbol]);
+  }, [marketDate, normalizedSymbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
 
     const loadDerivedInsights = async () => {
+      if (!symbolReady) {
+        setTechnicalSnapshot(null);
+        setActionSummary(null);
+        setInsightLoading(true);
+        return;
+      }
+
       if (!shouldLoadTechnicalSnapshot && !shouldLoadActionSummary) {
         setInsightLoading(false);
         return;
@@ -1199,7 +1269,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [marketDate, shouldLoadActionSummary, shouldLoadTechnicalSnapshot, symbol]);
+  }, [marketDate, shouldLoadActionSummary, shouldLoadTechnicalSnapshot, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1229,6 +1299,13 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     let active = true;
 
     const loadFundamentalsHistory = async () => {
+      if (!symbolReady) {
+        setFundamentalsHistory(null);
+        setFundamentalsLoading(true);
+        setFundamentalsError(null);
+        return;
+      }
+
       if (!shouldLoadFundamentalsHistory) {
         setFundamentalsLoading(false);
         return;
@@ -1276,7 +1353,7 @@ export function SymbolDetailClient({ mode = "overview" }: SymbolDetailClientProp
     return () => {
       active = false;
     };
-  }, [fsDiv, fundamentalsHistory, marketDate, shouldLoadFundamentalsHistory, symbol]);
+  }, [fsDiv, fundamentalsHistory, marketDate, shouldLoadFundamentalsHistory, symbol, symbolReady]);
 
   const resolvedTechnicalSnapshot = technicalSnapshot ?? aggregateContext?.technical_snapshot ?? null;
   const resolvedActionSummary = actionSummary ?? aggregateContext?.action_summary ?? null;
