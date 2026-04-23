@@ -465,24 +465,39 @@ function humanizeToken(value: string | null | undefined, fallback = UNKNOWN_LABE
     .join(" ");
 }
 
+function normalizeFundamentalsStatusToken(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+  return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
 function getFundamentalsStatusLabel(
   freshness: EodFreshnessResponseDto | null,
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   latestFundamentalsDate: string | null,
   pipelineStage: EodPipelineStageDto | null,
-  copy: DashboardLiveCopy,
 ) {
-  if (normalizePipelineStageStatus(pipelineStage) === "running") return copy.stage.running;
+  if (normalizePipelineStageStatus(pipelineStage) === "running") return "running";
 
-  const runStatus = getLatestFundamentalsRun(fundamentalsStatus)?.status;
-  if (hasTextValue(runStatus)) return humanizeToken(runStatus);
+  const runStatus = normalizeFundamentalsStatusToken(getLatestFundamentalsRun(fundamentalsStatus)?.status);
+  if (hasTextValue(runStatus)) return runStatus;
 
   const freshnessLayer = getFundamentalsFreshnessLayer(freshness);
-  if (freshnessLayer?.success === true) return copy.agentFeedback.roleStatuses.completed;
-  if (freshnessLayer?.success === false) return copy.piotroski.needsReview;
-  if (hasTextValue(latestFundamentalsDate)) return copy.agentFeedback.roleStatuses.completed;
+  if (freshnessLayer?.success === true) return "completed";
+  if (freshnessLayer?.success === false) return "needs review";
+  if (hasTextValue(latestFundamentalsDate)) return "completed";
 
   return UNKNOWN_LABEL;
+}
+
+function getFundamentalsStatusDisplayLabel(statusLabel: string, copy: DashboardLiveCopy) {
+  if (!hasTextValue(statusLabel) || statusLabel === UNKNOWN_LABEL) return UNKNOWN_LABEL;
+
+  const normalizedStatus = normalizeFundamentalsStatusToken(statusLabel);
+  if (normalizedStatus === "running") return copy.stage.running;
+  if (normalizedStatus === "completed") return copy.agentFeedback.roleStatuses.completed;
+  if (normalizedStatus === "needs review") return copy.piotroski.needsReview;
+
+  return humanizeToken(statusLabel);
 }
 
 function getHumanCount(value: number | null | undefined, numberLocale: string) {
@@ -529,7 +544,7 @@ function hasFundamentalsFailureSignal(
   run: DartFundamentalsDailyRunDto | null,
   statusLabel: string,
 ) {
-  const normalizedStatus = statusLabel.toLowerCase();
+  const normalizedStatus = normalizeFundamentalsStatusToken(statusLabel);
   const symbolsFailed = run?.symbols_failed;
   const eventsFailed = run?.events_failed;
   return (
@@ -584,7 +599,7 @@ function getFundamentalsFailureReason(
     return copy.fundamentalsFailure.freshnessFailed;
   }
 
-  return `${copy.fundamentalsFailure.markedAs} ${statusLabel}.`;
+  return `${copy.fundamentalsFailure.markedAs} ${getFundamentalsStatusDisplayLabel(statusLabel, copy)}.`;
 }
 
 function getFundamentalsFailureDetails(
@@ -600,14 +615,15 @@ function getFundamentalsFailureDetails(
   if (!hasFundamentalsFailureSignal(freshness, run, statusLabel)) return null;
 
   const runDate = getFundamentalsRunDate(run) ?? latestFundamentalsDate ?? UNKNOWN_LABEL;
+  const displayedStatusLabel = getFundamentalsStatusDisplayLabel(statusLabel, copy);
 
   return {
     key: `${run?.id ?? "freshness"}:${runDate}:${statusLabel}`,
-    title: `${copy.fundamentalsFailure.titlePrefix} ${statusLabel.toLowerCase()}`,
+    title: `${copy.fundamentalsFailure.titlePrefix} ${displayedStatusLabel.toLowerCase()}`,
     reason: getFundamentalsFailureReason(freshness, run, statusLabel, copy, numberLocale),
     details: [
       { label: copy.fundamentalsFailure.fields.runDate, value: runDate },
-      { label: copy.fundamentalsFailure.fields.status, value: statusLabel },
+      { label: copy.fundamentalsFailure.fields.status, value: displayedStatusLabel },
       { label: copy.fundamentalsFailure.fields.fsDivision, value: run?.fs_div ?? UNKNOWN_LABEL },
       { label: copy.fundamentalsFailure.fields.trigger, value: humanizeToken(run?.trigger) },
       { label: copy.fundamentalsFailure.fields.symbolsTotal, value: getHumanCount(run?.symbols_total, numberLocale) },
@@ -888,12 +904,15 @@ function getFundamentalsFreshnessStage(
     freshness?.today?.fundamentals,
     useTodayStage,
   );
-  const normalizedStatus = fundamentalsStatusLabel.trim().toLowerCase();
+  const normalizedStatus = normalizeFundamentalsStatusToken(fundamentalsStatusLabel);
   if (normalizedStatus === "running") return buildStage("running", symbolsTotal, symbolsChecked, symbolsFailed);
-  if (["completed", "available", "ready"].includes(normalizedStatus) || hasTextValue(latestFundamentalsDate)) {
+  if (
+    (normalizedStatus !== null && ["completed", "available", "ready"].includes(normalizedStatus)) ||
+    hasTextValue(latestFundamentalsDate)
+  ) {
     return buildStage("ready", symbolsTotal, symbolsChecked, symbolsFailed);
   }
-  if (["failed", "partial", "needs review"].includes(normalizedStatus)) {
+  if (normalizedStatus !== null && ["failed", "partial", "needs review"].includes(normalizedStatus)) {
     return buildStage("missing", symbolsTotal, symbolsChecked, symbolsFailed);
   }
 
@@ -2112,7 +2131,6 @@ export function LiveDashboardClient({
     fundamentalsStatus,
     latestFundamentalsDate,
     fundamentalsPipelineStage,
-    copy,
   );
   const fundamentalsFreshnessStage = getFundamentalsFreshnessStage(
     freshness,
