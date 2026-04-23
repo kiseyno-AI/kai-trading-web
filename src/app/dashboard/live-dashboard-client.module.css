@@ -122,8 +122,7 @@
 }
 
 .integrityGrid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 0.75rem;
   margin-top: 1rem;
 }
@@ -163,20 +162,35 @@
 }
 
 .eodStatusCard,
-.agentFeedbackCard {
+.agentFeedbackCard,
+.filteringCard {
   min-width: 0;
 }
 
-.eodStatusCard {
+.eodStatusCard,
+.agentFeedbackCard,
+.filteringCard {
   display: flex;
   flex-direction: column;
+}
+
+.eodStatusCard {
   gap: 0.9rem;
 }
 
 .agentFeedbackCard {
-  display: flex;
-  flex-direction: column;
   gap: 0.65rem;
+}
+
+.filteringCard {
+  gap: 0.85rem;
+}
+
+.cardContext {
+  margin: 0.35rem 0 0;
+  color: #93a3b8;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .agentProgressDate {
@@ -194,7 +208,7 @@
 
 .eodStageGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+  grid-template-columns: 1fr;
   gap: 0.7rem;
 }
 
@@ -392,6 +406,25 @@
   color: #cfe4ff;
 }
 
+.agentRoleRow[data-role-status="attention"] .agentRoleStatusIcon {
+  display: grid;
+  place-items: center;
+  border-color: rgba(227, 176, 74, 0.42);
+  background: rgba(227, 176, 74, 0.12);
+  color: #fff4dd;
+}
+
+.agentRoleRow[data-role-status="attention"] .agentRoleStatusIcon::before {
+  content: "!";
+  font-size: 0.6rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.agentRoleRow[data-role-status="attention"] .agentRoleStatusText {
+  color: #fff4dd;
+}
+
 .agentRoleDependencies {
   display: flex;
   flex-wrap: wrap;
@@ -490,6 +523,40 @@
 .agentFeedbackActions {
   margin-top: auto;
   padding-top: 0.2rem;
+}
+
+.statusMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.statusMetric {
+  min-width: 0;
+  padding: 0.72rem 0.78rem;
+  border-radius: 0.95rem;
+  background: rgba(5, 20, 37, 0.6);
+}
+
+.statusMetric span {
+  display: block;
+  color: #93a3b8;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.statusMetric strong {
+  display: block;
+  margin-top: 0.3rem;
+  color: #ffffff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.96rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.statusMetric strong :global(.pill) {
+  display: inline-flex;
 }
 
 .agentFeedbackStopButton {
@@ -971,6 +1038,10 @@
     grid-template-columns: 1fr;
   }
 
+  .statusMetricGrid {
+    grid-template-columns: 1fr;
+  }
+
   .cardMeta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1044,6 +1115,8 @@
   }
 
   .integrityGrid {
+    grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr));
+    align-items: start;
     gap: 1rem;
     margin-top: 1.4rem;
   }

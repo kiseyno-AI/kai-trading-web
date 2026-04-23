@@ -145,6 +145,23 @@ test.describe("dashboard mobile chrome", () => {
         }),
       });
     });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-16",
+          summary: {
+            entries: 3583,
+            requested_symbol: null,
+            matched_symbols: Array.from({ length: 3583 }, (_, index) => `SYM${index + 1}`),
+            missing_symbols: [],
+            passed_count: 132,
+            not_passed_count: 3451,
+          },
+          items: [],
+        }),
+      });
+    });
     await page.route("**/api/trading/agent-context/feedback/progress**", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -152,7 +169,7 @@ test.describe("dashboard mobile chrome", () => {
           request: {
             market_date: "2026-04-16",
             symbols: null,
-            expected_agents: [],
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
           },
           summary: {
             run_status: "completed",
@@ -181,13 +198,24 @@ test.describe("dashboard mobile chrome", () => {
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const agentFeedbackCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
 
     await expect(priceStage).toContainText("Succeeded 3,570 / 3,583");
     await expect(technicalStage).toContainText("Succeeded 3,583 / 3,583");
     await expect(actionStage).toContainText("Succeeded 3,579 / 3,583");
     await expect(fundamentalsStage).toContainText("Checked 3,583");
-    await expect(priceStage.getByText(/Failed/i)).toHaveCount(0);
-    await expect(fundamentalsStage.getByText(/Succeeded|Failed|\//i)).toHaveCount(0);
+    await expect(priceStage).toContainText("Failed 13");
+    await expect(fundamentalsStage).toContainText("Failed 1,406");
+    await expect(filteringCard).toContainText("Completed");
+    await expect(filteringCard).toContainText(/Checked\s*3,583/);
+    await expect(filteringCard).toContainText(/Pass\s*132/);
+    await expect(agentFeedbackCard).toContainText("에이전트 분석 완료");
+    await expect(agentFeedbackCard).toContainText("EOD summarizer");
+    await expect(agentFeedbackCard).toContainText("Technical summarizer");
+    await expect(agentFeedbackCard).toContainText("Fundamental summarizer");
+    await expect(agentFeedbackCard.getByText("Complete")).toHaveCount(3);
+    await expect(agentFeedbackCard.getByText("3,583개")).toHaveCount(3);
 
     for (const stageCard of [priceStage, technicalStage, actionStage, fundamentalsStage]) {
       const overflow = await stageCard.evaluate((element) => {
