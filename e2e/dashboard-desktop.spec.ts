@@ -1147,7 +1147,7 @@ test.describe("dashboard desktop", () => {
     }
   });
 
-  test("D2 EOD status maps stage dates to synced and not synced subcards", async ({ page }) => {
+  test("D2 EOD status keeps ready stale latest dates synced and missing stages not synced", async ({ page }) => {
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -1167,9 +1167,9 @@ test.describe("dashboard desktop", () => {
               symbols_failed: 0,
             },
             action_summary: {
-              status: "ready",
+              status: "missing",
               symbols_total: 250,
-              symbols_succeeded: 248,
+              symbols_succeeded: 0,
               symbols_failed: 2,
             },
             fundamentals: {
@@ -1227,7 +1227,7 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Market date 2026-04-16")).toBeVisible();
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
-    await expectEodStageStatus(priceStage, "not synced");
+    await expectEodStageStatus(priceStage, "synced");
     await expect(priceStage).toContainText("237 / 250");
     await expect(priceStage).not.toContainText("Succeeded");
     await expect(priceStage).toContainText(/Failed\s*13/);
@@ -3359,7 +3359,9 @@ test.describe("dashboard desktop", () => {
     expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.pillLeft);
   });
 
-  test("D2 not synced status icon stays compact without colliding with long stage titles", async ({ page }) => {
+  test("D2 not synced status icon is standalone and stays compact without colliding with long stage titles", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
@@ -3380,9 +3382,9 @@ test.describe("dashboard desktop", () => {
               symbols_failed: 0,
             },
             action_summary: {
-              status: "ready",
+              status: "missing",
               symbols_total: 250,
-              symbols_succeeded: 248,
+              symbols_succeeded: 0,
               symbols_failed: 2,
             },
             fundamentals: {
@@ -3437,30 +3439,31 @@ test.describe("dashboard desktop", () => {
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     await expectEodStageStatus(actionStage, "not synced");
+    await expect(actionStage.locator('.pill[data-status-badge="not synced"]')).toHaveCount(0);
 
     const titleRowLayout = await actionStage.evaluate((element) => {
       const title = [...element.querySelectorAll("span")].find(
         (child) => child.textContent?.trim() === "Action Summary",
       );
-      const pill = element.querySelector('.pill[data-status-badge="not synced"]');
+      const icon = element.querySelector('[data-status-badge="not synced"]');
 
-      if (!title || !pill) return null;
+      if (!title || !icon) return null;
 
       const titleRect = title.getBoundingClientRect();
-      const pillRect = pill.getBoundingClientRect();
+      const iconRect = icon.getBoundingClientRect();
 
       return {
-        pillWidth: pillRect.width,
-        pillHeight: pillRect.height,
-        pillLeft: pillRect.left,
+        iconWidth: iconRect.width,
+        iconHeight: iconRect.height,
+        iconLeft: iconRect.left,
         titleRight: titleRect.right,
       };
     });
 
     expect(titleRowLayout).not.toBeNull();
-    expect(titleRowLayout!.pillWidth).toBeLessThanOrEqual(34);
-    expect(titleRowLayout!.pillHeight).toBeLessThanOrEqual(32);
-    expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.pillLeft);
+    expect(titleRowLayout!.iconWidth).toBeLessThanOrEqual(22);
+    expect(titleRowLayout!.iconHeight).toBeLessThanOrEqual(22);
+    expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.iconLeft);
   });
 
   test("D2 EOD stage subcards keep content inside cards at the narrow desktop breakpoint", async ({ page }) => {

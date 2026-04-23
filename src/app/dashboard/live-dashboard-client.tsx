@@ -869,12 +869,11 @@ function getEodStageStatusLabel(
 ): EodStageCard["statusLabel"] {
   const status = normalizeStageStatus(stage);
   if (status === "running") return "running";
+  const hasLatestDate = hasTextValue(latestDate);
   const hasStaleDate =
-    hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate.trim() !== latestDate.trim();
-  const hasMatchingDates =
-    hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate.trim() === latestDate.trim();
-  if (status === "ready" && hasMatchingDates) return "synced";
+    hasTextValue(todayTradeDate) && hasLatestDate && todayTradeDate.trim() !== latestDate.trim();
   if (status === "ready" && canShowBreakDay && hasStaleDate) return "break day";
+  if (status === "ready" && hasLatestDate) return "synced";
   return "not synced";
 }
 
@@ -2326,15 +2325,16 @@ export function LiveDashboardClient({
               <div className={styles.eodStageGrid}>
                 {eodStageCards.map((stage) => {
                   const isIconOnlyStatus = isIconOnlyEodStageStatus(stage.statusLabel);
-                  const isStandaloneStatusIcon = stage.statusLabel === "synced";
+                  const isStandaloneStatusIcon =
+                    stage.statusLabel === "synced" || stage.statusLabel === "not synced";
                   const statusClass =
                     stage.statusLabel === "running"
                       ? styles.runningStatusPill
-                      : stage.statusLabel === "not synced"
-                        ? styles.notSyncedStatusPill
-                          : "";
+                      : "";
                   const statusAriaLabel = getEodStageStatusAriaLabel(stage);
                   const statusTitle = stage.statusBadgeTitle ?? (isIconOnlyStatus ? statusAriaLabel : undefined);
+                  const standaloneStatusClass =
+                    stage.statusLabel === "not synced" ? styles.notSyncedStatusIcon : styles.syncedStatusIcon;
 
                   return (
                     <div
@@ -2348,7 +2348,7 @@ export function LiveDashboardClient({
                         <span className={styles.eodStageTitle}>{stage.label}</span>
                         {isStandaloneStatusIcon ? (
                           <span
-                            className={`${styles.statusIconBadge} ${styles.syncedStatusIcon}`}
+                            className={`${styles.statusIconBadge} ${standaloneStatusClass}`}
                             title={statusTitle}
                             data-status-badge={stage.statusLabel}
                             role="img"
