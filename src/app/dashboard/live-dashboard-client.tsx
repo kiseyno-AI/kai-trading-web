@@ -219,6 +219,13 @@ type AgentRoleProgressSnapshot = {
   completedCount: number | null;
 };
 
+type AgentRoleResultSnapshot = {
+  role: string;
+  requestedCount: number | null;
+  completedCount: number | null;
+  errorCount: number | null;
+};
+
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
@@ -1132,6 +1139,7 @@ function getOrderedAgentRoles(progress: AgentFeedbackProgressResponseDto | null)
   };
 
   progress?.request?.expected_agents?.forEach(addRole);
+  getAgentRoleResultSnapshots(progress).forEach((snapshot) => addRole(snapshot.role));
   addRole(progress?.summary?.current_role);
 
   if (roles.length > 0) return roles;
@@ -1249,6 +1257,48 @@ function extractAgentRoleSnapshot(role: string, value: unknown): AgentRoleProgre
   };
 }
 
+function extractAgentRoleResultSnapshot(role: string, value: unknown): AgentRoleResultSnapshot | null {
+  if (!isRecord(value)) return null;
+
+  const requestedCount = getRecordNumberValue(value, ["requested_count", "requestedCount"]);
+  const completedCount = getRecordNumberValue(value, ["completed_count", "completedCount"]);
+  const errorCount = getRecordNumberValue(value, ["error_count", "errorCount"]);
+
+  if (requestedCount === null && completedCount === null && errorCount === null) return null;
+
+  return {
+    role,
+    requestedCount,
+    completedCount,
+    errorCount,
+  };
+}
+
+function getAgentRoleResultSnapshots(progress: AgentFeedbackProgressResponseDto | null) {
+  if (!progress) return [];
+
+  const progressRecord = isRecord(progress) ? (progress as Record<string, unknown>) : null;
+  const resultRecord = isRecord(progressRecord?.result) ? (progressRecord.result as Record<string, unknown>) : null;
+  const source = resultRecord?.roles;
+
+  if (Array.isArray(source)) {
+    return source
+      .map((item) => {
+        if (!isRecord(item)) return null;
+        const role = getRecordStringValue(item, ["role", "agent", "name", "label"]);
+        if (!role) return null;
+        return extractAgentRoleResultSnapshot(role, item);
+      })
+      .filter((item): item is AgentRoleResultSnapshot => item !== null);
+  }
+
+  if (!isRecord(source)) return [];
+
+  return Object.entries(source)
+    .map(([role, value]) => extractAgentRoleResultSnapshot(role, value))
+    .filter((item): item is AgentRoleResultSnapshot => item !== null);
+}
+
 function getAgentRoleProgressSnapshots(progress: AgentFeedbackProgressResponseDto | null) {
   if (!progress) return [];
 
@@ -1287,6 +1337,26 @@ function getAgentRoleProgressSnapshots(progress: AgentFeedbackProgressResponseDt
   }
 
   return [];
+}
+
+function buildAgentRoleResultMetrics(snapshot: AgentRoleResultSnapshot): AgentRoleMetric[] {
+  return [
+    {
+      key: "requested",
+      label: "Requested",
+      value: formatAgentProgressCountLabel(snapshot.requestedCount),
+    },
+    {
+      key: "completed",
+      label: "Completed",
+      value: formatAgentProgressCountLabel(snapshot.completedCount),
+    },
+    {
+      key: "errors",
+      label: "Errors",
+      value: formatAgentProgressCountLabel(snapshot.errorCount),
+    },
+  ];
 }
 
 function isSummarizerRole(role: string) {
@@ -1361,6 +1431,10 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
 
   const currentRole = normalizeAgentRole(progress?.summary?.current_role);
   const runStatus = getResolvedAgentProgressRunStatus(progress);
+  const roleResultSnapshots = getAgentRoleResultSnapshots(progress);
+  const roleResultSnapshotByRole = new Map(
+    roleResultSnapshots.map((snapshot) => [normalizeAgentRole(snapshot.role) ?? snapshot.role, snapshot] as const),
+  );
   const roleSnapshots = getAgentRoleProgressSnapshots(progress);
   const roleSnapshotByRole = new Map(
     roleSnapshots.map((snapshot) => [normalizeAgentRole(snapshot.role) ?? snapshot.role, snapshot] as const),
@@ -1368,25 +1442,28 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
 
   if (!isAgentFeedbackProgressRunning(progress)) {
     return orderedRoles.map((role) => {
+      const resultSnapshot = roleResultSnapshotByRole.get(normalizeAgentRole(role) ?? role);
       const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
-      const status =
-        snapshot?.status ??
-        getNonRunningAgentRoleStatus(runStatus, role, orderedRoles, currentRole);
+      const fallbackStatus = getNonRunningAgentRoleStatus(runStatus, role, orderedRoles, currentRole);
+      const status = resultSnapshot ? fallbackStatus : snapshot?.status ?? fallbackStatus;
       const completedCount =
         snapshot?.completedCount ??
         getNonRunningAgentRoleCompletedCount(progress, runStatus, role, orderedRoles, currentRole);
+      const metrics = resultSnapshot
+        ? buildAgentRoleResultMetrics(resultSnapshot)
+        : [
+            {
+              key: "completed",
+              label: "Complete",
+              value: formatAgentProgressCountLabel(completedCount),
+            },
+          ];
 
       return {
         role,
         label: getAgentRoleLabel(role),
         status,
-        metrics: [
-          {
-            key: "completed",
-            label: "Complete",
-            value: formatAgentProgressCountLabel(completedCount),
-          },
-        ],
+        metrics,
       };
     });
   }
