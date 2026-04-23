@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -458,6 +458,12 @@ export default function SearchPageClient() {
     () => readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) ?? DEFAULT_MARKET_STATUS,
   );
 
+  const resetTrendingResults = () => {
+    setTrendingItems([]);
+    setTrendingResultCount(0);
+    setTrendingMeta(null);
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -674,14 +680,16 @@ export default function SearchPageClient() {
     };
   }, [trendingMode, trendingVisibleLimit]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (trendingLoading || !trendingListRef.current) return;
 
-    const nextHeight = trendingListRef.current.getBoundingClientRect().height;
-    if (nextHeight <= 0) return;
-
-    setTrendingReservedHeight((current) => (current === null || nextHeight > current ? nextHeight : current));
-  }, [trendingItems.length, trendingLoading]);
+    const list = trendingListRef.current;
+    const previousMinHeight = list.style.minHeight;
+    list.style.minHeight = "0px";
+    const nextHeight = Math.ceil(list.getBoundingClientRect().height);
+    list.style.minHeight = previousMinHeight;
+    setTrendingReservedHeight(nextHeight > 0 ? nextHeight : null);
+  }, [trendingError, trendingItems, trendingLoading]);
 
   useEffect(() => {
     if (!selected) return;
@@ -732,6 +740,10 @@ export default function SearchPageClient() {
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
 
+    if (nextMode !== trendingMode) {
+      setTrendingLoading(true);
+      resetTrendingResults();
+    }
     setTrendingMode(nextMode);
     setTrendingVisibleLimit(TRENDING_INITIAL_LIMIT);
     setTrendingError(null);
