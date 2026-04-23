@@ -2039,7 +2039,7 @@ export function LiveDashboardClient({
         <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.operational-integrity"
-            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect"
+            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results"
           />
 
           <div className={styles.panelHeader}>
