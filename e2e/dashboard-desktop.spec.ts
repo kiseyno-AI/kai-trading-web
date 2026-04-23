@@ -1796,11 +1796,11 @@ test.describe("dashboard desktop", () => {
     await expect(activeTechnicalRole).toContainText(/진행률\s*50\.40%/);
     await expect(activeTechnicalRole).toContainText(/전체 대상\s*250개/);
     await expect(activeTechnicalRole).toContainText(/실패\s*3개/);
-    await expect(activeTechnicalRole).toContainText(/완료\s*88개/);
+    await expect(activeTechnicalRole).toContainText(/완료\s*126개/);
     await expect(activeTechnicalRole).toContainText(/무응답 경과\s*15s/);
     await expect(activeTechnicalRole).toContainText(/마지막 적재\s*26-04-15 : 10:18:00/);
     await expect(progressCard.locator("[data-role-icon]")).toHaveCount(0);
-    await expect(activeTechnicalRole).toContainText("EOD 확인");
+    await expect(activeTechnicalRole).not.toContainText("EOD 확인");
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
     ).toBeVisible();
@@ -2253,7 +2253,7 @@ test.describe("dashboard desktop", () => {
     await expect(stopButton).toBeVisible();
   });
 
-  test("D2 agent feedback role dependencies keep confirmation badges without separate failure-count pills", async ({
+  test("D2 agent feedback omits dependency confirmation labels and failure-count pills", async ({
     page,
   }) => {
     const now = "2026-04-15T10:20:00+09:00";
@@ -2363,13 +2363,13 @@ test.describe("dashboard desktop", () => {
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
     ).toBeVisible();
     await expect(activeFundamentalRole).toBeVisible();
-    await expect(activeFundamentalRole).toContainText("EOD 확인");
-    await expect(activeFundamentalRole).toContainText("Tech 확인");
+    await expect(activeFundamentalRole).not.toContainText("EOD 확인");
+    await expect(activeFundamentalRole).not.toContainText("Tech 확인");
     await expect(activeFundamentalRole).not.toContainText("EOD -- 실패 13");
     await expect(activeFundamentalRole).not.toContainText("Tech -- 실패 2");
   });
 
-  test("D2 agent feedback role dependencies hide upstream failure counts while EOD is running", async ({ page }) => {
+  test("D2 agent feedback omits running dependency labels and failure-count pills", async ({ page }) => {
     const now = "2026-04-15T10:20:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -2477,11 +2477,11 @@ test.describe("dashboard desktop", () => {
 
     await expect(progressCard).toContainText("에이전트 분석 중...");
     await expect(activeTechnicalRole).toBeVisible();
-    await expect(activeTechnicalRole).toContainText("EOD 진행 중");
+    await expect(activeTechnicalRole).not.toContainText("EOD 진행 중");
     await expect(activeTechnicalRole).not.toContainText("EOD -- 실패 13");
     await expect(pendingFundamentalRole).toBeVisible();
-    await expect(pendingFundamentalRole).toContainText("EOD 진행 중");
-    await expect(pendingFundamentalRole).toContainText("Tech 진행 중");
+    await expect(pendingFundamentalRole).not.toContainText("EOD 진행 중");
+    await expect(pendingFundamentalRole).not.toContainText("Tech 진행 중");
     await expect(pendingFundamentalRole).not.toContainText("EOD -- 실패 13");
     await expect(pendingFundamentalRole).not.toContainText("Tech -- 실패 2");
   });
