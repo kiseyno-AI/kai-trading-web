@@ -601,6 +601,7 @@ test.describe("search terminal mobile", () => {
     });
 
     expect(startingScrollY).toBeGreaterThan(0);
+    const startingSectionTop = await trendingSection.evaluate((element) => element.getBoundingClientRect().top);
 
     await trendingSection.getByRole("tab", { name: /5D/i }).click();
 
@@ -622,6 +623,8 @@ test.describe("search terminal mobile", () => {
     await expect(trendingSection.locator("[aria-busy=\"true\"]")).toHaveCount(0);
     const finalListHeight = await trendingList.evaluate((element) => element.getBoundingClientRect().height);
     expect(finalListHeight).toBeLessThan(startingListHeight);
+    const finalSectionTop = await trendingSection.evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.abs(finalSectionTop - startingSectionTop)).toBeLessThanOrEqual(24);
   });
 
   test("keeps Q4 stale rows and meta cleared when a source switch fails", async ({ page }) => {
@@ -701,7 +704,7 @@ test.describe("search terminal mobile", () => {
 
     await trendingSection.getByRole("tab", { name: /5D/i }).click();
 
-    await expect(trendingSection.getByText(/5D trending unavailable\. HTTP 503/i)).toBeVisible();
+    await expect(trendingSection.getByText(/Trending symbols unavailable\..*HTTP 503/i)).toBeVisible();
     await expect(trendingMeta).toHaveText("Five-day movers");
     await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
     await expect(trendingSection.locator("[aria-busy=\"true\"]")).toHaveCount(0);
