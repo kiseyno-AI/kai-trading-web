@@ -8,6 +8,10 @@ import {
 } from "./live-dashboard-client";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
+  getDashboardProcessRequestMarketDate,
+  getDashboardProcessResolvedMarketDate,
+} from "@/lib/dashboard-process-market-date";
+import {
   buildDartFundamentalsDailyInspectPath,
   DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
 } from "@/lib/dart-fundamentals-daily";
@@ -98,30 +102,33 @@ export default async function DashboardPage() {
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
     ]);
 
-    [fundamentalsStatus, pipelineStatus] = await Promise.all([
+    const pipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
+      freshness?.today?.trade_date,
+      market.server_time,
+    );
+    pipelineStatus = await fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
+      buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_UPSTREAM_PATH, pipelineRequestMarketDate),
+      requestHeaders,
+    ).catch(() => null);
+
+    const resolvedDashboardProcessMarketDate = getDashboardProcessResolvedMarketDate(
+      pipelineStatus,
+      pipelineRequestMarketDate,
+    );
+
+    const progressPath = buildAgentFeedbackProgressPath(freshness);
+    [fundamentalsStatus, agentFeedbackProgress] = await Promise.all([
       fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
         buildDartFundamentalsDailyInspectPath(
           DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
-          freshness?.today?.trade_date ?? market.server_time,
+          resolvedDashboardProcessMarketDate,
         ),
         requestHeaders,
       ).catch(() => null),
-      fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
-        buildEodPipelineStatusPath(
-          EOD_PIPELINE_STATUS_UPSTREAM_PATH,
-          freshness?.today?.trade_date ?? market.server_time,
-        ),
-        requestHeaders,
-      ).catch(() => null),
+      progressPath
+        ? fetchServerTradingApiJson<AgentFeedbackProgressResponseDto>(progressPath, requestHeaders).catch(() => null)
+        : Promise.resolve(null),
     ]);
-
-    const progressPath = buildAgentFeedbackProgressPath(freshness);
-    if (progressPath) {
-      agentFeedbackProgress = await fetchServerTradingApiJson<AgentFeedbackProgressResponseDto>(
-        progressPath,
-        requestHeaders,
-      ).catch(() => null);
-    }
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
     console.error("Dashboard server render failed", error);

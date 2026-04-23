@@ -9,9 +9,12 @@ import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
+  getDashboardProcessRequestMarketDate,
+  getDashboardProcessResolvedMarketDate,
+} from "@/lib/dashboard-process-market-date";
+import {
   buildDartFundamentalsDailyInspectPath,
   DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
-  normalizeDartFundamentalsMarketDate,
 } from "@/lib/dart-fundamentals-daily";
 import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
@@ -22,7 +25,6 @@ import {
 } from "@/lib/mobile-toolbar-data";
 import {
   buildPiotroskiListHref,
-  getPiotroskiMarketDate,
   loadPiotroskiPassList,
   type PiotroskiPassListResult,
 } from "@/lib/piotroski-pass-list";
@@ -1407,6 +1409,14 @@ export function LiveDashboardClient({
   initialPipelineStatus,
   initialAgentFeedbackProgress,
 }: LiveDashboardClientProps) {
+  const initialPipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
+    initialFreshness?.today?.trade_date,
+    initialMarket.server_time,
+  );
+  const initialDashboardProcessMarketDate = getDashboardProcessResolvedMarketDate(
+    initialPipelineStatus,
+    initialPipelineRequestMarketDate,
+  );
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(initialFreshness);
@@ -1415,6 +1425,7 @@ export function LiveDashboardClient({
   );
   const [pipelineStatus, setPipelineStatus] = useState<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
   const pipelineStatusRef = useRef<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
+  const pipelineStatusRequestDateRef = useRef<string | null>(initialPipelineRequestMarketDate);
   const marketServerTimeRef = useRef<string | null>(initialMarket.server_time ?? null);
   const freshnessTradeDateRef = useRef<string | null>(initialFreshness?.today?.trade_date ?? null);
   const [agentFeedbackProgress, setAgentFeedbackProgress] = useState<AgentFeedbackProgressResponseDto | null>(
@@ -1428,22 +1439,27 @@ export function LiveDashboardClient({
   const [piotroskiBoard, setPiotroskiBoard] = useState<PiotroskiPassListResult | null>(null);
   const [piotroskiBoardError, setPiotroskiBoardError] = useState<string | null>(null);
   const [piotroskiBoardLoadState, setPiotroskiBoardLoadState] = useState<"idle" | "loading" | "ready" | "error">(
-    initialFreshness?.today?.trade_date ? "loading" : "idle",
+    initialDashboardProcessMarketDate ? "loading" : "idle",
   );
   const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [marketError, setMarketError] = useState<string | null>(initialError);
   const [trackedError, setTrackedError] = useState<string | null>(initialError);
-  const fundamentalsMarketDate = normalizeDartFundamentalsMarketDate(
-    freshness?.today?.trade_date ?? market.server_time,
+  const pipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
+    freshness?.today?.trade_date,
+    market.server_time,
+  );
+  const dashboardProcessMarketDate = getDashboardProcessResolvedMarketDate(
+    pipelineStatus,
+    pipelineRequestMarketDate,
   );
   const fundamentalsInspectPath = useMemo(
-    () => buildDartFundamentalsDailyInspectPath(DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH, fundamentalsMarketDate),
-    [fundamentalsMarketDate],
+    () => buildDartFundamentalsDailyInspectPath(DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH, dashboardProcessMarketDate),
+    [dashboardProcessMarketDate],
   );
   const pipelineStatusPath = useMemo(
-    () => buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_CLIENT_PATH, fundamentalsMarketDate),
-    [fundamentalsMarketDate],
+    () => buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_CLIENT_PATH, pipelineRequestMarketDate),
+    [pipelineRequestMarketDate],
   );
 
   useEffect(() => {
@@ -1453,12 +1469,12 @@ export function LiveDashboardClient({
     seedTradingApiJsonCache(
       buildDartFundamentalsDailyInspectPath(
         DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
-        initialFreshness?.today?.trade_date ?? initialMarket.server_time,
+        initialDashboardProcessMarketDate,
       ),
       initialFundamentalsStatus,
     );
     void warmMobileToolbarViewData("dashboard");
-  }, [initialFreshness, initialFundamentalsStatus, initialMarket, initialTracked]);
+  }, [initialDashboardProcessMarketDate, initialFreshness, initialFundamentalsStatus, initialMarket, initialTracked]);
 
   useEffect(() => {
     let active = true;
@@ -1514,10 +1530,14 @@ export function LiveDashboardClient({
         if (!active) return;
         const nextServerTime = marketData.server_time ?? null;
         marketServerTimeRef.current = nextServerTime;
-        const nextMarketDate = normalizeDartFundamentalsMarketDate(freshnessTradeDateRef.current ?? nextServerTime);
-        if (pipelineStatusRef.current?.market_date !== nextMarketDate) {
+        const nextRequestMarketDate = getDashboardProcessRequestMarketDate(
+          freshnessTradeDateRef.current,
+          nextServerTime,
+        );
+        if (pipelineStatusRequestDateRef.current !== nextRequestMarketDate) {
+          pipelineStatusRequestDateRef.current = nextRequestMarketDate;
           pipelineStatusRef.current = null;
-          setPipelineStatus((current) => (current?.market_date === nextMarketDate ? current : null));
+          setPipelineStatus(null);
         }
         setMarket(marketData);
         seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, marketData);
@@ -1596,10 +1616,14 @@ export function LiveDashboardClient({
         if (!active) return;
         const nextTradeDate = data?.today?.trade_date ?? null;
         freshnessTradeDateRef.current = nextTradeDate;
-        const nextMarketDate = normalizeDartFundamentalsMarketDate(nextTradeDate ?? marketServerTimeRef.current);
-        if (pipelineStatusRef.current?.market_date !== nextMarketDate) {
+        const nextRequestMarketDate = getDashboardProcessRequestMarketDate(
+          nextTradeDate,
+          marketServerTimeRef.current,
+        );
+        if (pipelineStatusRequestDateRef.current !== nextRequestMarketDate) {
+          pipelineStatusRequestDateRef.current = nextRequestMarketDate;
           pipelineStatusRef.current = null;
-          setPipelineStatus((current) => (current?.market_date === nextMarketDate ? current : null));
+          setPipelineStatus(null);
         }
         setFreshness(data);
       } catch (freshnessError) {
@@ -1618,7 +1642,7 @@ export function LiveDashboardClient({
     };
   }, []);
 
-  const piotroskiMarketDate = getPiotroskiMarketDate(freshness, market.server_time);
+  const piotroskiMarketDate = dashboardProcessMarketDate;
 
   useEffect(() => {
     if (!piotroskiMarketDate) {
@@ -1662,10 +1686,6 @@ export function LiveDashboardClient({
     let active = true;
     let timer: number | null = null;
 
-    if (pipelineStatusRef.current?.market_date !== fundamentalsMarketDate) {
-      pipelineStatusRef.current = null;
-    }
-
     function clearTimer() {
       if (timer === null) return;
       window.clearTimeout(timer);
@@ -1682,6 +1702,7 @@ export function LiveDashboardClient({
       try {
         const data = await getJson<EodPipelineStatusResponseDto>(pipelineStatusPath);
         if (!active) return;
+        pipelineStatusRequestDateRef.current = pipelineRequestMarketDate;
         pipelineStatusRef.current = data;
         setPipelineStatus(data);
         scheduleNextLoad(data);
@@ -1698,7 +1719,7 @@ export function LiveDashboardClient({
       active = false;
       clearTimer();
     };
-  }, [fundamentalsMarketDate, pipelineStatusPath]);
+  }, [pipelineRequestMarketDate, pipelineStatusPath]);
 
   useEffect(() => {
     let active = true;
@@ -1801,6 +1822,7 @@ export function LiveDashboardClient({
 
   const todayTradeDate = freshness?.today?.trade_date ?? null;
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
+  const eodStatusMarketDate = dashboardProcessMarketDate;
   const isBreakDay = isBreakDayMarket(market);
   const priceFreshnessStage = mergeRunningPipelineStage(getPriceFreshnessStage(freshness), pricePipelineStage);
   const technicalFreshnessStage = mergeRunningPipelineStage(
@@ -1813,12 +1835,15 @@ export function LiveDashboardClient({
     fundamentalsFreshnessStage,
     fundamentalsPipelineStage,
   );
-  const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, todayTradeDate);
+  const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(
+    fundamentalsStatus,
+    eodStatusMarketDate,
+  );
   const fundamentalsStageCard = buildEodStageCard(
     "fundamentals",
     "Fundamentals",
     fundamentalsFreshnessWithPipelineStage,
-    todayTradeDate,
+    eodStatusMarketDate,
     latestFundamentalsDate,
     isBreakDay,
     fundamentalsPipelineStage,
@@ -1834,7 +1859,7 @@ export function LiveDashboardClient({
       "price",
       "Price Fetch",
       priceFreshnessStage,
-      todayTradeDate,
+      eodStatusMarketDate,
       freshness?.latest?.price_trade_date ?? null,
       isBreakDay,
       pricePipelineStage,
@@ -1843,7 +1868,7 @@ export function LiveDashboardClient({
       "technical",
       "Technical Analysis",
       technicalFreshnessStage,
-      todayTradeDate,
+      eodStatusMarketDate,
       freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null,
       isBreakDay,
       technicalPipelineStage,
@@ -1852,7 +1877,7 @@ export function LiveDashboardClient({
       "action",
       "Action Summary",
       actionFreshnessStage,
-      todayTradeDate,
+      eodStatusMarketDate,
       freshness?.latest?.action_market_date ?? null,
       isBreakDay,
       actionPipelineStage,
