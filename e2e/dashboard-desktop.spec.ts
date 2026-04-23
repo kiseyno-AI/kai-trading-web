@@ -1797,8 +1797,8 @@ test.describe("dashboard desktop", () => {
     await expect(activeTechnicalRole).toContainText(/전체 대상\s*250개/);
     await expect(activeTechnicalRole).toContainText(/실패\s*3개/);
     await expect(activeTechnicalRole).toContainText(/완료\s*126개/);
-    await expect(activeTechnicalRole).toContainText(/무응답 경과\s*15s/);
-    await expect(activeTechnicalRole).toContainText(/마지막 적재\s*26-04-15 : 10:18:00/);
+    await expect(activeTechnicalRole).not.toContainText("무응답 경과");
+    await expect(activeTechnicalRole).not.toContainText("마지막 적재");
     await expect(progressCard.locator("[data-role-icon]")).toHaveCount(0);
     await expect(progressCard.locator("[data-role-progress-icon]")).toHaveCount(3);
     await expect(activeTechnicalRole.locator('[data-role-progress-icon="running"]')).toBeVisible();
