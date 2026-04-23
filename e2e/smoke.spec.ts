@@ -6,6 +6,12 @@ import {
   getDisclosureSectionState,
   shouldFetchSymbolMeta,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
+import {
+  getEodSymbolsFailed,
+  getEodSymbolsSucceeded,
+  getEodSymbolsTotal,
+  shouldUseTodayStageData,
+} from "@/lib/dashboard-eod-stage-data";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { getTradingApiCacheTtlMs } from "@/lib/trading-api-cache";
@@ -132,6 +138,82 @@ test.describe("smoke", () => {
     expect(shouldFetchSymbolMeta(seededMeta)).toBe(false);
     expect(getForwardableSymbolMetaSeedValue("[확인 필요]")).toBeNull();
     expect(createSymbolMetaResetToken("005930", emptyMetaA)).not.toBe(createSymbolMetaResetToken("000660", emptyMetaB));
+  });
+
+  test("dashboard EOD helpers prefer latest snapshot counts when today is stale and idle", async () => {
+    const freshness = {
+      today: {
+        trade_date: "2026-04-23",
+        price: {
+          status: "missing",
+          symbols_total: 3581,
+          symbols_succeeded: 0,
+          symbols_failed: 0,
+        },
+        technical_analysis: {
+          status: "missing",
+          symbols_total: 3581,
+          symbols_succeeded: 0,
+          symbols_failed: 0,
+        },
+        action_summary: {
+          status: "missing",
+          symbols_total: 3581,
+          symbols_succeeded: 0,
+          symbols_failed: 0,
+        },
+        fundamentals: {
+          status: "missing",
+          symbols_total: 3581,
+          symbols_succeeded: 0,
+          symbols_failed: 0,
+        },
+      },
+      latest: {
+        price_trade_date: "2026-04-22",
+        symbols_total: 3581,
+        symbols_succeeded: 3577,
+        symbols_failed: 4,
+        technical_market_date: "2026-04-22",
+        action_market_date: "2026-04-22",
+      },
+      technical: {
+        success: true,
+        latest_date: "2026-04-22",
+      },
+      action: {
+        success: true,
+        latest_date: "2026-04-22",
+      },
+      fundamentals: {
+        success: true,
+        latest_date: "2026-04-22",
+      },
+    };
+
+    expect(
+      shouldUseTodayStageData(freshness.today.trade_date, freshness.latest.price_trade_date ?? null, {
+        status: "completed",
+        processed: 0,
+        total: 3581,
+        failed: 0,
+      }),
+    ).toBe(false);
+    expect(getEodSymbolsTotal(freshness, true)).toBe(3581);
+    expect(getEodSymbolsSucceeded(freshness, true)).toBe(3577);
+    expect(getEodSymbolsFailed(freshness, true)).toBe(4);
+    expect(getEodSymbolsSucceeded(freshness)).toBe(0);
+  });
+
+  test("dashboard EOD helpers keep today-stage data when the same-day pipeline is running", async () => {
+    expect(
+      shouldUseTodayStageData("2026-04-23", "2026-04-22", {
+        status: "running",
+        processed: 42,
+        total: 3581,
+        failed: 1,
+      }),
+    ).toBe(true);
   });
 
   test("disclosure section only shows an empty state after aggregate context succeeds", async () => {

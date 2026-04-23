@@ -28,6 +28,16 @@ import {
   loadPiotroskiPassList,
   type PiotroskiPassListResult,
 } from "@/lib/piotroski-pass-list";
+import {
+  getEodSymbolsFailed,
+  getEodSymbolsSucceeded,
+  getEodSymbolsTotal,
+  getLatestEodSymbolsFailed,
+  getLatestEodSymbolsSucceeded,
+  getLatestEodSymbolsTotal,
+  isRunningPipelineStage,
+  shouldUseTodayStageData,
+} from "@/lib/dashboard-eod-stage-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   getCachedTradingApiJson,
@@ -584,30 +594,6 @@ function formatEodSymbolCount(value: number | null | undefined) {
   return value.toLocaleString("ko-KR");
 }
 
-function getEodSymbolsSucceeded(freshness: EodFreshnessResponseDto | null) {
-  return (
-    freshness?.today?.price?.symbols_succeeded ??
-    freshness?.today?.symbols_succeeded ??
-    freshness?.latest?.symbols_succeeded
-  );
-}
-
-function getEodSymbolsTotal(freshness: EodFreshnessResponseDto | null) {
-  return (
-    freshness?.today?.price?.symbols_total ??
-    freshness?.today?.symbols_total ??
-    freshness?.latest?.symbols_total
-  );
-}
-
-function getEodSymbolsFailed(freshness: EodFreshnessResponseDto | null) {
-  return (
-    freshness?.today?.price?.symbols_failed ??
-    freshness?.today?.symbols_failed ??
-    freshness?.latest?.symbols_failed
-  );
-}
-
 function buildStage(
   status: string | null,
   symbolsTotal: number | null | undefined,
@@ -647,7 +633,7 @@ function mergeRunningPipelineStage(
   stage: EodFreshnessStageDto | null,
   pipelineStage: EodPipelineStageDto | null | undefined,
 ) {
-  if (normalizePipelineStageStatus(pipelineStage) !== "running") return stage;
+  if (!isRunningPipelineStage(pipelineStage)) return stage;
 
   return buildStage(
     "running",
@@ -660,9 +646,7 @@ function mergeRunningPipelineStage(
 function hasRunningDashboardPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
   if (normalizePipelineStatus(pipelineStatus?.status) === "running") return true;
 
-  return Object.values(pipelineStatus?.stages ?? {}).some(
-    (stage) => normalizePipelineStageStatus(stage) === "running",
-  );
+  return Object.values(pipelineStatus?.stages ?? {}).some((stage) => isRunningPipelineStage(stage));
 }
 
 function getEodPipelineStatusPollDelayMs(pipelineStatus: EodPipelineStatusResponseDto | null) {
@@ -712,7 +696,7 @@ function isBreakDayMarket(market: CoreMarketStatus) {
   return canUseWeekendFallback && isWeekendIsoDate(market.server_time ?? market.as_of);
 }
 
-function getPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+function getTodayPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   if (freshness?.today?.price) return freshness.today.price;
 
   const status = freshness?.today?.eod_status ?? freshness?.latest?.eod_status ?? null;
@@ -734,41 +718,139 @@ function getPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodF
   );
 }
 
-function getTechnicalFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
-  if (freshness?.today?.technical_analysis) return freshness.today.technical_analysis;
+function getLatestPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+  const status = freshness?.latest?.eod_status ?? null;
+  const normalizedStatus = status?.trim().toLowerCase() ?? null;
+  const hasLatestSnapshot =
+    hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
+    hasNumber(getLatestEodSymbolsTotal(freshness)) ||
+    hasNumber(getLatestEodSymbolsFailed(freshness));
+  const hasReadyLatestStatus =
+    normalizedStatus === "ready" || normalizedStatus === "completed" || normalizedStatus === "available";
+  const hasFailedLatestStatus =
+    normalizedStatus === "failed" || normalizedStatus === "missing" || normalizedStatus === "partial";
+  const resolvedStatus =
+    normalizedStatus === "running"
+      ? "running"
+      : hasFailedLatestStatus
+        ? "missing"
+        : hasReadyLatestStatus || hasLatestSnapshot
+        ? "ready"
+        : null;
 
+  return buildStage(
+    resolvedStatus,
+    getLatestEodSymbolsTotal(freshness),
+    getLatestEodSymbolsSucceeded(freshness),
+    getLatestEodSymbolsFailed(freshness),
+  );
+}
+
+function getPriceFreshnessStage(
+  freshness: EodFreshnessResponseDto | null,
+  useTodayStage: boolean,
+): EodFreshnessStageDto | null {
+  return useTodayStage
+    ? getTodayPriceFreshnessStage(freshness) ?? getLatestPriceFreshnessStage(freshness)
+    : getLatestPriceFreshnessStage(freshness) ?? getTodayPriceFreshnessStage(freshness);
+}
+
+function getLatestTechnicalFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   if (freshness?.technical?.success === false) {
-    return buildStage("missing", null, null, null);
+    return buildStage(
+      "missing",
+      getLatestEodSymbolsTotal(freshness),
+      getLatestEodSymbolsSucceeded(freshness),
+      getLatestEodSymbolsFailed(freshness),
+    );
   }
 
   const hasTechnicalDate =
     hasTextValue(freshness?.technical?.latest_date) || hasTextValue(freshness?.latest?.technical_market_date);
-  return hasTechnicalDate ? buildStage("ready", null, null, null) : null;
+  const hasLatestCounts =
+    hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
+    hasNumber(getLatestEodSymbolsTotal(freshness)) ||
+    hasNumber(getLatestEodSymbolsFailed(freshness));
+  return hasTechnicalDate && (freshness?.technical?.success === true || hasLatestCounts)
+    ? buildStage(
+        "ready",
+        getLatestEodSymbolsTotal(freshness),
+        getLatestEodSymbolsSucceeded(freshness),
+        getLatestEodSymbolsFailed(freshness),
+      )
+    : null;
 }
 
-function getActionFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
-  if (freshness?.today?.action_summary) return freshness.today.action_summary;
+function getTechnicalFreshnessStage(
+  freshness: EodFreshnessResponseDto | null,
+  useTodayStage: boolean,
+): EodFreshnessStageDto | null {
+  if (useTodayStage && freshness?.today?.technical_analysis) return freshness.today.technical_analysis;
 
-  return hasTextValue(freshness?.latest?.action_market_date) ? buildStage("ready", null, null, null) : null;
+  return getLatestTechnicalFreshnessStage(freshness) ?? freshness?.today?.technical_analysis ?? null;
+}
+
+function getLatestActionFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+  if (freshness?.action?.success === false) {
+    return buildStage(
+      "missing",
+      getLatestEodSymbolsTotal(freshness),
+      getLatestEodSymbolsSucceeded(freshness),
+      getLatestEodSymbolsFailed(freshness),
+    );
+  }
+
+  const hasLatestCounts =
+    hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
+    hasNumber(getLatestEodSymbolsTotal(freshness)) ||
+    hasNumber(getLatestEodSymbolsFailed(freshness));
+  return hasTextValue(freshness?.action?.latest_date ?? freshness?.latest?.action_market_date) &&
+    (freshness?.action?.success === true || hasLatestCounts)
+    ? buildStage(
+        "ready",
+        getLatestEodSymbolsTotal(freshness),
+        getLatestEodSymbolsSucceeded(freshness),
+        getLatestEodSymbolsFailed(freshness),
+      )
+    : null;
+}
+
+function getActionFreshnessStage(
+  freshness: EodFreshnessResponseDto | null,
+  useTodayStage: boolean,
+): EodFreshnessStageDto | null {
+  if (useTodayStage && freshness?.today?.action_summary) return freshness.today.action_summary;
+
+  return getLatestActionFreshnessStage(freshness) ?? freshness?.today?.action_summary ?? null;
 }
 
 function getFundamentalsFreshnessStage(
   freshness: EodFreshnessResponseDto | null,
+  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   fundamentalsStatusLabel: string,
   latestFundamentalsDate: string | null,
+  useTodayStage: boolean,
 ): EodFreshnessStageDto | null {
-  if (freshness?.today?.fundamentals) return freshness.today.fundamentals;
+  if (useTodayStage && freshness?.today?.fundamentals) return freshness.today.fundamentals;
 
+  const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
+  const symbolsTotal = latestRun?.symbols_total ?? freshness?.today?.fundamentals?.symbols_total ?? null;
+  const symbolsChecked =
+    latestRun?.symbols_checked ??
+    freshness?.today?.fundamentals?.symbols_succeeded ??
+    freshness?.today?.fundamentals?.symbols_total ??
+    null;
+  const symbolsFailed = latestRun?.symbols_failed ?? freshness?.today?.fundamentals?.symbols_failed ?? null;
   const normalizedStatus = fundamentalsStatusLabel.trim().toLowerCase();
-  if (normalizedStatus === "running") return buildStage("running", null, null, null);
+  if (normalizedStatus === "running") return buildStage("running", symbolsTotal, symbolsChecked, symbolsFailed);
   if (["completed", "available", "ready"].includes(normalizedStatus) || hasTextValue(latestFundamentalsDate)) {
-    return buildStage("ready", null, null, null);
+    return buildStage("ready", symbolsTotal, symbolsChecked, symbolsFailed);
   }
   if (["failed", "partial", "needs review"].includes(normalizedStatus)) {
-    return buildStage("missing", null, null, null);
+    return buildStage("missing", symbolsTotal, symbolsChecked, symbolsFailed);
   }
 
-  return null;
+  return freshness?.today?.fundamentals ?? null;
 }
 
 function getEodStageStatusLabel(
@@ -1799,9 +1881,22 @@ export function LiveDashboardClient({
   }, [agentProgressMarketDate]);
 
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
+  const todayTradeDate = freshness?.today?.trade_date ?? null;
+  const priceLatestDate = freshness?.latest?.price_trade_date ?? null;
+  const technicalLatestDate = freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null;
+  const actionLatestDate = freshness?.action?.latest_date ?? freshness?.latest?.action_market_date ?? null;
   const pricePipelineStage = getPipelineStage(pipelineStatus, "price_collection");
   const technicalPipelineStage = getPipelineStage(pipelineStatus, "technical_snapshots");
   const fundamentalsPipelineStage = getPipelineStage(pipelineStatus, "fundamentals_daily_refresh");
+  const actionPipelineStage = getPipelineStage(pipelineStatus, "action_summaries");
+  const useTodayPriceStage = shouldUseTodayStageData(todayTradeDate, priceLatestDate, pricePipelineStage);
+  const useTodayTechnicalStage = shouldUseTodayStageData(todayTradeDate, technicalLatestDate, technicalPipelineStage);
+  const useTodayActionStage = shouldUseTodayStageData(todayTradeDate, actionLatestDate, actionPipelineStage);
+  const useTodayFundamentalsStage = shouldUseTodayStageData(
+    todayTradeDate,
+    latestFundamentalsDate,
+    fundamentalsPipelineStage,
+  );
   const fundamentalsStatusLabel = getFundamentalsStatusLabel(
     freshness,
     fundamentalsStatus,
@@ -1810,8 +1905,10 @@ export function LiveDashboardClient({
   );
   const fundamentalsFreshnessStage = getFundamentalsFreshnessStage(
     freshness,
+    fundamentalsStatus,
     fundamentalsStatusLabel,
     latestFundamentalsDate,
+    useTodayFundamentalsStage,
   );
   const fundamentalsFailureDetails = getFundamentalsFailureDetails(
     freshness,
@@ -1820,24 +1917,28 @@ export function LiveDashboardClient({
     fundamentalsStatusLabel,
   );
 
-  const todayTradeDate = freshness?.today?.trade_date ?? null;
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
   const eodStatusMarketDate = dashboardProcessMarketDate;
   const isBreakDay = isBreakDayMarket(market);
-  const priceFreshnessStage = mergeRunningPipelineStage(getPriceFreshnessStage(freshness), pricePipelineStage);
+  const priceFreshnessStage = mergeRunningPipelineStage(
+    getPriceFreshnessStage(freshness, useTodayPriceStage),
+    pricePipelineStage,
+  );
   const technicalFreshnessStage = mergeRunningPipelineStage(
-    getTechnicalFreshnessStage(freshness),
+    getTechnicalFreshnessStage(freshness, useTodayTechnicalStage),
     technicalPipelineStage,
   );
-  const actionPipelineStage = getPipelineStage(pipelineStatus, "action_summaries");
-  const actionFreshnessStage = mergeRunningPipelineStage(getActionFreshnessStage(freshness), actionPipelineStage);
+  const actionFreshnessStage = mergeRunningPipelineStage(
+    getActionFreshnessStage(freshness, useTodayActionStage),
+    actionPipelineStage,
+  );
   const fundamentalsFreshnessWithPipelineStage = mergeRunningPipelineStage(
     fundamentalsFreshnessStage,
     fundamentalsPipelineStage,
   );
   const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(
     fundamentalsStatus,
-    eodStatusMarketDate,
+    todayTradeDate,
   );
   const fundamentalsStageCard = buildEodStageCard(
     "fundamentals",
@@ -1860,7 +1961,7 @@ export function LiveDashboardClient({
       "Price Fetch",
       priceFreshnessStage,
       eodStatusMarketDate,
-      freshness?.latest?.price_trade_date ?? null,
+      priceLatestDate,
       isBreakDay,
       pricePipelineStage,
     ),
@@ -1869,7 +1970,7 @@ export function LiveDashboardClient({
       "Technical Analysis",
       technicalFreshnessStage,
       eodStatusMarketDate,
-      freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null,
+      technicalLatestDate,
       isBreakDay,
       technicalPipelineStage,
     ),
@@ -1878,7 +1979,7 @@ export function LiveDashboardClient({
       "Action Summary",
       actionFreshnessStage,
       eodStatusMarketDate,
-      freshness?.latest?.action_market_date ?? null,
+      actionLatestDate,
       isBreakDay,
       actionPipelineStage,
     ),
