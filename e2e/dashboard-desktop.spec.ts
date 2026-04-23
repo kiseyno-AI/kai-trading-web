@@ -2679,10 +2679,33 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage).toBeVisible();
     await expectEodStageStatus(fundamentalsStage, "synced");
     await expect(fundamentalsStage.locator('.pill[data-status-badge="synced"]')).toHaveCount(0);
-    await expect(fundamentalsStage).toContainText("Checked 42");
-    await expect(fundamentalsStage).toContainText("Updated today 42 (005930, 000660, 035420, 005380 +38)");
-    await expect(fundamentalsStage).toContainText("Failed 1");
-    await expect(fundamentalsStage).toContainText("Run status Completed");
+    const checkedDetail = fundamentalsStage.locator('[data-detail-tone="count"]').filter({
+      hasText: "Checked",
+    });
+    await expect(checkedDetail).toContainText("Checked");
+    await expect(checkedDetail).toContainText("42");
+    const updatedTodayDetail = fundamentalsStage.locator('[data-detail-layout="stacked"]').filter({
+      hasText: "Updated today",
+    });
+    await expect(updatedTodayDetail).toContainText("Updated today");
+    await expect(updatedTodayDetail).toContainText("42 (005930, 000660, 035420, 005380 +38)");
+    const updatedTodayLayout = await updatedTodayDetail.evaluate((element) => {
+      const [label, value] = [...element.querySelectorAll("span")];
+      if (!label || !value) return null;
+
+      return {
+        labelBottom: label.getBoundingClientRect().bottom,
+        valueTop: value.getBoundingClientRect().top,
+      };
+    });
+    expect(updatedTodayLayout).not.toBeNull();
+    expect(updatedTodayLayout!.labelBottom).toBeLessThanOrEqual(updatedTodayLayout!.valueTop + 1);
+    const failedDetail = fundamentalsStage.locator('[data-detail-tone="count"]').filter({
+      hasText: "Failed",
+    });
+    await expect(failedDetail).toContainText("Failed");
+    await expect(failedDetail).toContainText("1");
+    await expect(fundamentalsStage.getByText(/Run status/i)).toHaveCount(0);
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
     await expect.poll(() => fundamentalsMarketDateRequests).toContain("2026-04-16");
   });
@@ -2765,10 +2788,15 @@ test.describe("dashboard desktop", () => {
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
     await expectEodStageStatus(fundamentalsStage, "not synced");
-    await expect(fundamentalsStage).toContainText("Latest date 2026-04-14");
-    await expect(fundamentalsStage).toContainText("Run status Partial");
+    const latestDateDetail = fundamentalsStage.locator('[data-detail-tone="text"]').filter({
+      hasText: "Latest date",
+    });
+    await expect(latestDateDetail).toContainText("Latest date");
+    await expect(latestDateDetail).toContainText("2026-04-14");
+    await expect(fundamentalsStage.getByText(/Run status/i)).toHaveCount(0);
     await expect(fundamentalsStage.getByText("Updated today")).toHaveCount(0);
-    await expect(fundamentalsStage.getByRole("button", { name: /Review fundamentals run details/i })).toBeVisible();
+    await expect(fundamentalsStage.getByRole("button", { name: /View fundamentals run details/i })).toBeVisible();
+    await expect(fundamentalsStage.getByText("view detail")).toBeVisible();
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
 
@@ -3165,7 +3193,7 @@ test.describe("dashboard desktop", () => {
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
 
-    await fundamentalsStage.getByRole("button", { name: /Review fundamentals run details/i }).click();
+    await fundamentalsStage.getByRole("button", { name: /View fundamentals run details/i }).click();
 
     const dialog = page.getByRole("dialog", { name: /DART fundamentals failed/i });
     await expect(dialog).toBeVisible();

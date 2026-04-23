@@ -306,12 +306,22 @@
   row-gap: 0.05rem;
 }
 
+.eodStageDetailLine[data-detail-layout="stacked"] {
+  flex-direction: column;
+  align-items: flex-start;
+  row-gap: 0.08rem;
+}
+
 .eodStageDetailValue {
   min-width: 0;
   max-width: 100%;
   font-family: var(--font-space-grotesk), sans-serif;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+}
+
+.eodStageDetailLine[data-detail-layout="stacked"] .eodStageDetailValue {
+  width: 100%;
 }
 
 .eodStageDetailLine[data-detail-tone="count"] .eodStageDetailValue {
@@ -660,18 +670,29 @@
   transform: translate(-50%, -50%) rotate(-45deg);
 }
 
-.statusButton {
-  border: 1px solid rgba(227, 176, 74, 0.28);
-  border-radius: 0.45rem;
-  box-shadow: 0 0 0 1px rgba(227, 176, 74, 0.08);
+.detailButton {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #e3b04a;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.16em;
+  text-transform: lowercase;
+  cursor: pointer;
 }
 
-.statusButton:hover {
-  border-color: rgba(227, 176, 74, 0.52);
-  filter: brightness(1.08);
+.detailButton:hover {
+  color: #f3d07c;
 }
 
-.statusButton:focus-visible,
+.detailButton:focus-visible,
 .dialogCloseButton:focus-visible,
 .agentFeedbackStopButton:focus-visible,
 .dialogActionButton:focus-visible {
