@@ -2349,7 +2349,6 @@ export function LiveDashboardClient({
                       role="listitem"
                       aria-label={`${role.label} ${AGENT_ROLE_STATUS_LABELS[role.status]}`}
                     >
-                      <span className={styles.agentRoleStatusIcon} data-role-icon={role.status} aria-hidden="true" />
                       <div className={styles.agentRoleContent}>
                         <span className={styles.agentRoleName}>{role.label}</span>
                         <span className={styles.agentRoleStatusText}>{AGENT_ROLE_STATUS_LABELS[role.status]}</span>

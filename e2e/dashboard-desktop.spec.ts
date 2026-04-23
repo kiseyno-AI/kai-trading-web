@@ -1799,7 +1799,7 @@ test.describe("dashboard desktop", () => {
     await expect(activeTechnicalRole).toContainText(/완료\s*88개/);
     await expect(activeTechnicalRole).toContainText(/무응답 경과\s*15s/);
     await expect(activeTechnicalRole).toContainText(/마지막 적재\s*26-04-15 : 10:18:00/);
-    await expect(activeTechnicalRole.locator('[data-role-icon="running"]')).toBeVisible();
+    await expect(progressCard.locator("[data-role-icon]")).toHaveCount(0);
     await expect(activeTechnicalRole).toContainText("EOD 확인");
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
@@ -1807,10 +1807,6 @@ test.describe("dashboard desktop", () => {
     await expect(roleRows.nth(0)).not.toContainText("진행률");
     await expect(roleRows.nth(1)).not.toContainText("진행률");
     await expect(roleRows.nth(3)).not.toContainText("진행률");
-    const activeRoleAnimation = await activeTechnicalRole
-      .locator('[data-role-icon="running"]')
-      .evaluate((element) => getComputedStyle(element).animationName);
-    expect(activeRoleAnimation).toContain("agentRoleSpin");
     await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(2);
 
     async function reloadAndExpectAgentStatus(expectedLabel: string) {

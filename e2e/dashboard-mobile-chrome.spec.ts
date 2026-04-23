@@ -215,6 +215,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(agentFeedbackCard).toContainText("EOD summarizer");
     await expect(agentFeedbackCard).toContainText("Technical summarizer");
     await expect(agentFeedbackCard).toContainText("Fundamental summarizer");
+    await expect(agentFeedbackCard.locator("[data-role-icon]")).toHaveCount(0);
     await expect(agentFeedbackCard.getByText("Complete")).toHaveCount(3);
     await expect(agentFeedbackCard.getByText("3,583개")).toHaveCount(3);
 

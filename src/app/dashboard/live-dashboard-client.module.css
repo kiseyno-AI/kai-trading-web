@@ -353,44 +353,12 @@
 .agentRoleRow {
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: flex-start;
-  gap: 0.55rem;
   padding: 0.62rem 0.68rem;
   border: 1px solid rgba(143, 144, 158, 0.12);
   border-radius: 0.5rem;
   background: rgba(5, 20, 37, 0.46);
-}
-
-.agentRoleStatusIcon {
-  width: 0.82rem;
-  height: 0.82rem;
-  margin-top: 0.18rem;
-  border: 1px solid rgba(147, 163, 184, 0.42);
-  border-radius: 999px;
-  background: rgba(147, 163, 184, 0.22);
-}
-
-.agentRoleRow[data-role-status="completed"] .agentRoleStatusIcon {
-  display: grid;
-  place-items: center;
-  border-color: rgba(111, 251, 190, 0.42);
-  background: rgba(111, 251, 190, 0.12);
-  color: #6ffbbe;
-}
-
-.agentRoleRow[data-role-status="completed"] .agentRoleStatusIcon::before {
-  content: "✓";
-  font-size: 0.58rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.agentRoleRow[data-role-status="running"] .agentRoleStatusIcon {
-  border: 2px solid rgba(127, 184, 255, 0.36);
-  border-top-color: #6ffbbe;
-  background: transparent;
-  animation: agentRoleSpin 0.82s linear infinite;
 }
 
 .agentRoleContent {
@@ -417,21 +385,6 @@
 
 .agentRoleRow[data-role-status="running"] .agentRoleStatusText {
   color: #cfe4ff;
-}
-
-.agentRoleRow[data-role-status="attention"] .agentRoleStatusIcon {
-  display: grid;
-  place-items: center;
-  border-color: rgba(227, 176, 74, 0.42);
-  background: rgba(227, 176, 74, 0.12);
-  color: #fff4dd;
-}
-
-.agentRoleRow[data-role-status="attention"] .agentRoleStatusIcon::before {
-  content: "!";
-  font-size: 0.6rem;
-  font-weight: 900;
-  line-height: 1;
 }
 
 .agentRoleRow[data-role-status="attention"] .agentRoleStatusText {
