@@ -2277,7 +2277,16 @@ export function LiveDashboardClient({
                       aria-label={`${role.label} ${AGENT_ROLE_STATUS_LABELS[role.status]}`}
                     >
                       <div className={styles.agentRoleContent}>
-                        <span className={styles.agentRoleName}>{role.label}</span>
+                        <span className={styles.agentRoleTitleRow}>
+                          <span className={styles.agentRoleName}>{role.label}</span>
+                          {isSummarizerRole(role.role) ? (
+                            <span
+                              className={styles.agentRoleProgressIcon}
+                              data-role-progress-icon={role.status}
+                              aria-hidden="true"
+                            />
+                          ) : null}
+                        </span>
                         <span className={styles.agentRoleStatusText}>{AGENT_ROLE_STATUS_LABELS[role.status]}</span>
                         {role.metrics.length > 0 ? (
                           <dl className={styles.agentRoleMetrics}>

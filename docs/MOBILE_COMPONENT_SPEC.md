@@ -26,6 +26,8 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 | `dashboard.symbol-card.{symbol}` | `src/app/dashboard/live-dashboard-client.tsx` | Per-symbol tracked card | `/api/trading/quotes/tracked`, `/api/trading/eod/freshness` | `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `available`, `is_live`, `trade_date`, `source`, `unavailable_reason`, `latest.technical_market_date` | Price freshness and TA freshness are intentionally separate. |
 | `dashboard.piotroski-board` | `src/app/dashboard/piotroski-filter/piotroski-filter-page-client.tsx` | Piotroski full-list route | `/api/trading/eod/piotroski-filter-results`, `/api/trading/quotes/{symbol}`, `/api/trading/symbols/search` | `items[].symbol`, `items[].passed_filter`, `items[].piotroski_score`, per-symbol quote `price`, `change_pct`, metadata fallback name | The dashboard summary now lives inside D2 Filtering; `More` opens `/dashboard/piotroski-filter` for the full passed-symbol list. |
 
+- Agent Feedback role rows render compact progress icons on the right side of the EOD / Technical / Fundamental summarizer titles, derived from each row's resolved status.
+
 ## Symbol detail
 
 Primary route:

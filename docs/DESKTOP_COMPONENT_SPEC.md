@@ -40,6 +40,8 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 | `dashboard.symbol-card.{symbol}` | Ledger recommendation row | `/api/trading/quotes/tracked`, `/api/trading/eod/freshness` | `symbol`, `company_name`, `price`, `change`, `change_pct`, `turnover`, `available`, `is_live`, `source`, `trade_date`, technical freshness |
 | `dashboard.piotroski-board` | Piotroski full-list route | `/api/trading/eod/piotroski-filter-results`, `/api/trading/quotes/{symbol}`, `/api/trading/symbols/search` | `items[].symbol`, `items[].passed_filter`, `items[].piotroski_score`, per-symbol quote `price`, `change_pct`, metadata fallback name; the dashboard summary now lives inside D2 Filtering, while `More` opens `/dashboard/piotroski-filter` for the full list |
 
+- Agent Feedback role rows render compact progress icons on the right side of the EOD / Technical / Fundamental summarizer titles, derived from each row's resolved status.
+
 ## Symbol desktop pages
 
 | Tag | Component | API | Desktop behavior |
