@@ -218,6 +218,17 @@ test.describe("dashboard mobile chrome", () => {
     await expect(agentFeedbackCard.locator("[data-role-icon]")).toHaveCount(0);
     await expect(agentFeedbackCard.locator("[data-role-progress-icon]")).toHaveCount(3);
     await expect(agentFeedbackCard.locator('[data-role-progress-icon="completed"]')).toHaveCount(3);
+    await expect(agentFeedbackCard.getByRole("progressbar")).toHaveCount(3);
+    await expect(agentFeedbackCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
+    await expect(
+      agentFeedbackCard.getByRole("progressbar", { name: "Technical summarizer progress" }),
+    ).toHaveAttribute("aria-valuenow", "100");
+    await expect(
+      agentFeedbackCard.getByRole("progressbar", { name: "Fundamental summarizer progress" }),
+    ).toHaveAttribute("aria-valuenow", "100");
     await expect(agentFeedbackCard.getByText("Complete")).toHaveCount(3);
     await expect(agentFeedbackCard.getByText("3,583개")).toHaveCount(3);
 

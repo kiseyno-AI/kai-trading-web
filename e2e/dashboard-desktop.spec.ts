@@ -1802,6 +1802,23 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard.locator("[data-role-icon]")).toHaveCount(0);
     await expect(progressCard.locator("[data-role-progress-icon]")).toHaveCount(3);
     await expect(activeTechnicalRole.locator('[data-role-progress-icon="running"]')).toBeVisible();
+    await expect(progressCard.getByRole("progressbar")).toHaveCount(3);
+    await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
+    await expect(progressCard.getByRole("progressbar", { name: "Technical summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "50.4",
+    );
+    await expect(progressCard.getByRole("progressbar", { name: "Technical summarizer progress" })).toHaveAttribute(
+      "aria-valuetext",
+      "50.40%",
+    );
+    await expect(progressCard.getByRole("progressbar", { name: "Fundamental summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
     const activeRoleIconLayout = await activeTechnicalRole.evaluate((element) => {
       const title = [...element.querySelectorAll("span")].find(
         (child) => child.children.length === 0 && child.textContent?.trim() === "Technical summarizer",
@@ -1822,6 +1839,26 @@ test.describe("dashboard desktop", () => {
     expect(activeRoleIconLayout).not.toBeNull();
     expect(activeRoleIconLayout!.iconWidth).toBeLessThanOrEqual(22);
     expect(activeRoleIconLayout!.titleRight).toBeLessThanOrEqual(activeRoleIconLayout!.iconLeft);
+    const activeRoleProgressLayout = await activeTechnicalRole.evaluate((element) => {
+      const title = [...element.querySelectorAll("span")].find(
+        (child) => child.children.length === 0 && child.textContent?.trim() === "Technical summarizer",
+      );
+      const progress = element.querySelector('[role="progressbar"][aria-label="Technical summarizer progress"]');
+
+      if (!title || !progress) return null;
+
+      const titleRect = title.getBoundingClientRect();
+      const progressRect = progress.getBoundingClientRect();
+
+      return {
+        progressTop: progressRect.top,
+        progressWidth: progressRect.width,
+        titleBottom: titleRect.bottom,
+      };
+    });
+    expect(activeRoleProgressLayout).not.toBeNull();
+    expect(activeRoleProgressLayout!.progressWidth).toBeGreaterThan(40);
+    expect(activeRoleProgressLayout!.titleBottom).toBeLessThanOrEqual(activeRoleProgressLayout!.progressTop + 1);
     await expect(activeTechnicalRole).not.toContainText("EOD 확인");
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
@@ -1893,6 +1930,11 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(progressCard.locator('[data-role-status="pending"]')).toHaveCount(4);
     await expect(progressCard.getByText("Complete0개")).toHaveCount(4);
+    await expect(progressCard.getByRole("progressbar")).toHaveCount(3);
+    await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
     await expect(stopButton).toHaveCount(0);
 
     agentProgressSummary = {
@@ -1912,6 +1954,19 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(progressCard.locator('[data-role-status="completed"]')).toHaveCount(4);
     await expect(progressCard.getByText("Complete250개")).toHaveCount(4);
+    await expect(progressCard.getByRole("progressbar")).toHaveCount(3);
+    await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
+    await expect(progressCard.getByRole("progressbar", { name: "Technical summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
+    await expect(progressCard.getByRole("progressbar", { name: "Fundamental summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
     await expect(stopButton).toHaveCount(0);
   });
 
