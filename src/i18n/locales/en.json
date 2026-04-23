@@ -1,0 +1,147 @@
+{
+  "common": {
+    "liveFeed": "Live feed",
+    "placeholderRoute": "Placeholder route",
+    "readyForApi": "Ready for API wiring",
+    "maintainableSplit": "Maintainable split",
+    "notificationsOn": "Notifications On",
+    "notificationsOff": "Notifications Off",
+    "alphaDesk": "Alpha Desk",
+    "quickFind": "Quick find",
+    "searchPlaceholder": "BTC/USDT, Delta Bot, momentum signal...",
+    "searchButton": "Search markets, bots, signals",
+    "searchTriggerPlaceholder": "Ticker, route, or surface",
+    "noMatches": "No matches found",
+    "languageSwitcher": "Locale switcher",
+    "languageEnglish": "English",
+    "languageKorean": "Korean",
+    "feedOn": "Feed On",
+    "feedOff": "Feed Off",
+    "tagsOn": "Tags On",
+    "tagsOff": "Tags Off",
+    "copied": "Copied",
+    "copyComponentTag": "Copy component tag",
+    "suggestionTypes": {
+      "market": "market",
+      "bot": "bot",
+      "signal": "signal",
+      "route": "route"
+    }
+  },
+  "languages": {
+    "en": {
+      "short": "EN"
+    },
+    "ko": {
+      "short": "KO"
+    }
+  },
+  "routes": {
+    "dashboard": {
+      "label": "dashboard",
+      "title": "Trading Command Surface",
+      "eyebrow": "Precision & Clarity"
+    },
+    "search": {
+      "label": "search",
+      "title": "Search Workspace",
+      "eyebrow": "Symbol Lookup"
+    },
+    "markets": {
+      "label": "markets",
+      "title": "Market Radar",
+      "eyebrow": "Breadth & Flow"
+    },
+    "bots": {
+      "label": "bots",
+      "title": "Automation Control",
+      "eyebrow": "Systems & Execution"
+    }
+  },
+  "navigation": {
+    "brandTitle": "KAI Desk",
+    "brandSubtitle": "Trading workstation shell",
+    "topbarSummary": "Clean desk shell with faster scanability for live market surfaces.",
+    "mobileMenuText": "NAV",
+    "openNavigation": "Open navigation",
+    "goToSearch": "Go to Search",
+    "searchWorkspace": "Search Workspace",
+    "goToDashboard": "Go to Dashboard",
+    "sidebarSubtitle": "Realtime command workspace",
+    "workspace": "Workspace",
+    "settings": "Settings",
+    "settingsDescription": "Desk preferences and alerts",
+    "mode": "Mode",
+    "modeValue": "Stitch refresh",
+    "items": {
+      "dashboard": {
+        "label": "Dashboard",
+        "description": "Primary command surface"
+      },
+      "search": {
+        "label": "Search",
+        "description": "Symbol and route lookup"
+      },
+      "markets": {
+        "label": "Markets",
+        "description": "Market breadth and screening"
+      },
+      "bots": {
+        "label": "Bots",
+        "description": "Automation operations"
+      }
+    },
+    "searchSuggestions": {
+      "dashboard": "Open dashboard",
+      "search": "Open search workspace",
+      "markets": "Open market radar",
+      "bots": "Open automation control"
+    }
+  },
+  "dashboard": {
+    "title": "Trading Command Surface",
+    "eyebrow": "Precision & Clarity",
+    "watchlist": "Watchlist",
+    "radar": "Radar",
+    "signalEngine": "Signal Engine",
+    "aiInsight": "AI Insight",
+    "automation": "Automation",
+    "miniOrderBook": "Mini Order Book"
+  },
+  "markets": {
+    "title": "Markets",
+    "eyebrow": "Market Surface",
+    "description": "A dedicated route for screening leaders, tracking volume shifts, and plugging in live market data later without bloating the dashboard page.",
+    "spotlight": "Spotlight",
+    "priorityPairs": "Priority pairs",
+    "marketBreadth": "Market breadth",
+    "heroCopy": "Cross-market monitoring is ready for spot, futures, and strategy routing. This area is now structured for real data from trading-core without redesigning the page shell.",
+    "depthSignals": "Depth + Signals",
+    "krUsWorkflow": "KR / US Workflow",
+    "overview": "Overview",
+    "sessionStatus": "Session Status",
+    "trackedMarkets": "Tracked markets",
+    "scannerCadence": "Scanner cadence",
+    "primaryVenue": "Primary venue"
+  },
+  "bots": {
+    "title": "Bots",
+    "eyebrow": "Automation Desk",
+    "description": "A focused route for strategy states, allocation controls, and future execution logs. The dashboard can stay lean while automation expands here.",
+    "playbooks": "Playbooks",
+    "roster": "Bot roster",
+    "capital": "capital",
+    "risk": "Risk",
+    "automationFleet": "Automation Fleet",
+    "heroCopy": "Bot operations are now split into a maintainable feature surface. This view is ready to evolve into live controls, audit logs, and execution safety panels.",
+    "commandReady": "Command-ready",
+    "riskAware": "Risk-aware",
+    "opsSnapshot": "Ops Snapshot",
+    "fleetStatus": "Fleet Status",
+    "registeredBots": "Registered bots",
+    "executionMode": "Execution mode",
+    "supervised": "Supervised",
+    "riskLock": "Risk lock",
+    "available": "Available"
+  }
+}

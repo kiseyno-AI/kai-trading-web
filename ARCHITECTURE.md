@@ -22,6 +22,7 @@
 - `src/components/navigation/*` owns shared nav/search/mobile shell elements
 - `src/components/dashboard/*` owns dashboard-specific presentational parts
 - `src/data/*` owns mock/demo data and view contracts until API adapters are added
+- `src/i18n/locales/*.json` owns English/Korean UI string dictionaries; `src/i18n/messages.ts` loads and types the active string IDs
 - `src/lib/*` owns generic helpers and formatting utilities
 
 ## Core Areas

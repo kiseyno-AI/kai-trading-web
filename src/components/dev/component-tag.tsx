@@ -34,7 +34,7 @@ function resolveTagId(label: string) {
 }
 
 export function ComponentTag({ label, api, placement = "corner" }: ComponentTagProps) {
-  const { devMode } = useAppState();
+  const { devMode, t } = useAppState();
   const [copied, setCopied] = useState(false);
   const tagId = resolveTagId(label);
 
@@ -71,9 +71,9 @@ export function ComponentTag({ label, api, placement = "corner" }: ComponentTagP
       }}
       role="button"
       tabIndex={0}
-      title="Copy component tag"
+      title={t.common.copyComponentTag}
     >
-      <strong>{copied ? "Copied" : tagId}</strong>
+      <strong>{copied ? t.common.copied : tagId}</strong>
       {api ? <span>{api}</span> : null}
     </div>
   );

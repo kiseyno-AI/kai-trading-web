@@ -19,25 +19,23 @@ export function MarketsOverview() {
 
       <section className="hero-strip">
         <div className="glass hero-card">
-          <p className="eyebrow">Market breadth</p>
+          <p className="eyebrow">{t.markets.marketBreadth}</p>
           <h2>{t.markets.priorityPairs}</h2>
-          <p className="hero-copy">
-            Cross-market monitoring is ready for spot, futures, and strategy routing. This area is now structured for real data from trading-core without redesigning the page shell.
-          </p>
+          <p className="hero-copy">{t.markets.heroCopy}</p>
           <div className="hero-badges">
             <span className="pill positive">{t.common.readyForApi}</span>
-            <span className="pill neutral">Depth + Signals</span>
-            <span className="pill neutral">KR / US Workflow</span>
+            <span className="pill neutral">{t.markets.depthSignals}</span>
+            <span className="pill neutral">{t.markets.krUsWorkflow}</span>
           </div>
         </div>
 
         <div className="glass hero-card surface-muted">
-          <p className="eyebrow">Overview</p>
-          <h2>Session Status</h2>
+          <p className="eyebrow">{t.markets.overview}</p>
+          <h2>{t.markets.sessionStatus}</h2>
           <div className="detail-list">
-            <div className="detail-row"><span>Tracked markets</span><strong>{overview?.spotlight.length ?? 0}</strong></div>
-            <div className="detail-row"><span>Scanner cadence</span><strong>1.5s</strong></div>
-            <div className="detail-row"><span>Primary venue</span><strong>KIS + IBKR</strong></div>
+            <div className="detail-row"><span>{t.markets.trackedMarkets}</span><strong>{overview?.spotlight.length ?? 0}</strong></div>
+            <div className="detail-row"><span>{t.markets.scannerCadence}</span><strong>1.5s</strong></div>
+            <div className="detail-row"><span>{t.markets.primaryVenue}</span><strong>KIS + IBKR</strong></div>
           </div>
         </div>
       </section>

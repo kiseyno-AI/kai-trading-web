@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { defaultLocale, messages, type MessageTree } from "@/i18n/messages";
+import { defaultLocale, messages, resolveLocale, type MessageTree } from "@/i18n/messages";
 import { readStoredValue, storeValue, writeCookie } from "@/lib/persistence";
 import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { Locale } from "@/types/trading-api";
@@ -24,9 +24,19 @@ const NOTIFICATIONS_KEY = "trading-web.notifications";
 const DEV_MODE_KEY = "trading-web.dev-mode";
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => readStoredValue<Locale>(LOCALE_KEY, defaultLocale));
-  const [notificationsOn, setNotificationsOnState] = useState(() => readStoredValue<boolean>(NOTIFICATIONS_KEY, true));
-  const [devMode, setDevModeState] = useState(() => readStoredValue<boolean>(DEV_MODE_KEY, false));
+  const [locale, setLocaleState] = useState<Locale>(defaultLocale);
+  const [notificationsOn, setNotificationsOnState] = useState(true);
+  const [devMode, setDevModeState] = useState(false);
+
+  useEffect(() => {
+    const restorePersistedState = window.setTimeout(() => {
+      setLocaleState(resolveLocale(readStoredValue(LOCALE_KEY, defaultLocale)));
+      setNotificationsOnState(readStoredValue<boolean>(NOTIFICATIONS_KEY, true));
+      setDevModeState(readStoredValue<boolean>(DEV_MODE_KEY, false));
+    }, 0);
+
+    return () => window.clearTimeout(restorePersistedState);
+  }, []);
 
   useEffect(() => {
     if (typeof document !== "undefined") {

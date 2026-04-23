@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 
+import { useAppState } from "@/components/providers/app-state-provider";
 import type { NavItemDto } from "@/types/trading-api";
 import { cn } from "@/lib/utils";
 
@@ -9,15 +12,17 @@ type AppSidebarProps = {
 };
 
 export function AppSidebar({ items, currentPath }: AppSidebarProps) {
+  const { t } = useAppState();
+
   return (
     <aside className="sidebar">
       <div className="sidebar-brand-block">
-        <Link href="/dashboard" className="brand-mark" aria-label="Go to Dashboard">
+        <Link href="/dashboard" className="brand-mark" aria-label={t.navigation.goToDashboard}>
           KAI
         </Link>
         <div className="sidebar-brand-copy">
-          <strong>KAI Desk</strong>
-          <span>Realtime command workspace</span>
+          <strong>{t.navigation.brandTitle}</strong>
+          <span>{t.navigation.sidebarSubtitle}</span>
         </div>
       </div>
       <nav className="side-nav">
@@ -43,19 +48,19 @@ export function AppSidebar({ items, currentPath }: AppSidebarProps) {
         })}
       </nav>
       <div className="sidebar-footer">
-        <div className="sidebar-section-label">Workspace</div>
-        <Link href="/dashboard#settings" className="nav-icon" aria-label="Settings" title="Settings">
+        <div className="sidebar-section-label">{t.navigation.workspace}</div>
+        <Link href="/dashboard#settings" className="nav-icon" aria-label={t.navigation.settings} title={t.navigation.settings}>
           <span className="nav-icon-glyph" aria-hidden="true">
             CFG
           </span>
           <span className="nav-copy">
-            <span className="nav-icon-label">Settings</span>
-            <span className="nav-icon-description">Desk preferences and alerts</span>
+            <span className="nav-icon-label">{t.navigation.settings}</span>
+            <span className="nav-icon-description">{t.navigation.settingsDescription}</span>
           </span>
         </Link>
         <div className="sidebar-summary">
-          <span>Mode</span>
-          <strong>Stitch refresh</strong>
+          <span>{t.navigation.mode}</span>
+          <strong>{t.navigation.modeValue}</strong>
         </div>
       </div>
     </aside>

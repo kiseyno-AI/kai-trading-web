@@ -19,25 +19,23 @@ export function BotsOverview() {
 
       <section className="hero-strip">
         <div className="glass hero-card">
-          <p className="eyebrow">Automation Fleet</p>
+          <p className="eyebrow">{t.bots.automationFleet}</p>
           <h2>{t.bots.roster}</h2>
-          <p className="hero-copy">
-            Bot operations are now split into a maintainable feature surface. This view is ready to evolve into live controls, audit logs, and execution safety panels.
-          </p>
+          <p className="hero-copy">{t.bots.heroCopy}</p>
           <div className="hero-badges">
             <span className="pill neutral">{t.common.maintainableSplit}</span>
-            <span className="pill positive">Command-ready</span>
-            <span className="pill neutral">Risk-aware</span>
+            <span className="pill positive">{t.bots.commandReady}</span>
+            <span className="pill neutral">{t.bots.riskAware}</span>
           </div>
         </div>
 
         <div className="glass hero-card surface-muted">
-          <p className="eyebrow">Ops Snapshot</p>
-          <h2>Fleet Status</h2>
+          <p className="eyebrow">{t.bots.opsSnapshot}</p>
+          <h2>{t.bots.fleetStatus}</h2>
           <div className="detail-list">
-            <div className="detail-row"><span>Registered bots</span><strong>{overview?.bots.length ?? 0}</strong></div>
-            <div className="detail-row"><span>Execution mode</span><strong>Supervised</strong></div>
-            <div className="detail-row"><span>Risk lock</span><strong>Available</strong></div>
+            <div className="detail-row"><span>{t.bots.registeredBots}</span><strong>{overview?.bots.length ?? 0}</strong></div>
+            <div className="detail-row"><span>{t.bots.executionMode}</span><strong>{t.bots.supervised}</strong></div>
+            <div className="detail-row"><span>{t.bots.riskLock}</span><strong>{t.bots.available}</strong></div>
           </div>
         </div>
       </section>
