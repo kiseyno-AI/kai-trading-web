@@ -1,31 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="KAI Trading">
   <defs>
-    <linearGradient id="bg" x1="80" y1="48" x2="432" y2="464" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#13283f" />
-      <stop offset="0.58" stop-color="#0a1b2f" />
-      <stop offset="1" stop-color="#081423" />
+    <linearGradient id="panel" x1="84" y1="52" x2="428" y2="460" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#102945" />
+      <stop offset="0.5" stop-color="#0a1b31" />
+      <stop offset="1" stop-color="#071220" />
     </linearGradient>
-    <linearGradient id="signal" x1="96" y1="352" x2="416" y2="144" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#66e0b6" />
-      <stop offset="1" stop-color="#c9d2ff" />
+    <radialGradient id="glow" cx="76%" cy="18%" r="70%">
+      <stop offset="0" stop-color="#2fd2c2" stop-opacity="0.34" />
+      <stop offset="0.42" stop-color="#2fd2c2" stop-opacity="0.12" />
+      <stop offset="1" stop-color="#2fd2c2" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="signal" x1="152" y1="332" x2="392" y2="176" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58e0b3" />
+      <stop offset="1" stop-color="#c6cdff" />
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <rect width="512" height="512" rx="132" fill="url(#panel)" />
+  <rect width="512" height="512" rx="132" fill="url(#glow)" />
+  <rect x="22" y="22" width="468" height="468" rx="110" fill="none" stroke="#d6e7ff" stroke-opacity="0.08" stroke-width="2" />
   <path
-    d="M116 330L190 256L116 182"
+    d="M150 318L212 256L150 194"
     fill="none"
-    stroke="#dce7ff"
-    stroke-width="36"
+    stroke="#e6efff"
+    stroke-width="32"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
   <path
-    d="M220 342V170M220 256H288M326 342L396 170M350 286H424"
+    d="M236 338V174M236 256H290M322 338L378 182M340 262H398"
     fill="none"
     stroke="url(#signal)"
-    stroke-width="34"
+    stroke-width="30"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
-  <rect x="90" y="386" width="332" height="20" rx="10" fill="#66e0b6" opacity="0.9" />
+  <rect x="140" y="388" width="232" height="18" rx="9" fill="#63ddb7" opacity="0.92" />
 </svg>
