@@ -45,6 +45,259 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
+  test("desktop operational integrity keeps Agent Feedback below the top two cards", async ({ page }) => {
+    const now = "2026-04-15T09:10:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          is_trading_day: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 1900,
+              change_pct: 2.73,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-15",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-15",
+            price: {
+              status: "ready",
+              symbols_total: 3200,
+              symbols_succeeded: 3200,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 3200,
+              symbols_succeeded: 3200,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 3200,
+              symbols_succeeded: 3200,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 3200,
+              symbols_succeeded: 3200,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-15",
+            technical_market_date: "2026-04-15",
+            action_market_date: "2026-04-15",
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-15",
+          },
+          action: {
+            success: true,
+            latest_date: "2026-04-15",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-15",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          status: "completed",
+          stage_order: [
+            "price_collection",
+            "technical_snapshots",
+            "action_summaries",
+            "trending_ranks",
+            "signal_features",
+            "fundamentals_daily_refresh",
+          ],
+          stages: {
+            price_collection: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            technical_snapshots: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            action_summaries: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            fundamentals_daily_refresh: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          summary: {
+            entries: 3200,
+            requested_symbol: null,
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 128,
+            not_passed_count: 3072,
+          },
+          items: [
+            {
+              symbol: "005930",
+              market_date: "2026-04-15",
+              passed_filter: true,
+              piotroski_score: 8,
+              passes_piotroski_score: true,
+              captured_at: now,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          runs: [],
+          latest_run: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-15",
+            symbols: null,
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: {
+            run_status: "completed",
+            is_live: false,
+            latest_feedback_at: now,
+            seconds_since_last_feedback: 120,
+            stalled_threshold_seconds: 300,
+            total_symbols: 3200,
+            processed_symbols: 3200,
+            completed_symbols: 3200,
+            in_progress_symbols: 0,
+            pending_symbols: 0,
+            progress_ratio: 1,
+            progress_percent: 100,
+            failed_items: 0,
+            completed_feedback_count: 3200,
+            expected_feedback_count: 3200,
+          },
+          result: {
+            roles: {
+              "eod-summarizer": {
+                requested_count: 3200,
+                completed_count: 3200,
+                error_count: 0,
+              },
+              "technical-summarizer": {
+                requested_count: 3200,
+                completed_count: 3200,
+                error_count: 0,
+              },
+              "fundamental-summarizer": {
+                requested_count: 3200,
+                completed_count: 3200,
+                error_count: 0,
+              },
+            },
+          },
+        }),
+      });
+    });
+
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.goto("/dashboard");
+
+    const freshnessPanel = page.locator("#dashboard-freshness");
+    const eodCard = freshnessPanel.locator("article").filter({ hasText: "Daily Data Fetch" });
+    const filteringCard = freshnessPanel.locator("article").filter({ hasText: "Filtering" });
+    const agentFeedbackCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
+
+    await expect(eodCard).toBeVisible();
+    await expect(filteringCard).toBeVisible();
+    await expect(agentFeedbackCard).toBeVisible();
+
+    const [eodBox, filteringBox, agentFeedbackBox] = await Promise.all([
+      eodCard.boundingBox(),
+      filteringCard.boundingBox(),
+      agentFeedbackCard.boundingBox(),
+    ]);
+
+    expect(eodBox).not.toBeNull();
+    expect(filteringBox).not.toBeNull();
+    expect(agentFeedbackBox).not.toBeNull();
+
+    if (!eodBox || !filteringBox || !agentFeedbackBox) {
+      throw new Error("Expected dashboard cards to have layout boxes.");
+    }
+
+    expect(Math.abs(eodBox.y - filteringBox.y)).toBeLessThan(24);
+    expect(Math.abs(agentFeedbackBox.x - eodBox.x)).toBeLessThan(24);
+    expect(agentFeedbackBox.y).toBeGreaterThan(eodBox.y + eodBox.height - 24);
+    expect(agentFeedbackBox.width).toBeGreaterThan(filteringBox.width * 1.5);
+  });
+
   test("dashboard surfaces running EOD pipeline progress inside the matching stage cards", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
