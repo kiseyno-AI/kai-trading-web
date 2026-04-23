@@ -718,7 +718,8 @@ test.describe("symbol detail desktop", () => {
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
 
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
-    const actionTab = page.getByRole("link", { name: /^Action$/i });
+    const detailUrl = page.url();
+    const actionTab = page.getByRole("button", { name: /^Action$/i });
     await page.evaluate(() => window.scrollTo(0, 420));
     await actionTab.scrollIntoViewIfNeeded();
     const beforeScroll = await page.evaluate(() => window.scrollY);
@@ -726,7 +727,7 @@ test.describe("symbol detail desktop", () => {
 
     await actionTab.click();
 
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/action-summary\?/);
+    await expect(page).toHaveURL(detailUrl);
     await expect(page.getByText(/Action Summary Detail/i)).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 

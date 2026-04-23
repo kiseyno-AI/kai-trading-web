@@ -376,11 +376,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  appearance: none;
   width: fit-content;
   border: 1px solid rgba(143, 144, 158, 0.14);
   border-radius: 999px;
   background: rgba(13, 28, 46, 0.72);
   color: #dee0ff;
+  cursor: pointer;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
