@@ -294,6 +294,13 @@ export type AgentContextResponseDto = {
 
 export type AgentFeedbackRunStatus = "pending" | "running" | "stalled" | "completed";
 
+export type AgentFeedbackRoleResultDto = {
+  role?: string;
+  requested_count?: number | null;
+  completed_count?: number | null;
+  error_count?: number | null;
+};
+
 export type AgentFeedbackProgressResponseDto = {
   request: {
     market_date: string;
@@ -328,6 +335,10 @@ export type AgentFeedbackProgressResponseDto = {
     estimated_completion_at?: string | null;
     eta_confidence?: string | null;
   };
+  result?: {
+    market_date?: string | null;
+    roles?: Record<string, AgentFeedbackRoleResultDto> | AgentFeedbackRoleResultDto[] | null;
+  } | null;
 };
 
 export type AgentContextCoreControlAction = "kill" | "restart";

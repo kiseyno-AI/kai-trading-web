@@ -1621,6 +1621,7 @@ test.describe("dashboard desktop", () => {
       expected_feedback_count: 1000,
       current_role: "technical-summarizer",
     };
+    let agentProgressResult: Record<string, unknown> | null = null;
     const freshnessPayload = {
       today: {
         trade_date: "2026-04-16",
@@ -1721,6 +1722,34 @@ test.describe("dashboard desktop", () => {
             ],
           },
           summary: agentProgressSummary,
+          ...(agentProgressResult
+            ? {
+                role_progress: {
+                  "eod-summarizer": {
+                    processed_symbols: 250,
+                    completed_symbols: 250,
+                    error_count: 0,
+                    progress_percent: 100,
+                    status: "running",
+                  },
+                  "technical-summarizer": {
+                    processed_symbols: 250,
+                    completed_symbols: 250,
+                    error_count: 0,
+                    progress_percent: 100,
+                    status: "running",
+                  },
+                  "fundamental-summarizer": {
+                    processed_symbols: 250,
+                    completed_symbols: 250,
+                    error_count: 0,
+                    progress_percent: 100,
+                    status: "running",
+                  },
+                },
+                result: agentProgressResult,
+              }
+            : {}),
         }),
       });
     });
@@ -1949,11 +1978,48 @@ test.describe("dashboard desktop", () => {
       progress_percent: 100,
       completed_feedback_count: 750,
     };
+    agentProgressResult = {
+      market_date: "2026-04-15",
+      roles: {
+        "eod-summarizer": {
+          requested_count: 96,
+          completed_count: 96,
+          error_count: 0,
+        },
+        "technical-summarizer": {
+          requested_count: 96,
+          completed_count: 96,
+          error_count: 0,
+        },
+        "fundamental-summarizer": {
+          requested_count: 96,
+          completed_count: 95,
+          error_count: 1,
+        },
+      },
+    };
     await reloadAndExpectAgentStatus("에이전트 분석 완료");
     await expect(progressCard).toContainText("기준일 2026-04-15");
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(progressCard.locator('[data-role-status="completed"]')).toHaveCount(4);
-    await expect(progressCard.getByText("Complete250개")).toHaveCount(4);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
+    ).toContainText(/Requested\s*96개[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
+    ).toContainText(/Requested\s*96개[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
+    ).toContainText(/Requested\s*96개[\s\S]*Completed\s*95개[\s\S]*Errors\s*1개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
+    ).not.toContainText(/Complete\s*250개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
+    ).not.toContainText(/Complete\s*250개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
+    ).not.toContainText(/Complete\s*250개/);
     await expect(progressCard.getByRole("progressbar")).toHaveCount(3);
     await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
       "aria-valuenow",
