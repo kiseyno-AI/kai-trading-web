@@ -45,10 +45,15 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
   const filteredSuggestions = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return suggestions;
-    return suggestions.filter(
-      (item) => item.label.toLowerCase().includes(normalized) || item.type.toLowerCase().includes(normalized),
-    );
-  }, [query, suggestions]);
+    return suggestions.filter((item) => {
+      const typeLabel = t.common.suggestionTypes[item.type].toLowerCase();
+      return (
+        item.label.toLowerCase().includes(normalized) ||
+        item.type.toLowerCase().includes(normalized) ||
+        typeLabel.includes(normalized)
+      );
+    });
+  }, [query, suggestions, t.common.suggestionTypes]);
 
   return (
     <div className="search-wrap">
@@ -57,9 +62,10 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
         variant="glass"
         aria-expanded={open}
         aria-controls="searchMenu"
+        aria-label={t.common.searchButton}
         onClick={() => setOpen((value) => !value)}
       >
-        <span>{query ? query : "Ticker, route, or surface"}</span>
+        <span>{query ? query : t.common.searchTriggerPlaceholder}</span>
         <kbd>⌘K</kbd>
       </Button>
 
@@ -92,7 +98,7 @@ export function SearchPicker({ suggestions }: SearchPickerProps) {
               }}
             >
               <span>{suggestion.label}</span>
-              <em>{suggestion.type}</em>
+              <em>{t.common.suggestionTypes[suggestion.type]}</em>
             </button>
           ))}
           {filteredSuggestions.length === 0 ? <div className="suggestion empty">{t.common.noMatches}</div> : null}

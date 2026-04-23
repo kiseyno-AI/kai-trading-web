@@ -6,27 +6,57 @@ import { useState } from "react";
 import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { MobileNav } from "@/components/navigation/mobile-nav";
 import { Topbar } from "@/components/navigation/topbar";
+import { useAppState } from "@/components/providers/app-state-provider";
+import { resolveRouteMessageKey, type MessageTree } from "@/i18n/messages";
 import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { DashboardSnapshotDto, NavItemDto, SearchSuggestionDto } from "@/types/trading-api";
 
-const DEFAULT_NAV_ITEMS: NavItemDto[] = [
-  { id: "dashboard", label: "Dashboard", icon: "DB", href: "/dashboard", description: "Primary command surface" },
-  { id: "search", label: "Search", icon: "SR", href: "/search", description: "Symbol and route lookup" },
-  { id: "markets", label: "Markets", icon: "MK", href: "/markets", description: "Market breadth and screening" },
-  { id: "bots", label: "Bots", icon: "BT", href: "/bots", description: "Automation operations" },
-];
+function buildDefaultNavItems(t: MessageTree): NavItemDto[] {
+  return [
+    {
+      id: "dashboard",
+      label: t.navigation.items.dashboard.label,
+      icon: "DB",
+      href: "/dashboard",
+      description: t.navigation.items.dashboard.description,
+    },
+    {
+      id: "search",
+      label: t.navigation.items.search.label,
+      icon: "SR",
+      href: "/search",
+      description: t.navigation.items.search.description,
+    },
+    {
+      id: "markets",
+      label: t.navigation.items.markets.label,
+      icon: "MK",
+      href: "/markets",
+      description: t.navigation.items.markets.description,
+    },
+    {
+      id: "bots",
+      label: t.navigation.items.bots.label,
+      icon: "BT",
+      href: "/bots",
+      description: t.navigation.items.bots.description,
+    },
+  ];
+}
 
-const DEFAULT_SUGGESTIONS: SearchSuggestionDto[] = [
-  { id: "dashboard", label: "Open dashboard", type: "route", route: "/dashboard" },
-  { id: "search", label: "Open search workspace", type: "route", route: "/search" },
-  { id: "markets", label: "Open market radar", type: "route", route: "/markets" },
-  { id: "bots", label: "Open automation control", type: "route", route: "/bots" },
-];
+function buildDefaultSuggestions(t: MessageTree): SearchSuggestionDto[] {
+  return [
+    { id: "dashboard", label: t.navigation.searchSuggestions.dashboard, type: "route", route: "/dashboard" },
+    { id: "search", label: t.navigation.searchSuggestions.search, type: "route", route: "/search" },
+    { id: "markets", label: t.navigation.searchSuggestions.markets, type: "route", route: "/markets" },
+    { id: "bots", label: t.navigation.searchSuggestions.bots, type: "route", route: "/bots" },
+  ];
+}
 
 type AppShellProps = {
   currentPath: string;
-  title: string;
-  eyebrow: string;
+  title?: string;
+  eyebrow?: string;
   children: ReactNode;
   compactMobileChrome?: boolean;
   navItems?: DashboardSnapshotDto["nav"];
@@ -42,9 +72,11 @@ export function AppShell({
   navItems = [],
   suggestions = [],
 }: AppShellProps) {
+  const { t } = useAppState();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const resolvedNavItems = navItems.length > 0 ? navItems : DEFAULT_NAV_ITEMS;
-  const resolvedSuggestions = suggestions.length > 0 ? suggestions : DEFAULT_SUGGESTIONS;
+  const routeCopy = t.routes[resolveRouteMessageKey(currentPath)];
+  const resolvedNavItems = navItems.length > 0 ? navItems : buildDefaultNavItems(t);
+  const resolvedSuggestions = suggestions.length > 0 ? suggestions : buildDefaultSuggestions(t);
   const handleToggleMobileNav = () => {
     setMobileNavOpen((value) => {
       const nextValue = !value;
@@ -63,8 +95,8 @@ export function AppShell({
       <main className="main-layout">
         <Topbar
           currentPath={currentPath}
-          title={title}
-          eyebrow={eyebrow}
+          title={title ?? routeCopy.title}
+          eyebrow={eyebrow ?? routeCopy.eyebrow}
           compactMobileChrome={compactMobileChrome}
           suggestions={resolvedSuggestions}
           onToggleMobileNav={handleToggleMobileNav}
