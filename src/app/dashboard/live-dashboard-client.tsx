@@ -195,6 +195,7 @@ type EodStageDetail = {
   label: string;
   value: string;
   tone?: "count" | "text";
+  layout?: "inline" | "stacked";
 };
 
 type AgentRoleStatus = "completed" | "running" | "pending" | "attention";
@@ -1053,6 +1054,7 @@ function getFundamentalsUpdatedSymbolsDetail(
     label: "Updated today",
     value: `${countLabel}${symbolLabel}`,
     tone: "text",
+    layout: "stacked",
   };
 }
 
@@ -2262,27 +2264,23 @@ export function LiveDashboardClient({
                             key={detail.key}
                             className={styles.eodStageDetailLine}
                             data-detail-tone={detail.tone ?? "text"}
+                            data-detail-layout={detail.layout ?? "inline"}
                           >
-                            <span>{detail.label}</span>{" "}
+                            <span>{detail.label}</span>
                             <span className={styles.eodStageDetailValue}>{detail.value}</span>
                           </span>
                         ))}
-                        {stage.id === "fundamentals" &&
-                        hasTextValue(fundamentalsStatusLabel) &&
-                        fundamentalsStatusLabel !== UNKNOWN_LABEL ? (
-                          <span>Run status {fundamentalsStatusLabel}</span>
-                        ) : null}
                         {stage.id === "fundamentals" && fundamentalsFailureDetails ? (
                           <button
                             type="button"
-                            className={`pill warning ${styles.statusButton}`}
-                            aria-label="Review fundamentals run details"
+                            className={styles.detailButton}
+                            aria-label="View fundamentals run details"
                             aria-haspopup="dialog"
                             aria-expanded={fundamentalsDialogOpen}
                             aria-controls="fundamentals-failure-dialog"
                             onClick={() => setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key)}
                           >
-                            Review run
+                            view detail
                           </button>
                         ) : null}
                       </div>
