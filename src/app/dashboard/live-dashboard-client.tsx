@@ -392,7 +392,7 @@ function getPriceFreshnessLabel(item: CoreTrackedQuote) {
 }
 
 function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? "[확인 필요]";
+  return getFirstTextValue(freshness?.technical?.latest_date, freshness?.latest?.technical_market_date) ?? UNKNOWN_LABEL;
 }
 
 function getFundamentalsFreshnessLayer(
@@ -416,13 +416,21 @@ function getFundamentalsRunDate(run: DartFundamentalsDailyRunDto | null) {
   return run?.market_date ?? getDatePart(run?.completed_at) ?? getDatePart(run?.started_at);
 }
 
+function getFirstTextValue(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (hasTextValue(value)) return value.trim();
+  }
+
+  return null;
+}
+
 function getFundamentalsFreshnessDate(
   freshness: EodFreshnessResponseDto | null,
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
 ) {
-  return (
-    getFundamentalsFreshnessLayer(freshness)?.latest_date ??
-    getFundamentalsRunDate(getLatestFundamentalsRun(fundamentalsStatus))
+  return getFirstTextValue(
+    getFundamentalsFreshnessLayer(freshness)?.latest_date,
+    getFundamentalsRunDate(getLatestFundamentalsRun(fundamentalsStatus)),
   );
 }
 
@@ -767,7 +775,7 @@ function getLatestTechnicalFreshnessStage(freshness: EodFreshnessResponseDto | n
   }
 
   const hasTechnicalDate =
-    hasTextValue(freshness?.technical?.latest_date) || hasTextValue(freshness?.latest?.technical_market_date);
+    getFirstTextValue(freshness?.technical?.latest_date, freshness?.latest?.technical_market_date) !== null;
   const hasLatestCounts =
     hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
     hasNumber(getLatestEodSymbolsTotal(freshness)) ||
@@ -801,12 +809,12 @@ function getLatestActionFreshnessStage(freshness: EodFreshnessResponseDto | null
     );
   }
 
+  const latestActionDate = getFirstTextValue(freshness?.action?.latest_date, freshness?.latest?.action_market_date);
   const hasLatestCounts =
     hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
     hasNumber(getLatestEodSymbolsTotal(freshness)) ||
     hasNumber(getLatestEodSymbolsFailed(freshness));
-  return hasTextValue(freshness?.action?.latest_date ?? freshness?.latest?.action_market_date) &&
-    (freshness?.action?.success === true || hasLatestCounts)
+  return latestActionDate && (freshness?.action?.success === true || hasLatestCounts)
     ? buildStage(
         "ready",
         getLatestEodSymbolsTotal(freshness),
@@ -1879,10 +1887,13 @@ export function LiveDashboardClient({
   }, [agentProgressMarketDate]);
 
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
-  const todayTradeDate = freshness?.today?.trade_date ?? null;
-  const priceLatestDate = freshness?.latest?.price_trade_date ?? null;
-  const technicalLatestDate = freshness?.technical?.latest_date ?? freshness?.latest?.technical_market_date ?? null;
-  const actionLatestDate = freshness?.action?.latest_date ?? freshness?.latest?.action_market_date ?? null;
+  const todayTradeDate = getFirstTextValue(freshness?.today?.trade_date);
+  const priceLatestDate = getFirstTextValue(freshness?.latest?.price_trade_date);
+  const technicalLatestDate = getFirstTextValue(
+    freshness?.technical?.latest_date,
+    freshness?.latest?.technical_market_date,
+  );
+  const actionLatestDate = getFirstTextValue(freshness?.action?.latest_date, freshness?.latest?.action_market_date);
   const pricePipelineStage = getPipelineStage(pipelineStatus, "price_collection");
   const technicalPipelineStage = getPipelineStage(pipelineStatus, "technical_snapshots");
   const fundamentalsPipelineStage = getPipelineStage(pipelineStatus, "fundamentals_daily_refresh");
