@@ -7,7 +7,10 @@ import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useStat
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useAppState } from "@/components/providers/app-state-provider";
 import { FullPageLoadingScreen } from "@/components/ui/full-page-loading";
+import { getSymbolDetailCopy, type SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
+import { getNumberLocale } from "@/lib/locale";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
@@ -32,6 +35,7 @@ import type {
   EodPiotroskiFilterResultItemDto,
   EodPiotroskiFilterResultsResponseDto,
   EodTechnicalSnapshotsResponseDto,
+  Locale,
   SymbolPriceBarDto,
   SymbolPriceBarsResponseDto,
 } from "@/types/trading-api";
@@ -97,10 +101,6 @@ type TrackedSymbolsResponse = {
 };
 
 type PriceHistoryRange = "3M" | "1Y" | "5Y" | "MAX";
-
-const DATA_UNAVAILABLE_LABEL = "Unavailable";
-const DATE_PENDING_LABEL = "Date pending";
-const LOADING_LABEL = "Loading...";
 
 export type SymbolDetailMode =
   | "overview"
@@ -229,12 +229,12 @@ function readRouteParam(value: string | string[] | undefined) {
   return "";
 }
 
-async function loadTrackedSymbolsSnapshot() {
+async function loadTrackedSymbolsSnapshot(copy: SymbolDetailCopy) {
   const result = await getJsonResult<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
   if (!result.ok) {
     return {
       ok: false as const,
-      message: `Tracking status unavailable. HTTP ${result.status}`,
+      message: `${copy.errors.trackingStatusUnavailable} HTTP ${result.status}`,
     };
   }
 
@@ -249,14 +249,18 @@ function formatSignedPercent(value: number | null | undefined, fallback = "Unava
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable") {
+function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable", numberLocale = "en-US") {
   if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString(numberLocale)}`;
 }
 
-function formatCompactNumber(value: number | string | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
+function formatCompactNumber(
+  value: number | string | null | undefined,
+  fallback = "Unavailable",
+  numberLocale = "en-US",
+) {
   if (typeof value === "number") {
-    return new Intl.NumberFormat("ko-KR", {
+    return new Intl.NumberFormat(numberLocale, {
       notation: "compact",
       compactDisplay: "short",
       minimumFractionDigits: 0,
@@ -271,15 +275,15 @@ function formatCompactNumber(value: number | string | null | undefined, fallback
   return fallback;
 }
 
-function formatQuantity(value: number | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
-  return hasNumber(value) ? value.toLocaleString("ko-KR") : fallback;
+function formatQuantity(value: number | null | undefined, fallback = "Unavailable", numberLocale = "en-US") {
+  return hasNumber(value) ? value.toLocaleString(numberLocale) : fallback;
 }
 
-function formatNumberOrDash(value: number | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
+function formatNumberOrDash(value: number | null | undefined, fallback = "Unavailable") {
   return hasNumber(value) ? value.toFixed(2) : fallback;
 }
 
-function humanizeToken(value: string | null | undefined, fallback = DATA_UNAVAILABLE_LABEL) {
+function humanizeToken(value: string | null | undefined, fallback = "Unavailable") {
   if (!value) return fallback;
   return value
     .split("_")
@@ -359,7 +363,7 @@ function getCurrentSeoulMarketDate(now = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function formatIsoDateLabel(value: string | null | undefined, fallback = DATE_PENDING_LABEL) {
+function formatIsoDateLabel(value: string | null | undefined, fallback = "Date pending") {
   if (!value) return fallback;
   const [year, month, day] = value.split("-");
 
@@ -370,21 +374,22 @@ function formatIsoDateLabel(value: string | null | undefined, fallback = DATE_PE
   return `${year}.${month}.${day}`;
 }
 
-function buildQuoteSourceLabel(quote: QuoteResponse | null) {
-  if (!quote) return "Quote source pending.";
+function buildQuoteSourceLabel(quote: QuoteResponse | null, copy: SymbolDetailCopy) {
+  if (!quote) return copy.hero.quotePending;
   if (!quote.available) {
+    const unavailableLabel = copy.freshness.quoteCoverageUnavailable.replace(/\.$/, "");
     return quote.unavailable_reason
-      ? `Quote unavailable: ${quote.unavailable_reason}.`
-      : "Quote source is currently unavailable.";
+      ? `${unavailableLabel} ${quote.unavailable_reason}.`
+      : copy.freshness.quoteCoverageUnavailable;
   }
-  if (quote.is_live) return "Live feed.";
+  if (quote.is_live) return copy.freshness.live;
   if (quote.source === "daily_price_bar") {
     return quote.trade_date
       ? `최신 업데이트 : ${quote.trade_date}`
-      : "Daily price-bar fallback path.";
+      : copy.freshness.dailyPriceBarFallbackPath;
   }
-  if (quote.fallback) return `${quote.source} fallback path.`;
-  return `${quote.source} quote source.`;
+  if (quote.fallback) return `${quote.source} ${copy.freshness.fallbackPathSuffix}`;
+  return `${quote.source} ${copy.freshness.quoteSourceSuffix}`;
 }
 
 function shiftIsoDate(isoDate: string, { months = 0, years = 0 }: { months?: number; years?: number }) {
@@ -579,8 +584,8 @@ function formatHighlightLabel(metric: DartFundamentalsHistoryMetricDto, index: n
   return metric.label ?? metric.metric_key ?? `Metric ${index + 1}`;
 }
 
-function formatHighlightValue(metric: DartFundamentalsHistoryMetricDto) {
-  return formatCompactNumber(metric.value, "Not reported");
+function formatHighlightValue(metric: DartFundamentalsHistoryMetricDto, copy: SymbolDetailCopy) {
+  return formatCompactNumber(metric.value, copy.fundamentals.notReported);
 }
 
 function pickFundamentalsCompany(
@@ -627,6 +632,7 @@ function buildFundamentalsDate(
 function buildFundamentalsLatestLabel(
   latestHistoryEntry: DartFundamentalsHistoryEntryDto | null,
   latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
+  copy: SymbolDetailCopy,
 ) {
   return (
     latestHistoryEntry?.filing.report_nm ??
@@ -634,17 +640,18 @@ function buildFundamentalsLatestLabel(
     latestHistoryEntry?.period.report_label ??
     latestFundamentals?.period.report_label ??
     (latestFundamentals?.period.business_year ? `FY ${latestFundamentals.period.business_year}` : null) ??
-    "No filing loaded"
+    copy.fundamentals.noFilingLoaded
   );
 }
 
 function buildFundamentalsMetricFallbacks(
   latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
   latestHistoryEntry: DartFundamentalsHistoryEntryDto | null,
+  copy: SymbolDetailCopy,
 ) {
   const metrics: DartFundamentalsHistoryMetricDto[] = [];
-  const filingLabel = buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals);
-  metrics.push({ metric_key: "latest_filing", label: "Latest filing", value: filingLabel });
+  const filingLabel = buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy);
+  metrics.push({ metric_key: "latest_filing", label: copy.fundamentals.latestFiling, value: filingLabel });
 
   const periodLabel =
     latestHistoryEntry?.period.report_label ??
@@ -653,17 +660,21 @@ function buildFundamentalsMetricFallbacks(
     latestFundamentals?.period.period_end_date ??
     null;
   if (periodLabel) {
-    metrics.push({ metric_key: "period", label: "Period", value: periodLabel });
+    metrics.push({ metric_key: "period", label: copy.fundamentals.period, value: periodLabel });
   }
 
   if (hasNumber(latestFundamentals?.statement.row_count)) {
-    metrics.push({ metric_key: "statement_rows", label: "Statement rows", value: latestFundamentals.statement.row_count });
+    metrics.push({
+      metric_key: "statement_rows",
+      label: copy.fundamentals.statementRows,
+      value: latestFundamentals.statement.row_count,
+    });
   }
 
   return metrics.slice(0, 3);
 }
 
-function buildHistoryEntryMetrics(entry: DartFundamentalsHistoryEntryDto) {
+function buildHistoryEntryMetrics(entry: DartFundamentalsHistoryEntryDto, copy: SymbolDetailCopy) {
   const highlightMetrics = normalizeHighlightMetrics(entry.highlights);
   if (highlightMetrics.length > 0) {
     return highlightMetrics.slice(0, 2);
@@ -686,13 +697,13 @@ function buildHistoryEntryMetrics(entry: DartFundamentalsHistoryEntryDto) {
   return [
     {
       metric_key: "period_end",
-      label: "Period end",
-      value: entry.period.period_end_date ?? entry.period.report_label ?? "No period date",
+      label: copy.fundamentals.periodEnd,
+      value: entry.period.period_end_date ?? entry.period.report_label ?? copy.fundamentals.noPeriodDate,
     },
     {
       metric_key: "filing_receipt",
-      label: "Receipt",
-      value: entry.filing.receipt_date ?? "No receipt date",
+      label: copy.fundamentals.receipt,
+      value: entry.filing.receipt_date ?? copy.fundamentals.noReceiptDate,
     },
   ];
 }
@@ -700,39 +711,45 @@ function buildHistoryEntryMetrics(entry: DartFundamentalsHistoryEntryDto) {
 function buildFundamentalsCoverageNote(
   companyHistory: DartFundamentalsHistoryCompanyDto | null,
   latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null,
+  copy: SymbolDetailCopy,
 ) {
   if (companyHistory?.entries.length) {
-    return `${companyHistory.entries.length} stored filing period(s) loaded from the DART fundamentals history endpoint.`;
+    const count = companyHistory.entries.length.toLocaleString();
+    const separator = /^[A-Za-z]/.test(copy.fundamentals.storedPeriodsLoadedSuffix) ? " " : "";
+    return `${count}${separator}${copy.fundamentals.storedPeriodsLoadedSuffix}`;
   }
 
   if (latestFundamentals) {
-    return `Aggregate context has ${latestFundamentals.filing.report_name ?? "the latest filing snapshot"} from ${latestFundamentals.filing.receipt_date ?? latestFundamentals.period.period_end_date ?? "an undated filing period"}.`;
+    return `${copy.fundamentals.aggregateContextHas} ${latestFundamentals.filing.report_name ?? copy.fundamentals.latestFiling} ${copy.fundamentals.from} ${latestFundamentals.filing.receipt_date ?? latestFundamentals.period.period_end_date ?? copy.fundamentals.noPeriodDate}.`;
   }
 
-  return "Current web layer cannot confirm a stored fundamentals history row for this symbol yet.";
+  return copy.fundamentals.coverageMissing;
 }
 
-function buildFocusCandleRows(focusBar: SymbolPriceBarDto | null): HeroMetricRow[] {
+function buildFocusCandleRows(focusBar: SymbolPriceBarDto | null, copy: SymbolDetailCopy, numberLocale: string): HeroMetricRow[] {
   if (!focusBar) return [];
 
   return [
-    { label: "Open", value: formatPrice(focusBar.open_price) },
-    { label: "Close", value: formatPrice(focusBar.close_price) },
-    { label: "Volume", value: formatQuantity(focusBar.volume) },
-    { label: "Highest", value: formatPrice(focusBar.high_price) },
-    { label: "Lowest", value: formatPrice(focusBar.low_price) },
+    { label: copy.chart.open, value: formatPrice(focusBar.open_price) },
+    { label: copy.chart.close, value: formatPrice(focusBar.close_price) },
+    { label: copy.chart.volume, value: formatQuantity(focusBar.volume, copy.common.unavailable, numberLocale) },
+    { label: copy.chart.highest, value: formatPrice(focusBar.high_price) },
+    { label: copy.chart.lowest, value: formatPrice(focusBar.low_price) },
   ];
 }
 
 function buildDisclosureCoverageNote(
   latestDisclosure: AgentContextDisclosureDto | null,
   disclosureCount: number,
+  copy: SymbolDetailCopy,
 ) {
   if (disclosureCount > 0 && latestDisclosure) {
-    return `${disclosureCount} disclosure item(s) loaded. Latest filing landed on ${latestDisclosure.receipt_date ?? "an unavailable receipt date"}.`;
+    const count = disclosureCount.toLocaleString();
+    const separator = /^[A-Za-z]/.test(copy.disclosures.loadedSuffix) ? " " : "";
+    return `${count}${separator}${copy.disclosures.loadedSuffix} ${copy.disclosures.latestFilingLandedOn} ${latestDisclosure.receipt_date ?? copy.disclosures.unavailableReceiptDate}.`;
   }
 
-  return "No Disclosure Found for this symbol.";
+  return copy.disclosures.emptyTitle;
 }
 
 function normalizeMarketCode(value: string | null | undefined) {
@@ -750,18 +767,18 @@ function getMarketOpenState(marketStatus: MarketStatusResponse | null) {
   return null;
 }
 
-function resolveMarketStateValue(value: string | null | undefined) {
+function resolveMarketStateValue(value: string | null | undefined, copy: SymbolDetailCopy) {
   const state = normalizeMarketCode(value);
-  if (state === "OPEN") return "OPEN";
-  if (state === "CLOSED") return "CLOSED";
-  if (state === "PREOPEN") return "PREOPEN";
-  if (state === "POSTCLOSE") return "POSTCLOSE";
-  return value ?? "Not ready";
+  if (state === "OPEN") return copy.header.marketStates.open;
+  if (state === "CLOSED") return copy.header.marketStates.closed;
+  if (state === "PREOPEN") return copy.header.marketStates.preopen;
+  if (state === "POSTCLOSE") return copy.header.marketStates.postclose;
+  return value ?? copy.header.marketStates.notReady;
 }
 
-function resolveMarketStateLabel(item: MarketStatusItem) {
-  if (item.ready === false || item.available === false) return "Not ready";
-  return resolveMarketStateValue(item.state);
+function resolveMarketStateLabel(item: MarketStatusItem, copy: SymbolDetailCopy) {
+  if (item.ready === false || item.available === false) return copy.header.marketStates.notReady;
+  return resolveMarketStateValue(item.state, copy);
 }
 
 function getRelevantMarketStatusCodes(market: string) {
@@ -770,7 +787,11 @@ function getRelevantMarketStatusCodes(market: string) {
   return [market];
 }
 
-function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbackMarket: string | null | undefined) {
+function buildMarketStateRows(
+  marketStatus: MarketStatusResponse | null,
+  fallbackMarket: string | null | undefined,
+  copy: SymbolDetailCopy,
+) {
   const normalizedFallback = normalizeMarketCode(fallbackMarket);
   const items = Array.isArray(marketStatus?.markets) ? marketStatus.markets : [];
   const byCode = new Map<string, MarketStatusItem>();
@@ -786,23 +807,97 @@ function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbac
 
     if (relevantCode) {
       const item = byCode.get(relevantCode);
-      return item ? [{ market: relevantCode, state: resolveMarketStateLabel(item) }] : [];
+      return item
+        ? [{
+            market: relevantCode,
+            state: resolveMarketStateLabel(item, copy),
+            stateCode: normalizeMarketCode(item.state),
+            isReady: item.ready !== false && item.available !== false,
+          }]
+        : [];
     }
 
-    const fallbackState = resolveMarketStateValue(marketStatus?.state);
-    return fallbackState === "Not ready" ? [] : [{ market: normalizedFallback, state: fallbackState }];
+    const fallbackState = resolveMarketStateValue(marketStatus?.state, copy);
+    return fallbackState === copy.header.marketStates.notReady
+      ? []
+      : [{
+          market: normalizedFallback,
+          state: fallbackState,
+          stateCode: normalizeMarketCode(marketStatus?.state),
+          isReady: true,
+        }];
   }
 
   return items
     .map((item) => {
       const market = normalizeMarketCode(item.market ?? item.label);
       if (!market) return null;
-      return { market, state: resolveMarketStateLabel(item) };
+      return {
+        market,
+        state: resolveMarketStateLabel(item, copy),
+        stateCode: normalizeMarketCode(item.state),
+        isReady: item.ready !== false && item.available !== false,
+      };
     })
-    .filter((row): row is { market: string; state: string } => row !== null);
+    .filter((row): row is { market: string; state: string; stateCode: string | null; isReady: boolean } => row !== null);
+}
+
+function getTrackingButtonLabel(
+  locale: Locale,
+  symbol: string,
+  trackedSymbolsLoaded: boolean,
+  isTrackedSymbol: boolean,
+  trackingSaving: boolean,
+) {
+  if (trackingSaving) {
+    return locale === "ko" ? `${symbol} 추적 종목 상태 업데이트 중` : "Updating tracked-symbol membership";
+  }
+
+  if (!trackedSymbolsLoaded) {
+    return locale === "ko" ? `${symbol} 추적 종목 상태 확인 중` : `${symbol} tracked-symbol status pending`;
+  }
+
+  if (isTrackedSymbol) {
+    return locale === "ko" ? `${symbol}를 추적 종목에서 제거` : `Remove ${symbol} from tracked symbols`;
+  }
+
+  return locale === "ko" ? `${symbol}를 추적 종목에 추가` : `Add ${symbol} to tracked symbols`;
+}
+
+function getPiotroskiLabel(
+  piotroskiResult: EodPiotroskiFilterResultItemDto | null,
+  piotroskiLoadState: AggregateContextLoadState,
+  copy: SymbolDetailCopy,
+) {
+  if (piotroskiResult) {
+    return piotroskiResult.passed_filter ? copy.common.pass : copy.common.fail;
+  }
+
+  if (piotroskiLoadState === "loading") return copy.common.loading;
+  if (piotroskiLoadState === "error") return copy.common.unavailable;
+  return copy.common.pending;
+}
+
+function buildActionHeadline(
+  actionSummary: AgentContextActionSummaryDto | null,
+  copy: SymbolDetailCopy,
+) {
+  if (!actionSummary) return copy.action.emptyHeadline;
+  return `${humanizeToken(actionSummary.action_label)} · ${copy.action.confidence} ${humanizeToken(actionSummary.confidence_tier)}`;
+}
+
+function buildTechnicalHeadline(
+  technicalSnapshot: AgentContextTechnicalSnapshotDto | null,
+  copy: SymbolDetailCopy,
+) {
+  if (!technicalSnapshot) return copy.technical.emptyHeadline;
+  return `${copy.technical.maAlignment} ${humanizeToken(technicalSnapshot.ma_alignment)}`;
 }
 
 export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: SymbolDetailClientProps) {
+  const { locale } = useAppState();
+  const copy = getSymbolDetailCopy(locale);
+  const numberLocale = getNumberLocale(locale);
   const [activeMode, setActiveMode] = useState(mode);
   const params = useParams<{ symbol?: string | string[] }>();
   const pathname = usePathname();
@@ -864,6 +959,41 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const technicalSnapshotRequestKeyRef = useRef<string | null>(null);
   const actionSummaryRequestKeyRef = useRef<string | null>(null);
   const fundamentalsHistoryRequestKeyRef = useRef<string | null>(null);
+  const localizedModes = useMemo(
+    () => ({
+      overview: {
+        label: copy.modes.overview.label,
+        eyebrow: copy.modes.overview.eyebrow,
+        title: copy.modes.overview.title,
+      },
+      "action-summary": {
+        label: copy.modes.actionSummary.label,
+        eyebrow: copy.modes.actionSummary.eyebrow,
+        title: copy.modes.actionSummary.title,
+      },
+      "technical-analysis": {
+        label: copy.modes.technicalAnalysis.label,
+        eyebrow: copy.modes.technicalAnalysis.eyebrow,
+        title: copy.modes.technicalAnalysis.title,
+      },
+      "fundamentals-history": {
+        label: copy.modes.fundamentalsHistory.label,
+        eyebrow: copy.modes.fundamentalsHistory.eyebrow,
+        title: copy.modes.fundamentalsHistory.title,
+      },
+      "disclosure-coverage": {
+        label: copy.modes.disclosureCoverage.label,
+        eyebrow: copy.modes.disclosureCoverage.eyebrow,
+        title: copy.modes.disclosureCoverage.title,
+      },
+      "system-freshness": {
+        label: copy.modes.systemFreshness.label,
+        eyebrow: copy.modes.systemFreshness.eyebrow,
+        title: copy.modes.systemFreshness.title,
+      },
+    }),
+    [copy],
+  );
 
   useEffect(() => {
     setActiveMode(requestedViewMode ?? resolveSymbolDetailModeFromPathname(pathname, symbol) ?? mode);
@@ -935,7 +1065,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       }
 
       try {
-        const result = await loadTrackedSymbolsSnapshot();
+        const result = await loadTrackedSymbolsSnapshot(copy);
         if (!active) return;
 
         if (!result.ok) {
@@ -952,7 +1082,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         if (!active) return;
         setTrackedSymbols([]);
         setTrackedSymbolsLoaded(false);
-        setTrackingError("Tracking status unavailable.");
+        setTrackingError(copy.errors.trackingStatusUnavailable);
       }
     };
 
@@ -960,7 +1090,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [symbol, symbolReady]);
+  }, [copy, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -985,11 +1115,11 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         if (!active) return;
         const exactMatch = data.items.find((item) => item.symbol === symbol) ?? data.items[0] ?? null;
         setMeta(exactMatch);
-        setMetaError(exactMatch ? null : "Master symbol information was not found for this code.");
+        setMetaError(exactMatch ? null : copy.errors.masterSymbolNotFound);
       } catch (metaLoadError) {
         console.error("Symbol metadata load failed", metaLoadError);
         if (!active) return;
-        setMetaError("Unable to load master symbol information.");
+        setMetaError(copy.errors.masterSymbolUnavailable);
       }
     };
 
@@ -998,7 +1128,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [initialMeta, symbol, symbolReady]);
+  }, [copy, initialMeta, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1035,7 +1165,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       } catch (quoteLoadError) {
         console.error("Symbol quote load failed", quoteLoadError);
         if (!active) return;
-        setQuoteError("Unable to load symbol quote details from trading-core.");
+        setQuoteError(copy.errors.quoteUnavailable);
         timer = window.setTimeout(loadQuote, 1_500);
       } finally {
         if (active) {
@@ -1052,7 +1182,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         window.clearTimeout(timer);
       }
     };
-  }, [symbol, symbolReady]);
+  }, [copy, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1110,7 +1240,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         if (!active) return;
         setPriceHistory(null);
         setSelectedBar(null);
-        setHistoryError("Unable to load stored historical price bars from trading-core.");
+        setHistoryError(copy.errors.historyUnavailable);
         bootstrapPriceHistoryRequestKeyRef.current = null;
         fullPriceHistoryRequestKeyRef.current = null;
       } finally {
@@ -1125,7 +1255,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [hasFinishedInitialLoad, marketDate, shouldLoadPriceHistory, symbol, symbolReady]);
+  }, [copy, hasFinishedInitialLoad, marketDate, shouldLoadPriceHistory, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1174,7 +1304,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         if (!priceHistory?.items.length) {
           setPriceHistory(null);
           setSelectedBar(null);
-          setHistoryError("Unable to load stored historical price bars from trading-core.");
+          setHistoryError(copy.errors.historyUnavailable);
         }
 
         fullPriceHistoryRequestKeyRef.current = null;
@@ -1191,7 +1321,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [hasFinishedInitialLoad, marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol, symbolReady]);
+  }, [copy, hasFinishedInitialLoad, marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1235,13 +1365,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         const exactMatch = data.items.find((item) => item.symbol === symbol) ?? null;
         setAggregateContext(exactMatch);
         setAggregateContextLoadState(exactMatch ? "success" : "error");
-        setContextError(exactMatch ? null : "Aggregate symbol context did not include this symbol.");
+        setContextError(exactMatch ? null : copy.errors.aggregateMissing);
       } catch (aggregateLoadError) {
         console.error("Aggregate symbol context load failed", aggregateLoadError);
         if (!active) return;
         setAggregateContext(null);
         setAggregateContextLoadState("error");
-        setContextError("Aggregate symbol context is unavailable right now.");
+        setContextError(copy.errors.aggregateUnavailable);
       }
     };
 
@@ -1250,7 +1380,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [disclosureItemLimit, fsDiv, marketDate, shouldLoadAggregateContext, symbol, symbolReady]);
+  }, [copy, disclosureItemLimit, fsDiv, marketDate, shouldLoadAggregateContext, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1453,7 +1583,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         console.error("Fundamentals history load failed", fundamentalsLoadError);
         if (!active) return;
         setFundamentalsHistory(null);
-        setFundamentalsError("Unable to load DART fundamentals history from trading-core.");
+        setFundamentalsError(copy.errors.fundamentalsUnavailable);
         fundamentalsHistoryRequestKeyRef.current = null;
       } finally {
         if (active) {
@@ -1467,7 +1597,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [fsDiv, fundamentalsHistory, marketDate, shouldLoadFundamentalsHistory, symbol, symbolReady]);
+  }, [copy, fsDiv, fundamentalsHistory, marketDate, shouldLoadFundamentalsHistory, symbol, symbolReady]);
 
   const resolvedTechnicalSnapshot = technicalSnapshot ?? aggregateContext?.technical_snapshot ?? null;
   const resolvedActionSummary = actionSummary ?? aggregateContext?.action_summary ?? null;
@@ -1481,18 +1611,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const latestFundamentalEventLabel =
     latestDisclosure?.report_nm ??
     (latestHistoryEntry || latestFundamentals
-      ? buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals)
+      ? buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)
       : null);
   const latestFundamentalEventDate = latestDisclosure?.receipt_date ?? fundamentalsDate;
-  const piotroskiLabel = piotroskiResult
-    ? piotroskiResult.passed_filter
-      ? "Pass"
-      : "Fail"
-    : piotroskiLoadState === "loading"
-      ? LOADING_LABEL
-      : piotroskiLoadState === "error"
-        ? DATA_UNAVAILABLE_LABEL
-        : "Pending";
+  const piotroskiLabel = getPiotroskiLabel(piotroskiResult, piotroskiLoadState, copy);
   const piotroskiValueClassName = piotroskiResult
     ? piotroskiResult.passed_filter
       ? styles.positive
@@ -1505,7 +1627,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       ? latestHistoryHighlights
       : latestAggregateHighlights.length > 0
         ? latestAggregateHighlights
-        : buildFundamentalsMetricFallbacks(latestFundamentals, latestHistoryEntry);
+        : buildFundamentalsMetricFallbacks(latestFundamentals, latestHistoryEntry, copy);
   const disclosureSectionState = getDisclosureSectionState(
     aggregateContextLoadState,
     aggregateContext !== null,
@@ -1519,25 +1641,26 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const aggregateMarket = getForwardableSymbolMetaSeedValue(aggregateContext?.company.market);
   const metaMarket = getForwardableSymbolMetaSeedValue(meta?.market);
   const introTitle = aggregateCompanyName ?? metaCompanyName ?? quoteCompanyName ?? dartCompanyName ?? symbol;
-  const marketLabel = aggregateMarket ?? metaMarket ?? quote?.market_state ?? "Market pending";
-  const quoteSourceCopy = quote?.is_live ? null : buildQuoteSourceLabel(quote);
+  const marketLabel =
+    aggregateMarket ?? metaMarket ?? (quote?.market_state ? resolveMarketStateValue(quote.market_state, copy) : copy.header.marketPending);
+  const quoteSourceCopy = quote?.is_live ? null : buildQuoteSourceLabel(quote, copy);
   const detailErrors = [quoteError, metaError, historyError, contextError, fundamentalsError].filter(
     (value): value is string => Boolean(value),
   );
   const isTrackedSymbol = trackedSymbols.includes(normalizedSymbol);
-  const trackingButtonLabel = trackingSaving
-    ? "Updating tracked symbol"
-    : !trackedSymbolsLoaded
-      ? `Set tracked status for ${normalizedSymbol}`
-      : isTrackedSymbol
-        ? `Remove ${normalizedSymbol} from tracked symbols`
-        : `Add ${normalizedSymbol} to tracked symbols`;
+  const trackingButtonLabel = getTrackingButtonLabel(
+    locale,
+    normalizedSymbol,
+    trackedSymbolsLoaded,
+    isTrackedSymbol,
+    trackingSaving,
+  );
 
   const handleToggleTrackedSymbol = async () => {
     if (trackingSaving) return;
 
     if (!normalizedSymbol) {
-      setTrackingError("Tracking update unavailable for this symbol.");
+      setTrackingError(copy.errors.trackingUpdateUnavailable);
       return;
     }
 
@@ -1549,7 +1672,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         "/api/trading/scanner/tracked-symbols",
         "/api/trading/quotes/tracked",
       ]);
-      const currentResult = await loadTrackedSymbolsSnapshot();
+      const currentResult = await loadTrackedSymbolsSnapshot(copy);
       if (!currentResult.ok) {
         setTrackedSymbols([]);
         setTrackedSymbolsLoaded(false);
@@ -1575,7 +1698,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       });
 
       if (!result.ok) {
-        setTrackingError(`Tracking update failed. HTTP ${result.status}`);
+        setTrackingError(`${copy.errors.trackingUpdateFailed} HTTP ${result.status}`);
         return;
       }
 
@@ -1589,7 +1712,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       setTrackedSymbolsLoaded(true);
       setTrackingError(null);
     } catch {
-      setTrackingError("Tracking update failed.");
+      setTrackingError(copy.errors.trackingUpdateFailed);
     } finally {
       setTrackingSaving(false);
     }
@@ -1630,45 +1753,45 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     focusBar && previousFocusBar && previousFocusBar.close_price > 0
       ? ((focusBar.close_price - previousFocusBar.close_price) / previousFocusBar.close_price) * 100
       : null;
-  const focusCandleRows = buildFocusCandleRows(focusBar);
+  const focusCandleRows = buildFocusCandleRows(focusBar, copy, numberLocale);
   const focusCandleValue =
     focusCandleRows.length > 0
       ? null
       : shouldLoadPriceHistory
         ? historyLoading
-          ? LOADING_LABEL
-          : "No candle selected"
-        : "Open chart detail";
+          ? copy.hero.priceLoading
+          : copy.chart.noCandleSelected
+        : copy.chart.technicalTitle;
   const focusCandleDetail =
     focusCandleRows.length > 0
       ? null
       : shouldLoadPriceHistory
-        ? "Select a candle to inspect OHLCV details."
-        : "Open the overview or technical view to inspect stored OHLCV data.";
+        ? copy.chart.selectCandle
+        : copy.chart.selectCandle;
 
   const heroMetrics: HeroMetric[] = [
     {
-      label: "Focus candle",
+      label: copy.hero.focusCandle,
       value: focusCandleValue,
       detail: focusCandleDetail,
       rows: focusCandleRows,
     },
     {
-      label: "Fundamental latest",
+      label: copy.hero.fundamentalLatest,
       value:
         latestFundamentalEventLabel ??
-        (aggregateContextLoadState === "loading" || fundamentalsLoading ? LOADING_LABEL : "No DART event"),
+        (aggregateContextLoadState === "loading" || fundamentalsLoading ? copy.hero.priceLoading : copy.disclosures.emptyTitle),
       detail: latestFundamentalEventDate ? formatIsoDateLabel(latestFundamentalEventDate) : null,
     },
     {
-      label: "Piotroski filter",
+      label: copy.hero.piotroskiFilter,
       value: piotroskiLabel,
       valueClassName: piotroskiValueClassName,
       detail: null,
     },
     {
-      label: "Recommendation",
-      value: "Coming soon",
+      label: copy.hero.recommendation,
+      value: copy.hero.comingSoon,
       detail: null,
     },
   ];
@@ -1679,10 +1802,14 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const actionTone = buildActionTone(resolvedActionSummary);
   const technicalTone = buildTechnicalTone(resolvedTechnicalSnapshot);
   const freshnessTone = buildFreshnessTone(freshness?.today?.eod_status);
-  const marketStateRows = useMemo(() => buildMarketStateRows(marketStatus, metaMarket), [marketStatus, metaMarket]);
+  const marketStateRows = useMemo(() => buildMarketStateRows(marketStatus, metaMarket, copy), [copy, marketStatus, metaMarket]);
   const toolbarMarketOpenState = getMarketOpenState(marketStatus);
   const toolbarMarketBadgeLabel =
-    toolbarMarketOpenState === null ? "Market Pending" : toolbarMarketOpenState ? "Market Open" : "Market Closed";
+    toolbarMarketOpenState === null
+      ? copy.header.marketPending
+      : toolbarMarketOpenState
+        ? copy.header.marketOpen
+        : copy.header.marketClosed;
   const toolbarMarketBadgeTone =
     toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : styles.marketStatusClosedPill;
   const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
@@ -1742,63 +1869,64 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   }, [hasFinishedInitialLoad, initialRouteReady]);
 
   if (!hasFinishedInitialLoad) {
-    return <FullPageLoadingScreen label="Loading symbol workspace" />;
+    return <FullPageLoadingScreen label={copy.loadingWorkspace} />;
   }
 
   const moduleRows = [
     {
       id: "price",
-      label: "Price Module",
-      date: freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, "Quote pending"),
-      detail: quote?.available ? buildQuoteSourceLabel(quote) : quote?.unavailable_reason ?? "Quote coverage unavailable.",
+      label: copy.freshness.priceModule,
+      date: freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending),
+      detail: quote?.available ? buildQuoteSourceLabel(quote, copy) : quote?.unavailable_reason ?? copy.freshness.quoteCoverageUnavailable,
       tone: buildModuleStatusTone(Boolean(quote?.available)),
-      status: quote?.available ? (quote?.is_live ? "Live" : "Fallback") : "Unavailable",
+      status: quote?.available ? (quote?.is_live ? copy.freshness.live : copy.freshness.fallback) : copy.freshness.unavailable,
       api: "/api/trading/quotes/{symbol}",
     },
     {
       id: "technical",
-      label: "Technical Analysis",
-      date: technicalFreshnessDate ?? "No technical date",
+      label: copy.freshness.technicalModule,
+      date: technicalFreshnessDate ?? copy.freshness.noTechnicalDate,
       detail: resolvedTechnicalSnapshot
-        ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
-        : "Technical snapshot unavailable or still lagging the latest close.",
+        ? `${humanizeToken(resolvedTechnicalSnapshot.trend_state)} · ${copy.technical.maAlignment} ${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)}`
+        : copy.freshness.technicalUnavailable,
       tone: resolvedTechnicalSnapshot || freshness?.technical?.success ? technicalTone : "warning",
-      status: resolvedTechnicalSnapshot ? "Synced" : freshness?.technical?.success ? "Synced" : "Pending",
+      status: resolvedTechnicalSnapshot ? copy.freshness.synced : freshness?.technical?.success ? copy.freshness.synced : copy.freshness.pending,
       api: "/api/trading/eod/technical-snapshots",
     },
     {
       id: "action",
-      label: "Action Summary",
-      date: actionFreshnessDate ?? "No action date",
+      label: copy.freshness.actionModule,
+      date: actionFreshnessDate ?? copy.freshness.noActionDate,
       detail: resolvedActionSummary
-        ? `${humanizeToken(resolvedActionSummary.action_label)} · ${humanizeToken(resolvedActionSummary.risk_tier)} risk`
-        : "Action summary unavailable or not yet derived for this date.",
+        ? `${humanizeToken(resolvedActionSummary.action_label)} · ${copy.action.risk} ${humanizeToken(resolvedActionSummary.risk_tier)}`
+        : copy.freshness.actionUnavailable,
       tone: resolvedActionSummary ? actionTone : "warning",
-      status: resolvedActionSummary ? "Resolved" : "Pending",
+      status: resolvedActionSummary ? copy.freshness.resolved : copy.freshness.pending,
       api: "/api/trading/eod/action-summaries",
     },
     {
       id: "fundamentals",
-      label: "Fundamentals",
-      date: fundamentalsDate ?? "No filing date",
-      detail: buildFundamentalsCoverageNote(companyHistory, latestFundamentals),
+      label: copy.freshness.fundamentalsModule,
+      date: fundamentalsDate ?? copy.fundamentals.noReceiptDate,
+      detail: buildFundamentalsCoverageNote(companyHistory, latestFundamentals, copy),
       tone: companyHistory?.entries.length || latestFundamentals ? "info" : "warning",
-      status: companyHistory?.entries.length ? "History loaded" : latestFundamentals ? "Aggregate only" : "No history",
+      status: companyHistory?.entries.length ? copy.freshness.historyLoaded : latestFundamentals ? copy.freshness.aggregateOnly : copy.freshness.noHistory,
       api: "/api/trading/disclosures/dart/fundamentals/history",
     },
     {
       id: "disclosures",
-      label: "DART Disclosures",
+      label: copy.freshness.disclosuresModule,
       date:
         latestDisclosure?.receipt_date ??
         (disclosureSectionState === "loading"
-          ? LOADING_LABEL
+          ? copy.common.loading
           : disclosureSectionState === "empty"
-            ? "No disclosures"
-            : "Unavailable"),
+            ? copy.freshness.noDisclosures
+            : copy.freshness.unavailable),
       detail: buildDisclosureCoverageNote(
         latestDisclosure,
         aggregateContext?.recent_disclosures.count ?? 0,
+        copy,
       ),
       tone:
         disclosureSectionState === "list"
@@ -1808,16 +1936,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             : "warning",
       status:
         disclosureSectionState === "list"
-          ? "Coverage"
+          ? copy.freshness.coverage
           : disclosureSectionState === "empty"
-            ? "Empty"
+            ? copy.freshness.empty
             : disclosureSectionState === "loading"
-              ? "Loading"
-              : "Unavailable",
+              ? copy.freshness.loading
+              : copy.freshness.unavailable,
       api: "/api/trading/agent-context/symbol-day",
     },
   ] as const;
-  const activeDetailMode = SYMBOL_DETAIL_MODE_BY_ID[activeMode];
+  const activeDetailMode = localizedModes[activeMode];
   const toolbarTitle = introTitle;
   const showOverview = isOverviewMode;
   const showChartSection = showOverview || activeMode === "technical-analysis";
@@ -1834,7 +1962,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       header={
         <>
           <div className={styles.headerBrand}>
-            <Link href="/dashboard" className={styles.backButton} aria-label="Back to dashboard">
+            <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
               ←
             </Link>
             <div>
@@ -1862,7 +1990,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
           <div className={styles.heroTopRow}>
             <div>
-              <p className={styles.sectionEyebrow}>Market Insights</p>
+              <p className={styles.sectionEyebrow}>{copy.hero.eyebrow}</p>
               <div className={styles.heroTitleRow}>
                 <h1 className="clamp-3">{introTitle}</h1>
                 <p className={styles.heroCompany}>{symbol}</p>
@@ -1870,8 +1998,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             </div>
 
             <div className={styles.heroControls}>
-              <button type="button" className={styles.tradeButton} disabled title="Execution route is disabled on this read-only screen">
-                Trade
+              <button type="button" className={styles.tradeButton} disabled title={copy.hero.tradeDisabledTitle}>
+                {copy.hero.trade}
               </button>
               <button
                 type="button"
@@ -1898,15 +2026,15 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               {quote
                 ? quote.available
                   ? `₩${formatPrice(quote.price)}`
-                  : "N/A"
+                  : copy.common.notAvailable
                 : loading
-                  ? "Loading..."
-                  : "Quote pending"}
+                  ? copy.hero.priceLoading
+                  : copy.hero.quotePending}
             </strong>
             <span className={hasNumber(quote?.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : ""}>
               {quote?.available
-                ? `${formatSignedPercent(quote.change_pct)} · ${formatSignedNumber(quote.change)}`
-                : quote?.unavailable_reason ?? "Awaiting a fresh quote source"}
+                ? `${formatSignedPercent(quote.change_pct, copy.common.unavailable)} · ${formatSignedNumber(quote.change, copy.common.unavailable, numberLocale)}`
+                : quote?.unavailable_reason ?? copy.hero.awaitingQuoteSource}
             </span>
             {quoteSourceCopy ? <p className={`clamp-3 ${styles.heroCopy}`}>{quoteSourceCopy}</p> : null}
           </div>
@@ -1916,13 +2044,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             {marketStateRows.map((item) => (
               <span
                 key={item.market}
-                className={`pill ${item.state === "OPEN" ? "positive" : item.state === "Not ready" ? "warning" : "info"}`}
+                className={`pill ${item.stateCode === "OPEN" ? "positive" : !item.isReady || item.stateCode === null ? "warning" : "info"}`}
               >
                 {item.market}: {item.state}
               </span>
             ))}
             <span className={`pill ${quotePollingStopped ? "info" : "warning"}`}>
-              {quotePollingStopped ? "Polling stopped" : "Polling active"}
+              {quotePollingStopped ? copy.hero.pollingStopped : copy.hero.pollingActive}
             </span>
           </div>
 
@@ -1950,7 +2078,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         {detailErrors.length > 0 ? (
           <section className={`${styles.panel} ${styles.alertCard}`}>
             <ComponentTag label="symbol.errors" api="client fetch states" />
-            <p className={styles.sectionEyebrow}>Data Issues</p>
+            <p className={styles.sectionEyebrow}>{copy.errors.dataIssues}</p>
             <div className={styles.errorList}>
               {detailErrors.map((error) => (
                 <div key={error} className={styles.feedback}>
@@ -1966,7 +2094,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             <p className={styles.sectionEyebrow}>{activeDetailMode.eyebrow}</p>
             <h2 className={styles.cardTitle}>{activeDetailMode.title}</h2>
           </div>
-          <nav className={styles.detailTabs} aria-label="Symbol detail pages">
+          <nav className={styles.detailTabs} aria-label={copy.modes.tabsAriaLabel}>
             {SYMBOL_DETAIL_MODES.map((item) => (
               <button
                 key={item.mode}
@@ -1975,7 +2103,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 className={`${styles.detailTab} ${activeMode === item.mode ? styles.detailTabActive : ""}`.trim()}
                 onClick={(event) => handleDetailModeNavigation(event, item.mode)}
               >
-                {item.label}
+                {localizedModes[item.mode].label}
               </button>
             ))}
           </nav>
@@ -1991,10 +2119,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
           <div className={styles.cardHeader}>
             <div>
               <p className={styles.sectionEyebrow}>
-                {activeMode === "technical-analysis" ? "Momentum Intelligence Score" : "Historical Performance"}
+                {activeMode === "technical-analysis" ? copy.chart.technicalEyebrow : copy.chart.overviewEyebrow}
               </p>
               <h2 className={styles.cardTitle}>
-                {activeMode === "technical-analysis" ? "Candlestick view" : "Swipe-aware candlestick chart"}
+                {activeMode === "technical-analysis" ? copy.chart.technicalTitle : copy.chart.overviewTitle}
               </h2>
             </div>
 
@@ -2014,30 +2142,36 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
           <div className={styles.focusGrid}>
             <article className={styles.focusCard}>
-              <span>Focus date</span>
-              <strong>{focusBar?.trade_date ? formatIsoDateLabel(focusBar.trade_date) : historyLoading ? LOADING_LABEL : "No candle selected"}</strong>
+              <span>{copy.chart.focusDate}</span>
+              <strong>
+                {focusBar?.trade_date
+                  ? formatIsoDateLabel(focusBar.trade_date, copy.common.datePending)
+                  : historyLoading
+                    ? copy.common.loading
+                    : copy.chart.noCandleSelected}
+              </strong>
               <p className="clamp-3">
                 {focusBar
-                  ? `Open ${formatPrice(focusBar.open_price)} · High ${formatPrice(focusBar.high_price)} · Low ${formatPrice(focusBar.low_price)}`
-                  : "Select a candle to inspect OHLC details."}
+                  ? `${copy.chart.open} ${formatPrice(focusBar.open_price)} · ${copy.chart.highest} ${formatPrice(focusBar.high_price)} · ${copy.chart.lowest} ${formatPrice(focusBar.low_price)}`
+                  : copy.chart.selectCandle}
               </p>
             </article>
             <article className={styles.focusCard}>
-              <span>Close move</span>
+              <span>{copy.chart.closeMove}</span>
               <strong className={hasNumber(focusMovePct) ? (focusMovePct >= 0 ? styles.positive : styles.negative) : ""}>
-                {hasNumber(focusMovePct) ? formatSignedPercent(focusMovePct) : "No prior candle"}
+                {hasNumber(focusMovePct) ? formatSignedPercent(focusMovePct, copy.common.unavailable) : copy.chart.noPriorCandle}
               </strong>
               <p className="clamp-3">
                 {previousFocusBar
-                  ? `Prior close ${formatPrice(previousFocusBar.close_price)} · Current close ${formatPrice(focusBar?.close_price)}`
-                  : "Prior close comparison appears once a neighboring candle exists."}
+                  ? `${copy.chart.priorClose} ${formatPrice(previousFocusBar.close_price)} · ${copy.chart.currentClose} ${formatPrice(focusBar?.close_price)}`
+                  : copy.chart.priorCloseComparison}
               </p>
             </article>
             <article className={styles.focusCard}>
-              <span>Volume</span>
-              <strong>{formatCompactNumber(focusBar?.volume)}</strong>
+              <span>{copy.chart.volume}</span>
+              <strong>{formatCompactNumber(focusBar?.volume, copy.common.unavailable, numberLocale)}</strong>
               <p className="clamp-3">
-                {focusBar ? `Turnover ${formatTurnover(focusBar.turnover)}` : "Focus any candle for turnover metadata."}
+                {focusBar ? `${copy.chart.turnover} ${formatTurnover(focusBar.turnover)}` : copy.chart.turnover}
               </p>
             </article>
           </div>
@@ -2052,13 +2186,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               />
             ) : historyLoading ? (
               <div className={styles.emptyPanel}>
-                <strong>Loading stored price history</strong>
-                <p className="clamp-3">Requesting the selected historical OHLCV window from trading-core through the BFF.</p>
+                <strong>{copy.chart.loadingTitle}</strong>
+                <p className="clamp-3">{copy.chart.loadingBody}</p>
               </div>
             ) : (
               <div className={styles.emptyPanel}>
-                <strong>No stored bars returned</strong>
-                <p className="clamp-3">Trading-core did not return any daily price bars for the selected range.</p>
+                <strong>{copy.chart.emptyTitle}</strong>
+                <p className="clamp-3">{copy.chart.emptyBody}</p>
               </div>
             )}
           </div>
@@ -2066,13 +2200,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
           <div className={styles.chartFooter}>
             <span>
               {hasSelectedRangeHistoryLoaded && chartMetrics
-                ? `${selectedRange} return ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
+                ? `${selectedRange} ${copy.chart.returnLabel} ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
                 : historyHydrating
-                  ? `Hydrating ${selectedRange} history`
-                  : `${selectedRange} return pending`}
+                  ? `${copy.chart.hydratingPrefix} ${selectedRange} ${copy.chart.historySuffix}`.trim()
+                  : `${selectedRange} ${copy.chart.returnPendingSuffix}`}
             </span>
-            <span>{marketDate ? `Requested market date ${formatIsoDateLabel(marketDate)}` : "Market date pending"}</span>
-            <span>{historyHydrating ? "Latest bar loaded. Expanding the selected chart window." : "Swipe or drag the chart to move date focus."}</span>
+            <span>{marketDate ? `${copy.chart.requestedMarketDate} ${formatIsoDateLabel(marketDate, copy.common.datePending)}` : copy.chart.marketDatePending}</span>
+            <span>{historyHydrating ? copy.chart.loadingTitle : copy.chart.swipeHint}</span>
           </div>
         </section>
         ) : null}
@@ -2086,12 +2220,12 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               api="/api/trading/eod/action-summaries + /api/trading/agent-context/symbol-day"
             />
 
-            <div className={styles.cardHeader}>
-              <div>
-                <p className={styles.sectionEyebrow}>Action Summary</p>
-                <h2 className={styles.cardTitle}>Deterministic action layer</h2>
-              </div>
-              <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : "Unavailable"}</span>
+	            <div className={styles.cardHeader}>
+	              <div>
+	                <p className={styles.sectionEyebrow}>{copy.action.eyebrow}</p>
+	                <h2 className={styles.cardTitle}>{copy.action.title}</h2>
+	              </div>
+              <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : copy.action.unavailable}</span>
             </div>
             {showOverview ? (
               <button
@@ -2099,57 +2233,55 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 className={styles.detailLink}
                 onClick={(event) => handleDetailModeNavigation(event, "action-summary")}
               >
-                Open action detail
+                {copy.action.openDetail}
               </button>
             ) : null}
 
             <div className={styles.signalMeter}>
               <div className={styles.signalTrack}>
-                <span className={styles.signalSell}>Sell</span>
-                <span className={styles.signalStrong}>Strong Buy</span>
+                <span className={styles.signalSell}>{copy.action.sell}</span>
+                <span className={styles.signalStrong}>{copy.action.strongBuy}</span>
                 <div className={styles.signalFill} style={{ width: `${actionScore}%` }} />
               </div>
             </div>
 
             <strong className={`clamp-3 ${styles.insightHeadline}`}>
-              {resolvedActionSummary
-                ? `${humanizeToken(resolvedActionSummary.action_label)} bias with ${humanizeToken(resolvedActionSummary.confidence_tier)} confidence`
-                : "Action summary is not resolved for this symbol-date packet."}
+              {buildActionHeadline(resolvedActionSummary, copy)}
             </strong>
             <p className={`clamp-3 ${styles.supportingCopy}`}>
               {actionReasons.length > 0
                 ? actionReasons.join(" ")
-                : "No historical action rationale returned for this symbol-date packet yet."}
+                : copy.action.emptyBody}
             </p>
 
             <div className={styles.metricGrid}>
               <article className={styles.metricCard}>
-                <span>Confidence</span>
+                <span>{copy.action.confidence}</span>
                 <strong>{humanizeToken(resolvedActionSummary?.confidence_tier)}</strong>
               </article>
               <article className={styles.metricCard}>
-                <span>Risk</span>
+                <span>{copy.action.risk}</span>
                 <strong>{humanizeToken(resolvedActionSummary?.risk_tier)}</strong>
               </article>
               <article className={styles.metricCard}>
-                <span>Trigger</span>
+                <span>{copy.action.trigger}</span>
                 <strong>
                   {hasNumber(resolvedActionSummary?.trigger_price)
                     ? `₩${formatPrice(resolvedActionSummary?.trigger_price)}`
-                    : "No trigger price"}
+                    : copy.action.noTriggerPrice}
                 </strong>
               </article>
             </div>
 
             <div className={styles.tagGroup}>
-              {(actionReasons.length > 0 ? actionReasons : ["No rationale rows returned"]).map((reason) => (
+              {(actionReasons.length > 0 ? actionReasons : [copy.action.noRationaleRows]).map((reason) => (
                 <span key={reason} className={styles.tagChip}>
                   {reason}
                 </span>
               ))}
             </div>
 
-            <p className={styles.metaCaption}>Payload keys: {actionPayloadTags.join(" · ")}</p>
+            <p className={styles.metaCaption}>{copy.action.payloadKeys}: {actionPayloadTags.join(" · ")}</p>
           </section>
           ) : null}
 
@@ -2162,11 +2294,11 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
             <div className={styles.cardHeader}>
               <div>
-                <p className={styles.sectionEyebrow}>Technical Snapshot</p>
-                <h2 className={styles.cardTitle}>Stored snapshot metrics</h2>
+                <p className={styles.sectionEyebrow}>{copy.technical.eyebrow}</p>
+                <h2 className={styles.cardTitle}>{copy.technical.title}</h2>
               </div>
               <span className={`pill ${technicalTone}`}>
-                {resolvedTechnicalSnapshot ? humanizeToken(resolvedTechnicalSnapshot.trend_state) : "Unavailable"}
+                {resolvedTechnicalSnapshot ? humanizeToken(resolvedTechnicalSnapshot.trend_state) : copy.technical.unavailable}
               </span>
             </div>
             {showOverview ? (
@@ -2175,36 +2307,34 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 className={styles.detailLink}
                 onClick={(event) => handleDetailModeNavigation(event, "technical-analysis")}
               >
-                Open technical detail
+                {copy.technical.openDetail}
               </button>
             ) : null}
 
             <strong className={`clamp-3 ${styles.insightHeadline}`}>
-              {resolvedTechnicalSnapshot
-                ? `${humanizeToken(resolvedTechnicalSnapshot.ma_alignment)} structure`
-                : "Technical snapshot is not available for the requested market date."}
+              {buildTechnicalHeadline(resolvedTechnicalSnapshot, copy)}
             </strong>
             <p className={`clamp-3 ${styles.supportingCopy}`}>
               {resolvedTechnicalSnapshot
-                ? `Breakout 20D ${resolvedTechnicalSnapshot.breakout_20d ? "yes" : "no"} · Breakdown 20D ${resolvedTechnicalSnapshot.breakdown_20d ? "yes" : "no"} · Source ${resolvedTechnicalSnapshot.source}`
-                : "Only confirmed technical fields from trading-core are rendered here."}
+                ? `${copy.technical.breakout20d} ${resolvedTechnicalSnapshot.breakout_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.breakdown20d} ${resolvedTechnicalSnapshot.breakdown_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.source} ${resolvedTechnicalSnapshot.source}`
+                : copy.technical.emptyBody}
             </p>
 
             <div className={styles.metricGrid}>
               <article className={styles.metricCard}>
-                <span>5D return</span>
-                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, "No 5D return")}</strong>
+                <span>{copy.technical.return5d}</span>
+                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, copy.technical.noReturn5d)}</strong>
               </article>
               <article className={styles.metricCard}>
-                <span>20D return</span>
-                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, "No 20D return")}</strong>
+                <span>{copy.technical.return20d}</span>
+                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, copy.technical.noReturn20d)}</strong>
               </article>
               <article className={styles.metricCard}>
-                <span>Volume ratio 20D</span>
+                <span>{copy.technical.volumeRatio20d}</span>
                 <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.volume_ratio_20d)}</strong>
               </article>
               <article className={styles.metricCard}>
-                <span>ATR 14</span>
+                <span>{copy.technical.atr14}</span>
                 <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.atr_14)}</strong>
               </article>
             </div>
@@ -2218,7 +2348,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             </div>
 
             <p className={styles.metaCaption}>
-              Source date {resolvedTechnicalSnapshot?.market_date ?? technicalFreshnessDate ?? "No source date"} · Layer freshness is independent from price freshness.
+              {copy.technical.sourceDate} {resolvedTechnicalSnapshot?.market_date ?? technicalFreshnessDate ?? copy.technical.noSourceDate} · {copy.technical.freshnessNote}
             </p>
           </section>
           ) : null}
@@ -2236,10 +2366,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
             <div className={styles.cardHeader}>
               <div>
-                <p className={styles.sectionEyebrow}>Fundamentals</p>
-                <h2 className={styles.cardTitle}>Stored DART filing history</h2>
+                <p className={styles.sectionEyebrow}>{copy.fundamentals.eyebrow}</p>
+                <h2 className={styles.cardTitle}>{copy.fundamentals.title}</h2>
               </div>
-              <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? "Default FS"}</span>
+              <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? copy.fundamentals.defaultFs}</span>
             </div>
             {showOverview ? (
               <button
@@ -2247,7 +2377,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 className={styles.detailLink}
                 onClick={(event) => handleDetailModeNavigation(event, "fundamentals-history")}
               >
-                Open fundamentals detail
+                {copy.fundamentals.openDetail}
               </button>
             ) : null}
 
@@ -2256,7 +2386,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               <div>
                 <strong>{introTitle}</strong>
                 <p className="clamp-3">
-                  Latest filing {buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals)}.
+                  {copy.fundamentals.latestFilingPrefix} {buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}.
                 </p>
               </div>
             </div>
@@ -2266,13 +2396,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 latestHighlights.map((metric, index) => (
                   <article key={`${formatHighlightLabel(metric, index)}-${index}`} className={styles.metricCard}>
                     <span>{formatHighlightLabel(metric, index)}</span>
-                    <strong>{formatHighlightValue(metric)}</strong>
+                    <strong>{formatHighlightValue(metric, copy)}</strong>
                   </article>
                 ))
               ) : (
                 <article className={styles.metricCard}>
-                  <span>Latest filing</span>
-                  <strong>{buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals)}</strong>
+                  <span>{copy.fundamentals.latestFiling}</span>
+                  <strong>{buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}</strong>
                 </article>
               )}
             </div>
@@ -2280,7 +2410,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             <div className={styles.historyList}>
               {companyHistory?.entries.length ? (
                 companyHistory.entries.slice(0, fundamentalsEntryLimit).map((entry) => {
-                  const visibleHighlights = buildHistoryEntryMetrics(entry);
+                  const visibleHighlights = buildHistoryEntryMetrics(entry, copy);
 
                   return (
                     <article key={entry.filing.rcept_no} className={styles.historyCard}>
@@ -2288,19 +2418,19 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                         <div>
                           <strong className="clamp-3">
                             {entry.period.report_label ??
-                              `${entry.period.business_year ?? "Unknown year"} ${entry.period.report_code ?? ""}`}
+                              `${entry.period.business_year ?? copy.fundamentals.unknownYear} ${entry.period.report_code ?? ""}`}
                           </strong>
                           <p className="clamp-3">
-                            {entry.filing.report_nm ?? "Unnamed filing"} · Receipt {entry.filing.receipt_date ?? "No receipt date"}
+                            {entry.filing.report_nm ?? copy.fundamentals.unnamedFiling} · {copy.fundamentals.receipt} {entry.filing.receipt_date ?? copy.fundamentals.noReceiptDate}
                           </p>
                         </div>
-                        <span className="pill neutral">{entry.statement.fs_div ?? "FS pending"}</span>
+                        <span className="pill neutral">{entry.statement.fs_div ?? copy.fundamentals.fsPending}</span>
                       </div>
                       <div className={styles.historyMetrics}>
                         {visibleHighlights.map((metric, index) => (
                           <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}-${index}`} className={styles.historyMetricRow}>
                             <span>{formatHighlightLabel(metric, index)}</span>
-                            <strong>{formatHighlightValue(metric)}</strong>
+                            <strong>{formatHighlightValue(metric, copy)}</strong>
                           </div>
                         ))}
                       </div>
@@ -2309,13 +2439,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 })
               ) : fundamentalsLoading ? (
                 <div className={styles.emptyPanel}>
-                  <strong>Loading fundamentals history</strong>
-                  <p className="clamp-3">Requesting DART filing history through the trading-web BFF.</p>
+                  <strong>{copy.fundamentals.loadingTitle}</strong>
+                  <p className="clamp-3">{copy.fundamentals.loadingBody}</p>
                 </div>
               ) : (
                 <div className={styles.emptyPanel}>
-                  <strong>No stored fundamentals history</strong>
-                  <p className="clamp-3">{buildFundamentalsCoverageNote(companyHistory, latestFundamentals)}</p>
+                  <strong>{copy.fundamentals.emptyTitle}</strong>
+                  <p className="clamp-3">{buildFundamentalsCoverageNote(companyHistory, latestFundamentals, copy)}</p>
                 </div>
               )}
             </div>
@@ -2328,11 +2458,11 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
             <div className={styles.cardHeader}>
               <div>
-                <p className={styles.sectionEyebrow}>DART Disclosures</p>
-                <h2 className={styles.cardTitle}>Recent filing coverage</h2>
+                <p className={styles.sectionEyebrow}>{copy.disclosures.eyebrow}</p>
+                <h2 className={styles.cardTitle}>{copy.disclosures.title}</h2>
               </div>
               <span className={`pill ${disclosureSectionState === "list" ? "info" : disclosureSectionState === "empty" ? "neutral" : "warning"}`}>
-                {aggregateContext?.recent_disclosures.count ?? 0} items
+                {aggregateContext?.recent_disclosures.count ?? 0} {copy.disclosures.items}
               </span>
             </div>
             {showOverview ? (
@@ -2341,7 +2471,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 className={styles.detailLink}
                 onClick={(event) => handleDetailModeNavigation(event, "disclosure-coverage")}
               >
-                Open disclosure detail
+                {copy.disclosures.openDetail}
               </button>
             ) : null}
 
@@ -2352,45 +2482,45 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                     key={item.rcept_no}
                     className={styles.disclosureCard}
                     href={buildDisclosureReportHref(symbol, item, routeQueryString)}
-                    aria-label={`Open report detail for ${item.report_nm}`}
+                    aria-label={`${copy.disclosures.openReportPrefix} ${item.report_nm}`}
                   >
                     <div className={styles.disclosureHeader}>
                       <strong className="clamp-3">{item.report_nm}</strong>
-                      <span className="pill neutral">{item.receipt_date ?? "No receipt date"}</span>
+                      <span className="pill neutral">{item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
                     </div>
                     <p className="clamp-3">
-                      {humanizeToken(item.filing_category, "No category")} · Capture{" "}
-                      {humanizeToken(item.fundamentals_capture_status, "Not captured")}
+                      {humanizeToken(item.filing_category, copy.disclosures.noCategory)} · {copy.disclosures.capture}{" "}
+                      {humanizeToken(item.fundamentals_capture_status, copy.disclosures.notCaptured)}
                     </p>
                     <div className={styles.disclosureMeta}>
-                      <span>Receipt {item.receipt_date ?? "No receipt date"}</span>
-                      <span>Rcept {item.rcept_no}</span>
+                      <span>{copy.disclosures.receipt} {item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
+                      <span>{copy.disclosures.receiptNo} {item.rcept_no}</span>
                     </div>
-                    <span className={styles.disclosureAction}>View report detail</span>
+                    <span className={styles.disclosureAction}>{copy.disclosures.viewReportDetail}</span>
                   </Link>
                 ))}
               </div>
             ) : disclosureSectionState === "loading" ? (
               <div className={styles.emptyPanel}>
-                <strong>Loading disclosure coverage</strong>
-                <p className="clamp-3">Waiting for the aggregate symbol-day payload before rendering disclosure availability.</p>
+                <strong>{copy.disclosures.loadingTitle}</strong>
+                <p className="clamp-3">{copy.disclosures.loadingBody}</p>
               </div>
             ) : disclosureSectionState === "empty" ? (
               <div className={styles.emptyPanel}>
-                <strong>No Disclosure Found</strong>
-                <p className="clamp-3">Aggregate context succeeded, but no recent disclosure rows were attached to this symbol-day packet.</p>
+                <strong>{copy.disclosures.emptyTitle}</strong>
+                <p className="clamp-3">{copy.disclosures.emptyBody}</p>
               </div>
             ) : (
               <div className={styles.emptyPanel}>
-                <strong>Disclosure coverage unavailable</strong>
-                <p className="clamp-3">Recent disclosure coverage could not be confirmed because the aggregate route is currently unavailable.</p>
+                <strong>{copy.disclosures.unavailableTitle}</strong>
+                <p className="clamp-3">{copy.disclosures.unavailableBody}</p>
               </div>
             )}
 
             <div className={styles.coverageNote}>
-              <strong>{latestDisclosure ? "Latest disclosure available" : "Partial analyst coverage"}</strong>
+              <strong>{latestDisclosure ? copy.disclosures.latestDisclosureAvailable : copy.disclosures.partialAnalystCoverage}</strong>
               <p className="clamp-3">
-                {buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0)}
+                {buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0, copy)}
               </p>
             </div>
           </section>
@@ -2407,10 +2537,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
           <div className={styles.cardHeader}>
             <div>
-              <p className={styles.sectionEyebrow}>Operational Integrity</p>
-              <h2 className={styles.cardTitle}>Layer-specific freshness registry</h2>
+              <p className={styles.sectionEyebrow}>{copy.freshness.eyebrow}</p>
+              <h2 className={styles.cardTitle}>{copy.freshness.title}</h2>
             </div>
-            <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, "Status pending")}</span>
+            <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, copy.freshness.statusPending)}</span>
           </div>
           {showOverview ? (
             <button
@@ -2418,26 +2548,26 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               className={styles.detailLink}
               onClick={(event) => handleDetailModeNavigation(event, "system-freshness")}
             >
-              Open freshness detail
+              {copy.freshness.openDetail}
             </button>
           ) : null}
 
           <div className={styles.metricGrid}>
             <article className={styles.metricCard}>
-              <span>EOD trade date</span>
-              <strong>{freshness?.today?.trade_date ?? marketDate ?? DATE_PENDING_LABEL}</strong>
+              <span>{copy.freshness.eodTradeDate}</span>
+              <strong>{freshness?.today?.trade_date ?? marketDate ?? copy.common.datePending}</strong>
             </article>
             <article className={styles.metricCard}>
-              <span>Price latest</span>
-              <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, "Quote pending")}</strong>
+              <span>{copy.freshness.priceLatest}</span>
+              <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending)}</strong>
             </article>
             <article className={styles.metricCard}>
-              <span>Technical latest</span>
-              <strong>{technicalFreshnessDate ?? "No technical date"}</strong>
+              <span>{copy.freshness.technicalLatest}</span>
+              <strong>{technicalFreshnessDate ?? copy.freshness.noTechnicalDate}</strong>
             </article>
             <article className={styles.metricCard}>
-              <span>Action latest</span>
-              <strong>{actionFreshnessDate ?? "No action date"}</strong>
+              <span>{copy.freshness.actionLatest}</span>
+              <strong>{actionFreshnessDate ?? copy.freshness.noActionDate}</strong>
             </article>
           </div>
 

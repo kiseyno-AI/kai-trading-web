@@ -8,8 +8,11 @@ import { createPortal } from "react-dom";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useAppState } from "@/components/providers/app-state-provider";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
+import { getSearchPageCopy, type SearchPageCopy } from "@/i18n/search-page-copy";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
+import { getNumberLocale } from "@/lib/locale";
 import {
   buildMobileToolbarTrendingPath,
   MOBILE_TOOLBAR_FAVORITES_PATH,
@@ -210,12 +213,12 @@ const DEFAULT_MARKET_STATUS: CoreMarketStatus = {
   is_open: false,
   server_time: "",
 };
-const TRENDING_TABS: TrendingTab[] = [
-  { mode: "kis", label: "KIS", description: "Live KIS ranks" },
-  { mode: "1d", label: "1D", description: "One-day movers" },
-  { mode: "5d", label: "5D", description: "Five-day movers" },
-  { mode: "20d", label: "20D", description: "Twenty-day movers" },
-];
+
+const CLOSED_MARKET_STATUS: CoreMarketStatus = {
+  state: "CLOSED",
+  is_open: false,
+  server_time: "",
+};
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -252,10 +255,10 @@ function formatChangePct(value: number | null | undefined) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function PanelUnavailable({ message }: { message: string }) {
+function PanelUnavailable({ message, label }: { message: string; label: string }) {
   return (
     <div className={styles.feedback} role="status">
-      <strong>Unavailable</strong>
+      <strong>{label}</strong>
       <p className="clamp-3">{message}</p>
     </div>
   );
@@ -310,7 +313,7 @@ function getTrendingMetricValue(item: TrendingDisplayItem) {
   return item.metricValue;
 }
 
-function formatTrendingMetric(item: TrendingDisplayItem) {
+function formatTrendingMetric(item: TrendingDisplayItem, numberLocale: string) {
   const metricUnit = item.metricUnit?.toLowerCase();
   const value = getTrendingMetricValue(item);
 
@@ -319,12 +322,12 @@ function formatTrendingMetric(item: TrendingDisplayItem) {
     return formatChangePct(value);
   }
   if (metricUnit === "shares") {
-    return value.toLocaleString("ko-KR");
+    return value.toLocaleString(numberLocale);
   }
   if (metricUnit === "rank") {
     return `#${Math.round(value)}`;
   }
-  return value.toLocaleString("ko-KR");
+  return value.toLocaleString(numberLocale);
 }
 
 function getInitialFavoriteItems() {
@@ -335,7 +338,7 @@ function getInitialFavoriteItems() {
   );
 }
 
-function getInitialTrendingState() {
+function getInitialTrendingState(copy: SearchPageCopy) {
   const cachedData = readTradingApiJsonCacheData<RealtimeTrendingResponse>(
     buildMobileToolbarTrendingPath(TRENDING_INITIAL_LIMIT),
   );
@@ -347,7 +350,7 @@ function getInitialTrendingState() {
     };
   }
 
-  const mappedItems = mapRealtimeTrendingItems(cachedData);
+  const mappedItems = mapRealtimeTrendingItems(cachedData, copy);
   return {
     items: mappedItems.slice(0, TRENDING_INITIAL_LIMIT),
     meta: `${cachedData.status.toUpperCase()} · ${formatTrendingStatusDate(cachedData.as_of)}`,
@@ -365,12 +368,14 @@ function getTrendingPrice(item: StoredTrendingItem) {
   return item.price?.close_price ?? item.technical?.close_price ?? null;
 }
 
-function mapRealtimeTrendingItems(response: RealtimeTrendingResponse): TrendingDisplayItem[] {
+function mapRealtimeTrendingItems(response: RealtimeTrendingResponse, copy: SearchPageCopy): TrendingDisplayItem[] {
   return response.items.map((item, index) => {
     const primarySource = item.sources?.[0];
     const sourceCount = item.source_count ?? item.sources?.length ?? 0;
     const sourceLabel =
-      sourceCount > 1 ? `${sourceCount} KIS lists` : primarySource?.source_label ?? response.source.toUpperCase();
+      sourceCount > 1
+        ? `${sourceCount} ${copy.trending.kisListsSuffix}`
+        : primarySource?.source_label ?? response.source.toUpperCase();
     const market = normalizeSymbolMetaSeedValue(item.market ?? item.market_code ?? response.market ?? "KRX");
     const name = normalizeSymbolMetaSeedValue(item.name ?? item.symbol);
     const searchItem = normalizeSearchItem({
@@ -396,7 +401,11 @@ function mapRealtimeTrendingItems(response: RealtimeTrendingResponse): TrendingD
   });
 }
 
-function mapStoredTrendingItems(response: StoredTrendingResponse, mode: Exclude<TrendingMode, "kis">): TrendingDisplayItem[] {
+function mapStoredTrendingItems(
+  response: StoredTrendingResponse,
+  mode: Exclude<TrendingMode, "kis">,
+  copy: SearchPageCopy,
+): TrendingDisplayItem[] {
   return response.items.map((item, index) => {
     const market = normalizeSymbolMetaSeedValue(item.market ?? "KRX");
     const name = normalizeSymbolMetaSeedValue(item.name_ko ?? item.symbol);
@@ -412,7 +421,7 @@ function mapStoredTrendingItems(response: StoredTrendingResponse, mode: Exclude<
       name,
       market,
       rank: item.rank ?? index + 1,
-      sourceLabel: `${mode.toUpperCase()} stored rank`,
+      sourceLabel: `${mode.toUpperCase()} ${copy.trending.storedRankSuffix}`,
       metricName: item.metric?.name ?? `${mode}_return_pct`,
       metricUnit: "percent",
       metricValue: item.metric?.value ?? null,
@@ -426,6 +435,9 @@ function mapStoredTrendingItems(response: StoredTrendingResponse, mode: Exclude<
 export default function SearchPageClient() {
   const router = useRouter();
   const { beginNavigation } = useNavigationLoading();
+  const { locale } = useAppState();
+  const copy = getSearchPageCopy(locale);
+  const numberLocale = getNumberLocale(locale);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
@@ -446,15 +458,21 @@ export default function SearchPageClient() {
   const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
-  const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>(() => getInitialTrendingState().items);
+  const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>(() => getInitialTrendingState(copy).items);
   const [trendingVisibleLimit, setTrendingVisibleLimit] = useState(TRENDING_INITIAL_LIMIT);
-  const [trendingResultCount, setTrendingResultCount] = useState(() => getInitialTrendingState().resultCount);
-  const [trendingMeta, setTrendingMeta] = useState<string | null>(() => getInitialTrendingState().meta);
+  const [trendingResultCount, setTrendingResultCount] = useState(() => getInitialTrendingState(copy).resultCount);
+  const [trendingMeta, setTrendingMeta] = useState<string | null>(() => getInitialTrendingState(copy).meta);
   const [trendingLoading, setTrendingLoading] = useState(false);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(
     () => readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) ?? DEFAULT_MARKET_STATUS,
   );
+  const trendingTabs: TrendingTab[] = [
+    { mode: "kis", label: "KIS", description: copy.trending.tabs.kis },
+    { mode: "1d", label: "1D", description: copy.trending.tabs["1d"] },
+    { mode: "5d", label: "5D", description: copy.trending.tabs["5d"] },
+    { mode: "20d", label: "20D", description: copy.trending.tabs["20d"] },
+  ];
 
   useEffect(() => {
     let active = true;
@@ -464,12 +482,22 @@ export default function SearchPageClient() {
         const result = await getJson<CoreMarketStatus>("/api/trading/market/status");
         if (!active) return;
         if (!result.ok) {
+          setMarketStatus((current) => ({
+            ...current,
+            ...CLOSED_MARKET_STATUS,
+            server_time: current.server_time,
+          }));
           return;
         }
         setMarketStatus(result.data);
         seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, result.data);
       } catch {
         if (!active) return;
+        setMarketStatus((current) => ({
+          ...current,
+          ...CLOSED_MARKET_STATUS,
+          server_time: current.server_time,
+        }));
       }
     };
 
@@ -490,14 +518,14 @@ export default function SearchPageClient() {
         const result = await getJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites");
         if (!active) return;
         if (!result.ok) {
-          setFavoriteListError(`Favorite list unavailable. HTTP ${result.status}`);
+          setFavoriteListError(`${copy.errors.favoriteListUnavailable} HTTP ${result.status}`);
           return;
         }
         setFavoriteItems(result.data.items.map(normalizeSearchItem).slice(0, 4));
         setFavoriteListError(null);
       } catch {
         if (!active) return;
-        setFavoriteListError("Favorite list unavailable.");
+        setFavoriteListError(copy.errors.favoriteListUnavailable);
       }
     };
 
@@ -505,7 +533,7 @@ export default function SearchPageClient() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [copy.errors.favoriteListUnavailable]);
 
   useEffect(() => {
     let active = true;
@@ -515,13 +543,13 @@ export default function SearchPageClient() {
         const result = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
         if (!active) return;
         if (!result.ok) {
-          setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${result.status}`);
+          setTrackedSymbolsError(`${copy.errors.favoriteUpdatesUnavailable} HTTP ${result.status}`);
           return;
         }
         setTrackedSymbolsError(null);
       } catch {
         if (!active) return;
-        setTrackedSymbolsError("Favorite updates unavailable.");
+        setTrackedSymbolsError(copy.errors.favoriteUpdatesUnavailable);
       }
     };
 
@@ -529,7 +557,7 @@ export default function SearchPageClient() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [copy.errors.favoriteUpdatesUnavailable]);
 
   useEffect(() => {
     const searchQuery = query.trim();
@@ -552,7 +580,7 @@ export default function SearchPageClient() {
         if (!active) return;
         if (!result.ok) {
           setItems([]);
-          setSearchError(`Search endpoint unavailable. Check trading-core or BFF connectivity. HTTP ${result.status}`);
+          setSearchError(`${copy.errors.searchUnavailable} HTTP ${result.status}`);
           return;
         }
         const data = result.data;
@@ -562,7 +590,7 @@ export default function SearchPageClient() {
       } catch {
         if (!active) return;
         setItems([]);
-        setSearchError("Search endpoint unavailable. Check trading-core or BFF connectivity.");
+        setSearchError(copy.errors.searchUnavailable);
       } finally {
         if (active) setSearchLoading(false);
       }
@@ -571,7 +599,7 @@ export default function SearchPageClient() {
     return () => {
       active = false;
     };
-  }, [query]);
+  }, [copy.errors.searchUnavailable, query]);
 
   useEffect(() => {
     if (!favoriteDialogOpen) return;
@@ -604,7 +632,7 @@ export default function SearchPageClient() {
         if (!active) return;
         if (!result.ok) {
           setFavoriteSearchItems([]);
-          setFavoriteSearchError(`Favorite search unavailable. HTTP ${result.status}`);
+          setFavoriteSearchError(`${copy.errors.favoriteSearchUnavailable} HTTP ${result.status}`);
           return;
         }
         setFavoriteSearchItems(result.data.items.map(normalizeSearchItem));
@@ -612,7 +640,7 @@ export default function SearchPageClient() {
       } catch {
         if (!active) return;
         setFavoriteSearchItems([]);
-        setFavoriteSearchError("Favorite search unavailable. Check trading-core connectivity.");
+        setFavoriteSearchError(copy.errors.favoriteSearchUnavailable);
       } finally {
         if (active) setFavoriteSearchLoading(false);
       }
@@ -622,7 +650,7 @@ export default function SearchPageClient() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [favoriteDialogOpen, favoriteSymbolInput]);
+  }, [copy.errors.favoriteSearchUnavailable, favoriteDialogOpen, favoriteSymbolInput]);
 
   useEffect(() => {
     let active = true;
@@ -636,11 +664,11 @@ export default function SearchPageClient() {
           const result = await getJson<RealtimeTrendingResponse>(getTrendingEndpoint(trendingMode, trendingVisibleLimit));
           if (!active) return;
           if (!result.ok) {
-            setTrendingError(`KIS trending unavailable. HTTP ${result.status}`);
+            setTrendingError(`${copy.errors.trendingUnavailable} HTTP ${result.status}`);
             return;
           }
 
-          const mappedItems = mapRealtimeTrendingItems(result.data);
+          const mappedItems = mapRealtimeTrendingItems(result.data, copy);
           setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
           setTrendingResultCount(result.data.summary?.item_count ?? mappedItems.length);
           setTrendingMeta(`${result.data.status.toUpperCase()} · ${formatTrendingStatusDate(result.data.as_of)}`);
@@ -650,17 +678,19 @@ export default function SearchPageClient() {
         const result = await getJson<StoredTrendingResponse>(getTrendingEndpoint(trendingMode, trendingVisibleLimit));
         if (!active) return;
         if (!result.ok) {
-          setTrendingError(`${trendingMode.toUpperCase()} trending unavailable. HTTP ${result.status}`);
+          setTrendingError(`${copy.errors.trendingUnavailable} HTTP ${result.status}`);
           return;
         }
 
-        const mappedItems = mapStoredTrendingItems(result.data, trendingMode);
+        const mappedItems = mapStoredTrendingItems(result.data, trendingMode, copy);
         setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
         setTrendingResultCount(result.data.summary?.count ?? mappedItems.length);
-        setTrendingMeta(`Stored ${trendingMode.toUpperCase()} · ${result.data.request?.resolved_market_date ?? UNKNOWN}`);
+        setTrendingMeta(
+          `${copy.trending.storedPrefix} ${trendingMode.toUpperCase()} · ${result.data.request?.resolved_market_date ?? UNKNOWN}`,
+        );
       } catch {
         if (!active) return;
-        setTrendingError("Trending symbols unavailable. Check trading-core connectivity.");
+        setTrendingError(copy.errors.trendingUnavailable);
       } finally {
         if (active) setTrendingLoading(false);
       }
@@ -670,7 +700,7 @@ export default function SearchPageClient() {
     return () => {
       active = false;
     };
-  }, [trendingMode, trendingVisibleLimit]);
+  }, [copy, copy.errors.trendingUnavailable, trendingMode, trendingVisibleLimit]);
 
   useEffect(() => {
     if (!selected) return;
@@ -708,15 +738,24 @@ export default function SearchPageClient() {
 
   const trimmedQuery = query.trim();
   const searchSuggestions = trimmedQuery ? items.slice(0, 6) : [];
-  const resultTitle = trimmedQuery ? `Results for "${trimmedQuery}"` : "Search Results";
+  const resultTitle = trimmedQuery
+    ? locale === "ko"
+      ? `"${trimmedQuery}" ${copy.results.resultPrefix}`
+      : `${copy.results.resultPrefix} "${trimmedQuery}"`
+    : copy.results.title;
   const selectedQuoteDate = quote ? formatDisplayTimestamp(quote.cached_at ?? quote.trade_date, UNKNOWN) : UNKNOWN;
   const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput);
   const favoriteInputItem = favoriteSymbolCandidate ? getValidatedFavoriteItem(favoriteSymbolCandidate) : null;
   const canAddFavorite = favoriteInputItem !== null && favoriteSavingSymbol === null;
   const quickAccessItems = favoriteItems;
-  const selectedTrendingTab = TRENDING_TABS.find((tab) => tab.mode === trendingMode) ?? TRENDING_TABS[0];
+  const selectedTrendingTab = trendingTabs.find((tab) => tab.mode === trendingMode) ?? trendingTabs[0];
   const canShowMoreTrending = trendingItems.length > 0 && trendingResultCount >= trendingVisibleLimit && !trendingLoading;
-  const marketBadgeLabel = marketStatus.is_open ? "Market Open" : "Market Closed";
+  const marketBadgeLabel =
+    marketStatus.state === DEFAULT_MARKET_STATUS.state
+      ? copy.status.marketPending
+      : marketStatus.is_open
+        ? copy.status.marketOpen
+        : copy.status.marketClosed;
 
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
@@ -770,13 +809,13 @@ export default function SearchPageClient() {
 
     if (!symbolCandidate) {
       setFavoriteStatus(null);
-      setFavoriteError("Enter a symbol code before adding a favorite.");
+      setFavoriteError(copy.errors.enterSymbol);
       return;
     }
 
     if (!favoriteSourceItem) {
       setFavoriteStatus(null);
-      setFavoriteError("Select a symbol from the search suggestions before adding a favorite.");
+      setFavoriteError(copy.errors.selectSuggestion);
       return;
     }
 
@@ -788,8 +827,8 @@ export default function SearchPageClient() {
     try {
       const currentResult = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
       if (!currentResult.ok) {
-        setTrackedSymbolsError(`Favorite updates unavailable. HTTP ${currentResult.status}`);
-        setFavoriteError(`Favorite save blocked until tracked symbols refresh succeeds. HTTP ${currentResult.status}`);
+        setTrackedSymbolsError(`${copy.errors.favoriteUpdatesUnavailable} HTTP ${currentResult.status}`);
+        setFavoriteError(`${copy.errors.favoriteSaveBlocked} HTTP ${currentResult.status}`);
         return;
       }
       const currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
@@ -805,7 +844,7 @@ export default function SearchPageClient() {
       });
 
       if (!result.ok) {
-        setFavoriteError(`Favorite save failed. HTTP ${result.status}`);
+        setFavoriteError(`${copy.errors.favoriteSaveFailed} HTTP ${result.status}`);
         return;
       }
       invalidateTradingApiCacheByPathPrefix([
@@ -820,12 +859,12 @@ export default function SearchPageClient() {
       try {
         refreshedFavorites = await getJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites");
       } catch {
-        setFavoriteError("Favorite saved but core favorites refresh failed.");
+        setFavoriteError(copy.errors.favoriteRefreshFailed);
         return;
       }
 
       if (!refreshedFavorites.ok) {
-        setFavoriteError(`Favorite saved but core favorites refresh failed. HTTP ${refreshedFavorites.status}`);
+        setFavoriteError(`${copy.errors.favoriteRefreshFailed} HTTP ${refreshedFavorites.status}`);
         return;
       }
 
@@ -834,11 +873,11 @@ export default function SearchPageClient() {
       setFavoriteSearchItems([]);
       setFavoriteSearchError(null);
       setFavoriteSymbolInput("");
-      setFavoriteStatus(`${symbol} saved to core favorites.`);
+      setFavoriteStatus(`${symbol} ${copy.quickAccess.savedSuffix}`);
       void warmMobileToolbarViewData("search");
       window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
     } catch {
-      setFavoriteError("Favorite save failed. Check trading-core connectivity.");
+      setFavoriteError(copy.errors.favoriteSaveFailed);
     } finally {
       setFavoriteSavingSymbol(null);
     }
@@ -852,7 +891,7 @@ export default function SearchPageClient() {
           <div className={styles.appHeaderBrand}>
             <div className={styles.brandMark}>K</div>
             <div>
-              <strong className={styles.brandTitle}>Trading Dashboard</strong>
+              <strong className={styles.brandTitle}>{copy.brandTitle}</strong>
             </div>
           </div>
 
@@ -868,21 +907,20 @@ export default function SearchPageClient() {
       <div className={styles.searchTerminal}>
         <section className={styles.heroPanel}>
           <ComponentTag label="search.terminal-shell" api="/api/trading/symbols/search" />
-          <p className={styles.desktopBreadcrumb}>Search &gt; Symbol Lookup</p>
-          <h1>Universal Search</h1>
+          <p className={styles.desktopBreadcrumb}>{copy.hero.breadcrumb}</p>
+          <h1>{copy.hero.title}</h1>
           <p className={`${styles.heroCopy} clamp-3`}>
-            Query markets, symbols, and institutional intelligence through the trading-core BFF. Confirmed data renders from
-            live endpoints; unsupported fields stay marked as {UNKNOWN}.
+            {copy.hero.description}
           </p>
           <div className={styles.searchInputStack}>
             <label className={styles.searchInputFrame}>
-              <span className={styles.srOnly}>Search markets, symbols, or analysis</span>
+              <span className={styles.srOnly}>{copy.hero.inputLabel}</span>
               <span className={styles.searchGlyph} aria-hidden="true" />
               <input
                 value={query}
                 onChange={(event) => handleQueryChange(event.target.value)}
-                placeholder="Search markets, symbols, or analysis..."
-                aria-label="Search markets, symbols, or analysis"
+                placeholder={copy.hero.inputPlaceholder}
+                aria-label={copy.hero.inputLabel}
                 role="combobox"
                 aria-autocomplete="list"
                 aria-expanded={Boolean(trimmedQuery)}
@@ -890,7 +928,7 @@ export default function SearchPageClient() {
                 autoComplete="off"
               />
               {query ? (
-                <button type="button" onClick={() => handleQueryChange("")} aria-label="Clear search query">
+                <button type="button" onClick={() => handleQueryChange("")} aria-label={copy.hero.clearQuery}>
                   /
                 </button>
               ) : (
@@ -902,11 +940,11 @@ export default function SearchPageClient() {
               <div
                 id={SEARCH_SUGGESTIONS_ID}
                 className={styles.searchSuggestions}
-                aria-label="Search suggestions"
+                aria-label={copy.hero.suggestions}
                 aria-busy={searchLoading}
                 aria-live="polite"
               >
-                {searchError ? <PanelUnavailable message={searchError} /> : null}
+                {searchError ? <PanelUnavailable message={searchError} label={copy.status.unavailable} /> : null}
                 {searchSuggestions.map((item) => {
                   const isSelected = selected?.symbol === item.symbol;
                   return (
@@ -925,11 +963,11 @@ export default function SearchPageClient() {
                     </Link>
                   );
                 })}
-                {searchLoading ? <p className={styles.searchSuggestionStatus}>Searching...</p> : null}
+                {searchLoading ? <p className={styles.searchSuggestionStatus}>{copy.status.searching}</p> : null}
                 {!searchLoading && searchSuggestions.length === 0 && !searchError ? (
                   <div className={styles.emptyState}>
-                    <strong>No matching symbols.</strong>
-                    <p className="clamp-3">Refine the symbol or company name and try again.</p>
+                    <strong>{copy.hero.noMatchesTitle}</strong>
+                    <p className="clamp-3">{copy.hero.noMatchesBody}</p>
                   </div>
                 ) : null}
               </div>
@@ -943,26 +981,32 @@ export default function SearchPageClient() {
             api="/api/trading/symbols/favorites + /api/trading/scanner/tracked-symbols + dialog /api/trading/symbols/search"
           />
           <div className={styles.sectionHeader}>
-            <h2>Quick Access</h2>
+            <h2>{copy.quickAccess.title}</h2>
             <div className={styles.sectionActions}>
               <button
                 ref={favoriteOpenButtonRef}
                 type="button"
                 onClick={handleOpenFavoriteDialog}
                 disabled={favoriteSavingSymbol !== null}
-                aria-label="Open favorite search"
+                aria-label={copy.quickAccess.openFavoriteSearch}
                 aria-haspopup="dialog"
                 aria-expanded={favoriteDialogOpen}
                 aria-controls={favoriteDialogOpen ? FAVORITE_DIALOG_ID : undefined}
               >
                 +
               </button>
-              <span>{favoriteListError ? "Unavailable" : favoriteItems.length > 0 ? "Core favorites" : "No favorites"}</span>
+              <span>
+                {favoriteListError
+                  ? copy.status.unavailable
+                  : favoriteItems.length > 0
+                    ? copy.quickAccess.coreFavorites
+                    : copy.quickAccess.noFavorites}
+              </span>
             </div>
           </div>
           <div className={styles.quickGrid}>
             {favoriteListError ? (
-              <PanelUnavailable message={favoriteListError} />
+              <PanelUnavailable message={favoriteListError} label={copy.status.unavailable} />
             ) : quickAccessItems.length > 0 ? (
               quickAccessItems.map((item) => (
                 <button
@@ -979,8 +1023,8 @@ export default function SearchPageClient() {
               ))
             ) : (
               <div className={styles.emptyState}>
-                <strong>No favorites saved.</strong>
-                <p className="clamp-3">Use + to search the symbol master and save a core favorite.</p>
+                <strong>{copy.quickAccess.emptyTitle}</strong>
+                <p className="clamp-3">{copy.quickAccess.emptyBody}</p>
               </div>
             )}
           </div>
@@ -1000,10 +1044,14 @@ export default function SearchPageClient() {
                   >
                     <div className={styles.favoriteDialogHeader}>
                       <div>
-                        <strong id="favorite-dialog-title">Save Symbol</strong>
-                        <span>Search the symbol master</span>
+                        <strong id="favorite-dialog-title">{copy.quickAccess.dialogTitle}</strong>
+                        <span>{copy.quickAccess.dialogSubtitle}</span>
                       </div>
-                      <button type="button" onClick={handleCloseFavoriteDialog} aria-label="Close favorite search">
+                      <button
+                        type="button"
+                        onClick={handleCloseFavoriteDialog}
+                        aria-label={copy.quickAccess.closeFavoriteSearch}
+                      >
                         x
                       </button>
                     </div>
@@ -1015,15 +1063,15 @@ export default function SearchPageClient() {
                       }}
                     >
                       <label className={styles.srOnly} htmlFor="favorite-symbol-search">
-                        Favorite symbol search
+                        {copy.quickAccess.inputLabel}
                       </label>
                       <input
                         ref={favoriteSearchInputRef}
                         id="favorite-symbol-search"
                         value={favoriteSymbolInput}
                         onChange={(event) => setFavoriteSymbolInput(event.target.value)}
-                        placeholder="Search symbol or company..."
-                        aria-label="Favorite symbol search"
+                        placeholder={copy.quickAccess.inputPlaceholder}
+                        aria-label={copy.quickAccess.inputLabel}
                         role="combobox"
                         aria-autocomplete="list"
                         aria-expanded={favoriteSearchItems.length > 0}
@@ -1031,7 +1079,7 @@ export default function SearchPageClient() {
                         autoComplete="off"
                       />
                       <button type="submit" disabled={!canAddFavorite}>
-                        {favoriteSavingSymbol ? "Saving" : "Add"}
+                        {favoriteSavingSymbol ? copy.status.saving : copy.quickAccess.add}
                       </button>
                     </form>
                     {favoriteSearchError ? <div className={styles.feedback}>{favoriteSearchError}</div> : null}
@@ -1039,7 +1087,7 @@ export default function SearchPageClient() {
                     <div
                       id={FAVORITE_SUGGESTIONS_ID}
                       className={styles.favoriteSuggestions}
-                      aria-label="Favorite search suggestions"
+                      aria-label={copy.quickAccess.suggestions}
                       aria-busy={favoriteSearchLoading}
                       aria-live="polite"
                     >
@@ -1062,17 +1110,17 @@ export default function SearchPageClient() {
                       !favoriteSearchLoading &&
                       !favoriteSearchError ? (
                         <div className={styles.emptyState}>
-                          <strong>No matching symbols.</strong>
-                          <p className="clamp-3">Enter an exact symbol code from the symbol master or refine the search.</p>
+                          <strong>{copy.quickAccess.noMatchesTitle}</strong>
+                          <p className="clamp-3">{copy.quickAccess.noMatchesBody}</p>
                         </div>
                       ) : null}
                       {!favoriteSymbolInput.trim() ? (
                         <div className={styles.emptyState}>
-                          <strong>Start typing to search.</strong>
-                          <p className="clamp-3">Suggestions use the same symbol master as Universal Search.</p>
+                          <strong>{copy.quickAccess.startTypingTitle}</strong>
+                          <p className="clamp-3">{copy.quickAccess.startTypingBody}</p>
                         </div>
                       ) : null}
-                      {favoriteSearchLoading ? <p className={styles.favoriteSearchStatus}>Searching...</p> : null}
+                      {favoriteSearchLoading ? <p className={styles.favoriteSearchStatus}>{copy.status.searching}</p> : null}
                     </div>
                   </div>
                 </div>,
@@ -1090,11 +1138,11 @@ export default function SearchPageClient() {
             api="/api/trading/scanner/realtime-trending + /api/trading/scanner/trending-stocks"
           />
           <div className={styles.sectionHeader}>
-            <h2>Trending Symbols</h2>
+            <h2>{copy.trending.title}</h2>
             <span>{trendingMeta ?? selectedTrendingTab.description}</span>
           </div>
-          <div className={styles.trendingTabs} role="tablist" aria-label="Trending source">
-            {TRENDING_TABS.map((tab) => (
+          <div className={styles.trendingTabs} role="tablist" aria-label={copy.trending.source}>
+            {trendingTabs.map((tab) => (
               <button
                 key={tab.mode}
                 type="button"
@@ -1108,7 +1156,7 @@ export default function SearchPageClient() {
               </button>
             ))}
           </div>
-          {trendingError ? <PanelUnavailable message={trendingError} /> : null}
+          {trendingError ? <PanelUnavailable message={trendingError} label={copy.status.unavailable} /> : null}
           <div className={styles.trendingList}>
             {trendingItems.map((item) => {
               const isSelected = selected?.symbol === item.symbol;
@@ -1125,7 +1173,7 @@ export default function SearchPageClient() {
                     <small className="clamp-3">{item.symbol}</small>
                   </span>
                   <span className={styles.trendingMetric}>
-                    <strong className={getTrendingMetricClass(item)}>{formatTrendingMetric(item)}</strong>
+                    <strong className={getTrendingMetricClass(item)}>{formatTrendingMetric(item, numberLocale)}</strong>
                     <small className="clamp-3">
                       {item.sourceLabel} · {item.market}
                     </small>
@@ -1136,14 +1184,20 @@ export default function SearchPageClient() {
             {trendingItems.length === 0 && !trendingLoading && !trendingError ? (
               <div className={styles.emptyState}>
                 <strong>{UNKNOWN}</strong>
-                <p className="clamp-3">No symbols returned for {selectedTrendingTab.label} trending.</p>
+                <p className="clamp-3">
+                  {copy.trending.noSymbolsPrefix} {selectedTrendingTab.label} {copy.trending.noSymbolsSuffix}
+                </p>
               </div>
             ) : null}
           </div>
-          {trendingLoading ? <p className={styles.trendingStatus}>Loading {selectedTrendingTab.label} symbols...</p> : null}
+          {trendingLoading ? (
+            <p className={styles.trendingStatus}>
+              {copy.trending.loadingPrefix} {selectedTrendingTab.label} {copy.trending.loadingSuffix}
+            </p>
+          ) : null}
           {canShowMoreTrending ? (
             <button type="button" className={styles.trendingMoreButton} onClick={handleShowMoreTrending}>
-              More
+              {copy.trending.more}
             </button>
           ) : null}
         </section>
@@ -1154,27 +1208,27 @@ export default function SearchPageClient() {
             <div>
               <span aria-hidden="true">=</span>
               <h2>
-                {query.trim() ? `${resultTitle} · ` : "Search Results "}({items.length} found)
+                {query.trim() ? `${resultTitle} · ` : `${copy.results.title} `}({items.length} {copy.results.foundSuffix})
               </h2>
             </div>
             <div>
-              <button type="button">Filters</button>
-              <button type="button">Export</button>
+              <button type="button">{copy.results.filters}</button>
+              <button type="button">{copy.results.export}</button>
             </div>
           </div>
-          {searchError ? <PanelUnavailable message={searchError} /> : null}
+          {searchError ? <PanelUnavailable message={searchError} label={copy.status.unavailable} /> : null}
           <div className={styles.resultsTableWrap}>
             <table className={styles.resultsTable}>
               <thead>
                 <tr>
-                  <th>Symbol</th>
-                  <th>Name</th>
-                  <th>Price</th>
-                  <th>Change %</th>
-                  <th>Mkt Cap</th>
-                  <th>Coverage</th>
-                  <th>Freshness</th>
-                  <th>Detail</th>
+                  <th>{copy.results.columns.symbol}</th>
+                  <th>{copy.results.columns.name}</th>
+                  <th>{copy.results.columns.price}</th>
+                  <th>{copy.results.columns.changePct}</th>
+                  <th>{copy.results.columns.marketCap}</th>
+                  <th>{copy.results.columns.coverage}</th>
+                  <th>{copy.results.columns.freshness}</th>
+                  <th>{copy.results.columns.detail}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1206,7 +1260,7 @@ export default function SearchPageClient() {
                         </span>
                       </td>
                       <td>
-                        <Link href={buildSymbolHref(item)}>Open</Link>
+                        <Link href={buildSymbolHref(item)}>{copy.results.open}</Link>
                       </td>
                     </tr>
                   );
@@ -1215,8 +1269,8 @@ export default function SearchPageClient() {
             </table>
             {items.length === 0 && !searchError ? (
               <div className={styles.emptyState}>
-                <strong>No search rows yet.</strong>
-                <p className="clamp-3">Type a symbol or company name to fetch rows from trading-core.</p>
+                <strong>{copy.results.emptyTitle}</strong>
+                <p className="clamp-3">{copy.results.emptyBody}</p>
               </div>
             ) : null}
           </div>
