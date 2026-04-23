@@ -975,24 +975,26 @@ test.describe("dashboard desktop", () => {
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     await expectEodStageStatus(priceStage, "not synced");
-    await expect(priceStage).toContainText("Succeeded 237 / 250");
-    await expect(priceStage).toContainText("Failed 13");
-    await expect(priceStage).toContainText("Latest date 2026-04-15");
+    await expect(priceStage).toContainText("237 / 250");
+    await expect(priceStage).not.toContainText("Succeeded");
+    await expect(priceStage).toContainText(/Failed\s*13/);
+    await expect(priceStage).toContainText(/Latest date\s*2026-04-15/);
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     await expectEodStageStatus(technicalStage, "synced");
-    await expect(technicalStage).toContainText("Succeeded 250 / 250");
+    await expect(technicalStage).toContainText("250 / 250");
+    await expect(technicalStage).not.toContainText("Succeeded");
     await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     await expectEodStageStatus(actionStage, "not synced");
-    await expect(actionStage).toContainText("Failed 2");
-    await expect(actionStage).toContainText("Latest date 2026-04-14");
+    await expect(actionStage).toContainText(/Failed\s*2/);
+    await expect(actionStage).toContainText(/Latest date\s*2026-04-14/);
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expectEodStageStatus(fundamentalsStage, "synced");
-    await expect(fundamentalsStage).toContainText("Checked 42");
-    await expect(fundamentalsStage).toContainText("Failed 1");
+    await expect(fundamentalsStage).toContainText(/Checked\s*42/);
+    await expect(fundamentalsStage).toContainText(/Failed\s*1/);
   });
 
   test("D2 cards keep the displayed daily market date while resolving status from the latest pipeline market date", async ({
@@ -1529,9 +1531,11 @@ test.describe("dashboard desktop", () => {
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     await expectEodStageStatus(priceStage, "running");
-    await expect(priceStage).toContainText("Progress 80 / 250");
+    await expect(priceStage).toContainText("80 / 250");
+    await expect(priceStage).not.toContainText("Progress");
     await expectEodStageStatus(technicalStage, "running");
-    await expect(technicalStage).toContainText("Progress 0 / 250");
+    await expect(technicalStage).toContainText("0 / 250");
+    await expect(technicalStage).not.toContainText("Progress");
   });
 
   test("D2 EOD status keeps ready price not synced without a latest price date", async ({ page }) => {
@@ -1592,7 +1596,8 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Market date 2026-04-14")).toBeVisible();
     await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "not synced");
-    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("Succeeded 250 / 250");
+    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("250 / 250");
+    await expect(page.locator('[aria-label="Price Fetch freshness"]')).not.toContainText("Succeeded");
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
