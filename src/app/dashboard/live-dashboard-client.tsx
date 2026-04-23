@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useAppState } from "@/components/providers/app-state-provider";
+import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
   getDashboardProcessRequestMarketDate,
@@ -45,6 +47,7 @@ import {
   seedTradingApiJsonCache,
   seedTradingApiJsonSnapshot,
 } from "@/lib/trading-api-cache";
+import { getNumberLocale } from "@/lib/locale";
 import type {
   AgentContextCoreControlRequestDto,
   AgentContextCoreControlResponseDto,
@@ -82,24 +85,6 @@ const AGENT_FEEDBACK_STOP_REQUEST = {
   signal_name: "SIGKILL",
   port: 8000,
 } satisfies AgentContextCoreControlRequestDto;
-const AGENT_PROGRESS_STATUS_LABELS = {
-  pending: "에이전트 분석 대기",
-  running: "에이전트 분석 중...",
-  stalled: "에이전트 확인 필요",
-  completed: "에이전트 분석 완료",
-} satisfies Record<AgentFeedbackRunStatus, string>;
-type KnownAgentRole = "eod-summarizer" | "technical-summarizer" | "fundamental-summarizer";
-const AGENT_ROLE_LABELS = {
-  "eod-summarizer": "EOD summarizer",
-  "technical-summarizer": "Technical summarizer",
-  "fundamental-summarizer": "Fundamental summarizer",
-} satisfies Record<KnownAgentRole, string>;
-const AGENT_ROLE_STATUS_LABELS = {
-  completed: "완료",
-  running: "실행 중",
-  pending: "대기",
-  attention: "확인 필요",
-} satisfies Record<AgentRoleStatus, string>;
 
 export type CoreMarketStatus = {
   market?: string | null;
@@ -233,14 +218,47 @@ function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
 
+function getAgentProgressStatusLabels(copy: DashboardLiveCopy) {
+  return {
+    pending: copy.agentFeedback.statuses.pending,
+    running: copy.agentFeedback.statuses.running,
+    stalled: copy.agentFeedback.statuses.stalled,
+    completed: copy.agentFeedback.statuses.completed,
+  } satisfies Record<AgentFeedbackRunStatus, string>;
+}
+
+function getAgentRoleStatusLabels(copy: DashboardLiveCopy) {
+  return {
+    completed: copy.agentFeedback.roleStatuses.completed,
+    running: copy.agentFeedback.roleStatuses.running,
+    pending: copy.agentFeedback.roleStatuses.pending,
+    attention: copy.agentFeedback.roleStatuses.attention,
+  } satisfies Record<AgentRoleStatus, string>;
+}
+
+function getStageStatusLabel(status: EodStageCard["statusLabel"], copy: DashboardLiveCopy) {
+  switch (status) {
+    case "synced":
+      return copy.stage.synced;
+    case "running":
+      return copy.stage.running;
+    case "break day":
+      return copy.stage.breakDay;
+    case "not synced":
+      return copy.stage.notSynced;
+    default:
+      return status;
+  }
+}
+
 function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable"): string {
   if (!hasNumber(value)) return fallback;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable"): string {
+function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable", numberLocale = "en-US"): string {
   if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString(numberLocale)}`;
 }
 
 function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>): string | null {
@@ -366,31 +384,33 @@ function getQuoteToneClass(value: number | null | undefined): string {
   return value >= 0 ? styles.positive : styles.negative;
 }
 
-function describeQuoteSource(item: CoreTrackedQuote | undefined): string {
+function describeQuoteSource(item: CoreTrackedQuote | undefined, copy: DashboardLiveCopy): string {
   if (!item) return "N/A";
   if (!item.available) {
-    return item.unavailable_reason ? `Quote unavailable · ${item.unavailable_reason}` : "Quote unavailable";
+    return item.unavailable_reason
+      ? `${copy.tracked.quoteUnavailable} · ${item.unavailable_reason}`
+      : copy.tracked.quoteUnavailable;
   }
   if (!item.fallback) {
-    return item.is_live ? "Live KIS quote" : item.source;
+    return item.is_live ? copy.tracked.liveKisQuote : item.source;
   }
   if (item.source === "daily_price_bar") {
-    return item.trade_date ? `DB EOD fallback · ${item.trade_date}` : "DB EOD fallback";
+    return item.trade_date ? `${copy.tracked.dbEodFallback} · ${item.trade_date}` : copy.tracked.dbEodFallback;
   }
   if (item.source === "db_cache") {
-    return "Same-day DB quote cache";
+    return copy.tracked.sameDayDbQuoteCache;
   }
   if (item.source === "cache") {
-    return "Same-day memory cache";
+    return copy.tracked.sameDayMemoryCache;
   }
-  return `${item.source} fallback`;
+  return `${item.source} ${copy.tracked.fallbackSuffix}`;
 }
 
-function getPriceFreshnessLabel(item: CoreTrackedQuote) {
-  if (!item.available) return item.trade_date ?? "Unavailable";
-  if (item.is_live) return "Live";
+function getPriceFreshnessLabel(item: CoreTrackedQuote, copy: DashboardLiveCopy) {
+  if (!item.available) return item.trade_date ?? copy.tracked.unavailable;
+  if (item.is_live) return copy.tracked.live;
   if (item.trade_date) return item.trade_date;
-  return formatDisplayTimestamp(item.as_of ?? item.cached_at, "Pending");
+  return formatDisplayTimestamp(item.as_of ?? item.cached_at, copy.tracked.pending);
 }
 
 function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
@@ -450,28 +470,29 @@ function getFundamentalsStatusLabel(
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   latestFundamentalsDate: string | null,
   pipelineStage: EodPipelineStageDto | null,
+  copy: DashboardLiveCopy,
 ) {
-  if (normalizePipelineStageStatus(pipelineStage) === "running") return "Running";
+  if (normalizePipelineStageStatus(pipelineStage) === "running") return copy.stage.running;
 
   const runStatus = getLatestFundamentalsRun(fundamentalsStatus)?.status;
   if (hasTextValue(runStatus)) return humanizeToken(runStatus);
 
   const freshnessLayer = getFundamentalsFreshnessLayer(freshness);
-  if (freshnessLayer?.success === true) return "Available";
-  if (freshnessLayer?.success === false) return "Needs review";
-  if (hasTextValue(latestFundamentalsDate)) return "Available";
+  if (freshnessLayer?.success === true) return copy.agentFeedback.roleStatuses.completed;
+  if (freshnessLayer?.success === false) return copy.piotroski.needsReview;
+  if (hasTextValue(latestFundamentalsDate)) return copy.agentFeedback.roleStatuses.completed;
 
   return UNKNOWN_LABEL;
 }
 
-function getHumanCount(value: number | null | undefined) {
+function getHumanCount(value: number | null | undefined, numberLocale: string) {
   if (!hasNumber(value)) return UNKNOWN_LABEL;
-  return value.toLocaleString("ko-KR");
+  return value.toLocaleString(numberLocale);
 }
 
-function getFailureCountPhrase(count: number, singularLabel: string, pluralLabel: string) {
+function getFailureCountPhrase(count: number, singularLabel: string, pluralLabel: string, numberLocale: string) {
   const label = count === 1 ? singularLabel : pluralLabel;
-  return `${count.toLocaleString("ko-KR")} ${label}`;
+  return `${count.toLocaleString(numberLocale)} ${label}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -526,6 +547,8 @@ function getFundamentalsFailureReason(
   freshness: EodFreshnessResponseDto | null,
   run: DartFundamentalsDailyRunDto | null,
   statusLabel: string,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
 ) {
   if (hasTextValue(run?.error_message)) return run.error_message.trim();
 
@@ -533,21 +556,35 @@ function getFundamentalsFailureReason(
   const symbolsFailed = run?.symbols_failed;
   const eventsFailed = run?.events_failed;
   if (hasNumber(symbolsFailed) && symbolsFailed > 0) {
-    failedCounts.push(getFailureCountPhrase(symbolsFailed, "failed symbol", "failed symbols"));
+    failedCounts.push(
+      getFailureCountPhrase(
+        symbolsFailed,
+        copy.fundamentalsFailure.failedSymbol.one,
+        copy.fundamentalsFailure.failedSymbol.many,
+        numberLocale,
+      ),
+    );
   }
   if (hasNumber(eventsFailed) && eventsFailed > 0) {
-    failedCounts.push(getFailureCountPhrase(eventsFailed, "failed event", "failed events"));
+    failedCounts.push(
+      getFailureCountPhrase(
+        eventsFailed,
+        copy.fundamentalsFailure.failedEvent.one,
+        copy.fundamentalsFailure.failedEvent.many,
+        numberLocale,
+      ),
+    );
   }
 
   if (failedCounts.length > 0) {
-    return `Trading-core reported ${failedCounts.join(" and ")} for this fundamentals run.`;
+    return `${copy.fundamentalsFailure.coreReported} ${failedCounts.join(" and ")}.`;
   }
 
   if (getFundamentalsFreshnessLayer(freshness)?.success === false) {
-    return "The freshness registry marked the fundamentals layer as unsuccessful.";
+    return copy.fundamentalsFailure.freshnessFailed;
   }
 
-  return `Trading-core marked this fundamentals run as ${statusLabel}.`;
+  return `${copy.fundamentalsFailure.markedAs} ${statusLabel}.`;
 }
 
 function getFundamentalsFailureDetails(
@@ -555,6 +592,8 @@ function getFundamentalsFailureDetails(
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   latestFundamentalsDate: string | null,
   statusLabel: string,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
 ): FundamentalsFailureDetails | null {
   const run = getLatestFundamentalsRun(fundamentalsStatus);
 
@@ -564,25 +603,25 @@ function getFundamentalsFailureDetails(
 
   return {
     key: `${run?.id ?? "freshness"}:${runDate}:${statusLabel}`,
-    title: `DART fundamentals ${statusLabel.toLowerCase()}`,
-    reason: getFundamentalsFailureReason(freshness, run, statusLabel),
+    title: `${copy.fundamentalsFailure.titlePrefix} ${statusLabel.toLowerCase()}`,
+    reason: getFundamentalsFailureReason(freshness, run, statusLabel, copy, numberLocale),
     details: [
-      { label: "Run date", value: runDate },
-      { label: "Status", value: statusLabel },
-      { label: "FS division", value: run?.fs_div ?? UNKNOWN_LABEL },
-      { label: "Trigger", value: humanizeToken(run?.trigger) },
-      { label: "Symbols total", value: getHumanCount(run?.symbols_total) },
-      { label: "Symbols checked", value: getHumanCount(run?.symbols_checked) },
-      { label: "Symbols missing", value: getHumanCount(run?.symbols_missing) },
-      { label: "Symbols stale", value: getHumanCount(run?.symbols_stale) },
-      { label: "Symbols fresh", value: getHumanCount(run?.symbols_fresh) },
-      { label: "Symbols refreshed", value: getHumanCount(run?.symbols_refreshed) },
-      { label: "Symbols failed", value: getHumanCount(run?.symbols_failed) },
-      { label: "Events detected", value: getHumanCount(run?.events_detected) },
-      { label: "Events captured", value: getHumanCount(run?.events_captured) },
-      { label: "Events failed", value: getHumanCount(run?.events_failed) },
-      { label: "Started", value: formatDisplayTimestamp(run?.started_at, UNKNOWN_LABEL) },
-      { label: "Completed", value: formatDisplayTimestamp(run?.completed_at, UNKNOWN_LABEL) },
+      { label: copy.fundamentalsFailure.fields.runDate, value: runDate },
+      { label: copy.fundamentalsFailure.fields.status, value: statusLabel },
+      { label: copy.fundamentalsFailure.fields.fsDivision, value: run?.fs_div ?? UNKNOWN_LABEL },
+      { label: copy.fundamentalsFailure.fields.trigger, value: humanizeToken(run?.trigger) },
+      { label: copy.fundamentalsFailure.fields.symbolsTotal, value: getHumanCount(run?.symbols_total, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.symbolsChecked, value: getHumanCount(run?.symbols_checked, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.symbolsMissing, value: getHumanCount(run?.symbols_missing, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.symbolsStale, value: getHumanCount(run?.symbols_stale, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.symbolsFresh, value: getHumanCount(run?.symbols_fresh, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.symbolsRefreshed, value: getHumanCount(run?.symbols_refreshed, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.symbolsFailed, value: getHumanCount(run?.symbols_failed, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.eventsDetected, value: getHumanCount(run?.events_detected, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.eventsCaptured, value: getHumanCount(run?.events_captured, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.eventsFailed, value: getHumanCount(run?.events_failed, numberLocale) },
+      { label: copy.fundamentalsFailure.fields.started, value: formatDisplayTimestamp(run?.started_at, UNKNOWN_LABEL) },
+      { label: copy.fundamentalsFailure.fields.completed, value: formatDisplayTimestamp(run?.completed_at, UNKNOWN_LABEL) },
     ],
     metadata: getFailureMetadata(run),
   };
@@ -600,9 +639,9 @@ function hasEodReadinessSignal(freshness: EodFreshnessResponseDto | null) {
   );
 }
 
-function formatEodSymbolCount(value: number | null | undefined) {
+function formatEodSymbolCount(value: number | null | undefined, numberLocale: string) {
   if (!hasNumber(value)) return UNKNOWN_LABEL;
-  return value.toLocaleString("ko-KR");
+  return value.toLocaleString(numberLocale);
 }
 
 function buildStage(
@@ -892,9 +931,11 @@ function buildEodStageCard(
   latestDate: string | null,
   canShowBreakDay: boolean,
   pipelineStage: EodPipelineStageDto | null | undefined,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
   countDetail: Pick<EodStageDetail, "label" | "value"> = {
     label: "",
-    value: `${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
+    value: `${formatEodSymbolCount(stage?.symbols_succeeded, numberLocale)} / ${formatEodSymbolCount(stage?.symbols_total, numberLocale)}`,
   },
 ): EodStageCard {
   const statusLabel = getEodStageStatusLabel(stage, todayTradeDate, latestDate, canShowBreakDay);
@@ -908,13 +949,13 @@ function buildEodStageCard(
   ];
 
   if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
-    details.push({ key: "latest-date", label: "Latest date", value: latestDate, tone: "text" });
+    details.push({ key: "latest-date", label: copy.operational.latestDate, value: latestDate, tone: "text" });
   }
   if (hasNumber(stage?.symbols_failed) && stage.symbols_failed > 0) {
     details.push({
       key: "failed",
-      label: "Failed",
-      value: formatEodSymbolCount(stage.symbols_failed),
+      label: copy.operational.failed,
+      value: formatEodSymbolCount(stage.symbols_failed, numberLocale),
       tone: "count",
     });
   }
@@ -959,15 +1000,7 @@ function getEodStageStatusBadge(
 }
 
 function isIconOnlyEodStageStatus(statusLabel: EodStageCard["statusLabel"]) {
-  return statusLabel === "synced" || statusLabel === "running" || statusLabel === "not synced";
-}
-
-function getEodStageStatusAriaLabel(stage: EodStageCard) {
-  if (stage.statusLabel !== "running" || stage.statusBadgeLabel === stage.statusLabel) {
-    return stage.statusBadgeLabel;
-  }
-
-  return `${stage.statusLabel} · ${stage.statusBadgeLabel}`;
+  return statusLabel === "synced" || statusLabel === "not synced";
 }
 
 function getFundamentalsCheckedCount(
@@ -1027,6 +1060,8 @@ function getFundamentalsUpdatedSymbolSample(run: DartFundamentalsDailyRunDto | n
 function getFundamentalsUpdatedSymbolsDetail(
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   todayTradeDate: string | null,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
 ): EodStageDetail | null {
   const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
   const latestRunDate = getFundamentalsRunDate(latestRun);
@@ -1042,41 +1077,41 @@ function getFundamentalsUpdatedSymbolsDetail(
   const remainingSymbols = hasNumber(refreshedCount)
     ? Math.max(0, refreshedCount - visibleSymbols.length)
     : Math.max(0, symbolSample.length - visibleSymbols.length);
-  const countLabel = formatEodSymbolCount(refreshedCount ?? symbolSample.length);
+  const countLabel = formatEodSymbolCount(refreshedCount ?? symbolSample.length, numberLocale);
   const symbolLabel =
     visibleSymbols.length > 0
-      ? ` (${visibleSymbols.join(", ")}${remainingSymbols > 0 ? ` +${formatEodSymbolCount(remainingSymbols)}` : ""})`
+      ? ` (${visibleSymbols.join(", ")}${remainingSymbols > 0 ? ` +${formatEodSymbolCount(remainingSymbols, numberLocale)}` : ""})`
       : "";
 
   return {
     key: "updated-symbols",
-    label: "Updated today",
+    label: copy.operational.updatedToday,
     value: `${countLabel}${symbolLabel}`,
     tone: "text",
     layout: "stacked",
   };
 }
 
-function formatAgentProgressCountLabel(value: number | null | undefined) {
+function formatAgentProgressCountLabel(value: number | null | undefined, numberLocale: string) {
   if (!hasNumber(value)) return UNKNOWN_LABEL;
-  return `${value.toLocaleString("ko-KR")}개`;
+  return value.toLocaleString(numberLocale);
 }
 
 function clampAgentProgressPercent(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
-function formatAgentProgressPercentValueLabel(value: number | null | undefined) {
+function formatAgentProgressPercentValueLabel(value: number | null | undefined, numberLocale: string) {
   const percent = value;
   if (!hasNumber(percent)) return UNKNOWN_LABEL;
-  return `${clampAgentProgressPercent(percent).toLocaleString("ko-KR", {
+  return `${clampAgentProgressPercent(percent).toLocaleString(numberLocale, {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   })}%`;
 }
 
-function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null) {
-  return formatAgentProgressPercentValueLabel(progress?.summary?.progress_percent);
+function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null, numberLocale: string) {
+  return formatAgentProgressPercentValueLabel(progress?.summary?.progress_percent, numberLocale);
 }
 
 function getAgentProgressPercentValue(progress: AgentFeedbackProgressResponseDto | null) {
@@ -1111,7 +1146,9 @@ function getAgentProgressPercentFromRecord(record: Record<string, unknown>) {
 function normalizeAgentProgressRunStatus(status: unknown): AgentFeedbackRunStatus | null {
   if (typeof status !== "string") return null;
   const normalized = status.trim().toLowerCase();
-  return normalized in AGENT_PROGRESS_STATUS_LABELS ? (normalized as AgentFeedbackRunStatus) : null;
+  return normalized === "pending" || normalized === "running" || normalized === "stalled" || normalized === "completed"
+    ? (normalized as AgentFeedbackRunStatus)
+    : null;
 }
 
 function getResolvedAgentProgressRunStatus(progress: AgentFeedbackProgressResponseDto | null) {
@@ -1137,21 +1174,31 @@ function getAgentFeedbackProgressPollDelayMs(progress: AgentFeedbackProgressResp
     : AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS;
 }
 
-function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto | null, error: string | null) {
-  if (!progress) return error ? "에이전트 확인 필요" : UNKNOWN_LABEL;
-
+function getAgentProgressStatusLabel(
+  progress: AgentFeedbackProgressResponseDto | null,
+  error: string | null,
+  copy: DashboardLiveCopy,
+) {
+  const labels = getAgentProgressStatusLabels(copy);
+  if (!progress) return error ? labels.stalled : UNKNOWN_LABEL;
   const runStatus = getResolvedAgentProgressRunStatus(progress);
-  return runStatus ? AGENT_PROGRESS_STATUS_LABELS[runStatus] : AGENT_PROGRESS_STATUS_LABELS.pending;
+  return runStatus ? labels[runStatus] : labels.pending;
 }
 
 function normalizeAgentRole(role: string | null | undefined) {
   return role?.trim().toLowerCase() ?? null;
 }
 
-function getAgentRoleLabel(role: string) {
+function getAgentRoleLabel(role: string, copy: DashboardLiveCopy) {
   const normalizedRole = normalizeAgentRole(role);
-  if (normalizedRole && normalizedRole in AGENT_ROLE_LABELS) {
-    return AGENT_ROLE_LABELS[normalizedRole as keyof typeof AGENT_ROLE_LABELS];
+  if (normalizedRole === "eod-summarizer") {
+    return copy.agentFeedback.roles.eod;
+  }
+  if (normalizedRole === "technical-summarizer") {
+    return copy.agentFeedback.roles.technical;
+  }
+  if (normalizedRole === "fundamental-summarizer") {
+    return copy.agentFeedback.roles.fundamental;
   }
 
   return humanizeToken(role, role);
@@ -1190,32 +1237,37 @@ function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: s
   return "pending";
 }
 
-function buildAgentRoleMetrics(progress: AgentFeedbackProgressResponseDto | null): AgentRoleMetric[] {
+function buildAgentRoleMetrics(
+  progress: AgentFeedbackProgressResponseDto | null,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): AgentRoleMetric[] {
   if (!isAgentFeedbackProgressRunning(progress)) return [];
 
   return [
     {
       key: "progress",
-      label: "진행률",
-      value: formatAgentProgressPercentLabel(progress),
+      label: copy.agentFeedback.metrics.progress,
+      value: formatAgentProgressPercentLabel(progress, numberLocale),
     },
     {
       key: "total",
-      label: "전체 대상",
-      value: formatAgentProgressCountLabel(progress?.summary?.total_symbols),
+      label: copy.agentFeedback.metrics.total,
+      value: formatAgentProgressCountLabel(progress?.summary?.total_symbols, numberLocale),
     },
     {
       key: "failed",
-      label: "실패",
-      value: formatAgentProgressCountLabel(progress?.summary?.failed_items),
+      label: copy.agentFeedback.metrics.failed,
+      value: formatAgentProgressCountLabel(progress?.summary?.failed_items, numberLocale),
     },
     {
       key: "completed",
-      label: "완료",
+      label: copy.agentFeedback.metrics.completed,
       value: formatAgentProgressCountLabel(
         getResolvedAgentProgressRunStatus(progress) === "running"
           ? progress?.summary?.processed_symbols
           : progress?.summary?.completed_symbols,
+        numberLocale,
       ),
     },
   ];
@@ -1389,17 +1441,21 @@ function getAgentRoleProgressSnapshots(progress: AgentFeedbackProgressResponseDt
   return [];
 }
 
-function buildAgentRoleResultMetrics(snapshot: AgentRoleResultSnapshot): AgentRoleMetric[] {
+function buildAgentRoleResultMetrics(
+  snapshot: AgentRoleResultSnapshot,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): AgentRoleMetric[] {
   return [
     {
       key: "completed",
-      label: "Completed",
-      value: formatAgentProgressCountLabel(snapshot.completedCount),
+      label: copy.agentFeedback.metrics.completed,
+      value: formatAgentProgressCountLabel(snapshot.completedCount, numberLocale),
     },
     {
       key: "errors",
-      label: "Errors",
-      value: formatAgentProgressCountLabel(snapshot.errorCount),
+      label: copy.agentFeedback.metrics.errors,
+      value: formatAgentProgressCountLabel(snapshot.errorCount, numberLocale),
     },
   ];
 }
@@ -1508,6 +1564,8 @@ function buildAgentRoleCard(
   completedCount: number | null | undefined,
   snapshot: AgentRoleProgressSnapshot | null | undefined,
   metrics: AgentRoleMetric[],
+  copy: DashboardLiveCopy,
+  numberLocale: string,
   progressPercentOverride: number | null = null,
 ): AgentRoleCard {
   const progressPercent =
@@ -1515,15 +1573,19 @@ function buildAgentRoleCard(
 
   return {
     role,
-    label: getAgentRoleLabel(role),
+    label: getAgentRoleLabel(role, copy),
     status,
     progressPercent,
-    progressLabel: formatAgentProgressPercentValueLabel(progressPercent),
+    progressLabel: formatAgentProgressPercentValueLabel(progressPercent, numberLocale),
     metrics,
   };
 }
 
-function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null): AgentRoleCard[] {
+function buildAgentRoleCards(
+  progress: AgentFeedbackProgressResponseDto | null,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): AgentRoleCard[] {
   const orderedRoles = getOrderedAgentRoles(progress);
   if (orderedRoles.length === 0) return [];
 
@@ -1553,12 +1615,12 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
         snapshot?.completedCount ??
         getNonRunningAgentRoleCompletedCount(progress, runStatus, role, orderedRoles, currentRole);
       const metrics = resultSnapshot
-        ? buildAgentRoleResultMetrics(resultSnapshot)
+        ? buildAgentRoleResultMetrics(resultSnapshot, copy, numberLocale)
         : [
             {
               key: "completed",
-              label: "Complete",
-              value: formatAgentProgressCountLabel(completedCount),
+              label: copy.agentFeedback.metrics.complete,
+              value: formatAgentProgressCountLabel(completedCount, numberLocale),
             },
           ];
 
@@ -1569,12 +1631,14 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
         completedCount,
         snapshot,
         metrics,
+        copy,
+        numberLocale,
         resultSnapshot ? getAgentRoleResultProgressPercent(resultSnapshot) : null,
       );
     });
   }
 
-  const metrics = buildAgentRoleMetrics(progress);
+  const metrics = buildAgentRoleMetrics(progress, copy, numberLocale);
   // Keep run-level metrics visible for legacy/transient payloads that are live but omit current_role.
   const fallbackMetricsRole =
     currentRole === null
@@ -1593,6 +1657,8 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
       snapshot?.completedCount,
       snapshot,
       roleMetrics,
+      copy,
+      numberLocale,
     );
   });
 }
@@ -1627,6 +1693,11 @@ export function LiveDashboardClient({
   initialPipelineStatus,
   initialAgentFeedbackProgress,
 }: LiveDashboardClientProps) {
+  const { locale } = useAppState();
+  const copy = getDashboardLiveCopy(locale);
+  const numberLocale = getNumberLocale(locale);
+  const agentProgressStatusLabels = getAgentProgressStatusLabels(copy);
+  const agentRoleStatusLabels = getAgentRoleStatusLabels(copy);
   const initialPipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
     initialFreshness?.today?.trade_date,
     initialMarket.server_time,
@@ -2041,6 +2112,7 @@ export function LiveDashboardClient({
     fundamentalsStatus,
     latestFundamentalsDate,
     fundamentalsPipelineStage,
+    copy,
   );
   const fundamentalsFreshnessStage = getFundamentalsFreshnessStage(
     freshness,
@@ -2054,6 +2126,8 @@ export function LiveDashboardClient({
     fundamentalsStatus,
     latestFundamentalsDate,
     fundamentalsStatusLabel,
+    copy,
+    numberLocale,
   );
 
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
@@ -2078,49 +2152,60 @@ export function LiveDashboardClient({
   const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(
     fundamentalsStatus,
     todayTradeDate,
+    copy,
+    numberLocale,
   );
   const fundamentalsStageCard = buildEodStageCard(
     "fundamentals",
-    "Fundamentals",
+    copy.stage.fundamentals,
     fundamentalsFreshnessWithPipelineStage,
     eodStatusMarketDate,
     latestFundamentalsDate,
     isBreakDay,
     fundamentalsPipelineStage,
+    copy,
+    numberLocale,
     {
-      label: "Checked",
+      label: copy.operational.checked,
       value: formatEodSymbolCount(
         getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
+        numberLocale,
       ),
     },
   );
   const eodStageCards = [
     buildEodStageCard(
       "price",
-      "Price Fetch",
+      copy.stage.price,
       priceFreshnessStage,
       eodStatusMarketDate,
       priceLatestDate,
       isBreakDay,
       pricePipelineStage,
+      copy,
+      numberLocale,
     ),
     buildEodStageCard(
       "technical",
-      "Technical Analysis",
+      copy.stage.technical,
       technicalFreshnessStage,
       eodStatusMarketDate,
       technicalLatestDate,
       isBreakDay,
       technicalPipelineStage,
+      copy,
+      numberLocale,
     ),
     buildEodStageCard(
       "action",
-      "Action Summary",
+      copy.stage.action,
       actionFreshnessStage,
       eodStatusMarketDate,
       actionLatestDate,
       isBreakDay,
       actionPipelineStage,
+      copy,
+      numberLocale,
     ),
     fundamentalsUpdatedSymbolsDetail
       ? {
@@ -2137,11 +2222,12 @@ export function LiveDashboardClient({
   const agentProgressStatusLabel = getAgentProgressStatusLabel(
     displayedAgentFeedbackProgress,
     displayedAgentFeedbackProgressError,
+    copy,
   );
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
-  const agentRoleCards = buildAgentRoleCards(displayedAgentFeedbackProgress);
+  const agentRoleCards = buildAgentRoleCards(displayedAgentFeedbackProgress, copy, numberLocale);
   const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
   const showCompletedAgentFeedbackIcon =
     agentProgressRunStatus === "pending" && hasCompletedDefaultAgentRoles(agentRoleCards);
@@ -2155,14 +2241,14 @@ export function LiveDashboardClient({
           : "neutral";
   const filteringStatusLabel =
     piotroskiBoardLoadState === "ready"
-      ? "Completed"
-      : piotroskiBoardLoadState === "loading"
-        ? "Loading"
-        : piotroskiBoardLoadState === "error"
-          ? "Needs review"
-          : piotroskiMarketDate
-            ? "Pending"
-            : "Waiting";
+      ? copy.piotroski.completed
+    : piotroskiBoardLoadState === "loading"
+        ? copy.piotroski.loading
+    : piotroskiBoardLoadState === "error"
+          ? copy.piotroski.needsReview
+    : piotroskiMarketDate
+            ? copy.piotroski.pending
+            : copy.piotroski.waiting;
   const filteringStatusTone =
     piotroskiBoardLoadState === "ready"
       ? "positive"
@@ -2175,13 +2261,13 @@ export function LiveDashboardClient({
   const filteringPassCount = piotroskiBoard?.summary.passed_count ?? piotroskiBoard?.totalPassedCount ?? null;
   const filteringNote =
     piotroskiBoardLoadState === "error"
-      ? piotroskiBoardError ?? "Piotroski filter results are unavailable."
-      : piotroskiBoardLoadState === "ready"
+      ? piotroskiBoardError ?? copy.piotroski.unavailable
+    : piotroskiBoardLoadState === "ready"
         ? null
-        : piotroskiMarketDate
-          ? "Piotroski filter status is pending for the selected market date."
-          : "Piotroski market date is pending.";
-  const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
+      : piotroskiMarketDate
+          ? copy.piotroski.pendingForDate
+          : copy.piotroski.marketDatePending;
+  const marketBadgeLabel = market.is_open ? copy.marketOpen : copy.marketClosed;
   const coreUnavailable =
     market.state === "OFFLINE PLACEHOLDER" ||
     isOfflineTrackedPlaceholder(tracked) ||
@@ -2271,7 +2357,7 @@ export function LiveDashboardClient({
           <div className={styles.appHeaderBrand}>
             <div className={styles.brandMark}>K</div>
             <div>
-              <strong className={styles.brandTitle}>Trading Dashboard</strong>
+              <strong className={styles.brandTitle}>{copy.brandTitle}</strong>
             </div>
           </div>
 
@@ -2288,10 +2374,10 @@ export function LiveDashboardClient({
         {coreUnavailable ? (
           <section className={`${styles.panel} ${styles.alertPanel}`}>
             <ComponentTag label="dashboard.core-unavailable" api="/api/trading/market/status + /api/trading/quotes/tracked" />
-            <p className={styles.sectionEyebrow}>Core unavailable</p>
-            <strong className={styles.alertTitle}>Offline placeholder active</strong>
+            <p className={styles.sectionEyebrow}>{copy.coreUnavailable.eyebrow}</p>
+            <strong className={styles.alertTitle}>{copy.coreUnavailable.title}</strong>
             <p className="clamp-3">
-              {error ?? "Core feed unreachable. Showing placeholder values until the upstream endpoints recover."}
+              {error ?? copy.coreUnavailable.description}
             </p>
           </section>
         ) : null}
@@ -2304,10 +2390,10 @@ export function LiveDashboardClient({
 
           <div className={styles.panelHeader}>
             <div>
-              <p className={styles.sectionEyebrow}>Market Freshness Registry</p>
-              <h1 className={styles.heroTitle}>Operational Integrity</h1>
+              <p className={styles.sectionEyebrow}>{copy.operational.eyebrow}</p>
+              <h1 className={styles.heroTitle}>{copy.operational.title}</h1>
               <p className={styles.marketContext}>
-                Server time {formatDisplayTimestamp(market.server_time)}
+                {copy.operational.serverTime} {formatDisplayTimestamp(market.server_time)}
               </p>
             </div>
           </div>
@@ -2316,9 +2402,9 @@ export function LiveDashboardClient({
             <article className={`${styles.integrityStat} ${styles.eodStatusCard}`}>
               <div className={styles.sectionHeaderRow}>
                 <div>
-                  <p className={styles.sectionEyebrow}>EOD Status</p>
-                  <h2 className={styles.sectionTitle}>Daily Data Fetch</h2>
-                  <p className={styles.cardContext}>Market date {eodMarketDate}</p>
+                  <p className={styles.sectionEyebrow}>{copy.operational.eodEyebrow}</p>
+                  <h2 className={styles.sectionTitle}>{copy.operational.eodTitle}</h2>
+                  <p className={styles.cardContext}>{copy.operational.marketDate} {eodMarketDate}</p>
                 </div>
               </div>
 
@@ -2331,7 +2417,15 @@ export function LiveDashboardClient({
                     stage.statusLabel === "running"
                       ? styles.runningStatusPill
                       : "";
-                  const statusAriaLabel = getEodStageStatusAriaLabel(stage);
+                  const localizedStatusLabel = getStageStatusLabel(stage.statusLabel, copy);
+                  const displayedStatusLabel =
+                    stage.statusLabel === "running" && stage.statusBadgeLabel !== stage.statusLabel
+                      ? stage.statusBadgeLabel
+                      : localizedStatusLabel;
+                  const statusAriaLabel =
+                    stage.statusLabel === "running" && stage.statusBadgeLabel !== stage.statusLabel
+                      ? `${localizedStatusLabel} · ${stage.statusBadgeLabel}`
+                      : localizedStatusLabel;
                   const statusTitle = stage.statusBadgeTitle ?? (isIconOnlyStatus ? statusAriaLabel : undefined);
                   const standaloneStatusClass =
                     stage.statusLabel === "not synced" ? styles.notSyncedStatusIcon : styles.syncedStatusIcon;
@@ -2362,10 +2456,8 @@ export function LiveDashboardClient({
                             role={isIconOnlyStatus ? "img" : undefined}
                             aria-label={isIconOnlyStatus ? statusAriaLabel : undefined}
                           >
-                            {isIconOnlyStatus ? (
-                              <span className={styles.statusPillIcon} aria-hidden="true" />
-                            ) : (
-                              <span className={styles.statusPillLabel}>{stage.statusBadgeLabel}</span>
+                            {isIconOnlyStatus ? <span className={styles.statusPillIcon} aria-hidden="true" /> : (
+                              <span className={styles.statusPillLabel}>{displayedStatusLabel}</span>
                             )}
                           </span>
                         )}
@@ -2379,6 +2471,7 @@ export function LiveDashboardClient({
                             data-detail-layout={detail.layout ?? "inline"}
                           >
                             {detail.label ? <span>{detail.label}</span> : null}
+                            {detail.label ? " " : null}
                             <span className={styles.eodStageDetailValue}>{detail.value}</span>
                           </span>
                         ))}
@@ -2386,13 +2479,13 @@ export function LiveDashboardClient({
                           <button
                             type="button"
                             className={styles.detailButton}
-                            aria-label="View fundamentals run details"
+                            aria-label={copy.operational.viewFundamentalsRunDetails}
                             aria-haspopup="dialog"
                             aria-expanded={fundamentalsDialogOpen}
                             aria-controls="fundamentals-failure-dialog"
                             onClick={() => setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key)}
                           >
-                            view detail
+                            {copy.operational.viewDetail}
                           </button>
                         ) : null}
                       </div>
@@ -2405,33 +2498,33 @@ export function LiveDashboardClient({
             <article className={`${styles.integrityStat} ${styles.filteringCard}`}>
               <div className={styles.sectionHeaderRow}>
                 <div>
-                  <p className={styles.sectionEyebrow}>Piotroski Filter</p>
-                  <h2 className={styles.sectionTitle}>Filtering</h2>
-                  <p className={styles.cardContext}>Market date {piotroskiMarketDate ?? UNKNOWN_LABEL}</p>
+                  <p className={styles.sectionEyebrow}>{copy.operational.piotroskiEyebrow}</p>
+                  <h2 className={styles.sectionTitle}>{copy.operational.piotroskiTitle}</h2>
+                  <p className={styles.cardContext}>{copy.operational.marketDate} {piotroskiMarketDate ?? UNKNOWN_LABEL}</p>
                 </div>
                 <Link
                   href={buildPiotroskiListHref(piotroskiMarketDate)}
                   className={styles.sectionLink}
-                  aria-label="Open the full Piotroski filter pass list"
+                  aria-label={copy.operational.openPiotroskiList}
                 >
-                  More
+                  {copy.operational.more}
                 </Link>
               </div>
 
               <div className={styles.statusMetricGrid}>
                 <div className={styles.statusMetric}>
-                  <span>Status</span>
+                  <span>{copy.operational.status}</span>
                   <strong>
                     <span className={`pill ${filteringStatusTone}`}>{filteringStatusLabel}</span>
                   </strong>
                 </div>
                 <div className={styles.statusMetric}>
-                  <span>Checked</span>
-                  <strong>{formatEodSymbolCount(filteringCheckedCount)}</strong>
+                  <span>{copy.operational.checked}</span>
+                  <strong>{formatEodSymbolCount(filteringCheckedCount, numberLocale)}</strong>
                 </div>
                 <div className={styles.statusMetric}>
-                  <span>Pass</span>
-                  <strong>{formatEodSymbolCount(filteringPassCount)}</strong>
+                  <span>{copy.operational.pass}</span>
+                  <strong>{formatEodSymbolCount(filteringPassCount, numberLocale)}</strong>
                 </div>
               </div>
 
@@ -2441,29 +2534,29 @@ export function LiveDashboardClient({
             <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
               <div className={styles.sectionHeaderRow}>
                 <div>
-                  <h2 className={styles.sectionTitle}>Agent Feedback</h2>
-                  <p className={styles.cardContext}>기준일 {agentProgressDate}</p>
+                  <h2 className={styles.sectionTitle}>{copy.operational.agentTitle}</h2>
+                  <p className={styles.cardContext}>{copy.operational.agentDate} {agentProgressDate}</p>
                 </div>
                 {showCompletedAgentFeedbackIcon ? (
                   <span
                     className={`${styles.statusIconBadge} ${styles.syncedStatusIcon}`}
-                    title={AGENT_PROGRESS_STATUS_LABELS.completed}
+                    title={agentProgressStatusLabels.completed}
                     role="img"
-                    aria-label={AGENT_PROGRESS_STATUS_LABELS.completed}
+                    aria-label={agentProgressStatusLabels.completed}
                   />
                 ) : (
                   <span className={`pill ${agentFeedbackStatusTone}`}>{agentProgressStatusLabel}</span>
                 )}
               </div>
               {agentRoleCards.length > 0 ? (
-                <div className={styles.agentRoleList} role="list" aria-label="Agent role progress">
+                <div className={styles.agentRoleList} role="list" aria-label={copy.operational.agentRoleProgress}>
                   {agentRoleCards.map((role) => (
                     <div
                       key={role.role}
                       className={styles.agentRoleRow}
                       data-role-status={role.status}
                       role="listitem"
-                      aria-label={`${role.label} ${AGENT_ROLE_STATUS_LABELS[role.status]}`}
+                      aria-label={`${role.label} ${agentRoleStatusLabels[role.status]}`}
                     >
                       <div className={styles.agentRoleContent}>
                         <span className={styles.agentRoleTitleRow}>
@@ -2482,7 +2575,7 @@ export function LiveDashboardClient({
                             data-role-progress-track={role.status}
                             data-role-progress-value={role.progressPercent}
                             role="progressbar"
-                            aria-label={`${role.label} progress`}
+                            aria-label={`${role.label} ${copy.agentFeedback.metrics.progress}`}
                             aria-valuemin={0}
                             aria-valuemax={100}
                             aria-valuenow={role.progressPercent}
@@ -2491,7 +2584,7 @@ export function LiveDashboardClient({
                             <i style={{ width: `${role.progressPercent}%` }} />
                           </div>
                         ) : null}
-                        <span className={styles.agentRoleStatusText}>{AGENT_ROLE_STATUS_LABELS[role.status]}</span>
+                        <span className={styles.agentRoleStatusText}>{agentRoleStatusLabels[role.status]}</span>
                         {role.metrics.length > 0 ? (
                           <dl className={styles.agentRoleMetrics}>
                             {role.metrics.map((metric) => (
@@ -2507,20 +2600,20 @@ export function LiveDashboardClient({
                   ))}
                 </div>
               ) : (
-                <div className={styles.emptyState}>Agent feedback role progress is unavailable for the selected market date.</div>
+                <div className={styles.emptyState}>{copy.operational.agentProgressUnavailable}</div>
               )}
               {isAgentFeedbackRunning ? (
                 <div className={styles.agentFeedbackActions}>
                   <button
                     type="button"
                     className={styles.agentFeedbackStopButton}
-                    aria-label="중단"
+                    aria-label={copy.operational.stop}
                     aria-haspopup="dialog"
                     aria-expanded={agentFeedbackStopDialogOpen}
                     aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
                     onClick={openAgentFeedbackStopDialog}
                   >
-                    중단
+                    {copy.operational.stop}
                   </button>
                 </div>
               ) : null}
@@ -2531,11 +2624,11 @@ export function LiveDashboardClient({
         <section className={`${styles.panel} ${styles.trackedPanel}`} id="tracked-symbols">
           <div className={styles.sectionHeaderRow}>
             <div>
-              <p className={styles.sectionEyebrow}>Tracked Symbols</p>
-              <h2 className={styles.sectionTitle}>Today&apos;s ledger recommendations</h2>
+              <p className={styles.sectionEyebrow}>{copy.operational.trackedEyebrow}</p>
+              <h2 className={styles.sectionTitle}>{copy.operational.trackedTitle}</h2>
             </div>
-            <Link href="/my-symbols" className={styles.sectionLink} aria-label="Open the full My Symbols screen">
-              More
+            <Link href="/my-symbols" className={styles.sectionLink} aria-label={copy.operational.openMySymbols}>
+              {copy.operational.more}
             </Link>
           </div>
 
@@ -2556,7 +2649,9 @@ export function LiveDashboardClient({
                     <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
                   </div>
                   <span className={`pill ${item.available ? (item.change_pct ?? 0) >= 0 ? "positive" : "negative" : "warning"}`}>
-                    {item.available ? (item.is_live ? "Live" : "Fallback") : "Unavailable"}
+                    {item.available
+                      ? (item.is_live ? copy.tracked.live : copy.tracked.fallback)
+                      : copy.tracked.unavailable}
                   </span>
                 </div>
 
@@ -2564,25 +2659,25 @@ export function LiveDashboardClient({
                   <strong>{item.available ? `₩${formatPrice(item.price)}` : "N/A"}</strong>
                   <span className={getQuoteToneClass(item.change_pct)}>
                     {item.available
-                      ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change)}`
-                      : item.unavailable_reason ?? "No fresh quote source"}
+                      ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change, copy.tracked.unavailable, numberLocale)}`
+                      : item.unavailable_reason ?? copy.tracked.noFreshQuoteSource}
                   </span>
                 </div>
 
                 <div className={styles.cardMeta}>
                   <div>
-                    <span>Price Freshness</span>
-                    <strong>{getPriceFreshnessLabel(item)}</strong>
+                    <span>{copy.operational.priceFreshness}</span>
+                    <strong>{getPriceFreshnessLabel(item, copy)}</strong>
                   </div>
                   <div>
-                    <span>TA Freshness</span>
+                    <span>{copy.operational.technicalFreshness}</span>
                     <strong>{getTechnicalFreshnessLabel(freshness)}</strong>
                   </div>
                 </div>
 
                 <div className={styles.cardFooter}>
-                  <span className="clamp-3">{describeQuoteSource(item)}</span>
-                  <span className="clamp-3">Turnover {formatTurnover(item.turnover)}</span>
+                  <span className="clamp-3">{describeQuoteSource(item, copy)}</span>
+                  <span className="clamp-3">{copy.operational.turnover} {formatTurnover(item.turnover)}</span>
                 </div>
               </Link>
             ))}
@@ -2604,7 +2699,7 @@ export function LiveDashboardClient({
               >
                 <div className={styles.dialogHeader}>
                   <div>
-                    <p className={styles.sectionEyebrow}>D2 Fundamentals</p>
+                    <p className={styles.sectionEyebrow}>{copy.operational.fundamentalsDialogEyebrow}</p>
                     <h2 id="fundamentals-failure-title" className={styles.dialogTitle}>
                       {fundamentalsFailureDetails.title}
                     </h2>
@@ -2613,10 +2708,10 @@ export function LiveDashboardClient({
                     type="button"
                     className={styles.dialogCloseButton}
                     onClick={() => setOpenFundamentalsFailureKey(null)}
-                    aria-label="Close fundamentals failure details"
+                    aria-label={copy.operational.closeFundamentalsDetails}
                     autoFocus
                   >
-                    Close
+                    {copy.operational.close}
                   </button>
                 </div>
 
@@ -2635,7 +2730,7 @@ export function LiveDashboardClient({
 
                 {fundamentalsFailureDetails.metadata.length > 0 ? (
                   <div className={styles.metadataBlock}>
-                    <strong>Failure metadata</strong>
+                    <strong>{copy.operational.failureMetadata}</strong>
                     <dl>
                       {fundamentalsFailureDetails.metadata.map((item) => (
                         <div key={item.label}>
@@ -2666,9 +2761,9 @@ export function LiveDashboardClient({
               >
                 <div className={styles.dialogHeader}>
                   <div>
-                    <p className={styles.sectionEyebrow}>Agent Feedback</p>
+                    <p className={styles.sectionEyebrow}>{copy.operational.stopDialogEyebrow}</p>
                     <h2 id="agent-feedback-stop-title" className={styles.dialogTitle}>
-                      중단하시겠습니까?
+                      {copy.operational.stopDialogTitle}
                     </h2>
                   </div>
                 </div>
@@ -2691,7 +2786,7 @@ export function LiveDashboardClient({
                     autoFocus
                     disabled={agentFeedbackStopPending}
                   >
-                    아니요
+                    {copy.operational.stopDialogNo}
                   </button>
                   <button
                     type="button"
@@ -2699,7 +2794,7 @@ export function LiveDashboardClient({
                     onClick={() => void handleAgentFeedbackStopConfirm()}
                     disabled={agentFeedbackStopPending}
                   >
-                    {agentFeedbackStopPending ? "중단 중..." : "예"}
+                    {agentFeedbackStopPending ? copy.operational.stopDialogStopping : copy.operational.stopDialogYes}
                   </button>
                 </div>
               </section>
