@@ -33,6 +33,8 @@ test.describe("dashboard mobile hero", () => {
     expect(heroBox!.x).toBeGreaterThanOrEqual(0);
     await expect(hero.getByText(/Market Freshness Registry/i)).toBeVisible();
     await expect(hero.getByText(/EOD Status/i)).toBeVisible();
+    await expect(hero.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
+    await expect(hero.getByRole("heading", { name: /Filtering/i })).toBeVisible();
     await expect(hero.getByText(/Price Fetch/i)).toBeVisible();
     await expect(hero.getByText(/Technical Analysis/i)).toBeVisible();
     await expect(hero.getByText(/Action Summary/i)).toBeVisible();

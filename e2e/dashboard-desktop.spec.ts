@@ -13,7 +13,8 @@ test.describe("dashboard desktop", () => {
     await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Piotroski filter passes/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Filtering/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
@@ -416,22 +417,15 @@ test.describe("dashboard desktop", () => {
     await expect(symbolCard).toBeVisible();
     await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
 
-    const piotroskiSection = page.locator("section").filter({
-      has: page.getByRole("heading", { name: /Piotroski filter passes/i }),
-    });
-    const piotroskiRow = piotroskiSection
-      .locator('a[href*="/dashboard/symbol/"]')
-      .filter({ hasText: "123456" })
-      .filter({ hasText: "+1.25%" });
-    await expect(piotroskiRow).toBeVisible();
-    await expect(piotroskiRow).toContainText("Acme Precision");
-    await expect(piotroskiRow).not.toContainText("[확인 필요]");
-    await expect(piotroskiRow).toContainText("Score 8");
+    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    await expect(filteringCard).toContainText("Completed");
+    await expect(filteringCard).toContainText(/Checked\s*2/);
+    await expect(filteringCard).toContainText(/Pass\s*1/);
 
     await expect.poll(() => searchRequests).toContain("123456");
   });
 
-  test("D4 Piotroski filter More opens the full pass list and rows navigate to the symbol detail page", async ({ page }) => {
+  test("D2 Filtering More opens the full pass list and rows navigate to the symbol detail page", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -697,19 +691,14 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const piotroskiSection = page.locator("section").filter({
-      has: page.getByRole("heading", { name: /Piotroski filter passes/i }),
-    });
-    const dashboardRows = piotroskiSection.locator('a[href*="/dashboard/symbol/"]');
-    await expect(dashboardRows).toHaveCount(3);
-    await expect(dashboardRows.nth(0)).toContainText("SK hynix");
-    await expect(dashboardRows.nth(0)).toContainText("Score 9");
-    await expect(dashboardRows.nth(1)).toContainText("Samsung Electronics");
-    await expect(dashboardRows.nth(1)).toContainText("Score 8");
-    await expect(dashboardRows.nth(2)).toContainText("Hyundai Motor");
-    await expect(dashboardRows.nth(2)).toContainText("Score 7");
+    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    await expect(filteringCard).toContainText("Completed");
+    await expect(filteringCard).toContainText(/Checked\s*4/);
+    await expect(filteringCard).toContainText(/Pass\s*4/);
 
-    await piotroskiSection.getByRole("link", { name: "More" }).click();
+    await filteringCard
+      .getByRole("link", { name: /Open the full Piotroski filter pass list/i })
+      .click();
 
     await expect(page).toHaveURL(/\/dashboard\/piotroski-filter\?marketDate=2026-04-15$/);
     await expect(page.getByRole("heading", { name: /Piotroski filter pass list/i })).toBeVisible();
@@ -970,7 +959,7 @@ test.describe("dashboard desktop", () => {
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     await expect(priceStage).toContainText("not synced");
     await expect(priceStage).toContainText("Succeeded 237 / 250");
-    await expect(priceStage.getByText(/Failed/i)).toHaveCount(0);
+    await expect(priceStage).toContainText("Failed 13");
     await expect(priceStage).toContainText("Latest date 2026-04-15");
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
@@ -980,12 +969,13 @@ test.describe("dashboard desktop", () => {
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     await expect(actionStage).toContainText("not synced");
+    await expect(actionStage).toContainText("Failed 2");
     await expect(actionStage).toContainText("Latest date 2026-04-14");
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toContainText("synced");
     await expect(fundamentalsStage).toContainText("Checked 42");
-    await expect(fundamentalsStage.getByText(/Succeeded|Failed|\//i)).toHaveCount(0);
+    await expect(fundamentalsStage).toContainText("Failed 1");
   });
 
   test("D2 EOD status shows break day on non-trading market days", async ({ page }) => {
@@ -1314,9 +1304,10 @@ test.describe("dashboard desktop", () => {
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     await expect(priceStage).toContainText("running");
-    await expect(priceStage).toContainText("Succeeded 80 / 250");
+    await expect(priceStage).toContainText("Progress 80 / 250");
     await expect(priceStage.getByText("not synced")).toHaveCount(0);
     await expect(technicalStage).toContainText("running");
+    await expect(technicalStage).toContainText("Progress 0 / 250");
     await expect(technicalStage.getByText("not synced")).toHaveCount(0);
   });
 
@@ -1533,7 +1524,6 @@ test.describe("dashboard desktop", () => {
     await expect(freshnessPanel.getByText(/Server time/)).toBeVisible();
 
     const progressCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
-    const eodStatusCard = freshnessPanel.locator("article").filter({ hasText: "EOD Status" });
     const stopButton = progressCard.getByRole("button", { name: "중단" });
     await expect(progressCard).toBeVisible();
     await expect(progressCard).toContainText("에이전트 분석 중...");
@@ -1558,7 +1548,6 @@ test.describe("dashboard desktop", () => {
     );
     await expect(stopDialog).toHaveCount(0);
     await expect(progressCard).toContainText("기준일 2026-04-15");
-    await expect(progressCard.locator("p")).toHaveCount(0);
     await expect(progressCard).not.toContainText("피드백 완료 302개 / 1,000개");
     await expect(progressCard).not.toContainText("예상 기준");
     await expect(progressCard).not.toContainText("현재 롤");
@@ -1600,11 +1589,6 @@ test.describe("dashboard desktop", () => {
     expect(activeRoleAnimation).toContain("agentRoleSpin");
     await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(2);
 
-    const [eodBox, progressBox] = await Promise.all([eodStatusCard.boundingBox(), progressCard.boundingBox()]);
-    expect(eodBox).not.toBeNull();
-    expect(progressBox).not.toBeNull();
-    expect(progressBox!.y).toBeGreaterThan(eodBox!.y + eodBox!.height - 1);
-
     async function reloadAndExpectAgentStatus(expectedLabel: string) {
       const previousProgressRequestCount = progressRequestCount;
       await page.reload();
@@ -1634,8 +1618,20 @@ test.describe("dashboard desktop", () => {
     };
     await reloadAndExpectAgentStatus("에이전트 확인 필요");
     await expect(progressCard).not.toContainText("에이전트 분석 중...");
-    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).toContainText("기준일 2026-04-15");
     await expect(progressCard).not.toContainText("피드백 완료");
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Preflight Gate" }),
+    ).toContainText(/Complete\s*250개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
+    ).toContainText(/Complete\s*250개/);
+    await expect(
+      progressCard.locator('[data-role-status="attention"]').filter({ hasText: "Technical summarizer" }),
+    ).toContainText(/Complete\s*88개/);
+    await expect(
+      progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
+    ).toContainText(/Complete\s*0개/);
     await expect(stopButton).toHaveCount(0);
 
     agentProgressSummary = {
@@ -1651,8 +1647,10 @@ test.describe("dashboard desktop", () => {
       completed_feedback_count: 0,
     };
     await reloadAndExpectAgentStatus("에이전트 분석 대기");
-    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).toContainText("기준일 2026-04-15");
     await expect(progressCard).not.toContainText("피드백 완료");
+    await expect(progressCard.locator('[data-role-status="pending"]')).toHaveCount(4);
+    await expect(progressCard.getByText("Complete0개")).toHaveCount(4);
     await expect(stopButton).toHaveCount(0);
 
     agentProgressSummary = {
@@ -1668,8 +1666,10 @@ test.describe("dashboard desktop", () => {
       completed_feedback_count: 750,
     };
     await reloadAndExpectAgentStatus("에이전트 분석 완료");
-    await expect(progressCard).not.toContainText("기준일");
+    await expect(progressCard).toContainText("기준일 2026-04-15");
     await expect(progressCard).not.toContainText("피드백 완료");
+    await expect(progressCard.locator('[data-role-status="completed"]')).toHaveCount(4);
+    await expect(progressCard.getByText("Complete250개")).toHaveCount(4);
     await expect(stopButton).toHaveCount(0);
   });
 
@@ -2457,7 +2457,7 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage).toContainText("synced");
     await expect(fundamentalsStage).toContainText("Checked 42");
     await expect(fundamentalsStage).toContainText("Updated today 42 (005930, 000660, 035420, 005380 +38)");
-    await expect(fundamentalsStage.getByText(/Succeeded|Failed|\//i)).toHaveCount(0);
+    await expect(fundamentalsStage).toContainText("Failed 1");
     await expect(fundamentalsStage).toContainText("Run status Completed");
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
     await expect.poll(() => fundamentalsMarketDateRequests).toContain("2026-04-16");

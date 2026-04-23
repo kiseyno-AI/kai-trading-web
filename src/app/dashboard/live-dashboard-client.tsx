@@ -22,7 +22,6 @@ import {
 } from "@/lib/mobile-toolbar-data";
 import {
   buildPiotroskiListHref,
-  buildPiotroskiSymbolHref,
   getPiotroskiMarketDate,
   loadPiotroskiPassList,
   type PiotroskiPassListResult,
@@ -60,6 +59,11 @@ const AGENT_FEEDBACK_STOP_DIALOG_ID = "agent-feedback-stop-dialog";
 const AGENT_FEEDBACK_STOP_ERROR_ID = "agent-feedback-stop-error";
 const AGENT_FEEDBACK_STOP_CONTROL_CLIENT_PATH = "/api/trading/agent-context/internal/core/control";
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
+const DEFAULT_AGENT_ROLE_ORDER = [
+  "eod-summarizer",
+  "technical-summarizer",
+  "fundamental-summarizer",
+] as const;
 const AGENT_FEEDBACK_STOP_REQUEST = {
   action: "kill",
   signal_name: "SIGKILL",
@@ -81,6 +85,7 @@ const AGENT_ROLE_STATUS_LABELS = {
   completed: "확인 완료",
   running: "실행 중",
   pending: "대기",
+  attention: "확인 필요",
 } satisfies Record<AgentRoleStatus, string>;
 
 export type CoreMarketStatus = {
@@ -179,7 +184,7 @@ type EodStageDetail = {
   tone?: "count" | "text";
 };
 
-type AgentRoleStatus = "completed" | "running" | "pending";
+type AgentRoleStatus = "completed" | "running" | "pending" | "attention";
 
 type AgentRoleDependencyStatus = "confirmed" | "running" | "pending";
 
@@ -203,6 +208,12 @@ type AgentRoleCard = {
   metrics: AgentRoleMetric[];
 };
 
+type AgentRoleProgressSnapshot = {
+  role: string;
+  status: AgentRoleStatus;
+  completedCount: number | null;
+};
+
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
@@ -215,11 +226,6 @@ function formatSignedPercent(value: number | null | undefined, fallback = "Unava
 function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable"): string {
   if (!hasNumber(value)) return fallback;
   return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
-}
-
-function formatPiotroskiScore(value: number | null | undefined, fallback = UNKNOWN_LABEL) {
-  if (!hasNumber(value)) return fallback;
-  return value.toLocaleString("ko-KR");
 }
 
 function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>): string | null {
@@ -974,14 +980,21 @@ function normalizeAgentProgressRunStatus(status: unknown): AgentFeedbackRunStatu
   return normalized in AGENT_PROGRESS_STATUS_LABELS ? (normalized as AgentFeedbackRunStatus) : null;
 }
 
-function isAgentFeedbackProgressRunning(progress: AgentFeedbackProgressResponseDto | null) {
-  if (!progress) return false;
+function getResolvedAgentProgressRunStatus(progress: AgentFeedbackProgressResponseDto | null) {
+  if (!progress) return null;
 
   const summary = progress.summary;
   const runStatus = normalizeAgentProgressRunStatus(summary.run_status);
-  if (runStatus) return runStatus === "running";
+  if (runStatus) return runStatus;
 
-  return summary.is_live;
+  if (summary.is_live) return "running";
+  if (summary.failed_items > 0) return "stalled";
+  if (summary.progress_percent >= 100) return "completed";
+  return "pending";
+}
+
+function isAgentFeedbackProgressRunning(progress: AgentFeedbackProgressResponseDto | null) {
+  return getResolvedAgentProgressRunStatus(progress) === "running";
 }
 
 function getAgentFeedbackProgressPollDelayMs(progress: AgentFeedbackProgressResponseDto | null) {
@@ -993,14 +1006,8 @@ function getAgentFeedbackProgressPollDelayMs(progress: AgentFeedbackProgressResp
 function getAgentProgressStatusLabel(progress: AgentFeedbackProgressResponseDto | null, error: string | null) {
   if (!progress) return error ? "에이전트 확인 필요" : UNKNOWN_LABEL;
 
-  const summary = progress.summary;
-  const runStatus = normalizeAgentProgressRunStatus(summary.run_status);
-  if (runStatus) return AGENT_PROGRESS_STATUS_LABELS[runStatus];
-
-  if (summary.is_live) return AGENT_PROGRESS_STATUS_LABELS.running;
-  if (summary.failed_items > 0) return AGENT_PROGRESS_STATUS_LABELS.stalled;
-  if (summary.progress_percent >= 100) return AGENT_PROGRESS_STATUS_LABELS.completed;
-  return AGENT_PROGRESS_STATUS_LABELS.pending;
+  const runStatus = getResolvedAgentProgressRunStatus(progress);
+  return runStatus ? AGENT_PROGRESS_STATUS_LABELS[runStatus] : AGENT_PROGRESS_STATUS_LABELS.pending;
 }
 
 function normalizeAgentRole(role: string | null | undefined) {
@@ -1032,7 +1039,9 @@ function getOrderedAgentRoles(progress: AgentFeedbackProgressResponseDto | null)
   progress?.request?.expected_agents?.forEach(addRole);
   addRole(progress?.summary?.current_role);
 
-  return roles;
+  if (roles.length > 0) return roles;
+
+  return [...DEFAULT_AGENT_ROLE_ORDER];
 }
 
 function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: string | null): AgentRoleStatus {
@@ -1113,6 +1122,114 @@ function buildAgentRoleMetrics(progress: AgentFeedbackProgressResponseDto | null
   ];
 }
 
+function getRecordStringValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && hasTextValue(value)) return value.trim();
+  }
+
+  return null;
+}
+
+function getRecordNumberValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+
+  return null;
+}
+
+function normalizeAgentRoleCardStatus(value: unknown): AgentRoleStatus | null {
+  if (typeof value !== "string") return null;
+
+  switch (value.trim().toLowerCase()) {
+    case "completed":
+    case "complete":
+    case "done":
+    case "ready":
+      return "completed";
+    case "running":
+    case "in_progress":
+    case "processing":
+      return "running";
+    case "pending":
+    case "queued":
+    case "idle":
+      return "pending";
+    case "stalled":
+    case "failed":
+    case "error":
+    case "attention":
+    case "needs_review":
+    case "needs review":
+      return "attention";
+    default:
+      return null;
+  }
+}
+
+function extractAgentRoleSnapshot(role: string, value: unknown): AgentRoleProgressSnapshot | null {
+  if (!isRecord(value)) return null;
+
+  const completedCount = getRecordNumberValue(value, [
+    "completed_symbols",
+    "completed_count",
+    "completed_feedback_count",
+    "count",
+  ]);
+  const status =
+    normalizeAgentRoleCardStatus(
+      getRecordStringValue(value, ["status", "run_status", "role_status", "progress_status"]),
+    ) ?? "pending";
+
+  return {
+    role,
+    status,
+    completedCount,
+  };
+}
+
+function getAgentRoleProgressSnapshots(progress: AgentFeedbackProgressResponseDto | null) {
+  if (!progress) return [];
+
+  const progressRecord = isRecord(progress) ? (progress as Record<string, unknown>) : null;
+  const summaryRecord = isRecord(progressRecord?.summary)
+    ? (progressRecord.summary as Record<string, unknown>)
+    : null;
+  const sources = [
+    progressRecord?.role_progress,
+    progressRecord?.roles,
+    summaryRecord?.role_progress,
+    summaryRecord?.roles,
+    summaryRecord?.role_statuses,
+  ];
+
+  for (const source of sources) {
+    if (Array.isArray(source)) {
+      const snapshots = source
+        .map((item) => {
+          if (!isRecord(item)) return null;
+          const role = getRecordStringValue(item, ["role", "agent", "name", "label"]);
+          if (!role) return null;
+          return extractAgentRoleSnapshot(role, item);
+        })
+        .filter((item): item is AgentRoleProgressSnapshot => item !== null);
+      if (snapshots.length > 0) return snapshots;
+      continue;
+    }
+
+    if (!isRecord(source)) continue;
+
+    const snapshots = Object.entries(source)
+      .map(([role, value]) => extractAgentRoleSnapshot(role, value))
+      .filter((item): item is AgentRoleProgressSnapshot => item !== null);
+    if (snapshots.length > 0) return snapshots;
+  }
+
+  return [];
+}
+
 function isSummarizerRole(role: string) {
   return (normalizeAgentRole(role) ?? "").includes("summarizer");
 }
@@ -1141,15 +1258,103 @@ function getAgentRoleDependencies(
   return dependencies;
 }
 
+function getNonRunningAgentRoleStatus(
+  runStatus: AgentFeedbackRunStatus | null,
+  role: string,
+  orderedRoles: string[],
+  currentRole: string | null,
+): AgentRoleStatus {
+  if (runStatus === "completed") return "completed";
+  if (runStatus === "pending" || runStatus === null) return "pending";
+  if (runStatus !== "stalled" || !currentRole) return "attention";
+
+  const roleIndex = orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === normalizeAgentRole(role));
+  const currentRoleIndex = orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === currentRole);
+
+  if (roleIndex >= 0 && currentRoleIndex >= 0) {
+    if (roleIndex < currentRoleIndex) return "completed";
+    if (roleIndex === currentRoleIndex) return "attention";
+    return "pending";
+  }
+
+  return "attention";
+}
+
+function getNonRunningAgentRoleCompletedCount(
+  progress: AgentFeedbackProgressResponseDto | null,
+  runStatus: AgentFeedbackRunStatus | null,
+  role: string,
+  orderedRoles: string[],
+  currentRole: string | null,
+) {
+  const totalSymbols = progress?.summary.total_symbols ?? null;
+  const completedSymbols = progress?.summary.completed_symbols ?? null;
+
+  if (runStatus === "completed") {
+    return totalSymbols ?? completedSymbols;
+  }
+
+  if (runStatus === "pending" || runStatus === null) {
+    return 0;
+  }
+
+  if (runStatus !== "stalled" || !currentRole) {
+    return completedSymbols;
+  }
+
+  const roleIndex = orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === normalizeAgentRole(role));
+  const currentRoleIndex = orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === currentRole);
+
+  if (roleIndex >= 0 && currentRoleIndex >= 0) {
+    if (roleIndex < currentRoleIndex) return totalSymbols;
+    if (roleIndex === currentRoleIndex) return completedSymbols;
+    return 0;
+  }
+
+  return completedSymbols;
+}
+
 function buildAgentRoleCards(
   progress: AgentFeedbackProgressResponseDto | null,
   eodStage: EodFreshnessStageDto | null,
   technicalStage: EodFreshnessStageDto | null,
 ): AgentRoleCard[] {
-  if (!isAgentFeedbackProgressRunning(progress)) return [];
-
   const orderedRoles = getOrderedAgentRoles(progress);
+  if (orderedRoles.length === 0) return [];
+
   const currentRole = normalizeAgentRole(progress?.summary?.current_role);
+  const runStatus = getResolvedAgentProgressRunStatus(progress);
+  const roleSnapshots = getAgentRoleProgressSnapshots(progress);
+  const roleSnapshotByRole = new Map(
+    roleSnapshots.map((snapshot) => [normalizeAgentRole(snapshot.role) ?? snapshot.role, snapshot] as const),
+  );
+
+  if (!isAgentFeedbackProgressRunning(progress)) {
+    return orderedRoles.map((role) => {
+      const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
+      const status =
+        snapshot?.status ??
+        getNonRunningAgentRoleStatus(runStatus, role, orderedRoles, currentRole);
+      const completedCount =
+        snapshot?.completedCount ??
+        getNonRunningAgentRoleCompletedCount(progress, runStatus, role, orderedRoles, currentRole);
+
+      return {
+        role,
+        label: getAgentRoleLabel(role),
+        status,
+        dependencies: [],
+        metrics: [
+          {
+            key: "completed",
+            label: "Complete",
+            value: formatAgentProgressCountLabel(completedCount),
+          },
+        ],
+      };
+    });
+  }
+
   const metrics = buildAgentRoleMetrics(progress);
   // Keep run-level metrics visible for legacy/transient payloads that are live but omit current_role.
   const fallbackMetricsRole =
@@ -1432,7 +1637,7 @@ export function LiveDashboardClient({
       try {
         const data = await loadPiotroskiPassList({
           marketDate: piotroskiMarketDate,
-          limit: 3,
+          limit: 0,
         });
         if (!active) return;
         setPiotroskiBoard(data);
@@ -1672,12 +1877,50 @@ export function LiveDashboardClient({
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
-  const showAgentProgressDetails = isAgentFeedbackRunning;
   const agentRoleCards = buildAgentRoleCards(
     displayedAgentFeedbackProgress,
     priceFreshnessStage,
     technicalFreshnessStage,
   );
+  const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
+  const agentFeedbackStatusTone =
+    agentProgressRunStatus === "completed"
+      ? "positive"
+      : agentProgressRunStatus === "running"
+        ? "neutral"
+        : agentProgressRunStatus === "stalled"
+          ? "warning"
+          : "neutral";
+  const filteringStatusLabel =
+    piotroskiBoardLoadState === "ready"
+      ? "Completed"
+      : piotroskiBoardLoadState === "loading"
+        ? "Loading"
+        : piotroskiBoardLoadState === "error"
+          ? "Needs review"
+          : piotroskiMarketDate
+            ? "Pending"
+            : "Waiting";
+  const filteringStatusTone =
+    piotroskiBoardLoadState === "ready"
+      ? "positive"
+      : piotroskiBoardLoadState === "loading"
+        ? "neutral"
+        : piotroskiBoardLoadState === "error"
+          ? "warning"
+          : "neutral";
+  const filteringCheckedCount = piotroskiBoard?.summary.entries ?? null;
+  const filteringPassCount = piotroskiBoard?.summary.passed_count ?? piotroskiBoard?.totalPassedCount ?? null;
+  const filteringNote =
+    piotroskiBoardLoadState === "error"
+      ? piotroskiBoardError ?? "Piotroski filter results are unavailable."
+      : piotroskiBoardLoadState === "ready"
+        ? `Matched ${formatEodSymbolCount(
+            piotroskiBoard?.summary.matched_symbols.length ?? filteringCheckedCount,
+          )} symbol(s).`
+        : piotroskiMarketDate
+          ? "Piotroski filter status is pending for the selected market date."
+          : "Piotroski market date is pending.";
   const marketBadgeLabel = market.is_open ? "Market Open" : "Market Closed";
   const coreUnavailable =
     market.state === "OFFLINE PLACEHOLDER" ||
@@ -1811,10 +2054,11 @@ export function LiveDashboardClient({
 
           <div className={styles.integrityGrid}>
             <article className={`${styles.integrityStat} ${styles.eodStatusCard}`}>
-              <div className={styles.eodStatusHeader}>
+              <div className={styles.sectionHeaderRow}>
                 <div>
-                  <span>EOD Status</span>
-                  <strong>Market date {eodMarketDate}</strong>
+                  <p className={styles.sectionEyebrow}>EOD Status</p>
+                  <h2 className={styles.sectionTitle}>Daily Data Fetch</h2>
+                  <p className={styles.cardContext}>Market date {eodMarketDate}</p>
                 </div>
               </div>
 
@@ -1880,13 +2124,56 @@ export function LiveDashboardClient({
               </div>
             </article>
 
-            <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
-              <span>Agent Feedback</span>
-              <strong>{agentProgressStatusLabel}</strong>
-              {showAgentProgressDetails ? <span className={styles.agentProgressDate}>기준일 {agentProgressDate}</span> : null}
-              <div className={styles.agentProgressTrack} aria-hidden="true">
-                <i style={{ width: `${agentProgressPercentValue}%` }} />
+            <article className={`${styles.integrityStat} ${styles.filteringCard}`}>
+              <div className={styles.sectionHeaderRow}>
+                <div>
+                  <p className={styles.sectionEyebrow}>Piotroski Filter</p>
+                  <h2 className={styles.sectionTitle}>Filtering</h2>
+                  <p className={styles.cardContext}>Market date {piotroskiMarketDate ?? UNKNOWN_LABEL}</p>
+                </div>
+                <Link
+                  href={buildPiotroskiListHref(piotroskiMarketDate)}
+                  className={styles.sectionLink}
+                  aria-label="Open the full Piotroski filter pass list"
+                >
+                  More
+                </Link>
               </div>
+
+              <div className={styles.statusMetricGrid}>
+                <div className={styles.statusMetric}>
+                  <span>Status</span>
+                  <strong>
+                    <span className={`pill ${filteringStatusTone}`}>{filteringStatusLabel}</span>
+                  </strong>
+                </div>
+                <div className={styles.statusMetric}>
+                  <span>Checked</span>
+                  <strong>{formatEodSymbolCount(filteringCheckedCount)}</strong>
+                </div>
+                <div className={styles.statusMetric}>
+                  <span>Pass</span>
+                  <strong>{formatEodSymbolCount(filteringPassCount)}</strong>
+                </div>
+              </div>
+
+              <p className={styles.cardContext}>{filteringNote}</p>
+            </article>
+
+            <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
+              <div className={styles.sectionHeaderRow}>
+                <div>
+                  <p className={styles.sectionEyebrow}>Latest Run</p>
+                  <h2 className={styles.sectionTitle}>Agent Feedback</h2>
+                  <p className={styles.cardContext}>기준일 {agentProgressDate}</p>
+                </div>
+                <span className={`pill ${agentFeedbackStatusTone}`}>{agentProgressStatusLabel}</span>
+              </div>
+              {isAgentFeedbackRunning ? (
+                <div className={styles.agentProgressTrack} aria-hidden="true">
+                  <i style={{ width: `${agentProgressPercentValue}%` }} />
+                </div>
+              ) : null}
               {agentRoleCards.length > 0 ? (
                 <div className={styles.agentRoleList} role="list" aria-label="Agent role progress">
                   {agentRoleCards.map((role) => (
@@ -1931,7 +2218,9 @@ export function LiveDashboardClient({
                     </div>
                   ))}
                 </div>
-              ) : null}
+              ) : (
+                <div className={styles.emptyState}>Agent feedback role progress is unavailable for the selected market date.</div>
+              )}
               {isAgentFeedbackRunning ? (
                 <div className={styles.agentFeedbackActions}>
                   <button
@@ -2010,78 +2299,6 @@ export function LiveDashboardClient({
               </Link>
             ))}
           </div>
-        </section>
-
-        <section className={styles.supportGrid}>
-          <section className={`${styles.panel} ${styles.supportPanel}`}>
-            <div className={styles.sectionHeaderRow}>
-              <div>
-                <ComponentTag
-                  label="dashboard.piotroski-board"
-                  api="/api/trading/eod/piotroski-filter-results + /api/trading/quotes/{symbol} + /api/trading/symbols/search"
-                />
-                <p className={styles.sectionEyebrow}>Piotroski Filter</p>
-                <h2 className={styles.sectionTitle}>Piotroski filter passes</h2>
-              </div>
-              <Link
-                href={buildPiotroskiListHref(piotroskiMarketDate)}
-                className={styles.sectionLink}
-                aria-label="Open the full Piotroski filter pass list"
-              >
-                More
-              </Link>
-            </div>
-            <div className={styles.supportList}>
-              {piotroskiBoardLoadState === "loading" ? (
-                <div className={styles.emptyState}>Loading Piotroski pass symbols...</div>
-              ) : piotroskiBoardLoadState === "error" ? (
-                <div className={styles.emptyState}>
-                  {piotroskiBoardError
-                    ? `Piotroski filter results are unavailable. ${piotroskiBoardError}`
-                    : "Piotroski filter results are unavailable."}
-                </div>
-              ) : piotroskiBoard && piotroskiBoard.items.length > 0 ? (
-                piotroskiBoard.items.map((item) => {
-                  const priceLabel =
-                    item.quote?.available && hasNumber(item.quote.price)
-                      ? `₩${formatPrice(item.quote.price)}`
-                      : "Quote unavailable";
-                  const changeLabel = item.quote?.available
-                    ? formatSignedPercent(item.quote.change_pct)
-                    : item.quote?.unavailable_reason ?? "Unavailable";
-                  const companyName = item.companyName ?? UNKNOWN_LABEL;
-
-                  return (
-                    <Link
-                      key={item.symbol}
-                      href={buildPiotroskiSymbolHref({
-                        symbol: item.symbol,
-                        companyName: item.companyName,
-                        marketDate: item.marketDate,
-                      })}
-                      className={styles.supportRow}
-                    >
-                      <div>
-                        <strong>{companyName}</strong>
-                        <p className="clamp-3">{item.symbol}</p>
-                      </div>
-                      <div className={styles.supportMetrics}>
-                        <span className={styles.supportPrice}>{priceLabel}</span>
-                        <span className={getQuoteToneClass(item.quote?.change_pct)}>{changeLabel}</span>
-                        <span className={styles.supportScore}>Score {formatPiotroskiScore(item.piotroskiScore)}</span>
-                      </div>
-                    </Link>
-                  );
-                })
-              ) : (
-                <div className={styles.emptyState}>
-                  {piotroskiMarketDate
-                    ? `No Piotroski pass symbols were stored for ${piotroskiMarketDate}.`
-                    : "Piotroski market date is pending."}
-                </div>
-              )}
-            </div>
-          </section>
         </section>
       </div>
 
