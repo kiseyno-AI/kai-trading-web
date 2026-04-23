@@ -39,7 +39,7 @@ test.describe("dashboard mobile hero", () => {
     await expect(hero.getByText(/Technical Analysis/i)).toBeVisible();
     await expect(hero.getByText(/Action Summary/i)).toBeVisible();
     await expect(hero.getByText(/Fundamentals/i)).toBeVisible();
-    await expect(hero.getByText(/Succeeded/i).first()).toBeVisible();
+    await expect(hero.getByText(/Succeeded/i)).toHaveCount(0);
     await expect(hero.getByText(/Price Module/i)).toHaveCount(0);
   });
 });

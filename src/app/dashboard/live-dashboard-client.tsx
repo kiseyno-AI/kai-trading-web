@@ -894,7 +894,7 @@ function buildEodStageCard(
   canShowBreakDay: boolean,
   pipelineStage: EodPipelineStageDto | null | undefined,
   countDetail: Pick<EodStageDetail, "label" | "value"> = {
-    label: "Succeeded",
+    label: "",
     value: `${formatEodSymbolCount(stage?.symbols_succeeded)} / ${formatEodSymbolCount(stage?.symbols_total)}`,
   },
 ): EodStageCard {
@@ -905,7 +905,6 @@ function buildEodStageCard(
       key: "count",
       tone: "count",
       ...countDetail,
-      label: statusLabel === "running" && countDetail.label === "Succeeded" ? "Progress" : countDetail.label,
     },
   ];
 
@@ -2364,7 +2363,7 @@ export function LiveDashboardClient({
                             data-detail-tone={detail.tone ?? "text"}
                             data-detail-layout={detail.layout ?? "inline"}
                           >
-                            <span>{detail.label}</span>
+                            {detail.label ? <span>{detail.label}</span> : null}
                             <span className={styles.eodStageDetailValue}>{detail.value}</span>
                           </span>
                         ))}

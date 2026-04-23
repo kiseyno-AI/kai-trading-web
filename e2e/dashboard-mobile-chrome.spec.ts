@@ -201,9 +201,12 @@ test.describe("dashboard mobile chrome", () => {
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
     const agentFeedbackCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
 
-    await expect(priceStage).toContainText(/Succeeded\s*3,570\s*\/\s*3,583/);
-    await expect(technicalStage).toContainText(/Succeeded\s*3,583\s*\/\s*3,583/);
-    await expect(actionStage).toContainText(/Succeeded\s*3,579\s*\/\s*3,583/);
+    await expect(priceStage).toContainText(/3,570\s*\/\s*3,583/);
+    await expect(priceStage).not.toContainText(/Succeeded/);
+    await expect(technicalStage).toContainText(/3,583\s*\/\s*3,583/);
+    await expect(technicalStage).not.toContainText(/Succeeded/);
+    await expect(actionStage).toContainText(/3,579\s*\/\s*3,583/);
+    await expect(actionStage).not.toContainText(/Succeeded/);
     await expect(fundamentalsStage).toContainText(/Checked\s*3,583/);
     await expect(priceStage).toContainText(/Failed\s*13/);
     await expect(fundamentalsStage).toContainText(/Failed\s*1,406/);
