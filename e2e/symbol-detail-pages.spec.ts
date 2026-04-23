@@ -111,6 +111,7 @@ async function mockDetailModeSwitchApis(
   priceHistoryRequests: PriceHistoryRequestSnapshot[],
 ) {
   const marketDate = "2026-04-10";
+  let aggregateRequestCount = 0;
 
   await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
     await route.fulfill({
@@ -193,6 +194,11 @@ async function mockDetailModeSwitchApis(
   });
 
   await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+    aggregateRequestCount += 1;
+    if (aggregateRequestCount > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+
     await route.fulfill({
       json: {
         request: {
@@ -456,8 +462,8 @@ test.describe("symbol detail mobile pages", () => {
       await expect(page.getByRole("navigation", { name: /Primary/i })).toBeVisible();
       await expect(page.getByText(detailPage.eyebrow)).toBeVisible();
       await expect(page.getByRole("heading", { name: detailPage.heading }).first()).toBeVisible();
-      await expect(page.getByRole("link", { name: /Insights/i })).toBeVisible();
-      await expect(page.getByRole("link", { name: /Freshness/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /Insights/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /Freshness/i })).toBeVisible();
     }
   });
 
@@ -517,10 +523,36 @@ test.describe("symbol detail mobile pages", () => {
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
 
     const workspaceLoader = page.getByRole("status", { name: /Loading symbol workspace/i });
+    const anyFullPageLoader = page
+      .getByRole("status", { name: /Loading symbol workspace|Loading next surface/i });
 
     await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
+    const initialDetailUrl = page.url();
+    await page.evaluate(() => {
+      const state = window as Window & {
+        __symbolDetailLoaderSeen?: boolean;
+        __symbolDetailLoaderObserver?: MutationObserver;
+      };
+      const selector =
+        '[role="status"][aria-label="Loading symbol workspace"], [role="status"][aria-label="Loading next surface"]';
+      const markIfLoaderAppears = () => {
+        if (document.querySelector(selector)) {
+          state.__symbolDetailLoaderSeen = true;
+        }
+      };
+
+      state.__symbolDetailLoaderSeen = false;
+      state.__symbolDetailLoaderObserver?.disconnect();
+      state.__symbolDetailLoaderObserver = new MutationObserver(markIfLoaderAppears);
+      state.__symbolDetailLoaderObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["aria-label", "role"],
+        childList: true,
+        subtree: true,
+      });
+    });
     expect(requestCounts).toEqual({
       priceHistory: 2,
       technical: 1,
@@ -540,29 +572,47 @@ test.describe("symbol detail mobile pages", () => {
       },
     ]);
 
-    const actionTab = page.getByRole("link", { name: "Action" });
+    const actionTab = page.getByRole("button", { name: "Action" });
     await actionTab.scrollIntoViewIfNeeded();
     await actionTab.click();
     await page.waitForTimeout(100);
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/action-summary\?/);
+    await expect(page).toHaveURL(initialDetailUrl);
     await expect(page.locator('[data-mode="action-summary"]')).toBeVisible();
     await expect(page.locator("#action")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
 
-    const technicalTab = page.getByRole("link", { name: "Technical" });
+    const technicalTab = page.getByRole("button", { name: "Technical" });
     await technicalTab.scrollIntoViewIfNeeded();
     await technicalTab.click();
     await page.waitForTimeout(100);
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/technical-analysis\?/);
+    await expect(page).toHaveURL(initialDetailUrl);
     await expect(page.locator('[data-mode="technical-analysis"]')).toBeVisible();
     await expect(page.locator("#technical")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
 
-    const fundamentalsTab = page.getByRole("link", { name: "Fundamentals" });
+    await actionTab.click();
+    await page.waitForTimeout(50);
+    await actionTab.click();
+    await page.waitForTimeout(50);
+    await technicalTab.click();
+    await page.waitForTimeout(100);
+    await expect(page).toHaveURL(initialDetailUrl);
+    await expect(page.locator('[data-mode="technical-analysis"]')).toBeVisible();
+    await expect(anyFullPageLoader).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const state = window as Window & { __symbolDetailLoaderSeen?: boolean };
+          return state.__symbolDetailLoaderSeen ?? false;
+        }),
+      )
+      .toBe(false);
+
+    const fundamentalsTab = page.getByRole("button", { name: "Fundamentals" });
     await fundamentalsTab.scrollIntoViewIfNeeded();
     await fundamentalsTab.click();
     await page.waitForTimeout(100);
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/fundamentals-history\?/);
+    await expect(page).toHaveURL(initialDetailUrl);
     await expect(page.locator('[data-mode="fundamentals-history"]')).toBeVisible();
     await expect(page.locator("#fundamentals")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
