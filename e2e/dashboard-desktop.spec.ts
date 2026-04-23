@@ -730,6 +730,8 @@ test.describe("dashboard desktop", () => {
     await expect(page).toHaveURL(
       /\/dashboard\/symbol\/000660\?name=SK(?:\+|%20)hynix&marketDate=2026-04-15$/,
     );
+    await expect(page.getByRole("heading", { name: "SK hynix" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
   });
 
   test("tracked symbol cards keep quote content inside the card during desktop resizes", async ({ page }) => {

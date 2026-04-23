@@ -1,5 +1,11 @@
 import { SymbolDetailClient } from "../symbol-detail-client";
 
-export default function ActionSummaryDetailPage() {
-  return <SymbolDetailClient mode="action-summary" />;
+type ActionSummaryDetailPageProps = {
+  params: Promise<{ symbol: string }>;
+};
+
+export default async function ActionSummaryDetailPage({ params }: ActionSummaryDetailPageProps) {
+  const { symbol } = await params;
+
+  return <SymbolDetailClient mode="action-summary" symbol={symbol} />;
 }

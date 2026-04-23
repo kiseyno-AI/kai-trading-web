@@ -48,11 +48,40 @@ function getSearchParam(searchParams: SearchParamReader, key: string, fallback: 
   return value && value.trim().length > 0 ? value : fallback;
 }
 
-export function DisclosureReportClient() {
-  const params = useParams<{ symbol: string; receiptNo: string }>();
+type DisclosureReportClientProps = {
+  receiptNo?: string;
+  symbol?: string;
+};
+
+function readRouteParam(value: string | string[] | undefined) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return "";
+}
+
+export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: serverSymbol }: DisclosureReportClientProps) {
+  const params = useParams<{ symbol?: string | string[]; receiptNo?: string | string[] }>();
   const searchParams = useSearchParams();
-  const symbol = useMemo(() => decodeURIComponent(params.symbol), [params.symbol]);
-  const receiptNo = useMemo(() => decodeURIComponent(params.receiptNo), [params.receiptNo]);
+  const symbol = useMemo(() => {
+    if (typeof serverSymbol === "string" && serverSymbol.trim().length > 0) {
+      return serverSymbol;
+    }
+
+    return readRouteParam(params.symbol);
+  }, [params.symbol, serverSymbol]);
+  const receiptNo = useMemo(() => {
+    if (typeof serverReceiptNo === "string" && serverReceiptNo.trim().length > 0) {
+      return serverReceiptNo;
+    }
+
+    return readRouteParam(params.receiptNo);
+  }, [params.receiptNo, serverReceiptNo]);
   const preservedQueryString = useMemo(() => buildPreservedSymbolQuery(searchParams), [searchParams]);
   const backHref = useMemo(
     () => buildDisclosureCoverageHref(symbol, preservedQueryString),
