@@ -86,10 +86,19 @@
   pointer-events: none;
 }
 
-.mobileReleaseBadge {
+.mobileMetaRow {
   width: min(100%, 31rem);
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.mobileReleaseBadge {
+  min-width: 0;
+  display: flex;
+  justify-content: flex-start;
   color: #c5c8ff;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.65rem;
@@ -97,6 +106,50 @@
   letter-spacing: 0;
   text-transform: uppercase;
   text-shadow: 0 1px 10px rgba(1, 15, 32, 0.7);
+}
+
+.localeSwitch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.2rem;
+  padding: 0.18rem;
+  border: 1px solid rgba(143, 144, 158, 0.14);
+  border-radius: 999px;
+  background: rgba(13, 28, 46, 0.82);
+  box-shadow: 0 8px 24px rgba(1, 15, 32, 0.24);
+}
+
+.localeButton {
+  min-width: 2.15rem;
+  min-height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #93a3b8;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.localeButton:hover {
+  color: #f6f8ff;
+}
+
+.localeButtonActive {
+  background: #3f51b5;
+  color: #ffffff;
+}
+
+.mobileLocaleSwitch {
+  flex: 0 0 auto;
 }
 
 .bottomNav {
@@ -295,6 +348,12 @@
     border: 1px solid rgba(143, 144, 158, 0.1);
     border-radius: 0.25rem;
     background: rgba(18, 32, 50, 0.7);
+  }
+
+  .desktopLocaleSwitch {
+    width: 100%;
+    margin-top: 0.25rem;
+    background: rgba(7, 18, 34, 0.62);
   }
 
   .releaseKicker {

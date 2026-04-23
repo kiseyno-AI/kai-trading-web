@@ -4,8 +4,10 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { useAppState } from "@/components/providers/app-state-provider";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
-import { RELEASE_DISPLAY_LABEL, RELEASE_VERSION_LABEL } from "@/lib/release-version";
+import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
+import type { Locale } from "@/types/trading-api";
 
 import styles from "./mobile-app-chrome.module.css";
 
@@ -20,6 +22,7 @@ type MobileAppChromeProps = {
 };
 
 const DASHBOARD_HREF = "/dashboard";
+const localeOptions = ["en", "ko"] as const satisfies readonly Locale[];
 
 function DashboardIcon() {
   return (
@@ -62,6 +65,10 @@ function getDesktopItemClass(active: boolean) {
   return `${styles.desktopNavItem} ${active ? styles.desktopNavItemActive : ""}`.trim();
 }
 
+function getLocaleButtonClass(active: boolean) {
+  return `${styles.localeButton} ${active ? styles.localeButtonActive : ""}`.trim();
+}
+
 export function MobileAppChrome({
   activeNav,
   header,
@@ -70,6 +77,8 @@ export function MobileAppChrome({
   searchHref = "/search",
 }: MobileAppChromeProps) {
   const router = useRouter();
+  const { locale, setLocale, t } = useAppState();
+  const releaseDisplayLabel = `${t.mobileChrome.release} ${RELEASE_VERSION_LABEL}`;
   const prefetchTargets = useMemo(() => {
     const targets = [
       activeNav === "dashboard" ? null : DASHBOARD_HREF,
@@ -92,35 +101,53 @@ export function MobileAppChrome({
     }
   }, [prefetchTargets, router]);
 
+  const renderLocaleSwitch = (className: string) => (
+    <div className={className} role="group" aria-label={t.common.languageSwitcher}>
+      {localeOptions.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={getLocaleButtonClass(locale === option)}
+          aria-pressed={locale === option}
+          aria-label={option === "en" ? t.common.languageEnglish : t.common.languageKorean}
+          onClick={() => setLocale(option)}
+        >
+          {t.languages[option].short}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className={styles.surface}>
       <div className={styles.glowPrimary} />
       <div className={styles.glowSecondary} />
 
-      <aside className={styles.desktopRail} aria-label="Desktop navigation">
+      <aside className={styles.desktopRail} aria-label={t.mobileChrome.desktopNavigation}>
         <div className={styles.desktopBrand}>
           <div className={styles.desktopBrandMark}>KAI</div>
           <div>
-            <strong>KAI Trading</strong>
-            <span>Market Dashboard</span>
+            <strong>{t.mobileChrome.brandTitle}</strong>
+            <span>{t.mobileChrome.brandSubtitle}</span>
           </div>
         </div>
 
-        <nav className={styles.desktopNav} aria-label="Primary desktop">
+        <nav className={styles.desktopNav} aria-label={t.mobileChrome.primaryDesktopNavigation}>
           <Link href={DASHBOARD_HREF} prefetch className={getDesktopItemClass(activeNav === "dashboard")}>
             <DashboardIcon />
-            <span>Dashboard</span>
+            <span>{t.mobileChrome.dashboard}</span>
           </Link>
           <Link href={searchHref} prefetch className={getDesktopItemClass(activeNav === "search")}>
             <SearchIcon />
-            <span>Search</span>
+            <span>{t.mobileChrome.search}</span>
           </Link>
         </nav>
 
-        <div className={styles.desktopRailStatus} aria-label="Release version">
-          <span className={styles.releaseKicker}>Release</span>
+        <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>
+          <span className={styles.releaseKicker}>{t.mobileChrome.release}</span>
           <strong className={styles.releaseValue}>{RELEASE_VERSION_LABEL}</strong>
           <div className={styles.releaseRule} aria-hidden="true" />
+          {renderLocaleSwitch(`${styles.localeSwitch} ${styles.desktopLocaleSwitch}`)}
         </div>
       </aside>
 
@@ -131,21 +158,24 @@ export function MobileAppChrome({
       <main className={styles.main}>{children}</main>
 
       <div className={styles.bottomNavFrame}>
-        <div className={styles.mobileReleaseBadge} aria-label="Release version">
-          {RELEASE_DISPLAY_LABEL}
+        <div className={styles.mobileMetaRow}>
+          <div className={styles.mobileReleaseBadge} aria-label={t.mobileChrome.releaseVersion}>
+            {releaseDisplayLabel}
+          </div>
+          {renderLocaleSwitch(`${styles.localeSwitch} ${styles.mobileLocaleSwitch}`)}
         </div>
-        <nav className={styles.bottomNav} aria-label="Primary">
+        <nav className={styles.bottomNav} aria-label={t.mobileChrome.primaryNavigation}>
           <Link href={DASHBOARD_HREF} prefetch className={getItemClass(activeNav === "dashboard")}>
             <DashboardIcon />
-            <span className={styles.navLabel}>Dashboard</span>
+            <span className={styles.navLabel}>{t.mobileChrome.dashboard}</span>
           </Link>
           <Link href={searchHref} prefetch className={getItemClass(activeNav === "search")}>
             <SearchIcon />
-            <span className={styles.navLabel}>Search</span>
+            <span className={styles.navLabel}>{t.mobileChrome.search}</span>
           </Link>
           <Link href={mySymbolsHref} prefetch className={getItemClass(activeNav === "symbols")}>
             <SymbolsIcon />
-            <span className={styles.navLabel}>My Symbols</span>
+            <span className={styles.navLabel}>{t.mobileChrome.mySymbols}</span>
           </Link>
         </nav>
       </div>
