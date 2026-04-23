@@ -1209,7 +1209,11 @@ function buildAgentRoleMetrics(progress: AgentFeedbackProgressResponseDto | null
     {
       key: "completed",
       label: "완료",
-      value: formatAgentProgressCountLabel(progress?.summary?.completed_symbols),
+      value: formatAgentProgressCountLabel(
+        getResolvedAgentProgressRunStatus(progress) === "running"
+          ? progress?.summary?.processed_symbols
+          : progress?.summary?.completed_symbols,
+      ),
     },
     {
       key: "no-response",
