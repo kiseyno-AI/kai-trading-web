@@ -44,7 +44,8 @@ For TDD-style work: add or extend tests first when the user asks, then implement
   - `UI checked`
   - `Screenshots` when practical
   - `Closes #issue` when applicable
-- Before considering the PR ready, verify the rendered PR body formatting in GitHub so headings, bullets, and spacing display correctly.
+- When screenshots are included in a PR body/comment, do not list bare filenames only. Upload or reference real image URLs/attachments and embed them as rendered Markdown images so the screenshots visibly display in GitHub.
+- Before considering the PR ready, verify the rendered PR body formatting in GitHub so headings, bullets, spacing, and any screenshot embeds display correctly.
 
 ## When APIs are unclear
 
