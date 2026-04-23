@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useAppState } from "@/components/providers/app-state-provider";
+import type { MessageTree } from "@/i18n/messages";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
   MOBILE_TOOLBAR_FAVORITES_PATH,
@@ -20,8 +22,11 @@ import {
   seedTradingApiJsonSnapshot,
 } from "@/lib/trading-api-cache";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
+import type { Locale } from "@/types/trading-api";
 
 import styles from "./my-symbols-page.module.css";
+
+type MySymbolsMessages = MessageTree["mySymbols"];
 
 type CoreMarketStatus = {
   state: string;
@@ -75,7 +80,7 @@ type LoadResult<T> = {
 };
 
 const DEFAULT_MARKET_STATUS: CoreMarketStatus = {
-  state: "MARKET STATUS PENDING",
+  state: "pending",
   is_open: false,
   server_time: null,
 };
@@ -94,21 +99,25 @@ function normalizeSymbolCode(value: string) {
   return value.trim().toUpperCase();
 }
 
-function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable") {
+function getNumberLocale(locale: Locale) {
+  return locale === "ko" ? "ko-KR" : "en-US";
+}
+
+function formatSignedPercent(value: number | null | undefined, fallback: string) {
   if (!hasNumber(value)) return fallback;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable") {
+function formatSignedNumber(value: number | null | undefined, fallback: string, locale: Locale) {
   if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString("ko-KR")}`;
+  return `${value >= 0 ? "+" : ""}${value.toLocaleString(getNumberLocale(locale))}`;
 }
 
-function getAvailabilityLabel(item: TrackedQuote) {
-  if (!item.available) return "Unavailable";
-  if (item.is_live) return "Live";
-  if (item.fallback) return "Fallback";
-  return "Synced";
+function getAvailabilityLabel(item: TrackedQuote, copy: MySymbolsMessages) {
+  if (!item.available) return copy.unavailable;
+  if (item.is_live) return copy.live;
+  if (item.fallback) return copy.fallback;
+  return copy.synced;
 }
 
 function getAvailabilityClassName(item: TrackedQuote) {
@@ -141,30 +150,43 @@ function getDisplayName(item: TrackedQuote, favoriteItem?: FavoriteSymbolItem | 
   return normalizedSymbol;
 }
 
-function getQuoteSourceLabel(item: TrackedQuote) {
+function getQuoteSourceLabel(item: TrackedQuote, copy: MySymbolsMessages) {
   if (!item.available) {
-    return item.unavailable_reason ? `Quote unavailable · ${item.unavailable_reason}` : "Quote unavailable";
+    return item.unavailable_reason ? `${copy.quoteUnavailable} · ${item.unavailable_reason}` : copy.quoteUnavailable;
   }
   if (!item.fallback) {
-    return item.is_live ? "Live KIS quote" : item.source;
+    return item.is_live ? copy.liveKisQuote : item.source;
   }
   if (item.source === "daily_price_bar") {
-    return item.trade_date ? `DB EOD fallback · ${item.trade_date}` : "DB EOD fallback";
+    return item.trade_date ? `${copy.dbEodFallback} · ${item.trade_date}` : copy.dbEodFallback;
   }
   if (item.source === "db_cache") {
-    return "Same-day DB quote cache";
+    return copy.sameDayDbQuoteCache;
   }
   if (item.source === "cache") {
-    return "Same-day memory cache";
+    return copy.sameDayMemoryCache;
   }
-  return `${item.source} fallback`;
+  return `${item.source} ${copy.fallbackSuffix}`;
 }
 
-function getPriceFreshnessLabel(item: TrackedQuote) {
-  if (!item.available) return item.trade_date ?? "Unavailable";
-  if (item.is_live) return "Live";
+function getPriceFreshnessLabel(item: TrackedQuote, copy: MySymbolsMessages) {
+  if (!item.available) return item.trade_date ?? copy.unavailable;
+  if (item.is_live) return copy.live;
   if (item.trade_date) return item.trade_date;
-  return formatDisplayTimestamp(item.as_of ?? item.cached_at, "Pending");
+  return formatDisplayTimestamp(item.as_of ?? item.cached_at, copy.pending);
+}
+
+function getMarketStateLabel(state: string, copy: MySymbolsMessages) {
+  const normalizedState = state.trim().toLowerCase();
+  if (!normalizedState || normalizedState === "pending" || normalizedState === "market status pending") {
+    return copy.marketStatusPending;
+  }
+
+  return state;
+}
+
+function getMarketBadgeLabel(status: CoreMarketStatus, copy: MySymbolsMessages) {
+  return status.is_open ? copy.marketOpen : getMarketStateLabel(status.state, copy);
 }
 
 function buildSymbolHref(symbol: string, favoriteItem?: FavoriteSymbolItem | null) {
@@ -181,13 +203,13 @@ function buildSymbolHref(symbol: string, favoriteItem?: FavoriteSymbolItem | nul
   return `/dashboard/symbol/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`;
 }
 
-async function loadJson<T>(path: string, label: string): Promise<LoadResult<T>> {
+async function loadJson<T>(path: string, label: string, copy: MySymbolsMessages): Promise<LoadResult<T>> {
   try {
     const result = await getTradingApiJsonResult<T>(resolveTradingApiClientPath(path));
     if (!result.ok) {
       return {
         data: null,
-        error: `${label} unavailable. HTTP ${result.status}`,
+        error: `${label} ${copy.httpUnavailableSuffix} ${result.status}`,
       };
     }
 
@@ -198,15 +220,15 @@ async function loadJson<T>(path: string, label: string): Promise<LoadResult<T>> 
   } catch {
     return {
       data: null,
-      error: `${label} unavailable. Check trading-core connectivity.`,
+      error: `${label} ${copy.connectivityUnavailableSuffix}`,
     };
   }
 }
 
-function PanelUnavailable({ message }: { message: string }) {
+function PanelUnavailable({ message, copy }: { message: string; copy: MySymbolsMessages }) {
   return (
     <div className={styles.panelState} role="status">
-      <strong>Unavailable</strong>
+      <strong>{copy.unavailable}</strong>
       <p className="clamp-3">{message}</p>
     </div>
   );
@@ -217,6 +239,9 @@ function getInitialFavoriteItems() {
 }
 
 export default function MySymbolsPageClient() {
+  const { locale, t } = useAppState();
+  const copy = t.mySymbols;
+  const numberLocale = getNumberLocale(locale);
   const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(
     () => readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) ?? DEFAULT_MARKET_STATUS,
   );
@@ -239,9 +264,9 @@ export default function MySymbolsPageClient() {
 
     const loadPage = async () => {
       const [marketResult, favoriteResult, trackedResult] = await Promise.all([
-        loadJson<CoreMarketStatus>("/api/trading/market/status", "Market status"),
-        loadJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites", "Favorite symbols"),
-        loadJson<TrackedQuotesResponse>("/api/trading/quotes/tracked", "Tracked symbols"),
+        loadJson<CoreMarketStatus>("/api/trading/market/status", copy.marketStatus, copy),
+        loadJson<FavoriteSymbolsResponse>("/api/trading/symbols/favorites", copy.favoriteSymbols, copy),
+        loadJson<TrackedQuotesResponse>("/api/trading/quotes/tracked", copy.trackedSymbols, copy),
       ]);
 
       if (cancelled) return;
@@ -267,7 +292,7 @@ export default function MySymbolsPageClient() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [copy]);
 
   const favoriteBySymbol = Object.fromEntries(
     favoriteItems.map((item) => [normalizeSymbolCode(item.symbol), item] as const),
@@ -278,9 +303,10 @@ export default function MySymbolsPageClient() {
   const favoriteCount = favoriteItems.length;
   const lastRefreshLabel = formatDisplayTimestamp(
     trackedQuotes.as_of ?? marketStatus.server_time,
-    loading ? "Loading..." : "Waiting for first refresh",
+    loading ? copy.loading : copy.waitingForFirstRefresh,
   );
-  const marketBadgeLabel = marketStatus.is_open ? "Market Open" : marketStatus.state;
+  const marketBadgeLabel = getMarketBadgeLabel(marketStatus, copy);
+  const marketStateLabel = getMarketStateLabel(marketStatus.state, copy);
 
   return (
     <MobileAppChrome
@@ -291,8 +317,8 @@ export default function MySymbolsPageClient() {
           <div className={styles.headerBrand}>
             <div className={styles.brandMark}>K</div>
             <div>
-              <strong className={styles.brandTitle}>My Symbols</strong>
-              <span className={styles.brandMeta}>Tracked and favorite coverage</span>
+              <strong className={styles.brandTitle}>{copy.title}</strong>
+              <span className={styles.brandMeta}>{copy.brandMeta}</span>
             </div>
           </div>
 
@@ -308,37 +334,34 @@ export default function MySymbolsPageClient() {
       <div className={styles.page}>
         <section className={`${styles.panel} ${styles.heroPanel}`}>
           <ComponentTag label="my-symbols.summary" api="/api/trading/market/status + /api/trading/symbols/favorites + /api/trading/quotes/tracked" />
-          <p className={styles.heroEyebrow}>Toolbar &gt; My Symbols</p>
-          <h1 className={styles.heroTitle}>My Symbols</h1>
-          <p className={`${styles.heroCopy} clamp-3`}>
-            Keep core favorites pinned at the top and open the full tracked quote list without jumping back into the
-            dashboard panel.
-          </p>
+          <p className={styles.heroEyebrow}>{copy.breadcrumb}</p>
+          <h1 className={styles.heroTitle}>{copy.title}</h1>
+          <p className={`${styles.heroCopy} clamp-3`}>{copy.heroCopy}</p>
 
           <div className={styles.summaryGrid}>
             <article className={styles.summaryCard}>
-              <span>Core favorites</span>
+              <span>{copy.coreFavoritesSummary}</span>
               <strong>{favoriteCount}</strong>
-              <small>{favoriteError ? "Favorite feed unavailable" : "Symbols pinned from search"}</small>
+              <small>{favoriteError ? copy.favoriteFeedUnavailable : copy.symbolsPinnedFromSearch}</small>
             </article>
             <article className={styles.summaryCard}>
-              <span>Tracked quotes</span>
+              <span>{copy.trackedQuotes}</span>
               <strong>{trackedCount}</strong>
-              <small>{trackedError ? "Tracked feed unavailable" : `${availableTrackedCount} currently available`}</small>
+              <small>{trackedError ? copy.trackedFeedUnavailable : `${availableTrackedCount} ${copy.currentlyAvailable}`}</small>
             </article>
             <article className={styles.summaryCard}>
-              <span>Last refresh</span>
+              <span>{copy.lastRefresh}</span>
               <strong>{lastRefreshLabel}</strong>
-              <small>{marketStatus.state}</small>
+              <small>{marketStateLabel}</small>
             </article>
           </div>
 
           <div className={styles.heroActions}>
             <Link href="/search" className={styles.primaryLink}>
-              Manage in Search
+              {copy.manageInSearch}
             </Link>
             <Link href="/dashboard" className={styles.secondaryLink}>
-              Back to Dashboard
+              {copy.backToDashboard}
             </Link>
           </div>
 
@@ -348,18 +371,18 @@ export default function MySymbolsPageClient() {
         <section className={styles.panel}>
           <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.sectionEyebrow}>Core Favorites</p>
-              <h2 className={styles.sectionTitle}>Pinned symbols</h2>
+              <p className={styles.sectionEyebrow}>{copy.coreFavorites}</p>
+              <h2 className={styles.sectionTitle}>{copy.pinnedSymbols}</h2>
             </div>
-            <span className={styles.sectionMeta}>{favoriteCount} saved</span>
+            <span className={styles.sectionMeta}>{favoriteCount} {copy.saved}</span>
           </div>
 
-          {favoriteError ? <PanelUnavailable message={favoriteError} /> : null}
+          {favoriteError ? <PanelUnavailable message={favoriteError} copy={copy} /> : null}
 
           {!favoriteError && favoriteItems.length === 0 ? (
             <div className={styles.panelState}>
-              <strong>No favorites saved.</strong>
-              <p className="clamp-3">Use the search page to pin core favorites that should stay at the top of My Symbols.</p>
+              <strong>{copy.noFavoritesSaved}</strong>
+              <p className="clamp-3">{copy.noFavoritesCopy}</p>
             </div>
           ) : null}
 
@@ -375,7 +398,7 @@ export default function MySymbolsPageClient() {
                     <strong>{item.name_ko?.trim() || item.symbol}</strong>
                     <p>{item.symbol}</p>
                   </div>
-                  <span>{item.market?.trim() || "Market pending"}</span>
+                  <span>{item.market?.trim() || copy.marketPending}</span>
                 </Link>
               ))}
             </div>
@@ -385,23 +408,23 @@ export default function MySymbolsPageClient() {
         <section className={styles.panel}>
           <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.sectionEyebrow}>Tracked Quote Coverage</p>
-              <h2 className={styles.sectionTitle}>Full tracked list</h2>
+              <p className={styles.sectionEyebrow}>{copy.trackedQuoteCoverage}</p>
+              <h2 className={styles.sectionTitle}>{copy.fullTrackedList}</h2>
             </div>
-            <span className={styles.sectionMeta}>{trackedCount} tracked</span>
+            <span className={styles.sectionMeta}>{trackedCount} {copy.tracked}</span>
           </div>
 
-          {trackedError ? <PanelUnavailable message={trackedError} /> : null}
+          {trackedError ? <PanelUnavailable message={trackedError} copy={copy} /> : null}
 
           {!trackedError && trackedQuotes.items.length === 0 ? (
             <div className={styles.panelState}>
-              <strong>No tracked symbols yet.</strong>
-              <p className="clamp-3">Tracked quotes will appear here once the scanner is following at least one symbol.</p>
+              <strong>{copy.noTrackedSymbolsYet}</strong>
+              <p className="clamp-3">{copy.noTrackedSymbolsCopy}</p>
             </div>
           ) : null}
 
           {!trackedError && trackedQuotes.items.length > 0 ? (
-            <div className={styles.trackedList} aria-label="Tracked symbols full list">
+            <div className={styles.trackedList} aria-label={copy.trackedSymbolsFullList}>
               {trackedQuotes.items.map((item) => {
                 const favoriteItem = favoriteBySymbol[normalizeSymbolCode(item.symbol)] ?? null;
 
@@ -419,44 +442,44 @@ export default function MySymbolsPageClient() {
 
                       <div className={styles.badgeGroup}>
                         {favoriteSymbols.has(normalizeSymbolCode(item.symbol)) ? (
-                          <span className={`${styles.badge} ${styles.badgeFavorite}`}>Core favorite</span>
+                          <span className={`${styles.badge} ${styles.badgeFavorite}`}>{copy.coreFavorite}</span>
                         ) : null}
                         <span className={`${styles.badge} ${getAvailabilityClassName(item)}`}>
-                          {getAvailabilityLabel(item)}
+                          {getAvailabilityLabel(item, copy)}
                         </span>
                       </div>
                     </div>
 
                     <div className={styles.priceRow}>
                       <div>
-                        <strong>{item.available ? `₩${formatPrice(item.price, "-")}` : "N/A"}</strong>
+                        <strong>{item.available ? `₩${formatPrice(item.price, "-")}` : copy.notAvailable}</strong>
                         <span className={getChangeClassName(item.change_pct)}>
                           {item.available
-                            ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change)}`
-                            : item.unavailable_reason ?? "No fresh quote source"}
+                            ? `${formatSignedPercent(item.change_pct, copy.unavailable)} · ${formatSignedNumber(item.change, copy.unavailable, locale)}`
+                            : item.unavailable_reason ?? copy.noFreshQuoteSource}
                         </span>
                       </div>
                       <span className={styles.updatedAt}>
-                        {formatDisplayTimestamp(item.as_of ?? item.cached_at, "Pending")}
+                        {formatDisplayTimestamp(item.as_of ?? item.cached_at, copy.pending)}
                       </span>
                     </div>
 
                     <dl className={styles.metaGrid}>
                       <div>
-                        <dt>Price freshness</dt>
-                        <dd>{getPriceFreshnessLabel(item)}</dd>
+                        <dt>{copy.priceFreshness}</dt>
+                        <dd>{getPriceFreshnessLabel(item, copy)}</dd>
                       </div>
                       <div>
-                        <dt>Turnover</dt>
-                        <dd>{formatTurnover(item.turnover, "₩", "Unavailable")}</dd>
+                        <dt>{copy.turnover}</dt>
+                        <dd>{formatTurnover(item.turnover, "₩", copy.unavailable)}</dd>
                       </div>
                       <div>
-                        <dt>Volume</dt>
-                        <dd>{hasNumber(item.volume) ? item.volume.toLocaleString("ko-KR") : "Unavailable"}</dd>
+                        <dt>{copy.volume}</dt>
+                        <dd>{hasNumber(item.volume) ? item.volume.toLocaleString(numberLocale) : copy.unavailable}</dd>
                       </div>
                       <div>
-                        <dt>Source</dt>
-                        <dd>{getQuoteSourceLabel(item)}</dd>
+                        <dt>{copy.source}</dt>
+                        <dd>{getQuoteSourceLabel(item, copy)}</dd>
                       </div>
                     </dl>
                   </Link>
