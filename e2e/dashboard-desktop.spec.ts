@@ -1,6 +1,21 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
+
+type EodStageStatus = "synced" | "running" | "break day" | "not synced";
+
+async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
+  await expect(stage).toHaveAttribute("data-status", status);
+  const badge = stage.locator(`.pill[data-status-badge="${status}"]`);
+  await expect(badge).toBeVisible();
+
+  if (status === "break day") {
+    await expect(badge).toContainText("break day");
+    return;
+  }
+
+  await expect(stage.getByRole("img", { name: new RegExp(`^${status}`, "i") })).toBeVisible();
+}
 
 test.describe("dashboard desktop", () => {
   test("dashboard labels match currently wired core data", async ({ page }) => {
@@ -957,23 +972,23 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Market date 2026-04-16")).toBeVisible();
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
-    await expect(priceStage).toContainText("not synced");
+    await expectEodStageStatus(priceStage, "not synced");
     await expect(priceStage).toContainText("Succeeded 237 / 250");
     await expect(priceStage).toContainText("Failed 13");
     await expect(priceStage).toContainText("Latest date 2026-04-15");
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
-    await expect(technicalStage).toContainText("synced");
+    await expectEodStageStatus(technicalStage, "synced");
     await expect(technicalStage).toContainText("Succeeded 250 / 250");
     await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
-    await expect(actionStage).toContainText("not synced");
+    await expectEodStageStatus(actionStage, "not synced");
     await expect(actionStage).toContainText("Failed 2");
     await expect(actionStage).toContainText("Latest date 2026-04-14");
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
-    await expect(fundamentalsStage).toContainText("synced");
+    await expectEodStageStatus(fundamentalsStage, "synced");
     await expect(fundamentalsStage).toContainText("Checked 42");
     await expect(fundamentalsStage).toContainText("Failed 1");
   });
@@ -1182,10 +1197,10 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toContainText("Market date 2026-04-16");
-    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("synced");
-    await expect(page.locator('[aria-label="Technical Analysis freshness"]')).toContainText("synced");
-    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText("synced");
-    await expect(page.locator('[aria-label="Fundamentals freshness"]')).toContainText("synced");
+    await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "synced");
+    await expectEodStageStatus(page.locator('[aria-label="Technical Analysis freshness"]'), "synced");
+    await expectEodStageStatus(page.locator('[aria-label="Action Summary freshness"]'), "synced");
+    await expectEodStageStatus(page.locator('[aria-label="Fundamentals freshness"]'), "synced");
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
     await expect(filteringCard).toContainText("Market date 2026-04-15");
@@ -1308,24 +1323,20 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Market date 2026-04-18")).toBeVisible();
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
-    await expect(priceStage).toContainText("break day");
+    await expectEodStageStatus(priceStage, "break day");
     await expect(priceStage).toContainText("Latest date 2026-04-17");
-    await expect(priceStage.getByText("not synced")).toHaveCount(0);
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
-    await expect(technicalStage).toContainText("break day");
+    await expectEodStageStatus(technicalStage, "break day");
     await expect(technicalStage).toContainText("Latest date 2026-04-17");
-    await expect(technicalStage.getByText("not synced")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
-    await expect(actionStage).toContainText("break day");
+    await expectEodStageStatus(actionStage, "break day");
     await expect(actionStage).toContainText("Latest date 2026-04-17");
-    await expect(actionStage.getByText("not synced")).toHaveCount(0);
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
-    await expect(fundamentalsStage).toContainText("break day");
+    await expectEodStageStatus(fundamentalsStage, "break day");
     await expect(fundamentalsStage).toContainText("Latest date 2026-04-17");
-    await expect(fundamentalsStage.getByText("not synced")).toHaveCount(0);
   });
 
   test("D2 EOD status keeps missing weekend stages as not synced", async ({ page }) => {
@@ -1455,21 +1466,17 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard).toBeVisible();
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
-    await expect(priceStage).toContainText("not synced");
-    await expect(priceStage.getByText("break day")).toHaveCount(0);
+    await expectEodStageStatus(priceStage, "not synced");
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
-    await expect(technicalStage).toContainText("not synced");
+    await expectEodStageStatus(technicalStage, "not synced");
     await expect(technicalStage).toContainText("Latest date 2026-04-17");
-    await expect(technicalStage.getByText("break day")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
-    await expect(actionStage).toContainText("not synced");
-    await expect(actionStage.getByText("break day")).toHaveCount(0);
+    await expectEodStageStatus(actionStage, "not synced");
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
-    await expect(fundamentalsStage).toContainText("not synced");
-    await expect(fundamentalsStage.getByText("break day")).toHaveCount(0);
+    await expectEodStageStatus(fundamentalsStage, "not synced");
   });
 
   test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
@@ -1519,12 +1526,10 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard).toBeVisible();
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
-    await expect(priceStage).toContainText("running");
+    await expectEodStageStatus(priceStage, "running");
     await expect(priceStage).toContainText("Progress 80 / 250");
-    await expect(priceStage.getByText("not synced")).toHaveCount(0);
-    await expect(technicalStage).toContainText("running");
+    await expectEodStageStatus(technicalStage, "running");
     await expect(technicalStage).toContainText("Progress 0 / 250");
-    await expect(technicalStage.getByText("not synced")).toHaveCount(0);
   });
 
   test("D2 EOD status keeps ready price not synced without a latest price date", async ({ page }) => {
@@ -1584,7 +1589,7 @@ test.describe("dashboard desktop", () => {
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Market date 2026-04-14")).toBeVisible();
-    await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("not synced");
+    await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "not synced");
     await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("Succeeded 250 / 250");
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
@@ -2670,7 +2675,7 @@ test.describe("dashboard desktop", () => {
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
-    await expect(fundamentalsStage).toContainText("synced");
+    await expectEodStageStatus(fundamentalsStage, "synced");
     await expect(fundamentalsStage).toContainText("Checked 42");
     await expect(fundamentalsStage).toContainText("Updated today 42 (005930, 000660, 035420, 005380 +38)");
     await expect(fundamentalsStage).toContainText("Failed 1");
@@ -2756,7 +2761,7 @@ test.describe("dashboard desktop", () => {
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
-    await expect(fundamentalsStage).toContainText("not synced");
+    await expectEodStageStatus(fundamentalsStage, "not synced");
     await expect(fundamentalsStage).toContainText("Latest date 2026-04-14");
     await expect(fundamentalsStage).toContainText("Run status Partial");
     await expect(fundamentalsStage.getByText("Updated today")).toHaveCount(0);
@@ -2764,7 +2769,7 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
 
-  test("D2 fundamentals running status uses readable pill colors and truncates the title", async ({ page }) => {
+  test("D2 fundamentals running status uses a readable spinner pill and truncates the title", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
@@ -2842,9 +2847,10 @@ test.describe("dashboard desktop", () => {
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     const fundamentalsTitle = fundamentalsStage.getByText("Fundamentals", { exact: true });
-    const runningPill = fundamentalsStage.locator(".pill").filter({ hasText: "running" });
+    const runningPill = fundamentalsStage.locator('.pill[data-status-badge="running"]');
 
     await expect(fundamentalsStage).toBeVisible();
+    await expectEodStageStatus(fundamentalsStage, "running");
     await expect(fundamentalsTitle).toHaveCSS("overflow-x", "hidden");
     await expect(fundamentalsTitle).toHaveCSS("text-overflow", "ellipsis");
     await expect(fundamentalsTitle).toHaveCSS("white-space", "nowrap");
@@ -2855,7 +2861,7 @@ test.describe("dashboard desktop", () => {
 
     const titleRowLayout = await fundamentalsStage.evaluate((element) => {
       const title = [...element.querySelectorAll("span")].find((child) => child.textContent?.trim() === "Fundamentals");
-      const pill = [...element.querySelectorAll(".pill")].find((child) => child.textContent?.trim() === "running");
+      const pill = element.querySelector('.pill[data-status-badge="running"]');
 
       if (!title || !pill) return null;
 
@@ -2872,7 +2878,7 @@ test.describe("dashboard desktop", () => {
     expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.pillLeft);
   });
 
-  test("D2 not synced status wraps without colliding with long stage titles", async ({ page }) => {
+  test("D2 not synced status icon stays compact without colliding with long stage titles", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
@@ -2949,15 +2955,13 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
-    await expect(actionStage).toContainText("not synced");
+    await expectEodStageStatus(actionStage, "not synced");
 
     const titleRowLayout = await actionStage.evaluate((element) => {
       const title = [...element.querySelectorAll("span")].find(
         (child) => child.textContent?.trim() === "Action Summary",
       );
-      const pill = [...element.querySelectorAll(".pill")].find(
-        (child) => child.textContent?.replace(/\s+/g, " ").trim() === "not synced",
-      );
+      const pill = element.querySelector('.pill[data-status-badge="not synced"]');
 
       if (!title || !pill) return null;
 
@@ -2965,6 +2969,7 @@ test.describe("dashboard desktop", () => {
       const pillRect = pill.getBoundingClientRect();
 
       return {
+        pillWidth: pillRect.width,
         pillHeight: pillRect.height,
         pillLeft: pillRect.left,
         titleRight: titleRect.right,
@@ -2972,7 +2977,8 @@ test.describe("dashboard desktop", () => {
     });
 
     expect(titleRowLayout).not.toBeNull();
-    expect(titleRowLayout!.pillHeight).toBeGreaterThan(28);
+    expect(titleRowLayout!.pillWidth).toBeLessThanOrEqual(34);
+    expect(titleRowLayout!.pillHeight).toBeLessThanOrEqual(32);
     expect(titleRowLayout!.titleRight).toBeLessThanOrEqual(titleRowLayout!.pillLeft);
   });
 
@@ -3029,10 +3035,15 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    for (const label of ["Price Fetch", "Technical Analysis", "Action Summary", "Fundamentals"]) {
+    for (const [label, status] of [
+      ["Price Fetch", "synced"],
+      ["Technical Analysis", "synced"],
+      ["Action Summary", "synced"],
+      ["Fundamentals", "not synced"],
+    ] as const) {
       const stageCard = page.locator(`[aria-label="${label} freshness"]`);
       await expect(stageCard).toBeVisible();
-      await expect(stageCard).toContainText("synced");
+      await expectEodStageStatus(stageCard, status);
 
       const overflowedText = await stageCard.evaluate((element) => {
         const rowRect = element.getBoundingClientRect();

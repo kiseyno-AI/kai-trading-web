@@ -870,6 +870,18 @@ function getEodStageStatusBadge(
   };
 }
 
+function isIconOnlyEodStageStatus(statusLabel: EodStageCard["statusLabel"]) {
+  return statusLabel === "synced" || statusLabel === "running" || statusLabel === "not synced";
+}
+
+function getEodStageStatusAriaLabel(stage: EodStageCard) {
+  if (stage.statusLabel !== "running" || stage.statusBadgeLabel === stage.statusLabel) {
+    return stage.statusBadgeLabel;
+  }
+
+  return `${stage.statusLabel} · ${stage.statusBadgeLabel}`;
+}
+
 function getFundamentalsCheckedCount(
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   stage: EodFreshnessStageDto | null,
@@ -2089,12 +2101,17 @@ export function LiveDashboardClient({
 
               <div className={styles.eodStageGrid}>
                 {eodStageCards.map((stage) => {
+                  const isIconOnlyStatus = isIconOnlyEodStageStatus(stage.statusLabel);
                   const statusClass =
                     stage.statusLabel === "synced"
                       ? styles.syncedStatusPill
                       : stage.statusLabel === "running"
                         ? styles.runningStatusPill
-                        : "";
+                        : stage.statusLabel === "not synced"
+                          ? styles.notSyncedStatusPill
+                          : "";
+                  const statusAriaLabel = getEodStageStatusAriaLabel(stage);
+                  const statusTitle = stage.statusBadgeTitle ?? (isIconOnlyStatus ? statusAriaLabel : undefined);
 
                   return (
                     <div
@@ -2107,10 +2124,17 @@ export function LiveDashboardClient({
                       <div className={styles.eodStageTop}>
                         <span className={styles.eodStageTitle}>{stage.label}</span>
                         <span
-                          className={`pill ${stage.tone} ${statusClass}`}
-                          title={stage.statusBadgeTitle ?? undefined}
+                          className={`pill ${stage.tone} ${statusClass} ${isIconOnlyStatus ? styles.iconStatusPill : ""}`}
+                          title={statusTitle}
+                          data-status-badge={stage.statusLabel}
+                          role={isIconOnlyStatus ? "img" : undefined}
+                          aria-label={isIconOnlyStatus ? statusAriaLabel : undefined}
                         >
-                          <span className={styles.statusPillLabel}>{stage.statusBadgeLabel}</span>
+                          {isIconOnlyStatus ? (
+                            <span className={styles.statusPillIcon} aria-hidden="true" />
+                          ) : (
+                            <span className={styles.statusPillLabel}>{stage.statusBadgeLabel}</span>
+                          )}
                         </span>
                       </div>
                       <div className={styles.eodStageDetails}>
