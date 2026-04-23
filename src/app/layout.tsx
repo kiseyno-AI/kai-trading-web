@@ -21,6 +21,9 @@ export const metadata: Metadata = {
     title: "KAI Trading",
     capable: true,
   },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({
