@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -480,10 +480,31 @@ function buildSymbolRouteQuery(
   return params.toString();
 }
 
-function buildSymbolDetailHref(symbol: string, mode: SymbolDetailMode, queryString: string) {
-  const detailMode = SYMBOL_DETAIL_MODE_BY_ID[mode];
-  const path = `/dashboard/symbol/${encodeURIComponent(symbol)}${detailMode.path}`;
-  return queryString ? `${path}?${queryString}` : path;
+function resolveSymbolDetailMode(value: string | null | undefined) {
+  if (!value) return null;
+  return Object.prototype.hasOwnProperty.call(SYMBOL_DETAIL_MODE_BY_ID, value) ? (value as SymbolDetailMode) : null;
+}
+
+function resolveSymbolDetailModeFromPathname(pathname: string | null, symbol: string) {
+  if (!pathname || !symbol) return null;
+
+  const segments = pathname.split("/").filter(Boolean);
+  const symbolSegmentIndex = segments.findIndex(
+    (segment, index) => segment === "symbol" && segments[index - 1] === "dashboard",
+  );
+  if (symbolSegmentIndex === -1) return null;
+
+  const encodedSymbol = segments[symbolSegmentIndex + 1];
+  if (!encodedSymbol) return null;
+
+  try {
+    if (decodeURIComponent(encodedSymbol) !== symbol) return null;
+  } catch {
+    if (encodedSymbol !== symbol) return null;
+  }
+
+  const detailPath = segments[symbolSegmentIndex + 2] ? `/${segments[symbolSegmentIndex + 2]}` : "";
+  return SYMBOL_DETAIL_MODES.find((item) => item.path === detailPath)?.mode ?? null;
 }
 
 function buildDisclosureReportHref(symbol: string, disclosure: AgentContextDisclosureDto, queryString: string) {
@@ -784,7 +805,7 @@ function buildMarketStateRows(marketStatus: MarketStatusResponse | null, fallbac
 export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: SymbolDetailClientProps) {
   const [activeMode, setActiveMode] = useState(mode);
   const params = useParams<{ symbol?: string | string[] }>();
-  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const symbol = useMemo(() => {
     if (typeof serverSymbol === "string" && serverSymbol.trim().length > 0) {
@@ -796,6 +817,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const normalizedSymbol = useMemo(() => normalizeSymbolCode(symbol), [symbol]);
   const symbolReady = normalizedSymbol.length > 0;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
+  const requestedViewMode = useMemo(() => resolveSymbolDetailMode(searchParams.get("view")), [searchParams]);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
   const initialMeta = useMemo(() => {
@@ -844,8 +866,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const fundamentalsHistoryRequestKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setActiveMode(mode);
-  }, [mode]);
+    setActiveMode(requestedViewMode ?? resolveSymbolDetailModeFromPathname(pathname, symbol) ?? mode);
+  }, [mode, pathname, requestedViewMode, symbol]);
 
   const isOverviewMode = activeMode === "overview";
   const shouldLoadAggregateContext = activeMode !== "system-freshness";
@@ -1676,22 +1698,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     selectedRangeHistoryRequestKey !== null && fullPriceHistoryRequestKeyRef.current === selectedRangeHistoryRequestKey;
 
   const handleDetailModeNavigation = (
-    event: ReactMouseEvent<HTMLAnchorElement>,
+    event: ReactMouseEvent<HTMLButtonElement>,
     nextMode: SymbolDetailMode,
-    navigationMode: "push" | "replace" = "push",
   ) => {
-    if (event.defaultPrevented || event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (event.defaultPrevented) return;
+    if (typeof event.button === "number" && event.button !== 0) return;
 
     event.preventDefault();
-    const href = buildSymbolDetailHref(symbol, nextMode, routeQueryString);
-
-    if (navigationMode === "replace") {
-      router.replace(href, { scroll: false });
-    } else {
-      router.push(href, { scroll: false });
-    }
-
     if (activeMode !== nextMode) {
       setActiveMode(nextMode);
     }
@@ -1955,17 +1968,15 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
           </div>
           <nav className={styles.detailTabs} aria-label="Symbol detail pages">
             {SYMBOL_DETAIL_MODES.map((item) => (
-              <Link
+              <button
                 key={item.mode}
-                href={buildSymbolDetailHref(symbol, item.mode, routeQueryString)}
-                replace
-                scroll={false}
-                data-skip-navigation-loading="true"
+                type="button"
+                aria-pressed={activeMode === item.mode}
                 className={`${styles.detailTab} ${activeMode === item.mode ? styles.detailTabActive : ""}`.trim()}
-                onClick={(event) => handleDetailModeNavigation(event, item.mode, "replace")}
+                onClick={(event) => handleDetailModeNavigation(event, item.mode)}
               >
                 {item.label}
-              </Link>
+              </button>
             ))}
           </nav>
         </section>
@@ -2083,14 +2094,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : "Unavailable"}</span>
             </div>
             {showOverview ? (
-              <Link
+              <button
+                type="button"
                 className={styles.detailLink}
-                href={buildSymbolDetailHref(symbol, "action-summary", routeQueryString)}
-                data-skip-navigation-loading="true"
                 onClick={(event) => handleDetailModeNavigation(event, "action-summary")}
               >
                 Open action detail
-              </Link>
+              </button>
             ) : null}
 
             <div className={styles.signalMeter}>
@@ -2160,14 +2170,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               </span>
             </div>
             {showOverview ? (
-              <Link
+              <button
+                type="button"
                 className={styles.detailLink}
-                href={buildSymbolDetailHref(symbol, "technical-analysis", routeQueryString)}
-                data-skip-navigation-loading="true"
                 onClick={(event) => handleDetailModeNavigation(event, "technical-analysis")}
               >
                 Open technical detail
-              </Link>
+              </button>
             ) : null}
 
             <strong className={`clamp-3 ${styles.insightHeadline}`}>
@@ -2233,14 +2242,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? "Default FS"}</span>
             </div>
             {showOverview ? (
-              <Link
+              <button
+                type="button"
                 className={styles.detailLink}
-                href={buildSymbolDetailHref(symbol, "fundamentals-history", routeQueryString)}
-                data-skip-navigation-loading="true"
                 onClick={(event) => handleDetailModeNavigation(event, "fundamentals-history")}
               >
                 Open fundamentals detail
-              </Link>
+              </button>
             ) : null}
 
             <div className={styles.companyStrip}>
@@ -2328,14 +2336,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               </span>
             </div>
             {showOverview ? (
-              <Link
+              <button
+                type="button"
                 className={styles.detailLink}
-                href={buildSymbolDetailHref(symbol, "disclosure-coverage", routeQueryString)}
-                data-skip-navigation-loading="true"
                 onClick={(event) => handleDetailModeNavigation(event, "disclosure-coverage")}
               >
                 Open disclosure detail
-              </Link>
+              </button>
             ) : null}
 
             {disclosureSectionState === "list" ? (
@@ -2406,14 +2413,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, "Status pending")}</span>
           </div>
           {showOverview ? (
-            <Link
+            <button
+              type="button"
               className={styles.detailLink}
-              href={buildSymbolDetailHref(symbol, "system-freshness", routeQueryString)}
-              data-skip-navigation-loading="true"
               onClick={(event) => handleDetailModeNavigation(event, "system-freshness")}
             >
               Open freshness detail
-            </Link>
+            </button>
           ) : null}
 
           <div className={styles.metricGrid}>
