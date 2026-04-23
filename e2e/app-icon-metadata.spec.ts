@@ -26,6 +26,12 @@ test.describe("app icon metadata", () => {
       icons?: Array<{ src: string; sizes: string; type: string; purpose?: string }>;
     };
 
+    const manifest512Icons =
+      manifest.icons?.filter(
+        (icon) =>
+          icon.src === "/app-icon-512.png" && icon.sizes === "512x512" && icon.type === "image/png",
+      ) ?? [];
+
     expect(manifest.icons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -33,18 +39,10 @@ test.describe("app icon metadata", () => {
           sizes: "192x192",
           type: "image/png",
         }),
-        expect.objectContaining({
-          src: "/app-icon-512.png",
-          sizes: "512x512",
-          type: "image/png",
-        }),
-        expect.objectContaining({
-          src: "/app-icon-512.png",
-          sizes: "512x512",
-          type: "image/png",
-          purpose: "maskable",
-        }),
       ]),
     );
+    expect(manifest512Icons).toHaveLength(2);
+    expect(manifest512Icons.filter((icon) => icon.purpose !== "maskable")).toHaveLength(1);
+    expect(manifest512Icons.filter((icon) => icon.purpose === "maskable")).toHaveLength(1);
   });
 });
