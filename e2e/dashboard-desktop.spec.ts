@@ -1909,6 +1909,13 @@ test.describe("dashboard desktop", () => {
       await expect(progressCard).toContainText(expectedLabel);
     }
 
+    async function reloadAndExpectAgentCompletionIcon() {
+      const previousProgressRequestCount = progressRequestCount;
+      await page.reload();
+      await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
+      await expect(progressCard.getByRole("img", { name: "에이전트 분석 완료" })).toBeVisible();
+    }
+
     agentProgressSummary = {
       ...agentProgressSummary,
       run_status: "legacy-running",
@@ -1971,6 +1978,50 @@ test.describe("dashboard desktop", () => {
     );
     await expect(stopButton).toHaveCount(0);
 
+    agentProgressResult = {
+      market_date: "2026-04-15",
+      roles: {
+        "eod-summarizer": {
+          requested_count: 2812,
+          completed_count: 96,
+          error_count: 0,
+        },
+        "technical-summarizer": {
+          requested_count: 2812,
+          completed_count: 96,
+          error_count: 0,
+        },
+        "fundamental-summarizer": {
+          requested_count: 2812,
+          completed_count: 96,
+          error_count: 0,
+        },
+      },
+    };
+    await reloadAndExpectAgentCompletionIcon();
+    await expect(progressCard).not.toContainText("에이전트 분석 대기");
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
+    ).toContainText(/완료[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
+    ).toContainText(/완료[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    await expect(
+      progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
+    ).toContainText(/완료[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    await expect(progressCard).not.toContainText("Requested");
+    await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
+    await expect(progressCard.getByRole("progressbar", { name: "Technical summarizer progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
+    await expect(
+      progressCard.getByRole("progressbar", { name: "Fundamental summarizer progress" }),
+    ).toHaveAttribute("aria-valuenow", "100");
+
     agentProgressSummary = {
       ...agentProgressSummary,
       run_status: "completed",
@@ -2009,13 +2060,13 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard.locator('[data-role-status="completed"]')).toHaveCount(4);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
-    ).toContainText(/Requested\s*96개[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    ).toContainText(/Completed\s*96개[\s\S]*Errors\s*0개/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
-    ).toContainText(/Requested\s*96개[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    ).toContainText(/Completed\s*96개[\s\S]*Errors\s*0개/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
-    ).toContainText(/Requested\s*96개[\s\S]*Completed\s*95개[\s\S]*Errors\s*1개/);
+    ).toContainText(/Completed\s*95개[\s\S]*Errors\s*1개/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
     ).not.toContainText(/Complete\s*250개/);
@@ -2025,6 +2076,7 @@ test.describe("dashboard desktop", () => {
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
     ).not.toContainText(/Complete\s*250개/);
+    await expect(progressCard).not.toContainText("Requested");
     await expect(progressCard.getByRole("progressbar")).toHaveCount(3);
     await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
       "aria-valuenow",

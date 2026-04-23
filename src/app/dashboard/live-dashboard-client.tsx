@@ -95,7 +95,7 @@ const AGENT_ROLE_LABELS = {
   "fundamental-summarizer": "Fundamental summarizer",
 } satisfies Record<KnownAgentRole, string>;
 const AGENT_ROLE_STATUS_LABELS = {
-  completed: "확인 완료",
+  completed: "완료",
   running: "실행 중",
   pending: "대기",
   attention: "확인 필요",
@@ -1393,11 +1393,6 @@ function getAgentRoleProgressSnapshots(progress: AgentFeedbackProgressResponseDt
 function buildAgentRoleResultMetrics(snapshot: AgentRoleResultSnapshot): AgentRoleMetric[] {
   return [
     {
-      key: "requested",
-      label: "Requested",
-      value: formatAgentProgressCountLabel(snapshot.requestedCount),
-    },
-    {
       key: "completed",
       label: "Completed",
       value: formatAgentProgressCountLabel(snapshot.completedCount),
@@ -1410,7 +1405,12 @@ function buildAgentRoleResultMetrics(snapshot: AgentRoleResultSnapshot): AgentRo
   ];
 }
 
+function isCompletedAgentRoleResult(snapshot: AgentRoleResultSnapshot) {
+  return snapshot.errorCount === 0;
+}
+
 function getAgentRoleResultProgressPercent(snapshot: AgentRoleResultSnapshot) {
+  if (isCompletedAgentRoleResult(snapshot)) return 100;
   if (!hasNumber(snapshot.requestedCount) || snapshot.requestedCount <= 0) return null;
 
   const completedCount = hasNumber(snapshot.completedCount) ? snapshot.completedCount : 0;
@@ -1544,8 +1544,13 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
       const resultSnapshot = roleResultSnapshotByRole.get(normalizeAgentRole(role) ?? role);
       const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
       const fallbackStatus = getNonRunningAgentRoleStatus(runStatus, role, orderedRoles, currentRole);
-      const status = resultSnapshot ? fallbackStatus : snapshot?.status ?? fallbackStatus;
+      const status = resultSnapshot
+        ? isCompletedAgentRoleResult(resultSnapshot)
+          ? "completed"
+          : fallbackStatus
+        : snapshot?.status ?? fallbackStatus;
       const completedCount =
+        resultSnapshot?.completedCount ??
         snapshot?.completedCount ??
         getNonRunningAgentRoleCompletedCount(progress, runStatus, role, orderedRoles, currentRole);
       const metrics = resultSnapshot
@@ -1591,6 +1596,16 @@ function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null):
       roleMetrics,
     );
   });
+}
+
+function hasCompletedDefaultAgentRoles(roleCards: AgentRoleCard[]) {
+  const completedRoles = new Set(
+    roleCards
+      .filter((role) => role.status === "completed")
+      .map((role) => normalizeAgentRole(role.role) ?? role.role),
+  );
+
+  return DEFAULT_AGENT_ROLE_ORDER.every((role) => completedRoles.has(role));
 }
 
 function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {
@@ -2129,6 +2144,8 @@ export function LiveDashboardClient({
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
   const agentRoleCards = buildAgentRoleCards(displayedAgentFeedbackProgress);
   const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
+  const showCompletedAgentFeedbackIcon =
+    agentProgressRunStatus === "pending" && hasCompletedDefaultAgentRoles(agentRoleCards);
   const agentFeedbackStatusTone =
     agentProgressRunStatus === "completed"
       ? "positive"
@@ -2429,7 +2446,16 @@ export function LiveDashboardClient({
                   <h2 className={styles.sectionTitle}>Agent Feedback</h2>
                   <p className={styles.cardContext}>기준일 {agentProgressDate}</p>
                 </div>
-                <span className={`pill ${agentFeedbackStatusTone}`}>{agentProgressStatusLabel}</span>
+                {showCompletedAgentFeedbackIcon ? (
+                  <span
+                    className={`${styles.statusIconBadge} ${styles.syncedStatusIcon}`}
+                    title={AGENT_PROGRESS_STATUS_LABELS.completed}
+                    role="img"
+                    aria-label={AGENT_PROGRESS_STATUS_LABELS.completed}
+                  />
+                ) : (
+                  <span className={`pill ${agentFeedbackStatusTone}`}>{agentProgressStatusLabel}</span>
+                )}
               </div>
               {agentRoleCards.length > 0 ? (
                 <div className={styles.agentRoleList} role="list" aria-label="Agent role progress">
