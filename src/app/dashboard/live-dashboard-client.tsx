@@ -2329,7 +2329,6 @@ export function LiveDashboardClient({
             <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
               <div className={styles.sectionHeaderRow}>
                 <div>
-                  <p className={styles.sectionEyebrow}>Latest Run</p>
                   <h2 className={styles.sectionTitle}>Agent Feedback</h2>
                   <p className={styles.cardContext}>기준일 {agentProgressDate}</p>
                 </div>
