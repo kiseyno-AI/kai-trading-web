@@ -420,6 +420,19 @@ function buildPriceHistoryQuery(range: PriceHistoryRange, marketDate: string) {
   return params.toString();
 }
 
+function buildBootstrapPriceHistoryQuery(marketDate: string) {
+  const params = new URLSearchParams();
+  params.set("start_date", marketDate);
+  params.set("end_date", marketDate);
+  return params.toString();
+}
+
+function pickSelectedBar(items: SymbolPriceBarDto[], previousSelectedBar: SymbolPriceBarDto | null) {
+  if (items.length === 0) return null;
+  if (!previousSelectedBar) return items[items.length - 1] ?? null;
+  return items.find((item) => item.trade_date === previousSelectedBar.trade_date) ?? items[items.length - 1] ?? null;
+}
+
 function buildFundamentalsHistoryQuery(symbol: string, marketDate: string, fsDiv: string | null) {
   const params = new URLSearchParams();
   params.append("symbols", symbol);
@@ -814,6 +827,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const [loading, setLoading] = useState(true);
   const [insightLoading, setInsightLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyHydrating, setHistoryHydrating] = useState(false);
   const [fundamentalsLoading, setFundamentalsLoading] = useState(true);
   const [hasFinishedInitialLoad, setHasFinishedInitialLoad] = useState(false);
   const [trackingSaving, setTrackingSaving] = useState(false);
@@ -823,7 +837,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const [contextError, setContextError] = useState<string | null>(null);
   const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
-  const priceHistoryRequestKeyRef = useRef<string | null>(null);
+  const bootstrapPriceHistoryRequestKeyRef = useRef<string | null>(null);
+  const fullPriceHistoryRequestKeyRef = useRef<string | null>(null);
   const technicalSnapshotRequestKeyRef = useRef<string | null>(null);
   const actionSummaryRequestKeyRef = useRef<string | null>(null);
   const fundamentalsHistoryRequestKeyRef = useRef<string | null>(null);
@@ -869,6 +884,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setLoading(true);
     setInsightLoading(true);
     setHistoryLoading(true);
+    setHistoryHydrating(false);
     setFundamentalsLoading(true);
     setHasFinishedInitialLoad(false);
     setTrackingSaving(false);
@@ -878,7 +894,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setContextError(null);
     setFundamentalsError(null);
     setTrackingError(null);
-    priceHistoryRequestKeyRef.current = null;
+    bootstrapPriceHistoryRequestKeyRef.current = null;
+    fullPriceHistoryRequestKeyRef.current = null;
     technicalSnapshotRequestKeyRef.current = null;
     actionSummaryRequestKeyRef.current = null;
     fundamentalsHistoryRequestKeyRef.current = null;
@@ -1018,16 +1035,23 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   useEffect(() => {
     let active = true;
 
-    const loadPriceHistory = async () => {
+    const loadBootstrapPriceHistory = async () => {
       if (!symbolReady) {
         setPriceHistory(null);
         setSelectedBar(null);
         setHistoryLoading(true);
+        setHistoryHydrating(false);
         setHistoryError(null);
         return;
       }
 
       if (!shouldLoadPriceHistory) {
+        setHistoryLoading(false);
+        setHistoryHydrating(false);
+        return;
+      }
+
+      if (hasFinishedInitialLoad) {
         setHistoryLoading(false);
         return;
       }
@@ -1036,13 +1060,14 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         setPriceHistory(null);
         setSelectedBar(null);
         setHistoryLoading(true);
+        setHistoryHydrating(false);
         setHistoryError(null);
         return;
       }
 
-      const query = buildPriceHistoryQuery(selectedRange, marketDate);
-      const priceHistoryRequestKey = `${symbol}|${query}`;
-      if (priceHistoryRequestKeyRef.current === priceHistoryRequestKey && priceHistory) {
+      const query = buildBootstrapPriceHistoryQuery(marketDate);
+      const priceHistoryRequestKey = `${symbol}|bootstrap|${query}`;
+      if (bootstrapPriceHistoryRequestKeyRef.current === priceHistoryRequestKey) {
         setHistoryLoading(false);
         return;
       }
@@ -1055,16 +1080,17 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         );
         if (!active) return;
         setPriceHistory(data);
-        setSelectedBar(data.items[data.items.length - 1] ?? null);
+        setSelectedBar((current) => pickSelectedBar(data.items, current));
         setHistoryError(null);
-        priceHistoryRequestKeyRef.current = priceHistoryRequestKey;
+        bootstrapPriceHistoryRequestKeyRef.current = priceHistoryRequestKey;
       } catch (priceHistoryLoadError) {
         console.error("Symbol price history load failed", priceHistoryLoadError);
         if (!active) return;
         setPriceHistory(null);
         setSelectedBar(null);
         setHistoryError("Unable to load stored historical price bars from trading-core.");
-        priceHistoryRequestKeyRef.current = null;
+        bootstrapPriceHistoryRequestKeyRef.current = null;
+        fullPriceHistoryRequestKeyRef.current = null;
       } finally {
         if (active) {
           setHistoryLoading(false);
@@ -1072,12 +1098,78 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       }
     };
 
-    loadPriceHistory();
+    loadBootstrapPriceHistory();
 
     return () => {
       active = false;
     };
-  }, [marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol, symbolReady]);
+  }, [hasFinishedInitialLoad, marketDate, shouldLoadPriceHistory, symbol, symbolReady]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSelectedRangePriceHistory = async () => {
+      if (!symbolReady) {
+        setHistoryHydrating(false);
+        return;
+      }
+
+      if (!shouldLoadPriceHistory) {
+        setHistoryHydrating(false);
+        return;
+      }
+
+      if (!hasFinishedInitialLoad || !marketDate) {
+        return;
+      }
+
+      const query = buildPriceHistoryQuery(selectedRange, marketDate);
+      const priceHistoryRequestKey = `${symbol}|full|${query}`;
+      if (fullPriceHistoryRequestKeyRef.current === priceHistoryRequestKey) {
+        setHistoryHydrating(false);
+        return;
+      }
+
+      if (priceHistory?.items.length) {
+        setHistoryHydrating(true);
+      } else {
+        setHistoryLoading(true);
+      }
+
+      try {
+        const data = await getJson<SymbolPriceBarsResponseDto>(
+          `/api/trading/symbols/${encodeURIComponent(symbol)}/price-bars?${query}`,
+        );
+        if (!active) return;
+        setPriceHistory(data);
+        setSelectedBar((current) => pickSelectedBar(data.items, current));
+        setHistoryError(null);
+        fullPriceHistoryRequestKeyRef.current = priceHistoryRequestKey;
+      } catch (priceHistoryLoadError) {
+        console.error("Symbol price history range hydration failed", priceHistoryLoadError);
+        if (!active) return;
+
+        if (!priceHistory?.items.length) {
+          setPriceHistory(null);
+          setSelectedBar(null);
+          setHistoryError("Unable to load stored historical price bars from trading-core.");
+        }
+
+        fullPriceHistoryRequestKeyRef.current = null;
+      } finally {
+        if (active) {
+          setHistoryLoading(false);
+          setHistoryHydrating(false);
+        }
+      }
+    };
+
+    loadSelectedRangePriceHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [hasFinishedInitialLoad, marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1576,6 +1668,12 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     () => buildSymbolRouteQuery(meta, marketDate, fsDiv),
     [fsDiv, marketDate, meta],
   );
+  const selectedRangeHistoryRequestKey = useMemo(
+    () => (marketDate ? `${symbol}|full|${buildPriceHistoryQuery(selectedRange, marketDate)}` : null),
+    [marketDate, selectedRange, symbol],
+  );
+  const hasSelectedRangeHistoryLoaded =
+    selectedRangeHistoryRequestKey !== null && fullPriceHistoryRequestKeyRef.current === selectedRangeHistoryRequestKey;
 
   const handleDetailModeNavigation = (
     event: ReactMouseEvent<HTMLAnchorElement>,
@@ -1956,12 +2054,14 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
           <div className={styles.chartFooter}>
             <span>
-              {chartMetrics
+              {hasSelectedRangeHistoryLoaded && chartMetrics
                 ? `${selectedRange} return ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
-                : `${selectedRange} return pending`}
+                : historyHydrating
+                  ? `Hydrating ${selectedRange} history`
+                  : `${selectedRange} return pending`}
             </span>
             <span>{marketDate ? `Requested market date ${formatIsoDateLabel(marketDate)}` : "Market date pending"}</span>
-            <span>Swipe or drag the chart to move date focus.</span>
+            <span>{historyHydrating ? "Latest bar loaded. Expanding the selected chart window." : "Swipe or drag the chart to move date focus."}</span>
           </div>
         </section>
         ) : null}
