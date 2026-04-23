@@ -445,12 +445,14 @@ export default function SearchPageClient() {
   const [searchLoading, setSearchLoading] = useState(false);
   const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
+  const trendingListRef = useRef<HTMLDivElement>(null);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
   const [trendingItems, setTrendingItems] = useState<TrendingDisplayItem[]>(() => getInitialTrendingState().items);
   const [trendingVisibleLimit, setTrendingVisibleLimit] = useState(TRENDING_INITIAL_LIMIT);
   const [trendingResultCount, setTrendingResultCount] = useState(() => getInitialTrendingState().resultCount);
   const [trendingMeta, setTrendingMeta] = useState<string | null>(() => getInitialTrendingState().meta);
   const [trendingLoading, setTrendingLoading] = useState(false);
+  const [trendingReservedHeight, setTrendingReservedHeight] = useState<number | null>(null);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [marketStatus, setMarketStatus] = useState<CoreMarketStatus>(
     () => readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) ?? DEFAULT_MARKET_STATUS,
@@ -673,6 +675,15 @@ export default function SearchPageClient() {
   }, [trendingMode, trendingVisibleLimit]);
 
   useEffect(() => {
+    if (trendingLoading || !trendingListRef.current) return;
+
+    const nextHeight = trendingListRef.current.getBoundingClientRect().height;
+    if (nextHeight <= 0) return;
+
+    setTrendingReservedHeight((current) => (current === null || nextHeight > current ? nextHeight : current));
+  }, [trendingItems.length, trendingLoading]);
+
+  useEffect(() => {
     if (!selected) return;
     let active = true;
 
@@ -723,10 +734,7 @@ export default function SearchPageClient() {
 
     setTrendingMode(nextMode);
     setTrendingVisibleLimit(TRENDING_INITIAL_LIMIT);
-    setTrendingItems([]);
-    setTrendingResultCount(0);
     setTrendingError(null);
-    setTrendingMeta(null);
   };
 
   const handleShowMoreTrending = () => {
@@ -1109,12 +1117,17 @@ export default function SearchPageClient() {
             ))}
           </div>
           {trendingError ? <PanelUnavailable message={trendingError} /> : null}
-          <div className={styles.trendingList}>
+          <div
+            ref={trendingListRef}
+            className={styles.trendingList}
+            aria-busy={trendingLoading || undefined}
+            style={{ minHeight: trendingReservedHeight ? `${trendingReservedHeight}px` : undefined }}
+          >
             {trendingItems.map((item) => {
               const isSelected = selected?.symbol === item.symbol;
               return (
                 <button
-                  key={`${trendingMode}-${item.symbol}`}
+                  key={item.symbol}
                   type="button"
                   className={`${styles.trendingRow} ${isSelected ? styles.trendingRowActive : ""}`.trim()}
                   onClick={() => handleSelect(item.searchItem, { navigate: true })}
