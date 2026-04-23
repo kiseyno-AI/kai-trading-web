@@ -921,7 +921,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [symbolReady]);
+  }, [symbol, symbolReady]);
 
   useEffect(() => {
     let active = true;
