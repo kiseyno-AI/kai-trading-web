@@ -41,6 +41,7 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 | `dashboard.piotroski-board` | Piotroski full-list route | `/api/trading/eod/piotroski-filter-results`, `/api/trading/quotes/{symbol}`, `/api/trading/symbols/search` | `items[].symbol`, `items[].passed_filter`, `items[].piotroski_score`, per-symbol quote `price`, `change_pct`, metadata fallback name; the dashboard summary now lives inside D2 Filtering, while `More` opens `/dashboard/piotroski-filter` for the full list |
 
 - Agent Feedback role rows render compact progress bars under each EOD / Technical / Fundamental summarizer title, with the right-side status icon still derived from each row's resolved status.
+- At desktop widths, `Daily Data Fetch` and `Filtering` share the top row, while `Agent Feedback` spans the full row below them.
 
 ## Symbol desktop pages
 
