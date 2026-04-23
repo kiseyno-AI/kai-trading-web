@@ -1749,6 +1749,7 @@ test.describe("dashboard desktop", () => {
     const progressCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: "중단" });
     await expect(progressCard).toBeVisible();
+    await expect(progressCard).not.toContainText("Latest Run");
     await expect(progressCard).toContainText("에이전트 분석 중...");
     await expect(stopButton).toBeVisible();
     await stopButton.click();

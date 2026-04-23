@@ -201,15 +201,16 @@ test.describe("dashboard mobile chrome", () => {
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
     const agentFeedbackCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
 
-    await expect(priceStage).toContainText("Succeeded 3,570 / 3,583");
-    await expect(technicalStage).toContainText("Succeeded 3,583 / 3,583");
-    await expect(actionStage).toContainText("Succeeded 3,579 / 3,583");
-    await expect(fundamentalsStage).toContainText("Checked 3,583");
-    await expect(priceStage).toContainText("Failed 13");
-    await expect(fundamentalsStage).toContainText("Failed 1,406");
+    await expect(priceStage).toContainText(/Succeeded\s*3,570\s*\/\s*3,583/);
+    await expect(technicalStage).toContainText(/Succeeded\s*3,583\s*\/\s*3,583/);
+    await expect(actionStage).toContainText(/Succeeded\s*3,579\s*\/\s*3,583/);
+    await expect(fundamentalsStage).toContainText(/Checked\s*3,583/);
+    await expect(priceStage).toContainText(/Failed\s*13/);
+    await expect(fundamentalsStage).toContainText(/Failed\s*1,406/);
     await expect(filteringCard).toContainText("Completed");
     await expect(filteringCard).toContainText(/Checked\s*3,583/);
     await expect(filteringCard).toContainText(/Pass\s*132/);
+    await expect(agentFeedbackCard).not.toContainText("Latest Run");
     await expect(agentFeedbackCard).toContainText("에이전트 분석 완료");
     await expect(agentFeedbackCard).toContainText("EOD summarizer");
     await expect(agentFeedbackCard).toContainText("Technical summarizer");
