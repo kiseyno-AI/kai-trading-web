@@ -1703,7 +1703,6 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   ) => {
     if (event.defaultPrevented) return;
     if (typeof event.button === "number" && event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 
     event.preventDefault();
     if (activeMode !== nextMode) {
