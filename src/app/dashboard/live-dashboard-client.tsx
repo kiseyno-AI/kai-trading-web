@@ -2178,9 +2178,7 @@ export function LiveDashboardClient({
     piotroskiBoardLoadState === "error"
       ? piotroskiBoardError ?? "Piotroski filter results are unavailable."
       : piotroskiBoardLoadState === "ready"
-        ? `Matched ${formatEodSymbolCount(
-            piotroskiBoard?.summary.matched_symbols.length ?? filteringCheckedCount,
-          )} symbol(s).`
+        ? null
         : piotroskiMarketDate
           ? "Piotroski filter status is pending for the selected market date."
           : "Piotroski market date is pending.";
@@ -2437,7 +2435,7 @@ export function LiveDashboardClient({
                 </div>
               </div>
 
-              <p className={styles.cardContext}>{filteringNote}</p>
+              {filteringNote ? <p className={styles.cardContext}>{filteringNote}</p> : null}
             </article>
 
             <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
