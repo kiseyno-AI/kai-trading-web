@@ -200,14 +200,6 @@ type EodStageDetail = {
 
 type AgentRoleStatus = "completed" | "running" | "pending" | "attention";
 
-type AgentRoleDependencyStatus = "confirmed" | "running" | "pending";
-
-type AgentRoleDependency = {
-  key: string;
-  label: string;
-  status: AgentRoleDependencyStatus;
-};
-
 type AgentRoleMetric = {
   key: string;
   label: string;
@@ -218,7 +210,6 @@ type AgentRoleCard = {
   role: string;
   label: string;
   status: AgentRoleStatus;
-  dependencies: AgentRoleDependency[];
   metrics: AgentRoleMetric[];
 };
 
@@ -1159,34 +1150,6 @@ function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: s
   return "pending";
 }
 
-function isTerminalAgentRoleDependencyStage(stage: EodFreshnessStageDto | null | undefined) {
-  const stageStatus = normalizeStageStatus(stage);
-  return (
-    stageStatus === "ready" ||
-    stageStatus === "completed" ||
-    stageStatus === "completed_with_errors" ||
-    stageStatus === "failed" ||
-    stageStatus === "partial"
-  );
-}
-
-function buildAgentRoleDependency(
-  key: string,
-  label: string,
-  stage: EodFreshnessStageDto | null | undefined,
-): AgentRoleDependency {
-  const stageStatus = normalizeStageStatus(stage);
-  if (stageStatus === "running") {
-    return { key, label, status: "running" };
-  }
-
-  if (isTerminalAgentRoleDependencyStage(stage)) {
-    return { key, label, status: "confirmed" };
-  }
-
-  return { key, label, status: "pending" };
-}
-
 function buildAgentRoleMetrics(progress: AgentFeedbackProgressResponseDto | null): AgentRoleMetric[] {
   if (!isAgentFeedbackProgressRunning(progress)) return [];
 
@@ -1348,24 +1311,6 @@ function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus, fallb
   return fallbackRole !== null && normalizeAgentRole(role) === fallbackRole;
 }
 
-function getAgentRoleDependencies(
-  role: string,
-  eodStage: EodFreshnessStageDto | null,
-  technicalStage: EodFreshnessStageDto | null,
-) {
-  const normalizedRole = normalizeAgentRole(role) ?? "";
-  const dependencies: AgentRoleDependency[] = [];
-
-  if (normalizedRole.includes("technical") || normalizedRole.includes("fundamental")) {
-    dependencies.push(buildAgentRoleDependency("eod", "EOD", eodStage));
-  }
-  if (normalizedRole.includes("fundamental")) {
-    dependencies.push(buildAgentRoleDependency("technical", "Tech", technicalStage));
-  }
-
-  return dependencies;
-}
-
 function getNonRunningAgentRoleStatus(
   runStatus: AgentFeedbackRunStatus | null,
   role: string,
@@ -1422,11 +1367,7 @@ function getNonRunningAgentRoleCompletedCount(
   return completedSymbols;
 }
 
-function buildAgentRoleCards(
-  progress: AgentFeedbackProgressResponseDto | null,
-  eodStage: EodFreshnessStageDto | null,
-  technicalStage: EodFreshnessStageDto | null,
-): AgentRoleCard[] {
+function buildAgentRoleCards(progress: AgentFeedbackProgressResponseDto | null): AgentRoleCard[] {
   const orderedRoles = getOrderedAgentRoles(progress);
   if (orderedRoles.length === 0) return [];
 
@@ -1451,7 +1392,6 @@ function buildAgentRoleCards(
         role,
         label: getAgentRoleLabel(role),
         status,
-        dependencies: [],
         metrics: [
           {
             key: "completed",
@@ -1477,22 +1417,9 @@ function buildAgentRoleCards(
       role,
       label: getAgentRoleLabel(role),
       status,
-      dependencies: getAgentRoleDependencies(role, eodStage, technicalStage),
       metrics: shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole) ? metrics : [],
     };
   });
-}
-
-function getAgentRoleDependencyIcon(status: AgentRoleDependencyStatus) {
-  if (status === "confirmed") return "✓";
-  if (status === "pending") return "·";
-  return "";
-}
-
-function getAgentRoleDependencyText(dependency: AgentRoleDependency) {
-  if (dependency.status === "confirmed") return `${dependency.label} 확인`;
-  if (dependency.status === "running") return `${dependency.label} 진행 중`;
-  return `${dependency.label} 확인 필요`;
 }
 
 function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {
@@ -2030,11 +1957,7 @@ export function LiveDashboardClient({
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
-  const agentRoleCards = buildAgentRoleCards(
-    displayedAgentFeedbackProgress,
-    priceFreshnessStage,
-    technicalFreshnessStage,
-  );
+  const agentRoleCards = buildAgentRoleCards(displayedAgentFeedbackProgress);
   const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
   const agentFeedbackStatusTone =
     agentProgressRunStatus === "completed"
@@ -2356,22 +2279,6 @@ export function LiveDashboardClient({
                       <div className={styles.agentRoleContent}>
                         <span className={styles.agentRoleName}>{role.label}</span>
                         <span className={styles.agentRoleStatusText}>{AGENT_ROLE_STATUS_LABELS[role.status]}</span>
-                        {role.dependencies.length > 0 ? (
-                          <span className={styles.agentRoleDependencies}>
-                            {role.dependencies.map((dependency) => (
-                              <span
-                                key={dependency.key}
-                                className={styles.agentRoleDependency}
-                                data-dependency-status={dependency.status}
-                              >
-                                <span className={styles.agentRoleDependencyIcon} aria-hidden="true">
-                                  {getAgentRoleDependencyIcon(dependency.status)}
-                                </span>
-                                {getAgentRoleDependencyText(dependency)}
-                              </span>
-                            ))}
-                          </span>
-                        ) : null}
                         {role.metrics.length > 0 ? (
                           <dl className={styles.agentRoleMetrics}>
                             {role.metrics.map((metric) => (
