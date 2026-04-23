@@ -32,6 +32,7 @@ import {
   getEodSymbolsFailed,
   getEodSymbolsSucceeded,
   getEodSymbolsTotal,
+  getFundamentalsStageDisplayCounts,
   getLatestEodSymbolsFailed,
   getLatestEodSymbolsSucceeded,
   getLatestEodSymbolsTotal,
@@ -833,14 +834,11 @@ function getFundamentalsFreshnessStage(
 ): EodFreshnessStageDto | null {
   if (useTodayStage && freshness?.today?.fundamentals) return freshness.today.fundamentals;
 
-  const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
-  const symbolsTotal = latestRun?.symbols_total ?? freshness?.today?.fundamentals?.symbols_total ?? null;
-  const symbolsChecked =
-    latestRun?.symbols_checked ??
-    freshness?.today?.fundamentals?.symbols_succeeded ??
-    freshness?.today?.fundamentals?.symbols_total ??
-    null;
-  const symbolsFailed = latestRun?.symbols_failed ?? freshness?.today?.fundamentals?.symbols_failed ?? null;
+  const { symbolsTotal, symbolsChecked, symbolsFailed } = getFundamentalsStageDisplayCounts(
+    fundamentalsStatus,
+    freshness?.today?.fundamentals,
+    useTodayStage,
+  );
   const normalizedStatus = fundamentalsStatusLabel.trim().toLowerCase();
   if (normalizedStatus === "running") return buildStage("running", symbolsTotal, symbolsChecked, symbolsFailed);
   if (["completed", "available", "ready"].includes(normalizedStatus) || hasTextValue(latestFundamentalsDate)) {

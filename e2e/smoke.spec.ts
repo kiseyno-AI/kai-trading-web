@@ -10,6 +10,7 @@ import {
   getEodSymbolsFailed,
   getEodSymbolsSucceeded,
   getEodSymbolsTotal,
+  getFundamentalsStageDisplayCounts,
   shouldUseTodayStageData,
 } from "@/lib/dashboard-eod-stage-data";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
@@ -214,6 +215,26 @@ test.describe("smoke", () => {
         failed: 1,
       }),
     ).toBe(true);
+  });
+
+  test("dashboard fundamentals counts ignore today data when stale latest inspect is unavailable", async () => {
+    const todayFundamentalsStage = {
+      status: "missing",
+      symbols_total: 3581,
+      symbols_succeeded: 0,
+      symbols_failed: 0,
+    };
+
+    expect(getFundamentalsStageDisplayCounts({ latest_run: null, runs: [] }, todayFundamentalsStage, false)).toEqual({
+      symbolsTotal: null,
+      symbolsChecked: null,
+      symbolsFailed: null,
+    });
+    expect(getFundamentalsStageDisplayCounts({ latest_run: null, runs: [] }, todayFundamentalsStage, true)).toEqual({
+      symbolsTotal: 3581,
+      symbolsChecked: 0,
+      symbolsFailed: 0,
+    });
   });
 
   test("disclosure section only shows an empty state after aggregate context succeeds", async () => {
