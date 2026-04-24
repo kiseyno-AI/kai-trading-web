@@ -14,7 +14,7 @@ import {
   getFundamentalsStageDisplayCounts,
   shouldUseTodayStageData,
 } from "@/lib/dashboard-eod-stage-data";
-import { getLatestEodPatchSummary } from "@/lib/eod-freshness-latest";
+import { getLatestEodPatchSummary, getLatestPriceTradeDate } from "@/lib/eod-freshness-latest";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { getTradingApiCacheTtlMs } from "@/lib/trading-api-cache";
@@ -217,6 +217,45 @@ test.describe("smoke", () => {
         failed: 1,
       }),
     ).toBe(true);
+  });
+
+  test("latest price date prefers price_trade_date and preserves richer latest payload fallback", async () => {
+    const freshnessWithDivergedSummary = {
+      latest: {
+        price_trade_date: "2026-04-24",
+        summary: {
+          trade_date: "2026-04-23",
+        },
+        stages: {
+          price: {
+            summary: {
+              price_trade_date: "2026-04-24",
+            },
+          },
+        },
+      },
+    };
+
+    expect(getLatestPriceTradeDate(freshnessWithDivergedSummary)).toBe("2026-04-24");
+    expect(getAgentFeedbackProgressMarketDate(freshnessWithDivergedSummary)).toBe("2026-04-24");
+
+    const freshnessWithRichStageOnly = {
+      latest: {
+        summary: {
+          trade_date: "2026-04-22",
+        },
+        stages: {
+          price: {
+            summary: {
+              trade_date: "2026-04-23",
+            },
+          },
+        },
+      },
+    };
+
+    expect(getLatestPriceTradeDate(freshnessWithRichStageOnly)).toBe("2026-04-23");
+    expect(getAgentFeedbackProgressMarketDate(freshnessWithRichStageOnly)).toBe("2026-04-23");
   });
 
   test("latest EOD summary helpers read the richer flat latest payload", async () => {

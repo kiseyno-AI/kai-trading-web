@@ -403,9 +403,10 @@ export function getLatestPriceTradeDate(freshness: EodFreshnessResponseDto | nul
   const stageDetail = getLatestStageDetails(freshness).find((detail) => detail.key === "price") ?? null;
 
   return (
-    getTextValue(summaryRecord, ["trade_date", "market_date", "latest_date"]) ??
-    getTextValue(latestRecord, ["price_trade_date", "trade_date", "market_date", "latest_date"]) ??
+    getTextValue(latestRecord, ["price_trade_date"]) ??
     stageDetail?.tradeDate ??
+    getTextValue(summaryRecord, ["trade_date", "market_date", "latest_date"]) ??
+    getTextValue(latestRecord, ["trade_date", "market_date", "latest_date"]) ??
     null
   );
 }
