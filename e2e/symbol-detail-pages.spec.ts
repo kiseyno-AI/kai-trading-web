@@ -41,8 +41,14 @@ type PriceHistoryRequestSnapshot = {
   limit: string | null;
 };
 
-async function mockSystemFreshnessApis(page: Page) {
+async function mockSystemFreshnessApis(
+  page: Page,
+  options: {
+    fundamentalsHistoryEntries?: number;
+  } = {},
+) {
   const marketDate = "2026-04-10";
+  const fundamentalsHistoryEntries = options.fundamentalsHistoryEntries ?? 0;
 
   await page.route("**/api/trading/quotes/005930", async (route) => {
     await route.fulfill({
@@ -101,6 +107,85 @@ async function mockSystemFreshnessApis(page: Page) {
           latest_date: marketDate,
         },
       }),
+    });
+  });
+
+  await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+    await route.fulfill({
+      json: {
+        request: {
+          market_date: marketDate,
+          symbols: ["005930"],
+          fs_div: null,
+          fs_label: null,
+          disclosures_limit: 4,
+        },
+        summary: {
+          requested_symbol_count: 1,
+          matched_symbol_count: 1,
+          technical_snapshot_count: 0,
+          action_summary_count: 0,
+          fundamentals_count: fundamentalsHistoryEntries > 0 ? 1 : 0,
+          recent_disclosure_symbol_count: 0,
+          missing_symbols: [],
+        },
+        items: [
+          {
+            symbol: "005930",
+            market_date: marketDate,
+            company: {
+              symbol: "005930",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+              instrument_type: "stock",
+              standard_code: "KR7005930003",
+              source: "test",
+              is_active: true,
+              last_refreshed_at: null,
+              dart: {
+                corp_code: "00126380",
+                corp_name: "Samsung Electronics",
+              },
+            },
+            technical_snapshot: null,
+            action_summary: null,
+            fundamentals: {
+              latest_snapshot: null,
+              history_summary: {
+                entries: fundamentalsHistoryEntries,
+                latest_receipt_date: fundamentalsHistoryEntries > 0 ? marketDate : null,
+                latest_period_end_date: fundamentalsHistoryEntries > 0 ? "2025-12-31" : null,
+                available_business_years: fundamentalsHistoryEntries > 0 ? [2025, 2024] : [],
+                recent_periods:
+                  fundamentalsHistoryEntries > 0
+                    ? [
+                        {
+                          business_year: 2025,
+                          report_code: "11011",
+                          report_label: "FY 2025",
+                          period_type: "annual",
+                          period_end_date: "2025-12-31",
+                          receipt_date: marketDate,
+                          rcept_no: "202604100001",
+                        },
+                      ]
+                    : [],
+              },
+            },
+            recent_disclosures: {
+              count: 0,
+              items: [],
+            },
+            availability: {
+              company: true,
+              technical_snapshot: false,
+              action_summary: false,
+              fundamentals: fundamentalsHistoryEntries > 0,
+              recent_disclosures: false,
+            },
+          },
+        ],
+      },
     });
   });
 }
@@ -499,6 +584,19 @@ test.describe("symbol detail mobile pages", () => {
       .toBeLessThanOrEqual(1);
   });
 
+  test("system freshness fundamentals row preserves the history-loaded state without a latest snapshot", async ({
+    page,
+  }) => {
+    await mockSystemFreshnessApis(page, { fundamentalsHistoryEntries: 3 });
+
+    await page.goto(`/dashboard/symbol/005930/system-freshness?${symbolSeed}`);
+
+    const fundamentalsRow = page.locator("#freshness article").filter({ hasText: /Fundamentals/i });
+    await expect(fundamentalsRow).toContainText("History loaded");
+    await expect(fundamentalsRow.locator(".pill.info", { hasText: "History loaded" })).toBeVisible();
+    await expect(fundamentalsRow).not.toContainText("No history");
+  });
+
   test("disclosure detail requests the same row cap it can render", async ({ page }) => {
     const aggregateRequest = page.waitForRequest((request) => {
       const url = request.url();
@@ -588,9 +686,9 @@ test.describe("symbol detail mobile pages", () => {
       .poll(() => ({ ...requestCounts }))
       .toEqual({
         priceHistory: 1,
-        technical: 1,
-        action: 1,
-        fundamentals: 1,
+        technical: 0,
+        action: 0,
+        fundamentals: 0,
       });
     expect(priceHistoryRequests).toEqual([
       {
@@ -608,6 +706,9 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator('[data-mode="action-summary"]')).toBeVisible();
     await expect(page.locator("#action")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
+    await expect.poll(() => requestCounts.action).toBe(1);
+    expect(requestCounts.technical).toBe(0);
+    expect(requestCounts.fundamentals).toBe(0);
 
     const technicalTab = page.getByRole("button", { name: "Technical" });
     await technicalTab.scrollIntoViewIfNeeded();
@@ -618,6 +719,8 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator("#technical")).toBeVisible();
     await expect(focusDateValue).toHaveText(preservedFocusDate!);
     await expect(workspaceLoader).toHaveCount(0);
+    await expect.poll(() => requestCounts.technical).toBe(1);
+    expect(requestCounts.fundamentals).toBe(0);
 
     await actionTab.click();
     await page.waitForTimeout(50);
@@ -645,6 +748,7 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator('[data-mode="fundamentals-history"]')).toBeVisible();
     await expect(page.locator("#fundamentals")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
+    await expect.poll(() => requestCounts.fundamentals).toBe(1);
 
     const disclosureTab = page.getByRole("button", { name: "Disclosures" });
     await disclosureTab.scrollIntoViewIfNeeded();
@@ -659,12 +763,9 @@ test.describe("symbol detail mobile pages", () => {
 
     expect(requestCounts.priceHistory).toBeGreaterThanOrEqual(1);
     expect(requestCounts.priceHistory).toBeLessThanOrEqual(2);
-    expect(requestCounts.technical).toBeGreaterThanOrEqual(1);
-    expect(requestCounts.technical).toBeLessThanOrEqual(2);
-    expect(requestCounts.action).toBeGreaterThanOrEqual(1);
-    expect(requestCounts.action).toBeLessThanOrEqual(2);
-    expect(requestCounts.fundamentals).toBeGreaterThanOrEqual(1);
-    expect(requestCounts.fundamentals).toBeLessThanOrEqual(2);
+    expect(requestCounts.technical).toBe(1);
+    expect(requestCounts.action).toBe(1);
+    expect(requestCounts.fundamentals).toBe(1);
   });
 
   test("disclosure report cards open a readable report detail screen", async ({ page }) => {
