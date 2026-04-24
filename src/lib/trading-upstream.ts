@@ -32,7 +32,7 @@ function getConfiguredTradingUpstreamBaseUrl() {
 }
 
 function isLocalDevelopmentEnvironment() {
-  return process.env.NODE_ENV !== "production" && !process.env.VERCEL;
+  return process.env.NODE_ENV !== "production";
 }
 
 type TradingUpstreamTarget = {
@@ -75,7 +75,6 @@ function buildTradingUpstreamConfigurationDetails() {
     hasConfiguredUpstreamBaseUrl: Boolean(getConfiguredTradingUpstreamBaseUrl()),
     hasPublicTradingApiBaseUrl: Boolean(process.env.NEXT_PUBLIC_TRADING_API_BASE_URL),
     nodeEnv: process.env.NODE_ENV ?? null,
-    vercelEnv: process.env.VERCEL_ENV ?? null,
   };
 }
 
