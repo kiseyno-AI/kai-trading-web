@@ -77,6 +77,11 @@ Client polling:
 - `GET /api/trading/quotes/{symbol}`
 - `GET /api/trading/market/status`
 - `GET /api/trading/eod/freshness`
+- `GET /api/trading/eod/momentum-factors?market_date=...&symbols={symbol}&limit=1`
+- `GET /api/trading/eod/low-risk-factors?market_date=...&symbol={symbol}`
+- `GET /api/trading/eod/beta-factors?market_date=...&symbol={symbol}`
+- `GET /api/trading/eod/value-factors?market_date=...&symbol={symbol}`
+- `GET /api/trading/eod/advanced-value-factors?market_date=...&symbol={symbol}`
 - `GET /api/trading/agent-context/symbol-day?market_date=...&symbols={symbol}&disclosures_limit=5[&fs_div=...]`
 - `GET /api/trading/eod/technical-snapshots?market_date=...&symbols={symbol}`
 - `GET /api/trading/eod/action-summaries?market_date=...&symbols={symbol}`
@@ -93,6 +98,7 @@ UI surfaces and fields:
 - Hero tracked-symbol star: `/scanner/tracked-symbols` -> `tracked_symbols`; clicking the star posts the replacement symbol list, fills the star when the current symbol is present, and clears the fill when it is removed
 - Market-status gate for quote polling: `/market/status` -> `state`
 - Chart: `/symbols/{symbol}/price-bars` -> `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`
+- Factor Snapshot section: `/eod/momentum-factors`, `/eod/low-risk-factors`, `/eod/beta-factors`, `/eod/value-factors`, `/eod/advanced-value-factors` -> family-level `feature_version`, `summary`, and `item` / `items[]` inspect rows; the UI shows one explainable card per factor family plus a reserved composite slot, isolates partial family failures, and surfaces the main score / percentile / rank / classification fields without dumping raw payloads
 - Action Summary section: `/eod/action-summaries` with fallback `/agent-context/symbol-day.action_summary` -> `action_label`, `signal_score`, `confidence_tier`, `risk_tier`, `trigger_price`, `support_price`, `resistance_price`, `reasons`, `summary_payload`
 - Technical Analysis section: `/eod/technical-snapshots` with fallback `/agent-context/symbol-day.technical_snapshot` -> `trend_state`, `ma_alignment`, `breakout_20d`, `breakdown_20d`, `return_5d`, `return_20d`, `volume_ratio_20d`, `atr_14`, `atr_pct_14`, `signal_payload`
 - Fundamentals section: `/disclosures/dart/fundamentals/history` with fallback `/agent-context/symbol-day.fundamentals.latest_snapshot` -> `companies[].entries[].filing`, `period`, `statement.fs_div`, `highlights[]`
@@ -107,7 +113,7 @@ Important behavior:
 - The primary chart now uses the stored historical bars API, not an in-page quote trace. The technical-analysis detail page also renders the same candlestick API on desktop to match the Stitch candlestick view.
 - The chart focus card updates from chart interaction, but the chart itself remains EOD-history based.
 - Quote polling stops entirely after the first response where both `/market/status.state` and `/quotes/{symbol}.market_state` are `CLOSED`.
-- `/agent-context/symbol-day`, `/eod/technical-snapshots`, `/eod/action-summaries`, `/disclosures/dart/fundamentals/history`, and `/symbols/{symbol}/price-bars` are one-shot per dependency change, not recurring quote polls.
+- `/agent-context/symbol-day`, `/eod/momentum-factors`, `/eod/low-risk-factors`, `/eod/beta-factors`, `/eod/value-factors`, `/eod/advanced-value-factors`, `/eod/technical-snapshots`, `/eod/action-summaries`, `/disclosures/dart/fundamentals/history`, and `/symbols/{symbol}/price-bars` are one-shot per dependency change, not recurring quote polls.
 - `/scanner/tracked-symbols` is requested by the symbol detail route only for the hero star state and toggle; it does not enable order execution.
 - When a technical or action field is not confirmed upstream, the UI shows `[확인 필요]` instead of manufacturing indicator values.
 - The five dedicated detail routes reuse the same responsive chrome, dev tags, and API loaders as the overview card stack. They narrow the rendered body to the selected Stitch detail screen instead of duplicating data logic.
@@ -162,6 +168,11 @@ Files:
 - `src/app/api/trading/scanner/tracked-symbols/route.ts`
 - `src/app/api/trading/agent-context/symbol-day/route.ts`
 - `src/app/api/trading/eod/freshness/route.ts`
+- `src/app/api/trading/eod/momentum-factors/route.ts`
+- `src/app/api/trading/eod/low-risk-factors/route.ts`
+- `src/app/api/trading/eod/beta-factors/route.ts`
+- `src/app/api/trading/eod/value-factors/route.ts`
+- `src/app/api/trading/eod/advanced-value-factors/route.ts`
 - `src/app/api/trading/eod/technical-snapshots/route.ts`
 - `src/app/api/trading/eod/action-summaries/route.ts`
 - `src/app/api/trading/disclosures/dart/fundamentals/history/route.ts`

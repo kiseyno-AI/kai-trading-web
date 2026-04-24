@@ -647,6 +647,228 @@ export type EodActionSummariesResponseDto = {
   items: AgentContextActionSummaryDto[];
 };
 
+export type EodFactorInspectResponseDto<TItem, TSummary> = {
+  market_date?: string | null;
+  feature_version?: string | null;
+  summary: TSummary;
+  item?: TItem | null;
+  items?: TItem[] | null;
+};
+
+export type EodMomentumFactorItemDto = {
+  symbol: string;
+  name_ko?: string | null;
+  market?: string | null;
+  market_date: string;
+  source?: string | null;
+  close_price: number | null;
+  ma_60: number | null;
+  ma_120: number | null;
+  momentum_12_1: number | null;
+  return_5d: number | null;
+  return_5d_rank?: number | null;
+  return_5d_percentile?: number | null;
+  return_5d_ranked_universe_size?: number | null;
+  return_5d_realized_volatility_20d?: number | null;
+  return_5d_vol_adjusted?: number | null;
+  has_sufficient_history: boolean;
+  is_price_above_ma120: boolean;
+  is_ma60_above_ma120: boolean;
+  has_sufficient_cross_sectional_context?: boolean | null;
+  is_return_5d_extreme?: boolean | null;
+  is_volatility_adjusted_overheated?: boolean | null;
+  passes_minimum_absolute_return?: boolean | null;
+  overheat_rule_version?: string | null;
+  is_recent_overheated: boolean;
+  momentum_rank: number | null;
+  momentum_percentile: number | null;
+  is_momentum_eligible: boolean;
+  factor_payload: Record<string, unknown> | null;
+  captured_at: string | null;
+};
+
+export type EodMomentumFactorSummaryDto = {
+  entries: number;
+  requested_symbols: string[];
+  matched_symbols: string[];
+  missing_symbols: string[];
+  ranked_symbols: number;
+  eligible_symbols: number;
+};
+
+export type EodMomentumFactorsResponseDto = EodFactorInspectResponseDto<
+  EodMomentumFactorItemDto,
+  EodMomentumFactorSummaryDto
+>;
+
+export type EodLowRiskFactorItemDto = {
+  symbol: string;
+  name_ko?: string | null;
+  market?: string | null;
+  market_date: string;
+  source?: string | null;
+  feature_version?: string | null;
+  volatility_60d: number | null;
+  volatility_120d: number | null;
+  max_drawdown_120d: number | null;
+  avg_trading_value_20d: number | null;
+  volatility_60d_rank: number | null;
+  volatility_120d_rank: number | null;
+  max_drawdown_120d_rank: number | null;
+  liquidity_rank: number | null;
+  volatility_60d_percentile: number | null;
+  volatility_120d_percentile: number | null;
+  max_drawdown_120d_percentile: number | null;
+  liquidity_percentile: number | null;
+  passes_liquidity_floor: boolean | null;
+  low_risk_score: number | null;
+  low_risk_classification: string | null;
+  is_low_risk_eligible: boolean;
+  history_days_available: number;
+  factor_payload: Record<string, unknown> | null;
+  captured_at: string | null;
+};
+
+export type EodLowRiskFactorSummaryDto = {
+  entries: number;
+  requested_symbol: string | null;
+  matched_symbols: string[];
+  missing_symbols: string[];
+  eligible_count: number;
+  liquidity_floor_pass_count: number;
+  insufficient_history_count: number;
+};
+
+export type EodLowRiskFactorsResponseDto = EodFactorInspectResponseDto<
+  EodLowRiskFactorItemDto,
+  EodLowRiskFactorSummaryDto
+>;
+
+export type EodBetaFactorItemDto = {
+  symbol: string;
+  name_ko?: string | null;
+  market?: string | null;
+  market_date: string;
+  source?: string | null;
+  feature_version?: string | null;
+  benchmark_id: string | null;
+  benchmark_market: string | null;
+  beta_60d: number | null;
+  beta_120d: number | null;
+  beta_60d_rank: number | null;
+  beta_120d_rank: number | null;
+  beta_60d_percentile: number | null;
+  beta_120d_percentile: number | null;
+  low_beta_score: number | null;
+  low_beta_classification: string | null;
+  is_low_beta_eligible: boolean;
+  history_days_available: number;
+  factor_payload: Record<string, unknown> | null;
+  captured_at: string | null;
+};
+
+export type EodBetaFactorSummaryDto = {
+  entries: number;
+  requested_symbol: string | null;
+  matched_symbols: string[];
+  missing_symbols: string[];
+  eligible_count: number;
+  watchlist_count: number;
+  insufficient_history_count: number;
+};
+
+export type EodBetaFactorsResponseDto = EodFactorInspectResponseDto<
+  EodBetaFactorItemDto,
+  EodBetaFactorSummaryDto
+>;
+
+export type EodValueFactorItemDto = {
+  symbol: string;
+  name_ko?: string | null;
+  market?: string | null;
+  market_date: string;
+  source?: string | null;
+  feature_version?: string | null;
+  per: number | null;
+  pbr: number | null;
+  dividend_yield: number | null;
+  per_status: string | null;
+  per_rank: number | null;
+  pbr_rank: number | null;
+  dividend_yield_rank: number | null;
+  per_percentile: number | null;
+  pbr_percentile: number | null;
+  dividend_yield_percentile: number | null;
+  value_score: number | null;
+  value_rank: number | null;
+  value_percentile: number | null;
+  value_status: string | null;
+  factor_payload: Record<string, unknown> | null;
+  captured_at: string | null;
+};
+
+export type EodValueFactorSummaryDto = {
+  entries: number;
+  requested_symbol: string | null;
+  matched_symbols: string[];
+  missing_symbols: string[];
+  scored_count: number;
+  invalid_per_count: number;
+  missing_metric_count: number;
+};
+
+export type EodValueFactorsResponseDto = EodFactorInspectResponseDto<
+  EodValueFactorItemDto,
+  EodValueFactorSummaryDto
+>;
+
+export type EodAdvancedValueFactorItemDto = {
+  symbol: string;
+  name_ko?: string | null;
+  market?: string | null;
+  market_date: string;
+  source?: string | null;
+  feature_version?: string | null;
+  market_cap_proxy: number | null;
+  enterprise_value: number | null;
+  ebitda: number | null;
+  free_cash_flow: number | null;
+  fcf_yield: number | null;
+  ev_to_ebitda: number | null;
+  fcf_yield_status: string | null;
+  ev_to_ebitda_status: string | null;
+  fcf_yield_valid_for_scoring: boolean;
+  ev_to_ebitda_valid_for_scoring: boolean;
+  fcf_yield_rank: number | null;
+  ev_to_ebitda_rank: number | null;
+  fcf_yield_percentile: number | null;
+  ev_to_ebitda_percentile: number | null;
+  advanced_value_score: number | null;
+  advanced_value_rank: number | null;
+  advanced_value_percentile: number | null;
+  advanced_value_components_used: number;
+  advanced_value_classification: string | null;
+  is_advanced_value_eligible: boolean;
+  factor_payload: Record<string, unknown> | null;
+  captured_at: string | null;
+};
+
+export type EodAdvancedValueFactorSummaryDto = {
+  entries: number;
+  requested_symbol: string | null;
+  matched_symbols: string[];
+  missing_symbols: string[];
+  eligible_count: number;
+  watchlist_count: number;
+  ineligible_count: number;
+  insufficient_components_count: number;
+};
+
+export type EodAdvancedValueFactorsResponseDto = EodFactorInspectResponseDto<
+  EodAdvancedValueFactorItemDto,
+  EodAdvancedValueFactorSummaryDto
+>;
+
 export type TradingApiAdapter = {
   getDashboardSnapshot: () => Promise<ApiEnvelope<DashboardSnapshotDto>>;
   getMarketsOverview: () => Promise<ApiEnvelope<MarketsOverviewDto>>;
