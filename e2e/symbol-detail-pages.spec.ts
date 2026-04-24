@@ -588,9 +588,9 @@ test.describe("symbol detail mobile pages", () => {
       .poll(() => ({ ...requestCounts }))
       .toEqual({
         priceHistory: 1,
-        technical: 1,
-        action: 1,
-        fundamentals: 1,
+        technical: 0,
+        action: 0,
+        fundamentals: 0,
       });
     expect(priceHistoryRequests).toEqual([
       {
@@ -608,6 +608,9 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator('[data-mode="action-summary"]')).toBeVisible();
     await expect(page.locator("#action")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
+    await expect.poll(() => requestCounts.action).toBe(1);
+    expect(requestCounts.technical).toBe(0);
+    expect(requestCounts.fundamentals).toBe(0);
 
     const technicalTab = page.getByRole("button", { name: "Technical" });
     await technicalTab.scrollIntoViewIfNeeded();
@@ -618,6 +621,8 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator("#technical")).toBeVisible();
     await expect(focusDateValue).toHaveText(preservedFocusDate!);
     await expect(workspaceLoader).toHaveCount(0);
+    await expect.poll(() => requestCounts.technical).toBe(1);
+    expect(requestCounts.fundamentals).toBe(0);
 
     await actionTab.click();
     await page.waitForTimeout(50);
@@ -645,6 +650,7 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator('[data-mode="fundamentals-history"]')).toBeVisible();
     await expect(page.locator("#fundamentals")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
+    await expect.poll(() => requestCounts.fundamentals).toBe(1);
 
     const disclosureTab = page.getByRole("button", { name: "Disclosures" });
     await disclosureTab.scrollIntoViewIfNeeded();
@@ -659,12 +665,9 @@ test.describe("symbol detail mobile pages", () => {
 
     expect(requestCounts.priceHistory).toBeGreaterThanOrEqual(1);
     expect(requestCounts.priceHistory).toBeLessThanOrEqual(2);
-    expect(requestCounts.technical).toBeGreaterThanOrEqual(1);
-    expect(requestCounts.technical).toBeLessThanOrEqual(2);
-    expect(requestCounts.action).toBeGreaterThanOrEqual(1);
-    expect(requestCounts.action).toBeLessThanOrEqual(2);
-    expect(requestCounts.fundamentals).toBeGreaterThanOrEqual(1);
-    expect(requestCounts.fundamentals).toBeLessThanOrEqual(2);
+    expect(requestCounts.technical).toBe(1);
+    expect(requestCounts.action).toBe(1);
+    expect(requestCounts.fundamentals).toBe(1);
   });
 
   test("disclosure report cards open a readable report detail screen", async ({ page }) => {
