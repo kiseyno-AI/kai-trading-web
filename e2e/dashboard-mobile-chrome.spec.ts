@@ -283,7 +283,9 @@ test.describe("dashboard mobile chrome", () => {
     }
   });
 
-  test("latest patch summary stays readable on mobile when today and latest differ", async ({ page }) => {
+  test("EOD stage cards stay readable on mobile when today and latest differ without the latest patch card", async ({
+    page,
+  }) => {
     const now = "2026-04-24T09:20:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -457,17 +459,17 @@ test.describe("dashboard mobile chrome", () => {
     await page.goto("/dashboard");
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
-    await expect(eodStatusCard.getByText("Latest EOD patch")).toBeVisible();
-    await expect(eodStatusCard).toContainText("Market date 2026-04-24. Latest EOD date 2026-04-23.");
-    await expect(eodStatusCard).toContainText("Completed with errors");
-    await expect(eodStatusCard).toContainText(/Succeeded\s*3,570\s*\/\s*3,577/);
-    await expect(eodStatusCard).toContainText(/Failed\s*7/);
+    const priceStage = eodStatusCard.locator('[data-stage="price"]');
 
-    const latestPatch = eodStatusCard.locator(`[aria-label="Latest EOD patch"]`);
-    const overflow = await latestPatch.evaluate((element) => {
+    await expect(eodStatusCard.getByText("Latest EOD patch")).toHaveCount(0);
+    await expect(eodStatusCard.locator("[data-stage]")).toHaveCount(4);
+    await expect(priceStage).toContainText("3,570 / 3,577");
+    await expect(priceStage).toContainText("Failed 7");
+
+    const overflow = await priceStage.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       const tolerance = 1;
-      const overflowedText = [...element.querySelectorAll("span, strong, summary")]
+      const overflowedText = [...element.querySelectorAll("span, strong, button")]
         .filter((child) => child.getClientRects().length > 0)
         .map((child) => {
           const childRect = child.getBoundingClientRect();

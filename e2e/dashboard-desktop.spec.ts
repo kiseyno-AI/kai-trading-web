@@ -1885,7 +1885,7 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
-  test("D2 latest patch summary shows richer latest health and stage details", async ({ page }) => {
+  test("D2 EOD status keeps stage freshness details and omits the latest patch card", async ({ page }) => {
     const now = "2026-04-24T09:20:00+09:00";
     let requestedMarketDate: string | null = null;
 
@@ -2134,23 +2134,25 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
-    await expect(eodStatusCard).toBeVisible();
-    const latestPatch = eodStatusCard.getByLabel("Latest EOD patch");
-    const latestPatchStatus = latestPatch.locator("span.pill").first();
-    await expect(latestPatch).toBeVisible();
-    await expect(latestPatch).toContainText("Latest EOD date 2026-04-23");
-    await expect(latestPatch).toContainText("Last updated 26-04-23 : 16:31:55");
-    await expect(latestPatch).toContainText(/Succeeded\s*3,570\s*\/\s*3,577/);
-    await expect(latestPatch).toContainText(/Failed\s*7/);
-    await expect(latestPatchStatus).toHaveText("Completed with errors");
-    await expect(latestPatch).toContainText("Market date 2026-04-24. Latest EOD date 2026-04-23.");
+    const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
+    const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
+    const actionStage = page.locator('[aria-label="Action Summary freshness"]');
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
 
-    const stageDetails = latestPatch.locator("details");
-    await expect(stageDetails.locator("summary")).toContainText("Stage details");
-    await stageDetails.locator("summary").click();
-    await expect(stageDetails).toContainText("Price Fetch");
-    await expect(stageDetails).toContainText("Technical Analysis");
-    await expect(stageDetails).toContainText("Completed");
+    await expect(eodStatusCard).toBeVisible();
+    await expect(eodStatusCard.getByText("Market date 2026-04-24")).toBeVisible();
+    await expect(eodStatusCard.getByText("Latest EOD patch")).toHaveCount(0);
+    await expectEodStageStatus(priceStage, "synced");
+    await expectEodStageStatus(technicalStage, "synced");
+    await expectEodStageStatus(actionStage, "synced");
+    await expectEodStageStatus(fundamentalsStage, "synced");
+    await expect(priceStage).toContainText("3,570 / 3,577");
+    await expect(priceStage).toContainText("Failed 7");
+    await expect(technicalStage).toContainText("3,570 / 3,577");
+    await expect(technicalStage).toContainText("Failed 7");
+    await expect(actionStage).toContainText("3,570 / 3,577");
+    await expect(actionStage).toContainText("Failed 7");
+    await expect(fundamentalsStage).toContainText("Checked 3,577");
 
     await expect.poll(() => requestedMarketDate).toBe("2026-04-23");
   });
