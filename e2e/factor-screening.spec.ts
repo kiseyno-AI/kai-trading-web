@@ -599,6 +599,7 @@ test("factor screening supports switching, eligibility filtering, composite plac
   await page.goto("/markets/factors");
 
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+  await expect(page.locator('.side-nav a[href="/markets"]')).toHaveClass(/active/);
   await expect(page.getByText("2026.04.23").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open NAVER/i })).toBeVisible();
@@ -631,6 +632,8 @@ test("factor screening stays usable on mobile viewport", async ({ page }) => {
   await page.goto("/markets/factors");
 
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+  await page.getByRole("button", { name: /Open navigation/i }).click();
+  await expect(page.locator('.mobile-nav a[href="/markets"]')).toHaveClass(/active/);
   await expect(page.getByText("2026.04.23").first()).toBeVisible();
 
   const viewportMetrics = await page.evaluate(() => ({

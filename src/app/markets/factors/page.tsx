@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function FactorScreeningPage() {
   return (
-    <AppShell currentPath="/markets/factors">
+    <AppShell currentPath="/markets">
       <FactorScreening />
     </AppShell>
   );
