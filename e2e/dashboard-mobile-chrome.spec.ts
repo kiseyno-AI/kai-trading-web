@@ -277,6 +277,215 @@ test.describe("dashboard mobile chrome", () => {
     }
   });
 
+  test("latest patch summary stays readable on mobile when today and latest differ", async ({ page }) => {
+    const now = "2026-04-24T09:20:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market: "KRX",
+          state: "OPEN",
+          is_trading_day: true,
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71900,
+              change: 500,
+              change_pct: 0.7,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-24",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-24",
+            price: {
+              status: "missing",
+              symbols_total: 3577,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            trade_date: "2026-04-23",
+            updated_at: "2026-04-23T16:31:55+09:00",
+            eod_status: "completed_with_errors",
+            total: 3577,
+            succeeded: 3570,
+            failed: 7,
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-23",
+          },
+          action: {
+            success: true,
+            latest_date: "2026-04-23",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-23",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-23",
+          status: "completed",
+          stage_order: [
+            "price_collection",
+            "technical_snapshots",
+            "action_summaries",
+            "trending_ranks",
+            "signal_features",
+            "fundamentals_daily_refresh",
+          ],
+          stages: {},
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-23",
+          summary: {
+            entries: 3577,
+            requested_symbol: null,
+            matched_symbols: [],
+            missing_symbols: [],
+            passed_count: 132,
+            not_passed_count: 3445,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 12,
+            market_date: "2026-04-23",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 3577,
+            symbols_checked: 3577,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 3577,
+            symbols_refreshed: 3577,
+            symbols_failed: 0,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-23T16:00:00+09:00",
+            completed_at: "2026-04-23T16:40:00+09:00",
+          },
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-23",
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: {
+            run_status: "completed",
+            is_live: false,
+            progress_percent: 100,
+            total_symbols: 3577,
+            completed_symbols: 3577,
+            failed_items: 0,
+            current_role: null,
+          },
+          result: {
+            roles: {},
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard.getByText("Latest EOD patch")).toBeVisible();
+    await expect(eodStatusCard).toContainText("Market date 2026-04-24. Latest EOD date 2026-04-23.");
+    await expect(eodStatusCard).toContainText("Completed with errors");
+    await expect(eodStatusCard).toContainText(/Succeeded\s*3,570\s*\/\s*3,577/);
+    await expect(eodStatusCard).toContainText(/Failed\s*7/);
+
+    const latestPatch = eodStatusCard.locator(`[aria-label="Latest EOD patch"]`);
+    const overflow = await latestPatch.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const tolerance = 1;
+      const overflowedText = [...element.querySelectorAll("span, strong, summary")]
+        .filter((child) => child.getClientRects().length > 0)
+        .map((child) => {
+          const childRect = child.getBoundingClientRect();
+          const overflows =
+            childRect.left < rect.left - tolerance ||
+            childRect.right > rect.right + tolerance ||
+            childRect.top < rect.top - tolerance ||
+            childRect.bottom > rect.bottom + tolerance;
+
+          return overflows ? child.textContent?.trim() ?? child.tagName : null;
+        })
+        .filter(Boolean);
+
+      return {
+        clientWidth: element.clientWidth,
+        overflowedText,
+        scrollWidth: element.scrollWidth,
+      };
+    });
+
+    expect(overflow.overflowedText).toEqual([]);
+    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
+  });
+
   test("agent feedback stop confirmation posts the core control request on mobile", async ({ page }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let stopControlRequestBody: Record<string, unknown> | null = null;

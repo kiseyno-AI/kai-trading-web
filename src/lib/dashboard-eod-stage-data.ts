@@ -4,6 +4,11 @@ import type {
   EodFreshnessStageDto,
   EodPipelineStageDto,
 } from "@/types/trading-api";
+import {
+  getLatestEodSymbolsFailed as getLatestPatchSymbolsFailed,
+  getLatestEodSymbolsSucceeded as getLatestPatchSymbolsSucceeded,
+  getLatestEodSymbolsTotal as getLatestPatchSymbolsTotal,
+} from "@/lib/eod-freshness-latest";
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -14,16 +19,16 @@ export function getEodSymbolsSucceeded(
   preferLatest = false,
 ) {
   return preferLatest
-    ? freshness?.latest?.symbols_succeeded ??
+    ? getLatestPatchSymbolsSucceeded(freshness) ??
         freshness?.today?.price?.symbols_succeeded ??
         freshness?.today?.symbols_succeeded
     : freshness?.today?.price?.symbols_succeeded ??
         freshness?.today?.symbols_succeeded ??
-        freshness?.latest?.symbols_succeeded;
+        getLatestPatchSymbolsSucceeded(freshness);
 }
 
 export function getLatestEodSymbolsSucceeded(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.latest?.symbols_succeeded;
+  return getLatestPatchSymbolsSucceeded(freshness);
 }
 
 export function getEodSymbolsTotal(
@@ -31,16 +36,16 @@ export function getEodSymbolsTotal(
   preferLatest = false,
 ) {
   return preferLatest
-    ? freshness?.latest?.symbols_total ??
+    ? getLatestPatchSymbolsTotal(freshness) ??
         freshness?.today?.price?.symbols_total ??
         freshness?.today?.symbols_total
     : freshness?.today?.price?.symbols_total ??
         freshness?.today?.symbols_total ??
-        freshness?.latest?.symbols_total;
+        getLatestPatchSymbolsTotal(freshness);
 }
 
 export function getLatestEodSymbolsTotal(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.latest?.symbols_total;
+  return getLatestPatchSymbolsTotal(freshness);
 }
 
 export function getEodSymbolsFailed(
@@ -48,16 +53,16 @@ export function getEodSymbolsFailed(
   preferLatest = false,
 ) {
   return preferLatest
-    ? freshness?.latest?.symbols_failed ??
+    ? getLatestPatchSymbolsFailed(freshness) ??
         freshness?.today?.price?.symbols_failed ??
         freshness?.today?.symbols_failed
     : freshness?.today?.price?.symbols_failed ??
         freshness?.today?.symbols_failed ??
-        freshness?.latest?.symbols_failed;
+        getLatestPatchSymbolsFailed(freshness);
 }
 
 export function getLatestEodSymbolsFailed(freshness: EodFreshnessResponseDto | null) {
-  return freshness?.latest?.symbols_failed;
+  return getLatestPatchSymbolsFailed(freshness);
 }
 
 export function getFundamentalsStageDisplayCounts(

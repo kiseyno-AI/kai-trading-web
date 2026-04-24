@@ -178,6 +178,142 @@
   gap: 0.9rem;
 }
 
+.latestPatchSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 0.5rem;
+  background:
+    linear-gradient(135deg, rgba(13, 28, 46, 0.9), rgba(5, 20, 37, 0.74)),
+    radial-gradient(circle at top left, rgba(127, 184, 255, 0.12), transparent 15rem);
+}
+
+.latestPatchHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.7rem;
+}
+
+.latestPatchTitle {
+  display: block;
+  color: #f6f8ff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.latestPatchNotice {
+  margin: 0.28rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid rgba(143, 144, 158, 0.18);
+  border-radius: 0.45rem;
+  color: #cfe4ff;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.latestPatchNotice[data-tone="warning"] {
+  border-color: rgba(227, 176, 74, 0.22);
+  background: rgba(50, 37, 12, 0.28);
+  color: #fff4dd;
+}
+
+.latestPatchNotice[data-tone="neutral"] {
+  border-color: rgba(186, 195, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.latestPatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.4rem), 1fr));
+  gap: 0.55rem;
+}
+
+.latestPatchMetric,
+.latestPatchStageItem {
+  min-width: 0;
+  padding: 0.72rem 0.78rem;
+  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 0.7rem;
+  background: rgba(5, 20, 37, 0.54);
+}
+
+.latestPatchMetric span {
+  display: block;
+  color: #93a3b8;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.latestPatchMetric strong {
+  display: block;
+  margin-top: 0.28rem;
+  color: #ffffff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.latestPatchDetails {
+  border-top: 1px solid rgba(143, 144, 158, 0.12);
+  padding-top: 0.75rem;
+}
+
+.latestPatchDetailsSummary {
+  cursor: pointer;
+  color: #bac3ff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.latestPatchStageList {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
+}
+
+.latestPatchStageHeaderRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.6rem;
+}
+
+.latestPatchStageHeaderRow strong {
+  min-width: 0;
+  margin-top: 0;
+  color: #f6f8ff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.latestPatchStageMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  margin-top: 0.45rem;
+  color: #c5c5d4;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.latestPatchStageMeta span {
+  display: inline-flex;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .agentFeedbackCard {
   gap: 0.65rem;
 }
@@ -1064,6 +1200,10 @@
 }
 
 @media (max-width: 520px) {
+  .latestPatchGrid {
+    grid-template-columns: 1fr;
+  }
+
   .eodStageGrid {
     grid-template-columns: 1fr;
   }
@@ -1169,6 +1309,10 @@
   .integrityStat strong,
   .cardMeta strong {
     font-size: clamp(1rem, 1.25vw, 1.25rem);
+  }
+
+  .latestPatchMetric strong {
+    font-size: 1rem;
   }
 
   .sectionHeaderRow {

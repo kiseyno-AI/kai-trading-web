@@ -6,6 +6,7 @@ import {
   getDisclosureSectionState,
   shouldFetchSymbolMeta,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
+import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
   getEodSymbolsFailed,
   getEodSymbolsSucceeded,
@@ -13,6 +14,7 @@ import {
   getFundamentalsStageDisplayCounts,
   shouldUseTodayStageData,
 } from "@/lib/dashboard-eod-stage-data";
+import { getLatestEodPatchSummary } from "@/lib/eod-freshness-latest";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { getTradingApiCacheTtlMs } from "@/lib/trading-api-cache";
@@ -215,6 +217,104 @@ test.describe("smoke", () => {
         failed: 1,
       }),
     ).toBe(true);
+  });
+
+  test("latest EOD summary helpers read the richer flat latest payload", async () => {
+    const freshness = {
+      today: {
+        trade_date: "2026-04-24",
+      },
+      latest: {
+        trade_date: "2026-04-23",
+        updated_at: "2026-04-23T16:31:55+09:00",
+        eod_status: "completed_with_errors",
+        total: 3577,
+        succeeded: 3570,
+        failed: 7,
+      },
+    };
+
+    expect(getLatestEodPatchSummary(freshness)).toEqual({
+      tradeDate: "2026-04-23",
+      updatedAt: "2026-04-23T16:31:55+09:00",
+      status: "completed_with_errors",
+      symbolsTotal: 3577,
+      symbolsSucceeded: 3570,
+      symbolsFailed: 7,
+      stageDetails: [],
+    });
+    expect(getAgentFeedbackProgressMarketDate(freshness)).toBe("2026-04-23");
+  });
+
+  test("dashboard EOD helpers use nested latest summary and stage details when flat fields are absent", async () => {
+    const freshness = {
+      today: {
+        trade_date: "2026-04-24",
+        price: {
+          status: "missing",
+          symbols_total: 3577,
+          symbols_succeeded: 0,
+          symbols_failed: 0,
+        },
+      },
+      latest: {
+        summary: {
+          market_date: "2026-04-23",
+          updated_at: "2026-04-23T17:10:00+09:00",
+          status: "completed_with_errors",
+          symbols_total: 3577,
+          symbols_succeeded: 3570,
+          symbols_failed: 7,
+        },
+        stages: {
+          price: {
+            market_date: "2026-04-23",
+            updated_at: "2026-04-23T17:10:00+09:00",
+            status: "completed_with_errors",
+            symbols_total: 3577,
+            symbols_succeeded: 3570,
+            symbols_failed: 7,
+          },
+          technical: {
+            summary: {
+              market_date: "2026-04-23",
+              updated_at: "2026-04-23T17:12:00+09:00",
+              status: "completed",
+              symbols_total: 3577,
+              symbols_succeeded: 3577,
+              symbols_failed: 0,
+            },
+          },
+        },
+      },
+    };
+
+    expect(getEodSymbolsTotal(freshness, true)).toBe(3577);
+    expect(getEodSymbolsSucceeded(freshness, true)).toBe(3570);
+    expect(getEodSymbolsFailed(freshness, true)).toBe(7);
+    expect(getAgentFeedbackProgressMarketDate(freshness)).toBe("2026-04-23");
+    expect(getLatestEodPatchSummary(freshness)?.stageDetails).toEqual([
+      {
+        key: "price",
+        sourceKey: "price",
+        tradeDate: "2026-04-23",
+        updatedAt: "2026-04-23T17:10:00+09:00",
+        status: "completed_with_errors",
+        symbolsTotal: 3577,
+        symbolsSucceeded: 3570,
+        symbolsFailed: 7,
+      },
+      {
+        key: "technical_analysis",
+        sourceKey: "technical",
+        tradeDate: "2026-04-23",
+        updatedAt: "2026-04-23T17:12:00+09:00",
+        status: "completed",
+        symbolsTotal: 3577,
+        symbolsSucceeded: 3577,
+        symbolsFailed: 0,
+      },
+    ]);
   });
 
   test("dashboard fundamentals counts ignore today data when stale latest inspect is unavailable", async () => {
