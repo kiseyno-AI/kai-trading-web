@@ -5,6 +5,11 @@ import { chromiumIPhone13 } from "./devices";
 
 test.use(chromiumIPhone13);
 
+const agentReviewCompletedLabel = /Agent review completed|에이전트 분석 완료/;
+const agentFeedbackStopButtonLabel = /Stop|중단/;
+const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트 피드백 실행을 중단할까요\?/;
+const yesLabel = /Yes|예/;
+
 test.describe("dashboard mobile chrome", () => {
   test("dashboard top chrome is compact and fixed on mobile", async ({ page }) => {
     await page.goto("/dashboard");
@@ -214,7 +219,8 @@ test.describe("dashboard mobile chrome", () => {
     await expect(filteringCard).toContainText(/Checked\s*3,583/);
     await expect(filteringCard).toContainText(/Pass\s*132/);
     await expect(agentFeedbackCard).not.toContainText("Latest Run");
-    await expect(agentFeedbackCard).toContainText("에이전트 분석 완료");
+    await expect(agentFeedbackCard).toContainText(agentReviewCompletedLabel);
+    await expect(agentFeedbackCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);
     await expect(agentFeedbackCard).toContainText("EOD summarizer");
     await expect(agentFeedbackCard).toContainText("Technical summarizer");
     await expect(agentFeedbackCard).toContainText("Fundamental summarizer");
@@ -232,8 +238,8 @@ test.describe("dashboard mobile chrome", () => {
     await expect(
       agentFeedbackCard.getByRole("progressbar", { name: "Fundamental summarizer progress" }),
     ).toHaveAttribute("aria-valuenow", "100");
-    await expect(agentFeedbackCard.getByText("Complete")).toHaveCount(3);
-    await expect(agentFeedbackCard.getByText("3,583개")).toHaveCount(3);
+    await expect(agentFeedbackCard.getByText(/^Complete$/)).toHaveCount(3);
+    await expect(agentFeedbackCard.getByText("3,583", { exact: true })).toHaveCount(3);
 
     for (const stageCard of [priceStage, technicalStage, actionStage, fundamentalsStage]) {
       const overflow = await stageCard.evaluate((element) => {
@@ -642,16 +648,16 @@ test.describe("dashboard mobile chrome", () => {
 
     await page.goto("/dashboard");
 
-    const stopButton = page.getByRole("button", { name: "중단" });
+    const stopButton = page.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(stopButton).toBeVisible();
     await stopButton.click();
 
-    const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
+    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
     await expect(stopDialog).toBeVisible();
     await expect(stopDialog.getByRole("button", { name: /close/i })).toHaveCount(0);
     await expect(stopDialog).not.toContainText("실제 중단 동작은 추후 연결할 예정입니다.");
 
-    await stopDialog.getByRole("button", { name: "예" }).click();
+    await stopDialog.getByRole("button", { name: yesLabel }).click();
 
     await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
       JSON.stringify({

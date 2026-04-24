@@ -2389,10 +2389,13 @@ export function LiveDashboardClient({
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
   const agentRoleCards = buildAgentRoleCards(displayedAgentFeedbackProgress, copy, numberLocale);
   const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
-  const showCompletedAgentFeedbackIcon =
+  const showCompletedAgentFeedbackStatus =
     agentProgressRunStatus === "pending" && hasCompletedDefaultAgentRoles(agentRoleCards);
+  const agentFeedbackHeaderStatusLabel = showCompletedAgentFeedbackStatus
+    ? agentProgressStatusLabels.completed
+    : agentProgressStatusLabel;
   const agentFeedbackStatusTone =
-    agentProgressRunStatus === "completed"
+    showCompletedAgentFeedbackStatus || agentProgressRunStatus === "completed"
       ? "positive"
       : agentProgressRunStatus === "running"
         ? "neutral"
@@ -2791,16 +2794,7 @@ export function LiveDashboardClient({
                   <h2 className={styles.sectionTitle}>{copy.operational.agentTitle}</h2>
                   <p className={styles.cardContext}>{copy.operational.agentDate} {agentProgressDate}</p>
                 </div>
-                {showCompletedAgentFeedbackIcon ? (
-                  <span
-                    className={`${styles.statusIconBadge} ${styles.syncedStatusIcon}`}
-                    title={agentProgressStatusLabels.completed}
-                    role="img"
-                    aria-label={agentProgressStatusLabels.completed}
-                  />
-                ) : (
-                  <span className={`pill ${agentFeedbackStatusTone}`}>{agentProgressStatusLabel}</span>
-                )}
+                <span className={`pill ${agentFeedbackStatusTone}`}>{agentFeedbackHeaderStatusLabel}</span>
               </div>
               {agentRoleCards.length > 0 ? (
                 <div className={styles.agentRoleList} role="list" aria-label={copy.operational.agentRoleProgress}>

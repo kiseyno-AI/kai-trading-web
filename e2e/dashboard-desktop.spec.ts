@@ -4,6 +4,15 @@ import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 
 type EodStageStatus = "synced" | "running" | "break day" | "not synced";
 
+const agentReviewRunningLabel = /Agent review running\.\.\.|에이전트 분석 중\.\.\./;
+const agentReviewNeedsAttentionLabel = /Agent review needs attention|에이전트 확인 필요/;
+const agentReviewPendingLabel = /Agent review pending|에이전트 분석 대기/;
+const agentReviewCompletedLabel = /Agent review completed|에이전트 분석 완료/;
+const agentFeedbackStopButtonLabel = /Stop|중단/;
+const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트 피드백 실행을 중단할까요\?/;
+const yesLabel = /Yes|예/;
+const noLabel = /No|아니요/;
+
 async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
   await expect(stage).toHaveAttribute("data-status", status);
   const badge = stage.locator(`[data-status-badge="${status}"]`);
@@ -2149,6 +2158,7 @@ test.describe("dashboard desktop", () => {
   test("D2 agent feedback progress uses the latest price trade date and preserves backend role order", async ({
     page,
   }) => {
+    const marketDateLabel = /(?:Market date|기준일) 2026-04-15/;
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
@@ -2326,22 +2336,22 @@ test.describe("dashboard desktop", () => {
     await expect(freshnessPanel.getByText(/Server time/)).toBeVisible();
 
     const progressCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
-    const stopButton = progressCard.getByRole("button", { name: "중단" });
+    const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toBeVisible();
     await expect(progressCard).not.toContainText("Latest Run");
-    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(stopButton).toBeVisible();
     await stopButton.click();
-    const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
+    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
     await expect(stopDialog).toBeVisible();
     await expect(stopDialog.getByRole("button", { name: /close/i })).toHaveCount(0);
     await expect(stopDialog).not.toContainText("실제 중단 동작은 추후 연결할 예정입니다.");
-    await stopDialog.getByRole("button", { name: "아니요" }).click();
+    await stopDialog.getByRole("button", { name: noLabel }).click();
     await expect(stopDialog).toHaveCount(0);
     expect(stopControlRequestBody).toBeNull();
     await stopButton.click();
     await expect(stopDialog).toBeVisible();
-    await stopDialog.getByRole("button", { name: "예" }).click();
+    await stopDialog.getByRole("button", { name: yesLabel }).click();
     await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
       JSON.stringify({
         action: "kill",
@@ -2350,7 +2360,7 @@ test.describe("dashboard desktop", () => {
       }),
     );
     await expect(stopDialog).toHaveCount(0);
-    await expect(progressCard).toContainText("기준일 2026-04-15");
+    await expect(progressCard).toContainText(marketDateLabel);
     await expect(progressCard).not.toContainText("피드백 완료 302개 / 1,000개");
     await expect(progressCard).not.toContainText("예상 기준");
     await expect(progressCard).not.toContainText("현재 롤");
@@ -2372,10 +2382,10 @@ test.describe("dashboard desktop", () => {
       .locator('[data-role-status="running"]')
       .filter({ hasText: "Technical summarizer" });
     await expect(activeTechnicalRole).toBeVisible();
-    await expect(activeTechnicalRole).toContainText(/진행률\s*50\.40%/);
-    await expect(activeTechnicalRole).toContainText(/전체 대상\s*250개/);
-    await expect(activeTechnicalRole).toContainText(/실패\s*3개/);
-    await expect(activeTechnicalRole).toContainText(/완료\s*126개/);
+    await expect(activeTechnicalRole).toContainText(/(?:Progress|진행률)\s*50\.40%/);
+    await expect(activeTechnicalRole).toContainText(/(?:Total|전체 대상)\s*250(?:개)?/);
+    await expect(activeTechnicalRole).toContainText(/(?:Failed|실패)\s*3(?:개)?/);
+    await expect(activeTechnicalRole).toContainText(/(?:Completed|완료)\s*126(?:개)?/);
     await expect(activeTechnicalRole).not.toContainText("무응답 경과");
     await expect(activeTechnicalRole).not.toContainText("마지막 적재");
     await expect(progressCard.locator("[data-role-icon]")).toHaveCount(0);
@@ -2398,46 +2408,24 @@ test.describe("dashboard desktop", () => {
       "aria-valuenow",
       "0",
     );
-    const activeRoleIconLayout = await activeTechnicalRole.evaluate((element) => {
-      const title = [...element.querySelectorAll("span")].find(
-        (child) => child.children.length === 0 && child.textContent?.trim() === "Technical summarizer",
-      );
-      const icon = element.querySelector('[data-role-progress-icon="running"]');
+    const activeRoleTitle = activeTechnicalRole.getByText("Technical summarizer", { exact: true });
+    const activeRoleTitleBox = await activeRoleTitle.boundingBox();
+    const activeRoleIcon = activeTechnicalRole.locator('[data-role-progress-icon="running"]');
+    const activeRoleIconBox = await activeRoleIcon.boundingBox();
 
-      if (!title || !icon) return null;
+    expect(activeRoleTitleBox).not.toBeNull();
+    expect(activeRoleIconBox).not.toBeNull();
+    expect(activeRoleIconBox!.width).toBeLessThanOrEqual(22);
+    expect(activeRoleTitleBox!.x + activeRoleTitleBox!.width).toBeLessThanOrEqual(activeRoleIconBox!.x + 1);
 
-      const titleRect = title.getBoundingClientRect();
-      const iconRect = icon.getBoundingClientRect();
-
-      return {
-        iconLeft: iconRect.left,
-        iconWidth: iconRect.width,
-        titleRight: titleRect.right,
-      };
+    const activeRoleProgress = activeTechnicalRole.getByRole("progressbar", {
+      name: /Technical summarizer progress/i,
     });
-    expect(activeRoleIconLayout).not.toBeNull();
-    expect(activeRoleIconLayout!.iconWidth).toBeLessThanOrEqual(22);
-    expect(activeRoleIconLayout!.titleRight).toBeLessThanOrEqual(activeRoleIconLayout!.iconLeft);
-    const activeRoleProgressLayout = await activeTechnicalRole.evaluate((element) => {
-      const title = [...element.querySelectorAll("span")].find(
-        (child) => child.children.length === 0 && child.textContent?.trim() === "Technical summarizer",
-      );
-      const progress = element.querySelector('[role="progressbar"][aria-label="Technical summarizer progress"]');
+    const activeRoleProgressBox = await activeRoleProgress.boundingBox();
 
-      if (!title || !progress) return null;
-
-      const titleRect = title.getBoundingClientRect();
-      const progressRect = progress.getBoundingClientRect();
-
-      return {
-        progressTop: progressRect.top,
-        progressWidth: progressRect.width,
-        titleBottom: titleRect.bottom,
-      };
-    });
-    expect(activeRoleProgressLayout).not.toBeNull();
-    expect(activeRoleProgressLayout!.progressWidth).toBeGreaterThan(40);
-    expect(activeRoleProgressLayout!.titleBottom).toBeLessThanOrEqual(activeRoleProgressLayout!.progressTop + 1);
+    expect(activeRoleProgressBox).not.toBeNull();
+    expect(activeRoleProgressBox!.width).toBeGreaterThan(40);
+    expect(activeRoleTitleBox!.y + activeRoleTitleBox!.height).toBeLessThanOrEqual(activeRoleProgressBox!.y + 1);
     await expect(activeTechnicalRole).not.toContainText("EOD 확인");
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
@@ -2447,18 +2435,28 @@ test.describe("dashboard desktop", () => {
     await expect(roleRows.nth(3)).not.toContainText("진행률");
     await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(2);
 
-    async function reloadAndExpectAgentStatus(expectedLabel: string) {
+    async function reloadAndExpectAgentStatus(expectedLabel: RegExp) {
       const previousProgressRequestCount = progressRequestCount;
       await page.reload();
       await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
       await expect(progressCard).toContainText(expectedLabel);
     }
 
-    async function reloadAndExpectAgentCompletionIcon() {
+    async function reloadAndExpectAgentCompletedHeader() {
       const previousProgressRequestCount = progressRequestCount;
       await page.reload();
       await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
-      await expect(progressCard.getByRole("img", { name: "에이전트 분석 완료" })).toBeVisible();
+      await expect(progressCard).toContainText(agentReviewCompletedLabel);
+      await expect(progressCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);
+
+      const titleBox = await progressCard.getByRole("heading", { name: "Agent Feedback" }).boundingBox();
+      const statusBox = await progressCard
+        .getByText(agentReviewCompletedLabel, { exact: true })
+        .boundingBox();
+
+      expect(titleBox).not.toBeNull();
+      expect(statusBox).not.toBeNull();
+      expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(statusBox!.x + 1);
     }
 
     agentProgressSummary = {
@@ -2469,8 +2467,8 @@ test.describe("dashboard desktop", () => {
       latest_feedback_at: "2026-04-15T10:19:55+09:00",
       seconds_since_last_feedback: 5,
     };
-    await reloadAndExpectAgentStatus("에이전트 분석 중...");
-    await expect(progressCard).not.toContainText("에이전트 확인 필요");
+    await reloadAndExpectAgentStatus(agentReviewRunningLabel);
+    await expect(progressCard).not.toContainText(agentReviewNeedsAttentionLabel);
     await expect(stopButton).toBeVisible();
 
     agentProgressSummary = {
@@ -2481,22 +2479,22 @@ test.describe("dashboard desktop", () => {
       latest_feedback_at: "2026-04-15T10:10:00+09:00",
       seconds_since_last_feedback: 600,
     };
-    await reloadAndExpectAgentStatus("에이전트 확인 필요");
-    await expect(progressCard).not.toContainText("에이전트 분석 중...");
-    await expect(progressCard).toContainText("기준일 2026-04-15");
+    await reloadAndExpectAgentStatus(agentReviewNeedsAttentionLabel);
+    await expect(progressCard).not.toContainText(agentReviewRunningLabel);
+    await expect(progressCard).toContainText(marketDateLabel);
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Preflight Gate" }),
-    ).toContainText(/Complete\s*250개/);
+    ).toContainText(/(?:Complete|완료)\s*250(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
-    ).toContainText(/Complete\s*250개/);
+    ).toContainText(/(?:Complete|완료)\s*250(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="attention"]').filter({ hasText: "Technical summarizer" }),
-    ).toContainText(/Complete\s*88개/);
+    ).toContainText(/(?:Complete|완료)\s*88(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
-    ).toContainText(/Complete\s*0개/);
+    ).toContainText(/(?:Complete|완료)\s*0(?:개)?/);
     await expect(stopButton).toHaveCount(0);
 
     agentProgressSummary = {
@@ -2511,11 +2509,11 @@ test.describe("dashboard desktop", () => {
       progress_percent: 0,
       completed_feedback_count: 0,
     };
-    await reloadAndExpectAgentStatus("에이전트 분석 대기");
-    await expect(progressCard).toContainText("기준일 2026-04-15");
+    await reloadAndExpectAgentStatus(agentReviewPendingLabel);
+    await expect(progressCard).toContainText(marketDateLabel);
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(progressCard.locator('[data-role-status="pending"]')).toHaveCount(4);
-    await expect(progressCard.getByText("Complete0개")).toHaveCount(4);
+    await expect(progressCard.getByText(/(?:Complete|완료)\s*0(?:개)?/)).toHaveCount(4);
     await expect(progressCard.getByRole("progressbar")).toHaveCount(3);
     await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
       "aria-valuenow",
@@ -2543,17 +2541,17 @@ test.describe("dashboard desktop", () => {
         },
       },
     };
-    await reloadAndExpectAgentCompletionIcon();
-    await expect(progressCard).not.toContainText("에이전트 분석 대기");
+    await reloadAndExpectAgentCompletedHeader();
+    await expect(progressCard).not.toContainText(agentReviewPendingLabel);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
-    ).toContainText(/완료[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    ).toContainText(/(?:Completed|완료)[\s\S]*(?:Completed|완료)\s*96(?:개)?[\s\S]*(?:Errors|오류)\s*0(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
-    ).toContainText(/완료[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    ).toContainText(/(?:Completed|완료)[\s\S]*(?:Completed|완료)\s*96(?:개)?[\s\S]*(?:Errors|오류)\s*0(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
-    ).toContainText(/완료[\s\S]*Completed\s*96개[\s\S]*Errors\s*0개/);
+    ).toContainText(/(?:Completed|완료)[\s\S]*(?:Completed|완료)\s*96(?:개)?[\s\S]*(?:Errors|오류)\s*0(?:개)?/);
     await expect(progressCard).not.toContainText("Requested");
     await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
       "aria-valuenow",
@@ -2599,28 +2597,29 @@ test.describe("dashboard desktop", () => {
         },
       },
     };
-    await reloadAndExpectAgentStatus("에이전트 분석 완료");
-    await expect(progressCard).toContainText("기준일 2026-04-15");
+    await reloadAndExpectAgentStatus(agentReviewCompletedLabel);
+    await expect(progressCard).toContainText(marketDateLabel);
+    await expect(progressCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(progressCard.locator('[data-role-status="completed"]')).toHaveCount(4);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
-    ).toContainText(/Completed\s*96개[\s\S]*Errors\s*0개/);
+    ).toContainText(/(?:Completed|완료)\s*96(?:개)?[\s\S]*(?:Errors|오류)\s*0(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
-    ).toContainText(/Completed\s*96개[\s\S]*Errors\s*0개/);
+    ).toContainText(/(?:Completed|완료)\s*96(?:개)?[\s\S]*(?:Errors|오류)\s*0(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
-    ).toContainText(/Completed\s*95개[\s\S]*Errors\s*1개/);
+    ).toContainText(/(?:Completed|완료)\s*95(?:개)?[\s\S]*(?:Errors|오류)\s*1(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "EOD summarizer" }),
-    ).not.toContainText(/Complete\s*250개/);
+    ).not.toContainText(/(?:Complete|완료)\s*250(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
-    ).not.toContainText(/Complete\s*250개/);
+    ).not.toContainText(/(?:Complete|완료)\s*250(?:개)?/);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Fundamental summarizer" }),
-    ).not.toContainText(/Complete\s*250개/);
+    ).not.toContainText(/(?:Complete|완료)\s*250(?:개)?/);
     await expect(progressCard).not.toContainText("Requested");
     await expect(progressCard.getByRole("progressbar")).toHaveCount(3);
     await expect(progressCard.getByRole("progressbar", { name: "EOD summarizer progress" })).toHaveAttribute(
@@ -2798,14 +2797,14 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
-    const stopButton = progressCard.getByRole("button", { name: "중단" });
-    await expect(progressCard).toContainText("에이전트 분석 중...");
+    const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
+    await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(stopButton).toBeVisible();
     await stopButton.click();
 
-    const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
+    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
     await expect(stopDialog).toBeVisible();
-    await stopDialog.getByRole("button", { name: "예" }).click();
+    await stopDialog.getByRole("button", { name: yesLabel }).click();
 
     await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
       JSON.stringify({
@@ -2815,7 +2814,7 @@ test.describe("dashboard desktop", () => {
       }),
     );
     await expect(stopDialog).toHaveCount(0);
-    await expect(progressCard).toContainText("에이전트 확인 필요");
+    await expect(progressCard).toContainText(agentReviewNeedsAttentionLabel);
     await expect(stopButton).toHaveCount(0);
     await expect(progressCard).not.toContainText("fetch failed");
   });
@@ -2976,14 +2975,14 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
-    const stopButton = progressCard.getByRole("button", { name: "중단" });
-    await expect(progressCard).toContainText("에이전트 분석 중...");
+    const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
+    await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(stopButton).toBeVisible();
     await stopButton.click();
 
-    const stopDialog = page.getByRole("dialog", { name: "중단하시겠습니까?" });
+    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
     await expect(stopDialog).toBeVisible();
-    await stopDialog.getByRole("button", { name: "예" }).click();
+    await stopDialog.getByRole("button", { name: yesLabel }).click();
 
     await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
       JSON.stringify({
@@ -2994,7 +2993,7 @@ test.describe("dashboard desktop", () => {
     );
     await expect(stopDialog).toBeVisible();
     await expect(stopDialog).toContainText("HTTP 502 for /api/trading/agent-context/internal/core/control");
-    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(stopButton).toBeVisible();
   });
 
@@ -3103,7 +3102,7 @@ test.describe("dashboard desktop", () => {
       .locator('[data-role-status="running"]')
       .filter({ hasText: "Fundamental summarizer" });
 
-    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Technical summarizer" }),
     ).toBeVisible();
@@ -3220,7 +3219,7 @@ test.describe("dashboard desktop", () => {
       .locator('[data-role-status="pending"]')
       .filter({ hasText: "Fundamental summarizer" });
 
-    await expect(progressCard).toContainText("에이전트 분석 중...");
+    await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(activeTechnicalRole).toBeVisible();
     await expect(activeTechnicalRole).not.toContainText("EOD 진행 중");
     await expect(activeTechnicalRole).not.toContainText("EOD -- 실패 13");
