@@ -1,34 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useMemo } from "react";
 
 import { tradingApi } from "@/lib/trading-api";
+import { useUnitData } from "@/lib/use-unit-data";
 import type { DashboardSnapshotDto } from "@/types/trading-api";
 
+const DASHBOARD_SNAPSHOT_KEY = ["dashboard", "snapshot"] as const;
+
+export function useDashboardSnapshotResult() {
+  const fetcher = useCallback(async () => (await tradingApi.getDashboardSnapshot()).data, []);
+  const request = useMemo(
+    () => ({
+      key: DASHBOARD_SNAPSHOT_KEY,
+      fetcher,
+    }),
+    [fetcher],
+  );
+
+  return useUnitData<DashboardSnapshotDto>(request);
+}
+
 export function useDashboardSnapshot() {
-  const [snapshot, setSnapshot] = useState<DashboardSnapshotDto | null>(null);
-  const [loading, setLoading] = useState(true);
+  const result = useDashboardSnapshotResult();
 
-  useEffect(() => {
-    let active = true;
-
-    tradingApi
-      .getDashboardSnapshot()
-      .then((response) => {
-        if (active) {
-          setSnapshot(response.data);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return { snapshot, loading };
+  return { snapshot: result.data, loading: result.isInitialLoading };
 }

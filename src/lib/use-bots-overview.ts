@@ -1,26 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useMemo } from "react";
 
 import { tradingApi } from "@/lib/trading-api";
+import { useUnitData } from "@/lib/use-unit-data";
 import type { BotsOverviewDto } from "@/types/trading-api";
 
+const BOTS_OVERVIEW_KEY = ["bots", "overview"] as const;
+
+export function useBotsOverviewResult() {
+  const fetcher = useCallback(async () => (await tradingApi.getBotsOverview()).data, []);
+  const request = useMemo(
+    () => ({
+      key: BOTS_OVERVIEW_KEY,
+      fetcher,
+    }),
+    [fetcher],
+  );
+
+  return useUnitData<BotsOverviewDto>(request);
+}
+
 export function useBotsOverview() {
-  const [overview, setOverview] = useState<BotsOverviewDto | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    tradingApi.getBotsOverview().then((response) => {
-      if (active) {
-        setOverview(response.data);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return overview;
+  return useBotsOverviewResult().data;
 }
