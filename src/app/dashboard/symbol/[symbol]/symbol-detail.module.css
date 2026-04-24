@@ -78,6 +78,7 @@
 
 .heroCard,
 .alertCard,
+.factorSnapshotCard,
 .chartCard,
 .insightCard,
 .evidenceCard,
@@ -583,6 +584,8 @@
 
 .historyCard,
 .disclosureCard,
+.factorCompositeCard,
+.factorFamilyCard,
 .moduleRow,
 .coverageNote {
   min-width: 0;
@@ -643,6 +646,48 @@
 }
 
 .coverageNote {
+  margin-top: 0.85rem;
+}
+
+.factorCompositeCard {
+  margin-top: 0.95rem;
+}
+
+.factorCompositeGrid,
+.factorFamilyGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.factorCompositeHeader,
+.factorFamilyHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.factorFamilyHeader > div {
+  min-width: 0;
+}
+
+.factorFamilyTitle {
+  color: #ffffff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+.factorFamilySubtitle {
+  margin: 0.22rem 0 0;
+  color: #c5c5d4;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.factorFamilyGrid .metricGrid {
   margin-top: 0.85rem;
 }
 
@@ -810,6 +855,11 @@
   .evidenceGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .factorCompositeGrid,
+  .factorFamilyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1024px) {
@@ -828,6 +878,7 @@
 
   .heroCard,
   .alertCard,
+  .factorSnapshotCard,
   .detailNavigator,
   .freshnessCard {
     grid-column: 1 / -1;
@@ -835,6 +886,7 @@
 
   .heroCard,
   .alertCard,
+  .factorSnapshotCard,
   .chartCard,
   .insightCard,
   .evidenceCard,
@@ -891,6 +943,8 @@
   .focusCard,
   .historyCard,
   .disclosureCard,
+  .factorCompositeCard,
+  .factorFamilyCard,
   .moduleRow,
   .coverageNote,
   .companyStrip,
@@ -950,6 +1004,10 @@
     grid-column: 1 / -1;
   }
 
+  .detailPage[data-mode="overview"] .factorSnapshotCard {
+    grid-column: 1 / -1;
+  }
+
   .detailPage[data-mode="action-summary"] .insightGrid,
   .detailPage[data-mode="fundamentals-history"] .evidenceGrid,
   .detailPage[data-mode="disclosure-coverage"] .evidenceGrid,
@@ -988,6 +1046,14 @@
   .focusGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.85rem;
+  }
+
+  .factorCompositeGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .factorFamilyGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .metricGrid {

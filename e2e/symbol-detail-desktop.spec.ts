@@ -309,12 +309,13 @@ test.describe("symbol detail desktop", () => {
     await expect(chart).toHaveAttribute("data-refreshing", "false");
   });
 
-  test("overview shows only Insights chart and freshness sections", async ({ page }) => {
+  test("overview shows Insights chart, factor snapshot, and freshness sections", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
 
     await expect(page.getByRole("navigation", { name: /Primary desktop/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Explainable factor snapshot/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Layer-specific freshness registry/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Deterministic action layer/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Stored snapshot metrics/i })).toHaveCount(0);
@@ -609,6 +610,435 @@ test.describe("symbol detail desktop", () => {
 
     const recommendationCard = summary.locator("article").filter({ hasText: "Recommendation" });
     await expect(recommendationCard).toContainText("Coming soon");
+  });
+
+  test("factor snapshot surfaces family rows and isolates partial failures", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const marketDate = "2026-04-24";
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          symbols: [],
+          count: 0,
+        },
+      });
+    });
+
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          items: [],
+          count: 0,
+          sources: [],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/quotes/005930", async (route) => {
+      await route.fulfill({
+        json: {
+          symbol: "005930",
+          company_name: "Samsung Electronics",
+          price: 72100,
+          change: 600,
+          change_pct: 0.84,
+          volume: 1400000,
+          turnover: 100940000000,
+          market_state: "CLOSED",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: true,
+          trade_date: marketDate,
+        },
+      });
+    });
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        json: {
+          state: "CLOSED",
+          is_open: false,
+          server_time: `${marketDate}T16:00:00+09:00`,
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        json: {
+          today: {
+            trade_date: marketDate,
+            eod_status: "completed",
+            symbols_total: 1,
+            symbols_succeeded: 1,
+            symbols_failed: 0,
+          },
+          latest: {
+            price_trade_date: marketDate,
+            technical_market_date: marketDate,
+            action_market_date: marketDate,
+          },
+          technical: {
+            success: true,
+            latest_date: marketDate,
+          },
+        },
+      });
+    });
+
+    await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+      await route.fulfill({
+        json: {
+          request: {
+            market_date: marketDate,
+            symbols: ["005930"],
+            fs_div: null,
+            fs_label: null,
+            disclosures_limit: 4,
+          },
+          summary: {
+            requested_symbol_count: 1,
+            matched_symbol_count: 1,
+            technical_snapshot_count: 0,
+            action_summary_count: 0,
+            fundamentals_count: 0,
+            recent_disclosure_symbol_count: 0,
+            missing_symbols: [],
+          },
+          items: [
+            {
+              symbol: "005930",
+              market_date: marketDate,
+              company: {
+                symbol: "005930",
+                name_ko: "Samsung Electronics",
+                market: "KOSPI",
+                instrument_type: "stock",
+                standard_code: "KR7005930003",
+                source: "test",
+                is_active: true,
+                last_refreshed_at: null,
+                dart: {
+                  corp_code: "00126380",
+                  corp_name: "Samsung Electronics",
+                },
+              },
+              technical_snapshot: null,
+              action_summary: null,
+              fundamentals: {
+                latest_snapshot: null,
+                history_summary: {
+                  entries: 0,
+                  latest_receipt_date: null,
+                  latest_period_end_date: null,
+                  available_business_years: [],
+                  recent_periods: [],
+                },
+              },
+              recent_disclosures: {
+                count: 0,
+                items: [],
+              },
+              availability: {
+                company: true,
+                technical_snapshot: false,
+                action_summary: false,
+                fundamentals: false,
+                recent_disclosures: false,
+              },
+            },
+          ],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/technical-snapshots?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          items: [],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/action-summaries?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          items: [],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/disclosures/dart/fundamentals/history?**", async (route) => {
+      await route.fulfill({
+        json: {
+          request: {
+            symbols: ["005930"],
+            start_date: "2021-04-24",
+            end_date: marketDate,
+            fs_div: null,
+          },
+          companies: [],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          summary: {
+            entries: 1,
+            requested_symbol: "005930",
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 1,
+            not_passed_count: 0,
+          },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            passed_filter: true,
+            piotroski_score: 8,
+            passes_piotroski_score: true,
+            captured_at: `${marketDate}T15:42:09+09:00`,
+          },
+        },
+      });
+    });
+
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      await route.fulfill({
+        json: {
+          symbol: "005930",
+          count: 1,
+          start_date: marketDate,
+          end_date: marketDate,
+          requested_start_date: "2025-04-24",
+          requested_end_date: marketDate,
+          items: [
+            {
+              trade_date: marketDate,
+              open_price: 71500,
+              high_price: 72300,
+              low_price: 71200,
+              close_price: 72100,
+              volume: 1400000,
+              turnover: 100940000000,
+              source: "test",
+              captured_at: `${marketDate}T16:00:00+09:00`,
+            },
+          ],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/momentum-factors?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "momentum_factor_v2",
+          summary: {
+            entries: 1,
+            requested_symbols: ["005930"],
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            ranked_symbols: 1,
+            eligible_symbols: 1,
+          },
+          items: [
+            {
+              symbol: "005930",
+              market_date: marketDate,
+              close_price: 72100,
+              ma_60: 68900,
+              ma_120: 66100,
+              momentum_12_1: 0.221,
+              return_5d: 0.031,
+              return_5d_rank: 15,
+              return_5d_percentile: 0.81,
+              has_sufficient_history: true,
+              is_price_above_ma120: true,
+              is_ma60_above_ma120: true,
+              is_recent_overheated: false,
+              momentum_rank: 12,
+              momentum_percentile: 0.92,
+              is_momentum_eligible: true,
+              factor_payload: {
+                insufficient_history_reason: null,
+              },
+              captured_at: `${marketDate}T16:20:00+09:00`,
+            },
+          ],
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/low-risk-factors?**", async (route) => {
+      await route.fulfill({
+        status: 503,
+        json: {
+          detail: "temporary low-risk outage",
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/beta-factors?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "beta_v1",
+          summary: {
+            entries: 1,
+            requested_symbol: "005930",
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            eligible_count: 1,
+            watchlist_count: 0,
+            insufficient_history_count: 0,
+          },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            benchmark_id: "KOSPI_EQW",
+            benchmark_market: "KOSPI",
+            beta_60d: 0.78,
+            beta_120d: 0.82,
+            beta_60d_rank: 22,
+            beta_120d_rank: 37,
+            beta_60d_percentile: 0.84,
+            beta_120d_percentile: 0.76,
+            low_beta_score: 0.8,
+            low_beta_classification: "eligible",
+            is_low_beta_eligible: true,
+            history_days_available: 180,
+            factor_payload: {},
+            captured_at: `${marketDate}T16:20:00+09:00`,
+          },
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/value-factors?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "value_factor_v1",
+          summary: {
+            entries: 1,
+            requested_symbol: "005930",
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            scored_count: 1,
+            invalid_per_count: 0,
+            missing_metric_count: 0,
+          },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            per: 11.8,
+            pbr: 1.24,
+            dividend_yield: 0.021,
+            per_status: "available",
+            per_rank: 120,
+            pbr_rank: 96,
+            dividend_yield_rank: 48,
+            per_percentile: 0.67,
+            pbr_percentile: 0.74,
+            dividend_yield_percentile: 0.88,
+            value_score: 0.763,
+            value_rank: 54,
+            value_percentile: 0.86,
+            value_status: "scored",
+            factor_payload: {
+              metric_statuses: {
+                pbr: "available",
+                dividend_yield: "available",
+              },
+            },
+            captured_at: `${marketDate}T16:20:00+09:00`,
+          },
+        },
+      });
+    });
+
+    await page.route("**/api/trading/eod/advanced-value-factors?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "advanced_value_v1",
+          summary: {
+            entries: 0,
+            requested_symbol: "005930",
+            matched_symbols: [],
+            missing_symbols: ["005930"],
+            eligible_count: 0,
+            watchlist_count: 0,
+            ineligible_count: 0,
+            insufficient_components_count: 0,
+          },
+          item: null,
+          items: [],
+        },
+      });
+    });
+
+    await page.goto(
+      `/dashboard/symbol/005930?name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=${marketDate}`,
+    );
+
+    const factorSection = page.locator("#factor-snapshot");
+    await expect(factorSection.getByRole("heading", { name: /Explainable factor snapshot/i })).toBeVisible();
+    await expect(factorSection.getByText(/Future composite summary/i)).toBeVisible();
+    await expect(factorSection.getByText("3 / 5 families ready")).toBeVisible();
+    await expect(factorSection.getByText("partial failures")).toBeVisible();
+    await expect(
+      factorSection.locator("article").filter({ hasText: "partial failures" }).getByText("1", { exact: true }),
+    ).toBeVisible();
+
+    const momentumCard = factorSection.locator("article").filter({
+      has: page.getByText("Momentum", { exact: true }),
+    });
+    await expect(momentumCard).toContainText("Eligible");
+    await expect(momentumCard).toContainText("12-1 momentum");
+    await expect(momentumCard).toContainText("22.1%");
+
+    const lowRiskCard = factorSection.locator("article").filter({
+      has: page.getByText("Low risk", { exact: true }),
+    });
+    await expect(lowRiskCard).toContainText("Unavailable");
+    await expect(lowRiskCard).toContainText("HTTP 503");
+
+    const betaCard = factorSection.locator("article").filter({
+      has: page.getByText("Beta", { exact: true }),
+    });
+    await expect(betaCard).toContainText("KOSPI_EQW");
+    await expect(betaCard).toContainText("Eligible");
+
+    const valueCard = factorSection.locator("article").filter({
+      has: page.getByText("Value", { exact: true }),
+    });
+    await expect(valueCard).toContainText("Scored");
+    await expect(valueCard).toContainText("76.3%");
+
+    const advancedValueCard = factorSection.locator("article").filter({
+      has: page.getByText("Advanced value", { exact: true }),
+    });
+    await expect(advancedValueCard).toContainText("No row");
+    await expect(advancedValueCard).toContainText("No stored factor row returned for this symbol-date.");
   });
 
   test("hero star reflects and toggles tracked-symbol membership", async ({ page }) => {

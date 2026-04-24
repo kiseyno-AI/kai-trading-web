@@ -42,6 +42,11 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /quotes/{symbol}` for the live price, volume, turnover, and quote provenance
   - `GET /market/status` only as the polling stop gate for the symbol quote loop
   - `GET /symbols/{symbol}/price-bars` for the mobile candlestick chart
+  - `GET /eod/momentum-factors?market_date=YYYY-MM-DD&symbols={symbol}&limit=1` for the symbol-level factor snapshot momentum card
+  - `GET /eod/low-risk-factors?market_date=YYYY-MM-DD&symbol={symbol}` for the symbol-level factor snapshot low-risk card
+  - `GET /eod/beta-factors?market_date=YYYY-MM-DD&symbol={symbol}` for the symbol-level factor snapshot beta card
+  - `GET /eod/value-factors?market_date=YYYY-MM-DD&symbol={symbol}` for the symbol-level factor snapshot value card
+  - `GET /eod/advanced-value-factors?market_date=YYYY-MM-DD&symbol={symbol}` for the symbol-level factor snapshot advanced-value card
   - `GET /eod/technical-snapshots` for the dedicated technical-analysis section
   - `GET /eod/action-summaries` for the dedicated action-summary section
   - `GET /eod/piotroski-filter-results?market_date=YYYY-MM-DD&symbol=005930` for the S1 hero Piotroski pass/fail card
@@ -50,6 +55,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures; the S1 hero also uses the latest disclosure name/date from this payload for the Fundamental latest card
   - `GET /disclosures/dart/filings/document?rcept_no=...` for the S7 disclosure report detail document stream
   - `GET /scanner/tracked-symbols` and `POST /scanner/tracked-symbols` for the hero star toggle beside the disabled Trade action; the star is filled when the current symbol is already tracked, and toggling posts the replacement tracked-symbol set
+  - The overview body now includes an explainable `Factor Snapshot` section that reads the five persisted factor inspect endpoints directly, isolates missing or failed families per card, and keeps a reserved composite-summary slot above the family cards so a later composite endpoint can land without reworking the symbol-detail layout
 - The symbol detail card stack also powers dedicated mobile Stitch detail routes:
   - `/dashboard/symbol/[symbol]/action-summary`
   - `/dashboard/symbol/[symbol]/technical-analysis`

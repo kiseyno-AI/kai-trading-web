@@ -48,6 +48,7 @@ import {
   type AggregateContextLoadState,
   type SymbolMetaSeed,
 } from "./symbol-detail-state";
+import { FactorSnapshotSection } from "./factor-snapshot-section";
 import { SymbolHistoryChart } from "./symbol-history-chart";
 import styles from "./symbol-detail.module.css";
 
@@ -2217,6 +2218,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const toolbarTitle = introTitle;
   const showOverview = isOverviewMode;
   const showChartSection = showOverview || activeMode === "technical-analysis";
+  const showFactorSnapshotSection = showOverview;
   const showActionSection = activeMode === "action-summary";
   const showTechnicalSection = activeMode === "technical-analysis";
   const showFundamentalsSection = activeMode === "fundamentals-history";
@@ -2525,6 +2527,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             </div>
           </UnitRefreshFrame>
         </section>
+        ) : null}
+
+        {showFactorSnapshotSection ? (
+          <FactorSnapshotSection
+            copy={copy}
+            marketDate={marketDate}
+            normalizedSymbol={normalizedSymbol}
+            numberLocale={numberLocale}
+            symbolReady={symbolReady}
+          />
         ) : null}
 
         {showActionSection || showTechnicalSection ? (
