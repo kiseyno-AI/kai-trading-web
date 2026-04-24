@@ -529,6 +529,37 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
+    const chartImage = page.getByRole("img", { name: /Historical candlestick chart for 005930/i });
+    const focusDateValue = page.locator("#chart article").first().locator("strong");
+    await expect(focusDateValue).toHaveText("2026.04.10");
+    const initialFocusDate = (await focusDateValue.textContent())?.trim() ?? "";
+    const chartBounds = await chartImage.boundingBox();
+    expect(chartBounds).not.toBeNull();
+
+    let preservedFocusDate: string | null = null;
+    for (const xRatio of [0.2, 0.3, 0.4, 0.5, 0.6]) {
+      await chartImage.hover({
+        position: {
+          x: Math.round((chartBounds?.width ?? 0) * xRatio),
+          y: Math.round((chartBounds?.height ?? 0) * 0.45),
+        },
+      });
+
+      const nextFocusDate = (await focusDateValue.textContent())?.trim() ?? "";
+      if (nextFocusDate && nextFocusDate !== initialFocusDate) {
+        preservedFocusDate = nextFocusDate;
+        await chartImage.click({
+          position: {
+            x: Math.round((chartBounds?.width ?? 0) * xRatio),
+            y: Math.round((chartBounds?.height ?? 0) * 0.45),
+          },
+        });
+        break;
+      }
+    }
+
+    expect(preservedFocusDate).not.toBeNull();
+    await expect(focusDateValue).toHaveText(preservedFocusDate!);
     const initialDetailUrl = page.url();
     await page.evaluate(() => {
       const state = window as Window & {
@@ -585,6 +616,7 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page).toHaveURL(initialDetailUrl);
     await expect(page.locator('[data-mode="technical-analysis"]')).toBeVisible();
     await expect(page.locator("#technical")).toBeVisible();
+    await expect(focusDateValue).toHaveText(preservedFocusDate!);
     await expect(workspaceLoader).toHaveCount(0);
 
     await actionTab.click();

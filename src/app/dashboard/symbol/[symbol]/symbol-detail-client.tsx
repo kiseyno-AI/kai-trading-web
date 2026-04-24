@@ -1129,13 +1129,17 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const historyError = priceHistoryResult.error && !priceHistory ? copy.errors.historyUnavailable : null;
 
   useEffect(() => {
+    if (!shouldLoadPriceHistory) {
+      return;
+    }
+
     if (!priceHistory?.items.length) {
       setSelectedBar(null);
       return;
     }
 
     setSelectedBar((current) => pickSelectedBar(priceHistory.items, current));
-  }, [priceHistory]);
+  }, [priceHistory, shouldLoadPriceHistory]);
 
   const aggregateRequest = useMemo(
     () => ({
@@ -1918,6 +1922,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                   key={`${symbol}-${selectedRange}`}
                   symbol={symbol}
                   bars={priceHistory.items}
+                  initialSelectedBarTradeDate={selectedBar?.trade_date ?? null}
                   onSelectedBarChange={setSelectedBar}
                 />
               ) : historyLoading ? (
