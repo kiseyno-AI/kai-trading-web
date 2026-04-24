@@ -30,6 +30,7 @@ function resolveInternalRouteKey(href: string | URL | null | undefined) {
   try {
     const targetUrl = href instanceof URL ? href : new URL(href, window.location.href);
     if (targetUrl.origin !== window.location.origin) return null;
+    if (targetUrl.pathname.startsWith("/dashboard/symbol/")) return null;
 
     const targetRouteKey = `${targetUrl.pathname}${targetUrl.search}`;
     const currentRouteKey = `${window.location.pathname}${window.location.search}`;

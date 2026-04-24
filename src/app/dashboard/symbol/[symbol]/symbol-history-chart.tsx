@@ -19,11 +19,13 @@ import styles from "./symbol-detail.module.css";
 type Props = {
   symbol: string;
   bars: SymbolPriceBarDto[];
+  initialSelectedBarTradeDate?: string | null;
   onSelectedBarChange?: (bar: SymbolPriceBarDto | null) => void;
 };
 
-export function SymbolHistoryChart({ symbol, bars, onSelectedBarChange }: Props) {
+export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, onSelectedBarChange }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const initialSelectedBarTradeDateRef = useRef(initialSelectedBarTradeDate);
 
   const normalizeTradeDate = (time: Time | undefined) => {
     if (!time) return null;
@@ -108,11 +110,15 @@ export function SymbolHistoryChart({ symbol, bars, onSelectedBarChange }: Props)
       close: bar.close_price,
     }));
 
+    const barByDate = new Map(bars.map((bar) => [bar.trade_date, bar]));
+    const initialSelectedBar =
+      (initialSelectedBarTradeDateRef.current ? barByDate.get(initialSelectedBarTradeDateRef.current) ?? null : null) ??
+      bars[bars.length - 1] ??
+      null;
+
     series.setData(seriesData);
     chart.timeScale().fitContent();
-    onSelectedBarChange?.(bars[bars.length - 1] ?? null);
-
-    const barByDate = new Map(bars.map((bar) => [bar.trade_date, bar]));
+    onSelectedBarChange?.(initialSelectedBar);
 
     const updateFocusedBar = (tradeDate: string | null) => {
       if (!tradeDate) return;

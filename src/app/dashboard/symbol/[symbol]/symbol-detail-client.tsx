@@ -2,23 +2,24 @@
 
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { FullPageLoadingScreen } from "@/components/ui/full-page-loading";
+import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
 import { getSymbolDetailCopy, type SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { getNumberLocale } from "@/lib/locale";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import {
-  getCachedTradingApiJson,
   getTradingApiJsonResult,
   invalidateTradingApiCacheByPathPrefix,
 } from "@/lib/trading-api-cache";
+import { useUnitData } from "@/lib/use-unit-data";
 import type {
   AgentContextActionSummaryDto,
   AgentContextDisclosureDto,
@@ -42,7 +43,6 @@ import type {
 
 import {
   buildInitialSymbolMeta,
-  createSymbolMetaResetToken,
   getDisclosureSectionState,
   shouldFetchSymbolMeta,
   type AggregateContextLoadState,
@@ -197,8 +197,18 @@ const SYMBOL_DETAIL_MODE_BY_ID = SYMBOL_DETAIL_MODES.reduce(
   {} as Record<SymbolDetailMode, (typeof SYMBOL_DETAIL_MODES)[number]>,
 );
 
-async function getJson<T>(path: string): Promise<T> {
-  return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
+type QuoteWorkspaceSnapshot = {
+  marketStatus: MarketStatusResponse;
+  quote: QuoteResponse;
+};
+
+async function fetchUnitJson<T>(path: string): Promise<T> {
+  const response = await fetch(resolveTradingApiClientPath(path), { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as T;
 }
 
 async function getJsonResult<T>(path: string, init?: RequestInit) {
@@ -422,13 +432,6 @@ function buildPriceHistoryQuery(range: PriceHistoryRange, marketDate: string) {
     params.set("limit", "10000");
   }
 
-  return params.toString();
-}
-
-function buildBootstrapPriceHistoryQuery(marketDate: string) {
-  const params = new URLSearchParams();
-  params.set("start_date", marketDate);
-  params.set("end_date", marketDate);
   return params.toString();
 }
 
@@ -922,43 +925,12 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       standardCode: searchParams.get("standardCode"),
     });
   }, [searchParams, symbol]);
-  const metaResetToken = useMemo(() => createSymbolMetaResetToken(symbol, initialMeta), [initialMeta, symbol]);
-  const [meta, setMeta] = useState<SymbolSearchItem | null>(initialMeta);
-  const [quote, setQuote] = useState<QuoteResponse | null>(null);
-  const [marketStatus, setMarketStatus] = useState<MarketStatusResponse | null>(null);
   const [selectedRange, setSelectedRange] = useState<PriceHistoryRange>("1Y");
-  const [priceHistory, setPriceHistory] = useState<SymbolPriceBarsResponseDto | null>(null);
   const [selectedBar, setSelectedBar] = useState<SymbolPriceBarDto | null>(null);
-  const [aggregateContext, setAggregateContext] = useState<AgentContextItemDto | null>(null);
-  const [technicalSnapshot, setTechnicalSnapshot] = useState<AgentContextTechnicalSnapshotDto | null>(null);
-  const [actionSummary, setActionSummary] = useState<AgentContextActionSummaryDto | null>(null);
-  const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(null);
-  const [fundamentalsHistory, setFundamentalsHistory] = useState<DartFundamentalsHistoryResponseDto | null>(null);
-  const [piotroskiResult, setPiotroskiResult] = useState<EodPiotroskiFilterResultItemDto | null>(null);
-  const [piotroskiLoadState, setPiotroskiLoadState] = useState<AggregateContextLoadState>("loading");
   const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
   const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
-  const [aggregateContextLoadState, setAggregateContextLoadState] =
-    useState<AggregateContextLoadState>("loading");
-  const [quotePollingStopped, setQuotePollingStopped] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [insightLoading, setInsightLoading] = useState(true);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [historyHydrating, setHistoryHydrating] = useState(false);
-  const [fundamentalsLoading, setFundamentalsLoading] = useState(true);
-  const [hasFinishedInitialLoad, setHasFinishedInitialLoad] = useState(false);
   const [trackingSaving, setTrackingSaving] = useState(false);
-  const [metaError, setMetaError] = useState<string | null>(null);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [contextError, setContextError] = useState<string | null>(null);
-  const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
-  const bootstrapPriceHistoryRequestKeyRef = useRef<string | null>(null);
-  const fullPriceHistoryRequestKeyRef = useRef<string | null>(null);
-  const technicalSnapshotRequestKeyRef = useRef<string | null>(null);
-  const actionSummaryRequestKeyRef = useRef<string | null>(null);
-  const fundamentalsHistoryRequestKeyRef = useRef<string | null>(null);
   const localizedModes = useMemo(
     () => ({
       overview: {
@@ -999,12 +971,73 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setActiveMode(requestedViewMode ?? resolveSymbolDetailModeFromPathname(pathname, symbol) ?? mode);
   }, [mode, pathname, requestedViewMode, symbol]);
 
+  useEffect(() => {
+    setSelectedRange("1Y");
+    setSelectedBar(null);
+    setTrackingSaving(false);
+    setTrackingError(null);
+  }, [normalizedSymbol]);
+
   const isOverviewMode = activeMode === "overview";
   const shouldLoadAggregateContext = activeMode !== "system-freshness";
   const shouldLoadPriceHistory = isOverviewMode || activeMode === "technical-analysis";
   const shouldLoadTechnicalSnapshot = isOverviewMode || activeMode === "technical-analysis";
   const shouldLoadActionSummary = isOverviewMode || activeMode === "action-summary";
   const shouldLoadFundamentalsHistory = isOverviewMode || activeMode === "fundamentals-history";
+
+  const metaRequest = useMemo(
+    () => ({
+      enabled: symbolReady && shouldFetchSymbolMeta(initialMeta),
+      key: ["symbol-detail", "meta", normalizedSymbol] as const,
+      ttlMs: 5 * 60_000,
+      fetcher: async () => {
+        const data = await fetchUnitJson<SymbolSearchResponse>(
+          `/api/trading/symbols/search?q=${encodeURIComponent(normalizedSymbol)}&limit=20`,
+        );
+
+        return data.items.find((item) => item.symbol === normalizedSymbol) ?? data.items[0] ?? null;
+      },
+    }),
+    [initialMeta, normalizedSymbol, symbolReady],
+  );
+  const metaResult = useUnitData<SymbolSearchItem | null>(metaRequest);
+  const meta = shouldFetchSymbolMeta(initialMeta) ? metaResult.data : initialMeta;
+  const metaError =
+    !shouldFetchSymbolMeta(initialMeta)
+      ? null
+      : metaResult.error && !meta
+        ? copy.errors.masterSymbolUnavailable
+        : metaResult.hasData && metaResult.data === null
+          ? copy.errors.masterSymbolNotFound
+          : null;
+
+  const quoteBundleRequest = useMemo(
+    () => ({
+      enabled: symbolReady,
+      key: ["symbol-detail", "quote-bundle", normalizedSymbol] as const,
+      cachePolicy: "network-first" as const,
+      ttlMs: 5_000,
+      fetcher: async () => {
+        const [quote, marketStatus] = await Promise.all([
+          fetchUnitJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(normalizedSymbol)}`),
+          fetchUnitJson<MarketStatusResponse>("/api/trading/market/status"),
+        ]);
+
+        return {
+          marketStatus,
+          quote,
+        };
+      },
+    }),
+    [normalizedSymbol, symbolReady],
+  );
+  const quoteBundleResult = useUnitData<QuoteWorkspaceSnapshot>(quoteBundleRequest);
+  const quote = quoteBundleResult.data?.quote ?? null;
+  const marketStatus = quoteBundleResult.data?.marketStatus ?? null;
+  const loading = symbolReady ? quoteBundleResult.isInitialLoading : true;
+  const quoteError = quoteBundleResult.error && !quote ? copy.errors.quoteUnavailable : null;
+  const quotePollingStopped = marketStatus?.state === "CLOSED" && quote?.market_state === "CLOSED";
+  const refetchQuoteBundle = quoteBundleResult.refetch;
 
   const marketDate = useMemo(() => {
     if (requestedMarketDate) return requestedMarketDate;
@@ -1016,42 +1049,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const disclosureItemLimit = activeMode === "disclosure-coverage" ? 8 : 4;
 
   useEffect(() => {
-    setMeta(initialMeta);
-    setQuote(null);
-    setMarketStatus(null);
-    setSelectedRange("1Y");
-    setPriceHistory(null);
-    setSelectedBar(null);
-    setAggregateContext(null);
-    setTechnicalSnapshot(null);
-    setActionSummary(null);
-    setFreshness(null);
-    setFundamentalsHistory(null);
-    setPiotroskiResult(null);
-    setPiotroskiLoadState("loading");
-    setTrackedSymbols([]);
-    setTrackedSymbolsLoaded(false);
-    setAggregateContextLoadState("loading");
-    setQuotePollingStopped(false);
-    setLoading(true);
-    setInsightLoading(true);
-    setHistoryLoading(true);
-    setHistoryHydrating(false);
-    setFundamentalsLoading(true);
-    setHasFinishedInitialLoad(false);
-    setTrackingSaving(false);
-    setMetaError(null);
-    setQuoteError(null);
-    setHistoryError(null);
-    setContextError(null);
-    setFundamentalsError(null);
-    setTrackingError(null);
-    bootstrapPriceHistoryRequestKeyRef.current = null;
-    fullPriceHistoryRequestKeyRef.current = null;
-    technicalSnapshotRequestKeyRef.current = null;
-    actionSummaryRequestKeyRef.current = null;
-    fundamentalsHistoryRequestKeyRef.current = null;
-  }, [initialMeta, metaResetToken]);
+    if (!symbolReady || quotePollingStopped) return;
+
+    const timer = window.setInterval(() => {
+      void refetchQuoteBundle();
+    }, 1_500);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [quotePollingStopped, refetchQuoteBundle, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -1090,514 +1097,252 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     return () => {
       active = false;
     };
-  }, [copy, symbol, symbolReady]);
+  }, [copy, normalizedSymbol, symbolReady]);
 
-  useEffect(() => {
-    let active = true;
+  const priceHistoryRequest = useMemo(
+    () => ({
+      enabled: symbolReady && shouldLoadPriceHistory && Boolean(marketDate),
+      key: ["symbol-detail", "price-history", normalizedSymbol, marketDate ?? "pending", selectedRange] as const,
+      cachePolicy: "network-first" as const,
+      ttlMs: 30_000,
+      fetcher: async () => {
+        if (!marketDate) {
+          throw new Error("Market date pending");
+        }
 
-    const loadMeta = async () => {
-      if (!symbolReady) {
-        setMeta(null);
-        setMetaError(null);
-        return;
-      }
-
-      if (!shouldFetchSymbolMeta(initialMeta)) {
-        if (!active) return;
-        setMeta(initialMeta);
-        return;
-      }
-
-      try {
-        const data = await getJson<SymbolSearchResponse>(
-          `/api/trading/symbols/search?q=${encodeURIComponent(symbol)}&limit=20`,
+        const query = buildPriceHistoryQuery(selectedRange, marketDate);
+        return fetchUnitJson<SymbolPriceBarsResponseDto>(
+          `/api/trading/symbols/${encodeURIComponent(normalizedSymbol)}/price-bars?${query}`,
         );
-        if (!active) return;
-        const exactMatch = data.items.find((item) => item.symbol === symbol) ?? data.items[0] ?? null;
-        setMeta(exactMatch);
-        setMetaError(exactMatch ? null : copy.errors.masterSymbolNotFound);
-      } catch (metaLoadError) {
-        console.error("Symbol metadata load failed", metaLoadError);
-        if (!active) return;
-        setMetaError(copy.errors.masterSymbolUnavailable);
-      }
-    };
-
-    loadMeta();
-
-    return () => {
-      active = false;
-    };
-  }, [copy, initialMeta, symbol, symbolReady]);
+      },
+    }),
+    [marketDate, normalizedSymbol, selectedRange, shouldLoadPriceHistory, symbolReady],
+  );
+  const priceHistoryResult = useUnitData<SymbolPriceBarsResponseDto>(priceHistoryRequest);
+  const priceHistory = shouldLoadPriceHistory ? priceHistoryResult.data : null;
+  const historyLoading =
+    shouldLoadPriceHistory && priceHistory === null && (marketDate === null ? symbolReady : priceHistoryResult.isInitialLoading);
+  const historyHydrating =
+    shouldLoadPriceHistory &&
+    Boolean(priceHistory?.items.length) &&
+    priceHistoryResult.isRefreshing;
+  const historyError = priceHistoryResult.error && !priceHistory ? copy.errors.historyUnavailable : null;
 
   useEffect(() => {
-    let active = true;
-    let timer: number | null = null;
+    if (!shouldLoadPriceHistory) {
+      return;
+    }
 
-    const loadQuote = async () => {
-      if (!symbolReady) {
-        setQuote(null);
-        setMarketStatus(null);
-        setQuotePollingStopped(false);
-        setQuoteError(null);
-        setLoading(true);
-        return;
-      }
+    if (!priceHistory?.items.length) {
+      setSelectedBar(null);
+      return;
+    }
 
-      try {
-        const [quoteData, marketData] = await Promise.all([
-          getJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`),
-          getJson<MarketStatusResponse>("/api/trading/market/status"),
-        ]);
-        if (!active) return;
+    setSelectedBar((current) => pickSelectedBar(priceHistory.items, current));
+  }, [priceHistory, shouldLoadPriceHistory]);
 
-        const shouldStopPolling =
-          marketData.state === "CLOSED" && quoteData.market_state === "CLOSED";
-
-        setQuote(quoteData);
-        setMarketStatus(marketData);
-        setQuotePollingStopped(shouldStopPolling);
-        setQuoteError(null);
-
-        if (!shouldStopPolling) {
-          timer = window.setTimeout(loadQuote, 1_500);
-        }
-      } catch (quoteLoadError) {
-        console.error("Symbol quote load failed", quoteLoadError);
-        if (!active) return;
-        setQuoteError(copy.errors.quoteUnavailable);
-        timer = window.setTimeout(loadQuote, 1_500);
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadQuote();
-
-    return () => {
-      active = false;
-      if (timer !== null) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, [copy, symbol, symbolReady]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadBootstrapPriceHistory = async () => {
-      if (!symbolReady) {
-        setPriceHistory(null);
-        setSelectedBar(null);
-        setHistoryLoading(true);
-        setHistoryHydrating(false);
-        setHistoryError(null);
-        return;
-      }
-
-      if (!shouldLoadPriceHistory) {
-        setHistoryLoading(false);
-        setHistoryHydrating(false);
-        return;
-      }
-
-      if (hasFinishedInitialLoad) {
-        setHistoryLoading(false);
-        return;
-      }
-
-      if (!marketDate) {
-        setPriceHistory(null);
-        setSelectedBar(null);
-        setHistoryLoading(true);
-        setHistoryHydrating(false);
-        setHistoryError(null);
-        return;
-      }
-
-      const query = buildBootstrapPriceHistoryQuery(marketDate);
-      const priceHistoryRequestKey = `${symbol}|bootstrap|${query}`;
-      if (bootstrapPriceHistoryRequestKeyRef.current === priceHistoryRequestKey) {
-        setHistoryLoading(false);
-        return;
-      }
-
-      setHistoryLoading(true);
-
-      try {
-        const data = await getJson<SymbolPriceBarsResponseDto>(
-          `/api/trading/symbols/${encodeURIComponent(symbol)}/price-bars?${query}`,
-        );
-        if (!active) return;
-        setPriceHistory(data);
-        setSelectedBar((current) => pickSelectedBar(data.items, current));
-        setHistoryError(null);
-        bootstrapPriceHistoryRequestKeyRef.current = priceHistoryRequestKey;
-      } catch (priceHistoryLoadError) {
-        console.error("Symbol price history load failed", priceHistoryLoadError);
-        if (!active) return;
-        setPriceHistory(null);
-        setSelectedBar(null);
-        setHistoryError(copy.errors.historyUnavailable);
-        bootstrapPriceHistoryRequestKeyRef.current = null;
-        fullPriceHistoryRequestKeyRef.current = null;
-      } finally {
-        if (active) {
-          setHistoryLoading(false);
-        }
-      }
-    };
-
-    loadBootstrapPriceHistory();
-
-    return () => {
-      active = false;
-    };
-  }, [copy, hasFinishedInitialLoad, marketDate, shouldLoadPriceHistory, symbol, symbolReady]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadSelectedRangePriceHistory = async () => {
-      if (!symbolReady) {
-        setHistoryHydrating(false);
-        return;
-      }
-
-      if (!shouldLoadPriceHistory) {
-        setHistoryHydrating(false);
-        return;
-      }
-
-      if (!hasFinishedInitialLoad || !marketDate) {
-        return;
-      }
-
-      const query = buildPriceHistoryQuery(selectedRange, marketDate);
-      const priceHistoryRequestKey = `${symbol}|full|${query}`;
-      if (fullPriceHistoryRequestKeyRef.current === priceHistoryRequestKey) {
-        setHistoryHydrating(false);
-        return;
-      }
-
-      if (priceHistory?.items.length) {
-        setHistoryHydrating(true);
-      } else {
-        setHistoryLoading(true);
-      }
-
-      try {
-        const data = await getJson<SymbolPriceBarsResponseDto>(
-          `/api/trading/symbols/${encodeURIComponent(symbol)}/price-bars?${query}`,
-        );
-        if (!active) return;
-        setPriceHistory(data);
-        setSelectedBar((current) => pickSelectedBar(data.items, current));
-        setHistoryError(null);
-        fullPriceHistoryRequestKeyRef.current = priceHistoryRequestKey;
-      } catch (priceHistoryLoadError) {
-        console.error("Symbol price history range hydration failed", priceHistoryLoadError);
-        if (!active) return;
-
-        if (!priceHistory?.items.length) {
-          setPriceHistory(null);
-          setSelectedBar(null);
-          setHistoryError(copy.errors.historyUnavailable);
+  const aggregateRequest = useMemo(
+    () => ({
+      enabled: symbolReady && shouldLoadAggregateContext && Boolean(marketDate),
+      key: [
+        "symbol-detail",
+        "aggregate-context",
+        normalizedSymbol,
+        marketDate ?? "pending",
+        fsDiv ?? "default",
+      ] as const,
+      cachePolicy: "network-first" as const,
+      ttlMs: 30_000,
+      fetcher: async () => {
+        if (!marketDate) {
+          throw new Error("Market date pending");
         }
 
-        fullPriceHistoryRequestKeyRef.current = null;
-      } finally {
-        if (active) {
-          setHistoryLoading(false);
-          setHistoryHydrating(false);
+        const aggregateParams = new URLSearchParams();
+        aggregateParams.set("market_date", marketDate);
+        aggregateParams.append("symbols", normalizedSymbol);
+        aggregateParams.set("disclosures_limit", String(disclosureItemLimit));
+        if (fsDiv) {
+          aggregateParams.set("fs_div", fsDiv);
         }
-      }
-    };
 
-    loadSelectedRangePriceHistory();
-
-    return () => {
-      active = false;
-    };
-  }, [copy, hasFinishedInitialLoad, marketDate, priceHistory, selectedRange, shouldLoadPriceHistory, symbol, symbolReady]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadAggregateContext = async () => {
-      if (!symbolReady) {
-        setAggregateContext(null);
-        setAggregateContextLoadState("loading");
-        setContextError(null);
-        return;
-      }
-
-      if (!shouldLoadAggregateContext) {
-        setAggregateContextLoadState("success");
-        setContextError(null);
-        return;
-      }
-
-      if (!marketDate) {
-        setAggregateContext(null);
-        setAggregateContextLoadState("loading");
-        setContextError(null);
-        return;
-      }
-
-      setAggregateContextLoadState("loading");
-      const aggregateParams = new URLSearchParams();
-      aggregateParams.set("market_date", marketDate);
-      aggregateParams.append("symbols", symbol);
-      aggregateParams.set("disclosures_limit", String(disclosureItemLimit));
-      if (fsDiv) {
-        aggregateParams.set("fs_div", fsDiv);
-      }
-
-      try {
-        const data = await getJson<AgentContextResponseDto>(
+        return fetchUnitJson<AgentContextResponseDto>(
           `/api/trading/agent-context/symbol-day?${aggregateParams.toString()}`,
         );
-        if (!active) return;
+      },
+    }),
+    [disclosureItemLimit, fsDiv, marketDate, normalizedSymbol, shouldLoadAggregateContext, symbolReady],
+  );
+  const aggregateResponseResult = useUnitData<AgentContextResponseDto>(aggregateRequest);
+  const aggregateResponse = shouldLoadAggregateContext ? aggregateResponseResult.data : null;
+  const aggregateContext =
+    aggregateResponse?.items.find((item) => item.symbol === normalizedSymbol) ?? null;
+  const aggregateContextLoadState: AggregateContextLoadState =
+    !shouldLoadAggregateContext
+      ? "success"
+      : !marketDate
+        ? "loading"
+        : aggregateResponseResult.error && !aggregateResponse
+          ? "error"
+          : aggregateContext
+            ? "success"
+            : aggregateResponseResult.hasData
+              ? "error"
+              : "loading";
+  const contextError =
+    !shouldLoadAggregateContext || !marketDate
+      ? null
+      : aggregateResponseResult.error && !aggregateResponse
+        ? copy.errors.aggregateUnavailable
+        : aggregateResponseResult.hasData && !aggregateContext
+          ? copy.errors.aggregateMissing
+          : null;
+  const aggregateContextRefreshing =
+    shouldLoadAggregateContext &&
+    aggregateResponse !== null &&
+    aggregateResponseResult.isRefreshing;
 
-        const exactMatch = data.items.find((item) => item.symbol === symbol) ?? null;
-        setAggregateContext(exactMatch);
-        setAggregateContextLoadState(exactMatch ? "success" : "error");
-        setContextError(exactMatch ? null : copy.errors.aggregateMissing);
-      } catch (aggregateLoadError) {
-        console.error("Aggregate symbol context load failed", aggregateLoadError);
-        if (!active) return;
-        setAggregateContext(null);
-        setAggregateContextLoadState("error");
-        setContextError(copy.errors.aggregateUnavailable);
-      }
-    };
+  const piotroskiRequest = useMemo(
+    () => ({
+      enabled: symbolReady && Boolean(marketDate),
+      key: ["symbol-detail", "piotroski", normalizedSymbol, marketDate ?? "pending"] as const,
+      ttlMs: 30_000,
+      fetcher: async () => {
+        if (!marketDate) {
+          throw new Error("Market date pending");
+        }
 
-    loadAggregateContext();
+        const query = new URLSearchParams();
+        query.set("market_date", marketDate);
+        query.set("symbol", normalizedSymbol);
 
-    return () => {
-      active = false;
-    };
-  }, [copy, disclosureItemLimit, fsDiv, marketDate, shouldLoadAggregateContext, symbol, symbolReady]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadPiotroskiResult = async () => {
-      if (!symbolReady) {
-        setPiotroskiResult(null);
-        setPiotroskiLoadState("loading");
-        return;
-      }
-
-      if (!marketDate) {
-        setPiotroskiResult(null);
-        setPiotroskiLoadState("loading");
-        return;
-      }
-
-      setPiotroskiLoadState("loading");
-      const query = new URLSearchParams();
-      query.set("market_date", marketDate);
-      query.set("symbol", normalizedSymbol);
-
-      try {
-        const data = await getJson<EodPiotroskiFilterResultsResponseDto>(
+        return fetchUnitJson<EodPiotroskiFilterResultsResponseDto>(
           `/api/trading/eod/piotroski-filter-results?${query.toString()}`,
         );
-        if (!active) return;
-        setPiotroskiResult(data.item ?? null);
-        setPiotroskiLoadState("success");
-      } catch (piotroskiLoadError) {
-        console.error("Piotroski filter load failed", piotroskiLoadError);
-        if (!active) return;
-        setPiotroskiResult(null);
-        setPiotroskiLoadState("error");
-      }
-    };
+      },
+    }),
+    [marketDate, normalizedSymbol, symbolReady],
+  );
+  const piotroskiResponseResult = useUnitData<EodPiotroskiFilterResultsResponseDto>(piotroskiRequest);
+  const piotroskiResult = piotroskiResponseResult.data?.item ?? null;
+  const piotroskiLoadState: AggregateContextLoadState =
+    !symbolReady || !marketDate
+      ? "loading"
+      : piotroskiResponseResult.data
+        ? "success"
+        : piotroskiResponseResult.error
+          ? "error"
+          : "loading";
 
-    loadPiotroskiResult();
+  const technicalSnapshotRequest = useMemo(
+    () => ({
+      enabled: symbolReady && shouldLoadTechnicalSnapshot && Boolean(marketDate),
+      key: ["symbol-detail", "technical-snapshot", normalizedSymbol, marketDate ?? "pending"] as const,
+      cachePolicy: "network-first" as const,
+      ttlMs: 30_000,
+      fetcher: async () => {
+        if (!marketDate) {
+          throw new Error("Market date pending");
+        }
 
-    return () => {
-      active = false;
-    };
-  }, [marketDate, normalizedSymbol, symbolReady]);
+        const insightQuery = new URLSearchParams();
+        insightQuery.set("market_date", marketDate);
+        insightQuery.append("symbols", normalizedSymbol);
+        const data = await fetchUnitJson<EodTechnicalSnapshotsResponseDto>(
+          `/api/trading/eod/technical-snapshots?${insightQuery.toString()}`,
+        );
+
+        return data.items.find((item) => item.symbol === normalizedSymbol) ?? data.items[0] ?? null;
+      },
+    }),
+    [marketDate, normalizedSymbol, shouldLoadTechnicalSnapshot, symbolReady],
+  );
+  const technicalSnapshotResult = useUnitData<AgentContextTechnicalSnapshotDto | null>(technicalSnapshotRequest);
+  const technicalSnapshot = technicalSnapshotResult.data;
+
+  const actionSummaryRequest = useMemo(
+    () => ({
+      enabled: symbolReady && shouldLoadActionSummary && Boolean(marketDate),
+      key: ["symbol-detail", "action-summary", normalizedSymbol, marketDate ?? "pending"] as const,
+      cachePolicy: "network-first" as const,
+      ttlMs: 30_000,
+      fetcher: async () => {
+        if (!marketDate) {
+          throw new Error("Market date pending");
+        }
+
+        const insightQuery = new URLSearchParams();
+        insightQuery.set("market_date", marketDate);
+        insightQuery.append("symbols", normalizedSymbol);
+        const data = await fetchUnitJson<EodActionSummariesResponseDto>(
+          `/api/trading/eod/action-summaries?${insightQuery.toString()}`,
+        );
+
+        return data.items.find((item) => item.symbol === normalizedSymbol) ?? data.items[0] ?? null;
+      },
+    }),
+    [marketDate, normalizedSymbol, shouldLoadActionSummary, symbolReady],
+  );
+  const actionSummaryResult = useUnitData<AgentContextActionSummaryDto | null>(actionSummaryRequest);
+  const actionSummary = actionSummaryResult.data;
+
+  const freshnessRequest = useMemo(
+    () => ({
+      enabled: true,
+      key: ["symbol-detail", "freshness"] as const,
+      cachePolicy: "network-first" as const,
+      ttlMs: 30_000,
+      fetcher: async () => fetchUnitJson<EodFreshnessResponseDto>("/api/trading/eod/freshness"),
+    }),
+    [],
+  );
+  const freshnessResult = useUnitData<EodFreshnessResponseDto>(freshnessRequest);
+  const freshness = freshnessResult.data;
+  const refetchFreshness = freshnessResult.refetch;
 
   useEffect(() => {
-    let active = true;
-
-    const loadDerivedInsights = async () => {
-      if (!symbolReady) {
-        setTechnicalSnapshot(null);
-        setActionSummary(null);
-        setInsightLoading(true);
-        return;
-      }
-
-      if (!shouldLoadTechnicalSnapshot && !shouldLoadActionSummary) {
-        setInsightLoading(false);
-        return;
-      }
-
-      if (!marketDate) {
-        setTechnicalSnapshot(null);
-        setActionSummary(null);
-        setInsightLoading(true);
-        return;
-      }
-
-      const insightQuery = new URLSearchParams();
-      insightQuery.set("market_date", marketDate);
-      insightQuery.append("symbols", symbol);
-      const insightRequestKey = `${symbol}|${marketDate}`;
-      const needsTechnicalSnapshot =
-        shouldLoadTechnicalSnapshot && technicalSnapshotRequestKeyRef.current !== insightRequestKey;
-      const needsActionSummary =
-        shouldLoadActionSummary && actionSummaryRequestKeyRef.current !== insightRequestKey;
-
-      if (!needsTechnicalSnapshot && !needsActionSummary) {
-        setInsightLoading(false);
-        return;
-      }
-
-      setInsightLoading(true);
-
-      const [technicalResult, actionResult] = await Promise.allSettled([
-        needsTechnicalSnapshot
-          ? getJson<EodTechnicalSnapshotsResponseDto>(
-              `/api/trading/eod/technical-snapshots?${insightQuery.toString()}`,
-            )
-          : Promise.resolve<EodTechnicalSnapshotsResponseDto | null>(null),
-        needsActionSummary
-          ? getJson<EodActionSummariesResponseDto>(
-              `/api/trading/eod/action-summaries?${insightQuery.toString()}`,
-            )
-          : Promise.resolve<EodActionSummariesResponseDto | null>(null),
-      ]);
-
-      if (!active) return;
-
-      if (needsTechnicalSnapshot && technicalResult.status === "fulfilled" && technicalResult.value) {
-        setTechnicalSnapshot(
-          technicalResult.value.items.find((item) => item.symbol === symbol) ??
-            technicalResult.value.items[0] ??
-            null,
-        );
-        technicalSnapshotRequestKeyRef.current = insightRequestKey;
-      } else if (needsTechnicalSnapshot && technicalResult.status === "rejected") {
-        console.error("Technical snapshot load failed", technicalResult.reason);
-        setTechnicalSnapshot(null);
-        technicalSnapshotRequestKeyRef.current = null;
-      }
-
-      if (needsActionSummary && actionResult.status === "fulfilled" && actionResult.value) {
-        setActionSummary(
-          actionResult.value.items.find((item) => item.symbol === symbol) ??
-            actionResult.value.items[0] ??
-            null,
-        );
-        actionSummaryRequestKeyRef.current = insightRequestKey;
-      } else if (needsActionSummary && actionResult.status === "rejected") {
-        console.error("Action summary load failed", actionResult.reason);
-        setActionSummary(null);
-        actionSummaryRequestKeyRef.current = null;
-      }
-
-      setInsightLoading(false);
-    };
-
-    loadDerivedInsights();
+    const timer = window.setInterval(() => {
+      void refetchFreshness();
+    }, 30_000);
 
     return () => {
-      active = false;
-    };
-  }, [marketDate, shouldLoadActionSummary, shouldLoadTechnicalSnapshot, symbol, symbolReady]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadFreshness = async () => {
-      try {
-        const data = await getJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
-        if (!active) return;
-        setFreshness(data);
-      } catch (freshnessLoadError) {
-        console.error("Symbol freshness load failed", freshnessLoadError);
-        if (!active) return;
-        setFreshness((current) => current);
-      }
-    };
-
-    loadFreshness();
-    const timer = window.setInterval(loadFreshness, 30_000);
-
-    return () => {
-      active = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [refetchFreshness]);
 
-  useEffect(() => {
-    let active = true;
+  const fundamentalsHistoryRequest = useMemo(
+    () => ({
+      enabled: symbolReady && shouldLoadFundamentalsHistory && Boolean(marketDate),
+      key: [
+        "symbol-detail",
+        "fundamentals-history",
+        normalizedSymbol,
+        marketDate ?? "pending",
+        fsDiv ?? "default",
+      ] as const,
+      cachePolicy: "network-first" as const,
+      ttlMs: 30_000,
+      fetcher: async () => {
+        if (!marketDate) {
+          throw new Error("Market date pending");
+        }
 
-    const loadFundamentalsHistory = async () => {
-      if (!symbolReady) {
-        setFundamentalsHistory(null);
-        setFundamentalsLoading(true);
-        setFundamentalsError(null);
-        return;
-      }
-
-      if (!shouldLoadFundamentalsHistory) {
-        setFundamentalsLoading(false);
-        return;
-      }
-
-      if (!marketDate) {
-        setFundamentalsHistory(null);
-        setFundamentalsLoading(true);
-        setFundamentalsError(null);
-        return;
-      }
-
-      const query = buildFundamentalsHistoryQuery(symbol, marketDate, fsDiv);
-      const fundamentalsHistoryRequestKey = query;
-      if (fundamentalsHistoryRequestKeyRef.current === fundamentalsHistoryRequestKey && fundamentalsHistory) {
-        setFundamentalsLoading(false);
-        return;
-      }
-
-      setFundamentalsLoading(true);
-
-      try {
-        const data = await getJson<DartFundamentalsHistoryResponseDto>(
+        const query = buildFundamentalsHistoryQuery(normalizedSymbol, marketDate, fsDiv);
+        return fetchUnitJson<DartFundamentalsHistoryResponseDto>(
           `/api/trading/disclosures/dart/fundamentals/history?${query}`,
         );
-        if (!active) return;
-        setFundamentalsHistory(data);
-        setFundamentalsError(null);
-        fundamentalsHistoryRequestKeyRef.current = fundamentalsHistoryRequestKey;
-      } catch (fundamentalsLoadError) {
-        console.error("Fundamentals history load failed", fundamentalsLoadError);
-        if (!active) return;
-        setFundamentalsHistory(null);
-        setFundamentalsError(copy.errors.fundamentalsUnavailable);
-        fundamentalsHistoryRequestKeyRef.current = null;
-      } finally {
-        if (active) {
-          setFundamentalsLoading(false);
-        }
-      }
-    };
-
-    loadFundamentalsHistory();
-
-    return () => {
-      active = false;
-    };
-  }, [copy, fsDiv, fundamentalsHistory, marketDate, shouldLoadFundamentalsHistory, symbol, symbolReady]);
+      },
+    }),
+    [fsDiv, marketDate, normalizedSymbol, shouldLoadFundamentalsHistory, symbolReady],
+  );
+  const fundamentalsHistoryResult = useUnitData<DartFundamentalsHistoryResponseDto>(fundamentalsHistoryRequest);
+  const fundamentalsHistory = shouldLoadFundamentalsHistory ? fundamentalsHistoryResult.data : null;
+  const fundamentalsLoading =
+    shouldLoadFundamentalsHistory &&
+    fundamentalsHistory === null &&
+    (marketDate === null ? symbolReady : fundamentalsHistoryResult.isInitialLoading);
+  const fundamentalsError =
+    fundamentalsHistoryResult.error && !fundamentalsHistory ? copy.errors.fundamentalsUnavailable : null;
 
   const resolvedTechnicalSnapshot = technicalSnapshot ?? aggregateContext?.technical_snapshot ?? null;
   const resolvedActionSummary = actionSummary ?? aggregateContext?.action_summary ?? null;
@@ -1817,12 +1562,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     () => buildSymbolRouteQuery(meta, marketDate, fsDiv),
     [fsDiv, marketDate, meta],
   );
-  const selectedRangeHistoryRequestKey = useMemo(
-    () => (marketDate ? `${symbol}|full|${buildPriceHistoryQuery(selectedRange, marketDate)}` : null),
-    [marketDate, selectedRange, symbol],
-  );
-  const hasSelectedRangeHistoryLoaded =
-    selectedRangeHistoryRequestKey !== null && fullPriceHistoryRequestKeyRef.current === selectedRangeHistoryRequestKey;
+  const hasSelectedRangeHistoryLoaded = Boolean(priceHistoryResult.data);
 
   const handleDetailModeNavigation = (
     event: ReactMouseEvent<HTMLButtonElement>,
@@ -1837,38 +1577,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     }
   };
 
-  const initialRouteReady = useMemo(() => {
-    if (loading) return false;
-
-    if (activeMode === "system-freshness") {
-      return true;
-    }
-
-    if (activeMode === "disclosure-coverage") {
-      return aggregateContextLoadState !== "loading";
-    }
-
-    if (activeMode === "fundamentals-history") {
-      return aggregateContextLoadState !== "loading" && !fundamentalsLoading;
-    }
-
-    if (activeMode === "action-summary") {
-      return aggregateContextLoadState !== "loading" && !insightLoading;
-    }
-
-    if (activeMode === "technical-analysis") {
-      return aggregateContextLoadState !== "loading" && !historyLoading && !insightLoading;
-    }
-
-    return aggregateContextLoadState !== "loading" && !historyLoading && !fundamentalsLoading && !insightLoading;
-  }, [activeMode, aggregateContextLoadState, fundamentalsLoading, historyLoading, insightLoading, loading]);
-
-  useEffect(() => {
-    if (hasFinishedInitialLoad || !initialRouteReady) return;
-    setHasFinishedInitialLoad(true);
-  }, [hasFinishedInitialLoad, initialRouteReady]);
-
-  if (!hasFinishedInitialLoad) {
+  if (!symbolReady) {
     return <FullPageLoadingScreen label={copy.loadingWorkspace} />;
   }
 
@@ -1954,6 +1663,31 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const showFundamentalsSection = activeMode === "fundamentals-history";
   const showDisclosureSection = activeMode === "disclosure-coverage";
   const showFreshnessSection = showOverview || activeMode === "system-freshness";
+  const chartUnitRefreshing =
+    showChartSection &&
+    priceHistory !== null &&
+    priceHistoryResult.isRefreshing;
+  const actionUnitRefreshing =
+    showActionSection &&
+    (actionSummaryResult.hasData || aggregateContext !== null) &&
+    (actionSummaryResult.isRefreshing || aggregateContextRefreshing);
+  const technicalUnitRefreshing =
+    showTechnicalSection &&
+    (technicalSnapshotResult.hasData || aggregateContext !== null) &&
+    (technicalSnapshotResult.isRefreshing || aggregateContextRefreshing);
+  const fundamentalsUnitRefreshing =
+    showFundamentalsSection &&
+    (fundamentalsHistory !== null || aggregateContext !== null) &&
+    (fundamentalsHistoryResult.isRefreshing || aggregateContextRefreshing);
+  const disclosureUnitRefreshing =
+    showDisclosureSection &&
+    aggregateResponse !== null &&
+    aggregateContextRefreshing;
+  const freshnessUnitRefreshing =
+    showFreshnessSection &&
+    freshness !== null &&
+    freshnessResult.isRefreshing;
+  const refreshLabel = copy.common.refreshing;
 
   return (
     <MobileAppChrome
@@ -2110,246 +1844,269 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         </section>
 
         {showChartSection ? (
-        <section className={`${styles.panel} ${styles.chartCard}`} id="chart">
-          <ComponentTag
-            label="symbol.chart"
-            api="/api/trading/symbols/{symbol}/price-bars + /api/trading/quotes/{symbol}"
-          />
+        <section
+          className={`${styles.panel} ${styles.chartCard}`}
+          id="chart"
+          aria-busy={chartUnitRefreshing || undefined}
+          data-refreshing={chartUnitRefreshing ? "true" : "false"}
+        >
+          <UnitRefreshFrame busy={chartUnitRefreshing} label={refreshLabel}>
+            <ComponentTag
+              label="symbol.chart"
+              api="/api/trading/symbols/{symbol}/price-bars + /api/trading/quotes/{symbol}"
+            />
 
-          <div className={styles.cardHeader}>
-            <div>
-              <p className={styles.sectionEyebrow}>
-                {activeMode === "technical-analysis" ? copy.chart.technicalEyebrow : copy.chart.overviewEyebrow}
-              </p>
-              <h2 className={styles.cardTitle}>
-                {activeMode === "technical-analysis" ? copy.chart.technicalTitle : copy.chart.overviewTitle}
-              </h2>
+            <div className={styles.cardHeader}>
+              <div>
+                <p className={styles.sectionEyebrow}>
+                  {activeMode === "technical-analysis" ? copy.chart.technicalEyebrow : copy.chart.overviewEyebrow}
+                </p>
+                <h2 className={styles.cardTitle}>
+                  {activeMode === "technical-analysis" ? copy.chart.technicalTitle : copy.chart.overviewTitle}
+                </h2>
+              </div>
+
+              <div className={styles.rangeRow}>
+                {PRICE_HISTORY_RANGES.map((range) => (
+                  <button
+                    key={range}
+                    type="button"
+                    className={`${styles.rangeButton} ${selectedRange === range ? styles.rangeButtonActive : ""}`.trim()}
+                    onClick={() => setSelectedRange(range)}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className={styles.rangeRow}>
-              {PRICE_HISTORY_RANGES.map((range) => (
-                <button
-                  key={range}
-                  type="button"
-                  className={`${styles.rangeButton} ${selectedRange === range ? styles.rangeButtonActive : ""}`.trim()}
-                  onClick={() => setSelectedRange(range)}
-                >
-                  {range}
-                </button>
-              ))}
+            <div className={styles.focusGrid}>
+              <article className={styles.focusCard}>
+                <span>{copy.chart.focusDate}</span>
+                <strong>
+                  {focusBar?.trade_date
+                    ? formatIsoDateLabel(focusBar.trade_date, copy.common.datePending)
+                    : historyLoading
+                      ? copy.common.loading
+                      : copy.chart.noCandleSelected}
+                </strong>
+                <p className="clamp-3">
+                  {focusBar
+                    ? `${copy.chart.open} ${formatPrice(focusBar.open_price)} · ${copy.chart.highest} ${formatPrice(focusBar.high_price)} · ${copy.chart.lowest} ${formatPrice(focusBar.low_price)}`
+                    : copy.chart.selectCandle}
+                </p>
+              </article>
+              <article className={styles.focusCard}>
+                <span>{copy.chart.closeMove}</span>
+                <strong className={hasNumber(focusMovePct) ? (focusMovePct >= 0 ? styles.positive : styles.negative) : ""}>
+                  {hasNumber(focusMovePct) ? formatSignedPercent(focusMovePct, copy.common.unavailable) : copy.chart.noPriorCandle}
+                </strong>
+                <p className="clamp-3">
+                  {previousFocusBar
+                    ? `${copy.chart.priorClose} ${formatPrice(previousFocusBar.close_price)} · ${copy.chart.currentClose} ${formatPrice(focusBar?.close_price)}`
+                    : copy.chart.priorCloseComparison}
+                </p>
+              </article>
+              <article className={styles.focusCard}>
+                <span>{copy.chart.volume}</span>
+                <strong>{formatCompactNumber(focusBar?.volume, copy.common.unavailable, numberLocale)}</strong>
+                <p className="clamp-3">
+                  {focusBar ? `${copy.chart.turnover} ${formatTurnover(focusBar.turnover)}` : copy.chart.turnover}
+                </p>
+              </article>
             </div>
-          </div>
 
-          <div className={styles.focusGrid}>
-            <article className={styles.focusCard}>
-              <span>{copy.chart.focusDate}</span>
-              <strong>
-                {focusBar?.trade_date
-                  ? formatIsoDateLabel(focusBar.trade_date, copy.common.datePending)
-                  : historyLoading
-                    ? copy.common.loading
-                    : copy.chart.noCandleSelected}
-              </strong>
-              <p className="clamp-3">
-                {focusBar
-                  ? `${copy.chart.open} ${formatPrice(focusBar.open_price)} · ${copy.chart.highest} ${formatPrice(focusBar.high_price)} · ${copy.chart.lowest} ${formatPrice(focusBar.low_price)}`
-                  : copy.chart.selectCandle}
-              </p>
-            </article>
-            <article className={styles.focusCard}>
-              <span>{copy.chart.closeMove}</span>
-              <strong className={hasNumber(focusMovePct) ? (focusMovePct >= 0 ? styles.positive : styles.negative) : ""}>
-                {hasNumber(focusMovePct) ? formatSignedPercent(focusMovePct, copy.common.unavailable) : copy.chart.noPriorCandle}
-              </strong>
-              <p className="clamp-3">
-                {previousFocusBar
-                  ? `${copy.chart.priorClose} ${formatPrice(previousFocusBar.close_price)} · ${copy.chart.currentClose} ${formatPrice(focusBar?.close_price)}`
-                  : copy.chart.priorCloseComparison}
-              </p>
-            </article>
-            <article className={styles.focusCard}>
-              <span>{copy.chart.volume}</span>
-              <strong>{formatCompactNumber(focusBar?.volume, copy.common.unavailable, numberLocale)}</strong>
-              <p className="clamp-3">
-                {focusBar ? `${copy.chart.turnover} ${formatTurnover(focusBar.turnover)}` : copy.chart.turnover}
-              </p>
-            </article>
-          </div>
+            <div className={styles.chartFrame}>
+              {priceHistory && priceHistory.items.length > 0 ? (
+                <SymbolHistoryChart
+                  key={`${symbol}-${selectedRange}`}
+                  symbol={symbol}
+                  bars={priceHistory.items}
+                  initialSelectedBarTradeDate={selectedBar?.trade_date ?? null}
+                  onSelectedBarChange={setSelectedBar}
+                />
+              ) : historyLoading ? (
+                <div className={styles.emptyPanel}>
+                  <strong>{copy.chart.loadingTitle}</strong>
+                  <p className="clamp-3">{copy.chart.loadingBody}</p>
+                </div>
+              ) : (
+                <div className={styles.emptyPanel}>
+                  <strong>{copy.chart.emptyTitle}</strong>
+                  <p className="clamp-3">{copy.chart.emptyBody}</p>
+                </div>
+              )}
+            </div>
 
-          <div className={styles.chartFrame}>
-            {priceHistory && priceHistory.items.length > 0 ? (
-              <SymbolHistoryChart
-                key={`${symbol}-${selectedRange}`}
-                symbol={symbol}
-                bars={priceHistory.items}
-                onSelectedBarChange={setSelectedBar}
-              />
-            ) : historyLoading ? (
-              <div className={styles.emptyPanel}>
-                <strong>{copy.chart.loadingTitle}</strong>
-                <p className="clamp-3">{copy.chart.loadingBody}</p>
-              </div>
-            ) : (
-              <div className={styles.emptyPanel}>
-                <strong>{copy.chart.emptyTitle}</strong>
-                <p className="clamp-3">{copy.chart.emptyBody}</p>
-              </div>
-            )}
-          </div>
-
-          <div className={styles.chartFooter}>
-            <span>
-              {hasSelectedRangeHistoryLoaded && chartMetrics
-                ? `${selectedRange} ${copy.chart.returnLabel} ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
-                : historyHydrating
-                  ? `${copy.chart.hydratingPrefix} ${selectedRange} ${copy.chart.historySuffix}`.trim()
-                  : `${selectedRange} ${copy.chart.returnPendingSuffix}`}
-            </span>
-            <span>{marketDate ? `${copy.chart.requestedMarketDate} ${formatIsoDateLabel(marketDate, copy.common.datePending)}` : copy.chart.marketDatePending}</span>
-            <span>{historyHydrating ? copy.chart.loadingTitle : copy.chart.swipeHint}</span>
-          </div>
+            <div className={styles.chartFooter}>
+              <span>
+                {hasSelectedRangeHistoryLoaded && chartMetrics
+                  ? `${selectedRange} ${copy.chart.returnLabel} ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
+                  : historyHydrating
+                    ? `${copy.chart.hydratingPrefix} ${selectedRange} ${copy.chart.historySuffix}`.trim()
+                    : `${selectedRange} ${copy.chart.returnPendingSuffix}`}
+              </span>
+              <span>{marketDate ? `${copy.chart.requestedMarketDate} ${formatIsoDateLabel(marketDate, copy.common.datePending)}` : copy.chart.marketDatePending}</span>
+              <span>{historyHydrating ? copy.chart.loadingTitle : copy.chart.swipeHint}</span>
+            </div>
+          </UnitRefreshFrame>
         </section>
         ) : null}
 
         {showActionSection || showTechnicalSection ? (
         <section className={styles.insightGrid}>
           {showActionSection ? (
-          <section className={`${styles.panel} ${styles.insightCard}`} id="action">
-            <ComponentTag
-              label="symbol.action-summary"
-              api="/api/trading/eod/action-summaries + /api/trading/agent-context/symbol-day"
-            />
+          <section
+            className={`${styles.panel} ${styles.insightCard}`}
+            id="action"
+            aria-busy={actionUnitRefreshing || undefined}
+            data-refreshing={actionUnitRefreshing ? "true" : "false"}
+          >
+            <UnitRefreshFrame busy={actionUnitRefreshing} label={refreshLabel}>
+              <ComponentTag
+                label="symbol.action-summary"
+                api="/api/trading/eod/action-summaries + /api/trading/agent-context/symbol-day"
+              />
 
-	            <div className={styles.cardHeader}>
-	              <div>
-	                <p className={styles.sectionEyebrow}>{copy.action.eyebrow}</p>
-	                <h2 className={styles.cardTitle}>{copy.action.title}</h2>
-	              </div>
-              <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : copy.action.unavailable}</span>
-            </div>
-            {showOverview ? (
-              <button
-                type="button"
-                className={styles.detailLink}
-                onClick={(event) => handleDetailModeNavigation(event, "action-summary")}
-              >
-                {copy.action.openDetail}
-              </button>
-            ) : null}
-
-            <div className={styles.signalMeter}>
-              <div className={styles.signalTrack}>
-                <span className={styles.signalSell}>{copy.action.sell}</span>
-                <span className={styles.signalStrong}>{copy.action.strongBuy}</span>
-                <div className={styles.signalFill} style={{ width: `${actionScore}%` }} />
+              <div className={styles.cardHeader}>
+                <div>
+                  <p className={styles.sectionEyebrow}>{copy.action.eyebrow}</p>
+                  <h2 className={styles.cardTitle}>{copy.action.title}</h2>
+                </div>
+                <span className={`pill ${actionTone}`}>{resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : copy.action.unavailable}</span>
               </div>
-            </div>
 
-            <strong className={`clamp-3 ${styles.insightHeadline}`}>
-              {buildActionHeadline(resolvedActionSummary, copy)}
-            </strong>
-            <p className={`clamp-3 ${styles.supportingCopy}`}>
-              {actionReasons.length > 0
-                ? actionReasons.join(" ")
-                : copy.action.emptyBody}
-            </p>
+              {showOverview ? (
+                <button
+                  type="button"
+                  className={styles.detailLink}
+                  onClick={(event) => handleDetailModeNavigation(event, "action-summary")}
+                >
+                  {copy.action.openDetail}
+                </button>
+              ) : null}
 
-            <div className={styles.metricGrid}>
-              <article className={styles.metricCard}>
-                <span>{copy.action.confidence}</span>
-                <strong>{humanizeToken(resolvedActionSummary?.confidence_tier)}</strong>
-              </article>
-              <article className={styles.metricCard}>
-                <span>{copy.action.risk}</span>
-                <strong>{humanizeToken(resolvedActionSummary?.risk_tier)}</strong>
-              </article>
-              <article className={styles.metricCard}>
-                <span>{copy.action.trigger}</span>
-                <strong>
-                  {hasNumber(resolvedActionSummary?.trigger_price)
-                    ? `₩${formatPrice(resolvedActionSummary?.trigger_price)}`
-                    : copy.action.noTriggerPrice}
-                </strong>
-              </article>
-            </div>
+              <div className={styles.signalMeter}>
+                <div className={styles.signalTrack}>
+                  <span className={styles.signalSell}>{copy.action.sell}</span>
+                  <span className={styles.signalStrong}>{copy.action.strongBuy}</span>
+                  <div className={styles.signalFill} style={{ width: `${actionScore}%` }} />
+                </div>
+              </div>
 
-            <div className={styles.tagGroup}>
-              {(actionReasons.length > 0 ? actionReasons : [copy.action.noRationaleRows]).map((reason) => (
-                <span key={reason} className={styles.tagChip}>
-                  {reason}
-                </span>
-              ))}
-            </div>
+              <strong className={`clamp-3 ${styles.insightHeadline}`}>
+                {buildActionHeadline(resolvedActionSummary, copy)}
+              </strong>
+              <p className={`clamp-3 ${styles.supportingCopy}`}>
+                {actionReasons.length > 0
+                  ? actionReasons.join(" ")
+                  : copy.action.emptyBody}
+              </p>
 
-            <p className={styles.metaCaption}>{copy.action.payloadKeys}: {actionPayloadTags.join(" · ")}</p>
+              <div className={styles.metricGrid}>
+                <article className={styles.metricCard}>
+                  <span>{copy.action.confidence}</span>
+                  <strong>{humanizeToken(resolvedActionSummary?.confidence_tier)}</strong>
+                </article>
+                <article className={styles.metricCard}>
+                  <span>{copy.action.risk}</span>
+                  <strong>{humanizeToken(resolvedActionSummary?.risk_tier)}</strong>
+                </article>
+                <article className={styles.metricCard}>
+                  <span>{copy.action.trigger}</span>
+                  <strong>
+                    {hasNumber(resolvedActionSummary?.trigger_price)
+                      ? `₩${formatPrice(resolvedActionSummary?.trigger_price)}`
+                      : copy.action.noTriggerPrice}
+                  </strong>
+                </article>
+              </div>
+
+              <div className={styles.tagGroup}>
+                {(actionReasons.length > 0 ? actionReasons : [copy.action.noRationaleRows]).map((reason) => (
+                  <span key={reason} className={styles.tagChip}>
+                    {reason}
+                  </span>
+                ))}
+              </div>
+
+              <p className={styles.metaCaption}>{copy.action.payloadKeys}: {actionPayloadTags.join(" · ")}</p>
+            </UnitRefreshFrame>
           </section>
           ) : null}
 
           {showTechnicalSection ? (
-          <section className={`${styles.panel} ${styles.insightCard}`} id="technical">
-            <ComponentTag
-              label="symbol.technical-analysis"
-              api="/api/trading/eod/technical-snapshots + /api/trading/agent-context/symbol-day"
-            />
+          <section
+            className={`${styles.panel} ${styles.insightCard}`}
+            id="technical"
+            aria-busy={technicalUnitRefreshing || undefined}
+            data-refreshing={technicalUnitRefreshing ? "true" : "false"}
+          >
+            <UnitRefreshFrame busy={technicalUnitRefreshing} label={refreshLabel}>
+              <ComponentTag
+                label="symbol.technical-analysis"
+                api="/api/trading/eod/technical-snapshots + /api/trading/agent-context/symbol-day"
+              />
 
-            <div className={styles.cardHeader}>
-              <div>
-                <p className={styles.sectionEyebrow}>{copy.technical.eyebrow}</p>
-                <h2 className={styles.cardTitle}>{copy.technical.title}</h2>
-              </div>
-              <span className={`pill ${technicalTone}`}>
-                {resolvedTechnicalSnapshot ? humanizeToken(resolvedTechnicalSnapshot.trend_state) : copy.technical.unavailable}
-              </span>
-            </div>
-            {showOverview ? (
-              <button
-                type="button"
-                className={styles.detailLink}
-                onClick={(event) => handleDetailModeNavigation(event, "technical-analysis")}
-              >
-                {copy.technical.openDetail}
-              </button>
-            ) : null}
-
-            <strong className={`clamp-3 ${styles.insightHeadline}`}>
-              {buildTechnicalHeadline(resolvedTechnicalSnapshot, copy)}
-            </strong>
-            <p className={`clamp-3 ${styles.supportingCopy}`}>
-              {resolvedTechnicalSnapshot
-                ? `${copy.technical.breakout20d} ${resolvedTechnicalSnapshot.breakout_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.breakdown20d} ${resolvedTechnicalSnapshot.breakdown_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.source} ${resolvedTechnicalSnapshot.source}`
-                : copy.technical.emptyBody}
-            </p>
-
-            <div className={styles.metricGrid}>
-              <article className={styles.metricCard}>
-                <span>{copy.technical.return5d}</span>
-                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, copy.technical.noReturn5d)}</strong>
-              </article>
-              <article className={styles.metricCard}>
-                <span>{copy.technical.return20d}</span>
-                <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, copy.technical.noReturn20d)}</strong>
-              </article>
-              <article className={styles.metricCard}>
-                <span>{copy.technical.volumeRatio20d}</span>
-                <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.volume_ratio_20d)}</strong>
-              </article>
-              <article className={styles.metricCard}>
-                <span>{copy.technical.atr14}</span>
-                <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.atr_14)}</strong>
-              </article>
-            </div>
-
-            <div className={styles.tagGroup}>
-              {technicalPayloadTags.map((tag) => (
-                <span key={tag} className={styles.tagChip}>
-                  {tag}
+              <div className={styles.cardHeader}>
+                <div>
+                  <p className={styles.sectionEyebrow}>{copy.technical.eyebrow}</p>
+                  <h2 className={styles.cardTitle}>{copy.technical.title}</h2>
+                </div>
+                <span className={`pill ${technicalTone}`}>
+                  {resolvedTechnicalSnapshot ? humanizeToken(resolvedTechnicalSnapshot.trend_state) : copy.technical.unavailable}
                 </span>
-              ))}
-            </div>
+              </div>
+              {showOverview ? (
+                <button
+                  type="button"
+                  className={styles.detailLink}
+                  onClick={(event) => handleDetailModeNavigation(event, "technical-analysis")}
+                >
+                  {copy.technical.openDetail}
+                </button>
+              ) : null}
 
-            <p className={styles.metaCaption}>
-              {copy.technical.sourceDate} {resolvedTechnicalSnapshot?.market_date ?? technicalFreshnessDate ?? copy.technical.noSourceDate} · {copy.technical.freshnessNote}
-            </p>
+              <strong className={`clamp-3 ${styles.insightHeadline}`}>
+                {buildTechnicalHeadline(resolvedTechnicalSnapshot, copy)}
+              </strong>
+              <p className={`clamp-3 ${styles.supportingCopy}`}>
+                {resolvedTechnicalSnapshot
+                  ? `${copy.technical.breakout20d} ${resolvedTechnicalSnapshot.breakout_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.breakdown20d} ${resolvedTechnicalSnapshot.breakdown_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.source} ${resolvedTechnicalSnapshot.source}`
+                  : copy.technical.emptyBody}
+              </p>
+
+              <div className={styles.metricGrid}>
+                <article className={styles.metricCard}>
+                  <span>{copy.technical.return5d}</span>
+                  <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, copy.technical.noReturn5d)}</strong>
+                </article>
+                <article className={styles.metricCard}>
+                  <span>{copy.technical.return20d}</span>
+                  <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, copy.technical.noReturn20d)}</strong>
+                </article>
+                <article className={styles.metricCard}>
+                  <span>{copy.technical.volumeRatio20d}</span>
+                  <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.volume_ratio_20d)}</strong>
+                </article>
+                <article className={styles.metricCard}>
+                  <span>{copy.technical.atr14}</span>
+                  <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.atr_14)}</strong>
+                </article>
+              </div>
+
+              <div className={styles.tagGroup}>
+                {technicalPayloadTags.map((tag) => (
+                  <span key={tag} className={styles.tagChip}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              <p className={styles.metaCaption}>
+                {copy.technical.sourceDate} {resolvedTechnicalSnapshot?.market_date ?? technicalFreshnessDate ?? copy.technical.noSourceDate} · {copy.technical.freshnessNote}
+              </p>
+            </UnitRefreshFrame>
           </section>
           ) : null}
         </section>
@@ -2358,234 +2115,255 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         {showFundamentalsSection || showDisclosureSection ? (
         <section className={styles.evidenceGrid}>
           {showFundamentalsSection ? (
-          <section className={`${styles.panel} ${styles.evidenceCard}`} id="fundamentals">
-            <ComponentTag
-              label="symbol.fundamentals-history"
-              api="/api/trading/disclosures/dart/fundamentals/history + /api/trading/agent-context/symbol-day"
-            />
+          <section
+            className={`${styles.panel} ${styles.evidenceCard}`}
+            id="fundamentals"
+            aria-busy={fundamentalsUnitRefreshing || undefined}
+            data-refreshing={fundamentalsUnitRefreshing ? "true" : "false"}
+          >
+            <UnitRefreshFrame busy={fundamentalsUnitRefreshing} label={refreshLabel}>
+              <ComponentTag
+                label="symbol.fundamentals-history"
+                api="/api/trading/disclosures/dart/fundamentals/history + /api/trading/agent-context/symbol-day"
+              />
 
-            <div className={styles.cardHeader}>
-              <div>
-                <p className={styles.sectionEyebrow}>{copy.fundamentals.eyebrow}</p>
-                <h2 className={styles.cardTitle}>{copy.fundamentals.title}</h2>
+              <div className={styles.cardHeader}>
+                <div>
+                  <p className={styles.sectionEyebrow}>{copy.fundamentals.eyebrow}</p>
+                  <h2 className={styles.cardTitle}>{copy.fundamentals.title}</h2>
+                </div>
+                <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? copy.fundamentals.defaultFs}</span>
               </div>
-              <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? copy.fundamentals.defaultFs}</span>
-            </div>
-            {showOverview ? (
-              <button
-                type="button"
-                className={styles.detailLink}
-                onClick={(event) => handleDetailModeNavigation(event, "fundamentals-history")}
-              >
-                {copy.fundamentals.openDetail}
-              </button>
-            ) : null}
+              {showOverview ? (
+                <button
+                  type="button"
+                  className={styles.detailLink}
+                  onClick={(event) => handleDetailModeNavigation(event, "fundamentals-history")}
+                >
+                  {copy.fundamentals.openDetail}
+                </button>
+              ) : null}
 
-            <div className={styles.companyStrip}>
-              <div className={styles.companyAvatar}>{symbol.slice(0, 1)}</div>
-              <div>
-                <strong>{introTitle}</strong>
-                <p className="clamp-3">
-                  {copy.fundamentals.latestFilingPrefix} {buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}.
-                </p>
+              <div className={styles.companyStrip}>
+                <div className={styles.companyAvatar}>{symbol.slice(0, 1)}</div>
+                <div>
+                  <strong>{introTitle}</strong>
+                  <p className="clamp-3">
+                    {copy.fundamentals.latestFilingPrefix} {buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className={styles.metricGrid}>
-              {latestHighlights.length > 0 ? (
-                latestHighlights.map((metric, index) => (
-                  <article key={`${formatHighlightLabel(metric, index)}-${index}`} className={styles.metricCard}>
-                    <span>{formatHighlightLabel(metric, index)}</span>
-                    <strong>{formatHighlightValue(metric, copy)}</strong>
-                  </article>
-                ))
-              ) : (
-                <article className={styles.metricCard}>
-                  <span>{copy.fundamentals.latestFiling}</span>
-                  <strong>{buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}</strong>
-                </article>
-              )}
-            </div>
-
-            <div className={styles.historyList}>
-              {companyHistory?.entries.length ? (
-                companyHistory.entries.slice(0, fundamentalsEntryLimit).map((entry) => {
-                  const visibleHighlights = buildHistoryEntryMetrics(entry, copy);
-
-                  return (
-                    <article key={entry.filing.rcept_no} className={styles.historyCard}>
-                      <div className={styles.historyHeader}>
-                        <div>
-                          <strong className="clamp-3">
-                            {entry.period.report_label ??
-                              `${entry.period.business_year ?? copy.fundamentals.unknownYear} ${entry.period.report_code ?? ""}`}
-                          </strong>
-                          <p className="clamp-3">
-                            {entry.filing.report_nm ?? copy.fundamentals.unnamedFiling} · {copy.fundamentals.receipt} {entry.filing.receipt_date ?? copy.fundamentals.noReceiptDate}
-                          </p>
-                        </div>
-                        <span className="pill neutral">{entry.statement.fs_div ?? copy.fundamentals.fsPending}</span>
-                      </div>
-                      <div className={styles.historyMetrics}>
-                        {visibleHighlights.map((metric, index) => (
-                          <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}-${index}`} className={styles.historyMetricRow}>
-                            <span>{formatHighlightLabel(metric, index)}</span>
-                            <strong>{formatHighlightValue(metric, copy)}</strong>
-                          </div>
-                        ))}
-                      </div>
+              <div className={styles.metricGrid}>
+                {latestHighlights.length > 0 ? (
+                  latestHighlights.map((metric, index) => (
+                    <article key={`${formatHighlightLabel(metric, index)}-${index}`} className={styles.metricCard}>
+                      <span>{formatHighlightLabel(metric, index)}</span>
+                      <strong>{formatHighlightValue(metric, copy)}</strong>
                     </article>
-                  );
-                })
-              ) : fundamentalsLoading ? (
-                <div className={styles.emptyPanel}>
-                  <strong>{copy.fundamentals.loadingTitle}</strong>
-                  <p className="clamp-3">{copy.fundamentals.loadingBody}</p>
-                </div>
-              ) : (
-                <div className={styles.emptyPanel}>
-                  <strong>{copy.fundamentals.emptyTitle}</strong>
-                  <p className="clamp-3">{buildFundamentalsCoverageNote(companyHistory, latestFundamentals, copy)}</p>
-                </div>
-              )}
-            </div>
+                  ))
+                ) : (
+                  <article className={styles.metricCard}>
+                    <span>{copy.fundamentals.latestFiling}</span>
+                    <strong>{buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}</strong>
+                  </article>
+                )}
+              </div>
+
+              <div className={styles.historyList}>
+                {companyHistory?.entries.length ? (
+                  companyHistory.entries.slice(0, fundamentalsEntryLimit).map((entry) => {
+                    const visibleHighlights = buildHistoryEntryMetrics(entry, copy);
+
+                    return (
+                      <article key={entry.filing.rcept_no} className={styles.historyCard}>
+                        <div className={styles.historyHeader}>
+                          <div>
+                            <strong className="clamp-3">
+                              {entry.period.report_label ??
+                                `${entry.period.business_year ?? copy.fundamentals.unknownYear} ${entry.period.report_code ?? ""}`}
+                            </strong>
+                            <p className="clamp-3">
+                              {entry.filing.report_nm ?? copy.fundamentals.unnamedFiling} · {copy.fundamentals.receipt} {entry.filing.receipt_date ?? copy.fundamentals.noReceiptDate}
+                            </p>
+                          </div>
+                          <span className="pill neutral">{entry.statement.fs_div ?? copy.fundamentals.fsPending}</span>
+                        </div>
+                        <div className={styles.historyMetrics}>
+                          {visibleHighlights.map((metric, index) => (
+                            <div key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}-${index}`} className={styles.historyMetricRow}>
+                              <span>{formatHighlightLabel(metric, index)}</span>
+                              <strong>{formatHighlightValue(metric, copy)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    );
+                  })
+                ) : fundamentalsLoading ? (
+                  <div className={styles.emptyPanel}>
+                    <strong>{copy.fundamentals.loadingTitle}</strong>
+                    <p className="clamp-3">{copy.fundamentals.loadingBody}</p>
+                  </div>
+                ) : (
+                  <div className={styles.emptyPanel}>
+                    <strong>{copy.fundamentals.emptyTitle}</strong>
+                    <p className="clamp-3">{buildFundamentalsCoverageNote(companyHistory, latestFundamentals, copy)}</p>
+                  </div>
+                )}
+              </div>
+            </UnitRefreshFrame>
           </section>
           ) : null}
 
           {showDisclosureSection ? (
-          <section className={`${styles.panel} ${styles.evidenceCard}`} id="disclosures">
-            <ComponentTag label="symbol.disclosures" api="/api/trading/agent-context/symbol-day" />
+          <section
+            className={`${styles.panel} ${styles.evidenceCard}`}
+            id="disclosures"
+            aria-busy={disclosureUnitRefreshing || undefined}
+            data-refreshing={disclosureUnitRefreshing ? "true" : "false"}
+          >
+            <UnitRefreshFrame busy={disclosureUnitRefreshing} label={refreshLabel}>
+              <ComponentTag label="symbol.disclosures" api="/api/trading/agent-context/symbol-day" />
 
-            <div className={styles.cardHeader}>
-              <div>
-                <p className={styles.sectionEyebrow}>{copy.disclosures.eyebrow}</p>
-                <h2 className={styles.cardTitle}>{copy.disclosures.title}</h2>
+              <div className={styles.cardHeader}>
+                <div>
+                  <p className={styles.sectionEyebrow}>{copy.disclosures.eyebrow}</p>
+                  <h2 className={styles.cardTitle}>{copy.disclosures.title}</h2>
+                </div>
+                <span className={`pill ${disclosureSectionState === "list" ? "info" : disclosureSectionState === "empty" ? "neutral" : "warning"}`}>
+                  {aggregateContext?.recent_disclosures.count ?? 0} {copy.disclosures.items}
+                </span>
               </div>
-              <span className={`pill ${disclosureSectionState === "list" ? "info" : disclosureSectionState === "empty" ? "neutral" : "warning"}`}>
-                {aggregateContext?.recent_disclosures.count ?? 0} {copy.disclosures.items}
-              </span>
-            </div>
-            {showOverview ? (
-              <button
-                type="button"
-                className={styles.detailLink}
-                onClick={(event) => handleDetailModeNavigation(event, "disclosure-coverage")}
-              >
-                {copy.disclosures.openDetail}
-              </button>
-            ) : null}
+              {showOverview ? (
+                <button
+                  type="button"
+                  className={styles.detailLink}
+                  onClick={(event) => handleDetailModeNavigation(event, "disclosure-coverage")}
+                >
+                  {copy.disclosures.openDetail}
+                </button>
+              ) : null}
 
-            {disclosureSectionState === "list" ? (
-              <div className={styles.disclosureList}>
-                {aggregateContext?.recent_disclosures.items.slice(0, disclosureItemLimit).map((item) => (
-                  <Link
-                    key={item.rcept_no}
-                    className={styles.disclosureCard}
-                    href={buildDisclosureReportHref(symbol, item, routeQueryString)}
-                    aria-label={`${copy.disclosures.openReportPrefix} ${item.report_nm}`}
-                  >
-                    <div className={styles.disclosureHeader}>
-                      <strong className="clamp-3">{item.report_nm}</strong>
-                      <span className="pill neutral">{item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
-                    </div>
-                    <p className="clamp-3">
-                      {humanizeToken(item.filing_category, copy.disclosures.noCategory)} · {copy.disclosures.capture}{" "}
-                      {humanizeToken(item.fundamentals_capture_status, copy.disclosures.notCaptured)}
-                    </p>
-                    <div className={styles.disclosureMeta}>
-                      <span>{copy.disclosures.receipt} {item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
-                      <span>{copy.disclosures.receiptNo} {item.rcept_no}</span>
-                    </div>
-                    <span className={styles.disclosureAction}>{copy.disclosures.viewReportDetail}</span>
-                  </Link>
-                ))}
-              </div>
-            ) : disclosureSectionState === "loading" ? (
-              <div className={styles.emptyPanel}>
-                <strong>{copy.disclosures.loadingTitle}</strong>
-                <p className="clamp-3">{copy.disclosures.loadingBody}</p>
-              </div>
-            ) : disclosureSectionState === "empty" ? (
-              <div className={styles.emptyPanel}>
-                <strong>{copy.disclosures.emptyTitle}</strong>
-                <p className="clamp-3">{copy.disclosures.emptyBody}</p>
-              </div>
-            ) : (
-              <div className={styles.emptyPanel}>
-                <strong>{copy.disclosures.unavailableTitle}</strong>
-                <p className="clamp-3">{copy.disclosures.unavailableBody}</p>
-              </div>
-            )}
+              {disclosureSectionState === "list" ? (
+                <div className={styles.disclosureList}>
+                  {aggregateContext?.recent_disclosures.items.slice(0, disclosureItemLimit).map((item) => (
+                    <Link
+                      key={item.rcept_no}
+                      className={styles.disclosureCard}
+                      href={buildDisclosureReportHref(symbol, item, routeQueryString)}
+                      aria-label={`${copy.disclosures.openReportPrefix} ${item.report_nm}`}
+                    >
+                      <div className={styles.disclosureHeader}>
+                        <strong className="clamp-3">{item.report_nm}</strong>
+                        <span className="pill neutral">{item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
+                      </div>
+                      <p className="clamp-3">
+                        {humanizeToken(item.filing_category, copy.disclosures.noCategory)} · {copy.disclosures.capture}{" "}
+                        {humanizeToken(item.fundamentals_capture_status, copy.disclosures.notCaptured)}
+                      </p>
+                      <div className={styles.disclosureMeta}>
+                        <span>{copy.disclosures.receipt} {item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
+                        <span>{copy.disclosures.receiptNo} {item.rcept_no}</span>
+                      </div>
+                      <span className={styles.disclosureAction}>{copy.disclosures.viewReportDetail}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : disclosureSectionState === "loading" ? (
+                <div className={styles.emptyPanel}>
+                  <strong>{copy.disclosures.loadingTitle}</strong>
+                  <p className="clamp-3">{copy.disclosures.loadingBody}</p>
+                </div>
+              ) : disclosureSectionState === "empty" ? (
+                <div className={styles.emptyPanel}>
+                  <strong>{copy.disclosures.emptyTitle}</strong>
+                  <p className="clamp-3">{copy.disclosures.emptyBody}</p>
+                </div>
+              ) : (
+                <div className={styles.emptyPanel}>
+                  <strong>{copy.disclosures.unavailableTitle}</strong>
+                  <p className="clamp-3">{copy.disclosures.unavailableBody}</p>
+                </div>
+              )}
 
-            <div className={styles.coverageNote}>
-              <strong>{latestDisclosure ? copy.disclosures.latestDisclosureAvailable : copy.disclosures.partialAnalystCoverage}</strong>
-              <p className="clamp-3">
-                {buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0, copy)}
-              </p>
-            </div>
+              <div className={styles.coverageNote}>
+                <strong>{latestDisclosure ? copy.disclosures.latestDisclosureAvailable : copy.disclosures.partialAnalystCoverage}</strong>
+                <p className="clamp-3">
+                  {buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0, copy)}
+                </p>
+              </div>
+            </UnitRefreshFrame>
           </section>
           ) : null}
         </section>
         ) : null}
 
         {showFreshnessSection ? (
-        <section className={`${styles.panel} ${styles.freshnessCard}`} id="freshness">
-          <ComponentTag
-            label="symbol.system-freshness"
-            api="/api/trading/eod/freshness + /api/trading/quotes/{symbol}"
-          />
+        <section
+          className={`${styles.panel} ${styles.freshnessCard}`}
+          id="freshness"
+          aria-busy={freshnessUnitRefreshing || undefined}
+          data-refreshing={freshnessUnitRefreshing ? "true" : "false"}
+        >
+          <UnitRefreshFrame busy={freshnessUnitRefreshing} label={refreshLabel}>
+            <ComponentTag
+              label="symbol.system-freshness"
+              api="/api/trading/eod/freshness + /api/trading/quotes/{symbol}"
+            />
 
-          <div className={styles.cardHeader}>
-            <div>
-              <p className={styles.sectionEyebrow}>{copy.freshness.eyebrow}</p>
-              <h2 className={styles.cardTitle}>{copy.freshness.title}</h2>
+            <div className={styles.cardHeader}>
+              <div>
+                <p className={styles.sectionEyebrow}>{copy.freshness.eyebrow}</p>
+                <h2 className={styles.cardTitle}>{copy.freshness.title}</h2>
+              </div>
+              <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, copy.freshness.statusPending)}</span>
             </div>
-            <span className={`pill ${freshnessTone}`}>{humanizeToken(freshness?.today?.eod_status, copy.freshness.statusPending)}</span>
-          </div>
-          {showOverview ? (
-            <button
-              type="button"
-              className={styles.detailLink}
-              onClick={(event) => handleDetailModeNavigation(event, "system-freshness")}
-            >
-              {copy.freshness.openDetail}
-            </button>
-          ) : null}
+            {showOverview ? (
+              <button
+                type="button"
+                className={styles.detailLink}
+                onClick={(event) => handleDetailModeNavigation(event, "system-freshness")}
+              >
+                {copy.freshness.openDetail}
+              </button>
+            ) : null}
 
-          <div className={styles.metricGrid}>
-            <article className={styles.metricCard}>
-              <span>{copy.freshness.eodTradeDate}</span>
-              <strong>{freshness?.today?.trade_date ?? marketDate ?? copy.common.datePending}</strong>
-            </article>
-            <article className={styles.metricCard}>
-              <span>{copy.freshness.priceLatest}</span>
-              <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending)}</strong>
-            </article>
-            <article className={styles.metricCard}>
-              <span>{copy.freshness.technicalLatest}</span>
-              <strong>{technicalFreshnessDate ?? copy.freshness.noTechnicalDate}</strong>
-            </article>
-            <article className={styles.metricCard}>
-              <span>{copy.freshness.actionLatest}</span>
-              <strong>{actionFreshnessDate ?? copy.freshness.noActionDate}</strong>
-            </article>
-          </div>
+            <div className={styles.metricGrid}>
+              <article className={styles.metricCard}>
+                <span>{copy.freshness.eodTradeDate}</span>
+                <strong>{freshness?.today?.trade_date ?? marketDate ?? copy.common.datePending}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>{copy.freshness.priceLatest}</span>
+                <strong>{freshness?.latest?.price_trade_date ?? quote?.trade_date ?? formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending)}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>{copy.freshness.technicalLatest}</span>
+                <strong>{technicalFreshnessDate ?? copy.freshness.noTechnicalDate}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>{copy.freshness.actionLatest}</span>
+                <strong>{actionFreshnessDate ?? copy.freshness.noActionDate}</strong>
+              </article>
+            </div>
 
-          <div className={styles.moduleRows}>
-            {moduleRows.map((row) => (
-              <article key={row.id} className={styles.moduleRow}>
-                <div>
-                  <strong>{row.label}</strong>
-                  <p className="clamp-3">{row.detail}</p>
-                  <span className={styles.moduleApi}>{row.api}</span>
-                </div>
-                <div className={styles.moduleAside}>
-                  <span>{row.date}</span>
-                  <span className={`pill ${row.tone}`}>{row.status}</span>
-                </div>
-            </article>
-          ))}
-          </div>
+            <div className={styles.moduleRows}>
+              {moduleRows.map((row) => (
+                <article key={row.id} className={styles.moduleRow}>
+                  <div>
+                    <strong>{row.label}</strong>
+                    <p className="clamp-3">{row.detail}</p>
+                    <span className={styles.moduleApi}>{row.api}</span>
+                  </div>
+                  <div className={styles.moduleAside}>
+                    <span>{row.date}</span>
+                    <span className={`pill ${row.tone}`}>{row.status}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </UnitRefreshFrame>
         </section>
         ) : null}
       </div>

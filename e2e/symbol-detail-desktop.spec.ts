@@ -4,10 +4,12 @@ const symbolSeed =
   "name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10";
 
 test.describe("symbol detail desktop", () => {
-  test("full-page loading screen covers symbol workspace transitions", async ({ page }) => {
+  test("revisits symbol workspace with local unit refresh overlays instead of a full-page loader", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const now = "2026-04-18T09:10:00+09:00";
     const marketDate = "2026-04-18";
+    let quoteRequestCount = 0;
+    let priceHistoryRequestCount = 0;
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({
@@ -78,7 +80,8 @@ test.describe("symbol detail desktop", () => {
     });
 
     await page.route("**/api/trading/quotes/005930", async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 700));
+      quoteRequestCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, quoteRequestCount === 1 ? 120 : 450));
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -223,6 +226,8 @@ test.describe("symbol detail desktop", () => {
     });
 
     await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      priceHistoryRequestCount += 1;
+      await new Promise((resolve) => setTimeout(resolve, priceHistoryRequestCount === 1 ? 140 : 500));
       await route.fulfill({
         json: {
           symbol: "005930",
@@ -275,27 +280,33 @@ test.describe("symbol detail desktop", () => {
 
     const resultsRow = page.locator("tr").filter({ hasText: "005930" });
     await expect(resultsRow).toBeVisible();
+    const anyFullPageLoader = page
+      .getByRole("status", { name: /Loading symbol workspace|Loading next surface/i });
 
     await resultsRow.getByRole("link", { name: "Open" }).click();
 
-    const loader = page.getByRole("status", { name: /Loading symbol workspace/i });
-    await expect(loader).toBeVisible();
-    const loaderInteractionLock = await loader.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return {
-        overscrollBehaviorX: style.overscrollBehaviorX,
-        overscrollBehaviorY: style.overscrollBehaviorY,
-        touchAction: style.touchAction,
-      };
-    });
-    expect(loaderInteractionLock).toEqual({
-      overscrollBehaviorX: "none",
-      overscrollBehaviorY: "none",
-      touchAction: "none",
-    });
     await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?/);
     await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
-    await expect(loader).toHaveCount(0);
+
+    const chart = page.locator("#chart");
+    await expect(chart.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
+    await expect(anyFullPageLoader).toHaveCount(0);
+    await expect(chart.getByText(/^2026\.04\.18$/)).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/search$/);
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
+    await expect(resultsRow).toBeVisible();
+
+    await resultsRow.getByRole("link", { name: "Open" }).click();
+
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?/);
+    await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
+    await expect(chart).toHaveAttribute("aria-busy", "true");
+    await expect(chart.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
+    await expect(chart.getByText(/^2026\.04\.18$/)).toBeVisible();
+    await expect(anyFullPageLoader).toHaveCount(0);
+    await expect(chart).toHaveAttribute("data-refreshing", "false");
   });
 
   test("overview shows only Insights chart and freshness sections", async ({ page }) => {
