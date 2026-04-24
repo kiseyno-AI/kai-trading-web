@@ -77,6 +77,7 @@ type UnitDataEntry<T> = {
   isInitialLoading: boolean;
   isRefreshing: boolean;
   listeners: Set<() => void>;
+  snapshotCache: Map<number, UnitDataSnapshot<T>>;
   source: UnitDataSource;
   updatedAt: number | null;
 };
@@ -170,17 +171,34 @@ function createEmptyEntry<T>(): UnitDataEntry<T> {
     isInitialLoading: false,
     isRefreshing: false,
     listeners: new Set(),
+    snapshotCache: new Map(),
     source: "none",
     updatedAt: null,
   };
 }
 
-function cloneSnapshot<T>(entry: UnitDataEntry<T>, ttlMs: number, now: number): UnitDataSnapshot<T> {
+function getStableSnapshot<T>(entry: UnitDataEntry<T>, ttlMs: number, now: number): UnitDataSnapshot<T> {
   const hasData = entry.hasValue;
   const isStale = hasData && entry.updatedAt !== null ? entry.updatedAt + ttlMs <= now : false;
   const isCached = hasData && entry.source !== "network";
+  const cachedSnapshot = entry.snapshotCache.get(ttlMs);
 
-  return {
+  if (
+    cachedSnapshot &&
+    cachedSnapshot.data === entry.data &&
+    cachedSnapshot.error === entry.error &&
+    cachedSnapshot.hasData === hasData &&
+    cachedSnapshot.isCached === isCached &&
+    cachedSnapshot.isInitialLoading === entry.isInitialLoading &&
+    cachedSnapshot.isRefreshing === entry.isRefreshing &&
+    cachedSnapshot.isStale === isStale &&
+    cachedSnapshot.source === entry.source &&
+    cachedSnapshot.updatedAt === entry.updatedAt
+  ) {
+    return cachedSnapshot;
+  }
+
+  const snapshot = {
     data: entry.data,
     error: entry.error,
     hasData,
@@ -191,6 +209,9 @@ function cloneSnapshot<T>(entry: UnitDataEntry<T>, ttlMs: number, now: number): 
     source: entry.source,
     updatedAt: entry.updatedAt,
   };
+
+  entry.snapshotCache.set(ttlMs, snapshot);
+  return snapshot;
 }
 
 function notifyEntry(entry: UnitDataEntry<unknown>) {
@@ -345,8 +366,9 @@ export function createUnitDataStore({ now = Date.now }: UnitDataStoreOptions = {
   function getSnapshot<T>(options: UnitDataRequestOptions<T>) {
     const resolved = resolveRequestOptions(options);
     const entry = getEntry(resolved);
-    readPersistedSnapshot(entry, resolved, getNow(now));
-    return cloneSnapshot(entry, resolved.ttlMs, getNow(now));
+    const currentNow = getNow(now);
+    readPersistedSnapshot(entry, resolved, currentNow);
+    return getStableSnapshot(entry, resolved.ttlMs, currentNow);
   }
 
   function subscribe<T>(options: UnitDataRequestOptions<T>, listener: () => void) {
@@ -377,7 +399,7 @@ export function createUnitDataStore({ now = Date.now }: UnitDataStoreOptions = {
         entry.updatedAt = getNow(now);
         persistEntry(entry, resolved);
         notifyEntry(entry as UnitDataEntry<unknown>);
-        return cloneSnapshot(entry, resolved.ttlMs, getNow(now));
+        return getStableSnapshot(entry, resolved.ttlMs, getNow(now));
       })
       .catch((error) => {
         entry.error = toError(error);
@@ -387,7 +409,7 @@ export function createUnitDataStore({ now = Date.now }: UnitDataStoreOptions = {
           entry.source = "none";
         }
         notifyEntry(entry as UnitDataEntry<unknown>);
-        return cloneSnapshot(entry, resolved.ttlMs, getNow(now));
+        return getStableSnapshot(entry, resolved.ttlMs, getNow(now));
       })
       .finally(() => {
         entry.inFlight = null;
@@ -408,7 +430,7 @@ export function createUnitDataStore({ now = Date.now }: UnitDataStoreOptions = {
       return entry.inFlight;
     }
 
-    const snapshot = cloneSnapshot(entry, resolved.ttlMs, currentNow);
+    const snapshot = getStableSnapshot(entry, resolved.ttlMs, currentNow);
     const shouldFetch =
       force ||
       !snapshot.hasData ||
@@ -421,7 +443,7 @@ export function createUnitDataStore({ now = Date.now }: UnitDataStoreOptions = {
       if (entry.source !== previousSource) {
         notifyEntry(entry as UnitDataEntry<unknown>);
       }
-      return Promise.resolve(cloneSnapshot(entry, resolved.ttlMs, getNow(now)));
+      return Promise.resolve(getStableSnapshot(entry, resolved.ttlMs, getNow(now)));
     }
 
     if (snapshot.hasData) {

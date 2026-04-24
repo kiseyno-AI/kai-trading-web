@@ -133,6 +133,33 @@ test("returns in-memory cached data on repeated requests without refetching whil
   assert.equal(second.isStale, false);
 });
 
+test("reuses snapshot objects until the derived snapshot state changes", async () => {
+  const clock = createClock(1_000);
+  const store = createUnitDataStore({ now: clock.now });
+
+  const request = createRequest({
+    fetcher: async () => ({ value: "fresh" }),
+    key: ["unit", "stable-snapshot"],
+    ttlMs: 100,
+  });
+
+  const emptySnapshot = store.getSnapshot(request);
+  assert.strictEqual(store.getSnapshot(request), emptySnapshot);
+
+  await store.ensure(request);
+
+  const freshSnapshot = store.getSnapshot(request);
+  assert.strictEqual(store.getSnapshot(request), freshSnapshot);
+  assert.equal(freshSnapshot.isStale, false);
+
+  clock.advance(150);
+
+  const staleSnapshot = store.getSnapshot(request);
+  assert.notStrictEqual(staleSnapshot, freshSnapshot);
+  assert.equal(staleSnapshot.isStale, true);
+  assert.strictEqual(store.getSnapshot(request), staleSnapshot);
+});
+
 test("revalidates stale cached data in the background and notifies subscribers with the refreshed result", async () => {
   const clock = createClock(10_000);
   const store = createUnitDataStore({ now: clock.now });
