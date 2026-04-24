@@ -18,6 +18,15 @@ import {
   buildDartFundamentalsDailyInspectPath,
   DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
 } from "@/lib/dart-fundamentals-daily";
+import {
+  getLatestActionMarketDate,
+  getLatestEodPatchSummary,
+  getLatestEodStatus,
+  getLatestPriceTradeDate,
+  getLatestTechnicalMarketDate,
+  type LatestEodPatchStageDetail,
+  type LatestEodPatchStageKey,
+} from "@/lib/eod-freshness-latest";
 import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
@@ -182,6 +191,8 @@ type EodStageDetail = {
   tone?: "count" | "text";
   layout?: "inline" | "stacked";
 };
+
+type LatestPatchStatusTone = "positive" | "warning" | "neutral" | "info";
 
 type AgentRoleStatus = "completed" | "running" | "pending" | "attention";
 
@@ -414,7 +425,7 @@ function getPriceFreshnessLabel(item: CoreTrackedQuote, copy: DashboardLiveCopy)
 }
 
 function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
-  return getFirstTextValue(freshness?.technical?.latest_date, freshness?.latest?.technical_market_date) ?? UNKNOWN_LABEL;
+  return getFirstTextValue(freshness?.technical?.latest_date, getLatestTechnicalMarketDate(freshness)) ?? UNKNOWN_LABEL;
 }
 
 function getFundamentalsFreshnessLayer(
@@ -463,6 +474,91 @@ function humanizeToken(value: string | null | undefined, fallback = UNKNOWN_LABE
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(" ");
+}
+
+function normalizeLatestPatchStatusToken(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+  return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+function getLatestPatchStatusDisplay(
+  status: string | null | undefined,
+  failedCount: number | null | undefined,
+  copy: DashboardLiveCopy,
+): { label: string; tone: LatestPatchStatusTone } {
+  const normalizedStatus = normalizeLatestPatchStatusToken(status);
+
+  if (normalizedStatus === "running" || normalizedStatus === "processing" || normalizedStatus === "in progress") {
+    return { label: copy.operational.latestPatchStatuses.running, tone: "info" };
+  }
+
+  if (
+    normalizedStatus === "failed" ||
+    normalizedStatus === "error" ||
+    normalizedStatus === "needs review" ||
+    normalizedStatus === "attention"
+  ) {
+    return { label: copy.operational.latestPatchStatuses.needsReview, tone: "warning" };
+  }
+
+  if (
+    (typeof failedCount === "number" && failedCount > 0) ||
+    normalizedStatus === "completed with errors" ||
+    normalizedStatus === "partial" ||
+    normalizedStatus === "partial success" ||
+    normalizedStatus === "completed with error"
+  ) {
+    return {
+      label: copy.operational.latestPatchStatuses.completedWithErrors,
+      tone: "warning",
+    };
+  }
+
+  if (
+    normalizedStatus === "completed" ||
+    normalizedStatus === "complete" ||
+    normalizedStatus === "ready" ||
+    normalizedStatus === "available" ||
+    normalizedStatus === "success" ||
+    normalizedStatus === "healthy"
+  ) {
+    return { label: copy.operational.latestPatchStatuses.healthy, tone: "positive" };
+  }
+
+  return { label: copy.operational.latestPatchStatuses.awaitingLatest, tone: "neutral" };
+}
+
+function formatLatestPatchResult(
+  succeededCount: number | null | undefined,
+  totalCount: number | null | undefined,
+  numberLocale: string,
+) {
+  const succeededLabel = formatEodSymbolCount(succeededCount, numberLocale);
+  const totalLabel = formatEodSymbolCount(totalCount, numberLocale);
+
+  if (!hasNumber(succeededCount) && !hasNumber(totalCount)) return UNKNOWN_LABEL;
+  if (!hasNumber(totalCount)) return succeededLabel;
+  if (!hasNumber(succeededCount)) return totalLabel;
+  return `${succeededLabel} / ${totalLabel}`;
+}
+
+function getLatestPatchStageLabel(stageKey: LatestEodPatchStageKey, sourceKey: string, copy: DashboardLiveCopy) {
+  if (stageKey === "price") return copy.stage.price;
+  if (stageKey === "technical_analysis") return copy.stage.technical;
+  if (stageKey === "action_summary") return copy.stage.action;
+  if (stageKey === "fundamentals") return copy.stage.fundamentals;
+  return humanizeToken(sourceKey, sourceKey);
+}
+
+function hasLatestPatchStageDetail(detail: LatestEodPatchStageDetail) {
+  return (
+    detail.tradeDate !== null ||
+    detail.updatedAt !== null ||
+    detail.status !== null ||
+    detail.symbolsTotal !== null ||
+    detail.symbolsSucceeded !== null ||
+    detail.symbolsFailed !== null
+  );
 }
 
 function normalizeFundamentalsStatusToken(value: string | null | undefined) {
@@ -649,7 +745,7 @@ function hasTextValue(value: string | null | undefined): value is string {
 
 function hasEodReadinessSignal(freshness: EodFreshnessResponseDto | null) {
   return (
-    hasTextValue(freshness?.latest?.price_trade_date) ||
+    hasTextValue(getLatestPriceTradeDate(freshness)) ||
     hasNumber(getEodSymbolsSucceeded(freshness)) ||
     hasNumber(getEodSymbolsTotal(freshness))
   );
@@ -765,7 +861,7 @@ function isBreakDayMarket(market: CoreMarketStatus) {
 function getTodayPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   if (freshness?.today?.price) return freshness.today.price;
 
-  const status = freshness?.today?.eod_status ?? freshness?.latest?.eod_status ?? null;
+  const status = freshness?.today?.eod_status ?? getLatestEodStatus(freshness);
   const normalizedStatus = status?.trim().toLowerCase() ?? null;
   const resolvedStatus =
     normalizedStatus === "running"
@@ -785,7 +881,7 @@ function getTodayPriceFreshnessStage(freshness: EodFreshnessResponseDto | null):
 }
 
 function getLatestPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
-  const status = freshness?.latest?.eod_status ?? null;
+  const status = getLatestEodStatus(freshness);
   const normalizedStatus = status?.trim().toLowerCase() ?? null;
   const hasLatestSnapshot =
     hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
@@ -832,7 +928,7 @@ function getLatestTechnicalFreshnessStage(freshness: EodFreshnessResponseDto | n
   }
 
   const hasTechnicalDate =
-    getFirstTextValue(freshness?.technical?.latest_date, freshness?.latest?.technical_market_date) !== null;
+    getFirstTextValue(freshness?.technical?.latest_date, getLatestTechnicalMarketDate(freshness)) !== null;
   const hasLatestCounts =
     hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
     hasNumber(getLatestEodSymbolsTotal(freshness)) ||
@@ -866,7 +962,7 @@ function getLatestActionFreshnessStage(freshness: EodFreshnessResponseDto | null
     );
   }
 
-  const latestActionDate = getFirstTextValue(freshness?.action?.latest_date, freshness?.latest?.action_market_date);
+  const latestActionDate = getFirstTextValue(freshness?.action?.latest_date, getLatestActionMarketDate(freshness));
   const hasLatestCounts =
     hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
     hasNumber(getLatestEodSymbolsTotal(freshness)) ||
@@ -2108,12 +2204,21 @@ export function LiveDashboardClient({
 
   const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
   const todayTradeDate = getFirstTextValue(freshness?.today?.trade_date);
-  const priceLatestDate = getFirstTextValue(freshness?.latest?.price_trade_date);
+  const latestPatchSummary = getLatestEodPatchSummary(freshness);
+  const latestPatchTradeDate = latestPatchSummary?.tradeDate ?? null;
+  const latestPatchUpdatedAt = latestPatchSummary?.updatedAt ?? null;
+  const latestPatchStageDetails = (latestPatchSummary?.stageDetails ?? []).filter(hasLatestPatchStageDetail);
+  const priceLatestDate = getFirstTextValue(getLatestPriceTradeDate(freshness), latestPatchTradeDate);
   const technicalLatestDate = getFirstTextValue(
     freshness?.technical?.latest_date,
-    freshness?.latest?.technical_market_date,
+    getLatestTechnicalMarketDate(freshness),
+    latestPatchTradeDate,
   );
-  const actionLatestDate = getFirstTextValue(freshness?.action?.latest_date, freshness?.latest?.action_market_date);
+  const actionLatestDate = getFirstTextValue(
+    freshness?.action?.latest_date,
+    getLatestActionMarketDate(freshness),
+    latestPatchTradeDate,
+  );
   const pricePipelineStage = getPipelineStage(pipelineStatus, "price_collection");
   const technicalPipelineStage = getPipelineStage(pipelineStatus, "technical_snapshots");
   const fundamentalsPipelineStage = getPipelineStage(pipelineStatus, "fundamentals_daily_refresh");
@@ -2151,6 +2256,20 @@ export function LiveDashboardClient({
   const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
   const eodStatusMarketDate = dashboardProcessMarketDate;
   const isBreakDay = isBreakDayMarket(market);
+  const latestPatchStatus = getLatestPatchStatusDisplay(
+    latestPatchSummary?.status,
+    latestPatchSummary?.symbolsFailed ?? null,
+    copy,
+  );
+  const latestPatchNotice =
+    hasTextValue(todayTradeDate) && hasTextValue(latestPatchTradeDate) && todayTradeDate !== latestPatchTradeDate
+      ? `${copy.operational.marketDate} ${todayTradeDate}. ${copy.operational.latestPatchDate} ${latestPatchTradeDate}.`
+      : null;
+  const latestPatchNoticeTone: Exclude<LatestPatchStatusTone, "info"> | null = latestPatchNotice
+    ? isBreakDay
+      ? "neutral"
+      : "warning"
+    : null;
   const priceFreshnessStage = mergeRunningPipelineStage(
     getPriceFreshnessStage(freshness, useTodayPriceStage),
     pricePipelineStage,
@@ -2425,6 +2544,86 @@ export function LiveDashboardClient({
                   <p className={styles.cardContext}>{copy.operational.marketDate} {eodMarketDate}</p>
                 </div>
               </div>
+
+              <section className={styles.latestPatchSummary} aria-label={copy.operational.latestPatchTitle}>
+                <div className={styles.latestPatchHeader}>
+                  <div>
+                    <strong className={styles.latestPatchTitle}>{copy.operational.latestPatchTitle}</strong>
+                    {latestPatchNotice ? (
+                      <p className={styles.latestPatchNotice} data-tone={latestPatchNoticeTone ?? "neutral"}>
+                        {latestPatchNotice}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className={`pill ${latestPatchStatus.tone}`}>{latestPatchStatus.label}</span>
+                </div>
+
+                <div className={styles.latestPatchGrid}>
+                  <div className={styles.latestPatchMetric}>
+                    <span>{copy.operational.latestPatchDate}</span>
+                    <strong>{latestPatchTradeDate ?? UNKNOWN_LABEL}</strong>
+                  </div>
+                  <div className={styles.latestPatchMetric}>
+                    <span>{copy.operational.lastUpdated}</span>
+                    <strong>{formatDisplayTimestamp(latestPatchUpdatedAt, UNKNOWN_LABEL)}</strong>
+                  </div>
+                  <div className={styles.latestPatchMetric}>
+                    <span>{copy.operational.succeeded}</span>
+                    <strong>
+                      {formatLatestPatchResult(
+                        latestPatchSummary?.symbolsSucceeded ?? null,
+                        latestPatchSummary?.symbolsTotal ?? null,
+                        numberLocale,
+                      )}
+                    </strong>
+                  </div>
+                  <div className={styles.latestPatchMetric}>
+                    <span>{copy.operational.failed}</span>
+                    <strong>{formatEodSymbolCount(latestPatchSummary?.symbolsFailed ?? null, numberLocale)}</strong>
+                  </div>
+                </div>
+
+                {latestPatchStageDetails.length > 0 ? (
+                  <details className={styles.latestPatchDetails}>
+                    <summary className={styles.latestPatchDetailsSummary}>{copy.operational.stageDetails}</summary>
+                    <div className={styles.latestPatchStageList}>
+                      {latestPatchStageDetails.map((detail) => {
+                        const stageStatus = getLatestPatchStatusDisplay(detail.status, detail.symbolsFailed, copy);
+
+                        return (
+                          <div
+                            key={`${detail.key}:${detail.sourceKey}`}
+                            className={styles.latestPatchStageItem}
+                            aria-label={`${getLatestPatchStageLabel(detail.key, detail.sourceKey, copy)} ${stageStatus.label}`}
+                          >
+                            <div className={styles.latestPatchStageHeaderRow}>
+                              <strong>{getLatestPatchStageLabel(detail.key, detail.sourceKey, copy)}</strong>
+                              <span className={`pill ${stageStatus.tone}`}>{stageStatus.label}</span>
+                            </div>
+                            <div className={styles.latestPatchStageMeta}>
+                              {detail.tradeDate ? (
+                                <span>{copy.operational.latestPatchDate} {detail.tradeDate}</span>
+                              ) : null}
+                              {detail.updatedAt ? (
+                                <span>{copy.operational.lastUpdated} {formatDisplayTimestamp(detail.updatedAt, UNKNOWN_LABEL)}</span>
+                              ) : null}
+                              {(detail.symbolsSucceeded !== null || detail.symbolsTotal !== null) ? (
+                                <span>
+                                  {copy.operational.succeeded}{" "}
+                                  {formatLatestPatchResult(detail.symbolsSucceeded, detail.symbolsTotal, numberLocale)}
+                                </span>
+                              ) : null}
+                              {detail.symbolsFailed !== null ? (
+                                <span>{copy.operational.failed} {formatEodSymbolCount(detail.symbolsFailed, numberLocale)}</span>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                ) : null}
+              </section>
 
               <div className={styles.eodStageGrid}>
                 {eodStageCards.map((stage) => {

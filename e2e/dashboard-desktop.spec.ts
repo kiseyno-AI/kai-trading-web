@@ -1854,6 +1854,276 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard.getByText("Freshness available")).toHaveCount(0);
   });
 
+  test("D2 latest patch summary shows richer latest health and stage details", async ({ page }) => {
+    const now = "2026-04-24T09:20:00+09:00";
+    let requestedMarketDate: string | null = null;
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market: "KRX",
+          state: "OPEN",
+          is_trading_day: true,
+          is_open: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71900,
+              change: 500,
+              change_pct: 0.7,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-24",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-24",
+            price: {
+              status: "missing",
+              symbols_total: 3577,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "missing",
+              symbols_total: 3577,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "missing",
+              symbols_total: 3577,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "missing",
+              symbols_total: 3577,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            technical_market_date: "2026-04-23",
+            action_market_date: "2026-04-23",
+            summary: {
+              trade_date: "2026-04-23",
+              updated_at: "2026-04-23T16:31:55+09:00",
+              status: "completed_with_errors",
+              symbols_total: 3577,
+              symbols_succeeded: 3570,
+              symbols_failed: 7,
+            },
+            stages: {
+              price: {
+                trade_date: "2026-04-23",
+                updated_at: "2026-04-23T16:31:55+09:00",
+                status: "completed_with_errors",
+                symbols_total: 3577,
+                symbols_succeeded: 3570,
+                symbols_failed: 7,
+              },
+              technical: {
+                summary: {
+                  market_date: "2026-04-23",
+                  updated_at: "2026-04-23T16:38:00+09:00",
+                  status: "completed",
+                  symbols_total: 3577,
+                  symbols_succeeded: 3577,
+                  symbols_failed: 0,
+                },
+              },
+            },
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-23",
+          },
+          action: {
+            success: true,
+            latest_date: "2026-04-23",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-23",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-23",
+          status: "completed",
+          stage_order: [
+            "price_collection",
+            "technical_snapshots",
+            "action_summaries",
+            "trending_ranks",
+            "signal_features",
+            "fundamentals_daily_refresh",
+          ],
+          stages: {
+            price_collection: {
+              status: "completed",
+              processed: 3577,
+              total: 3577,
+              failed: 7,
+            },
+            technical_snapshots: {
+              status: "completed",
+              processed: 3577,
+              total: 3577,
+              failed: 0,
+            },
+            action_summaries: {
+              status: "completed",
+              processed: 3577,
+              total: 3577,
+              failed: 0,
+            },
+            fundamentals_daily_refresh: {
+              status: "completed",
+              processed: 3577,
+              total: 3577,
+              failed: 0,
+            },
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-23",
+          summary: {
+            entries: 3577,
+            requested_symbol: null,
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 132,
+            not_passed_count: 3445,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 11,
+            market_date: "2026-04-23",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 3577,
+            symbols_checked: 3577,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 3577,
+            symbols_refreshed: 3577,
+            symbols_failed: 0,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-23T16:00:00+09:00",
+            completed_at: "2026-04-23T16:40:00+09:00",
+          },
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      requestedMarketDate = new URL(route.request().url()).searchParams.get("market_date");
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-23",
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: {
+            run_status: "completed",
+            is_live: false,
+            progress_percent: 100,
+            total_symbols: 3577,
+            completed_symbols: 3577,
+            failed_items: 0,
+            current_role: null,
+          },
+          result: {
+            roles: {
+              "eod-summarizer": {
+                requested_count: 3577,
+                completed_count: 3577,
+                error_count: 0,
+              },
+            },
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    await expect(eodStatusCard).toBeVisible();
+    const latestPatch = eodStatusCard.getByLabel("Latest EOD patch");
+    const latestPatchStatus = latestPatch.locator("span.pill").first();
+    await expect(latestPatch).toBeVisible();
+    await expect(latestPatch).toContainText("Latest EOD date 2026-04-23");
+    await expect(latestPatch).toContainText("Last updated 26-04-23 : 16:31:55");
+    await expect(latestPatch).toContainText(/Succeeded\s*3,570\s*\/\s*3,577/);
+    await expect(latestPatch).toContainText(/Failed\s*7/);
+    await expect(latestPatchStatus).toHaveText("Completed with errors");
+    await expect(latestPatch).toContainText("Market date 2026-04-24. Latest EOD date 2026-04-23.");
+
+    const stageDetails = latestPatch.locator("details");
+    await expect(stageDetails.locator("summary")).toContainText("Stage details");
+    await stageDetails.locator("summary").click();
+    await expect(stageDetails).toContainText("Price Fetch");
+    await expect(stageDetails).toContainText("Technical Analysis");
+    await expect(stageDetails).toContainText("Completed");
+
+    await expect.poll(() => requestedMarketDate).toBe("2026-04-23");
+  });
+
   test("D2 agent feedback progress uses the latest price trade date and preserves backend role order", async ({
     page,
   }) => {

@@ -409,14 +409,79 @@ export type EodFreshnessLayerStatusDto = {
   latest_date: string | null;
 };
 
-export type EodFreshnessLatestDto = {
+export type EodFreshnessLatestStageDetailDto = Record<string, unknown> & {
+  trade_date?: string | null;
+  market_date?: string | null;
+  latest_date?: string | null;
+  updated_at?: string | null;
+  completed_at?: string | null;
+  last_updated_at?: string | null;
+  eod_status?: string | null;
+  status?: string | null;
+  run_status?: string | null;
+  symbols_total?: number | null;
+  total?: number | null;
+  symbols_succeeded?: number | null;
+  succeeded?: number | null;
+  completed_count?: number | null;
+  processed?: number | null;
+  symbols_failed?: number | null;
+  failed?: number | null;
+  error_count?: number | null;
+  summary?: Record<string, unknown> | null;
+};
+
+export type EodFreshnessLatestSummaryDto = Record<string, unknown> & {
+  trade_date?: string | null;
+  market_date?: string | null;
+  latest_date?: string | null;
+  updated_at?: string | null;
+  completed_at?: string | null;
+  last_updated_at?: string | null;
+  eod_status?: string | null;
+  status?: string | null;
+  run_status?: string | null;
+  symbols_total?: number | null;
+  total?: number | null;
+  symbols_succeeded?: number | null;
+  succeeded?: number | null;
+  completed_count?: number | null;
+  processed?: number | null;
+  symbols_failed?: number | null;
+  failed?: number | null;
+  error_count?: number | null;
+};
+
+export type EodFreshnessLatestDto = Record<string, unknown> & {
+  trade_date?: string | null;
+  market_date?: string | null;
+  latest_date?: string | null;
+  updated_at?: string | null;
+  completed_at?: string | null;
+  last_updated_at?: string | null;
   price_trade_date?: string | null;
   eod_status?: string | null;
+  status?: string | null;
+  run_status?: string | null;
   symbols_total?: number | null;
+  total?: number | null;
   symbols_succeeded?: number | null;
+  succeeded?: number | null;
   symbols_failed?: number | null;
+  failed?: number | null;
   technical_market_date?: string | null;
   action_market_date?: string | null;
+  summary?: EodFreshnessLatestSummaryDto | null;
+  stages?: Record<string, EodFreshnessLatestStageDetailDto | null> | null;
+  stage_details?: Record<string, EodFreshnessLatestStageDetailDto | null> | null;
+  stageDetails?: Record<string, EodFreshnessLatestStageDetailDto | null> | null;
+  price?: EodFreshnessLatestStageDetailDto | null;
+  technical?: EodFreshnessLatestStageDetailDto | null;
+  technical_analysis?: EodFreshnessLatestStageDetailDto | null;
+  action?: EodFreshnessLatestStageDetailDto | null;
+  action_summary?: EodFreshnessLatestStageDetailDto | null;
+  fundamentals?: EodFreshnessLatestStageDetailDto | null;
+  fundamental?: EodFreshnessLatestStageDetailDto | null;
 };
 
 export type EodFreshnessResponseDto = {
