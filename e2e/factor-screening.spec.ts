@@ -1,0 +1,649 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const marketDate = "2026-04-23";
+
+const factorPayloads = {
+  momentum: {
+    market_date: marketDate,
+    feature_version: "momentum_v2",
+    summary: {
+      entries: 3,
+      requested_symbols: [],
+      matched_symbols: ["005930", "035420", "000660"],
+      missing_symbols: [],
+      ranked_symbols: 3,
+      eligible_symbols: 1,
+    },
+    items: [
+      {
+        symbol: "005930",
+        name_ko: "Samsung Electronics",
+        market: "KOSPI",
+        market_date: marketDate,
+        close_price: 71000,
+        ma_60: 68000,
+        ma_120: 65000,
+        momentum_12_1: 0.28,
+        return_5d: 0.07,
+        has_sufficient_history: true,
+        is_price_above_ma120: true,
+        is_ma60_above_ma120: true,
+        is_recent_overheated: false,
+        momentum_rank: 3,
+        momentum_percentile: 0.97,
+        is_momentum_eligible: true,
+        factor_payload: null,
+        captured_at: null,
+      },
+      {
+        symbol: "035420",
+        name_ko: "NAVER",
+        market: "KOSPI",
+        market_date: marketDate,
+        close_price: 185000,
+        ma_60: 176000,
+        ma_120: 168000,
+        momentum_12_1: 0.18,
+        return_5d: 0.02,
+        has_sufficient_history: true,
+        is_price_above_ma120: true,
+        is_ma60_above_ma120: true,
+        is_recent_overheated: true,
+        momentum_rank: 16,
+        momentum_percentile: 0.72,
+        is_momentum_eligible: false,
+        factor_payload: null,
+        captured_at: null,
+      },
+      {
+        symbol: "000660",
+        name_ko: "SK Hynix",
+        market: "KOSPI",
+        market_date: marketDate,
+        close_price: 201000,
+        ma_60: 194000,
+        ma_120: 189000,
+        momentum_12_1: 0.23,
+        return_5d: 0.05,
+        has_sufficient_history: false,
+        is_price_above_ma120: true,
+        is_ma60_above_ma120: true,
+        is_recent_overheated: false,
+        momentum_rank: null,
+        momentum_percentile: null,
+        is_momentum_eligible: false,
+        factor_payload: null,
+        captured_at: null,
+      },
+    ],
+  },
+  lowRisk: {
+    market_date: marketDate,
+    feature_version: "low_risk_v1",
+    summary: {
+      entries: 2,
+      requested_symbol: null,
+      matched_symbols: ["000660", "005930"],
+      missing_symbols: [],
+      eligible_count: 1,
+      liquidity_floor_pass_count: 2,
+      insufficient_history_count: 0,
+    },
+    items: [
+      {
+        symbol: "000660",
+        name_ko: "SK Hynix",
+        market: "KOSPI",
+        market_date: marketDate,
+        volatility_60d: 0.11,
+        volatility_120d: 0.13,
+        max_drawdown_120d: -0.15,
+        avg_trading_value_20d: 145000000,
+        volatility_60d_rank: 8,
+        volatility_120d_rank: 9,
+        max_drawdown_120d_rank: 5,
+        liquidity_rank: 120,
+        volatility_60d_percentile: 0.94,
+        volatility_120d_percentile: 0.92,
+        max_drawdown_120d_percentile: 0.91,
+        liquidity_percentile: 0.87,
+        passes_liquidity_floor: true,
+        low_risk_score: 0.93,
+        low_risk_classification: "eligible",
+        is_low_risk_eligible: true,
+        history_days_available: 250,
+        factor_payload: null,
+        captured_at: null,
+      },
+      {
+        symbol: "005930",
+        name_ko: "Samsung Electronics",
+        market: "KOSPI",
+        market_date: marketDate,
+        volatility_60d: 0.16,
+        volatility_120d: 0.18,
+        max_drawdown_120d: -0.21,
+        avg_trading_value_20d: 120000000,
+        volatility_60d_rank: 45,
+        volatility_120d_rank: 41,
+        max_drawdown_120d_rank: 39,
+        liquidity_rank: 140,
+        volatility_60d_percentile: 0.72,
+        volatility_120d_percentile: 0.74,
+        max_drawdown_120d_percentile: 0.7,
+        liquidity_percentile: 0.8,
+        passes_liquidity_floor: true,
+        low_risk_score: 0.66,
+        low_risk_classification: "watchlist",
+        is_low_risk_eligible: false,
+        history_days_available: 250,
+        factor_payload: null,
+        captured_at: null,
+      },
+    ],
+  },
+  beta: {
+    market_date: marketDate,
+    feature_version: "beta_v1",
+    summary: {
+      entries: 1,
+      requested_symbol: null,
+      matched_symbols: ["005930"],
+      missing_symbols: [],
+      eligible_count: 1,
+      watchlist_count: 0,
+      insufficient_history_count: 0,
+    },
+    items: [
+      {
+        symbol: "005930",
+        name_ko: "Samsung Electronics",
+        market: "KOSPI",
+        market_date: marketDate,
+        benchmark_id: "KOSPI_EQW",
+        benchmark_market: "KOSPI",
+        beta_60d: 0.74,
+        beta_120d: 0.79,
+        beta_60d_rank: 15,
+        beta_120d_rank: 18,
+        beta_60d_percentile: 0.84,
+        beta_120d_percentile: 0.88,
+        low_beta_score: 0.85,
+        low_beta_classification: "eligible",
+        is_low_beta_eligible: true,
+        history_days_available: 240,
+        factor_payload: null,
+        captured_at: null,
+      },
+    ],
+  },
+  value: {
+    market_date: marketDate,
+    feature_version: "value_v1",
+    summary: {
+      entries: 1,
+      requested_symbol: null,
+      matched_symbols: ["005930"],
+      missing_symbols: [],
+      scored_count: 1,
+      invalid_per_count: 0,
+      missing_metric_count: 0,
+    },
+    items: [
+      {
+        symbol: "005930",
+        name_ko: "Samsung Electronics",
+        market: "KOSPI",
+        market_date: marketDate,
+        per: 11.2,
+        pbr: 1.4,
+        dividend_yield: 0.025,
+        per_status: "available",
+        per_rank: 42,
+        pbr_rank: 38,
+        dividend_yield_rank: 19,
+        per_percentile: 0.76,
+        pbr_percentile: 0.81,
+        dividend_yield_percentile: 0.87,
+        value_score: 0.83,
+        value_rank: 9,
+        value_percentile: 0.91,
+        value_status: "scored",
+        factor_payload: null,
+        captured_at: null,
+      },
+    ],
+  },
+  advancedValue: {
+    market_date: marketDate,
+    feature_version: "advanced_value_v1",
+    summary: {
+      entries: 1,
+      requested_symbol: null,
+      matched_symbols: ["005930"],
+      missing_symbols: [],
+      eligible_count: 1,
+      watchlist_count: 0,
+      ineligible_count: 0,
+      insufficient_components_count: 0,
+    },
+    items: [
+      {
+        symbol: "005930",
+        name_ko: "Samsung Electronics",
+        market: "KOSPI",
+        market_date: marketDate,
+        market_cap_proxy: 420000000000,
+        enterprise_value: 430000000000,
+        ebitda: 51000000000,
+        free_cash_flow: 19000000000,
+        fcf_yield: 0.045,
+        ev_to_ebitda: 8.4,
+        fcf_yield_status: "available",
+        ev_to_ebitda_status: "available",
+        fcf_yield_valid_for_scoring: true,
+        ev_to_ebitda_valid_for_scoring: true,
+        fcf_yield_rank: 14,
+        ev_to_ebitda_rank: 27,
+        fcf_yield_percentile: 0.88,
+        ev_to_ebitda_percentile: 0.74,
+        advanced_value_score: 0.86,
+        advanced_value_rank: 11,
+        advanced_value_percentile: 0.9,
+        advanced_value_components_used: 2,
+        advanced_value_classification: "eligible",
+        is_advanced_value_eligible: true,
+        factor_payload: null,
+        captured_at: null,
+      },
+    ],
+  },
+} as const;
+
+const symbolMeta = {
+  "005930": {
+    market: "KOSPI",
+    name: "Samsung Electronics",
+    standardCode: "KR7005930003",
+  },
+  "035420": {
+    market: "KOSPI",
+    name: "NAVER",
+    standardCode: "KR7035420009",
+  },
+  "000660": {
+    market: "KOSPI",
+    name: "SK Hynix",
+    standardCode: "KR7000660001",
+  },
+} as const;
+
+function buildQuote(symbol: keyof typeof symbolMeta) {
+  return {
+    symbol,
+    company_name: symbolMeta[symbol].name,
+    price: symbol === "005930" ? 71000 : symbol === "035420" ? 185000 : 201000,
+    change: symbol === "005930" ? 500 : symbol === "035420" ? -2000 : 3000,
+    change_pct: symbol === "005930" ? 0.71 : symbol === "035420" ? -1.07 : 1.52,
+    volume: 1000000,
+    turnover: 71000000000,
+    market_state: "OPEN",
+    source: "kis_live",
+    fallback: false,
+    is_live: true,
+    available: true,
+    trade_date: marketDate,
+  };
+}
+
+async function stubFactorScreeningApis(page: Page) {
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      json: {
+        today: {
+          trade_date: marketDate,
+          eod_status: "completed",
+          symbols_total: 3,
+          symbols_succeeded: 3,
+          symbols_failed: 0,
+        },
+        latest: {
+          price_trade_date: marketDate,
+          technical_market_date: marketDate,
+          action_market_date: marketDate,
+        },
+        technical: {
+          success: true,
+          latest_date: marketDate,
+        },
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/momentum-factors?**", async (route) => {
+    await route.fulfill({ json: factorPayloads.momentum });
+  });
+  await page.route("**/api/trading/eod/low-risk-factors?**", async (route) => {
+    await route.fulfill({ json: factorPayloads.lowRisk });
+  });
+  await page.route("**/api/trading/eod/beta-factors?**", async (route) => {
+    await route.fulfill({ json: factorPayloads.beta });
+  });
+  await page.route("**/api/trading/eod/value-factors?**", async (route) => {
+    await route.fulfill({ json: factorPayloads.value });
+  });
+  await page.route("**/api/trading/eod/advanced-value-factors?**", async (route) => {
+    await route.fulfill({ json: factorPayloads.advancedValue });
+  });
+
+  await page.route("**/api/trading/market/status", async (route) => {
+    await route.fulfill({
+      json: {
+        state: "OPEN",
+        is_open: true,
+        server_time: "2026-04-23T09:20:00+09:00",
+      },
+    });
+  });
+
+  await page.route("**/api/trading/quotes/*", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    const symbol = pathname.split("/").at(-1) as keyof typeof symbolMeta;
+
+    await route.fulfill({
+      json: buildQuote(symbol),
+    });
+  });
+
+  await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+    await route.fulfill({
+      json: {
+        tracked_symbols: [],
+        count: 0,
+        last_updated_at: null,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+    await route.fulfill({
+      json: {
+        status: "ok",
+        source: "kis",
+        as_of: "2026-04-23T09:20:00+09:00",
+        market: "KRX",
+        summary: {
+          item_count: 0,
+        },
+        items: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/symbols/favorites", async (route) => {
+    await route.fulfill({
+      json: {
+        count: 0,
+        items: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/symbols/search?**", async (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q")?.toUpperCase() ?? "";
+    const item = (Object.entries(symbolMeta) as Array<[keyof typeof symbolMeta, (typeof symbolMeta)[keyof typeof symbolMeta]]>)
+      .find(([symbol]) => symbol === query);
+
+    await route.fulfill({
+      json: {
+        query,
+        count: item ? 1 : 0,
+        items: item
+          ? [
+              {
+                symbol: item[0],
+                standard_code: item[1].standardCode,
+                name_ko: item[1].name,
+                market: item[1].market,
+              },
+            ]
+          : [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+    const symbol = (new URL(route.request().url()).searchParams.get("symbols") ?? "005930") as keyof typeof symbolMeta;
+
+    await route.fulfill({
+      json: {
+        request: {
+          market_date: marketDate,
+          symbols: [symbol],
+          fs_div: null,
+          fs_label: null,
+          disclosures_limit: 4,
+        },
+        summary: {
+          requested_symbol_count: 1,
+          matched_symbol_count: 1,
+          technical_snapshot_count: 0,
+          action_summary_count: 0,
+          fundamentals_count: 0,
+          recent_disclosure_symbol_count: 0,
+          missing_symbols: [],
+        },
+        items: [
+          {
+            symbol,
+            market_date: marketDate,
+            company: {
+              symbol,
+              name_ko: symbolMeta[symbol].name,
+              market: symbolMeta[symbol].market,
+              instrument_type: "stock",
+              standard_code: symbolMeta[symbol].standardCode,
+              source: "test",
+              is_active: true,
+              last_refreshed_at: null,
+              dart: {
+                corp_code: "00126380",
+                corp_name: symbolMeta[symbol].name,
+              },
+            },
+            technical_snapshot: null,
+            action_summary: null,
+            fundamentals: {
+              latest_snapshot: null,
+              history_summary: {
+                entries: 0,
+                latest_receipt_date: null,
+                latest_period_end_date: null,
+                available_business_years: [],
+                recent_periods: [],
+              },
+            },
+            recent_disclosures: {
+              count: 0,
+              items: [],
+            },
+            availability: {
+              company: true,
+              technical_snapshot: false,
+              action_summary: false,
+              fundamentals: false,
+              recent_disclosures: false,
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/technical-snapshots?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        items: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/action-summaries?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        items: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/disclosures/dart/fundamentals/history?**", async (route) => {
+    await route.fulfill({
+      json: {
+        request: {
+          symbols: [],
+          start_date: "2021-04-23",
+          end_date: marketDate,
+          fs_div: null,
+        },
+        companies: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/symbols/*/price-bars?**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    const symbol = pathname.split("/").at(-2) as keyof typeof symbolMeta;
+
+    await route.fulfill({
+      json: {
+        symbol,
+        count: 3,
+        start_date: "2026-04-21",
+        end_date: marketDate,
+        requested_start_date: "2025-04-23",
+        requested_end_date: marketDate,
+        items: [
+          {
+            trade_date: "2026-04-21",
+            open_price: 70000,
+            high_price: 71000,
+            low_price: 69500,
+            close_price: 70500,
+            volume: 1000000,
+            turnover: 70500000000,
+            source: "test",
+            captured_at: "2026-04-21T16:00:00+09:00",
+          },
+          {
+            trade_date: "2026-04-22",
+            open_price: 70600,
+            high_price: 71600,
+            low_price: 70200,
+            close_price: 70900,
+            volume: 1100000,
+            turnover: 77990000000,
+            source: "test",
+            captured_at: "2026-04-22T16:00:00+09:00",
+          },
+          {
+            trade_date: marketDate,
+            open_price: 70900,
+            high_price: 71500,
+            low_price: 70700,
+            close_price: symbol === "005930" ? 71000 : symbol === "035420" ? 185000 : 201000,
+            volume: 1200000,
+            turnover: 85200000000,
+            source: "test",
+            captured_at: "2026-04-23T16:00:00+09:00",
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        summary: {
+          entries: 1,
+          requested_symbol: null,
+          matched_symbols: ["005930"],
+          missing_symbols: [],
+          passed_count: 1,
+          not_passed_count: 0,
+        },
+        items: [
+          {
+            symbol: "005930",
+            market_date: marketDate,
+            passed_filter: true,
+            piotroski_score: 8,
+            passes_piotroski_score: true,
+            captured_at: null,
+          },
+        ],
+      },
+    });
+  });
+}
+
+test("factor screening supports switching, eligibility filtering, composite placeholder, and symbol drill-in", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await stubFactorScreeningApis(page);
+
+  await page.goto("/markets/factors");
+
+  await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+  await expect(page.getByText("2026.04.23").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open NAVER/i })).toBeVisible();
+
+  await page.getByLabel(/Eligible only/i).check();
+  await expect(page.getByRole("link", { name: /Open NAVER/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toHaveCount(0);
+
+  await page.getByLabel(/Eligible only/i).uncheck();
+  await page.getByRole("button", { name: /Low risk/i }).click();
+  await expect(page.getByText("Low-risk score").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /Composite/i }).click();
+  await expect(page.getByText(/Composite ranking slot reserved/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /Low risk/i }).click();
+  await page.getByRole("link", { name: /Open SK Hynix/i }).click();
+
+  await expect(page).toHaveURL(
+    /\/dashboard\/symbol\/000660\?name=SK\+Hynix&market=KOSPI&marketDate=2026-04-23/,
+  );
+  await expect(page.getByRole("heading", { name: /SK Hynix/i })).toBeVisible();
+});
+
+test("factor screening stays usable on mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubFactorScreeningApis(page);
+
+  await page.goto("/markets/factors");
+
+  await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+  await expect(page.getByText("2026.04.23").first()).toBeVisible();
+
+  const viewportMetrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+
+  expect(viewportMetrics.scrollWidth).toBeLessThanOrEqual(viewportMetrics.clientWidth + 1);
+
+  await page.getByRole("button", { name: /Low risk/i }).click();
+  await expect(page.getByText("Low-risk score").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /Composite/i }).click();
+  await expect(page.getByText(/Composite ranking slot reserved/i)).toBeVisible();
+});

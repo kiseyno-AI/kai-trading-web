@@ -118,6 +118,33 @@ Important behavior:
 - When a technical or action field is not confirmed upstream, the UI shows `[확인 필요]` instead of manufacturing indicator values.
 - The five dedicated detail routes reuse the same responsive chrome, dev tags, and API loaders as the overview card stack. They narrow the rendered body to the selected Stitch detail screen instead of duplicating data logic.
 
+## Factor screening route: `/markets/factors`
+
+Entry point:
+- `src/app/markets/factors/page.tsx`
+- `src/features/markets/factor-screening.tsx`
+- `src/lib/factor-screening.ts`
+
+Client loading:
+- `GET /api/trading/eod/freshness` when the route is opened without `marketDate`
+- `GET /api/trading/eod/momentum-factors?market_date={marketDate}`
+- `GET /api/trading/eod/low-risk-factors?market_date={marketDate}`
+- `GET /api/trading/eod/beta-factors?market_date={marketDate}`
+- `GET /api/trading/eod/value-factors?market_date={marketDate}`
+- `GET /api/trading/eod/advanced-value-factors?market_date={marketDate}`
+
+UI surfaces and fields:
+- Shared shell: standard `/markets` AppShell route with the existing rail/topbar chrome
+- Market-date controls: `/eod/freshness` -> latest stored `price_trade_date`, with the route preserving an explicit `marketDate` query param when provided
+- Family selector cards: each factor inspect response -> top-level `market_date`, `feature_version`, `summary.entries`, and client-derived eligible / caution / audit row counts from `item` / `items[]`
+- Ranked row list: family-specific factor items -> symbol, company name, market, ranking score / percentile / rank fields, classification or eligibility status, and one or more supporting factor details; row clicks navigate into `/dashboard/symbol/[symbol]` with forwarded `name`, `market`, and `marketDate`
+- Composite slot: reserved client-side family card plus empty-state body only; no composite API is called yet
+
+Important behavior:
+- The route loads all current factor families in parallel for the selected market date, but keeps family failures isolated so other factor slices remain usable.
+- Eligibility filters are bucketed into eligible, caution / watchlist, and audit / invalid states rather than hiding invalid rows by default.
+- The ranking page reuses the existing factor-client layer concepts from symbol detail instead of inventing factor math in the browser.
+
 ## Search route: `/search`
 
 Entry point:

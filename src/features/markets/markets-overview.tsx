@@ -1,12 +1,19 @@
 "use client";
 
+import Link from "next/link";
+
 import { useAppState } from "@/components/providers/app-state-provider";
 import { PageIntro } from "@/components/ui/page-intro";
 import { useMarketsOverview } from "@/lib/use-markets-overview";
 
 export function MarketsOverview() {
-  const { t } = useAppState();
+  const { locale, t } = useAppState();
   const overview = useMarketsOverview();
+  const factorScreeningLabel = locale === "ko" ? "팩터 스크리닝 열기" : "Open factor screening";
+  const factorScreeningCopy =
+    locale === "ko"
+      ? "구현된 팩터 inspect API를 기반으로 시장 날짜별 순위와 적격성 필터를 확인합니다."
+      : "Use the implemented factor inspect APIs for market-date ranking and eligibility-aware screening.";
 
   return (
     <div className="page-stack">
@@ -27,6 +34,15 @@ export function MarketsOverview() {
             <span className="pill neutral">{t.markets.depthSignals}</span>
             <span className="pill neutral">{t.markets.krUsWorkflow}</span>
           </div>
+          <div className="detail-list" style={{ marginTop: 18 }}>
+            <div className="detail-row">
+              <span>Factor screening</span>
+              <strong>{factorScreeningCopy}</strong>
+            </div>
+          </div>
+          <Link href="/markets/factors" className="ui-button ui-button-pill" style={{ marginTop: 18, width: "fit-content" }}>
+            <span>{factorScreeningLabel}</span>
+          </Link>
         </div>
 
         <div className="glass hero-card surface-muted">

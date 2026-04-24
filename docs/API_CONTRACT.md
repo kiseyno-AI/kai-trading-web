@@ -68,6 +68,14 @@ This document defines the first practical frontend contract for wiring `trading-
 - Dev-tag and component specs now live in `docs/MOBILE_COMPONENT_SPEC.md` and `docs/DESKTOP_COMPONENT_SPEC.md`.
 - `/search` Q3 quick access reads `GET /symbols/favorites`, opens the `+` dialog against `GET /symbols/search`, and adds a symbol by posting the replacement set to `POST /scanner/tracked-symbols`, matching the current core write API that persists scanner membership in the database.
 - `/search` Q4 trending symbols now reads exact symbols from core trending sources: `GET /scanner/realtime-trending` for the KIS tab and `GET /scanner/trending-stocks` for stored `1d`, `5d`, and `20d` tabs. The card shows five rows first and requests a larger limit when the user taps More.
+- `/markets/factors` now reads:
+  - `GET /eod/freshness` to resolve the latest stored price trade date when the route is opened without an explicit `marketDate`
+  - `GET /eod/momentum-factors?market_date=YYYY-MM-DD`
+  - `GET /eod/low-risk-factors?market_date=YYYY-MM-DD`
+  - `GET /eod/beta-factors?market_date=YYYY-MM-DD`
+  - `GET /eod/value-factors?market_date=YYYY-MM-DD`
+  - `GET /eod/advanced-value-factors?market_date=YYYY-MM-DD`
+  - The route renders one reusable factor-screening pattern with family switching, market-date aware ranking, eligibility/caution/audit filtering, natural row navigation into `/dashboard/symbol/[symbol]`, and a reserved composite slot so a later composite endpoint can land without redesigning the page
 - The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.
 
 ## Goals
