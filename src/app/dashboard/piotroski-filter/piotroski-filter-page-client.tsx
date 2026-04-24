@@ -41,6 +41,29 @@ function getQuoteToneClass(value: number | null | undefined) {
   return value >= 0 ? styles.positiveTone : styles.negativeTone;
 }
 
+function getPiotroskiMarketDateNote(
+  requestedMarketDate: string | null | undefined,
+  effectiveMarketDate: string | null | undefined,
+  isLatestFallback: boolean,
+) {
+  const requestedDate = requestedMarketDate?.trim() || null;
+  const effectiveDate = effectiveMarketDate?.trim() || null;
+
+  if (!effectiveDate) return null;
+
+  if (requestedDate && requestedDate !== effectiveDate) {
+    return isLatestFallback
+      ? `Requested ${requestedDate}. Showing the latest available result for ${effectiveDate}.`
+      : `Requested ${requestedDate}. Showing the resolved result for ${effectiveDate}.`;
+  }
+
+  if (isLatestFallback) {
+    return `Showing the latest available result for ${effectiveDate}.`;
+  }
+
+  return null;
+}
+
 async function loadFreshness() {
   return getCachedTradingApiJson<EodFreshnessResponseDto>(
     resolveTradingApiClientPath("/api/trading/eod/freshness"),
@@ -122,6 +145,11 @@ export default function PiotroskiFilterPageClient() {
     };
   }, [marketDate]);
 
+  const displayedMarketDate = data?.marketDate ?? marketDate;
+  const marketDateNote = data
+    ? getPiotroskiMarketDateNote(data.requestedMarketDate, data.marketDate, data.isLatestFallback)
+    : null;
+
   return (
     <MobileAppChrome
       activeNav="dashboard"
@@ -136,7 +164,7 @@ export default function PiotroskiFilterPageClient() {
 
           <div className={styles.appHeaderActions}>
             <span className={`pill ${styles.marketDatePill}`}>
-              {marketDate ? `MD ${marketDate}` : "MD pending"}
+              {displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending"}
             </span>
             <DevModeToggle />
           </div>
@@ -153,8 +181,8 @@ export default function PiotroskiFilterPageClient() {
             <p className={styles.eyebrow}>Piotroski Filter</p>
             <h1 className={styles.pageTitle}>Piotroski filter pass list</h1>
             <p className={styles.pageCopy}>
-              {marketDate
-                ? `Showing passed symbols for ${marketDate}, ranked by Piotroski score descending.`
+              {displayedMarketDate
+                ? `Showing passed symbols for ${displayedMarketDate}, ranked by Piotroski score descending.${marketDateNote ? ` ${marketDateNote}` : ""}`
                 : "Resolving the latest stored Piotroski market date."}
             </p>
           </div>
@@ -168,7 +196,7 @@ export default function PiotroskiFilterPageClient() {
           <div className={styles.summaryGrid}>
             <div className={styles.summaryCard}>
               <span>Market date</span>
-              <strong>{marketDate ?? "Pending"}</strong>
+              <strong>{displayedMarketDate ?? "Pending"}</strong>
             </div>
             <div className={styles.summaryCard}>
               <span>Passed symbols</span>
@@ -231,8 +259,8 @@ export default function PiotroskiFilterPageClient() {
             </div>
           ) : (
             <div className={styles.emptyState}>
-              {marketDate
-                ? `No Piotroski pass symbols were stored for ${marketDate}.`
+              {displayedMarketDate
+                ? `No Piotroski pass symbols were stored for ${displayedMarketDate}.`
                 : "Piotroski market date is pending."}
             </div>
           )}

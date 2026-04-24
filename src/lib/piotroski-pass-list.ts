@@ -47,8 +47,18 @@ export type PiotroskiPassListItem = {
   quote: PiotroskiQuoteResponse | null;
 };
 
+export type PiotroskiMarketDateResolution = {
+  requestedMarketDate: string | null;
+  resolvedMarketDate: string | null;
+  effectiveMarketDate: string | null;
+  isLatestFallback: boolean;
+};
+
 export type PiotroskiPassListResult = {
   marketDate: string;
+  requestedMarketDate: string | null;
+  resolvedMarketDate: string | null;
+  isLatestFallback: boolean;
   totalPassedCount: number;
   summary: EodPiotroskiFilterResultsResponseDto["summary"];
   items: PiotroskiPassListItem[];
@@ -60,6 +70,15 @@ function getJson<T>(path: string): Promise<T> {
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeMarketDate(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+
+  const trimmed = value.trim();
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed);
+
+  return match?.[1] ?? trimmed;
 }
 
 function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>): string | null {
@@ -139,6 +158,30 @@ async function enrichPiotroskiItem(
   };
 }
 
+export function resolvePiotroskiMarketDateResolution(
+  response: Pick<
+    EodPiotroskiFilterResultsResponseDto,
+    "market_date" | "requested_market_date" | "resolved_market_date" | "is_latest_fallback"
+  > | null | undefined,
+  requestedMarketDate: string | null | undefined,
+): PiotroskiMarketDateResolution {
+  const normalizedRequestedMarketDate = normalizeMarketDate(requestedMarketDate);
+  const responseRequestedMarketDate = normalizeMarketDate(response?.requested_market_date);
+  const responseResolvedMarketDate = normalizeMarketDate(response?.resolved_market_date);
+  const responseEffectiveMarketDate = normalizeMarketDate(response?.market_date);
+  const effectiveMarketDate =
+    responseEffectiveMarketDate ?? responseResolvedMarketDate ?? responseRequestedMarketDate ?? normalizedRequestedMarketDate;
+  const resolvedMarketDate =
+    responseResolvedMarketDate ?? responseEffectiveMarketDate ?? responseRequestedMarketDate ?? normalizedRequestedMarketDate;
+
+  return {
+    requestedMarketDate: responseRequestedMarketDate ?? normalizedRequestedMarketDate,
+    resolvedMarketDate,
+    effectiveMarketDate,
+    isLatestFallback: response?.is_latest_fallback === true,
+  };
+}
+
 export async function loadPiotroskiPassList({
   marketDate,
   limit,
@@ -150,6 +193,7 @@ export async function loadPiotroskiPassList({
   const data = await getJson<EodPiotroskiFilterResultsResponseDto>(
     `/api/trading/eod/piotroski-filter-results?${params.toString()}`,
   );
+  const marketDateResolution = resolvePiotroskiMarketDateResolution(data, marketDate);
 
   const passedItems = [...(data.items ?? [])]
     .filter((item) => item.passed_filter)
@@ -158,7 +202,10 @@ export async function loadPiotroskiPassList({
     typeof limit === "number" && Number.isFinite(limit) ? passedItems.slice(0, Math.max(limit, 0)) : passedItems;
 
   return {
-    marketDate: data.market_date,
+    marketDate: marketDateResolution.effectiveMarketDate ?? marketDate,
+    requestedMarketDate: marketDateResolution.requestedMarketDate,
+    resolvedMarketDate: marketDateResolution.resolvedMarketDate,
+    isLatestFallback: marketDateResolution.isLatestFallback,
     totalPassedCount: passedItems.length,
     summary: data.summary,
     items: await Promise.all(selectedItems.map((item) => enrichPiotroskiItem(item))),

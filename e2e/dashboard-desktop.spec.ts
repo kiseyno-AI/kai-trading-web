@@ -449,11 +449,13 @@ test.describe("dashboard desktop", () => {
       });
     });
     await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           request: {
-            market_date: "2026-04-15",
+            market_date: requestUrl.searchParams.get("market_date"),
             symbols: null,
             expected_agents: [],
           },
@@ -687,14 +689,17 @@ test.describe("dashboard desktop", () => {
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
     await expect(filteringCard).toContainText("Completed");
+    await expect(filteringCard).toContainText("Market date 2026-04-15");
     await expect(filteringCard).toContainText(/Checked\s*2/);
     await expect(filteringCard).toContainText(/Pass\s*1/);
+    await expect(filteringCard).not.toContainText("Requested");
 
     await expect.poll(() => searchRequests).toContain("123456");
   });
 
   test("D2 Filtering More opens the full pass list and rows navigate to the symbol detail page", async ({ page }) => {
-    const now = "2026-04-15T09:10:00+09:00";
+    const now = "2026-04-16T09:10:00+09:00";
+    const piotroskiRequestedMarketDates: string[] = [];
 
     await page.route("**/api/trading/market/status", async (route) => {
       await route.fulfill({
@@ -727,7 +732,7 @@ test.describe("dashboard desktop", () => {
               fallback: true,
               is_live: false,
               available: true,
-              trade_date: "2026-04-15",
+              trade_date: "2026-04-16",
               fallback_reason: "daily_price_bar_current_trade_date",
               unavailable_reason: null,
             },
@@ -745,7 +750,7 @@ test.describe("dashboard desktop", () => {
               fallback: true,
               is_live: false,
               available: true,
-              trade_date: "2026-04-15",
+              trade_date: "2026-04-16",
               fallback_reason: "daily_price_bar_current_trade_date",
               unavailable_reason: null,
             },
@@ -770,7 +775,7 @@ test.describe("dashboard desktop", () => {
           is_live: false,
           available: true,
           cached_at: now,
-          trade_date: "2026-04-15",
+          trade_date: "2026-04-16",
           fallback_reason: "daily_price_bar_current_trade_date",
           unavailable_reason: null,
         }),
@@ -793,7 +798,7 @@ test.describe("dashboard desktop", () => {
           is_live: false,
           available: true,
           cached_at: now,
-          trade_date: "2026-04-15",
+          trade_date: "2026-04-16",
           fallback_reason: "daily_price_bar_current_trade_date",
           unavailable_reason: null,
         }),
@@ -816,7 +821,7 @@ test.describe("dashboard desktop", () => {
           is_live: false,
           available: true,
           cached_at: now,
-          trade_date: "2026-04-15",
+          trade_date: "2026-04-16",
           fallback_reason: "daily_price_bar_current_trade_date",
           unavailable_reason: null,
         }),
@@ -839,7 +844,7 @@ test.describe("dashboard desktop", () => {
           is_live: false,
           available: true,
           cached_at: now,
-          trade_date: "2026-04-15",
+          trade_date: "2026-04-16",
           fallback_reason: "daily_price_bar_current_trade_date",
           unavailable_reason: null,
         }),
@@ -850,29 +855,39 @@ test.describe("dashboard desktop", () => {
         contentType: "application/json",
         body: JSON.stringify({
           today: {
-            trade_date: "2026-04-15",
+            trade_date: "2026-04-16",
             eod_status: "completed",
             symbols_total: 4,
             symbols_succeeded: 4,
             symbols_failed: 0,
           },
           latest: {
-            price_trade_date: "2026-04-15",
-            technical_market_date: "2026-04-15",
-            action_market_date: "2026-04-15",
+            price_trade_date: "2026-04-16",
+            technical_market_date: "2026-04-16",
+            action_market_date: "2026-04-16",
           },
           technical: {
             success: true,
-            latest_date: "2026-04-15",
+            latest_date: "2026-04-16",
           },
         }),
       });
     });
     await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const requestedMarketDate = requestUrl.searchParams.get("market_date");
+      piotroskiRequestedMarketDates.push(requestedMarketDate ?? "");
+
+      const effectiveMarketDate = "2026-04-15";
+      const isLatestFallback = requestedMarketDate === "2026-04-16";
+
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          market_date: "2026-04-15",
+          requested_market_date: requestedMarketDate,
+          resolved_market_date: effectiveMarketDate,
+          is_latest_fallback: isLatestFallback,
+          market_date: effectiveMarketDate,
           summary: {
             entries: 4,
             requested_symbol: null,
@@ -960,9 +975,13 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
     await expect(filteringCard).toContainText("Completed");
+    await expect(filteringCard).toContainText("Market date 2026-04-15");
     await expect(filteringCard).toContainText(/Checked\s*4/);
     await expect(filteringCard).toContainText(/Pass\s*4/);
+    await expect(filteringCard).toContainText("Requested 2026-04-16");
+    await expect(filteringCard).toContainText("Latest available 2026-04-15");
 
     await filteringCard
       .getByRole("link", { name: /Open the full Piotroski filter pass list/i })
@@ -970,6 +989,8 @@ test.describe("dashboard desktop", () => {
 
     await expect(page).toHaveURL(/\/dashboard\/piotroski-filter\?marketDate=2026-04-15$/);
     await expect(page.getByRole("heading", { name: /Piotroski filter pass list/i })).toBeVisible();
+    await expect(page.getByText(/Showing passed symbols for 2026-04-15/)).toBeVisible();
+    await expect(page.getByText(/Requested 2026-04-16/)).toHaveCount(0);
 
     const fullListRows = page.locator('a[href*="/dashboard/symbol/"]');
     await expect(fullListRows).toHaveCount(4);
@@ -983,6 +1004,7 @@ test.describe("dashboard desktop", () => {
     await expect(page).toHaveURL(
       /\/dashboard\/symbol\/000660\?name=SK(?:\+|%20)hynix&marketDate=2026-04-15$/,
     );
+    expect(piotroskiRequestedMarketDates).toContain("2026-04-15");
     await expect(page.getByRole("heading", { name: "SK hynix" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
   });
