@@ -218,7 +218,12 @@ export function getFundamentalsStageDisplayCounts(
   if (latestRunStatus === "running" && latestRun) {
     return {
       symbolsTotal: latestRun.symbols_total ?? null,
-      symbolsChecked: latestRun.symbols_checked ?? null,
+      symbolsChecked:
+        latestRun.symbols_refreshed ??
+        latestRun.symbols_checked ??
+        latestRun.symbols_fresh ??
+        latestRun.symbols_total ??
+        null,
       symbolsFailed: latestRun.symbols_failed ?? null,
     };
   }

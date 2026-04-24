@@ -916,8 +916,6 @@ function getFundamentalsFreshnessStage(
   latestFundamentalsDate: string | null,
   useTodayStage: boolean,
 ): EodFreshnessStageDto | null {
-  if (useTodayStage && freshness?.today?.fundamentals) return freshness.today.fundamentals;
-
   const { symbolsTotal, symbolsChecked, symbolsFailed } = getFundamentalsStageDisplayCounts(
     freshness,
     fundamentalsStatus,
