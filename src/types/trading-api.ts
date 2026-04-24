@@ -504,7 +504,10 @@ export type EodPiotroskiFilterResultItemDto = {
 };
 
 export type EodPiotroskiFilterResultsResponseDto = {
-  market_date: string;
+  market_date?: string | null;
+  requested_market_date?: string | null;
+  resolved_market_date?: string | null;
+  is_latest_fallback?: boolean | null;
   summary: {
     entries: number;
     requested_symbol: string | null;

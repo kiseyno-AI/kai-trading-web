@@ -743,6 +743,29 @@ function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function getPiotroskiMarketDateNote(
+  requestedMarketDate: string | null | undefined,
+  effectiveMarketDate: string | null | undefined,
+  isLatestFallback: boolean,
+  copy: DashboardLiveCopy,
+) {
+  const requestedDate = hasTextValue(requestedMarketDate) ? requestedMarketDate : null;
+  const effectiveDate = hasTextValue(effectiveMarketDate) ? effectiveMarketDate : null;
+
+  if (!effectiveDate) return null;
+
+  if (requestedDate && requestedDate !== effectiveDate) {
+    const resolvedLabel = isLatestFallback ? copy.piotroski.latestAvailableDate : copy.piotroski.resolvedDate;
+    return `${copy.piotroski.requestedDate} ${requestedDate} · ${resolvedLabel} ${effectiveDate}`;
+  }
+
+  if (isLatestFallback) {
+    return `${copy.piotroski.latestAvailableDate} ${effectiveDate}`;
+  }
+
+  return null;
+}
+
 function hasEodReadinessSignal(freshness: EodFreshnessResponseDto | null) {
   return (
     hasTextValue(getLatestPriceTradeDate(freshness)) ||
@@ -2394,13 +2417,25 @@ export function LiveDashboardClient({
         : piotroskiBoardLoadState === "error"
           ? "warning"
           : "neutral";
+  const filteringRequestedMarketDate = piotroskiBoard?.requestedMarketDate ?? piotroskiMarketDate;
+  const filteringResolvedMarketDate = piotroskiBoard?.resolvedMarketDate ?? piotroskiBoard?.marketDate ?? piotroskiMarketDate;
+  const filteringDisplayMarketDate = piotroskiBoard?.marketDate ?? filteringResolvedMarketDate ?? piotroskiMarketDate;
+  const filteringMarketDateNote =
+    piotroskiBoardLoadState === "ready"
+      ? getPiotroskiMarketDateNote(
+          filteringRequestedMarketDate,
+          filteringDisplayMarketDate,
+          piotroskiBoard?.isLatestFallback === true,
+          copy,
+        )
+      : null;
   const filteringCheckedCount = piotroskiBoard?.summary.entries ?? null;
   const filteringPassCount = piotroskiBoard?.summary.passed_count ?? piotroskiBoard?.totalPassedCount ?? null;
   const filteringNote =
     piotroskiBoardLoadState === "error"
       ? piotroskiBoardError ?? copy.piotroski.unavailable
     : piotroskiBoardLoadState === "ready"
-        ? null
+        ? filteringMarketDateNote
       : piotroskiMarketDate
           ? copy.piotroski.pendingForDate
           : copy.piotroski.marketDatePending;
@@ -2717,10 +2752,12 @@ export function LiveDashboardClient({
                 <div>
                   <p className={styles.sectionEyebrow}>{copy.operational.piotroskiEyebrow}</p>
                   <h2 className={styles.sectionTitle}>{copy.operational.piotroskiTitle}</h2>
-                  <p className={styles.cardContext}>{copy.operational.marketDate} {piotroskiMarketDate ?? UNKNOWN_LABEL}</p>
+                  <p className={styles.cardContext}>
+                    {copy.operational.marketDate} {filteringDisplayMarketDate ?? UNKNOWN_LABEL}
+                  </p>
                 </div>
                 <Link
-                  href={buildPiotroskiListHref(piotroskiMarketDate)}
+                  href={buildPiotroskiListHref(filteringDisplayMarketDate)}
                   className={styles.sectionLink}
                   aria-label={copy.operational.openPiotroskiList}
                 >
