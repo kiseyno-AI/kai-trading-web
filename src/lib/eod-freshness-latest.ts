@@ -229,6 +229,13 @@ function getLatestStageDetails(freshness: EodFreshnessResponseDto | null) {
   return sortStageDetails([...stageDetailsByKey.values()]);
 }
 
+export function getLatestEodPatchStageDetail(
+  freshness: EodFreshnessResponseDto | null,
+  key: LatestEodPatchStageKey,
+) {
+  return getLatestStageDetails(freshness).find((detail) => detail.key === key) ?? null;
+}
+
 function getPreferredAggregateStage(stageDetails: LatestEodPatchStageDetail[]) {
   for (const preferredKey of ["price", "technical_analysis", "action_summary", "fundamentals"] as const) {
     const detail = stageDetails.find((item) => item.key === preferredKey);

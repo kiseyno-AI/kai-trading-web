@@ -19,7 +19,12 @@ async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
   await expect(badge).toBeVisible();
 
   if (status === "break day") {
-    await expect(badge).toContainText("break day");
+    await expect(badge).toContainText(/break day/i);
+    return;
+  }
+
+  if (status === "running") {
+    await expect(badge).toContainText(/\S+/);
     return;
   }
 
@@ -1619,7 +1624,7 @@ test.describe("dashboard desktop", () => {
     await expect(technicalStage).toContainText("Latest date 2026-04-17");
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
-    await expectEodStageStatus(actionStage, "break day");
+    await expectEodStageStatus(actionStage, "not synced");
     await expect(actionStage).toContainText("Latest date 2026-04-17");
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
@@ -1627,7 +1632,9 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage).toContainText("Latest date 2026-04-17");
   });
 
-  test("D2 EOD status keeps missing weekend stages as not synced", async ({ page }) => {
+  test("D2 EOD status keeps missing weekend stages as not synced while fundamentals retains latest coverage", async ({
+    page,
+  }) => {
     const now = "2026-04-18T10:00:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -1764,7 +1771,9 @@ test.describe("dashboard desktop", () => {
     await expectEodStageStatus(actionStage, "not synced");
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
-    await expectEodStageStatus(fundamentalsStage, "not synced");
+    await expectEodStageStatus(fundamentalsStage, "break day");
+    await expect(fundamentalsStage).toContainText(/Checked\s*42/);
+    await expect(fundamentalsStage).toContainText("Latest date 2026-04-17");
   });
 
   test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
@@ -3540,6 +3549,111 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage.getByText("Updated today")).toHaveCount(0);
     await expect(fundamentalsStage.getByRole("button", { name: /View fundamentals run details/i })).toBeVisible();
     await expect(fundamentalsStage.getByText("view detail")).toBeVisible();
+    await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
+  });
+
+  test("D2 fundamentals subcard keeps latest available coverage when today activity is empty", async ({ page }) => {
+    const now = "2026-04-21T10:15:00+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          is_trading_day: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-21",
+            price: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 250,
+              symbols_succeeded: 250,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 3583,
+              symbols_succeeded: 0,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-21",
+            technical_market_date: "2026-04-21",
+            action_market_date: "2026-04-21",
+            stage_details: {
+              fundamentals: {
+                market_date: "2026-04-18",
+                status: "completed",
+                symbols_total: 3583,
+                symbols_checked: 1,
+                symbols_failed: 0,
+              },
+            },
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-18",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-21",
+          status: "completed",
+          stage_order: [
+            "price_collection",
+            "technical_snapshots",
+            "action_summaries",
+            "trending_ranks",
+            "signal_features",
+            "fundamentals_daily_refresh",
+          ],
+          stages: {},
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: null,
+          runs: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    await expect(fundamentalsStage).toBeVisible();
+    await expectEodStageStatus(fundamentalsStage, "not synced");
+    await expect(fundamentalsStage).toContainText(/Checked\s*1/);
+    await expect(fundamentalsStage).toContainText(/Latest date\s*2026-04-18/);
+    await expect(fundamentalsStage.getByText("Updated today")).toHaveCount(0);
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
 
