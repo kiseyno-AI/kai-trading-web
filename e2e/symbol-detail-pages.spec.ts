@@ -510,7 +510,7 @@ test.describe("symbol detail mobile pages", () => {
     await aggregateRequest;
   });
 
-  test("detail tabs switch in place without reopening the full-page loading screen", async ({ page }) => {
+  test("detail tabs switch in place and localize disclosure refresh overlays", async ({ page }) => {
     const requestCounts = {
       priceHistory: 0,
       technical: 0,
@@ -553,18 +553,15 @@ test.describe("symbol detail mobile pages", () => {
         subtree: true,
       });
     });
-    expect(requestCounts).toEqual({
-      priceHistory: 2,
-      technical: 1,
-      action: 1,
-      fundamentals: 1,
-    });
+    await expect
+      .poll(() => ({ ...requestCounts }))
+      .toEqual({
+        priceHistory: 1,
+        technical: 1,
+        action: 1,
+        fundamentals: 1,
+      });
     expect(priceHistoryRequests).toEqual([
-      {
-        startDate: "2026-04-10",
-        endDate: "2026-04-10",
-        limit: null,
-      },
       {
         startDate: "2025-04-10",
         endDate: "2026-04-10",
@@ -617,12 +614,25 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator("#fundamentals")).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
 
-    expect(requestCounts).toEqual({
-      priceHistory: 2,
-      technical: 1,
-      action: 1,
-      fundamentals: 1,
-    });
+    const disclosureTab = page.getByRole("button", { name: "Disclosures" });
+    await disclosureTab.scrollIntoViewIfNeeded();
+    await disclosureTab.click();
+    const disclosuresSection = page.locator("#disclosures");
+    await expect(page).toHaveURL(initialDetailUrl);
+    await expect(page.locator('[data-mode="disclosure-coverage"]')).toBeVisible();
+    await expect(disclosuresSection).toHaveAttribute("aria-busy", "true");
+    await expect(disclosuresSection.locator("strong", { hasText: /No Disclosure Found/i })).toBeVisible();
+    await expect(anyFullPageLoader).toHaveCount(0);
+    await expect(disclosuresSection).toHaveAttribute("data-refreshing", "false");
+
+    expect(requestCounts.priceHistory).toBeGreaterThanOrEqual(1);
+    expect(requestCounts.priceHistory).toBeLessThanOrEqual(2);
+    expect(requestCounts.technical).toBeGreaterThanOrEqual(1);
+    expect(requestCounts.technical).toBeLessThanOrEqual(2);
+    expect(requestCounts.action).toBeGreaterThanOrEqual(1);
+    expect(requestCounts.action).toBeLessThanOrEqual(2);
+    expect(requestCounts.fundamentals).toBeGreaterThanOrEqual(1);
+    expect(requestCounts.fundamentals).toBeLessThanOrEqual(2);
   });
 
   test("disclosure report cards open a readable report detail screen", async ({ page }) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
 import {
   type UnitDataRequestOptions,
@@ -8,30 +8,68 @@ import {
   unitDataStore,
 } from "@/lib/unit-data-store";
 
+type UseUnitDataOptions<T> = UnitDataRequestOptions<T> & {
+  enabled?: boolean;
+};
+
 export type UseUnitDataResult<T> = UnitDataSnapshot<T> & {
   refetch: () => Promise<UnitDataSnapshot<T>>;
 };
 
-export function useUnitData<T>(options: UnitDataRequestOptions<T>): UseUnitDataResult<T> {
+function createIdleSnapshot<T>(): UnitDataSnapshot<T> {
+  return {
+    data: null,
+    error: null,
+    hasData: false,
+    isCached: false,
+    isInitialLoading: false,
+    isRefreshing: false,
+    isStale: false,
+    source: "none",
+    updatedAt: null,
+  };
+}
+
+export function useUnitData<T>(options: UseUnitDataOptions<T>): UseUnitDataResult<T> {
+  const enabled = options.enabled ?? true;
+  const idleSnapshot = useMemo(() => createIdleSnapshot<T>(), []);
+  const resolvedRequestOptions = useMemo(() => {
+    const requestOptions = { ...options } as UseUnitDataOptions<T>;
+    delete requestOptions.enabled;
+    return requestOptions as UnitDataRequestOptions<T>;
+  }, [options]);
   const subscribe = useCallback(
-    (listener: () => void) => unitDataStore.subscribe(options, listener),
-    [options],
+    (listener: () => void) => {
+      if (!enabled) {
+        return () => {};
+      }
+
+      return unitDataStore.subscribe(resolvedRequestOptions, listener);
+    },
+    [enabled, resolvedRequestOptions],
+  );
+
+  const getServerSnapshot = useCallback(
+    () => (enabled ? unitDataStore.getSnapshot(resolvedRequestOptions) : idleSnapshot),
+    [enabled, idleSnapshot, resolvedRequestOptions],
   );
 
   const getSnapshot = useCallback(
-    () => unitDataStore.getSnapshot(options),
-    [options],
+    () => (enabled ? unitDataStore.getSnapshot(resolvedRequestOptions) : idleSnapshot),
+    [enabled, idleSnapshot, resolvedRequestOptions],
   );
 
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   useEffect(() => {
-    void unitDataStore.ensure(options);
-  }, [options]);
+    if (!enabled) return;
+
+    void unitDataStore.ensure(resolvedRequestOptions);
+  }, [enabled, resolvedRequestOptions]);
 
   const refetch = useCallback(
-    () => unitDataStore.revalidate(options),
-    [options],
+    () => (enabled ? unitDataStore.revalidate(resolvedRequestOptions) : Promise.resolve(idleSnapshot)),
+    [enabled, idleSnapshot, resolvedRequestOptions],
   );
 
   return {
