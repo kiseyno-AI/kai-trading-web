@@ -1648,6 +1648,7 @@ function SystemFreshnessSection({
   const technicalSnapshot = aggregateContext?.technical_snapshot ?? null;
   const actionSummary = aggregateContext?.action_summary ?? null;
   const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
+  const hasFundamentalsHistory = (aggregateContext?.fundamentals.history_summary.entries ?? 0) > 0;
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
   const technicalFreshnessDate = buildTechnicalFreshnessDate(technicalSnapshot, freshness);
   const actionFreshnessDate = buildActionFreshnessDate(actionSummary, freshness);
@@ -1705,8 +1706,12 @@ function SystemFreshnessSection({
       label: copy.freshness.fundamentalsModule,
       date: fundamentalsDate ?? copy.fundamentals.noReceiptDate,
       detail: buildFundamentalsCoverageNote(null, latestFundamentals, copy),
-      tone: latestFundamentals ? "info" : "warning",
-      status: latestFundamentals ? copy.freshness.aggregateOnly : copy.freshness.noHistory,
+      tone: hasFundamentalsHistory || latestFundamentals ? "info" : "warning",
+      status: hasFundamentalsHistory
+        ? copy.freshness.historyLoaded
+        : latestFundamentals
+          ? copy.freshness.aggregateOnly
+          : copy.freshness.noHistory,
       api: "/api/trading/disclosures/dart/fundamentals/history",
     },
     {
