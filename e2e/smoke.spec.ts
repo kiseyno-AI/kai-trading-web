@@ -98,9 +98,9 @@ test.describe("smoke", () => {
       "/dashboard/symbol/005930?name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10",
     );
 
-    await expect(page.getByText("KRX: OPEN", { exact: true })).toBeVisible();
+    await expect(page.getByText("KRX: Open", { exact: true })).toBeVisible();
     await expect(page.getByText("KOSPI: Not ready", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("KOSDAQ: OPEN", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("KOSDAQ: Open", { exact: true })).toHaveCount(0);
     await expect(page.getByText("NASDAQ: Not ready", { exact: true })).toHaveCount(0);
   });
 
@@ -356,7 +356,20 @@ test.describe("smoke", () => {
     ]);
   });
 
-  test("dashboard fundamentals counts ignore today data when stale latest inspect is unavailable", async () => {
+  test("dashboard fundamentals counts prefer latest coverage unless the UI explicitly asks for today", async () => {
+    const freshness = {
+      latest: {
+        stage_details: {
+          fundamentals: {
+            market_date: "2026-04-18",
+            status: "completed_with_errors",
+            symbols_total: 3581,
+            symbols_checked: 3570,
+            symbols_failed: 7,
+          },
+        },
+      },
+    };
     const todayFundamentalsStage = {
       status: "missing",
       symbols_total: 3581,
@@ -364,16 +377,18 @@ test.describe("smoke", () => {
       symbols_failed: 0,
     };
 
-    expect(getFundamentalsStageDisplayCounts({ latest_run: null, runs: [] }, todayFundamentalsStage, false)).toEqual({
-      symbolsTotal: null,
-      symbolsChecked: null,
-      symbolsFailed: null,
-    });
-    expect(getFundamentalsStageDisplayCounts({ latest_run: null, runs: [] }, todayFundamentalsStage, true)).toEqual({
-      symbolsTotal: 3581,
-      symbolsChecked: 0,
-      symbolsFailed: 0,
-    });
+    expect(getFundamentalsStageDisplayCounts(freshness, { latest_run: null, runs: [] }, todayFundamentalsStage, false))
+      .toEqual({
+        symbolsTotal: 3581,
+        symbolsChecked: 3570,
+        symbolsFailed: 7,
+      });
+    expect(getFundamentalsStageDisplayCounts(freshness, { latest_run: null, runs: [] }, todayFundamentalsStage, true))
+      .toEqual({
+        symbolsTotal: 3581,
+        symbolsChecked: 0,
+        symbolsFailed: 0,
+      });
   });
 
   test("disclosure section only shows an empty state after aggregate context succeeds", async () => {

@@ -422,7 +422,9 @@ export type EodFreshnessLatestStageDetailDto = Record<string, unknown> & {
   symbols_total?: number | null;
   total?: number | null;
   symbols_succeeded?: number | null;
+  symbols_checked?: number | null;
   succeeded?: number | null;
+  checked?: number | null;
   completed_count?: number | null;
   processed?: number | null;
   symbols_failed?: number | null;
@@ -444,7 +446,9 @@ export type EodFreshnessLatestSummaryDto = Record<string, unknown> & {
   symbols_total?: number | null;
   total?: number | null;
   symbols_succeeded?: number | null;
+  symbols_checked?: number | null;
   succeeded?: number | null;
+  checked?: number | null;
   completed_count?: number | null;
   processed?: number | null;
   symbols_failed?: number | null;

@@ -41,11 +41,16 @@ import {
   getEodSymbolsFailed,
   getEodSymbolsSucceeded,
   getEodSymbolsTotal,
+  getFundamentalsRunDate,
   getFundamentalsStageDisplayCounts,
+  getLatestAvailableFundamentalsCoverage,
+  getLatestAvailableFundamentalsDate,
   getLatestEodSymbolsFailed,
   getLatestEodSymbolsSucceeded,
   getLatestEodSymbolsTotal,
+  getLatestFundamentalsRun,
   isRunningPipelineStage,
+  shouldUseTodayFundamentalsStageData,
   shouldUseTodayStageData,
 } from "@/lib/dashboard-eod-stage-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
@@ -430,37 +435,12 @@ function getFundamentalsFreshnessLayer(
   return freshness?.fundamentals ?? freshness?.fundamental ?? null;
 }
 
-function getLatestFundamentalsRun(
-  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
-): DartFundamentalsDailyRunDto | null {
-  return fundamentalsStatus?.latest_run ?? fundamentalsStatus?.runs?.[0] ?? null;
-}
-
-function getDatePart(value: string | null | undefined) {
-  if (!hasTextValue(value)) return null;
-  return value.slice(0, 10);
-}
-
-function getFundamentalsRunDate(run: DartFundamentalsDailyRunDto | null) {
-  return run?.market_date ?? getDatePart(run?.completed_at) ?? getDatePart(run?.started_at);
-}
-
 function getFirstTextValue(...values: Array<string | null | undefined>) {
   for (const value of values) {
     if (hasTextValue(value)) return value.trim();
   }
 
   return null;
-}
-
-function getFundamentalsFreshnessDate(
-  freshness: EodFreshnessResponseDto | null,
-  fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
-) {
-  return getFirstTextValue(
-    getFundamentalsFreshnessLayer(freshness)?.latest_date,
-    getFundamentalsRunDate(getLatestFundamentalsRun(fundamentalsStatus)),
-  );
 }
 
 function humanizeToken(value: string | null | undefined, fallback = UNKNOWN_LABEL) {
@@ -477,21 +457,33 @@ function normalizeFundamentalsStatusToken(value: string | null | undefined) {
   return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }
 
+function isFundamentalsFailureStatus(value: string | null | undefined) {
+  const normalizedStatus = normalizeFundamentalsStatusToken(value);
+  return (
+    normalizedStatus !== null &&
+    ["failed", "partial", "needs review", "completed with errors", "error"].includes(normalizedStatus)
+  );
+}
+
 function getFundamentalsStatusLabel(
   freshness: EodFreshnessResponseDto | null,
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
-  latestFundamentalsDate: string | null,
+  latestAvailableCoverage: ReturnType<typeof getLatestAvailableFundamentalsCoverage>,
   pipelineStage: EodPipelineStageDto | null,
-) {
+): string {
   if (normalizePipelineStageStatus(pipelineStage) === "running") return "running";
 
   const runStatus = normalizeFundamentalsStatusToken(getLatestFundamentalsRun(fundamentalsStatus)?.status);
+  if (runStatus === "running" || isFundamentalsFailureStatus(runStatus)) return runStatus ?? UNKNOWN_LABEL;
+
+  const latestCoverageStatus = normalizeFundamentalsStatusToken(latestAvailableCoverage?.status);
+  if (hasTextValue(latestCoverageStatus)) return latestCoverageStatus;
   if (hasTextValue(runStatus)) return runStatus;
 
   const freshnessLayer = getFundamentalsFreshnessLayer(freshness);
   if (freshnessLayer?.success === true) return "completed";
   if (freshnessLayer?.success === false) return "needs review";
-  if (hasTextValue(latestFundamentalsDate)) return "completed";
+  if (hasTextValue(latestAvailableCoverage?.tradeDate)) return "completed";
 
   return UNKNOWN_LABEL;
 }
@@ -551,13 +543,10 @@ function hasFundamentalsFailureSignal(
   run: DartFundamentalsDailyRunDto | null,
   statusLabel: string,
 ) {
-  const normalizedStatus = normalizeFundamentalsStatusToken(statusLabel);
   const symbolsFailed = run?.symbols_failed;
   const eventsFailed = run?.events_failed;
   return (
-    normalizedStatus === "failed" ||
-    normalizedStatus === "partial" ||
-    normalizedStatus === "needs review" ||
+    isFundamentalsFailureStatus(statusLabel) ||
     (hasNumber(symbolsFailed) && symbolsFailed > 0) ||
     (hasNumber(eventsFailed) && eventsFailed > 0) ||
     Boolean(hasTextValue(run?.error_message)) ||
@@ -930,6 +919,7 @@ function getFundamentalsFreshnessStage(
   if (useTodayStage && freshness?.today?.fundamentals) return freshness.today.fundamentals;
 
   const { symbolsTotal, symbolsChecked, symbolsFailed } = getFundamentalsStageDisplayCounts(
+    freshness,
     fundamentalsStatus,
     freshness?.today?.fundamentals,
     useTodayStage,
@@ -937,12 +927,12 @@ function getFundamentalsFreshnessStage(
   const normalizedStatus = normalizeFundamentalsStatusToken(fundamentalsStatusLabel);
   if (normalizedStatus === "running") return buildStage("running", symbolsTotal, symbolsChecked, symbolsFailed);
   if (
-    (normalizedStatus !== null && ["completed", "available", "ready"].includes(normalizedStatus)) ||
+    (normalizedStatus !== null && ["completed", "available", "ready", "success"].includes(normalizedStatus)) ||
     hasTextValue(latestFundamentalsDate)
   ) {
     return buildStage("ready", symbolsTotal, symbolsChecked, symbolsFailed);
   }
-  if (normalizedStatus !== null && ["failed", "partial", "needs review"].includes(normalizedStatus)) {
+  if (isFundamentalsFailureStatus(normalizedStatus)) {
     return buildStage("missing", symbolsTotal, symbolsChecked, symbolsFailed);
   }
 
@@ -1053,11 +1043,17 @@ function isIconOnlyEodStageStatus(statusLabel: EodStageCard["statusLabel"]) {
 }
 
 function getFundamentalsCheckedCount(
+  freshness: EodFreshnessResponseDto | null,
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
   stage: EodFreshnessStageDto | null,
 ) {
+  const latestCoverage = getLatestAvailableFundamentalsCoverage(freshness, fundamentalsStatus);
   const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
-  return latestRun?.symbols_checked ?? stage?.symbols_succeeded ?? stage?.symbols_total ?? null;
+  if (normalizeStageStatus(stage) === "running") {
+    return stage?.symbols_succeeded ?? latestRun?.symbols_checked ?? stage?.symbols_total ?? null;
+  }
+
+  return latestCoverage?.symbolsChecked ?? latestRun?.symbols_checked ?? stage?.symbols_succeeded ?? stage?.symbols_total ?? null;
 }
 
 function getSymbolCodeFromSampleItem(item: unknown): string | null {
@@ -2136,7 +2132,12 @@ export function LiveDashboardClient({
     };
   }, [agentProgressMarketDate]);
 
-  const latestFundamentalsDate = getFundamentalsFreshnessDate(freshness, fundamentalsStatus);
+  const latestAvailableFundamentalsCoverage = getLatestAvailableFundamentalsCoverage(freshness, fundamentalsStatus);
+  const latestFundamentalsDate = getFirstTextValue(
+    getLatestAvailableFundamentalsDate(freshness, fundamentalsStatus),
+    getFundamentalsFreshnessLayer(freshness)?.latest_date,
+    getFundamentalsRunDate(getLatestFundamentalsRun(fundamentalsStatus)),
+  );
   const todayTradeDate = getFirstTextValue(freshness?.today?.trade_date);
   const latestEodTradeDate = getLatestEodTradeDate(freshness);
   const priceLatestDate = getFirstTextValue(getLatestPriceTradeDate(freshness), latestEodTradeDate);
@@ -2157,15 +2158,15 @@ export function LiveDashboardClient({
   const useTodayPriceStage = shouldUseTodayStageData(todayTradeDate, priceLatestDate, pricePipelineStage);
   const useTodayTechnicalStage = shouldUseTodayStageData(todayTradeDate, technicalLatestDate, technicalPipelineStage);
   const useTodayActionStage = shouldUseTodayStageData(todayTradeDate, actionLatestDate, actionPipelineStage);
-  const useTodayFundamentalsStage = shouldUseTodayStageData(
-    todayTradeDate,
-    latestFundamentalsDate,
+  const useTodayFundamentalsStage = shouldUseTodayFundamentalsStageData(
+    freshness,
+    fundamentalsStatus,
     fundamentalsPipelineStage,
   );
   const fundamentalsStatusLabel = getFundamentalsStatusLabel(
     freshness,
     fundamentalsStatus,
-    latestFundamentalsDate,
+    latestAvailableFundamentalsCoverage,
     fundamentalsPipelineStage,
   );
   const fundamentalsFreshnessStage = getFundamentalsFreshnessStage(
@@ -2222,7 +2223,7 @@ export function LiveDashboardClient({
     {
       label: copy.operational.checked,
       value: formatEodSymbolCount(
-        getFundamentalsCheckedCount(fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
+        getFundamentalsCheckedCount(freshness, fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
         numberLocale,
       ),
     },
