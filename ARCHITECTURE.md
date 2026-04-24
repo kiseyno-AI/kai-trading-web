@@ -13,6 +13,7 @@
 - `/dashboard` — primary command surface
 - `/my-symbols` — full tracked and favorite symbol workspace for the mobile toolbar flow
 - `/markets` — market intelligence and screening space
+- `/markets/factors` — factor-family ranking and screening workspace built on stored factor APIs
 - `/bots` — automation management space
 
 ## Folder Conventions
