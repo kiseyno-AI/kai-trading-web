@@ -24,6 +24,7 @@
 - `src/data/*` owns mock/demo data and view contracts until API adapters are added
 - `src/i18n/locales/*.json` owns English/Korean UI string dictionaries; `src/i18n/messages.ts` loads and types the active string IDs
 - `src/lib/*` owns generic helpers and formatting utilities
+- `src/lib/unit-data-store.ts` and `src/lib/use-unit-data.ts` own the shared client-side cache/revalidation layer for unit-level data access
 
 ## Core Areas
 - app router pages
