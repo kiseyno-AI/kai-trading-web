@@ -16,7 +16,7 @@ import {
   getLatestPriceTradeDate,
   getLatestTechnicalMarketDate,
 } from "@/lib/eod-freshness-latest";
-import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { formatDisplayTimestamp } from "@/lib/format";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
 import {
   getFundamentalsRunDate,
@@ -31,15 +31,12 @@ import {
   UNKNOWN_LABEL,
   buildAgentRoleCards,
   buildEodStageCard,
-  buildTrackedDetailHref,
-  describeQuoteSource,
+  buildPiotroskiFilteringCardModel,
+  buildTrackedSymbolCardModels,
   formatEodSymbolCount,
-  formatSignedNumber,
-  formatSignedPercent,
   getAgentProgressStatusLabel,
   getAgentProgressStatusLabels,
   getAgentRoleStatusLabels,
-  getCompanyName,
   getDashboardLoadErrorMessage,
   getFirstTextValue,
   getFundamentalsCheckedCount,
@@ -49,11 +46,9 @@ import {
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedSymbolsDetail,
   getPipelineStage,
-  getPriceFreshnessLabel,
   getPriceFreshnessStage,
   getResolvedAgentProgressRunStatus,
   getStageStatusLabel,
-  getTechnicalFreshnessLabel,
   getTechnicalFreshnessStage,
   getActionFreshnessStage,
   getFundamentalsFreshnessStage,
@@ -128,34 +123,6 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
 
   return parsedBody as T;
-}
-
-function getQuoteToneClass(value: number | null | undefined): string {
-  if (typeof value !== "number") return "";
-  return value >= 0 ? styles.positive : styles.negative;
-}
-
-function getPiotroskiMarketDateNote(
-  requestedMarketDate: string | null | undefined,
-  effectiveMarketDate: string | null | undefined,
-  isLatestFallback: boolean,
-  copy: ReturnType<typeof getDashboardLiveCopy>,
-) {
-  const requestedDate = typeof requestedMarketDate === "string" && requestedMarketDate.trim() ? requestedMarketDate : null;
-  const effectiveDate = typeof effectiveMarketDate === "string" && effectiveMarketDate.trim() ? effectiveMarketDate : null;
-
-  if (!effectiveDate) return null;
-
-  if (requestedDate && requestedDate !== effectiveDate) {
-    const resolvedLabel = isLatestFallback ? copy.piotroski.latestAvailableDate : copy.piotroski.resolvedDate;
-    return `${copy.piotroski.requestedDate} ${requestedDate} · ${resolvedLabel} ${effectiveDate}`;
-  }
-
-  if (isLatestFallback) {
-    return `${copy.piotroski.latestAvailableDate} ${effectiveDate}`;
-  }
-
-  return null;
 }
 
 export function LiveDashboardClient({
@@ -376,46 +343,21 @@ export function LiveDashboardClient({
         : agentProgressRunStatus === "stalled"
           ? "warning"
           : "neutral";
-  const filteringStatusLabel =
-    piotroskiBoardLoadState === "ready"
-      ? copy.piotroski.completed
-    : piotroskiBoardLoadState === "loading"
-        ? copy.piotroski.loading
-    : piotroskiBoardLoadState === "error"
-          ? copy.piotroski.needsReview
-    : piotroskiMarketDate
-            ? copy.piotroski.pending
-            : copy.piotroski.waiting;
-  const filteringStatusTone =
-    piotroskiBoardLoadState === "ready"
-      ? "positive"
-      : piotroskiBoardLoadState === "loading"
-        ? "neutral"
-        : piotroskiBoardLoadState === "error"
-          ? "warning"
-          : "neutral";
-  const filteringRequestedMarketDate = piotroskiBoard?.requestedMarketDate ?? piotroskiMarketDate;
-  const filteringResolvedMarketDate = piotroskiBoard?.resolvedMarketDate ?? piotroskiBoard?.marketDate ?? piotroskiMarketDate;
-  const filteringDisplayMarketDate = piotroskiBoard?.marketDate ?? filteringResolvedMarketDate ?? piotroskiMarketDate;
-  const filteringMarketDateNote =
-    piotroskiBoardLoadState === "ready"
-      ? getPiotroskiMarketDateNote(
-          filteringRequestedMarketDate,
-          filteringDisplayMarketDate,
-          piotroskiBoard?.isLatestFallback === true,
-          copy,
-        )
-      : null;
-  const filteringCheckedCount = piotroskiBoard?.summary.entries ?? null;
-  const filteringPassCount = piotroskiBoard?.summary.passed_count ?? piotroskiBoard?.totalPassedCount ?? null;
-  const filteringNote =
-    piotroskiBoardLoadState === "error"
-      ? piotroskiBoardError ?? copy.piotroski.unavailable
-    : piotroskiBoardLoadState === "ready"
-        ? filteringMarketDateNote
-      : piotroskiMarketDate
-          ? copy.piotroski.pendingForDate
-          : copy.piotroski.marketDatePending;
+  const filteringCardModel = buildPiotroskiFilteringCardModel({
+    copy,
+    numberLocale,
+    piotroskiBoard,
+    piotroskiBoardError,
+    piotroskiBoardLoadState,
+    piotroskiMarketDate,
+  });
+  const trackedSymbolCards = buildTrackedSymbolCardModels(
+    tracked,
+    symbolMetaBySymbol,
+    freshness,
+    copy,
+    numberLocale,
+  );
   const marketBadgeLabel = market.is_open ? copy.marketOpen : copy.marketClosed;
   const coreUnavailable =
     market.state === "OFFLINE PLACEHOLDER" ||
@@ -650,11 +592,11 @@ export function LiveDashboardClient({
                   <p className={styles.sectionEyebrow}>{copy.operational.piotroskiEyebrow}</p>
                   <h2 className={styles.sectionTitle}>{copy.operational.piotroskiTitle}</h2>
                   <p className={styles.cardContext}>
-                    {copy.operational.marketDate} {filteringDisplayMarketDate ?? UNKNOWN_LABEL}
+                    {copy.operational.marketDate} {filteringCardModel.displayMarketDateLabel}
                   </p>
                 </div>
                 <Link
-                  href={buildPiotroskiListHref(filteringDisplayMarketDate)}
+                  href={buildPiotroskiListHref(filteringCardModel.displayMarketDate)}
                   className={styles.sectionLink}
                   aria-label={copy.operational.openPiotroskiList}
                 >
@@ -666,20 +608,20 @@ export function LiveDashboardClient({
                 <div className={styles.statusMetric}>
                   <span>{copy.operational.status}</span>
                   <strong>
-                    <span className={`pill ${filteringStatusTone}`}>{filteringStatusLabel}</span>
+                    <span className={`pill ${filteringCardModel.statusTone}`}>{filteringCardModel.statusLabel}</span>
                   </strong>
                 </div>
                 <div className={styles.statusMetric}>
                   <span>{copy.operational.checked}</span>
-                  <strong>{formatEodSymbolCount(filteringCheckedCount, numberLocale)}</strong>
+                  <strong>{filteringCardModel.checkedCountLabel}</strong>
                 </div>
                 <div className={styles.statusMetric}>
                   <span>{copy.operational.pass}</span>
-                  <strong>{formatEodSymbolCount(filteringPassCount, numberLocale)}</strong>
+                  <strong>{filteringCardModel.passCountLabel}</strong>
                 </div>
               </div>
 
-              {filteringNote ? <p className={styles.cardContext}>{filteringNote}</p> : null}
+              {filteringCardModel.note ? <p className={styles.cardContext}>{filteringCardModel.note}</p> : null}
             </article>
 
             <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
@@ -775,51 +717,43 @@ export function LiveDashboardClient({
           </div>
 
           <div className={styles.trackedList}>
-            {tracked.items.map((item) => (
+            {trackedSymbolCards.map((item) => (
               <Link
                 key={item.symbol}
-                href={buildTrackedDetailHref(item, symbolMetaBySymbol[item.symbol])}
-                className={`${styles.trackedCard} ${!item.available ? styles.trackedCardMuted : ""}`.trim()}
+                href={item.href}
+                className={`${styles.trackedCard} ${item.isMuted ? styles.trackedCardMuted : ""}`.trim()}
               >
                 <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
 
                 <div className={styles.trackedCardTop}>
                   <div>
-                    <strong className={styles.companyName}>
-                      {getCompanyName(item, symbolMetaBySymbol[item.symbol])}
-                    </strong>
+                    <strong className={styles.companyName}>{item.companyName}</strong>
                     <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
                   </div>
-                  <span className={`pill ${item.available ? (item.change_pct ?? 0) >= 0 ? "positive" : "negative" : "warning"}`}>
-                    {item.available
-                      ? (item.is_live ? copy.tracked.live : copy.tracked.fallback)
-                      : copy.tracked.unavailable}
-                  </span>
+                  <span className={`pill ${item.availabilityTone}`}>{item.availabilityLabel}</span>
                 </div>
 
                 <div className={styles.priceBlock}>
-                  <strong>{item.available ? `₩${formatPrice(item.price)}` : "N/A"}</strong>
-                  <span className={getQuoteToneClass(item.change_pct)}>
-                    {item.available
-                      ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change, copy.tracked.unavailable, numberLocale)}`
-                      : item.unavailable_reason ?? copy.tracked.noFreshQuoteSource}
+                  <strong>{item.priceLabel}</strong>
+                  <span className={item.changeTone === "positive" ? styles.positive : item.changeTone === "negative" ? styles.negative : ""}>
+                    {item.changeLabel}
                   </span>
                 </div>
 
                 <div className={styles.cardMeta}>
                   <div>
                     <span>{copy.operational.priceFreshness}</span>
-                    <strong>{getPriceFreshnessLabel(item, copy)}</strong>
+                    <strong>{item.priceFreshnessLabel}</strong>
                   </div>
                   <div>
                     <span>{copy.operational.technicalFreshness}</span>
-                    <strong>{getTechnicalFreshnessLabel(freshness)}</strong>
+                    <strong>{item.technicalFreshnessLabel}</strong>
                   </div>
                 </div>
 
                 <div className={styles.cardFooter}>
-                  <span className="clamp-3">{describeQuoteSource(item, copy)}</span>
-                  <span className="clamp-3">{copy.operational.turnover} {formatTurnover(item.turnover)}</span>
+                  <span className="clamp-3">{item.sourceLabel}</span>
+                  <span className="clamp-3">{item.turnoverLabel}</span>
                 </div>
               </Link>
             ))}

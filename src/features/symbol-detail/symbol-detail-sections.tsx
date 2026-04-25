@@ -8,7 +8,6 @@ import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
 import type { AggregateContextLoadState } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { getDisclosureSectionState } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
-import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { useUnitData } from "@/lib/use-unit-data";
 import type {
   AgentContextActionSummaryDto,
@@ -24,37 +23,17 @@ import styles from "@/app/dashboard/symbol/[symbol]/symbol-detail.module.css";
 
 import { fetchUnitJson } from "./symbol-detail-api";
 import {
-  buildActionFreshnessDate,
-  buildActionHeadline,
-  buildActionTone,
-  buildConfidenceTone,
-  buildDisclosureCoverageNote,
-  buildDisclosureReportHref,
-  buildFreshnessTone,
-  buildFundamentalsCoverageNote,
-  buildFundamentalsDate,
+  buildActionSummarySectionModel,
+  buildDisclosureCoverageSectionModel,
   buildFundamentalsHistoryQuery,
-  buildFundamentalsLatestLabel,
-  buildFundamentalsMetricFallbacks,
-  buildInsightTags,
+  buildFundamentalsHistorySectionModel,
+  buildHeroFundamentalLatestMetricModel,
+  buildHeroPiotroskiMetricModel,
   buildLatestDisclosure,
-  buildLatestPriceLabel,
-  buildModuleStatusTone,
+  buildSystemFreshnessSectionModel,
+  buildTechnicalAnalysisSectionModel,
   buildTechnicalFreshnessDate,
-  buildTechnicalHeadline,
-  buildTechnicalTone,
-  formatHighlightLabel,
-  formatHighlightValue,
-  formatIsoDateLabel,
-  formatNumberOrDash,
-  formatSignedPercent,
-  getPiotroskiLabel,
-  humanizeToken,
-  hasNumber,
-  normalizeHighlightMetrics,
   pickFundamentalsCompany,
-  buildHistoryEntryMetrics,
-  buildQuoteSourceLabel,
 } from "./symbol-detail-derived-state";
 import type { QuoteResponse } from "./symbol-detail-types";
 
@@ -171,22 +150,21 @@ export function HeroFundamentalLatestMetric({
     });
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
   const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
-  const value =
-    latestDisclosure?.report_nm ??
-    (latestFundamentals
-      ? buildFundamentalsLatestLabel(null, latestFundamentals, copy)
-      : aggregateContextLoadState === "loading"
-        ? copy.hero.priceLoading
-        : copy.disclosures.emptyTitle);
-  const detailDate =
-    latestDisclosure?.receipt_date ?? buildFundamentalsDate(null, latestFundamentals, aggregateContext);
+  const metricModel = buildHeroFundamentalLatestMetricModel({
+    aggregateContext,
+    aggregateContextError,
+    aggregateContextLoadState,
+    copy,
+    latestDisclosure,
+    latestFundamentals,
+  });
 
   return (
     <article className={styles.heroMetricCard} aria-busy={aggregateContextRefreshing || undefined}>
       <span>{copy.hero.fundamentalLatest}</span>
-      <strong className="clamp-3">{value}</strong>
-      {detailDate ? <p className="clamp-3">{formatIsoDateLabel(detailDate)}</p> : null}
-      {!detailDate && aggregateContextError ? <p className="clamp-3">{aggregateContextError}</p> : null}
+      <strong className="clamp-3">{metricModel.value}</strong>
+      {metricModel.detailDateLabel ? <p className="clamp-3">{metricModel.detailDateLabel}</p> : null}
+      {!metricModel.detailDateLabel && metricModel.errorLabel ? <p className="clamp-3">{metricModel.errorLabel}</p> : null}
     </article>
   );
 }
@@ -228,12 +206,9 @@ export function HeroPiotroskiMetric({
         : piotroskiResponseResult.error
           ? "error"
           : "loading";
-  const piotroskiLabel = getPiotroskiLabel(piotroskiResult, piotroskiLoadState, copy);
-  const piotroskiValueClassName = piotroskiResult
-    ? piotroskiResult.passed_filter
-      ? styles.positive
-      : styles.negative
-    : undefined;
+  const metricModel = buildHeroPiotroskiMetricModel({ copy, piotroskiLoadState, piotroskiResult });
+  const piotroskiValueClassName =
+    metricModel.tone === "positive" ? styles.positive : metricModel.tone === "negative" ? styles.negative : undefined;
 
   return (
     <article
@@ -243,7 +218,7 @@ export function HeroPiotroskiMetric({
       }
     >
       <span>{copy.hero.piotroskiFilter}</span>
-      <strong className={piotroskiValueClassName}>{piotroskiLabel}</strong>
+      <strong className={piotroskiValueClassName}>{metricModel.label}</strong>
     </article>
   );
 }
@@ -286,10 +261,7 @@ export function ActionSummarySection({
   );
   const actionSummaryResult = useUnitData<AgentContextActionSummaryDto | null>(actionSummaryRequest);
   const resolvedActionSummary = actionSummaryResult.data ?? aggregateContext?.action_summary ?? null;
-  const actionReasons = resolvedActionSummary?.reasons.slice(0, 4) ?? [];
-  const actionPayloadTags = buildInsightTags(resolvedActionSummary?.summary_payload);
-  const actionTone = buildActionTone(resolvedActionSummary);
-  const actionScore = Math.max(0, Math.min(resolvedActionSummary?.signal_score ?? 0, 100));
+  const actionSectionModel = buildActionSummarySectionModel(resolvedActionSummary, copy);
   const actionSectionRefreshing =
     (actionSummaryResult.hasData || aggregateContext !== null) &&
     (actionSummaryResult.isRefreshing || aggregateContextRefreshing);
@@ -316,56 +288,38 @@ export function ActionSummarySection({
             <p className={styles.sectionEyebrow}>{copy.action.eyebrow}</p>
             <h2 className={styles.cardTitle}>{copy.action.title}</h2>
           </div>
-          <span className={`pill ${actionTone}`}>
-            {resolvedActionSummary ? humanizeToken(resolvedActionSummary.action_label) : copy.action.unavailable}
-          </span>
+          <span className={`pill ${actionSectionModel.tone}`}>{actionSectionModel.badgeLabel}</span>
         </div>
 
         <div className={styles.signalMeter}>
           <div className={styles.signalTrack}>
             <span className={styles.signalSell}>{copy.action.sell}</span>
             <span className={styles.signalStrong}>{copy.action.strongBuy}</span>
-            <div className={styles.signalFill} style={{ width: `${actionScore}%` }} />
+            <div className={styles.signalFill} style={{ width: `${actionSectionModel.score}%` }} />
           </div>
         </div>
 
-        <strong className={`clamp-3 ${styles.insightHeadline}`}>
-          {buildActionHeadline(resolvedActionSummary, copy)}
-        </strong>
-        <p className={`clamp-3 ${styles.supportingCopy}`}>
-          {actionReasons.length > 0 ? actionReasons.join(" ") : copy.action.emptyBody}
-        </p>
+        <strong className={`clamp-3 ${styles.insightHeadline}`}>{actionSectionModel.headline}</strong>
+        <p className={`clamp-3 ${styles.supportingCopy}`}>{actionSectionModel.body}</p>
 
         <div className={styles.metricGrid}>
-          <article className={styles.metricCard}>
-            <span>{copy.action.confidence}</span>
-            <strong>{humanizeToken(resolvedActionSummary?.confidence_tier)}</strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.action.risk}</span>
-            <strong>{humanizeToken(resolvedActionSummary?.risk_tier)}</strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.action.trigger}</span>
-            <strong>
-              {hasNumber(resolvedActionSummary?.trigger_price)
-                ? `₩${formatPrice(resolvedActionSummary.trigger_price)}`
-                : copy.action.noTriggerPrice}
-            </strong>
-          </article>
+          {actionSectionModel.metrics.map((metric) => (
+            <article key={metric.key} className={styles.metricCard}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </article>
+          ))}
         </div>
 
         <div className={styles.tagGroup}>
-          {(actionReasons.length > 0 ? actionReasons : [copy.action.noRationaleRows]).map((reason) => (
+          {actionSectionModel.reasonTags.map((reason) => (
             <span key={reason} className={styles.tagChip}>
               {reason}
             </span>
           ))}
         </div>
 
-        <p className={styles.metaCaption}>
-          {copy.action.payloadKeys}: {actionPayloadTags.join(" · ")}
-        </p>
+        <p className={styles.metaCaption}>{actionSectionModel.metaCaption}</p>
       </UnitRefreshFrame>
     </section>
   );
@@ -409,9 +363,12 @@ export function TechnicalAnalysisSection({
   );
   const technicalSnapshotResult = useUnitData<AgentContextTechnicalSnapshotDto | null>(technicalSnapshotRequest);
   const resolvedTechnicalSnapshot = technicalSnapshotResult.data ?? aggregateContext?.technical_snapshot ?? null;
-  const technicalPayloadTags = buildInsightTags(resolvedTechnicalSnapshot?.signal_payload);
-  const technicalTone = buildTechnicalTone(resolvedTechnicalSnapshot);
   const technicalFreshnessDate = buildTechnicalFreshnessDate(resolvedTechnicalSnapshot, null);
+  const technicalSectionModel = buildTechnicalAnalysisSectionModel(
+    resolvedTechnicalSnapshot,
+    technicalFreshnessDate,
+    copy,
+  );
   const technicalSectionRefreshing =
     (technicalSnapshotResult.hasData || aggregateContext !== null) &&
     (technicalSnapshotResult.isRefreshing || aggregateContextRefreshing);
@@ -438,53 +395,30 @@ export function TechnicalAnalysisSection({
             <p className={styles.sectionEyebrow}>{copy.technical.eyebrow}</p>
             <h2 className={styles.cardTitle}>{copy.technical.title}</h2>
           </div>
-          <span className={`pill ${technicalTone}`}>
-            {resolvedTechnicalSnapshot
-              ? humanizeToken(resolvedTechnicalSnapshot.trend_state)
-              : copy.technical.unavailable}
-          </span>
+          <span className={`pill ${technicalSectionModel.tone}`}>{technicalSectionModel.badgeLabel}</span>
         </div>
 
-        <strong className={`clamp-3 ${styles.insightHeadline}`}>
-          {buildTechnicalHeadline(resolvedTechnicalSnapshot, copy)}
-        </strong>
-        <p className={`clamp-3 ${styles.supportingCopy}`}>
-          {resolvedTechnicalSnapshot
-            ? `${copy.technical.breakout20d} ${resolvedTechnicalSnapshot.breakout_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.breakdown20d} ${resolvedTechnicalSnapshot.breakdown_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.source} ${resolvedTechnicalSnapshot.source}`
-            : copy.technical.emptyBody}
-        </p>
+        <strong className={`clamp-3 ${styles.insightHeadline}`}>{technicalSectionModel.headline}</strong>
+        <p className={`clamp-3 ${styles.supportingCopy}`}>{technicalSectionModel.body}</p>
 
         <div className={styles.metricGrid}>
-          <article className={styles.metricCard}>
-            <span>{copy.technical.return5d}</span>
-            <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_5d, copy.technical.noReturn5d)}</strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.technical.return20d}</span>
-            <strong>{formatSignedPercent(resolvedTechnicalSnapshot?.return_20d, copy.technical.noReturn20d)}</strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.technical.volumeRatio20d}</span>
-            <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.volume_ratio_20d)}</strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.technical.atr14}</span>
-            <strong>{formatNumberOrDash(resolvedTechnicalSnapshot?.atr_14)}</strong>
-          </article>
+          {technicalSectionModel.metrics.map((metric) => (
+            <article key={metric.key} className={styles.metricCard}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </article>
+          ))}
         </div>
 
         <div className={styles.tagGroup}>
-          {technicalPayloadTags.map((tag) => (
+          {technicalSectionModel.payloadTags.map((tag) => (
             <span key={tag} className={styles.tagChip}>
               {tag}
             </span>
           ))}
         </div>
 
-        <p className={styles.metaCaption}>
-          {copy.technical.sourceDate} {technicalFreshnessDate ?? copy.technical.noSourceDate} ·{" "}
-          {copy.technical.freshnessNote}
-        </p>
+        <p className={styles.metaCaption}>{technicalSectionModel.metaCaption}</p>
       </UnitRefreshFrame>
     </section>
   );
@@ -539,14 +473,6 @@ export function FundamentalsHistorySection({
   const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
   const companyHistory = pickFundamentalsCompany(fundamentalsHistory, symbol);
   const latestHistoryEntry = companyHistory?.entries[0] ?? null;
-  const latestHistoryHighlights = normalizeHighlightMetrics(latestHistoryEntry?.highlights).slice(0, 3);
-  const latestAggregateHighlights = normalizeHighlightMetrics(latestFundamentals?.highlights).slice(0, 3);
-  const latestHighlights =
-    latestHistoryHighlights.length > 0
-      ? latestHistoryHighlights
-      : latestAggregateHighlights.length > 0
-        ? latestAggregateHighlights
-        : buildFundamentalsMetricFallbacks(latestFundamentals, latestHistoryEntry, copy);
   const fundamentalsSectionRefreshing =
     (fundamentalsHistory !== null || aggregateContext !== null) &&
     (fundamentalsHistoryResult.isRefreshing || aggregateContextRefreshing);
@@ -559,6 +485,17 @@ export function FundamentalsHistorySection({
     !companyHistory?.entries.length &&
     !latestFundamentals &&
     (aggregateContextLoadState === "loading" || fundamentalsHistoryResult.isInitialLoading || (!marketDate && symbolReady));
+  const fundamentalsSectionModel = buildFundamentalsHistorySectionModel({
+    companyHistory,
+    copy,
+    fundamentalsEntryLimit,
+    fundamentalsLoading,
+    fsDiv,
+    introTitle,
+    latestFundamentals,
+    latestHistoryEntry,
+    symbol,
+  });
 
   return (
     <section
@@ -578,78 +515,51 @@ export function FundamentalsHistorySection({
             <p className={styles.sectionEyebrow}>{copy.fundamentals.eyebrow}</p>
             <h2 className={styles.cardTitle}>{copy.fundamentals.title}</h2>
           </div>
-          <span className={`pill ${buildConfidenceTone(fsDiv)}`}>{fsDiv ?? copy.fundamentals.defaultFs}</span>
+          <span className={`pill ${fundamentalsSectionModel.fsTone}`}>{fundamentalsSectionModel.fsValue}</span>
         </div>
 
         <div className={styles.companyStrip}>
-          <div className={styles.companyAvatar}>{symbol.slice(0, 1)}</div>
+          <div className={styles.companyAvatar}>{fundamentalsSectionModel.introInitial}</div>
           <div>
-            <strong>{introTitle}</strong>
-            <p className="clamp-3">
-              {copy.fundamentals.latestFilingPrefix} {buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}.
-            </p>
+            <strong>{fundamentalsSectionModel.introTitle}</strong>
+            <p className="clamp-3">{fundamentalsSectionModel.introBody}</p>
           </div>
         </div>
 
         <div className={styles.metricGrid}>
-          {latestHighlights.length > 0 ? (
-            latestHighlights.map((metric, index) => (
-              <article key={`${formatHighlightLabel(metric, index)}-${index}`} className={styles.metricCard}>
-                <span>{formatHighlightLabel(metric, index)}</span>
-                <strong>{formatHighlightValue(metric, copy)}</strong>
-              </article>
-            ))
-          ) : (
-            <article className={styles.metricCard}>
-              <span>{copy.fundamentals.latestFiling}</span>
-              <strong>{buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}</strong>
+          {fundamentalsSectionModel.highlights.map((metric) => (
+            <article key={metric.key} className={styles.metricCard}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
             </article>
-          )}
+          ))}
         </div>
 
         <div className={styles.historyList}>
-          {companyHistory?.entries.length ? (
-            companyHistory.entries.slice(0, fundamentalsEntryLimit).map((entry) => {
-              const visibleHighlights = buildHistoryEntryMetrics(entry, copy);
-
-              return (
-                <article key={entry.filing.rcept_no} className={styles.historyCard}>
-                  <div className={styles.historyHeader}>
-                    <div>
-                      <strong className="clamp-3">
-                        {entry.period.report_label ??
-                          `${entry.period.business_year ?? copy.fundamentals.unknownYear} ${entry.period.report_code ?? ""}`}
-                      </strong>
-                      <p className="clamp-3">
-                        {entry.filing.report_nm ?? copy.fundamentals.unnamedFiling} · {copy.fundamentals.receipt}{" "}
-                        {entry.filing.receipt_date ?? copy.fundamentals.noReceiptDate}
-                      </p>
+          {fundamentalsSectionModel.state === "list" ? (
+            fundamentalsSectionModel.entries.map((entry) => (
+              <article key={entry.key} className={styles.historyCard}>
+                <div className={styles.historyHeader}>
+                  <div>
+                    <strong className="clamp-3">{entry.title}</strong>
+                    <p className="clamp-3">{entry.subtitle}</p>
+                  </div>
+                  <span className="pill neutral">{entry.badgeLabel}</span>
+                </div>
+                <div className={styles.historyMetrics}>
+                  {entry.metrics.map((metric) => (
+                    <div key={metric.key} className={styles.historyMetricRow}>
+                      <span>{metric.label}</span>
+                      <strong>{metric.value}</strong>
                     </div>
-                    <span className="pill neutral">{entry.statement.fs_div ?? copy.fundamentals.fsPending}</span>
-                  </div>
-                  <div className={styles.historyMetrics}>
-                    {visibleHighlights.map((metric, index) => (
-                      <div
-                        key={`${entry.filing.rcept_no}-${formatHighlightLabel(metric, index)}-${index}`}
-                        className={styles.historyMetricRow}
-                      >
-                        <span>{formatHighlightLabel(metric, index)}</span>
-                        <strong>{formatHighlightValue(metric, copy)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              );
-            })
-          ) : fundamentalsLoading ? (
-            <div className={styles.emptyPanel}>
-              <strong>{copy.fundamentals.loadingTitle}</strong>
-              <p className="clamp-3">{copy.fundamentals.loadingBody}</p>
-            </div>
+                  ))}
+                </div>
+              </article>
+            ))
           ) : (
             <div className={styles.emptyPanel}>
-              <strong>{copy.fundamentals.emptyTitle}</strong>
-              <p className="clamp-3">{buildFundamentalsCoverageNote(companyHistory, latestFundamentals, copy)}</p>
+              <strong>{fundamentalsSectionModel.emptyTitle}</strong>
+              <p className="clamp-3">{fundamentalsSectionModel.emptyBody}</p>
             </div>
           )}
         </div>
@@ -690,6 +600,16 @@ export function DisclosureCoverageSection({
     aggregateContext?.recent_disclosures.count ?? 0,
   );
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
+  const disclosureSectionModel = buildDisclosureCoverageSectionModel({
+    copy,
+    disclosureCount: aggregateContext?.recent_disclosures.count ?? 0,
+    disclosureItemLimit,
+    latestDisclosure,
+    recentDisclosures: aggregateContext?.recent_disclosures.items ?? [],
+    routeQueryString,
+    sectionState: disclosureSectionState,
+    symbol,
+  });
   const disclosureSectionRefreshing = aggregateResponse !== null && aggregateContextRefreshing;
   const disclosureSectionBusy =
     disclosureSectionRefreshing ||
@@ -711,60 +631,41 @@ export function DisclosureCoverageSection({
             <p className={styles.sectionEyebrow}>{copy.disclosures.eyebrow}</p>
             <h2 className={styles.cardTitle}>{copy.disclosures.title}</h2>
           </div>
-          <span
-            className={`pill ${disclosureSectionState === "list" ? "info" : disclosureSectionState === "empty" ? "neutral" : "warning"}`}
-          >
-            {aggregateContext?.recent_disclosures.count ?? 0} {copy.disclosures.items}
-          </span>
+          <span className={`pill ${disclosureSectionModel.badgeTone}`}>{disclosureSectionModel.badgeValue}</span>
         </div>
 
-        {disclosureSectionState === "list" ? (
+        {disclosureSectionModel.state === "list" ? (
           <div className={styles.disclosureList}>
-            {aggregateContext?.recent_disclosures.items.slice(0, disclosureItemLimit).map((item) => (
+            {disclosureSectionModel.cards.map((item) => (
               <Link
-                key={item.rcept_no}
+                key={item.key}
                 className={styles.disclosureCard}
-                href={buildDisclosureReportHref(symbol, item, routeQueryString)}
-                aria-label={`${copy.disclosures.openReportPrefix} ${item.report_nm}`}
+                href={item.href}
+                aria-label={item.ariaLabel}
               >
                 <div className={styles.disclosureHeader}>
-                  <strong className="clamp-3">{item.report_nm}</strong>
-                  <span className="pill neutral">{item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
+                  <strong className="clamp-3">{item.title}</strong>
+                  <span className="pill neutral">{item.dateLabel}</span>
                 </div>
-                <p className="clamp-3">
-                  {humanizeToken(item.filing_category, copy.disclosures.noCategory)} · {copy.disclosures.capture}{" "}
-                  {humanizeToken(item.fundamentals_capture_status, copy.disclosures.notCaptured)}
-                </p>
+                <p className="clamp-3">{item.body}</p>
                 <div className={styles.disclosureMeta}>
-                  <span>{copy.disclosures.receipt} {item.receipt_date ?? copy.disclosures.noReceiptDate}</span>
-                  <span>{copy.disclosures.receiptNo} {item.rcept_no}</span>
+                  <span>{item.receiptLabel}</span>
+                  <span>{item.receiptNoLabel}</span>
                 </div>
-                <span className={styles.disclosureAction}>{copy.disclosures.viewReportDetail}</span>
+                <span className={styles.disclosureAction}>{item.actionLabel}</span>
               </Link>
             ))}
           </div>
-        ) : disclosureSectionState === "loading" ? (
-          <div className={styles.emptyPanel}>
-            <strong>{copy.disclosures.loadingTitle}</strong>
-            <p className="clamp-3">{copy.disclosures.loadingBody}</p>
-          </div>
-        ) : disclosureSectionState === "empty" ? (
-          <div className={styles.emptyPanel}>
-            <strong>{copy.disclosures.emptyTitle}</strong>
-            <p className="clamp-3">{copy.disclosures.emptyBody}</p>
-          </div>
         ) : (
           <div className={styles.emptyPanel}>
-            <strong>{copy.disclosures.unavailableTitle}</strong>
-            <p className="clamp-3">{copy.disclosures.unavailableBody}</p>
+            <strong>{disclosureSectionModel.emptyTitle}</strong>
+            <p className="clamp-3">{disclosureSectionModel.emptyBody}</p>
           </div>
         )}
 
         <div className={styles.coverageNote}>
-          <strong>{latestDisclosure ? copy.disclosures.latestDisclosureAvailable : copy.disclosures.partialAnalystCoverage}</strong>
-          <p className="clamp-3">
-            {buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0, copy)}
-          </p>
+          <strong>{disclosureSectionModel.coverageTitle}</strong>
+          <p className="clamp-3">{disclosureSectionModel.coverageBody}</p>
         </div>
       </UnitRefreshFrame>
     </section>
@@ -821,95 +722,24 @@ export function SystemFreshnessSection({
   const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
   const hasFundamentalsHistory = (aggregateContext?.fundamentals.history_summary.entries ?? 0) > 0;
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
-  const technicalFreshnessDate = buildTechnicalFreshnessDate(technicalSnapshot, freshness);
-  const actionFreshnessDate = buildActionFreshnessDate(actionSummary, freshness);
-  const fundamentalsDate = buildFundamentalsDate(null, latestFundamentals, aggregateContext);
-  const freshnessTone = buildFreshnessTone(freshness?.today?.eod_status);
   const disclosureSectionState = getDisclosureSectionState(
     aggregateContextLoadState,
     aggregateContext !== null,
     aggregateContext?.recent_disclosures.count ?? 0,
   );
-  const moduleRows = [
-    {
-      id: "price",
-      label: copy.freshness.priceModule,
-      date: buildLatestPriceLabel(freshness, quote, copy),
-      detail: quote?.available
-        ? buildQuoteSourceLabel(quote, copy)
-        : quote?.unavailable_reason ?? copy.freshness.quoteCoverageUnavailable,
-      tone: buildModuleStatusTone(Boolean(quote?.available)),
-      status: quote?.available
-        ? quote.is_live
-          ? copy.freshness.live
-          : copy.freshness.fallback
-        : copy.freshness.unavailable,
-      api: "/api/trading/quotes/{symbol}",
-    },
-    {
-      id: "technical",
-      label: copy.freshness.technicalModule,
-      date: technicalFreshnessDate ?? copy.freshness.noTechnicalDate,
-      detail: technicalSnapshot
-        ? `${humanizeToken(technicalSnapshot.trend_state)} · ${copy.technical.maAlignment} ${humanizeToken(technicalSnapshot.ma_alignment)}`
-        : copy.freshness.technicalUnavailable,
-      tone: technicalSnapshot || freshness?.technical?.success ? buildTechnicalTone(technicalSnapshot) : "warning",
-      status:
-        technicalSnapshot || freshness?.technical?.success ? copy.freshness.synced : copy.freshness.pending,
-      api: "/api/trading/eod/technical-snapshots",
-    },
-    {
-      id: "action",
-      label: copy.freshness.actionModule,
-      date: actionFreshnessDate ?? copy.freshness.noActionDate,
-      detail: actionSummary
-        ? `${humanizeToken(actionSummary.action_label)} · ${copy.action.risk} ${humanizeToken(actionSummary.risk_tier)}`
-        : copy.freshness.actionUnavailable,
-      tone: actionSummary ? buildActionTone(actionSummary) : "warning",
-      status: actionSummary ? copy.freshness.resolved : copy.freshness.pending,
-      api: "/api/trading/eod/action-summaries",
-    },
-    {
-      id: "fundamentals",
-      label: copy.freshness.fundamentalsModule,
-      date: fundamentalsDate ?? copy.fundamentals.noReceiptDate,
-      detail: buildFundamentalsCoverageNote(null, latestFundamentals, copy),
-      tone: hasFundamentalsHistory || latestFundamentals ? "info" : "warning",
-      status: hasFundamentalsHistory
-        ? copy.freshness.historyLoaded
-        : latestFundamentals
-          ? copy.freshness.aggregateOnly
-          : copy.freshness.noHistory,
-      api: "/api/trading/disclosures/dart/fundamentals/history",
-    },
-    {
-      id: "disclosures",
-      label: copy.freshness.disclosuresModule,
-      date:
-        latestDisclosure?.receipt_date ??
-        (disclosureSectionState === "loading"
-          ? copy.common.loading
-          : disclosureSectionState === "empty"
-            ? copy.freshness.noDisclosures
-            : copy.freshness.unavailable),
-      detail: buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0, copy),
-      tone:
-        disclosureSectionState === "list"
-          ? "info"
-          : disclosureSectionState === "empty"
-            ? "neutral"
-            : "warning",
-      status:
-        disclosureSectionState === "list"
-          ? copy.freshness.coverage
-          : disclosureSectionState === "empty"
-            ? copy.freshness.empty
-            : disclosureSectionState === "loading"
-              ? copy.freshness.loading
-              : copy.freshness.unavailable,
-      api: "/api/trading/agent-context/symbol-day",
-    },
-  ] as const;
+  const freshnessSectionModel = buildSystemFreshnessSectionModel({
+    actionSummary,
+    aggregateContext,
+    copy,
+    disclosureSectionState,
+    freshness,
+    hasFundamentalsHistory,
+    latestDisclosure,
+    latestFundamentals,
+    marketDate,
+    quote,
+    technicalSnapshot,
+  });
   const freshnessSectionRefreshing =
     (freshness !== null && freshnessResult.isRefreshing) ||
     (aggregateResponse !== null && aggregateContextRefreshing);
@@ -936,9 +766,7 @@ export function SystemFreshnessSection({
             <p className={styles.sectionEyebrow}>{copy.freshness.eyebrow}</p>
             <h2 className={styles.cardTitle}>{copy.freshness.title}</h2>
           </div>
-          <span className={`pill ${freshnessTone}`}>
-            {humanizeToken(freshness?.today?.eod_status, copy.freshness.statusPending)}
-          </span>
+          <span className={`pill ${freshnessSectionModel.tone}`}>{freshnessSectionModel.statusLabel}</span>
         </div>
         {showOverview && onOpenDetail ? (
           <button
@@ -951,30 +779,16 @@ export function SystemFreshnessSection({
         ) : null}
 
         <div className={styles.metricGrid}>
-          <article className={styles.metricCard}>
-            <span>{copy.freshness.eodTradeDate}</span>
-            <strong>{freshness?.today?.trade_date ?? marketDate ?? copy.common.datePending}</strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.freshness.priceLatest}</span>
-            <strong>
-              {freshness?.latest?.price_trade_date ??
-                quote?.trade_date ??
-                formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending)}
-            </strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.freshness.technicalLatest}</span>
-            <strong>{technicalFreshnessDate ?? copy.freshness.noTechnicalDate}</strong>
-          </article>
-          <article className={styles.metricCard}>
-            <span>{copy.freshness.actionLatest}</span>
-            <strong>{actionFreshnessDate ?? copy.freshness.noActionDate}</strong>
-          </article>
+          {freshnessSectionModel.metrics.map((metric) => (
+            <article key={metric.key} className={styles.metricCard}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </article>
+          ))}
         </div>
 
         <div className={styles.moduleRows}>
-          {moduleRows.map((row) => (
+          {freshnessSectionModel.moduleRows.map((row) => (
             <article key={row.id} className={styles.moduleRow}>
               <div>
                 <strong>{row.label}</strong>

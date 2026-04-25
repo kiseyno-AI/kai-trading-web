@@ -5,7 +5,7 @@ import {
   getLatestPriceTradeDate,
   getLatestTechnicalMarketDate,
 } from "@/lib/eod-freshness-latest";
-import { formatDisplayTimestamp } from "@/lib/format";
+import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
   getEodSymbolsFailed,
   getEodSymbolsSucceeded,
@@ -46,9 +46,13 @@ import type {
   EodStageDetail,
   EodStageId,
   FundamentalsFailureDetails,
+  PiotroskiBoardLoadState,
+  PiotroskiFilteringCardModel,
   SymbolMetadataItem,
   SymbolSearchResponse,
+  TrackedSymbolCardModel,
 } from "./live-dashboard-types";
+import type { PiotroskiPassListResult } from "@/lib/piotroski-pass-list";
 
 export const UNKNOWN_LABEL = "[확인 필요]";
 const EOD_PIPELINE_STATUS_RUNNING_POLL_MS = 1_000;
@@ -201,6 +205,133 @@ export function getPriceFreshnessLabel(item: CoreTrackedQuote, copy: DashboardLi
   if (item.is_live) return copy.tracked.live;
   if (item.trade_date) return item.trade_date;
   return formatDisplayTimestamp(item.as_of ?? item.cached_at, copy.tracked.pending);
+}
+
+function getPiotroskiMarketDateNote(
+  requestedMarketDate: string | null | undefined,
+  effectiveMarketDate: string | null | undefined,
+  isLatestFallback: boolean,
+  copy: DashboardLiveCopy,
+) {
+  const requestedDate = typeof requestedMarketDate === "string" && requestedMarketDate.trim() ? requestedMarketDate : null;
+  const effectiveDate = typeof effectiveMarketDate === "string" && effectiveMarketDate.trim() ? effectiveMarketDate : null;
+
+  if (!effectiveDate) return null;
+
+  if (requestedDate && requestedDate !== effectiveDate) {
+    const resolvedLabel = isLatestFallback ? copy.piotroski.latestAvailableDate : copy.piotroski.resolvedDate;
+    return `${copy.piotroski.requestedDate} ${requestedDate} · ${resolvedLabel} ${effectiveDate}`;
+  }
+
+  if (isLatestFallback) {
+    return `${copy.piotroski.latestAvailableDate} ${effectiveDate}`;
+  }
+
+  return null;
+}
+
+export function buildPiotroskiFilteringCardModel({
+  copy,
+  numberLocale,
+  piotroskiBoard,
+  piotroskiBoardError,
+  piotroskiBoardLoadState,
+  piotroskiMarketDate,
+}: {
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  piotroskiBoard: PiotroskiPassListResult | null;
+  piotroskiBoardError: string | null;
+  piotroskiBoardLoadState: PiotroskiBoardLoadState;
+  piotroskiMarketDate: string | null;
+}): PiotroskiFilteringCardModel {
+  const statusLabel =
+    piotroskiBoardLoadState === "ready"
+      ? copy.piotroski.completed
+      : piotroskiBoardLoadState === "loading"
+        ? copy.piotroski.loading
+        : piotroskiBoardLoadState === "error"
+          ? copy.piotroski.needsReview
+          : piotroskiMarketDate
+            ? copy.piotroski.pending
+            : copy.piotroski.waiting;
+  const statusTone =
+    piotroskiBoardLoadState === "ready"
+      ? "positive"
+      : piotroskiBoardLoadState === "error"
+        ? "warning"
+        : "neutral";
+  const requestedMarketDate = piotroskiBoard?.requestedMarketDate ?? piotroskiMarketDate;
+  const resolvedMarketDate = piotroskiBoard?.resolvedMarketDate ?? piotroskiBoard?.marketDate ?? piotroskiMarketDate;
+  const displayMarketDate = piotroskiBoard?.marketDate ?? resolvedMarketDate ?? piotroskiMarketDate;
+  const note =
+    piotroskiBoardLoadState === "error"
+      ? piotroskiBoardError ?? copy.piotroski.unavailable
+      : piotroskiBoardLoadState === "ready"
+        ? getPiotroskiMarketDateNote(
+            requestedMarketDate,
+            displayMarketDate,
+            piotroskiBoard?.isLatestFallback === true,
+            copy,
+          )
+        : piotroskiMarketDate
+          ? copy.piotroski.pendingForDate
+          : copy.piotroski.marketDatePending;
+
+  return {
+    checkedCountLabel: formatEodSymbolCount(piotroskiBoard?.summary.entries ?? null, numberLocale),
+    displayMarketDate,
+    displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
+    note,
+    passCountLabel: formatEodSymbolCount(
+      piotroskiBoard?.summary.passed_count ?? piotroskiBoard?.totalPassedCount ?? null,
+      numberLocale,
+    ),
+    statusLabel,
+    statusTone,
+  };
+}
+
+export function buildTrackedSymbolCardModel(
+  item: CoreTrackedQuote,
+  metadata: SymbolMetadataItem | null | undefined,
+  freshness: EodFreshnessResponseDto | null,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): TrackedSymbolCardModel {
+  return {
+    availabilityLabel: item.available
+      ? item.is_live
+        ? copy.tracked.live
+        : copy.tracked.fallback
+      : copy.tracked.unavailable,
+    availabilityTone: item.available ? ((item.change_pct ?? 0) >= 0 ? "positive" : "negative") : "warning",
+    changeLabel: item.available
+      ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change, copy.tracked.unavailable, numberLocale)}`
+      : item.unavailable_reason ?? copy.tracked.noFreshQuoteSource,
+    changeTone: hasNumber(item.change_pct) ? (item.change_pct >= 0 ? "positive" : "negative") : null,
+    companyName: getCompanyName(item, metadata),
+    href: buildTrackedDetailHref(item, metadata),
+    isMuted: !item.available,
+    priceFreshnessLabel: getPriceFreshnessLabel(item, copy),
+    priceLabel: item.available ? `₩${formatPrice(item.price)}` : "N/A",
+    sourceLabel: describeQuoteSource(item, copy),
+    symbol: item.symbol,
+    technicalFreshnessLabel: getTechnicalFreshnessLabel(freshness),
+    turnoverLabel: `${copy.operational.turnover} ${formatTurnover(item.turnover)}`,
+  };
+}
+
+export function buildTrackedSymbolCardModels(
+  tracked: CoreTrackedQuotesResponse,
+  symbolMetaBySymbol: Record<string, SymbolMetadataItem | null>,
+  freshness: EodFreshnessResponseDto | null,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): TrackedSymbolCardModel[] {
+  return tracked.items.map((item) =>
+    buildTrackedSymbolCardModel(item, symbolMetaBySymbol[item.symbol], freshness, copy, numberLocale),
+  );
 }
 
 export function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {

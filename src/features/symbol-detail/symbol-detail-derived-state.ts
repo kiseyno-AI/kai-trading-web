@@ -1,5 +1,6 @@
 import type {
   AggregateContextLoadState,
+  DisclosureSectionState,
   SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
@@ -45,6 +46,105 @@ export type FocusCandleRow = {
   label: string;
   value: string;
   valueClassName?: string;
+};
+
+export type HeroFundamentalLatestMetricModel = {
+  value: string;
+  detailDateLabel: string | null;
+  errorLabel: string | null;
+};
+
+export type HeroPiotroskiMetricModel = {
+  label: string;
+  tone: "positive" | "negative" | null;
+};
+
+export type SectionMetricModel = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+export type ActionSummarySectionModel = {
+  badgeLabel: string;
+  body: string;
+  headline: string;
+  metaCaption: string;
+  metrics: SectionMetricModel[];
+  reasonTags: string[];
+  score: number;
+  tone: "positive" | "negative" | "info" | "neutral";
+};
+
+export type TechnicalAnalysisSectionModel = {
+  badgeLabel: string;
+  body: string;
+  headline: string;
+  metaCaption: string;
+  metrics: SectionMetricModel[];
+  tone: "positive" | "negative" | "info" | "warning";
+  payloadTags: string[];
+};
+
+export type FundamentalsHistoryEntryModel = {
+  badgeLabel: string;
+  key: string;
+  metrics: SectionMetricModel[];
+  subtitle: string;
+  title: string;
+};
+
+export type FundamentalsHistorySectionModel = {
+  emptyBody: string | null;
+  emptyTitle: string | null;
+  entries: FundamentalsHistoryEntryModel[];
+  fsTone: "positive" | "negative" | "info" | "warning";
+  fsValue: string;
+  highlights: SectionMetricModel[];
+  introBody: string;
+  introInitial: string;
+  introTitle: string;
+  state: "empty" | "list" | "loading";
+};
+
+export type DisclosureCoverageCardModel = {
+  actionLabel: string;
+  ariaLabel: string;
+  body: string;
+  dateLabel: string;
+  href: string;
+  key: string;
+  receiptLabel: string;
+  receiptNoLabel: string;
+  title: string;
+};
+
+export type DisclosureCoverageSectionModel = {
+  badgeTone: "info" | "neutral" | "warning";
+  badgeValue: string;
+  cards: DisclosureCoverageCardModel[];
+  coverageBody: string;
+  coverageTitle: string;
+  emptyBody: string | null;
+  emptyTitle: string | null;
+  state: DisclosureSectionState;
+};
+
+export type FreshnessModuleRowModel = {
+  api: string;
+  date: string;
+  detail: string;
+  id: string;
+  label: string;
+  status: string;
+  tone: "info" | "negative" | "neutral" | "positive" | "warning";
+};
+
+export type SystemFreshnessSectionModel = {
+  metrics: SectionMetricModel[];
+  moduleRows: FreshnessModuleRowModel[];
+  statusLabel: string;
+  tone: "positive" | "warning" | "info" | "neutral";
 };
 
 export function hasNumber(value: number | null | undefined): value is number {
@@ -340,21 +440,69 @@ export function buildLatestDisclosure(disclosures: AgentContextDisclosureDto[]) 
   return disclosures[0] ?? null;
 }
 
-export function buildActionTone(actionSummary: AgentContextActionSummaryDto | null) {
+export function buildHeroFundamentalLatestMetricModel({
+  aggregateContext,
+  aggregateContextError,
+  aggregateContextLoadState,
+  copy,
+  latestDisclosure,
+  latestFundamentals,
+}: {
+  aggregateContext: AgentContextItemDto | null;
+  aggregateContextError: string | null;
+  aggregateContextLoadState: AggregateContextLoadState;
+  copy: SymbolDetailCopy;
+  latestDisclosure: AgentContextDisclosureDto | null;
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null;
+}): HeroFundamentalLatestMetricModel {
+  const value =
+    latestDisclosure?.report_nm ??
+    (latestFundamentals
+      ? buildFundamentalsLatestLabel(null, latestFundamentals, copy)
+      : aggregateContextLoadState === "loading"
+        ? copy.hero.priceLoading
+        : copy.disclosures.emptyTitle);
+  const detailDate = latestDisclosure?.receipt_date ?? buildFundamentalsDate(null, latestFundamentals, aggregateContext);
+
+  return {
+    value,
+    detailDateLabel: detailDate ? formatIsoDateLabel(detailDate) : null,
+    errorLabel: detailDate ? null : aggregateContextError,
+  };
+}
+
+export function buildHeroPiotroskiMetricModel({
+  copy,
+  piotroskiLoadState,
+  piotroskiResult,
+}: {
+  copy: SymbolDetailCopy;
+  piotroskiLoadState: AggregateContextLoadState;
+  piotroskiResult: EodPiotroskiFilterResultItemDto | null;
+}): HeroPiotroskiMetricModel {
+  return {
+    label: getPiotroskiLabel(piotroskiResult, piotroskiLoadState, copy),
+    tone: piotroskiResult ? (piotroskiResult.passed_filter ? "positive" : "negative") : null,
+  };
+}
+
+export function buildActionTone(actionSummary: AgentContextActionSummaryDto | null): ActionSummarySectionModel["tone"] {
   if (!actionSummary) return "neutral";
   if (actionSummary.bias_direction === "long") return "positive";
   if (actionSummary.bias_direction === "short") return "negative";
   return "info";
 }
 
-export function buildTechnicalTone(technicalSnapshot: AgentContextTechnicalSnapshotDto | null) {
+export function buildTechnicalTone(
+  technicalSnapshot: AgentContextTechnicalSnapshotDto | null,
+): TechnicalAnalysisSectionModel["tone"] {
   if (!technicalSnapshot) return "warning";
   if (technicalSnapshot.trend_state === "uptrend") return "positive";
   if (technicalSnapshot.trend_state === "downtrend") return "negative";
   return "info";
 }
 
-export function buildFreshnessTone(status: string | null | undefined) {
+export function buildFreshnessTone(status: string | null | undefined): SystemFreshnessSectionModel["tone"] {
   if (!status) return "warning";
   if (status === "completed") return "positive";
   if (status === "completed_with_errors") return "warning";
@@ -362,11 +510,16 @@ export function buildFreshnessTone(status: string | null | undefined) {
   return "neutral";
 }
 
-export function buildModuleStatusTone(available: boolean, fallbackTone = "warning") {
+export function buildModuleStatusTone(
+  available: boolean,
+  fallbackTone: FreshnessModuleRowModel["tone"] = "warning",
+): FreshnessModuleRowModel["tone"] {
   return available ? "positive" : fallbackTone;
 }
 
-export function buildConfidenceTone(value: string | null | undefined) {
+export function buildConfidenceTone(
+  value: string | null | undefined,
+): FundamentalsHistorySectionModel["fsTone"] {
   if (!value) return "warning";
   if (value === "high" || value === "premium") return "positive";
   if (value === "low") return "negative";
@@ -415,6 +568,82 @@ export function buildActionFreshnessDate(
   freshness: EodFreshnessResponseDto | null,
 ) {
   return actionSummary?.market_date ?? freshness?.latest?.action_market_date ?? null;
+}
+
+export function buildActionSummarySectionModel(
+  actionSummary: AgentContextActionSummaryDto | null,
+  copy: SymbolDetailCopy,
+): ActionSummarySectionModel {
+  const reasons = actionSummary?.reasons.slice(0, 4) ?? [];
+  const payloadTags = buildInsightTags(actionSummary?.summary_payload);
+
+  return {
+    badgeLabel: actionSummary ? humanizeToken(actionSummary.action_label) : copy.action.unavailable,
+    body: reasons.length > 0 ? reasons.join(" ") : copy.action.emptyBody,
+    headline: buildActionHeadline(actionSummary, copy),
+    metaCaption: `${copy.action.payloadKeys}: ${payloadTags.join(" · ")}`,
+    metrics: [
+      {
+        key: "confidence",
+        label: copy.action.confidence,
+        value: humanizeToken(actionSummary?.confidence_tier),
+      },
+      {
+        key: "risk",
+        label: copy.action.risk,
+        value: humanizeToken(actionSummary?.risk_tier),
+      },
+      {
+        key: "trigger",
+        label: copy.action.trigger,
+        value: hasNumber(actionSummary?.trigger_price)
+          ? `₩${formatPrice(actionSummary.trigger_price)}`
+          : copy.action.noTriggerPrice,
+      },
+    ],
+    reasonTags: reasons.length > 0 ? reasons : [copy.action.noRationaleRows],
+    score: Math.max(0, Math.min(actionSummary?.signal_score ?? 0, 100)),
+    tone: buildActionTone(actionSummary),
+  };
+}
+
+export function buildTechnicalAnalysisSectionModel(
+  technicalSnapshot: AgentContextTechnicalSnapshotDto | null,
+  technicalFreshnessDate: string | null,
+  copy: SymbolDetailCopy,
+): TechnicalAnalysisSectionModel {
+  return {
+    badgeLabel: technicalSnapshot ? humanizeToken(technicalSnapshot.trend_state) : copy.technical.unavailable,
+    body: technicalSnapshot
+      ? `${copy.technical.breakout20d} ${technicalSnapshot.breakout_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.breakdown20d} ${technicalSnapshot.breakdown_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.source} ${technicalSnapshot.source}`
+      : copy.technical.emptyBody,
+    headline: buildTechnicalHeadline(technicalSnapshot, copy),
+    metaCaption: `${copy.technical.sourceDate} ${technicalFreshnessDate ?? copy.technical.noSourceDate} · ${copy.technical.freshnessNote}`,
+    metrics: [
+      {
+        key: "return-5d",
+        label: copy.technical.return5d,
+        value: formatSignedPercent(technicalSnapshot?.return_5d, copy.technical.noReturn5d),
+      },
+      {
+        key: "return-20d",
+        label: copy.technical.return20d,
+        value: formatSignedPercent(technicalSnapshot?.return_20d, copy.technical.noReturn20d),
+      },
+      {
+        key: "volume-ratio-20d",
+        label: copy.technical.volumeRatio20d,
+        value: formatNumberOrDash(technicalSnapshot?.volume_ratio_20d),
+      },
+      {
+        key: "atr-14",
+        label: copy.technical.atr14,
+        value: formatNumberOrDash(technicalSnapshot?.atr_14),
+      },
+    ],
+    tone: buildTechnicalTone(technicalSnapshot),
+    payloadTags: buildInsightTags(technicalSnapshot?.signal_payload),
+  };
 }
 
 export function buildFundamentalsDate(
@@ -529,6 +758,89 @@ export function buildFundamentalsCoverageNote(
   return copy.fundamentals.coverageMissing;
 }
 
+export function buildFundamentalsHistorySectionModel({
+  companyHistory,
+  copy,
+  fundamentalsEntryLimit,
+  fundamentalsLoading,
+  fsDiv,
+  introTitle,
+  latestFundamentals,
+  latestHistoryEntry,
+  symbol,
+}: {
+  companyHistory: DartFundamentalsHistoryCompanyDto | null;
+  copy: SymbolDetailCopy;
+  fundamentalsEntryLimit: number;
+  fundamentalsLoading: boolean;
+  fsDiv: string | null;
+  introTitle: string;
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null;
+  latestHistoryEntry: DartFundamentalsHistoryEntryDto | null;
+  symbol: string;
+}): FundamentalsHistorySectionModel {
+  const latestHistoryHighlights = normalizeHighlightMetrics(latestHistoryEntry?.highlights).slice(0, 3);
+  const latestAggregateHighlights = normalizeHighlightMetrics(latestFundamentals?.highlights).slice(0, 3);
+  const latestHighlights =
+    latestHistoryHighlights.length > 0
+      ? latestHistoryHighlights
+      : latestAggregateHighlights.length > 0
+        ? latestAggregateHighlights
+        : buildFundamentalsMetricFallbacks(latestFundamentals, latestHistoryEntry, copy);
+  const entries =
+    companyHistory?.entries.slice(0, fundamentalsEntryLimit).map((entry) => ({
+      badgeLabel: entry.statement.fs_div ?? copy.fundamentals.fsPending,
+      key: entry.filing.rcept_no,
+      metrics: buildHistoryEntryMetrics(entry, copy).map((metric, index) => ({
+        key: `${entry.filing.rcept_no}-${metric.metric_key ?? index}`,
+        label: formatHighlightLabel(metric, index),
+        value: formatHighlightValue(metric, copy),
+      })),
+      subtitle: `${entry.filing.report_nm ?? copy.fundamentals.unnamedFiling} · ${copy.fundamentals.receipt} ${entry.filing.receipt_date ?? copy.fundamentals.noReceiptDate}`,
+      title:
+        entry.period.report_label ??
+        `${entry.period.business_year ?? copy.fundamentals.unknownYear} ${entry.period.report_code ?? ""}`.trim(),
+    })) ?? [];
+
+  if (entries.length > 0) {
+    return {
+      emptyBody: null,
+      emptyTitle: null,
+      entries,
+      fsTone: buildConfidenceTone(fsDiv),
+      fsValue: fsDiv ?? copy.fundamentals.defaultFs,
+      highlights: latestHighlights.map((metric, index) => ({
+        key: `${metric.metric_key ?? index}`,
+        label: formatHighlightLabel(metric, index),
+        value: formatHighlightValue(metric, copy),
+      })),
+      introBody: `${copy.fundamentals.latestFilingPrefix} ${buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}.`,
+      introInitial: symbol.slice(0, 1),
+      introTitle,
+      state: "list",
+    };
+  }
+
+  return {
+    emptyBody: fundamentalsLoading
+      ? copy.fundamentals.loadingBody
+      : buildFundamentalsCoverageNote(companyHistory, latestFundamentals, copy),
+    emptyTitle: fundamentalsLoading ? copy.fundamentals.loadingTitle : copy.fundamentals.emptyTitle,
+    entries: [],
+    fsTone: buildConfidenceTone(fsDiv),
+    fsValue: fsDiv ?? copy.fundamentals.defaultFs,
+    highlights: latestHighlights.map((metric, index) => ({
+      key: `${metric.metric_key ?? index}`,
+      label: formatHighlightLabel(metric, index),
+      value: formatHighlightValue(metric, copy),
+    })),
+    introBody: `${copy.fundamentals.latestFilingPrefix} ${buildFundamentalsLatestLabel(latestHistoryEntry, latestFundamentals, copy)}.`,
+    introInitial: symbol.slice(0, 1),
+    introTitle,
+    state: fundamentalsLoading ? "loading" : "empty",
+  };
+}
+
 export function buildFocusCandleRows(
   focusBar: SymbolPriceBarDto | null,
   copy: SymbolDetailCopy,
@@ -557,6 +869,70 @@ export function buildDisclosureCoverageNote(
   }
 
   return copy.disclosures.emptyTitle;
+}
+
+export function buildDisclosureCoverageSectionModel({
+  copy,
+  disclosureCount,
+  disclosureItemLimit,
+  latestDisclosure,
+  recentDisclosures,
+  routeQueryString,
+  sectionState,
+  symbol,
+}: {
+  copy: SymbolDetailCopy;
+  disclosureCount: number;
+  disclosureItemLimit: number;
+  latestDisclosure: AgentContextDisclosureDto | null;
+  recentDisclosures: AgentContextDisclosureDto[];
+  routeQueryString: string;
+  sectionState: DisclosureSectionState;
+  symbol: string;
+}): DisclosureCoverageSectionModel {
+  const badgeTone =
+    sectionState === "list" ? "info" : sectionState === "empty" ? "neutral" : "warning";
+  const cards =
+    sectionState === "list"
+      ? recentDisclosures.slice(0, disclosureItemLimit).map((item) => ({
+          actionLabel: copy.disclosures.viewReportDetail,
+          ariaLabel: `${copy.disclosures.openReportPrefix} ${item.report_nm}`,
+          body: `${humanizeToken(item.filing_category, copy.disclosures.noCategory)} · ${copy.disclosures.capture} ${humanizeToken(item.fundamentals_capture_status, copy.disclosures.notCaptured)}`,
+          dateLabel: item.receipt_date ?? copy.disclosures.noReceiptDate,
+          href: buildDisclosureReportHref(symbol, item, routeQueryString),
+          key: item.rcept_no,
+          receiptLabel: `${copy.disclosures.receipt} ${item.receipt_date ?? copy.disclosures.noReceiptDate}`,
+          receiptNoLabel: `${copy.disclosures.receiptNo} ${item.rcept_no}`,
+          title: item.report_nm,
+        }))
+      : [];
+  const emptyTitle =
+    sectionState === "loading"
+      ? copy.disclosures.loadingTitle
+      : sectionState === "empty"
+        ? copy.disclosures.emptyTitle
+        : sectionState === "unavailable"
+          ? copy.disclosures.unavailableTitle
+          : null;
+  const emptyBody =
+    sectionState === "loading"
+      ? copy.disclosures.loadingBody
+      : sectionState === "empty"
+        ? copy.disclosures.emptyBody
+        : sectionState === "unavailable"
+          ? copy.disclosures.unavailableBody
+          : null;
+
+  return {
+    badgeTone,
+    badgeValue: `${disclosureCount} ${copy.disclosures.items}`,
+    cards,
+    coverageBody: buildDisclosureCoverageNote(latestDisclosure, disclosureCount, copy),
+    coverageTitle: latestDisclosure ? copy.disclosures.latestDisclosureAvailable : copy.disclosures.partialAnalystCoverage,
+    emptyBody,
+    emptyTitle,
+    state: sectionState,
+  };
 }
 
 function normalizeMarketCode(value: string | null | undefined) {
@@ -749,4 +1125,141 @@ export function buildLatestPriceLabel(
     quote?.trade_date ??
     formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending)
   );
+}
+
+export function buildSystemFreshnessSectionModel({
+  actionSummary,
+  aggregateContext,
+  copy,
+  disclosureSectionState,
+  freshness,
+  hasFundamentalsHistory,
+  latestDisclosure,
+  latestFundamentals,
+  marketDate,
+  quote,
+  technicalSnapshot,
+}: {
+  actionSummary: AgentContextActionSummaryDto | null;
+  aggregateContext: AgentContextItemDto | null;
+  copy: SymbolDetailCopy;
+  disclosureSectionState: DisclosureSectionState;
+  freshness: EodFreshnessResponseDto | null;
+  hasFundamentalsHistory: boolean;
+  latestDisclosure: AgentContextDisclosureDto | null;
+  latestFundamentals: AgentContextFundamentalsSummaryDto["latest_snapshot"] | null;
+  marketDate: string | null;
+  quote: QuoteResponse | null;
+  technicalSnapshot: AgentContextTechnicalSnapshotDto | null;
+}): SystemFreshnessSectionModel {
+  const technicalFreshnessDate = buildTechnicalFreshnessDate(technicalSnapshot, freshness);
+  const actionFreshnessDate = buildActionFreshnessDate(actionSummary, freshness);
+  const fundamentalsDate = buildFundamentalsDate(null, latestFundamentals, aggregateContext);
+
+  return {
+    metrics: [
+      {
+        key: "eod-trade-date",
+        label: copy.freshness.eodTradeDate,
+        value: freshness?.today?.trade_date ?? marketDate ?? copy.common.datePending,
+      },
+      {
+        key: "price-latest",
+        label: copy.freshness.priceLatest,
+        value: buildLatestPriceLabel(freshness, quote, copy),
+      },
+      {
+        key: "technical-latest",
+        label: copy.freshness.technicalLatest,
+        value: technicalFreshnessDate ?? copy.freshness.noTechnicalDate,
+      },
+      {
+        key: "action-latest",
+        label: copy.freshness.actionLatest,
+        value: actionFreshnessDate ?? copy.freshness.noActionDate,
+      },
+    ],
+    moduleRows: [
+      {
+        api: "/api/trading/quotes/{symbol}",
+        date: buildLatestPriceLabel(freshness, quote, copy),
+        detail: quote?.available
+          ? buildQuoteSourceLabel(quote, copy)
+          : quote?.unavailable_reason ?? copy.freshness.quoteCoverageUnavailable,
+        id: "price",
+        label: copy.freshness.priceModule,
+        status: quote?.available
+          ? quote.is_live
+            ? copy.freshness.live
+            : copy.freshness.fallback
+          : copy.freshness.unavailable,
+        tone: buildModuleStatusTone(Boolean(quote?.available)),
+      },
+      {
+        api: "/api/trading/eod/technical-snapshots",
+        date: technicalFreshnessDate ?? copy.freshness.noTechnicalDate,
+        detail: technicalSnapshot
+          ? `${humanizeToken(technicalSnapshot.trend_state)} · ${copy.technical.maAlignment} ${humanizeToken(technicalSnapshot.ma_alignment)}`
+          : copy.freshness.technicalUnavailable,
+        id: "technical",
+        label: copy.freshness.technicalModule,
+        status:
+          technicalSnapshot || freshness?.technical?.success ? copy.freshness.synced : copy.freshness.pending,
+        tone: technicalSnapshot || freshness?.technical?.success ? buildTechnicalTone(technicalSnapshot) : "warning",
+      },
+      {
+        api: "/api/trading/eod/action-summaries",
+        date: actionFreshnessDate ?? copy.freshness.noActionDate,
+        detail: actionSummary
+          ? `${humanizeToken(actionSummary.action_label)} · ${copy.action.risk} ${humanizeToken(actionSummary.risk_tier)}`
+          : copy.freshness.actionUnavailable,
+        id: "action",
+        label: copy.freshness.actionModule,
+        status: actionSummary ? copy.freshness.resolved : copy.freshness.pending,
+        tone: actionSummary ? buildActionTone(actionSummary) : "warning",
+      },
+      {
+        api: "/api/trading/disclosures/dart/fundamentals/history",
+        date: fundamentalsDate ?? copy.fundamentals.noReceiptDate,
+        detail: buildFundamentalsCoverageNote(null, latestFundamentals, copy),
+        id: "fundamentals",
+        label: copy.freshness.fundamentalsModule,
+        status: hasFundamentalsHistory
+          ? copy.freshness.historyLoaded
+          : latestFundamentals
+            ? copy.freshness.aggregateOnly
+            : copy.freshness.noHistory,
+        tone: hasFundamentalsHistory || latestFundamentals ? "info" : "warning",
+      },
+      {
+        api: "/api/trading/agent-context/symbol-day",
+        date:
+          latestDisclosure?.receipt_date ??
+          (disclosureSectionState === "loading"
+            ? copy.common.loading
+            : disclosureSectionState === "empty"
+              ? copy.freshness.noDisclosures
+              : copy.freshness.unavailable),
+        detail: buildDisclosureCoverageNote(latestDisclosure, aggregateContext?.recent_disclosures.count ?? 0, copy),
+        id: "disclosures",
+        label: copy.freshness.disclosuresModule,
+        status:
+          disclosureSectionState === "list"
+            ? copy.freshness.coverage
+            : disclosureSectionState === "empty"
+              ? copy.freshness.empty
+              : disclosureSectionState === "loading"
+                ? copy.freshness.loading
+                : copy.freshness.unavailable,
+        tone:
+          disclosureSectionState === "list"
+            ? "info"
+            : disclosureSectionState === "empty"
+              ? "neutral"
+              : "warning",
+      },
+    ],
+    statusLabel: humanizeToken(freshness?.today?.eod_status, copy.freshness.statusPending),
+    tone: buildFreshnessTone(freshness?.today?.eod_status),
+  };
 }

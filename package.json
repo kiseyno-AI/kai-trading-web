@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:unit": "node --import tsx --test src/lib/*.test.ts",
+    "test:unit": "node --import tsx --test src/lib/*.test.ts src/features/dashboard/*.test.ts src/features/symbol-detail/*.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

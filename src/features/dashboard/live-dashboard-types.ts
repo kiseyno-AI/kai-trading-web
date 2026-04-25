@@ -119,6 +119,32 @@ export type AgentRoleCard = {
   metrics: AgentRoleMetric[];
 };
 
+export type PiotroskiFilteringCardModel = {
+  checkedCountLabel: string;
+  displayMarketDate: string | null;
+  displayMarketDateLabel: string;
+  note: string | null;
+  passCountLabel: string;
+  statusLabel: string;
+  statusTone: "positive" | "neutral" | "warning";
+};
+
+export type TrackedSymbolCardModel = {
+  availabilityLabel: string;
+  availabilityTone: "positive" | "negative" | "warning";
+  changeLabel: string;
+  changeTone: "positive" | "negative" | null;
+  companyName: string;
+  href: string;
+  isMuted: boolean;
+  priceFreshnessLabel: string;
+  priceLabel: string;
+  sourceLabel: string;
+  symbol: string;
+  technicalFreshnessLabel: string;
+  turnoverLabel: string;
+};
+
 export type AgentRoleProgressSnapshot = {
   role: string;
   status: AgentRoleStatus;
