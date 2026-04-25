@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
@@ -488,7 +488,7 @@ function buildFactorCardModel(
   }
 }
 
-export function FactorSnapshotSection({
+export const FactorSnapshotSection = memo(function FactorSnapshotSection({
   copy,
   marketDate,
   normalizedSymbol,
@@ -519,6 +519,25 @@ export function FactorSnapshotSection({
   const factorSectionBusy =
     factorSectionRefreshing ||
     (!factorSnapshot && (factorSnapshotResult.isInitialLoading || (!marketDate && symbolReady)));
+  const familyResults = useMemo(
+    () =>
+      FACTOR_FAMILY_ORDER.map((family) => factorSnapshot?.families[family]).filter(
+        (result): result is AnyFactorFamilyResult => Boolean(result),
+      ),
+    [factorSnapshot],
+  );
+  const familyCards = useMemo(
+    () => familyResults.map((result) => buildFactorCardModel(copy, numberLocale, result)),
+    [copy, familyResults, numberLocale],
+  );
+  const readyFamilyCount = useMemo(
+    () => familyResults.filter((result) => result.ok && result.item).length,
+    [familyResults],
+  );
+  const partialFailureCount = useMemo(
+    () => familyResults.filter((result) => !result.ok).length,
+    [familyResults],
+  );
 
   if (!factorSnapshot && factorSectionBusy) {
     return (
@@ -536,13 +555,6 @@ export function FactorSnapshotSection({
       </section>
     );
   }
-
-  const familyResults = FACTOR_FAMILY_ORDER.map((family) =>
-    factorSnapshot?.families[family],
-  ).filter((result): result is AnyFactorFamilyResult => Boolean(result));
-  const familyCards = familyResults.map((result) => buildFactorCardModel(copy, numberLocale, result));
-  const readyFamilyCount = familyResults.filter((result) => result.ok && result.item).length;
-  const partialFailureCount = familyResults.filter((result) => !result.ok).length;
 
   return (
     <section
@@ -639,4 +651,4 @@ export function FactorSnapshotSection({
       </UnitRefreshFrame>
     </section>
   );
-}
+});

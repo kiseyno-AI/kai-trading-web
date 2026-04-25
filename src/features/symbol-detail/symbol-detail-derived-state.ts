@@ -357,10 +357,18 @@ export function buildPriceHistoryQuery(range: PriceHistoryRange, marketDate: str
   return params.toString();
 }
 
-export function pickSelectedBar(items: SymbolPriceBarDto[], previousSelectedBar: SymbolPriceBarDto | null) {
+export function pickSelectedBarTradeDate(items: SymbolPriceBarDto[], previousSelectedBarTradeDate: string | null) {
   if (items.length === 0) return null;
-  if (!previousSelectedBar) return items[items.length - 1] ?? null;
-  return items.find((item) => item.trade_date === previousSelectedBar.trade_date) ?? items[items.length - 1] ?? null;
+  if (!previousSelectedBarTradeDate) return items[items.length - 1]?.trade_date ?? null;
+
+  return items.some((item) => item.trade_date === previousSelectedBarTradeDate)
+    ? previousSelectedBarTradeDate
+    : items[items.length - 1]?.trade_date ?? null;
+}
+
+export function findPriceBarByTradeDate(items: SymbolPriceBarDto[], tradeDate: string | null) {
+  if (!tradeDate || items.length === 0) return null;
+  return items.find((item) => item.trade_date === tradeDate) ?? null;
 }
 
 export function buildFundamentalsHistoryQuery(symbol: string, marketDate: string, fsDiv: string | null) {

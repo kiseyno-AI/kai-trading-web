@@ -217,13 +217,18 @@ export function useLiveDashboardData({
   }, []);
 
   const symbolsNeedingCompanyName = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          tracked.items.filter((item) => !getQuoteCompanyName(item)).map((item) => item.symbol),
-        ),
-      ),
-    [tracked.items],
+    () => {
+      const missingSymbols = new Set<string>();
+
+      for (const item of tracked.items) {
+        if (getQuoteCompanyName(item)) continue;
+        if (Object.prototype.hasOwnProperty.call(symbolMetaBySymbol, item.symbol)) continue;
+        missingSymbols.add(item.symbol);
+      }
+
+      return Array.from(missingSymbols).sort();
+    },
+    [symbolMetaBySymbol, tracked.items],
   );
   const symbolMetadataLookupKey = symbolsNeedingCompanyName.join("|");
 
@@ -250,11 +255,17 @@ export function useLiveDashboardData({
 
       if (!active) return;
       setSymbolMetaBySymbol((current) => {
+        let didChange = false;
         const next = { ...current };
         for (const [symbol, metadata] of entries) {
+          if (current[symbol] === metadata) {
+            continue;
+          }
+
           next[symbol] = metadata;
+          didChange = true;
         }
-        return next;
+        return didChange ? next : current;
       });
     };
 

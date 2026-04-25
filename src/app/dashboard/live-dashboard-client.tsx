@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
-import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
+import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
   getLatestActionMarketDate,
@@ -62,7 +62,15 @@ import {
   mergeRunningPipelineStage,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "@/features/dashboard/live-dashboard-derived-state";
-import type { LiveDashboardClientProps } from "@/features/dashboard/live-dashboard-types";
+import type {
+  AgentRoleCard,
+  AgentRoleStatus,
+  EodStageCard,
+  FundamentalsFailureDetails,
+  LiveDashboardClientProps,
+  PiotroskiFilteringCardModel,
+  TrackedSymbolCardModel,
+} from "@/features/dashboard/live-dashboard-types";
 import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-data";
 import type {
   AgentContextCoreControlRequestDto,
@@ -125,6 +133,352 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return parsedBody as T;
 }
 
+type AgentRoleStatusLabels = Record<AgentRoleStatus, string>;
+
+type EodStatusCardProps = {
+  copy: DashboardLiveCopy;
+  eodMarketDate: string;
+  eodStageCards: readonly EodStageCard[];
+  fundamentalsDialogOpen: boolean;
+  fundamentalsFailureDetails: FundamentalsFailureDetails | null;
+  onOpenFundamentalsDetails: () => void;
+};
+
+const EodStatusCard = memo(function EodStatusCard({
+  copy,
+  eodMarketDate,
+  eodStageCards,
+  fundamentalsDialogOpen,
+  fundamentalsFailureDetails,
+  onOpenFundamentalsDetails,
+}: EodStatusCardProps) {
+  return (
+    <article className={`${styles.integrityStat} ${styles.eodStatusCard}`}>
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.operational.eodEyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.operational.eodTitle}</h2>
+          <p className={styles.cardContext}>{copy.operational.marketDate} {eodMarketDate}</p>
+        </div>
+      </div>
+
+      <div className={styles.eodStageGrid}>
+        {eodStageCards.map((stage) => {
+          const isIconOnlyStatus = isIconOnlyEodStageStatus(stage.statusLabel);
+          const isStandaloneStatusIcon = stage.statusLabel === "synced" || stage.statusLabel === "not synced";
+          const statusClass = stage.statusLabel === "running" ? styles.runningStatusPill : "";
+          const localizedStatusLabel = getStageStatusLabel(stage.statusLabel, copy);
+          const displayedStatusLabel =
+            stage.statusLabel === "running" && stage.statusBadgeLabel !== stage.statusLabel
+              ? stage.statusBadgeLabel
+              : localizedStatusLabel;
+          const statusAriaLabel =
+            stage.statusLabel === "running" && stage.statusBadgeLabel !== stage.statusLabel
+              ? `${localizedStatusLabel} · ${stage.statusBadgeLabel}`
+              : localizedStatusLabel;
+          const statusTitle = stage.statusBadgeTitle ?? (isIconOnlyStatus ? statusAriaLabel : undefined);
+          const standaloneStatusClass =
+            stage.statusLabel === "not synced" ? styles.notSyncedStatusIcon : styles.syncedStatusIcon;
+
+          return (
+            <div
+              key={stage.id}
+              className={styles.eodStageCard}
+              aria-label={`${stage.label} freshness`}
+              data-stage={stage.id}
+              data-status={stage.statusLabel}
+            >
+              <div className={styles.eodStageTop}>
+                <span className={styles.eodStageTitle}>{stage.label}</span>
+                {isStandaloneStatusIcon ? (
+                  <span
+                    className={`${styles.statusIconBadge} ${standaloneStatusClass}`}
+                    title={statusTitle}
+                    data-status-badge={stage.statusLabel}
+                    role="img"
+                    aria-label={statusAriaLabel}
+                  />
+                ) : (
+                  <span
+                    className={`pill ${stage.tone} ${statusClass} ${isIconOnlyStatus ? styles.iconStatusPill : ""}`}
+                    title={statusTitle}
+                    data-status-badge={stage.statusLabel}
+                    role={isIconOnlyStatus ? "img" : undefined}
+                    aria-label={isIconOnlyStatus ? statusAriaLabel : undefined}
+                  >
+                    {isIconOnlyStatus ? (
+                      <span className={styles.statusPillIcon} aria-hidden="true" />
+                    ) : (
+                      <span className={styles.statusPillLabel}>{displayedStatusLabel}</span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <div className={styles.eodStageDetails}>
+                {stage.details.map((detail) => (
+                  <span
+                    key={detail.key}
+                    className={styles.eodStageDetailLine}
+                    data-detail-tone={detail.tone ?? "text"}
+                    data-detail-layout={detail.layout ?? "inline"}
+                  >
+                    {detail.label ? <span>{detail.label}</span> : null}
+                    {detail.label ? " " : null}
+                    <span className={styles.eodStageDetailValue}>{detail.value}</span>
+                  </span>
+                ))}
+                {stage.id === "fundamentals" && fundamentalsFailureDetails ? (
+                  <button
+                    type="button"
+                    className={styles.detailButton}
+                    aria-label={copy.operational.viewFundamentalsRunDetails}
+                    aria-haspopup="dialog"
+                    aria-expanded={fundamentalsDialogOpen}
+                    aria-controls="fundamentals-failure-dialog"
+                    onClick={onOpenFundamentalsDetails}
+                  >
+                    {copy.operational.viewDetail}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+});
+
+type PiotroskiFilteringCardProps = {
+  copy: DashboardLiveCopy;
+  filteringCardModel: PiotroskiFilteringCardModel;
+};
+
+const PiotroskiFilteringCard = memo(function PiotroskiFilteringCard({
+  copy,
+  filteringCardModel,
+}: PiotroskiFilteringCardProps) {
+  return (
+    <article className={`${styles.integrityStat} ${styles.filteringCard}`}>
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.operational.piotroskiEyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.operational.piotroskiTitle}</h2>
+          <p className={styles.cardContext}>
+            {copy.operational.marketDate} {filteringCardModel.displayMarketDateLabel}
+          </p>
+        </div>
+        <Link
+          href={buildPiotroskiListHref(filteringCardModel.displayMarketDate)}
+          className={styles.sectionLink}
+          aria-label={copy.operational.openPiotroskiList}
+        >
+          {copy.operational.more}
+        </Link>
+      </div>
+
+      <div className={styles.statusMetricGrid}>
+        <div className={styles.statusMetric}>
+          <span>{copy.operational.status}</span>
+          <strong>
+            <span className={`pill ${filteringCardModel.statusTone}`}>{filteringCardModel.statusLabel}</span>
+          </strong>
+        </div>
+        <div className={styles.statusMetric}>
+          <span>{copy.operational.checked}</span>
+          <strong>{filteringCardModel.checkedCountLabel}</strong>
+        </div>
+        <div className={styles.statusMetric}>
+          <span>{copy.operational.pass}</span>
+          <strong>{filteringCardModel.passCountLabel}</strong>
+        </div>
+      </div>
+
+      {filteringCardModel.note ? <p className={styles.cardContext}>{filteringCardModel.note}</p> : null}
+    </article>
+  );
+});
+
+type AgentFeedbackCardProps = {
+  agentFeedbackHeaderStatusLabel: string;
+  agentFeedbackStatusTone: "positive" | "neutral" | "warning";
+  agentFeedbackStopDialogOpen: boolean;
+  agentProgressDate: string;
+  agentRoleCards: AgentRoleCard[];
+  agentRoleStatusLabels: AgentRoleStatusLabels;
+  copy: DashboardLiveCopy;
+  isAgentFeedbackRunning: boolean;
+  onOpenAgentFeedbackStopDialog: () => void;
+};
+
+const AgentFeedbackCard = memo(function AgentFeedbackCard({
+  agentFeedbackHeaderStatusLabel,
+  agentFeedbackStatusTone,
+  agentFeedbackStopDialogOpen,
+  agentProgressDate,
+  agentRoleCards,
+  agentRoleStatusLabels,
+  copy,
+  isAgentFeedbackRunning,
+  onOpenAgentFeedbackStopDialog,
+}: AgentFeedbackCardProps) {
+  return (
+    <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <h2 className={styles.sectionTitle}>{copy.operational.agentTitle}</h2>
+          <p className={styles.cardContext}>{copy.operational.agentDate} {agentProgressDate}</p>
+        </div>
+        <span className={`pill ${agentFeedbackStatusTone}`}>{agentFeedbackHeaderStatusLabel}</span>
+      </div>
+      {agentRoleCards.length > 0 ? (
+        <div className={styles.agentRoleList} role="list" aria-label={copy.operational.agentRoleProgress}>
+          {agentRoleCards.map((role) => (
+            <div
+              key={role.role}
+              className={styles.agentRoleRow}
+              data-role-status={role.status}
+              role="listitem"
+              aria-label={`${role.label} ${agentRoleStatusLabels[role.status]}`}
+            >
+              <div className={styles.agentRoleContent}>
+                <span className={styles.agentRoleTitleRow}>
+                  <span className={styles.agentRoleName}>{role.label}</span>
+                  {isSummarizerRole(role.role) ? (
+                    <span
+                      className={styles.agentRoleProgressIcon}
+                      data-role-progress-icon={role.status}
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                </span>
+                {isSummarizerRole(role.role) ? (
+                  <div
+                    className={styles.agentRoleProgressTrack}
+                    data-role-progress-track={role.status}
+                    data-role-progress-value={role.progressPercent}
+                    role="progressbar"
+                    aria-label={`${role.label} ${copy.agentFeedback.metrics.progress}`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={role.progressPercent}
+                    aria-valuetext={role.progressLabel}
+                  >
+                    <i style={{ width: `${role.progressPercent}%` }} />
+                  </div>
+                ) : null}
+                <span className={styles.agentRoleStatusText}>{agentRoleStatusLabels[role.status]}</span>
+                {role.metrics.length > 0 ? (
+                  <dl className={styles.agentRoleMetrics}>
+                    {role.metrics.map((metric) => (
+                      <div key={metric.key} className={styles.agentRoleMetric}>
+                        <dt>{metric.label}</dt>
+                        <dd>{metric.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.emptyState}>{copy.operational.agentProgressUnavailable}</div>
+      )}
+      {isAgentFeedbackRunning ? (
+        <div className={styles.agentFeedbackActions}>
+          <button
+            type="button"
+            className={styles.agentFeedbackStopButton}
+            aria-label={copy.operational.stop}
+            aria-haspopup="dialog"
+            aria-expanded={agentFeedbackStopDialogOpen}
+            aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
+            onClick={onOpenAgentFeedbackStopDialog}
+          >
+            {copy.operational.stop}
+          </button>
+        </div>
+      ) : null}
+    </article>
+  );
+});
+
+type TrackedSymbolsSectionProps = {
+  copy: DashboardLiveCopy;
+  trackedSymbolCards: TrackedSymbolCardModel[];
+};
+
+const TrackedSymbolsSection = memo(function TrackedSymbolsSection({
+  copy,
+  trackedSymbolCards,
+}: TrackedSymbolsSectionProps) {
+  return (
+    <section className={`${styles.panel} ${styles.trackedPanel}`} id="tracked-symbols">
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.operational.trackedEyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.operational.trackedTitle}</h2>
+        </div>
+        <Link href="/my-symbols" className={styles.sectionLink} aria-label={copy.operational.openMySymbols}>
+          {copy.operational.more}
+        </Link>
+      </div>
+
+      <div className={styles.trackedList}>
+        {trackedSymbolCards.map((item) => (
+          <Link
+            key={item.symbol}
+            href={item.href}
+            className={`${styles.trackedCard} ${item.isMuted ? styles.trackedCardMuted : ""}`.trim()}
+          >
+            <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
+
+            <div className={styles.trackedCardTop}>
+              <div>
+                <strong className={styles.companyName}>{item.companyName}</strong>
+                <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
+              </div>
+              <span className={`pill ${item.availabilityTone}`}>{item.availabilityLabel}</span>
+            </div>
+
+            <div className={styles.priceBlock}>
+              <strong>{item.priceLabel}</strong>
+              <span
+                className={
+                  item.changeTone === "positive"
+                    ? styles.positive
+                    : item.changeTone === "negative"
+                      ? styles.negative
+                      : ""
+                }
+              >
+                {item.changeLabel}
+              </span>
+            </div>
+
+            <div className={styles.cardMeta}>
+              <div>
+                <span>{copy.operational.priceFreshness}</span>
+                <strong>{item.priceFreshnessLabel}</strong>
+              </div>
+              <div>
+                <span>{copy.operational.technicalFreshness}</span>
+                <strong>{item.technicalFreshnessLabel}</strong>
+              </div>
+            </div>
+
+            <div className={styles.cardFooter}>
+              <span className="clamp-3">{item.sourceLabel}</span>
+              <span className="clamp-3">{item.turnoverLabel}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+});
+
 export function LiveDashboardClient({
   initialError = null,
   initialMarket,
@@ -137,8 +491,8 @@ export function LiveDashboardClient({
   const { locale } = useAppState();
   const copy = getDashboardLiveCopy(locale);
   const numberLocale = getNumberLocale(locale);
-  const agentProgressStatusLabels = getAgentProgressStatusLabels(copy);
-  const agentRoleStatusLabels = getAgentRoleStatusLabels(copy);
+  const agentProgressStatusLabels = useMemo(() => getAgentProgressStatusLabels(copy), [copy]);
+  const agentRoleStatusLabels = useMemo(() => getAgentRoleStatusLabels(copy), [copy]);
   const {
     agentFeedbackProgress,
     agentFeedbackProgressError,
@@ -219,13 +573,17 @@ export function LiveDashboardClient({
     latestFundamentalsDate,
     useTodayFundamentalsStage,
   );
-  const fundamentalsFailureDetails = getFundamentalsFailureDetails(
-    freshness,
-    fundamentalsStatus,
-    latestFundamentalsDate,
-    fundamentalsStatusLabel,
-    copy,
-    numberLocale,
+  const fundamentalsFailureDetails = useMemo(
+    () =>
+      getFundamentalsFailureDetails(
+        freshness,
+        fundamentalsStatus,
+        latestFundamentalsDate,
+        fundamentalsStatusLabel,
+        copy,
+        numberLocale,
+      ),
+    [copy, freshness, fundamentalsStatus, fundamentalsStatusLabel, latestFundamentalsDate, numberLocale],
   );
 
   const piotroskiMarketDate = dashboardProcessMarketDate;
@@ -248,77 +606,101 @@ export function LiveDashboardClient({
     fundamentalsFreshnessStage,
     fundamentalsPipelineStage,
   );
-  const fundamentalsUpdatedSymbolsDetail = getFundamentalsUpdatedSymbolsDetail(
-    fundamentalsStatus,
-    todayTradeDate,
-    copy,
-    numberLocale,
+  const fundamentalsUpdatedSymbolsDetail = useMemo(
+    () => getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, todayTradeDate, copy, numberLocale),
+    [copy, fundamentalsStatus, numberLocale, todayTradeDate],
   );
-  const fundamentalsStageCard = buildEodStageCard(
-    "fundamentals",
-    copy.stage.fundamentals,
-    fundamentalsFreshnessWithPipelineStage,
-    eodStatusMarketDate,
-    latestFundamentalsDate,
-    isBreakDay,
-    fundamentalsPipelineStage,
-    copy,
-    numberLocale,
-    {
-      label: copy.operational.checked,
-      value: formatEodSymbolCount(
-        getFundamentalsCheckedCount(freshness, fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
+  const eodStageCards = useMemo(() => {
+    const fundamentalsStageCard = buildEodStageCard(
+      "fundamentals",
+      copy.stage.fundamentals,
+      fundamentalsFreshnessWithPipelineStage,
+      eodStatusMarketDate,
+      latestFundamentalsDate,
+      isBreakDay,
+      fundamentalsPipelineStage,
+      copy,
+      numberLocale,
+      {
+        label: copy.operational.checked,
+        value: formatEodSymbolCount(
+          getFundamentalsCheckedCount(freshness, fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
+          numberLocale,
+        ),
+      },
+      getFundamentalsStageStatusLabel,
+    );
+
+    return [
+      buildEodStageCard(
+        "price",
+        copy.stage.price,
+        priceFreshnessStage,
+        eodStatusMarketDate,
+        priceLatestDate,
+        isBreakDay,
+        pricePipelineStage,
+        copy,
         numberLocale,
       ),
-    },
-    getFundamentalsStageStatusLabel,
-  );
-  const eodStageCards = [
-    buildEodStageCard(
-      "price",
-      copy.stage.price,
-      priceFreshnessStage,
-      eodStatusMarketDate,
-      priceLatestDate,
-      isBreakDay,
-      pricePipelineStage,
-      copy,
-      numberLocale,
-    ),
-    buildEodStageCard(
-      "technical",
-      copy.stage.technical,
-      technicalFreshnessStage,
-      eodStatusMarketDate,
-      technicalLatestDate,
-      isBreakDay,
-      technicalPipelineStage,
-      copy,
-      numberLocale,
-    ),
-    buildEodStageCard(
-      "action",
-      copy.stage.action,
-      actionFreshnessStage,
-      eodStatusMarketDate,
-      actionLatestDate,
-      isBreakDay,
-      actionPipelineStage,
-      copy,
-      numberLocale,
-    ),
-    fundamentalsUpdatedSymbolsDetail
-      ? {
-          ...fundamentalsStageCard,
-          details: [...fundamentalsStageCard.details, fundamentalsUpdatedSymbolsDetail],
-        }
-      : fundamentalsStageCard,
-  ] as const;
+      buildEodStageCard(
+        "technical",
+        copy.stage.technical,
+        technicalFreshnessStage,
+        eodStatusMarketDate,
+        technicalLatestDate,
+        isBreakDay,
+        technicalPipelineStage,
+        copy,
+        numberLocale,
+      ),
+      buildEodStageCard(
+        "action",
+        copy.stage.action,
+        actionFreshnessStage,
+        eodStatusMarketDate,
+        actionLatestDate,
+        isBreakDay,
+        actionPipelineStage,
+        copy,
+        numberLocale,
+      ),
+      fundamentalsUpdatedSymbolsDetail
+        ? {
+            ...fundamentalsStageCard,
+            details: [...fundamentalsStageCard.details, fundamentalsUpdatedSymbolsDetail],
+          }
+        : fundamentalsStageCard,
+    ] as const;
+  }, [
+    actionFreshnessStage,
+    actionLatestDate,
+    actionPipelineStage,
+    copy,
+    eodStatusMarketDate,
+    freshness,
+    fundamentalsFreshnessWithPipelineStage,
+    fundamentalsPipelineStage,
+    fundamentalsStatus,
+    fundamentalsUpdatedSymbolsDetail,
+    isBreakDay,
+    latestFundamentalsDate,
+    numberLocale,
+    priceFreshnessStage,
+    priceLatestDate,
+    pricePipelineStage,
+    technicalFreshnessStage,
+    technicalLatestDate,
+    technicalPipelineStage,
+  ]);
   const agentProgressMarketDate = getAgentFeedbackProgressMarketDate(freshness);
-  const displayedAgentFeedbackProgress =
-    agentProgressMarketDate && agentFeedbackProgress?.request?.market_date === agentProgressMarketDate
-      ? agentFeedbackProgress
-      : null;
+  const displayedAgentFeedbackProgress = useMemo(
+    () =>
+      agentProgressMarketDate && agentFeedbackProgress?.request?.market_date === agentProgressMarketDate
+        ? agentFeedbackProgress
+        : null,
+    [agentFeedbackProgress, agentProgressMarketDate],
+  );
   const displayedAgentFeedbackProgressError = agentProgressMarketDate ? agentFeedbackProgressError : null;
   const agentProgressStatusLabel = getAgentProgressStatusLabel(
     displayedAgentFeedbackProgress,
@@ -328,7 +710,10 @@ export function LiveDashboardClient({
   const agentProgressDate =
     displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
-  const agentRoleCards = buildAgentRoleCards(displayedAgentFeedbackProgress, copy, numberLocale);
+  const agentRoleCards = useMemo(
+    () => buildAgentRoleCards(displayedAgentFeedbackProgress, copy, numberLocale),
+    [copy, displayedAgentFeedbackProgress, numberLocale],
+  );
   const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
   const showCompletedAgentFeedbackStatus =
     agentProgressRunStatus === "pending" && hasCompletedDefaultAgentRoles(agentRoleCards);
@@ -343,20 +728,21 @@ export function LiveDashboardClient({
         : agentProgressRunStatus === "stalled"
           ? "warning"
           : "neutral";
-  const filteringCardModel = buildPiotroskiFilteringCardModel({
-    copy,
-    numberLocale,
-    piotroskiBoard,
-    piotroskiBoardError,
-    piotroskiBoardLoadState,
-    piotroskiMarketDate,
-  });
-  const trackedSymbolCards = buildTrackedSymbolCardModels(
-    tracked,
-    symbolMetaBySymbol,
-    freshness,
-    copy,
-    numberLocale,
+  const filteringCardModel = useMemo(
+    () =>
+      buildPiotroskiFilteringCardModel({
+        copy,
+        numberLocale,
+        piotroskiBoard,
+        piotroskiBoardError,
+        piotroskiBoardLoadState,
+        piotroskiMarketDate,
+      }),
+    [copy, numberLocale, piotroskiBoard, piotroskiBoardError, piotroskiBoardLoadState, piotroskiMarketDate],
+  );
+  const trackedSymbolCards = useMemo(
+    () => buildTrackedSymbolCardModels(tracked, symbolMetaBySymbol, freshness, copy, numberLocale),
+    [copy, freshness, numberLocale, symbolMetaBySymbol, tracked],
   );
   const marketBadgeLabel = market.is_open ? copy.marketOpen : copy.marketClosed;
   const coreUnavailable =
@@ -368,11 +754,16 @@ export function LiveDashboardClient({
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
   const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen;
 
-  function openAgentFeedbackStopDialog() {
+  const openAgentFeedbackStopDialog = useCallback(() => {
     if (!isAgentFeedbackRunning) return;
     setAgentFeedbackStopError(null);
     setAgentFeedbackStopDialogOpen(true);
-  }
+  }, [isAgentFeedbackRunning]);
+
+  const openFundamentalsDetails = useCallback(() => {
+    if (!fundamentalsFailureDetails) return;
+    setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key);
+  }, [fundamentalsFailureDetails]);
 
   function closeAgentFeedbackStopDialog() {
     if (agentFeedbackStopPending) return;
@@ -490,275 +881,32 @@ export function LiveDashboardClient({
           </div>
 
           <div className={styles.integrityGrid}>
-            <article className={`${styles.integrityStat} ${styles.eodStatusCard}`}>
-              <div className={styles.sectionHeaderRow}>
-                <div>
-                  <p className={styles.sectionEyebrow}>{copy.operational.eodEyebrow}</p>
-                  <h2 className={styles.sectionTitle}>{copy.operational.eodTitle}</h2>
-                  <p className={styles.cardContext}>{copy.operational.marketDate} {eodMarketDate}</p>
-                </div>
-              </div>
+            <EodStatusCard
+              copy={copy}
+              eodMarketDate={eodMarketDate}
+              eodStageCards={eodStageCards}
+              fundamentalsDialogOpen={fundamentalsDialogOpen}
+              fundamentalsFailureDetails={fundamentalsFailureDetails}
+              onOpenFundamentalsDetails={openFundamentalsDetails}
+            />
 
-              <div className={styles.eodStageGrid}>
-                {eodStageCards.map((stage) => {
-                  const isIconOnlyStatus = isIconOnlyEodStageStatus(stage.statusLabel);
-                  const isStandaloneStatusIcon =
-                    stage.statusLabel === "synced" || stage.statusLabel === "not synced";
-                  const statusClass =
-                    stage.statusLabel === "running"
-                      ? styles.runningStatusPill
-                      : "";
-                  const localizedStatusLabel = getStageStatusLabel(stage.statusLabel, copy);
-                  const displayedStatusLabel =
-                    stage.statusLabel === "running" && stage.statusBadgeLabel !== stage.statusLabel
-                      ? stage.statusBadgeLabel
-                      : localizedStatusLabel;
-                  const statusAriaLabel =
-                    stage.statusLabel === "running" && stage.statusBadgeLabel !== stage.statusLabel
-                      ? `${localizedStatusLabel} · ${stage.statusBadgeLabel}`
-                      : localizedStatusLabel;
-                  const statusTitle = stage.statusBadgeTitle ?? (isIconOnlyStatus ? statusAriaLabel : undefined);
-                  const standaloneStatusClass =
-                    stage.statusLabel === "not synced" ? styles.notSyncedStatusIcon : styles.syncedStatusIcon;
+            <PiotroskiFilteringCard copy={copy} filteringCardModel={filteringCardModel} />
 
-                  return (
-                    <div
-                      key={stage.id}
-                      className={styles.eodStageCard}
-                      aria-label={`${stage.label} freshness`}
-                      data-stage={stage.id}
-                      data-status={stage.statusLabel}
-                    >
-                      <div className={styles.eodStageTop}>
-                        <span className={styles.eodStageTitle}>{stage.label}</span>
-                        {isStandaloneStatusIcon ? (
-                          <span
-                            className={`${styles.statusIconBadge} ${standaloneStatusClass}`}
-                            title={statusTitle}
-                            data-status-badge={stage.statusLabel}
-                            role="img"
-                            aria-label={statusAriaLabel}
-                          />
-                        ) : (
-                          <span
-                            className={`pill ${stage.tone} ${statusClass} ${isIconOnlyStatus ? styles.iconStatusPill : ""}`}
-                            title={statusTitle}
-                            data-status-badge={stage.statusLabel}
-                            role={isIconOnlyStatus ? "img" : undefined}
-                            aria-label={isIconOnlyStatus ? statusAriaLabel : undefined}
-                          >
-                            {isIconOnlyStatus ? <span className={styles.statusPillIcon} aria-hidden="true" /> : (
-                              <span className={styles.statusPillLabel}>{displayedStatusLabel}</span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                      <div className={styles.eodStageDetails}>
-                        {stage.details.map((detail) => (
-                          <span
-                            key={detail.key}
-                            className={styles.eodStageDetailLine}
-                            data-detail-tone={detail.tone ?? "text"}
-                            data-detail-layout={detail.layout ?? "inline"}
-                          >
-                            {detail.label ? <span>{detail.label}</span> : null}
-                            {detail.label ? " " : null}
-                            <span className={styles.eodStageDetailValue}>{detail.value}</span>
-                          </span>
-                        ))}
-                        {stage.id === "fundamentals" && fundamentalsFailureDetails ? (
-                          <button
-                            type="button"
-                            className={styles.detailButton}
-                            aria-label={copy.operational.viewFundamentalsRunDetails}
-                            aria-haspopup="dialog"
-                            aria-expanded={fundamentalsDialogOpen}
-                            aria-controls="fundamentals-failure-dialog"
-                            onClick={() => setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key)}
-                          >
-                            {copy.operational.viewDetail}
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-
-            <article className={`${styles.integrityStat} ${styles.filteringCard}`}>
-              <div className={styles.sectionHeaderRow}>
-                <div>
-                  <p className={styles.sectionEyebrow}>{copy.operational.piotroskiEyebrow}</p>
-                  <h2 className={styles.sectionTitle}>{copy.operational.piotroskiTitle}</h2>
-                  <p className={styles.cardContext}>
-                    {copy.operational.marketDate} {filteringCardModel.displayMarketDateLabel}
-                  </p>
-                </div>
-                <Link
-                  href={buildPiotroskiListHref(filteringCardModel.displayMarketDate)}
-                  className={styles.sectionLink}
-                  aria-label={copy.operational.openPiotroskiList}
-                >
-                  {copy.operational.more}
-                </Link>
-              </div>
-
-              <div className={styles.statusMetricGrid}>
-                <div className={styles.statusMetric}>
-                  <span>{copy.operational.status}</span>
-                  <strong>
-                    <span className={`pill ${filteringCardModel.statusTone}`}>{filteringCardModel.statusLabel}</span>
-                  </strong>
-                </div>
-                <div className={styles.statusMetric}>
-                  <span>{copy.operational.checked}</span>
-                  <strong>{filteringCardModel.checkedCountLabel}</strong>
-                </div>
-                <div className={styles.statusMetric}>
-                  <span>{copy.operational.pass}</span>
-                  <strong>{filteringCardModel.passCountLabel}</strong>
-                </div>
-              </div>
-
-              {filteringCardModel.note ? <p className={styles.cardContext}>{filteringCardModel.note}</p> : null}
-            </article>
-
-            <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
-              <div className={styles.sectionHeaderRow}>
-                <div>
-                  <h2 className={styles.sectionTitle}>{copy.operational.agentTitle}</h2>
-                  <p className={styles.cardContext}>{copy.operational.agentDate} {agentProgressDate}</p>
-                </div>
-                <span className={`pill ${agentFeedbackStatusTone}`}>{agentFeedbackHeaderStatusLabel}</span>
-              </div>
-              {agentRoleCards.length > 0 ? (
-                <div className={styles.agentRoleList} role="list" aria-label={copy.operational.agentRoleProgress}>
-                  {agentRoleCards.map((role) => (
-                    <div
-                      key={role.role}
-                      className={styles.agentRoleRow}
-                      data-role-status={role.status}
-                      role="listitem"
-                      aria-label={`${role.label} ${agentRoleStatusLabels[role.status]}`}
-                    >
-                      <div className={styles.agentRoleContent}>
-                        <span className={styles.agentRoleTitleRow}>
-                          <span className={styles.agentRoleName}>{role.label}</span>
-                          {isSummarizerRole(role.role) ? (
-                            <span
-                              className={styles.agentRoleProgressIcon}
-                              data-role-progress-icon={role.status}
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                        </span>
-                        {isSummarizerRole(role.role) ? (
-                          <div
-                            className={styles.agentRoleProgressTrack}
-                            data-role-progress-track={role.status}
-                            data-role-progress-value={role.progressPercent}
-                            role="progressbar"
-                            aria-label={`${role.label} ${copy.agentFeedback.metrics.progress}`}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-valuenow={role.progressPercent}
-                            aria-valuetext={role.progressLabel}
-                          >
-                            <i style={{ width: `${role.progressPercent}%` }} />
-                          </div>
-                        ) : null}
-                        <span className={styles.agentRoleStatusText}>{agentRoleStatusLabels[role.status]}</span>
-                        {role.metrics.length > 0 ? (
-                          <dl className={styles.agentRoleMetrics}>
-                            {role.metrics.map((metric) => (
-                              <div key={metric.key} className={styles.agentRoleMetric}>
-                                <dt>{metric.label}</dt>
-                                <dd>{metric.value}</dd>
-                              </div>
-                            ))}
-                          </dl>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className={styles.emptyState}>{copy.operational.agentProgressUnavailable}</div>
-              )}
-              {isAgentFeedbackRunning ? (
-                <div className={styles.agentFeedbackActions}>
-                  <button
-                    type="button"
-                    className={styles.agentFeedbackStopButton}
-                    aria-label={copy.operational.stop}
-                    aria-haspopup="dialog"
-                    aria-expanded={agentFeedbackStopDialogOpen}
-                    aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
-                    onClick={openAgentFeedbackStopDialog}
-                  >
-                    {copy.operational.stop}
-                  </button>
-                </div>
-              ) : null}
-            </article>
+            <AgentFeedbackCard
+              agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
+              agentFeedbackStatusTone={agentFeedbackStatusTone}
+              agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
+              agentProgressDate={agentProgressDate}
+              agentRoleCards={agentRoleCards}
+              agentRoleStatusLabels={agentRoleStatusLabels}
+              copy={copy}
+              isAgentFeedbackRunning={isAgentFeedbackRunning}
+              onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
+            />
           </div>
         </section>
 
-        <section className={`${styles.panel} ${styles.trackedPanel}`} id="tracked-symbols">
-          <div className={styles.sectionHeaderRow}>
-            <div>
-              <p className={styles.sectionEyebrow}>{copy.operational.trackedEyebrow}</p>
-              <h2 className={styles.sectionTitle}>{copy.operational.trackedTitle}</h2>
-            </div>
-            <Link href="/my-symbols" className={styles.sectionLink} aria-label={copy.operational.openMySymbols}>
-              {copy.operational.more}
-            </Link>
-          </div>
-
-          <div className={styles.trackedList}>
-            {trackedSymbolCards.map((item) => (
-              <Link
-                key={item.symbol}
-                href={item.href}
-                className={`${styles.trackedCard} ${item.isMuted ? styles.trackedCardMuted : ""}`.trim()}
-              >
-                <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
-
-                <div className={styles.trackedCardTop}>
-                  <div>
-                    <strong className={styles.companyName}>{item.companyName}</strong>
-                    <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
-                  </div>
-                  <span className={`pill ${item.availabilityTone}`}>{item.availabilityLabel}</span>
-                </div>
-
-                <div className={styles.priceBlock}>
-                  <strong>{item.priceLabel}</strong>
-                  <span className={item.changeTone === "positive" ? styles.positive : item.changeTone === "negative" ? styles.negative : ""}>
-                    {item.changeLabel}
-                  </span>
-                </div>
-
-                <div className={styles.cardMeta}>
-                  <div>
-                    <span>{copy.operational.priceFreshness}</span>
-                    <strong>{item.priceFreshnessLabel}</strong>
-                  </div>
-                  <div>
-                    <span>{copy.operational.technicalFreshness}</span>
-                    <strong>{item.technicalFreshnessLabel}</strong>
-                  </div>
-                </div>
-
-                <div className={styles.cardFooter}>
-                  <span className="clamp-3">{item.sourceLabel}</span>
-                  <span className="clamp-3">{item.turnoverLabel}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
+        <TrackedSymbolsSection copy={copy} trackedSymbolCards={trackedSymbolCards} />
       </div>
 
       {fundamentalsDialogOpen && fundamentalsFailureDetails

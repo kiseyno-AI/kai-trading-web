@@ -7,7 +7,9 @@ import {
   buildActionSummarySectionModel,
   buildDisclosureCoverageSectionModel,
   buildFundamentalsHistorySectionModel,
+  buildHeroFundamentalLatestMetricModel,
   buildSystemFreshnessSectionModel,
+  pickSelectedBarTradeDate,
 } from "./symbol-detail-derived-state";
 
 test("keeps action-summary fallback labels stable when no summary is available", () => {
@@ -92,6 +94,131 @@ test("builds disclosure-coverage cards from a stable display model", () => {
   assert.equal(
     model.coverageBody,
     `2 ${copy.disclosures.loadedSuffix} ${copy.disclosures.latestFilingLandedOn} 2026-04-10.`,
+  );
+});
+
+test("keeps the hero fundamentals metric in a loading state until aggregate context resolves", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildHeroFundamentalLatestMetricModel({
+    aggregateContext: null,
+    aggregateContextError: null,
+    aggregateContextLoadState: "loading",
+    copy,
+    latestDisclosure: null,
+    latestFundamentals: null,
+  });
+
+  assert.equal(model.value, copy.hero.priceLoading);
+  assert.equal(model.detailDateLabel, null);
+  assert.equal(model.errorLabel, null);
+});
+
+test("surfaces aggregate errors in the hero fundamentals metric after loading finishes without content", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildHeroFundamentalLatestMetricModel({
+    aggregateContext: null,
+    aggregateContextError: copy.errors.aggregateUnavailable,
+    aggregateContextLoadState: "error",
+    copy,
+    latestDisclosure: null,
+    latestFundamentals: null,
+  });
+
+  assert.equal(model.value, copy.disclosures.emptyTitle);
+  assert.equal(model.detailDateLabel, null);
+  assert.equal(model.errorLabel, copy.errors.aggregateUnavailable);
+});
+
+test("keeps the selected price-bar trade date stable across refreshed history arrays", () => {
+  assert.equal(
+    pickSelectedBarTradeDate(
+      [
+        {
+          trade_date: "2026-04-17",
+          open_price: 100,
+          high_price: 105,
+          low_price: 99,
+          close_price: 102,
+          volume: 1,
+          turnover: 10,
+          source: "stored",
+          captured_at: null,
+        },
+        {
+          trade_date: "2026-04-18",
+          open_price: 102,
+          high_price: 108,
+          low_price: 101,
+          close_price: 107,
+          volume: 2,
+          turnover: 20,
+          source: "stored",
+          captured_at: null,
+        },
+      ],
+      null,
+    ),
+    "2026-04-18",
+  );
+  assert.equal(
+    pickSelectedBarTradeDate(
+      [
+        {
+          trade_date: "2026-04-17",
+          open_price: 101,
+          high_price: 106,
+          low_price: 100,
+          close_price: 103,
+          volume: 3,
+          turnover: 30,
+          source: "stored",
+          captured_at: null,
+        },
+        {
+          trade_date: "2026-04-18",
+          open_price: 103,
+          high_price: 109,
+          low_price: 102,
+          close_price: 108,
+          volume: 4,
+          turnover: 40,
+          source: "stored",
+          captured_at: null,
+        },
+      ],
+      "2026-04-17",
+    ),
+    "2026-04-17",
+  );
+  assert.equal(
+    pickSelectedBarTradeDate(
+      [
+        {
+          trade_date: "2026-04-17",
+          open_price: 101,
+          high_price: 106,
+          low_price: 100,
+          close_price: 103,
+          volume: 3,
+          turnover: 30,
+          source: "stored",
+          captured_at: null,
+        },
+        {
+          trade_date: "2026-04-18",
+          open_price: 103,
+          high_price: 109,
+          low_price: 102,
+          close_price: 108,
+          volume: 4,
+          turnover: 40,
+          source: "stored",
+          captured_at: null,
+        },
+      ],
+      "2026-04-01",
+    ),
+    "2026-04-18",
   );
 });
 

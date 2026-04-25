@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   buildInitialSymbolMeta,
@@ -25,6 +25,7 @@ import {
 } from "./symbol-detail-api";
 import {
   buildFocusCandleRows,
+  findPriceBarByTradeDate,
   buildMarketStateRows,
   buildPriceHistoryQuery,
   buildQuoteSourceLabel,
@@ -35,7 +36,7 @@ import {
   getTrackingButtonLabel,
   normalizeSymbolCode,
   normalizeTrackedSymbols,
-  pickSelectedBar,
+  pickSelectedBarTradeDate,
   readRouteParam,
   resolveMarketStateValue,
 } from "./symbol-detail-derived-state";
@@ -91,7 +92,7 @@ export function useSymbolDetailData({
   const resetToken = useMemo(() => createSymbolMetaResetToken(symbol, initialMeta), [initialMeta, symbol]);
   const needsSymbolMeta = shouldFetchSymbolMeta(initialMeta);
   const [selectedRange, setSelectedRange] = useState<PriceHistoryRange>("1Y");
-  const [selectedBar, setSelectedBar] = useState<SymbolPriceBarDto | null>(null);
+  const [selectedBarTradeDate, setSelectedBarTradeDate] = useState<string | null>(null);
   const [trackedSymbols, setTrackedSymbols] = useState<string[]>([]);
   const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
   const [trackingSaving, setTrackingSaving] = useState(false);
@@ -104,7 +105,7 @@ export function useSymbolDetailData({
 
   useEffect(() => {
     setSelectedRange("1Y");
-    setSelectedBar(null);
+    setSelectedBarTradeDate(null);
     setTrackingSaving(false);
     setTrackingError(null);
   }, [resetToken]);
@@ -261,12 +262,20 @@ export function useSymbolDetailData({
     }
 
     if (!priceHistory?.items.length) {
-      setSelectedBar(null);
+      setSelectedBarTradeDate(null);
       return;
     }
 
-    setSelectedBar((current) => pickSelectedBar(priceHistory.items, current));
+    setSelectedBarTradeDate((current) => pickSelectedBarTradeDate(priceHistory.items, current));
   }, [priceHistory, shouldLoadPriceHistory]);
+
+  const selectedBar = useMemo(
+    () => findPriceBarByTradeDate(priceHistory?.items ?? [], selectedBarTradeDate),
+    [priceHistory?.items, selectedBarTradeDate],
+  );
+  const setSelectedBar = useCallback((bar: SymbolPriceBarDto | null) => {
+    setSelectedBarTradeDate(bar?.trade_date ?? null);
+  }, []);
 
   const metaCompanyName = getForwardableSymbolMetaSeedValue(meta?.name_ko);
   const quoteCompanyName = getForwardableSymbolMetaSeedValue(quote?.company_name);
