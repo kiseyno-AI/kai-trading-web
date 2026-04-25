@@ -153,3 +153,43 @@ test("keeps today-stage behavior when the fundamentals pipeline is actively runn
     true,
   );
 });
+
+test("uses the running fundamentals latest-run counters while the current refresh is in flight", () => {
+  const freshness = buildFreshnessResponse();
+  const fundamentalsStatus: DartFundamentalsDailyInspectResponseDto = {
+    latest_run: {
+      id: 23,
+      market_date: "2026-04-21",
+      trigger: "internal_ops_cli",
+      status: "running",
+      fs_div: "CFS",
+      force: false,
+      symbol_limit: null,
+      symbol_offset: 0,
+      symbols_total: 3583,
+      symbols_checked: 1210,
+      symbols_missing: 0,
+      symbols_stale: 0,
+      symbols_fresh: 1205,
+      symbols_refreshed: 1180,
+      symbols_failed: 3,
+      events_detected: 0,
+      events_captured: 0,
+      events_failed: 0,
+      error_message: null,
+      run_metadata: {},
+      started_at: "2026-04-21T09:00:00+09:00",
+      completed_at: null,
+    },
+    runs: [],
+  };
+
+  assert.deepEqual(
+    getFundamentalsStageDisplayCounts(freshness, fundamentalsStatus, freshness.today?.fundamentals, false),
+    {
+      symbolsTotal: 3583,
+      symbolsChecked: 1180,
+      symbolsFailed: 3,
+    },
+  );
+});

@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
-import {
-  LiveDashboardClient,
-  type CoreMarketStatus,
-  type CoreTrackedQuotesResponse,
-} from "./live-dashboard-client";
+import { LiveDashboardClient } from "./live-dashboard-client";
+import type { CoreMarketStatus, CoreTrackedQuotesResponse } from "@/features/dashboard/live-dashboard-types";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
   getDashboardProcessRequestMarketDate,

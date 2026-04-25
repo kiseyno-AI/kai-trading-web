@@ -412,7 +412,7 @@ test.describe("search terminal mobile", () => {
   });
 
   test("clears stale Q4 rows and shrinks the reserved height after a smaller source result set", async ({ page }) => {
-    let releaseStoredTrending: (() => void) | null = null;
+    let releaseStoredTrending = () => {};
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({
@@ -615,7 +615,7 @@ test.describe("search terminal mobile", () => {
     const loadingScrollY = await page.evaluate(() => window.scrollY);
     expect(Math.abs(loadingScrollY - startingScrollY)).toBeLessThanOrEqual(24);
 
-    releaseStoredTrending?.();
+    releaseStoredTrending();
 
     await expect(trendingMeta).toHaveText("Stored 5D · 2026-04-14");
     await expect(trendingSection.getByText("086520", { exact: true })).toBeVisible();

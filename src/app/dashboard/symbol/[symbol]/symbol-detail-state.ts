@@ -11,6 +11,72 @@ export type AggregateContextLoadState = "loading" | "success" | "error";
 
 export type DisclosureSectionState = "loading" | "list" | "empty" | "unavailable";
 
+export type SymbolDetailMode =
+  | "overview"
+  | "action-summary"
+  | "technical-analysis"
+  | "fundamentals-history"
+  | "disclosure-coverage"
+  | "system-freshness";
+
+export type SymbolDetailModeDefinition = {
+  mode: SymbolDetailMode;
+  path: string;
+  api: string;
+};
+
+export type SymbolDetailSectionVisibility = {
+  showOverview: boolean;
+  showChartSection: boolean;
+  showFactorSnapshotSection: boolean;
+  showActionSection: boolean;
+  showTechnicalSection: boolean;
+  showFundamentalsSection: boolean;
+  showDisclosureSection: boolean;
+  showFreshnessSection: boolean;
+};
+
+export const SYMBOL_DETAIL_MODES: SymbolDetailModeDefinition[] = [
+  {
+    mode: "overview",
+    path: "",
+    api: "/api/trading/quotes/{symbol} + layered symbol APIs",
+  },
+  {
+    mode: "action-summary",
+    path: "/action-summary",
+    api: "/api/trading/eod/action-summaries",
+  },
+  {
+    mode: "technical-analysis",
+    path: "/technical-analysis",
+    api: "/api/trading/eod/technical-snapshots",
+  },
+  {
+    mode: "fundamentals-history",
+    path: "/fundamentals-history",
+    api: "/api/trading/disclosures/dart/fundamentals/history",
+  },
+  {
+    mode: "disclosure-coverage",
+    path: "/disclosure-coverage",
+    api: "/api/trading/agent-context/symbol-day",
+  },
+  {
+    mode: "system-freshness",
+    path: "/system-freshness",
+    api: "/api/trading/eod/freshness",
+  },
+];
+
+const SYMBOL_DETAIL_MODE_BY_ID = SYMBOL_DETAIL_MODES.reduce(
+  (acc, item) => {
+    acc[item.mode] = item;
+    return acc;
+  },
+  {} as Record<SymbolDetailMode, SymbolDetailModeDefinition>,
+);
+
 type SymbolMetaParams = {
   name: string | null;
   market: string | null;
@@ -27,6 +93,48 @@ export function buildInitialSymbolMeta(symbol: string, params: SymbolMetaParams)
     name_ko: params.name ?? symbol,
     market: params.market ?? "-",
     standard_code: params.standardCode ?? "-",
+  };
+}
+
+export function resolveSymbolDetailMode(value: string | null | undefined) {
+  if (!value) return null;
+  return Object.prototype.hasOwnProperty.call(SYMBOL_DETAIL_MODE_BY_ID, value) ? (value as SymbolDetailMode) : null;
+}
+
+export function resolveSymbolDetailModeFromPathname(pathname: string | null, symbol: string) {
+  if (!pathname || !symbol) return null;
+
+  const segments = pathname.split("/").filter(Boolean);
+  const symbolSegmentIndex = segments.findIndex(
+    (segment, index) => segment === "symbol" && segments[index - 1] === "dashboard",
+  );
+  if (symbolSegmentIndex === -1) return null;
+
+  const encodedSymbol = segments[symbolSegmentIndex + 1];
+  if (!encodedSymbol) return null;
+
+  try {
+    if (decodeURIComponent(encodedSymbol) !== symbol) return null;
+  } catch {
+    if (encodedSymbol !== symbol) return null;
+  }
+
+  const detailPath = segments[symbolSegmentIndex + 2] ? `/${segments[symbolSegmentIndex + 2]}` : "";
+  return SYMBOL_DETAIL_MODES.find((item) => item.path === detailPath)?.mode ?? null;
+}
+
+export function getSymbolDetailSectionVisibility(activeMode: SymbolDetailMode): SymbolDetailSectionVisibility {
+  const showOverview = activeMode === "overview";
+
+  return {
+    showOverview,
+    showChartSection: showOverview || activeMode === "technical-analysis",
+    showFactorSnapshotSection: showOverview,
+    showActionSection: activeMode === "action-summary",
+    showTechnicalSection: activeMode === "technical-analysis",
+    showFundamentalsSection: activeMode === "fundamentals-history",
+    showDisclosureSection: activeMode === "disclosure-coverage",
+    showFreshnessSection: showOverview || activeMode === "system-freshness",
   };
 }
 

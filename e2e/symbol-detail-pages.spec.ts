@@ -10,28 +10,43 @@ const symbolSeed =
 const detailPages = [
   {
     path: "action-summary",
+    mode: "action-summary",
     eyebrow: /Action Summary Detail/i,
     heading: /Deterministic action layer/i,
+    visibleSectionIds: ["action"],
+    hiddenSectionIds: ["chart", "technical", "fundamentals", "disclosures", "freshness"],
   },
   {
     path: "technical-analysis",
+    mode: "technical-analysis",
     eyebrow: /Technical Analysis Detail/i,
     heading: /Stored technical snapshot|Stored snapshot metrics/i,
+    visibleSectionIds: ["chart", "technical"],
+    hiddenSectionIds: ["action", "fundamentals", "disclosures", "freshness"],
   },
   {
     path: "fundamentals-history",
+    mode: "fundamentals-history",
     eyebrow: /Fundamentals History Detail/i,
     heading: /DART fundamentals history|Stored DART filing history/i,
+    visibleSectionIds: ["fundamentals"],
+    hiddenSectionIds: ["chart", "action", "technical", "disclosures", "freshness"],
   },
   {
     path: "disclosure-coverage",
+    mode: "disclosure-coverage",
     eyebrow: /Disclosure & Coverage Detail/i,
     heading: /Recent DART disclosure coverage|Recent filing coverage/i,
+    visibleSectionIds: ["disclosures"],
+    hiddenSectionIds: ["chart", "action", "technical", "fundamentals", "freshness"],
   },
   {
     path: "system-freshness",
+    mode: "system-freshness",
     eyebrow: /System Freshness Detail/i,
     heading: /Layer-specific freshness registry/i,
+    visibleSectionIds: ["freshness"],
+    hiddenSectionIds: ["chart", "action", "technical", "fundamentals", "disclosures"],
   },
 ];
 
@@ -549,6 +564,33 @@ test.describe("symbol detail mobile pages", () => {
       await expect(page.getByRole("heading", { name: detailPage.heading }).first()).toBeVisible();
       await expect(page.getByRole("button", { name: /Insights/i })).toBeVisible();
       await expect(page.getByRole("button", { name: /Freshness/i })).toBeVisible();
+    }
+  });
+
+  test("deep detail routes preserve their active mode and dedicated sections", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests);
+
+    for (const detailPage of detailPages) {
+      await page.goto(`/dashboard/symbol/005930/${detailPage.path}?${symbolSeed}`);
+
+      await expect(page.locator(`[data-mode="${detailPage.mode}"]`)).toBeVisible();
+      await expect(page.getByRole("status", { name: /Loading symbol workspace|Loading next surface/i })).toHaveCount(0);
+
+      for (const sectionId of detailPage.visibleSectionIds) {
+        await expect(page.locator(`#${sectionId}`)).toBeVisible();
+      }
+
+      for (const sectionId of detailPage.hiddenSectionIds) {
+        await expect(page.locator(`#${sectionId}`)).toHaveCount(0);
+      }
     }
   });
 

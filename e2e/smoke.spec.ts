@@ -221,6 +221,7 @@ test.describe("smoke", () => {
 
   test("latest price date prefers price_trade_date and preserves richer latest payload fallback", async () => {
     const freshnessWithDivergedSummary = {
+      today: null,
       latest: {
         price_trade_date: "2026-04-24",
         summary: {
@@ -240,6 +241,7 @@ test.describe("smoke", () => {
     expect(getAgentFeedbackProgressMarketDate(freshnessWithDivergedSummary)).toBe("2026-04-24");
 
     const freshnessWithRichStageOnly = {
+      today: null,
       latest: {
         summary: {
           trade_date: "2026-04-22",
@@ -358,6 +360,7 @@ test.describe("smoke", () => {
 
   test("dashboard fundamentals counts prefer latest coverage unless the UI explicitly asks for today", async () => {
     const freshness = {
+      today: null,
       latest: {
         stage_details: {
           fundamentals: {
