@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
@@ -82,10 +82,17 @@ export function useLiveDashboardData({
   const pipelineStatusRequestDateRef = useRef<string | null>(initialPipelineRequestMarketDate);
   const marketServerTimeRef = useRef<string | null>(initialMarket.server_time ?? null);
   const freshnessTradeDateRef = useRef<string | null>(initialFreshness?.today?.trade_date ?? null);
-  const [agentFeedbackProgress, setAgentFeedbackProgress] = useState<AgentFeedbackProgressResponseDto | null>(
+  const [agentFeedbackProgress, setAgentFeedbackProgressState] = useState<AgentFeedbackProgressResponseDto | null>(
     initialAgentFeedbackProgress,
   );
   const agentFeedbackProgressRef = useRef<AgentFeedbackProgressResponseDto | null>(initialAgentFeedbackProgress);
+  const setAgentFeedbackProgress: Dispatch<SetStateAction<AgentFeedbackProgressResponseDto | null>> = (nextValue) => {
+    setAgentFeedbackProgressState((current) => {
+      const resolvedValue = typeof nextValue === "function" ? nextValue(current) : nextValue;
+      agentFeedbackProgressRef.current = resolvedValue;
+      return resolvedValue;
+    });
+  };
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [piotroskiBoard, setPiotroskiBoard] = useState<PiotroskiPassListResult | null>(null);
@@ -425,7 +432,6 @@ export function useLiveDashboardData({
       try {
         const data = await getJson<AgentFeedbackProgressResponseDto>(progressPath);
         if (!active) return;
-        agentFeedbackProgressRef.current = data;
         setAgentFeedbackProgress(data);
         setAgentFeedbackProgressError(null);
         scheduleNextLoad(data);
