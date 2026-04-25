@@ -225,7 +225,7 @@ export function useSymbolDetailData({
     return () => {
       active = false;
     };
-  }, [copy, symbolReady]);
+  }, [copy, normalizedSymbol, symbolReady]);
 
   const priceHistoryRequest = useMemo(
     () => ({
