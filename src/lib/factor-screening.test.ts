@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildFactorScreeningPath,
   filterFactorScreeningRows,
+  type FactorScreeningRow,
   getFactorScreeningMarketDateNote,
   loadFactorScreeningWorkspace,
   resolveFactorScreeningFamily,
@@ -342,7 +343,7 @@ test("market-date helpers and row filters preserve ranking intent without hiding
     "Requested 2026-04-24. Showing stored rows for 2026-04-23.",
   );
 
-  const rows = [
+  const rows: FactorScreeningRow[] = [
     {
       companyName: "Samsung Electronics",
       displayRank: 3,
