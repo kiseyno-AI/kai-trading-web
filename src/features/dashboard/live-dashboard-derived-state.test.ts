@@ -7,7 +7,11 @@ import type { EodFreshnessStageDto } from "@/types/trading-api";
 import {
   buildPiotroskiFilteringCardModel,
   buildTrackedSymbolCardModel,
+  getAgentFeedbackProgressPollDelayMs,
+  getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
+  markAgentFeedbackProgressStopped,
+  shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
 
 function buildStage(status: string): EodFreshnessStageDto {
@@ -124,4 +128,107 @@ test("builds tracked symbol cards from stable display values without raw DTO fal
     `${copy.tracked.quoteUnavailable} · Quote cache waiting for confirmation`,
   );
   assert.equal(model.turnoverLabel, `${copy.operational.turnover} -`);
+});
+
+test("keeps dashboard polling at the active cadence until a stop acceptance marks the run stalled", () => {
+  const progress = {
+    request: {
+      market_date: "2026-04-21",
+      symbols: null,
+      expected_agents: ["eod-summarizer"],
+    },
+    summary: {
+      run_id: "run-1",
+      run_status: "running",
+      run_table_status: "running",
+      is_live: true,
+      run_started_at: "2026-04-21T09:00:00+09:00",
+      run_completed_at: null,
+      current_role: "eod-summarizer",
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-21T09:00:05+09:00",
+      seconds_since_last_feedback: 1,
+      stalled_threshold_seconds: 60,
+      total_symbols: 10,
+      processed_symbols: 3,
+      completed_symbols: 2,
+      in_progress_symbols: 1,
+      pending_symbols: 7,
+      progress_ratio: 0.3,
+      progress_percent: 30,
+      failed_items: 0,
+      completed_feedback_count: 2,
+      expected_feedback_count: 10,
+      completed_feedback_per_minute: 20,
+      completed_symbols_per_minute: 20,
+      estimated_remaining_seconds: 21,
+      estimated_completion_at: "2026-04-21T09:01:00+09:00",
+      eta_confidence: "medium",
+    },
+    result: null,
+  };
+
+  const stopped = markAgentFeedbackProgressStopped(progress);
+
+  assert.equal(getAgentFeedbackProgressPollDelayMs(progress), 1_000);
+  assert.equal(stopped?.summary.run_status, "stalled");
+  assert.equal(stopped?.summary.is_live, false);
+  assert.equal(getAgentFeedbackProgressPollDelayMs(stopped ?? null), 30_000);
+});
+
+test("treats disconnect-shaped stop errors as accepted while keeping real upstream failures visible", () => {
+  assert.equal(shouldTreatAgentFeedbackStopDisconnectAsAccepted(new Error("fetch failed")), true);
+  assert.equal(shouldTreatAgentFeedbackStopDisconnectAsAccepted(new Error("Failed to fetch")), true);
+  assert.equal(shouldTreatAgentFeedbackStopDisconnectAsAccepted(new Error("HTTP 502 for /api/trading/agent-context/internal/core/control")), false);
+});
+
+test("keeps pipeline polling at the active cadence while the status or any stage is still running", () => {
+  assert.equal(
+    getEodPipelineStatusPollDelayMs({
+      market_date: "2026-04-21",
+      status: "running",
+      stage_order: ["price_collection"],
+      stages: {
+        price_collection: {
+          status: "completed",
+          processed: 1,
+          total: 1,
+          failed: 0,
+        },
+      },
+    }),
+    1_000,
+  );
+  assert.equal(
+    getEodPipelineStatusPollDelayMs({
+      market_date: "2026-04-21",
+      status: "completed",
+      stage_order: ["price_collection"],
+      stages: {
+        price_collection: {
+          status: "running",
+          processed: 10,
+          total: 100,
+          failed: 0,
+        },
+      },
+    }),
+    1_000,
+  );
+  assert.equal(
+    getEodPipelineStatusPollDelayMs({
+      market_date: "2026-04-21",
+      status: "completed",
+      stage_order: ["price_collection"],
+      stages: {
+        price_collection: {
+          status: "completed",
+          processed: 100,
+          total: 100,
+          failed: 0,
+        },
+      },
+    }),
+    30_000,
+  );
 });

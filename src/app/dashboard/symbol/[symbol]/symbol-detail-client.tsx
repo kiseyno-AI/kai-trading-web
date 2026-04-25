@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
@@ -125,6 +125,9 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       setActiveMode(nextMode);
     }
   };
+  const handleOpenFreshnessDetail = useCallback(() => {
+    setActiveMode("system-freshness");
+  }, [setActiveMode]);
 
   if (!symbolReady) {
     return <FullPageLoadingScreen label={copy.loadingWorkspace} />;
@@ -482,7 +485,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             fsDiv={fsDiv}
             marketDate={marketDate}
             normalizedSymbol={normalizedSymbol}
-            onOpenDetail={() => setActiveMode("system-freshness")}
+            onOpenDetail={handleOpenFreshnessDetail}
             quote={quote}
             showOverview={showOverview}
             symbolReady={symbolReady}

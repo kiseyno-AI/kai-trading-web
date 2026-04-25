@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
@@ -133,7 +133,7 @@ function useSymbolAggregateContextData({
   };
 }
 
-export function HeroFundamentalLatestMetric({
+export const HeroFundamentalLatestMetric = memo(function HeroFundamentalLatestMetric({
   copy,
   fsDiv,
   marketDate,
@@ -167,9 +167,9 @@ export function HeroFundamentalLatestMetric({
       {!metricModel.detailDateLabel && metricModel.errorLabel ? <p className="clamp-3">{metricModel.errorLabel}</p> : null}
     </article>
   );
-}
+});
 
-export function HeroPiotroskiMetric({
+export const HeroPiotroskiMetric = memo(function HeroPiotroskiMetric({
   copy,
   marketDate,
   normalizedSymbol,
@@ -221,9 +221,9 @@ export function HeroPiotroskiMetric({
       <strong className={piotroskiValueClassName}>{metricModel.label}</strong>
     </article>
   );
-}
+});
 
-export function ActionSummarySection({
+export const ActionSummarySection = memo(function ActionSummarySection({
   copy,
   fsDiv,
   marketDate,
@@ -323,9 +323,9 @@ export function ActionSummarySection({
       </UnitRefreshFrame>
     </section>
   );
-}
+});
 
-export function TechnicalAnalysisSection({
+export const TechnicalAnalysisSection = memo(function TechnicalAnalysisSection({
   copy,
   fsDiv,
   marketDate,
@@ -422,9 +422,9 @@ export function TechnicalAnalysisSection({
       </UnitRefreshFrame>
     </section>
   );
-}
+});
 
-export function FundamentalsHistorySection({
+export const FundamentalsHistorySection = memo(function FundamentalsHistorySection({
   copy,
   fsDiv,
   marketDate,
@@ -566,9 +566,9 @@ export function FundamentalsHistorySection({
       </UnitRefreshFrame>
     </section>
   );
-}
+});
 
-export function DisclosureCoverageSection({
+export const DisclosureCoverageSection = memo(function DisclosureCoverageSection({
   copy,
   fsDiv,
   marketDate,
@@ -670,9 +670,9 @@ export function DisclosureCoverageSection({
       </UnitRefreshFrame>
     </section>
   );
-}
+});
 
-export function SystemFreshnessSection({
+export const SystemFreshnessSection = memo(function SystemFreshnessSection({
   copy,
   fsDiv,
   marketDate,
@@ -805,4 +805,4 @@ export function SystemFreshnessSection({
       </UnitRefreshFrame>
     </section>
   );
-}
+});
