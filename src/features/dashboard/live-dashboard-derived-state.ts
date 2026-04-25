@@ -884,6 +884,7 @@ export function buildEodStageCard(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
+  primaryLatestCycleDate: string | null,
   canShowBreakDay: boolean,
   pipelineStage: EodPipelineStageDto | null | undefined,
   copy: DashboardLiveCopy,
@@ -909,8 +910,19 @@ export function buildEodStageCard(
     },
   ];
 
-  if (hasTextValue(todayTradeDate) && hasTextValue(latestDate) && todayTradeDate !== latestDate) {
-    details.push({ key: "latest-date", label: copy.operational.latestDate, value: latestDate, tone: "text" });
+  const normalizedPrimaryLatestCycleDate = resolveNormalizedPresenterDate(primaryLatestCycleDate);
+  const normalizedTodayTradeDate = resolveNormalizedPresenterDate(todayTradeDate);
+  const normalizedLatestDate = resolveNormalizedPresenterDate(latestDate);
+  const showLatestDateDetail = normalizedLatestDate
+    ? normalizedPrimaryLatestCycleDate
+      ? normalizedLatestDate !== normalizedPrimaryLatestCycleDate
+      : normalizedTodayTradeDate
+        ? normalizedLatestDate !== normalizedTodayTradeDate
+        : true
+    : false;
+
+  if (showLatestDateDetail && normalizedLatestDate) {
+    details.push({ key: "latest-date", label: copy.operational.latestDate, value: normalizedLatestDate, tone: "text" });
   }
   if (hasNumber(stage?.symbols_failed) && stage.symbols_failed > 0) {
     details.push({

@@ -133,11 +133,23 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return parsedBody as T;
 }
 
+function getExceptionDateLabel(date: string | null | undefined, primaryLatestCycleDate: string | null | undefined) {
+  const normalizedDate = getFirstTextValue(date);
+  if (!normalizedDate) return null;
+
+  const normalizedPrimaryLatestCycleDate = getFirstTextValue(primaryLatestCycleDate);
+  if (normalizedPrimaryLatestCycleDate && normalizedDate === normalizedPrimaryLatestCycleDate) {
+    return null;
+  }
+
+  return normalizedDate;
+}
+
 type AgentRoleStatusLabels = Record<AgentRoleStatus, string>;
 
 type EodStatusCardProps = {
   copy: DashboardLiveCopy;
-  eodMarketDate: string;
+  currentMarketDate: string | null;
   eodStageCards: readonly EodStageCard[];
   fundamentalsDialogOpen: boolean;
   fundamentalsFailureDetails: FundamentalsFailureDetails | null;
@@ -146,7 +158,7 @@ type EodStatusCardProps = {
 
 const EodStatusCard = memo(function EodStatusCard({
   copy,
-  eodMarketDate,
+  currentMarketDate,
   eodStageCards,
   fundamentalsDialogOpen,
   fundamentalsFailureDetails,
@@ -158,7 +170,9 @@ const EodStatusCard = memo(function EodStatusCard({
         <div>
           <p className={styles.sectionEyebrow}>{copy.operational.eodEyebrow}</p>
           <h2 className={styles.sectionTitle}>{copy.operational.eodTitle}</h2>
-          <p className={styles.cardContext}>{copy.operational.marketDate} {eodMarketDate}</p>
+          {currentMarketDate ? (
+            <p className={styles.cardContext}>{copy.operational.currentMarketDate} {currentMarketDate}</p>
+          ) : null}
         </div>
       </div>
 
@@ -252,11 +266,13 @@ const EodStatusCard = memo(function EodStatusCard({
 type PiotroskiFilteringCardProps = {
   copy: DashboardLiveCopy;
   filteringCardModel: PiotroskiFilteringCardModel;
+  marketDateContext: string | null;
 };
 
 const PiotroskiFilteringCard = memo(function PiotroskiFilteringCard({
   copy,
   filteringCardModel,
+  marketDateContext,
 }: PiotroskiFilteringCardProps) {
   return (
     <article className={`${styles.integrityStat} ${styles.filteringCard}`}>
@@ -264,9 +280,9 @@ const PiotroskiFilteringCard = memo(function PiotroskiFilteringCard({
         <div>
           <p className={styles.sectionEyebrow}>{copy.operational.piotroskiEyebrow}</p>
           <h2 className={styles.sectionTitle}>{copy.operational.piotroskiTitle}</h2>
-          <p className={styles.cardContext}>
-            {copy.operational.marketDate} {filteringCardModel.displayMarketDateLabel}
-          </p>
+          {marketDateContext ? (
+            <p className={styles.cardContext}>{copy.operational.marketDate} {marketDateContext}</p>
+          ) : null}
         </div>
         <Link
           href={buildPiotroskiListHref(filteringCardModel.displayMarketDate)}
@@ -303,7 +319,7 @@ type AgentFeedbackCardProps = {
   agentFeedbackHeaderStatusLabel: string;
   agentFeedbackStatusTone: "positive" | "neutral" | "warning";
   agentFeedbackStopDialogOpen: boolean;
-  agentProgressDate: string;
+  agentProgressDateContext: string | null;
   agentRoleCards: AgentRoleCard[];
   agentRoleStatusLabels: AgentRoleStatusLabels;
   copy: DashboardLiveCopy;
@@ -315,7 +331,7 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
   agentFeedbackHeaderStatusLabel,
   agentFeedbackStatusTone,
   agentFeedbackStopDialogOpen,
-  agentProgressDate,
+  agentProgressDateContext,
   agentRoleCards,
   agentRoleStatusLabels,
   copy,
@@ -327,7 +343,9 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
       <div className={styles.sectionHeaderRow}>
         <div>
           <h2 className={styles.sectionTitle}>{copy.operational.agentTitle}</h2>
-          <p className={styles.cardContext}>{copy.operational.agentDate} {agentProgressDate}</p>
+          {agentProgressDateContext ? (
+            <p className={styles.cardContext}>{copy.operational.agentDate} {agentProgressDateContext}</p>
+          ) : null}
         </div>
         <span className={`pill ${agentFeedbackStatusTone}`}>{agentFeedbackHeaderStatusLabel}</span>
       </div>
@@ -552,6 +570,16 @@ export function LiveDashboardClient({
   const technicalPipelineStage = getPipelineStage(pipelineStatus, "technical_snapshots");
   const fundamentalsPipelineStage = getPipelineStage(pipelineStatus, "fundamentals_daily_refresh");
   const actionPipelineStage = getPipelineStage(pipelineStatus, "action_summaries");
+  const primaryLatestCycleDate = getFirstTextValue(
+    latestEodTradeDate,
+    priceLatestDate,
+    technicalLatestDate,
+    actionLatestDate,
+    latestFundamentalsDate,
+    dashboardProcessMarketDate,
+    todayTradeDate,
+  );
+  const primaryLatestCycleDateLabel = primaryLatestCycleDate ?? UNKNOWN_LABEL;
   const useTodayPriceStage = shouldUseTodayStageData(todayTradeDate, priceLatestDate, pricePipelineStage);
   const useTodayTechnicalStage = shouldUseTodayStageData(todayTradeDate, technicalLatestDate, technicalPipelineStage);
   const useTodayActionStage = shouldUseTodayStageData(todayTradeDate, actionLatestDate, actionPipelineStage);
@@ -587,7 +615,7 @@ export function LiveDashboardClient({
   );
 
   const piotroskiMarketDate = dashboardProcessMarketDate;
-  const eodMarketDate = todayTradeDate ?? UNKNOWN_LABEL;
+  const currentMarketDate = getExceptionDateLabel(todayTradeDate, primaryLatestCycleDate);
   const eodStatusMarketDate = dashboardProcessMarketDate;
   const isBreakDay = isBreakDayMarket(market);
   const priceFreshnessStage = mergeRunningPipelineStage(
@@ -617,6 +645,7 @@ export function LiveDashboardClient({
       fundamentalsFreshnessWithPipelineStage,
       eodStatusMarketDate,
       latestFundamentalsDate,
+      primaryLatestCycleDate,
       isBreakDay,
       fundamentalsPipelineStage,
       copy,
@@ -638,6 +667,7 @@ export function LiveDashboardClient({
         priceFreshnessStage,
         eodStatusMarketDate,
         priceLatestDate,
+        primaryLatestCycleDate,
         isBreakDay,
         pricePipelineStage,
         copy,
@@ -649,6 +679,7 @@ export function LiveDashboardClient({
         technicalFreshnessStage,
         eodStatusMarketDate,
         technicalLatestDate,
+        primaryLatestCycleDate,
         isBreakDay,
         technicalPipelineStage,
         copy,
@@ -660,6 +691,7 @@ export function LiveDashboardClient({
         actionFreshnessStage,
         eodStatusMarketDate,
         actionLatestDate,
+        primaryLatestCycleDate,
         isBreakDay,
         actionPipelineStage,
         copy,
@@ -686,6 +718,7 @@ export function LiveDashboardClient({
     isBreakDay,
     latestFundamentalsDate,
     numberLocale,
+    primaryLatestCycleDate,
     priceFreshnessStage,
     priceLatestDate,
     pricePipelineStage,
@@ -707,8 +740,8 @@ export function LiveDashboardClient({
     displayedAgentFeedbackProgressError,
     copy,
   );
-  const agentProgressDate =
-    displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate ?? UNKNOWN_LABEL;
+  const rawAgentProgressDate = displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate;
+  const agentProgressDateContext = getExceptionDateLabel(rawAgentProgressDate, primaryLatestCycleDate);
   const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
   const agentRoleCards = useMemo(
     () => buildAgentRoleCards(displayedAgentFeedbackProgress, copy, numberLocale),
@@ -737,8 +770,12 @@ export function LiveDashboardClient({
         piotroskiBoardError,
         piotroskiBoardLoadState,
         piotroskiMarketDate,
-      }),
+    }),
     [copy, numberLocale, piotroskiBoard, piotroskiBoardError, piotroskiBoardLoadState, piotroskiMarketDate],
+  );
+  const filteringCardMarketDateContext = getExceptionDateLabel(
+    filteringCardModel.displayMarketDate,
+    primaryLatestCycleDate,
   );
   const trackedSymbolCards = useMemo(
     () => buildTrackedSymbolCardModels(tracked, symbolMetaBySymbol, freshness, copy, numberLocale),
@@ -874,29 +911,40 @@ export function LiveDashboardClient({
             <div>
               <p className={styles.sectionEyebrow}>{copy.operational.eyebrow}</p>
               <h1 className={styles.heroTitle}>{copy.operational.title}</h1>
-              <p className={styles.marketContext}>
-                {copy.operational.serverTime} {formatDisplayTimestamp(market.server_time)}
-              </p>
+              <div className={styles.primaryDateList}>
+                <p className={styles.primaryDateItem}>
+                  <span className={styles.primaryDateLabel}>{copy.operational.serverTime}</span>
+                  <strong className={styles.primaryDateValue}>{formatDisplayTimestamp(market.server_time)}</strong>
+                </p>
+                <p className={styles.primaryDateItem}>
+                  <span className={styles.primaryDateLabel}>{copy.operational.latestCycleDate}</span>
+                  <strong className={styles.primaryDateValue}>{primaryLatestCycleDateLabel}</strong>
+                </p>
+              </div>
             </div>
           </div>
 
           <div className={styles.integrityGrid}>
             <EodStatusCard
               copy={copy}
-              eodMarketDate={eodMarketDate}
+              currentMarketDate={currentMarketDate}
               eodStageCards={eodStageCards}
               fundamentalsDialogOpen={fundamentalsDialogOpen}
               fundamentalsFailureDetails={fundamentalsFailureDetails}
               onOpenFundamentalsDetails={openFundamentalsDetails}
             />
 
-            <PiotroskiFilteringCard copy={copy} filteringCardModel={filteringCardModel} />
+            <PiotroskiFilteringCard
+              copy={copy}
+              filteringCardModel={filteringCardModel}
+              marketDateContext={filteringCardMarketDateContext}
+            />
 
             <AgentFeedbackCard
               agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
               agentFeedbackStatusTone={agentFeedbackStatusTone}
               agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
-              agentProgressDate={agentProgressDate}
+              agentProgressDateContext={agentProgressDateContext}
               agentRoleCards={agentRoleCards}
               agentRoleStatusLabels={agentRoleStatusLabels}
               copy={copy}

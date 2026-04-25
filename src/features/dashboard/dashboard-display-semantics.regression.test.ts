@@ -96,6 +96,7 @@ test("TC-DASH-002 running override keeps today-stage semantics and preserves the
     buildStage("running"),
     "2026-04-21",
     "2026-04-18",
+    "2026-04-18",
     false,
     runningPipelineStage,
     copy,
@@ -145,6 +146,7 @@ test("TC-DASH-003 weekend and market-break semantics only surface break day when
     buildStage("ready"),
     "2026-04-21",
     "2026-04-18",
+    "2026-04-18",
     true,
     buildPipelineStage("completed"),
     copy,
@@ -153,7 +155,7 @@ test("TC-DASH-003 weekend and market-break semantics only surface break day when
 
   assert.equal(card.statusLabel, "break day");
   assert.equal(card.tone, "neutral");
-  assert.equal(card.details.find((item) => item.key === "latest-date")?.value, "2026-04-18");
+  assert.equal(card.details.find((item) => item.key === "latest-date"), undefined);
 });
 
 test("TC-DASH-004 fundamentals stale-ready labels stay not-synced on active days and break-day on market breaks", () => {

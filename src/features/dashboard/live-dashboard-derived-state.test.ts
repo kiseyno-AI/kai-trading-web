@@ -53,6 +53,7 @@ test("keeps running stage badge, title, and tone mapping stable", () => {
     buildStage("running"),
     "2026-04-21",
     "2026-04-18",
+    "2026-04-18",
     false,
     {
       status: "running",
@@ -71,6 +72,42 @@ test("keeps running stage badge, title, and tone mapping stable", () => {
   assert.equal(card.statusBadgeLabel, "Price Collection");
   assert.equal(card.statusBadgeTitle, "Price Collection · Sync Symbols · Symbol 005930");
   assert.equal(card.tone, "info");
+});
+
+test("hides repeated latest-date detail when a stage matches the primary latest cycle date", () => {
+  const copy = getDashboardLiveCopy("en");
+  const card = buildEodStageCard(
+    "price",
+    copy.stage.price,
+    buildStage("ready"),
+    "2026-04-21",
+    "2026-04-18",
+    "2026-04-18",
+    false,
+    null,
+    copy,
+    "en-US",
+  );
+
+  assert.equal(card.details.find((detail) => detail.key === "latest-date"), undefined);
+});
+
+test("keeps latest-date detail when a stage differs from the primary latest cycle date", () => {
+  const copy = getDashboardLiveCopy("en");
+  const card = buildEodStageCard(
+    "action",
+    copy.stage.action,
+    buildStage("ready"),
+    "2026-04-21",
+    "2026-04-17",
+    "2026-04-18",
+    false,
+    null,
+    copy,
+    "en-US",
+  );
+
+  assert.equal(card.details.find((detail) => detail.key === "latest-date")?.value, "2026-04-17");
 });
 
 test("builds the Piotroski filtering card with the resolved latest-available note", () => {
