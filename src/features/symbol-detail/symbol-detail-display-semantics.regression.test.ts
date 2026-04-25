@@ -1,0 +1,245 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  getSymbolDetailSectionVisibility,
+  resolveSymbolDetailMode,
+  resolveSymbolDetailModeFromPathname,
+  type SymbolDetailMode,
+} from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
+import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
+
+import {
+  buildActionSummarySectionModel,
+  buildDisclosureCoverageSectionModel,
+  buildFundamentalsHistorySectionModel,
+  buildSystemFreshnessSectionModel,
+} from "./symbol-detail-derived-state";
+
+test("TC-SYMBOL-001 route and mode resolution preserve every symbol-detail path, including deep disclosure routes", () => {
+  const expectedByPath: Record<string, SymbolDetailMode> = {
+    "/dashboard/symbol/005930": "overview",
+    "/dashboard/symbol/005930/action-summary": "action-summary",
+    "/dashboard/symbol/005930/technical-analysis": "technical-analysis",
+    "/dashboard/symbol/005930/fundamentals-history": "fundamentals-history",
+    "/dashboard/symbol/005930/disclosure-coverage": "disclosure-coverage",
+    "/dashboard/symbol/005930/disclosure-coverage/202604100001": "disclosure-coverage",
+    "/dashboard/symbol/005930/system-freshness": "system-freshness",
+  };
+
+  for (const [pathname, expectedMode] of Object.entries(expectedByPath)) {
+    assert.equal(resolveSymbolDetailModeFromPathname(pathname, "005930"), expectedMode);
+  }
+
+  assert.equal(resolveSymbolDetailMode("system-freshness"), "system-freshness");
+  assert.equal(resolveSymbolDetailMode("not-a-real-mode"), null);
+  assert.equal(resolveSymbolDetailModeFromPathname("/dashboard/symbol/000660/action-summary", "005930"), null);
+});
+
+test("TC-SYMBOL-002 section visibility stays stable for overview and every deep detail mode", () => {
+  const expectedByMode: Record<SymbolDetailMode, ReturnType<typeof getSymbolDetailSectionVisibility>> = {
+    overview: {
+      showOverview: true,
+      showChartSection: true,
+      showFactorSnapshotSection: true,
+      showActionSection: false,
+      showTechnicalSection: false,
+      showFundamentalsSection: false,
+      showDisclosureSection: false,
+      showFreshnessSection: true,
+    },
+    "action-summary": {
+      showOverview: false,
+      showChartSection: false,
+      showFactorSnapshotSection: false,
+      showActionSection: true,
+      showTechnicalSection: false,
+      showFundamentalsSection: false,
+      showDisclosureSection: false,
+      showFreshnessSection: false,
+    },
+    "technical-analysis": {
+      showOverview: false,
+      showChartSection: true,
+      showFactorSnapshotSection: false,
+      showActionSection: false,
+      showTechnicalSection: true,
+      showFundamentalsSection: false,
+      showDisclosureSection: false,
+      showFreshnessSection: false,
+    },
+    "fundamentals-history": {
+      showOverview: false,
+      showChartSection: false,
+      showFactorSnapshotSection: false,
+      showActionSection: false,
+      showTechnicalSection: false,
+      showFundamentalsSection: true,
+      showDisclosureSection: false,
+      showFreshnessSection: false,
+    },
+    "disclosure-coverage": {
+      showOverview: false,
+      showChartSection: false,
+      showFactorSnapshotSection: false,
+      showActionSection: false,
+      showTechnicalSection: false,
+      showFundamentalsSection: false,
+      showDisclosureSection: true,
+      showFreshnessSection: false,
+    },
+    "system-freshness": {
+      showOverview: false,
+      showChartSection: false,
+      showFactorSnapshotSection: false,
+      showActionSection: false,
+      showTechnicalSection: false,
+      showFundamentalsSection: false,
+      showDisclosureSection: false,
+      showFreshnessSection: true,
+    },
+  };
+
+  for (const [mode, expected] of Object.entries(expectedByMode) as Array<
+    [SymbolDetailMode, ReturnType<typeof getSymbolDetailSectionVisibility>]
+  >) {
+    assert.deepEqual(getSymbolDetailSectionVisibility(mode), expected);
+  }
+});
+
+test("TC-SYMBOL-003 action-summary fallback labels stay stable when no summary is available", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildActionSummarySectionModel(null, copy);
+
+  assert.equal(model.badgeLabel, copy.action.unavailable);
+  assert.equal(model.headline, copy.action.emptyHeadline);
+  assert.equal(model.body, copy.action.emptyBody);
+  assert.equal(model.metaCaption, `${copy.action.payloadKeys}: No payload keys`);
+  assert.deepEqual(model.reasonTags, [copy.action.noRationaleRows]);
+  assert.equal(model.metrics[0]?.value, "Unavailable");
+  assert.equal(model.metrics[1]?.value, "Unavailable");
+  assert.equal(model.metrics[2]?.value, copy.action.noTriggerPrice);
+  assert.equal(model.score, 0);
+  assert.equal(model.tone, "neutral");
+});
+
+test("TC-SYMBOL-004 fundamentals-history empty state surfaces aggregate-only latest coverage when stored history is missing", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildFundamentalsHistorySectionModel({
+    companyHistory: null,
+    copy,
+    fundamentalsEntryLimit: 4,
+    fundamentalsLoading: false,
+    fsDiv: null,
+    introTitle: "Samsung Electronics",
+    latestFundamentals: {
+      filing: {
+        report_name: "Annual report",
+        receipt_date: "2026-03-31",
+      },
+      period: {
+        report_label: "FY 2025",
+        period_end_date: "2025-12-31",
+        business_year: 2025,
+      },
+      statement: {
+        row_count: 42,
+      },
+      highlights: null,
+    },
+    latestHistoryEntry: null,
+    symbol: "005930",
+  });
+
+  assert.equal(model.state, "empty");
+  assert.equal(model.fsValue, copy.fundamentals.defaultFs);
+  assert.equal(model.introInitial, "0");
+  assert.equal(model.introTitle, "Samsung Electronics");
+  assert.equal(model.introBody, `${copy.fundamentals.latestFilingPrefix} Annual report.`);
+  assert.equal(
+    model.emptyBody,
+    `${copy.fundamentals.aggregateContextHas} Annual report ${copy.fundamentals.from} 2026-03-31.`,
+  );
+  assert.equal(model.highlights[0]?.label, copy.fundamentals.latestFiling);
+  assert.equal(model.highlights[0]?.value, "Annual report");
+  assert.equal(model.highlights[1]?.label, copy.fundamentals.period);
+  assert.equal(model.highlights[1]?.value, "FY 2025");
+  assert.equal(model.highlights[2]?.label, copy.fundamentals.statementRows);
+  assert.equal(model.highlights[2]?.value, "42");
+});
+
+test("TC-SYMBOL-005 disclosure-coverage unavailable state keeps fallback labels without phantom report cards", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildDisclosureCoverageSectionModel({
+    copy,
+    disclosureCount: 0,
+    disclosureItemLimit: 4,
+    latestDisclosure: null,
+    recentDisclosures: [],
+    routeQueryString: "marketDate=2026-04-10",
+    sectionState: "unavailable",
+    symbol: "005930",
+  });
+
+  assert.equal(model.state, "unavailable");
+  assert.equal(model.badgeTone, "warning");
+  assert.equal(model.badgeValue, `0 ${copy.disclosures.items}`);
+  assert.equal(model.coverageTitle, copy.disclosures.partialAnalystCoverage);
+  assert.equal(model.coverageBody, copy.disclosures.emptyTitle);
+  assert.equal(model.emptyTitle, copy.disclosures.unavailableTitle);
+  assert.equal(model.emptyBody, copy.disclosures.unavailableBody);
+  assert.deepEqual(model.cards, []);
+});
+
+test("TC-SYMBOL-006 system-freshness fallback rows keep stable labels for unavailable quote, fundamentals, and disclosure coverage", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildSystemFreshnessSectionModel({
+    actionSummary: null,
+    aggregateContext: null,
+    copy,
+    disclosureSectionState: "unavailable",
+    freshness: {
+      today: {
+        trade_date: "2026-04-18",
+        eod_status: "running",
+      },
+      latest: {},
+    },
+    hasFundamentalsHistory: false,
+    latestDisclosure: null,
+    latestFundamentals: null,
+    marketDate: "2026-04-18",
+    quote: {
+      symbol: "005930",
+      company_name: "Samsung Electronics",
+      price: null,
+      change: null,
+      change_pct: null,
+      volume: null,
+      turnover: null,
+      market_state: "CLOSED",
+      source: "daily_price_bar",
+      fallback: true,
+      is_live: false,
+      available: false,
+      trade_date: "2026-04-18",
+      unavailable_reason: "Quote cache waiting for confirmation",
+    },
+    technicalSnapshot: null,
+  });
+
+  const priceRow = model.moduleRows.find((row) => row.id === "price");
+  const fundamentalsRow = model.moduleRows.find((row) => row.id === "fundamentals");
+  const disclosureRow = model.moduleRows.find((row) => row.id === "disclosures");
+
+  assert.equal(model.statusLabel, "Running");
+  assert.equal(model.tone, "info");
+  assert.equal(priceRow?.date, "2026-04-18");
+  assert.equal(priceRow?.detail, "Quote cache waiting for confirmation");
+  assert.equal(priceRow?.status, copy.freshness.unavailable);
+  assert.equal(fundamentalsRow?.date, copy.fundamentals.noReceiptDate);
+  assert.equal(fundamentalsRow?.status, copy.freshness.noHistory);
+  assert.equal(disclosureRow?.date, copy.freshness.unavailable);
+  assert.equal(disclosureRow?.status, copy.freshness.unavailable);
+  assert.equal(disclosureRow?.detail, copy.disclosures.emptyTitle);
+});
