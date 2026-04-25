@@ -702,8 +702,9 @@ test.describe("dashboard desktop", () => {
     await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-15/);
     await expect(filteringCard).toContainText("Completed");
-    await expect(filteringCard).toContainText("Market date 2026-04-15");
+    await expect(filteringCard).not.toContainText("Market date 2026-04-15");
     await expect(filteringCard).toContainText(/Checked\s*2/);
     await expect(filteringCard).toContainText(/Pass\s*1/);
     await expect(filteringCard).not.toContainText("Requested");
@@ -990,8 +991,9 @@ test.describe("dashboard desktop", () => {
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-16/);
     await expect(filteringCard).toContainText("Completed");
-    await expect(filteringCard).toContainText("Market date 2026-04-15");
+    await expect(filteringCard).toContainText(/Market date\s*2026-04-15/);
     await expect(filteringCard).toContainText(/Checked\s*4/);
     await expect(filteringCard).toContainText(/Pass\s*4/);
     await expect(filteringCard).toContainText("Requested 2026-04-16");
@@ -1260,20 +1262,21 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Market date 2026-04-16")).toBeVisible();
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-15/);
+    await expect(eodStatusCard.getByText(/Current market date\s*2026-04-16/)).toBeVisible();
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     await expectEodStageStatus(priceStage, "synced");
     await expect(priceStage).toContainText("237 / 250");
     await expect(priceStage).not.toContainText("Succeeded");
     await expect(priceStage).toContainText(/Failed\s*13/);
-    await expect(priceStage).toContainText(/Latest date\s*2026-04-15/);
+    await expect(priceStage.getByText("Latest date")).toHaveCount(0);
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     await expectEodStageStatus(technicalStage, "synced");
     await expect(technicalStage).toContainText("250 / 250");
     await expect(technicalStage).not.toContainText("Succeeded");
-    await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
+    await expect(technicalStage).toContainText(/Latest date\s*2026-04-16/);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     await expectEodStageStatus(actionStage, "not synced");
@@ -1489,14 +1492,15 @@ test.describe("dashboard desktop", () => {
     await expect.poll(() => piotroskiRequestedMarketDate).toBe("2026-04-15");
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
-    await expect(eodStatusCard).toContainText("Market date 2026-04-16");
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-15/);
+    await expect(eodStatusCard).toContainText(/Current market date\s*2026-04-16/);
     await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "synced");
     await expectEodStageStatus(page.locator('[aria-label="Technical Analysis freshness"]'), "synced");
     await expectEodStageStatus(page.locator('[aria-label="Action Summary freshness"]'), "synced");
     await expectEodStageStatus(page.locator('[aria-label="Fundamentals freshness"]'), "synced");
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
-    await expect(filteringCard).toContainText("Market date 2026-04-15");
+    await expect(filteringCard).not.toContainText("Market date 2026-04-15");
     await expect(filteringCard).toContainText("Completed");
     await expect(filteringCard).toContainText(/Checked\s*2/);
     await expect(filteringCard).toContainText(/Pass\s*1/);
@@ -1613,23 +1617,24 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Market date 2026-04-18")).toBeVisible();
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-17/);
+    await expect(eodStatusCard.getByText(/Current market date\s*2026-04-18/)).toBeVisible();
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     await expectEodStageStatus(priceStage, "break day");
-    await expect(priceStage).toContainText("Latest date 2026-04-17");
+    await expect(priceStage.getByText("Latest date")).toHaveCount(0);
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     await expectEodStageStatus(technicalStage, "break day");
-    await expect(technicalStage).toContainText("Latest date 2026-04-17");
+    await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     await expectEodStageStatus(actionStage, "not synced");
-    await expect(actionStage).toContainText("Latest date 2026-04-17");
+    await expect(actionStage.getByText("Latest date")).toHaveCount(0);
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expectEodStageStatus(fundamentalsStage, "break day");
-    await expect(fundamentalsStage).toContainText("Latest date 2026-04-17");
+    await expect(fundamentalsStage.getByText("Latest date")).toHaveCount(0);
   });
 
   test("D2 EOD status keeps missing weekend stages as not synced while fundamentals retains latest coverage", async ({
@@ -1765,7 +1770,7 @@ test.describe("dashboard desktop", () => {
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     await expectEodStageStatus(technicalStage, "not synced");
-    await expect(technicalStage).toContainText("Latest date 2026-04-17");
+    await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     await expectEodStageStatus(actionStage, "not synced");
@@ -1773,7 +1778,7 @@ test.describe("dashboard desktop", () => {
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     await expectEodStageStatus(fundamentalsStage, "break day");
     await expect(fundamentalsStage).toContainText(/Checked\s*42/);
-    await expect(fundamentalsStage).toContainText("Latest date 2026-04-17");
+    await expect(fundamentalsStage.getByText("Latest date")).toHaveCount(0);
   });
 
   test("D2 EOD status shows running before stale latest-date checks", async ({ page }) => {
@@ -1887,7 +1892,8 @@ test.describe("dashboard desktop", () => {
 
     const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Market date 2026-04-14")).toBeVisible();
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-14/);
+    await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "not synced");
     await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("250 / 250");
     await expect(page.locator('[aria-label="Price Fetch freshness"]')).not.toContainText("Succeeded");
@@ -2149,7 +2155,8 @@ test.describe("dashboard desktop", () => {
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
 
     await expect(eodStatusCard).toBeVisible();
-    await expect(eodStatusCard.getByText("Market date 2026-04-24")).toBeVisible();
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-23/);
+    await expect(eodStatusCard.getByText(/Current market date\s*2026-04-24/)).toBeVisible();
     await expect(eodStatusCard.getByText("Latest EOD patch")).toHaveCount(0);
     await expectEodStageStatus(priceStage, "synced");
     await expectEodStageStatus(technicalStage, "synced");
@@ -2170,6 +2177,7 @@ test.describe("dashboard desktop", () => {
     page,
   }) => {
     const marketDateLabel = /(?:Market date|기준일) 2026-04-15/;
+    const latestCycleDateLabel = /(?:Latest cycle date|최신 사이클 기준일)\s*2026-04-15/;
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
@@ -2345,6 +2353,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText("Market Open")).toBeVisible();
     await expect(freshnessPanel.getByText(/^Market state\b/)).toHaveCount(0);
     await expect(freshnessPanel.getByText(/Server time/)).toBeVisible();
+    await expect(freshnessPanel).toContainText(latestCycleDateLabel);
 
     const progressCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
@@ -2371,7 +2380,7 @@ test.describe("dashboard desktop", () => {
       }),
     );
     await expect(stopDialog).toHaveCount(0);
-    await expect(progressCard).toContainText(marketDateLabel);
+    await expect(progressCard).not.toContainText(marketDateLabel);
     await expect(progressCard).not.toContainText("피드백 완료 302개 / 1,000개");
     await expect(progressCard).not.toContainText("예상 기준");
     await expect(progressCard).not.toContainText("현재 롤");
@@ -2492,7 +2501,7 @@ test.describe("dashboard desktop", () => {
     };
     await reloadAndExpectAgentStatus(agentReviewNeedsAttentionLabel);
     await expect(progressCard).not.toContainText(agentReviewRunningLabel);
-    await expect(progressCard).toContainText(marketDateLabel);
+    await expect(progressCard).not.toContainText(marketDateLabel);
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(
       progressCard.locator('[data-role-status="completed"]').filter({ hasText: "Preflight Gate" }),
@@ -2521,7 +2530,7 @@ test.describe("dashboard desktop", () => {
       completed_feedback_count: 0,
     };
     await reloadAndExpectAgentStatus(agentReviewPendingLabel);
-    await expect(progressCard).toContainText(marketDateLabel);
+    await expect(progressCard).not.toContainText(marketDateLabel);
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(progressCard.locator('[data-role-status="pending"]')).toHaveCount(4);
     await expect(progressCard.getByText(/(?:Complete|완료)\s*0(?:개)?/)).toHaveCount(4);
@@ -2609,7 +2618,7 @@ test.describe("dashboard desktop", () => {
       },
     };
     await reloadAndExpectAgentStatus(agentReviewCompletedLabel);
-    await expect(progressCard).toContainText(marketDateLabel);
+    await expect(progressCard).not.toContainText(marketDateLabel);
     await expect(progressCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);
     await expect(progressCard).not.toContainText("피드백 완료");
     await expect(progressCard.locator('[data-role-status="completed"]')).toHaveCount(4);
