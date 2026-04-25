@@ -5,6 +5,11 @@ import type {
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
+import {
+  getPresenterAvailabilityTone,
+  getPresenterFreshnessTone,
+  resolvePresenterDate,
+} from "@/lib/stage-date-status-presenter";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import type {
   AgentContextActionSummaryDto,
@@ -511,18 +516,14 @@ export function buildTechnicalTone(
 }
 
 export function buildFreshnessTone(status: string | null | undefined): SystemFreshnessSectionModel["tone"] {
-  if (!status) return "warning";
-  if (status === "completed") return "positive";
-  if (status === "completed_with_errors") return "warning";
-  if (status === "running") return "info";
-  return "neutral";
+  return getPresenterFreshnessTone(status);
 }
 
 export function buildModuleStatusTone(
   available: boolean,
   fallbackTone: FreshnessModuleRowModel["tone"] = "warning",
 ): FreshnessModuleRowModel["tone"] {
-  return available ? "positive" : fallbackTone;
+  return getPresenterAvailabilityTone(available, fallbackTone);
 }
 
 export function buildConfidenceTone(
@@ -563,11 +564,10 @@ export function buildTechnicalFreshnessDate(
   technicalSnapshot: AgentContextTechnicalSnapshotDto | null,
   freshness: EodFreshnessResponseDto | null,
 ) {
-  return (
-    technicalSnapshot?.market_date ??
-    freshness?.technical?.latest_date ??
-    freshness?.latest?.technical_market_date ??
-    null
+  return resolvePresenterDate(
+    technicalSnapshot?.market_date,
+    freshness?.technical?.latest_date,
+    freshness?.latest?.technical_market_date,
   );
 }
 
@@ -575,7 +575,7 @@ export function buildActionFreshnessDate(
   actionSummary: AgentContextActionSummaryDto | null,
   freshness: EodFreshnessResponseDto | null,
 ) {
-  return actionSummary?.market_date ?? freshness?.latest?.action_market_date ?? null;
+  return resolvePresenterDate(actionSummary?.market_date, freshness?.latest?.action_market_date);
 }
 
 export function buildActionSummarySectionModel(
@@ -1128,11 +1128,8 @@ export function buildLatestPriceLabel(
   quote: QuoteResponse | null,
   copy: SymbolDetailCopy,
 ) {
-  return (
-    freshness?.latest?.price_trade_date ??
-    quote?.trade_date ??
-    formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending)
-  );
+  return resolvePresenterDate(freshness?.latest?.price_trade_date, quote?.trade_date)
+    ?? formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending);
 }
 
 export function buildSystemFreshnessSectionModel({

@@ -7,6 +7,12 @@ import {
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
+  getPresenterStageDisplayLabel,
+  getPresenterStageTone,
+  resolveNormalizedPresenterDate,
+  resolvePresenterStageStatus,
+} from "@/lib/stage-date-status-presenter";
+import {
   getEodSymbolsFailed,
   getEodSymbolsSucceeded,
   getEodSymbolsTotal,
@@ -89,18 +95,7 @@ export function getAgentRoleStatusLabels(copy: DashboardLiveCopy) {
 }
 
 export function getStageStatusLabel(status: EodStageCard["statusLabel"], copy: DashboardLiveCopy) {
-  switch (status) {
-    case "synced":
-      return copy.stage.synced;
-    case "running":
-      return copy.stage.running;
-    case "break day":
-      return copy.stage.breakDay;
-    case "not synced":
-      return copy.stage.notSynced;
-    default:
-      return status;
-  }
+  return getPresenterStageDisplayLabel(status, copy.stage);
 }
 
 export function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable"): string {
@@ -345,11 +340,7 @@ export function getFundamentalsFreshnessLayer(
 }
 
 export function getFirstTextValue(...values: Array<string | null | undefined>) {
-  for (const value of values) {
-    if (hasTextValue(value)) return value.trim();
-  }
-
-  return null;
+  return resolveNormalizedPresenterDate(...values);
 }
 
 function humanizeToken(value: string | null | undefined, fallback = UNKNOWN_LABEL) {
@@ -836,14 +827,12 @@ function getEodStageStatusLabel(
   latestDate: string | null,
   canShowBreakDay: boolean,
 ): EodStageCard["statusLabel"] {
-  const status = normalizeStageStatus(stage);
-  if (status === "running") return "running";
-  const hasLatestDate = hasTextValue(latestDate);
-  const hasStaleDate =
-    hasTextValue(todayTradeDate) && hasLatestDate && todayTradeDate.trim() !== latestDate.trim();
-  if (status === "ready" && canShowBreakDay && hasStaleDate) return "break day";
-  if (status === "ready" && hasLatestDate) return "synced";
-  return "not synced";
+  return resolvePresenterStageStatus({
+    stageStatus: stage?.status,
+    todayTradeDate,
+    latestDate,
+    canShowBreakDay,
+  });
 }
 
 export function getFundamentalsStageStatusLabel(
@@ -852,25 +841,17 @@ export function getFundamentalsStageStatusLabel(
   latestDate: string | null,
   canShowBreakDay: boolean,
 ): EodStageCard["statusLabel"] {
-  const status = normalizeStageStatus(stage);
-  if (status === "running") return "running";
-
-  const hasLatestDate = hasTextValue(latestDate);
-  const hasStaleDate =
-    hasTextValue(todayTradeDate) && hasLatestDate && todayTradeDate.trim() !== latestDate.trim();
-
-  if (status === "ready" && hasStaleDate) {
-    return canShowBreakDay ? "break day" : "not synced";
-  }
-
-  return getEodStageStatusLabel(stage, todayTradeDate, latestDate, canShowBreakDay);
+  return resolvePresenterStageStatus({
+    stageStatus: stage?.status,
+    todayTradeDate,
+    latestDate,
+    canShowBreakDay,
+    staleReadyLabel: "not synced",
+  });
 }
 
 function getEodStageTone(statusLabel: EodStageCard["statusLabel"]): EodStageCard["tone"] {
-  if (statusLabel === "synced") return "positive";
-  if (statusLabel === "running") return "info";
-  if (statusLabel === "break day") return "neutral";
-  return "warning";
+  return getPresenterStageTone(statusLabel);
 }
 
 function getEodStageStatusBadge(

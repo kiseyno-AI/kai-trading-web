@@ -5,10 +5,15 @@ import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 
 import {
   buildActionSummarySectionModel,
+  buildActionFreshnessDate,
   buildDisclosureCoverageSectionModel,
+  buildFreshnessTone,
   buildFundamentalsHistorySectionModel,
   buildHeroFundamentalLatestMetricModel,
+  buildLatestPriceLabel,
+  buildModuleStatusTone,
   buildSystemFreshnessSectionModel,
+  buildTechnicalFreshnessDate,
   pickSelectedBarTradeDate,
 } from "./symbol-detail-derived-state";
 
@@ -220,6 +225,114 @@ test("keeps the selected price-bar trade date stable across refreshed history ar
     ),
     "2026-04-18",
   );
+});
+
+test("keeps symbol-detail freshness date fallback precedence stable", () => {
+  const copy = getSymbolDetailCopy("en");
+
+  assert.equal(
+    buildLatestPriceLabel(
+      {
+        latest: {
+          price_trade_date: "2026-04-18",
+        },
+      },
+      {
+        symbol: "005930",
+        company_name: "Samsung Electronics",
+        price: 100,
+        change: 1,
+        change_pct: 1,
+        volume: 1,
+        turnover: 1,
+        market_state: "CLOSED",
+        source: "db_cache",
+        fallback: true,
+        is_live: false,
+        available: true,
+        trade_date: "2026-04-17",
+        cached_at: "2026-04-18T12:00:00+09:00",
+      },
+      copy,
+    ),
+    "2026-04-18",
+  );
+  assert.equal(
+    buildLatestPriceLabel(
+      null,
+      {
+        symbol: "005930",
+        company_name: "Samsung Electronics",
+        price: 100,
+        change: 1,
+        change_pct: 1,
+        volume: 1,
+        turnover: 1,
+        market_state: "CLOSED",
+        source: "db_cache",
+        fallback: true,
+        is_live: false,
+        available: true,
+        trade_date: null,
+        cached_at: null,
+      },
+      copy,
+    ),
+    copy.hero.quotePending,
+  );
+  assert.equal(
+    buildTechnicalFreshnessDate(
+      {
+        symbol: "005930",
+        market_date: "2026-04-21",
+        close_price: 70000,
+        volume: 100,
+        trend_state: "uptrend",
+        ma_alignment: "bullish_stack",
+        breakout_20d: false,
+        breakdown_20d: false,
+        source: "stored",
+        return_5d: null,
+        return_20d: null,
+        volume_ratio_20d: null,
+        atr_14: null,
+        atr_pct_14: null,
+        signal_payload: {},
+        captured_at: null,
+      },
+      {
+        technical: {
+          latest_date: "2026-04-18",
+          success: true,
+        },
+        latest: {
+          technical_market_date: "2026-04-17",
+        },
+      },
+    ),
+    "2026-04-21",
+  );
+  assert.equal(
+    buildActionFreshnessDate(
+      null,
+      {
+        latest: {
+          action_market_date: "2026-04-18",
+        },
+      },
+    ),
+    "2026-04-18",
+  );
+});
+
+test("keeps symbol-detail freshness tone and module-tone mapping stable", () => {
+  assert.equal(buildFreshnessTone("completed"), "positive");
+  assert.equal(buildFreshnessTone("completed_with_errors"), "warning");
+  assert.equal(buildFreshnessTone("running"), "info");
+  assert.equal(buildFreshnessTone("pending"), "neutral");
+  assert.equal(buildFreshnessTone(null), "warning");
+  assert.equal(buildModuleStatusTone(true), "positive");
+  assert.equal(buildModuleStatusTone(false, "info"), "info");
 });
 
 test("keeps system-freshness fallback rows stable when quote and disclosure coverage are unavailable", () => {

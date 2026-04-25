@@ -11,6 +11,7 @@ import {
   getLatestEodSymbolsSucceeded as getLatestPatchSymbolsSucceeded,
   getLatestEodSymbolsTotal as getLatestPatchSymbolsTotal,
 } from "@/lib/eod-freshness-latest";
+import { shouldPreferTodayPresenterStageData } from "@/lib/stage-date-status-presenter";
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -270,9 +271,7 @@ export function shouldUseTodayStageData(
   latestDate: string | null,
   pipelineStage: EodPipelineStageDto | null | undefined,
 ) {
-  if (isRunningPipelineStage(pipelineStage)) return true;
-  if (!hasTextValue(todayTradeDate) || !hasTextValue(latestDate)) return true;
-  return todayTradeDate.trim() === latestDate.trim();
+  return shouldPreferTodayPresenterStageData(todayTradeDate, latestDate, isRunningPipelineStage(pipelineStage));
 }
 
 export function shouldUseTodayFundamentalsStageData(

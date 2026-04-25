@@ -5,6 +5,7 @@ import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import type { EodFreshnessStageDto } from "@/types/trading-api";
 
 import {
+  buildEodStageCard,
   buildPiotroskiFilteringCardModel,
   buildTrackedSymbolCardModel,
   getAgentFeedbackProgressPollDelayMs,
@@ -42,6 +43,34 @@ test("keeps same-day fundamentals coverage synced", () => {
     getFundamentalsStageStatusLabel(buildStage("ready"), "2026-04-21", "2026-04-21", false),
     "synced",
   );
+});
+
+test("keeps running stage badge, title, and tone mapping stable", () => {
+  const copy = getDashboardLiveCopy("en");
+  const card = buildEodStageCard(
+    "price",
+    copy.stage.price,
+    buildStage("running"),
+    "2026-04-21",
+    "2026-04-18",
+    false,
+    {
+      status: "running",
+      current_step: "price_collection",
+      current_activity: "sync_symbols",
+      current_symbol: "005930",
+      processed: 120,
+      total: 3583,
+      failed: 3,
+    },
+    copy,
+    "en-US",
+  );
+
+  assert.equal(card.statusLabel, "running");
+  assert.equal(card.statusBadgeLabel, "Price Collection");
+  assert.equal(card.statusBadgeTitle, "Price Collection · Sync Symbols · Symbol 005930");
+  assert.equal(card.tone, "info");
 });
 
 test("builds the Piotroski filtering card with the resolved latest-available note", () => {
