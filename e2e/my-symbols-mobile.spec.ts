@@ -191,5 +191,12 @@ test.describe("my symbols mobile flow", () => {
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
     await expect(page.getByRole("status", { name: /Loading symbol workspace|Loading next surface/i })).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => (window as Window & { __globalLoaderSeen?: boolean }).__globalLoaderSeen ?? false)).toBe(false);
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/search$/);
+    await expect(page.getByRole("heading", { name: "Quick Access" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("data-navigation-pending", "false");
+    await expect(page.getByRole("link", { name: "Dashboard", exact: true })).not.toHaveAttribute("aria-busy", "true");
   });
 });

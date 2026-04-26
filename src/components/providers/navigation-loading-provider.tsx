@@ -1,7 +1,16 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 type NavigationLoadingContextValue = {
   beginNavigation: (href?: string | URL | null) => void;
@@ -16,6 +25,7 @@ const NavigationLoadingContext = createContext<NavigationLoadingContextValue>({
 });
 
 const FAILSAFE_TIMEOUT_MS = 12_000;
+const ROUTE_CHANGE_EVENT = "navigation-loading:route-change";
 
 type PendingNavigation = {
   originRouteKey: string;
@@ -46,42 +56,83 @@ function resolveInternalRouteKey(href: string | URL | null | undefined) {
   }
 }
 
-function getCurrentRouteKey(pathname: string | null) {
-  if (typeof window === "undefined") return pathname ?? "";
+function getCurrentRouteKey() {
+  if (typeof window === "undefined") return "";
   return `${window.location.pathname}${window.location.search}`;
 }
 
+function useCurrentRouteKey() {
+  const [routeKey, setRouteKey] = useState(() => getCurrentRouteKey());
+
+  useEffect(() => {
+    const notifyRouteChange = () => {
+      queueMicrotask(() => {
+        window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
+      });
+    };
+    const updateRouteKey = () => {
+      setRouteKey(getCurrentRouteKey());
+    };
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+
+    window.history.pushState = function (...args) {
+      const result = originalPushState.apply(this, args);
+      notifyRouteChange();
+      return result;
+    };
+    window.history.replaceState = function (...args) {
+      const result = originalReplaceState.apply(this, args);
+      notifyRouteChange();
+      return result;
+    };
+
+    window.addEventListener(ROUTE_CHANGE_EVENT, updateRouteKey);
+    window.addEventListener("popstate", updateRouteKey);
+    updateRouteKey();
+
+    return () => {
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+      window.removeEventListener(ROUTE_CHANGE_EVENT, updateRouteKey);
+      window.removeEventListener("popstate", updateRouteKey);
+    };
+  }, []);
+
+  return routeKey;
+}
+
 export function NavigationLoadingProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const routeKey = getCurrentRouteKey(pathname);
+  const routeKey = useCurrentRouteKey();
   const routeKeyRef = useRef(routeKey);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const failsafeTimerRef = useRef<number | null>(null);
 
-  const beginNavigation = useCallback(
-    (href?: string | URL | null) => {
-      const targetRouteKey = resolveInternalRouteKey(href);
-      if (!targetRouteKey) return;
+  const beginNavigation = useCallback((href?: string | URL | null) => {
+    const targetRouteKey = resolveInternalRouteKey(href);
+    if (!targetRouteKey) return;
 
-      clearTimer(failsafeTimerRef);
-      setPendingNavigation({
-        originRouteKey: routeKeyRef.current,
-        targetRouteKey,
-      });
+    clearTimer(failsafeTimerRef);
+    setPendingNavigation({
+      originRouteKey: routeKeyRef.current,
+      targetRouteKey,
+    });
 
-      failsafeTimerRef.current = window.setTimeout(() => {
-        failsafeTimerRef.current = null;
-        setPendingNavigation(null);
-      }, FAILSAFE_TIMEOUT_MS);
-    },
-    [],
-  );
+    failsafeTimerRef.current = window.setTimeout(() => {
+      failsafeTimerRef.current = null;
+      setPendingNavigation(null);
+    }, FAILSAFE_TIMEOUT_MS);
+  }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     routeKeyRef.current = routeKey;
-    if (pendingNavigation && routeKey !== pendingNavigation.originRouteKey) {
-      clearTimer(failsafeTimerRef);
-    }
+    if (!pendingNavigation || routeKey === pendingNavigation.originRouteKey) return;
+
+    clearTimer(failsafeTimerRef);
+    // React route cache can restore the origin screen on Back; clear the pending
+    // record in the same layout commit that observes the route transition.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPendingNavigation(null);
   }, [pendingNavigation, routeKey]);
 
   useEffect(() => {
