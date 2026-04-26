@@ -7,7 +7,6 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
-import { FullPageLoadingScreen } from "@/components/ui/full-page-loading";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
 import {
   ActionSummarySection,
@@ -129,8 +128,37 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setActiveMode("system-freshness");
   }, [setActiveMode]);
 
+  const pendingHeader = (
+    <>
+      <div className={styles.headerBrand}>
+        <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
+          ←
+        </Link>
+        <div>
+          <strong className={styles.headerTitle}>{copy.common.pending}</strong>
+        </div>
+      </div>
+
+      <div className={styles.headerActions}>
+        <span className={`pill ${styles.marketStatusPill} neutral`}>{copy.header.marketPending}</span>
+        <DevModeToggle />
+      </div>
+    </>
+  );
+
   if (!symbolReady) {
-    return <FullPageLoadingScreen label={copy.loadingWorkspace} />;
+    return (
+      <MobileAppChrome activeNav="symbols" mySymbolsHref="/my-symbols" header={pendingHeader}>
+        <div className={styles.detailPage} data-mode={activeMode}>
+          <section className={`${styles.panel} ${styles.chartCard}`} role="status" aria-live="polite" aria-busy="true">
+            <div className={styles.emptyPanel}>
+              <strong>{copy.loadingWorkspace}</strong>
+              <p className="clamp-3">{copy.common.loading}</p>
+            </div>
+          </section>
+        </div>
+      </MobileAppChrome>
+    );
   }
 
   return (

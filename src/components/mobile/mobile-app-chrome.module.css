@@ -166,6 +166,8 @@
 }
 
 .navItem {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -193,6 +195,21 @@
 .navItemActive {
   color: #ffffff;
   background: #3f51b5;
+}
+
+.navItemPending {
+  color: #f6f8ff;
+  background: rgba(40, 54, 72, 0.84);
+}
+
+.navItemPending::after,
+.desktopNavItemPending::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(127, 184, 255, 0.16), rgba(127, 184, 255, 0.96), rgba(78, 222, 163, 0.7));
+  animation: navPendingSweep 720ms ease-in-out infinite;
 }
 
 .navIcon {
@@ -295,6 +312,8 @@
   }
 
   .desktopNavItem {
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -317,6 +336,11 @@
     color: #e6e8ff;
     background: rgba(42, 58, 82, 0.92);
     box-shadow: inset -3px 0 0 #c5c8ff;
+  }
+
+  .desktopNavItemPending {
+    color: #f6f8ff;
+    background: rgba(40, 54, 72, 0.78);
   }
 
   .desktopNavItem .navIcon,
@@ -411,6 +435,23 @@
 
   .mobileReleaseBadge {
     display: none;
+  }
+}
+
+@keyframes navPendingSweep {
+  0% {
+    opacity: 0.35;
+    transform: translateX(-28%);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  100% {
+    opacity: 0.35;
+    transform: translateX(28%);
   }
 }
 

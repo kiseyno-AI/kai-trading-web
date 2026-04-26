@@ -1,21 +1,36 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
-
-import { FullPageLoadingScreen } from "@/components/ui/full-page-loading";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 type NavigationLoadingContextValue = {
   beginNavigation: (href?: string | URL | null) => void;
+  isNavigationPending: boolean;
+  isNavigatingTo: (href?: string | URL | null) => boolean;
 };
 
 const NavigationLoadingContext = createContext<NavigationLoadingContextValue>({
   beginNavigation: () => {},
+  isNavigationPending: false,
+  isNavigatingTo: () => false,
 });
 
-const SHOW_DELAY_MS = 120;
-const MIN_VISIBLE_MS = 240;
 const FAILSAFE_TIMEOUT_MS = 12_000;
+const ROUTE_CHANGE_EVENT = "navigation-loading:route-change";
+
+type PendingNavigation = {
+  originRouteKey: string;
+  targetRouteKey: string;
+};
 
 function clearTimer(timerRef: { current: number | null }) {
   if (timerRef.current !== null) {
@@ -30,7 +45,6 @@ function resolveInternalRouteKey(href: string | URL | null | undefined) {
   try {
     const targetUrl = href instanceof URL ? href : new URL(href, window.location.href);
     if (targetUrl.origin !== window.location.origin) return null;
-    if (targetUrl.pathname.startsWith("/dashboard/symbol/")) return null;
 
     const targetRouteKey = `${targetUrl.pathname}${targetUrl.search}`;
     const currentRouteKey = `${window.location.pathname}${window.location.search}`;
@@ -42,113 +56,110 @@ function resolveInternalRouteKey(href: string | URL | null | undefined) {
   }
 }
 
-function getCurrentRouteKey(pathname: string | null) {
-  if (typeof window === "undefined") return pathname ?? "";
-
+function getCurrentRouteKey() {
+  if (typeof window === "undefined") return "";
   return `${window.location.pathname}${window.location.search}`;
 }
 
-export function NavigationLoadingProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const routeKey = getCurrentRouteKey(pathname);
-  const [visible, setVisible] = useState(false);
-  const showTimerRef = useRef<number | null>(null);
-  const hideTimerRef = useRef<number | null>(null);
-  const failsafeTimerRef = useRef<number | null>(null);
-  const visibleAtRef = useRef<number | null>(null);
-
-  const hideOverlay = useCallback(() => {
-    clearTimer(showTimerRef);
-    clearTimer(failsafeTimerRef);
-    clearTimer(hideTimerRef);
-
-    if (visibleAtRef.current === null) {
-      setVisible(false);
-      return;
-    }
-
-    const elapsed = performance.now() - visibleAtRef.current;
-    const remaining = Math.max(MIN_VISIBLE_MS - elapsed, 0);
-
-    if (remaining > 0) {
-      hideTimerRef.current = window.setTimeout(() => {
-        visibleAtRef.current = null;
-        hideTimerRef.current = null;
-        setVisible(false);
-      }, remaining);
-      return;
-    }
-
-    visibleAtRef.current = null;
-    setVisible(false);
-  }, []);
-
-  const beginNavigation = useCallback(
-    (href?: string | URL | null) => {
-      const targetRouteKey = resolveInternalRouteKey(href);
-      if (!targetRouteKey) return;
-
-      clearTimer(showTimerRef);
-      clearTimer(hideTimerRef);
-      clearTimer(failsafeTimerRef);
-
-      showTimerRef.current = window.setTimeout(() => {
-        visibleAtRef.current = performance.now();
-        showTimerRef.current = null;
-        setVisible(true);
-      }, SHOW_DELAY_MS);
-
-      failsafeTimerRef.current = window.setTimeout(() => {
-        clearTimer(showTimerRef);
-        clearTimer(hideTimerRef);
-        visibleAtRef.current = null;
-        failsafeTimerRef.current = null;
-        setVisible(false);
-      }, FAILSAFE_TIMEOUT_MS);
-    },
-    [],
-  );
+function useCurrentRouteKey() {
+  const [routeKey, setRouteKey] = useState(() => getCurrentRouteKey());
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      hideOverlay();
-    }, 0);
+    const notifyRouteChange = () => {
+      queueMicrotask(() => {
+        window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
+      });
+    };
+    const updateRouteKey = () => {
+      setRouteKey(getCurrentRouteKey());
+    };
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
 
-    return () => window.clearTimeout(timer);
-  }, [hideOverlay, routeKey]);
-
-  useEffect(() => {
-    const handleDocumentClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      if (!(event.target instanceof Element)) return;
-
-      const anchor = event.target.closest("a[href]");
-      if (!(anchor instanceof HTMLAnchorElement)) return;
-      if (anchor.target && anchor.target !== "_self") return;
-      if (anchor.hasAttribute("download")) return;
-      if (anchor.dataset.skipNavigationLoading === "true") return;
-
-      beginNavigation(anchor.href);
+    window.history.pushState = function (...args) {
+      const result = originalPushState.apply(this, args);
+      notifyRouteChange();
+      return result;
+    };
+    window.history.replaceState = function (...args) {
+      const result = originalReplaceState.apply(this, args);
+      notifyRouteChange();
+      return result;
     };
 
-    document.addEventListener("click", handleDocumentClick, true);
-    return () => document.removeEventListener("click", handleDocumentClick, true);
-  }, [beginNavigation]);
+    window.addEventListener(ROUTE_CHANGE_EVENT, updateRouteKey);
+    window.addEventListener("popstate", updateRouteKey);
+    updateRouteKey();
+
+    return () => {
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+      window.removeEventListener(ROUTE_CHANGE_EVENT, updateRouteKey);
+      window.removeEventListener("popstate", updateRouteKey);
+    };
+  }, []);
+
+  return routeKey;
+}
+
+export function NavigationLoadingProvider({ children }: { children: ReactNode }) {
+  const routeKey = useCurrentRouteKey();
+  const routeKeyRef = useRef(routeKey);
+  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
+  const failsafeTimerRef = useRef<number | null>(null);
+
+  const beginNavigation = useCallback((href?: string | URL | null) => {
+    const targetRouteKey = resolveInternalRouteKey(href);
+    if (!targetRouteKey) return;
+
+    clearTimer(failsafeTimerRef);
+    setPendingNavigation({
+      originRouteKey: routeKeyRef.current,
+      targetRouteKey,
+    });
+
+    failsafeTimerRef.current = window.setTimeout(() => {
+      failsafeTimerRef.current = null;
+      setPendingNavigation(null);
+    }, FAILSAFE_TIMEOUT_MS);
+  }, []);
+
+  useLayoutEffect(() => {
+    routeKeyRef.current = routeKey;
+    if (!pendingNavigation || routeKey === pendingNavigation.originRouteKey) return;
+
+    clearTimer(failsafeTimerRef);
+    // React route cache can restore the origin screen on Back; clear the pending
+    // record in the same layout commit that observes the route transition.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPendingNavigation(null);
+  }, [pendingNavigation, routeKey]);
 
   useEffect(() => {
     return () => {
-      clearTimer(showTimerRef);
-      clearTimer(hideTimerRef);
       clearTimer(failsafeTimerRef);
     };
   }, []);
 
+  const isNavigatingTo = useCallback(
+    (href?: string | URL | null) => {
+      if (!pendingNavigation || routeKey !== pendingNavigation.originRouteKey) return false;
+      return resolveInternalRouteKey(href) === pendingNavigation.targetRouteKey;
+    },
+    [pendingNavigation, routeKey],
+  );
+
+  const contextValue = useMemo(
+    () => ({
+      beginNavigation,
+      isNavigationPending: pendingNavigation !== null && routeKey === pendingNavigation.originRouteKey,
+      isNavigatingTo,
+    }),
+    [beginNavigation, isNavigatingTo, pendingNavigation, routeKey],
+  );
+
   return (
-    <NavigationLoadingContext.Provider value={{ beginNavigation }}>
-      {children}
-      {visible ? <FullPageLoadingScreen overlay /> : null}
-    </NavigationLoadingContext.Provider>
+    <NavigationLoadingContext.Provider value={contextValue}>{children}</NavigationLoadingContext.Provider>
   );
 }
 
