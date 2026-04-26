@@ -149,7 +149,6 @@ type AgentRoleStatusLabels = Record<AgentRoleStatus, string>;
 
 type EodStatusCardProps = {
   copy: DashboardLiveCopy;
-  currentMarketDate: string | null;
   eodStageCards: readonly EodStageCard[];
   fundamentalsDialogOpen: boolean;
   fundamentalsFailureDetails: FundamentalsFailureDetails | null;
@@ -158,7 +157,6 @@ type EodStatusCardProps = {
 
 const EodStatusCard = memo(function EodStatusCard({
   copy,
-  currentMarketDate,
   eodStageCards,
   fundamentalsDialogOpen,
   fundamentalsFailureDetails,
@@ -170,9 +168,6 @@ const EodStatusCard = memo(function EodStatusCard({
         <div>
           <p className={styles.sectionEyebrow}>{copy.operational.eodEyebrow}</p>
           <h2 className={styles.sectionTitle}>{copy.operational.eodTitle}</h2>
-          {currentMarketDate ? (
-            <p className={styles.cardContext}>{copy.operational.currentMarketDate} {currentMarketDate}</p>
-          ) : null}
         </div>
       </div>
 
@@ -615,7 +610,6 @@ export function LiveDashboardClient({
   );
 
   const piotroskiMarketDate = dashboardProcessMarketDate;
-  const currentMarketDate = getExceptionDateLabel(todayTradeDate, primaryLatestCycleDate);
   const eodStatusMarketDate = dashboardProcessMarketDate;
   const isBreakDay = isBreakDayMarket(market);
   const priceFreshnessStage = mergeRunningPipelineStage(
@@ -927,7 +921,6 @@ export function LiveDashboardClient({
           <div className={styles.integrityGrid}>
             <EodStatusCard
               copy={copy}
-              currentMarketDate={currentMarketDate}
               eodStageCards={eodStageCards}
               fundamentalsDialogOpen={fundamentalsDialogOpen}
               fundamentalsFailureDetails={fundamentalsFailureDetails}
