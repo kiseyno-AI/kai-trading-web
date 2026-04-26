@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useAppState } from "@/components/providers/app-state-provider";
+import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 import type { Locale } from "@/types/trading-api";
@@ -78,6 +79,7 @@ export function MobileAppChrome({
 }: MobileAppChromeProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useAppState();
+  const { beginNavigation, isNavigatingTo } = useNavigationLoading();
   const releaseDisplayLabel = `${t.mobileChrome.release} ${RELEASE_VERSION_LABEL}`;
   const prefetchTargets = useMemo(() => {
     const targets = [
@@ -118,6 +120,42 @@ export function MobileAppChrome({
     </div>
   );
 
+  const renderNavItem = (href: string, active: boolean, label: string, icon: ReactNode) => {
+    const pending = isNavigatingTo(href);
+
+    return (
+      <Link
+        href={href}
+        prefetch
+        className={`${getItemClass(active)} ${pending ? styles.navItemPending : ""}`.trim()}
+        aria-busy={pending || undefined}
+        data-navigation-pending={pending ? "true" : "false"}
+        onClick={() => beginNavigation(href)}
+      >
+        {icon}
+        <span className={styles.navLabel}>{label}</span>
+      </Link>
+    );
+  };
+
+  const renderDesktopNavItem = (href: string, active: boolean, label: string, icon: ReactNode) => {
+    const pending = isNavigatingTo(href);
+
+    return (
+      <Link
+        href={href}
+        prefetch
+        className={`${getDesktopItemClass(active)} ${pending ? styles.desktopNavItemPending : ""}`.trim()}
+        aria-busy={pending || undefined}
+        data-navigation-pending={pending ? "true" : "false"}
+        onClick={() => beginNavigation(href)}
+      >
+        {icon}
+        <span>{label}</span>
+      </Link>
+    );
+  };
+
   return (
     <div className={styles.surface}>
       <div className={styles.glowPrimary} />
@@ -133,14 +171,8 @@ export function MobileAppChrome({
         </div>
 
         <nav className={styles.desktopNav} aria-label={t.mobileChrome.primaryDesktopNavigation}>
-          <Link href={DASHBOARD_HREF} prefetch className={getDesktopItemClass(activeNav === "dashboard")}>
-            <DashboardIcon />
-            <span>{t.mobileChrome.dashboard}</span>
-          </Link>
-          <Link href={searchHref} prefetch className={getDesktopItemClass(activeNav === "search")}>
-            <SearchIcon />
-            <span>{t.mobileChrome.search}</span>
-          </Link>
+          {renderDesktopNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
+          {renderDesktopNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}
         </nav>
 
         <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>
@@ -165,18 +197,9 @@ export function MobileAppChrome({
           {renderLocaleSwitch(`${styles.localeSwitch} ${styles.mobileLocaleSwitch}`)}
         </div>
         <nav className={styles.bottomNav} aria-label={t.mobileChrome.primaryNavigation}>
-          <Link href={DASHBOARD_HREF} prefetch className={getItemClass(activeNav === "dashboard")}>
-            <DashboardIcon />
-            <span className={styles.navLabel}>{t.mobileChrome.dashboard}</span>
-          </Link>
-          <Link href={searchHref} prefetch className={getItemClass(activeNav === "search")}>
-            <SearchIcon />
-            <span className={styles.navLabel}>{t.mobileChrome.search}</span>
-          </Link>
-          <Link href={mySymbolsHref} prefetch className={getItemClass(activeNav === "symbols")}>
-            <SymbolsIcon />
-            <span className={styles.navLabel}>{t.mobileChrome.mySymbols}</span>
-          </Link>
+          {renderNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
+          {renderNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}
+          {renderNavItem(mySymbolsHref, activeNav === "symbols", t.mobileChrome.mySymbols, <SymbolsIcon />)}
         </nav>
       </div>
     </div>
