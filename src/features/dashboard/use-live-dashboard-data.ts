@@ -17,6 +17,10 @@ import {
 } from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
+  buildSignalDeciderFeedbackPath,
+  SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+} from "@/lib/signal-decider-feedback";
+import {
   getCachedTradingApiJson,
   seedTradingApiJsonCache,
   seedTradingApiJsonSnapshot,
@@ -27,6 +31,7 @@ import {
   getDashboardLoadErrorMessage,
   getEodPipelineStatusPollDelayMs,
   getQuoteCompanyName,
+  getSignalDeciderFeedbackPollDelayMs,
   pickSymbolMetadata,
   shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
@@ -45,6 +50,7 @@ import type {
   SymbolSearchResponse,
 } from "./live-dashboard-types";
 import type {
+  AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
@@ -102,6 +108,7 @@ export function useLiveDashboardData({
   initialFundamentalsStatus,
   initialPipelineStatus,
   initialAgentFeedbackProgress,
+  initialSignalDeciderFeedback,
 }: LiveDashboardClientProps) {
   const initialPipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
     initialFreshness?.today?.trade_date,
@@ -134,6 +141,10 @@ export function useLiveDashboardData({
     });
   };
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
+  const [signalDeciderFeedback, setSignalDeciderFeedback] = useState<AgentFeedbackListResponseDto | null>(
+    initialSignalDeciderFeedback,
+  );
+  const [signalDeciderFeedbackError, setSignalDeciderFeedbackError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
   const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(null);
@@ -596,6 +607,65 @@ export function useLiveDashboardData({
     };
   }, [agentProgressMarketDate]);
 
+  const signalDeciderFeedbackRefreshKey = [
+    agentProgressMarketDate,
+    agentFeedbackProgress?.summary?.latest_feedback_at ?? "",
+    agentFeedbackProgress?.summary?.run_completed_at ?? "",
+    agentFeedbackProgress?.summary?.run_status ?? "",
+  ].join(":");
+
+  useEffect(() => {
+    if (!agentProgressMarketDate) {
+      return;
+    }
+
+    let active = true;
+    let timer: number | null = null;
+    const feedbackPath = buildSignalDeciderFeedbackPath({
+      basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+      marketDate: agentProgressMarketDate,
+    });
+
+    function clearTimer() {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function scheduleNextLoad(hadError: boolean) {
+      if (!active) return;
+      clearTimer();
+      const nextDelayMs = getSignalDeciderFeedbackPollDelayMs({
+        progress: agentFeedbackProgressRef.current,
+        hadError,
+      });
+      if (nextDelayMs === null) return;
+      timer = window.setTimeout(loadSignalDeciderFeedback, nextDelayMs);
+    }
+
+    async function loadSignalDeciderFeedback() {
+      try {
+        const data = await getJsonNoCache<AgentFeedbackListResponseDto>(feedbackPath);
+        if (!active) return;
+        setSignalDeciderFeedback(data);
+        setSignalDeciderFeedbackError(null);
+        scheduleNextLoad(false);
+      } catch (feedbackError) {
+        console.error("Dashboard signal decider feedback load failed", feedbackError);
+        if (!active) return;
+        setSignalDeciderFeedbackError(getDashboardLoadErrorMessage(feedbackError));
+        scheduleNextLoad(true);
+      }
+    }
+
+    void loadSignalDeciderFeedback();
+
+    return () => {
+      active = false;
+      clearTimer();
+    };
+  }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
+
   return {
     agentFeedbackProgress,
     agentFeedbackProgressError,
@@ -611,6 +681,11 @@ export function useLiveDashboardData({
     pipelineStatus,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
+    signalDeciderFeedback:
+      agentProgressMarketDate && signalDeciderFeedback?.request?.market_date === agentProgressMarketDate
+        ? signalDeciderFeedback
+        : null,
+    signalDeciderFeedbackError: agentProgressMarketDate ? signalDeciderFeedbackError : null,
     symbolMetaBySymbol,
     tracked,
     trackedError,

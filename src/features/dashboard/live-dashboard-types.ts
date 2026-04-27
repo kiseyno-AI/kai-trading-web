@@ -1,5 +1,6 @@
 import type {
   AgentFeedbackProgressResponseDto,
+  AgentFeedbackListResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
   EodPipelineStatusResponseDto,
@@ -53,6 +54,7 @@ export type LiveDashboardClientProps = {
   initialFundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null;
   initialPipelineStatus: EodPipelineStatusResponseDto | null;
   initialAgentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
+  initialSignalDeciderFeedback: AgentFeedbackListResponseDto | null;
 };
 
 export type DetailItem = {

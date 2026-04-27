@@ -194,12 +194,14 @@
 
 .eodStatusCard,
 .agentFeedbackCard,
+.signalDeciderCard,
 .filteringCard {
   min-width: 0;
 }
 
 .eodStatusCard,
 .agentFeedbackCard,
+.signalDeciderCard,
 .filteringCard {
   display: flex;
   flex-direction: column;
@@ -211,6 +213,10 @@
 
 .agentFeedbackCard {
   gap: 0.65rem;
+}
+
+.signalDeciderCard {
+  gap: 0.75rem;
 }
 
 .filteringCard {
@@ -820,6 +826,84 @@
   background: rgba(78, 53, 12, 0.6);
 }
 
+.signalDeciderPreviewList {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.signalDeciderPreviewRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.42rem 0.65rem;
+  padding: 0.68rem;
+  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(5, 20, 37, 0.46);
+}
+
+.signalDeciderPreviewMain {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.signalDeciderPreviewMain strong {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.signalDeciderPreviewMain span,
+.signalDeciderPreviewMeta span:not(:global(.pill)) {
+  color: var(--muted-soft);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.signalDeciderPreviewMeta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.38rem;
+}
+
+.signalDeciderPreviewRow p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.signalDeciderDetailLink {
+  display: inline-flex;
+  align-self: flex-start;
+  justify-content: center;
+  min-height: 2.35rem;
+  padding: 0.68rem 0.82rem;
+  border: 1px solid rgba(197, 192, 255, 0.18);
+  border-radius: 0.55rem;
+  background: rgba(109, 94, 247, 0.12);
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.signalDeciderDetailLink:hover {
+  border-color: rgba(197, 192, 255, 0.34);
+  background: rgba(109, 94, 247, 0.2);
+}
+
 .supportRow strong {
   color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
@@ -963,6 +1047,7 @@
 .inlineToggleButton:focus-visible,
 .dialogCloseButton:focus-visible,
 .agentFeedbackStopButton:focus-visible,
+.signalDeciderDetailLink:focus-visible,
 .dialogActionButton:focus-visible {
   outline: 2px solid rgba(186, 195, 255, 0.88);
   outline-offset: 2px;
@@ -1461,7 +1546,8 @@
     margin-top: 1.4rem;
   }
 
-  .agentFeedbackCard {
+    .agentFeedbackCard,
+    .signalDeciderCard {
     grid-column: 1 / -1;
   }
 

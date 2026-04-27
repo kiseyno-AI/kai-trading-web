@@ -19,6 +19,12 @@ import {
 import { formatDisplayTimestamp } from "@/lib/format";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
 import {
+  buildSignalDeciderFeedbackSummary,
+  formatSignalDeciderActionLabel,
+  type SignalDeciderFeedbackStatus,
+  type SignalDeciderFeedbackSummaryModel,
+} from "@/lib/signal-decider-feedback";
+import {
   getFundamentalsRunDate,
   getLatestAvailableFundamentalsCoverage,
   getLatestAvailableFundamentalsDate,
@@ -496,6 +502,127 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
   );
 });
 
+function getSignalDeciderStatusCopyKey(status: SignalDeciderFeedbackStatus) {
+  return status === "needs-review" ? "needsReview" : status;
+}
+
+function getSignalDeciderStatusTone(status: SignalDeciderFeedbackStatus) {
+  if (status === "completed") return "positive";
+  if (status === "partial" || status === "needs-review") return "warning";
+  return "neutral";
+}
+
+function formatSignalDeciderCount(value: number | null | undefined, numberLocale: string) {
+  return typeof value === "number" ? value.toLocaleString(numberLocale) : UNKNOWN_LABEL;
+}
+
+function formatSignalDeciderResultCount(model: SignalDeciderFeedbackSummaryModel, numberLocale: string) {
+  const resultCount = model.resultCount.toLocaleString(numberLocale);
+  if (typeof model.requestedCount === "number" && model.requestedCount > model.resultCount) {
+    return `${resultCount} / ${model.requestedCount.toLocaleString(numberLocale)}`;
+  }
+  return resultCount;
+}
+
+function formatSignalDeciderActionMix(model: SignalDeciderFeedbackSummaryModel, numberLocale: string) {
+  const visibleActions = (["buy", "wait", "reject"] as const)
+    .filter((action) => model.actionCounts[action] > 0)
+    .map((action) => `${formatSignalDeciderActionLabel(action)} ${model.actionCounts[action].toLocaleString(numberLocale)}`);
+
+  if (model.actionCounts.unknown > 0) {
+    visibleActions.push(`Unknown ${model.actionCounts.unknown.toLocaleString(numberLocale)}`);
+  }
+
+  return visibleActions.length > 0 ? visibleActions.join(" · ") : UNKNOWN_LABEL;
+}
+
+type SignalDeciderFeedbackCardProps = {
+  copy: DashboardLiveCopy;
+  error: string | null;
+  model: SignalDeciderFeedbackSummaryModel;
+  numberLocale: string;
+};
+
+const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
+  copy,
+  error,
+  model,
+  numberLocale,
+}: SignalDeciderFeedbackCardProps) {
+  const statusCopyKey = getSignalDeciderStatusCopyKey(model.status);
+  const statusLabel = copy.signalDecider.statuses[statusCopyKey];
+  const statusTone = getSignalDeciderStatusTone(model.status);
+
+  return (
+    <article className={`${styles.integrityStat} ${styles.signalDeciderCard}`} data-signal-decider-status={model.status}>
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <h2 className={styles.sectionTitle}>{copy.signalDecider.title}</h2>
+          <p className={styles.cardContext}>{copy.signalDecider.decisionSupportOnly}</p>
+        </div>
+        <span className={`pill ${statusTone}`}>{statusLabel}</span>
+      </div>
+
+      <div className={styles.statusMetricGrid}>
+        <div className={styles.statusMetric}>
+          <span>{copy.signalDecider.results}</span>
+          <strong>{formatSignalDeciderResultCount(model, numberLocale)}</strong>
+        </div>
+        <div className={styles.statusMetric}>
+          <span>{copy.signalDecider.date}</span>
+          <strong>{model.marketDate ?? UNKNOWN_LABEL}</strong>
+        </div>
+        <div className={styles.statusMetric}>
+          <span>{copy.signalDecider.run}</span>
+          <strong>{model.runId ?? UNKNOWN_LABEL}</strong>
+        </div>
+        <div className={styles.statusMetric}>
+          <span>{copy.signalDecider.errors}</span>
+          <strong>{formatSignalDeciderCount(model.errorCount, numberLocale)}</strong>
+        </div>
+        <div className={styles.statusMetric}>
+          <span>{copy.signalDecider.actionMix}</span>
+          <strong>{formatSignalDeciderActionMix(model, numberLocale)}</strong>
+        </div>
+      </div>
+
+      {error ? <p className={styles.cardContext}>{copy.signalDecider.unavailable} {error}</p> : null}
+
+      {model.previewItems.length > 0 ? (
+        <div className={styles.signalDeciderPreviewList} aria-label={copy.signalDecider.preview}>
+          {model.previewItems.map((item) => (
+            <div key={item.id} className={styles.signalDeciderPreviewRow}>
+              <div className={styles.signalDeciderPreviewMain}>
+                <strong>{item.companyName ?? item.symbol}</strong>
+                <span>{item.symbol}</span>
+              </div>
+              <div className={styles.signalDeciderPreviewMeta}>
+                <span className={`pill ${item.action === "buy" ? "positive" : item.action === "reject" ? "warning" : "neutral"}`}>
+                  {item.actionLabel}
+                </span>
+                <span>
+                  {item.convictionScore !== null
+                    ? `${item.convictionScore}/10`
+                    : item.confidenceScore !== null
+                      ? `${item.confidenceScore}/10`
+                      : UNKNOWN_LABEL}
+                </span>
+              </div>
+              {item.thesisSummary ? <p className="clamp-3">{item.thesisSummary}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.emptyState}>{copy.signalDecider.empty}</div>
+      )}
+
+      <Link href={model.detailHref} className={styles.signalDeciderDetailLink} aria-label={copy.signalDecider.openDetail}>
+        {copy.signalDecider.viewDetail}
+      </Link>
+    </article>
+  );
+});
+
 type TrackedSymbolsSectionProps = {
   copy: DashboardLiveCopy;
   trackedSymbolCards: TrackedSymbolCardModel[];
@@ -579,6 +706,7 @@ export function LiveDashboardClient({
   initialFundamentalsStatus,
   initialPipelineStatus,
   initialAgentFeedbackProgress,
+  initialSignalDeciderFeedback,
 }: LiveDashboardClientProps) {
   const { locale } = useAppState();
   const copy = getDashboardLiveCopy(locale);
@@ -602,6 +730,8 @@ export function LiveDashboardClient({
     pipelineStatus,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
+    signalDeciderFeedback,
+    signalDeciderFeedbackError,
     symbolMetaBySymbol,
     tracked,
     trackedError,
@@ -613,6 +743,7 @@ export function LiveDashboardClient({
     initialMarket,
     initialPipelineStatus,
     initialTracked,
+    initialSignalDeciderFeedback,
   });
   const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
   const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
@@ -873,6 +1004,15 @@ export function LiveDashboardClient({
         : agentProgressRunStatus === "stalled"
           ? "warning"
           : "neutral";
+  const signalDeciderFeedbackModel = useMemo(
+    () =>
+      buildSignalDeciderFeedbackSummary({
+        feedback: signalDeciderFeedback,
+        marketDate: rawAgentProgressDate,
+        progress: displayedAgentFeedbackProgress,
+      }),
+    [displayedAgentFeedbackProgress, rawAgentProgressDate, signalDeciderFeedback],
+  );
   const filteringCardModel = useMemo(
     () =>
       buildFilteringCardModel({
@@ -1025,7 +1165,7 @@ export function LiveDashboardClient({
         <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.operational-integrity"
-            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
+            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/feedback + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
           />
 
           <div className={styles.panelHeader}>
@@ -1072,6 +1212,13 @@ export function LiveDashboardClient({
               copy={copy}
               isAgentFeedbackRunning={isAgentFeedbackRunning}
               onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
+            />
+
+            <SignalDeciderFeedbackCard
+              copy={copy}
+              error={signalDeciderFeedbackError}
+              model={signalDeciderFeedbackModel}
+              numberLocale={numberLocale}
             />
           </div>
         </section>

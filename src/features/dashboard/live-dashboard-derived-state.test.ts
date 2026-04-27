@@ -20,6 +20,7 @@ import {
   getFundamentalsUpdatedActivityModel,
   getFundamentalsUpdatedSymbolsDetail,
   getResolvedAgentProgressRunStatus,
+  getSignalDeciderFeedbackPollDelayMs,
   markAgentFeedbackProgressStopped,
   shouldRevalidateFilteringFallback,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
@@ -614,6 +615,57 @@ test("keeps dashboard polling at the active cadence until a stop acceptance mark
   assert.equal(stopped?.summary.run_status, "stalled");
   assert.equal(stopped?.summary.is_live, false);
   assert.equal(getAgentFeedbackProgressPollDelayMs(stopped ?? null), 30_000);
+});
+
+test("retries signal-decider feedback errors without polling completed successful reads", () => {
+  const progress = {
+    request: {
+      market_date: "2026-04-21",
+      symbols: null,
+      expected_agents: ["signal-decider"],
+    },
+    summary: {
+      run_id: "run-1",
+      run_status: "running",
+      run_table_status: "running",
+      is_live: true,
+      run_started_at: "2026-04-21T09:00:00+09:00",
+      run_completed_at: null,
+      current_role: "signal-decider",
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-21T09:00:05+09:00",
+      seconds_since_last_feedback: 1,
+      stalled_threshold_seconds: 60,
+      total_symbols: 10,
+      processed_symbols: 3,
+      completed_symbols: 2,
+      in_progress_symbols: 1,
+      pending_symbols: 7,
+      progress_ratio: 0.3,
+      progress_percent: 30,
+      failed_items: 0,
+      completed_feedback_count: 2,
+      expected_feedback_count: 10,
+    },
+    result: null,
+  };
+  const completedProgress = {
+    ...progress,
+    summary: {
+      ...progress.summary,
+      run_status: "completed",
+      run_table_status: "completed",
+      is_live: false,
+      run_completed_at: "2026-04-21T09:05:00+09:00",
+      current_role: null,
+      progress_percent: 100,
+    },
+  };
+
+  assert.equal(getSignalDeciderFeedbackPollDelayMs({ progress, hadError: false }), 1_000);
+  assert.equal(getSignalDeciderFeedbackPollDelayMs({ progress: completedProgress, hadError: false }), null);
+  assert.equal(getSignalDeciderFeedbackPollDelayMs({ progress: completedProgress, hadError: true }), 5_000);
+  assert.equal(getSignalDeciderFeedbackPollDelayMs({ progress: null, hadError: true }), 5_000);
 });
 
 test("treats disconnect-shaped stop errors as accepted while keeping real upstream failures visible", () => {

@@ -73,6 +73,7 @@ const EOD_PIPELINE_STATUS_RUNNING_POLL_MS = 1_000;
 const EOD_PIPELINE_STATUS_IDLE_POLL_MS = 30_000;
 const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
 const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
+const SIGNAL_DECIDER_FEEDBACK_ERROR_RETRY_POLL_MS = 5_000;
 const FUNDAMENTALS_UPDATED_ENTRIES_PREVIEW_LIMIT = 3;
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
 const DEFAULT_AGENT_ROLE_ORDER = [
@@ -1517,6 +1518,17 @@ export function getAgentFeedbackProgressPollDelayMs(progress: AgentFeedbackProgr
   return isAgentFeedbackProgressRunning(progress)
     ? AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS
     : AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS;
+}
+
+export function getSignalDeciderFeedbackPollDelayMs({
+  progress,
+  hadError,
+}: {
+  progress: AgentFeedbackProgressResponseDto | null;
+  hadError: boolean;
+}) {
+  if (isAgentFeedbackProgressRunning(progress)) return AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS;
+  return hadError ? SIGNAL_DECIDER_FEEDBACK_ERROR_RETRY_POLL_MS : null;
 }
 
 export function getAgentProgressStatusLabel(

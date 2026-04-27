@@ -23,6 +23,8 @@ Client polling:
 - `GET /api/trading/eod/piotroski-filter-results?market_date={resolved_pipeline.market_date}`
 - `GET /api/trading/eod/market-risk-filters?market_date={resolved_pipeline.market_date}`
 - `GET /api/trading/eod/pipeline/status?market_date={today.trade_date}`
+- `GET /api/trading/agent-context/feedback/progress?market_date={latest.price_trade_date}`
+- `GET /api/trading/agent-context/feedback?market_date={agent_progress.market_date}&agent_name=signal-decider&limit=100`
 - `GET /api/trading/disclosures/dart/fundamentals/daily/inspect?runs_limit=1&market_date={resolved_pipeline.market_date}`
 - `GET /api/trading/symbols/search?q=...&limit=8`
 
@@ -38,6 +40,26 @@ Important behavior:
 - `source: "daily_price_bar"` means the backend is serving DB-backed EOD fallback from `daily_price_bars`.
 - Dashboard cards intentionally keep price freshness and technical freshness separate.
 - Search entry on mobile lives in the bottom tab bar / manage-feed CTA; desktop uses the left rail plus top command bar treatment from the Stitch wide view.
+
+## Signal-decider feedback route: `/dashboard/signal-decider-feedback`
+
+Entry point:
+- `src/app/dashboard/signal-decider-feedback/page.tsx`
+- `src/app/dashboard/signal-decider-feedback/signal-decider-feedback-page-client.tsx`
+
+Client loading:
+- `GET /api/trading/eod/freshness` when the route is opened without `marketDate`
+- `GET /api/trading/agent-context/feedback?market_date={marketDate}&agent_name=signal-decider&limit=200`
+- `GET /api/trading/agent-context/feedback/progress?market_date={marketDate}` as a best-effort status overlay
+
+UI surfaces and fields:
+- Dashboard card: `summary.run_id`, progress role `requested_count`, `completed_count`, `error_count`, generic feedback row count, action mix, compact preview, and link to the detail page.
+- Detail table: `items[].symbol`, company metadata from row payload/context, preferred or next-day-open action, confidence/conviction, thesis, risk flags, stop/target/return plan, and captured/received timestamps.
+
+Important behavior:
+- The route uses the generic stored feedback read filtered to `agent_name=signal-decider`; there is no signal-decider-specific read endpoint yet.
+- If Core omits `result.roles["signal-decider"]`, the UI does not infer completion from payload shape. It shows the available stored rows and falls back to conservative waiting/completed status copy.
+- This is a decision-support inspection surface only and does not create orders.
 
 ## Piotroski pass route: `/dashboard/piotroski-filter`
 
