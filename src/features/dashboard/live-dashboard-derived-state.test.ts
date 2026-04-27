@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
-import type { EodFreshnessStageDto } from "@/types/trading-api";
+import type { DartFundamentalsDailyRunDto, EodFreshnessStageDto } from "@/types/trading-api";
 
 import {
   buildEodStageCard,
@@ -11,6 +11,8 @@ import {
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
+  getFundamentalsUpdatedActivityModel,
+  getFundamentalsUpdatedSymbolsDetail,
   markAgentFeedbackProgressStopped,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
@@ -21,6 +23,36 @@ function buildStage(status: string): EodFreshnessStageDto {
     symbols_total: 3583,
     symbols_succeeded: 1,
     symbols_failed: 0,
+  };
+}
+
+function buildFundamentalsRun(overrides: Partial<DartFundamentalsDailyRunDto> = {}): DartFundamentalsDailyRunDto {
+  return {
+    id: 17,
+    market_date: "2026-04-21",
+    trigger: "internal_ops_cli",
+    status: "completed",
+    fs_div: "CFS",
+    force: false,
+    symbol_limit: null,
+    symbol_offset: 0,
+    symbols_total: 3583,
+    symbols_checked: 3583,
+    symbols_missing: 0,
+    symbols_stale: 0,
+    symbols_fresh: 3583,
+    symbols_refreshed: 0,
+    symbols_failed: 0,
+    events_detected: 0,
+    events_captured: 0,
+    events_failed: 0,
+    updated_entries_summary: null,
+    updated_entries: null,
+    error_message: null,
+    run_metadata: {},
+    started_at: "2026-04-21T08:56:58+09:00",
+    completed_at: "2026-04-21T09:11:08+09:00",
+    ...overrides,
   };
 }
 
@@ -43,6 +75,194 @@ test("keeps same-day fundamentals coverage synced", () => {
     getFundamentalsStageStatusLabel(buildStage("ready"), "2026-04-21", "2026-04-21", false),
     "synced",
   );
+});
+
+test("treats null-filled updated-entry rollout fields as absent structured payload", () => {
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        symbols_refreshed: 41,
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.equal(model, null);
+});
+
+test("keeps the legacy Updated today fallback when rollout fields are null", () => {
+  const copy = getDashboardLiveCopy("en");
+
+  const detail = getFundamentalsUpdatedSymbolsDetail(
+    {
+      latest_run: buildFundamentalsRun({
+        symbols_refreshed: 41,
+        run_metadata: {
+          refreshed_symbols_sample: ["005930", "000660", "035420"],
+        },
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    copy,
+    "en-US",
+  );
+
+  assert.deepEqual(detail, {
+    key: "updated-symbols",
+    label: copy.operational.updatedToday,
+    value: "41 (005930, 000660, 035420 +38)",
+    tone: "text",
+    layout: "stacked",
+  });
+});
+
+test("uses a structured zero-count fundamentals activity payload without preview rows", () => {
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        updated_entries_summary: {
+          updated_count: 0,
+          visible_preview_limit: 3,
+        },
+        updated_entries: [],
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.deepEqual(model, {
+    key: "17:2026-04-21:0:0",
+    countLabel: "0",
+    previewItems: [],
+    allItems: [],
+    canExpand: false,
+  });
+});
+
+test("builds a one-item fundamentals activity preview from the structured updated-entry payload", () => {
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        updated_entries_summary: {
+          updated_count: 1,
+          visible_preview_limit: 3,
+        },
+        updated_entries: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            category_label: "Financial statement refresh",
+          },
+        ],
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.equal(model?.countLabel, "1");
+  assert.equal(model?.canExpand, false);
+  assert.deepEqual(model?.previewItems, [
+    {
+      key: "005930:Financial statement refresh:0",
+      symbol: "005930",
+      companyName: "Samsung Electronics",
+      categoryLabel: "Financial statement refresh",
+    },
+  ]);
+});
+
+test("keeps exactly three structured fundamentals preview rows without showing expansion", () => {
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        updated_entries_summary: {
+          updated_count: 3,
+          visible_preview_limit: 3,
+        },
+        updated_entries: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            category_label: "Financial statement refresh",
+          },
+          {
+            symbol: "000660",
+            company_name: "SK hynix",
+            category_label: "Quarterly filing capture",
+          },
+          {
+            symbol: "035420",
+            company_name: "NAVER",
+            category_label: "Correction filing refresh",
+          },
+        ],
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.equal(model?.countLabel, "3");
+  assert.equal(model?.previewItems.length, 3);
+  assert.equal(model?.allItems.length, 3);
+  assert.equal(model?.canExpand, false);
+});
+
+test("caps fundamentals preview rows at three and enables More when additional structured entries exist", () => {
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        updated_entries_summary: {
+          updated_count: 5,
+          visible_preview_limit: 5,
+        },
+        updated_entries: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            category_label: "Financial statement refresh",
+          },
+          {
+            symbol: "000660",
+            company_name: "SK hynix",
+            category_label: "Quarterly filing capture",
+          },
+          {
+            symbol: "035420",
+            company_name: "NAVER",
+            update_category: "correction_filing_refresh",
+          },
+          {
+            symbol: "005380",
+            company_name: "Hyundai Motor",
+            category_label: "Annual filing capture",
+          },
+          {
+            symbol: "012450",
+            company_name: "Hanwha Aerospace",
+            category_label: "Financial statement refresh",
+          },
+        ],
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.equal(model?.countLabel, "5");
+  assert.equal(model?.previewItems.length, 3);
+  assert.equal(model?.allItems.length, 5);
+  assert.equal(model?.canExpand, true);
+  assert.equal(model?.previewItems[2]?.categoryLabel, "Correction Filing Refresh");
 });
 
 test("keeps running stage badge, title, and tone mapping stable", () => {

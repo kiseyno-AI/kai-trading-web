@@ -560,6 +560,23 @@ export type DartFundamentalsSymbolSampleItemDto =
       [key: string]: unknown;
     };
 
+export type DartFundamentalsDailyUpdatedEntryDto = {
+  symbol?: string | null;
+  stock_code?: string | null;
+  stockCode?: string | null;
+  company_name?: string | null;
+  companyName?: string | null;
+  update_category?: string | null;
+  updateCategory?: string | null;
+  category_label?: string | null;
+  categoryLabel?: string | null;
+};
+
+export type DartFundamentalsDailyUpdatedEntriesSummaryDto = {
+  updated_count?: number | null;
+  visible_preview_limit?: number | null;
+};
+
 export type DartFundamentalsDailyRunMetadataDto = Record<string, unknown> & {
   refreshed_symbols_sample?: DartFundamentalsSymbolSampleItemDto[] | null;
   samples?: {
@@ -586,6 +603,8 @@ export type DartFundamentalsDailyRunDto = {
   events_detected: number | null;
   events_captured: number | null;
   events_failed: number | null;
+  updated_entries_summary?: DartFundamentalsDailyUpdatedEntriesSummaryDto | null;
+  updated_entries?: DartFundamentalsDailyUpdatedEntryDto[] | null;
   error_message: string | null;
   run_metadata: DartFundamentalsDailyRunMetadataDto | null;
   started_at: string | null;
