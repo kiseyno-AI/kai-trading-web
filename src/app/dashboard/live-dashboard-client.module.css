@@ -296,6 +296,13 @@
   gap: 0.6rem;
 }
 
+.eodStageSummary {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .eodStageTitle {
   min-width: 0;
   color: var(--text-strong);
@@ -345,6 +352,34 @@
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.runningStatusLabel {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.runningStatusSpinner {
+  width: 0.6rem;
+  height: 0.6rem;
+  flex: 0 0 auto;
+  border: 1.75px solid rgba(127, 184, 255, 0.34);
+  border-top-color: #6ffbbe;
+  border-right-color: rgba(111, 251, 190, 0.76);
+  border-radius: 999px;
+  animation: agentRoleSpin 0.82s linear infinite;
+}
+
+.runningStatusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: eodRunningStatusPulse 1.16s ease-in-out infinite;
 }
 
 .eodStageDetails {
@@ -749,10 +784,31 @@
 }
 
 .eodStageTop :global(.pill).runningStatusPill {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   border: 1px solid rgba(127, 184, 255, 0.45);
   background: rgba(127, 184, 255, 0.24);
   color: #f3f7ff;
   box-shadow: 0 0 0 1px rgba(127, 184, 255, 0.12);
+}
+
+.eodStageTop :global(.pill).runningStatusPill::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(127, 184, 255, 0.06) 28%,
+    rgba(111, 251, 190, 0.2) 50%,
+    rgba(127, 184, 255, 0.06) 72%,
+    transparent 100%
+  );
+  transform: translateX(-120%);
+  animation: eodRunningStatusSweep 1.6s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .eodStageTop :global(.pill).runningStatusPill .statusPillIcon {
@@ -760,6 +816,31 @@
   border-top-color: #6ffbbe;
   background: transparent;
   animation: agentRoleSpin 0.82s linear infinite;
+}
+
+@keyframes eodRunningStatusSweep {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  55% {
+    transform: translateX(20%);
+  }
+
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes eodRunningStatusPulse {
+  0%,
+  100% {
+    opacity: 0.76;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .detailButton {
