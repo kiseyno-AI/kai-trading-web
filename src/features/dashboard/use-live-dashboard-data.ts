@@ -30,6 +30,12 @@ import {
   pickSymbolMetadata,
   shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
+import {
+  hasCompletedFilteringReload,
+  INITIAL_FILTERING_RELOAD_KEY,
+  isFilteringBackgroundReload,
+  type FilteringReloadKey,
+} from "./filtering-fallback-revalidation";
 import type {
   CoreMarketStatus,
   CoreTrackedQuotesResponse,
@@ -142,10 +148,10 @@ export function useLiveDashboardData({
     initialDashboardProcessMarketDate ? "loading" : "idle",
   );
   const [filteringReloadCount, setFilteringReloadCount] = useState(0);
-  const filteringReloadKeyRef = useRef<{ marketDate: string | null; reloadCount: number }>({
-    marketDate: null,
-    reloadCount: 0,
-  });
+  const filteringReloadKeyRef = useRef<FilteringReloadKey>(INITIAL_FILTERING_RELOAD_KEY);
+  const [filteringReloadCompletionKey, setFilteringReloadCompletionKey] = useState<FilteringReloadKey>(
+    INITIAL_FILTERING_RELOAD_KEY,
+  );
   const [marketError, setMarketError] = useState<string | null>(initialError);
   const [trackedError, setTrackedError] = useState<string | null>(initialError);
 
@@ -365,14 +371,21 @@ export function useLiveDashboardData({
     pipelineStatus,
     agentFeedbackProgress,
   });
+  const hasCompletedActiveFilteringReload = hasCompletedFilteringReload({
+    completionKey: filteringReloadCompletionKey,
+    currentMarketDate: filteringMarketDate,
+    reloadCount: filteringReloadCount,
+  });
 
   useEffect(() => {
     if (!filteringMarketDate) return;
 
     let active = true;
-    const isBackgroundReload =
-      filteringReloadKeyRef.current.marketDate === filteringMarketDate &&
-      filteringReloadKeyRef.current.reloadCount !== filteringReloadCount;
+    const isBackgroundReload = isFilteringBackgroundReload({
+      currentMarketDate: filteringMarketDate,
+      previousReloadKey: filteringReloadKeyRef.current,
+      reloadCount: filteringReloadCount,
+    });
     filteringReloadKeyRef.current = {
       marketDate: filteringMarketDate,
       reloadCount: filteringReloadCount,
@@ -431,6 +444,11 @@ export function useLiveDashboardData({
           setMarketRiskStatusLoadState("error");
         }
       }
+
+      setFilteringReloadCompletionKey({
+        marketDate: filteringMarketDate,
+        reloadCount: filteringReloadCount,
+      });
     };
 
     void loadFilteringStatus();
@@ -441,7 +459,13 @@ export function useLiveDashboardData({
   }, [filteringMarketDate, filteringReloadCount]);
 
   useEffect(() => {
-    if (!filteringMarketDate || !shouldScheduleFilteringFallbackRevalidation) return;
+    if (
+      !filteringMarketDate ||
+      !shouldScheduleFilteringFallbackRevalidation ||
+      !hasCompletedActiveFilteringReload
+    ) {
+      return;
+    }
 
     const timer = window.setTimeout(() => {
       setFilteringReloadCount((current) => current + 1);
@@ -450,7 +474,12 @@ export function useLiveDashboardData({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [filteringMarketDate, filteringReloadCount, shouldScheduleFilteringFallbackRevalidation]);
+  }, [
+    filteringMarketDate,
+    filteringReloadCount,
+    hasCompletedActiveFilteringReload,
+    shouldScheduleFilteringFallbackRevalidation,
+  ]);
 
   useEffect(() => {
     let active = true;
