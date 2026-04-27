@@ -28,6 +28,13 @@ function buildDefaultNavItems(t: MessageTree): NavItemDto[] {
       description: t.navigation.items.search.description,
     },
     {
+      id: "portfolio",
+      label: t.navigation.items.portfolio.label,
+      icon: "AS",
+      href: "/portfolio",
+      description: t.navigation.items.portfolio.description,
+    },
+    {
       id: "markets",
       label: t.navigation.items.markets.label,
       icon: "MK",
@@ -48,6 +55,7 @@ function buildDefaultSuggestions(t: MessageTree): SearchSuggestionDto[] {
   return [
     { id: "dashboard", label: t.navigation.searchSuggestions.dashboard, type: "route", route: "/dashboard" },
     { id: "search", label: t.navigation.searchSuggestions.search, type: "route", route: "/search" },
+    { id: "portfolio", label: t.navigation.searchSuggestions.portfolio, type: "route", route: "/portfolio" },
     { id: "markets", label: t.navigation.searchSuggestions.markets, type: "route", route: "/markets" },
     { id: "bots", label: t.navigation.searchSuggestions.bots, type: "route", route: "/bots" },
   ];

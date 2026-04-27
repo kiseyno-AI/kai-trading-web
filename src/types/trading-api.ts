@@ -126,6 +126,95 @@ export type BotsOverviewDto = {
   bots: BotSummaryDto[];
 };
 
+export type PortfolioMoneyAmountDto = {
+  amount: number | null;
+  currency?: string | null;
+  display?: string | null;
+};
+
+export type PortfolioPnlDto = {
+  day?: PortfolioMoneyAmountDto | null;
+  realized?: PortfolioMoneyAmountDto | null;
+  unrealized?: PortfolioMoneyAmountDto | null;
+  total?: PortfolioMoneyAmountDto | null;
+  dayPercent?: number | null;
+  totalPercent?: number | null;
+};
+
+export type PortfolioAccountSummaryDto = {
+  totalAssets?: PortfolioMoneyAmountDto | null;
+  totalEquity?: PortfolioMoneyAmountDto | null;
+  cash?: PortfolioMoneyAmountDto | null;
+  buyingPower?: PortfolioMoneyAmountDto | null;
+  investedValue?: PortfolioMoneyAmountDto | null;
+  pnl?: PortfolioPnlDto | null;
+};
+
+export type PortfolioHoldingDto = {
+  id?: string | null;
+  symbol: string;
+  name?: string | null;
+  market?: string | null;
+  quantity?: number | null;
+  averagePrice?: PortfolioMoneyAmountDto | null;
+  lastPrice?: PortfolioMoneyAmountDto | null;
+  marketValue?: PortfolioMoneyAmountDto | null;
+  dayPnl?: PortfolioMoneyAmountDto | null;
+  unrealizedPnl?: PortfolioMoneyAmountDto | null;
+  unrealizedPnlPercent?: number | null;
+  allocationPercent?: number | null;
+  currency?: string | null;
+  updatedAt?: string | null;
+};
+
+export type PortfolioAllocationDto = {
+  id: string;
+  label: string;
+  value?: PortfolioMoneyAmountDto | null;
+  percent?: number | null;
+};
+
+export type PortfolioOrderActivityDto = {
+  id: string;
+  symbol?: string | null;
+  side?: "buy" | "sell" | "unknown" | string | null;
+  status?: string | null;
+  quantity?: number | null;
+  filledQuantity?: number | null;
+  averageFillPrice?: PortfolioMoneyAmountDto | null;
+  submittedAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type PortfolioAccountDto = {
+  id: string;
+  label: string;
+  broker?: string | null;
+  accountType?: string | null;
+  status?: string | null;
+  baseCurrency?: string | null;
+  lastSyncedAt?: string | null;
+  summary?: PortfolioAccountSummaryDto | null;
+  holdings?: PortfolioHoldingDto[];
+  allocation?: PortfolioAllocationDto[];
+  recentActivity?: PortfolioOrderActivityDto[];
+};
+
+export type PortfolioSyncDto = {
+  status?: "synced" | "syncing" | "stale" | "unavailable" | string | null;
+  lastSyncedAt?: string | null;
+  source?: string | null;
+  message?: string | null;
+};
+
+export type PortfolioSummaryDto = {
+  asOf?: string | null;
+  source?: string | null;
+  sync?: PortfolioSyncDto | null;
+  accounts?: PortfolioAccountDto[];
+  notices?: string[];
+};
+
 export type BotCommandRequestDto = {
   command: BotCommand;
   note?: string;

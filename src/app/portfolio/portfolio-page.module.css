@@ -1,0 +1,403 @@
+.page {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: 8px;
+  background: rgba(24, 28, 33, 0.86);
+  box-shadow: 0 18px 42px rgba(10, 14, 19, 0.22);
+}
+
+.heroPanel {
+  background:
+    linear-gradient(135deg, rgba(197, 192, 255, 0.12), transparent 42%),
+    rgba(24, 28, 33, 0.9);
+}
+
+.headerBrand,
+.headerActions,
+.cardHeader,
+.sectionHeader,
+.heroActions,
+.activityCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.headerBrand {
+  min-width: 0;
+}
+
+.brandMark {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: var(--primary-foreground);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.brandTitle,
+.brandMeta,
+.heroEyebrow,
+.sectionEyebrow,
+.statusPill,
+.summaryCard span,
+.summaryCard small,
+.sectionMeta,
+.badge,
+.notice,
+.emptyState,
+.errorState,
+.secondaryLink,
+.metaGrid,
+.syncGrid,
+.activityCard span,
+.allocationRow {
+  font-family: var(--font-inter), sans-serif;
+}
+
+.brandTitle {
+  display: block;
+  color: var(--text-strong);
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.brandMeta {
+  display: block;
+  margin-top: 0.12rem;
+  color: var(--muted-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statusPill,
+.badge,
+.sectionMeta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.7rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid rgba(197, 192, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(197, 192, 255, 0.08);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.statusPillNeutral {
+  color: var(--accent);
+}
+
+.statusPillWarning {
+  border-color: rgba(255, 201, 111, 0.28);
+  background: rgba(255, 201, 111, 0.1);
+  color: var(--warning);
+}
+
+.heroEyebrow,
+.sectionEyebrow {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  color: var(--text-strong);
+  font-size: 2.45rem;
+  line-height: 0.95;
+}
+
+.heroCopy {
+  max-width: 56rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.summaryGrid,
+.accountGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.summaryCard,
+.accountCard,
+.holdingCard,
+.activityCard,
+.emptyState,
+.errorState {
+  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: 8px;
+  background: rgba(10, 14, 19, 0.28);
+}
+
+.summaryCard {
+  min-width: 0;
+  display: grid;
+  gap: 0.32rem;
+  min-height: 6.4rem;
+  padding: 0.82rem;
+}
+
+.summaryCard span,
+.summaryCard small,
+.metaGrid dt,
+.syncGrid dt,
+.accountCard p,
+.holdingCard p,
+.allocationRow span,
+.activityCard p {
+  color: var(--muted-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.summaryValue {
+  overflow-wrap: anywhere;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 1.22rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.positiveText {
+  color: var(--positive);
+}
+
+.negativeText {
+  color: var(--negative);
+}
+
+.neutralText {
+  color: var(--text-strong);
+}
+
+.syncGrid,
+.metaGrid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.syncGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.syncGrid div,
+.metaGrid div {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.syncGrid dt,
+.metaGrid dt {
+  text-transform: uppercase;
+}
+
+.syncGrid dd,
+.metaGrid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.heroActions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.secondaryLink {
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.78rem;
+  border: 1px solid rgba(197, 192, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(197, 192, 255, 0.08);
+  color: var(--text-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.notice {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.sectionTitle {
+  margin-top: 0.16rem;
+  color: var(--text-strong);
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.accountGrid,
+.holdingList,
+.allocationList,
+.activityList {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.accountCard,
+.holdingCard,
+.activityCard {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.88rem;
+}
+
+.cardHeader {
+  align-items: flex-start;
+}
+
+.cardHeader > div {
+  min-width: 0;
+}
+
+.cardHeader strong,
+.allocationRow strong,
+.activityCard strong,
+.emptyState strong,
+.errorState strong {
+  color: var(--text-strong);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.metaGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.emptyState,
+.errorState {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem;
+}
+
+.emptyState p,
+.errorState p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.48;
+}
+
+.errorState {
+  border-color: rgba(255, 201, 111, 0.24);
+  background: rgba(255, 201, 111, 0.08);
+}
+
+.allocationRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(5rem, 10rem) auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.82rem;
+  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: 8px;
+  background: rgba(10, 14, 19, 0.24);
+}
+
+.allocationRow > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.allocationBar {
+  overflow: hidden;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(71, 69, 85, 0.22);
+}
+
+.allocationBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--positive));
+}
+
+.allocationRow em {
+  color: var(--text-strong);
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.activityCard {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 420px) {
+  .summaryGrid,
+  .accountGrid,
+  .syncGrid,
+  .metaGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroTitle {
+    font-size: 2.05rem;
+  }
+
+  .allocationRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page {
+    gap: 1rem;
+  }
+
+  .panel {
+    padding: 1.15rem;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .accountGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .holdingList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

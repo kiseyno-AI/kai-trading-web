@@ -5,12 +5,13 @@ import {
 } from "@/lib/trading-api-cache";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 
-export type MobileToolbarViewKey = "dashboard" | "search" | "symbols";
+export type MobileToolbarViewKey = "dashboard" | "search" | "symbols" | "portfolio";
 
 export const MOBILE_TOOLBAR_MARKET_STATUS_PATH = "/api/trading/market/status";
 export const MOBILE_TOOLBAR_TRACKED_QUOTES_PATH = "/api/trading/quotes/tracked";
 export const MOBILE_TOOLBAR_FAVORITES_PATH = "/api/trading/symbols/favorites";
 export const MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH = "/api/trading/scanner/tracked-symbols";
+export const PORTFOLIO_SUMMARY_PATH = "/api/trading/portfolio/summary";
 export const MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT = 5;
 
 const MOBILE_TOOLBAR_TRENDING_SOURCES = "volume-rank,fluctuation,hts-top-view";
@@ -80,6 +81,10 @@ export function warmMobileToolbarViewData(activeView: MobileToolbarViewKey) {
 
   if (activeView === "search") {
     return warmTrackedQuotesData();
+  }
+
+  if (activeView === "portfolio") {
+    return Promise.resolve();
   }
 
   return warmSearchViewData();

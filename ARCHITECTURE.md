@@ -12,6 +12,7 @@
 ## Current Route Map
 - `/dashboard` — primary command surface
 - `/my-symbols` — full tracked and favorite symbol workspace for the mobile toolbar flow
+- `/portfolio` — read-only account state, assets, P/L, holdings, allocation, and order/execution visibility shell
 - `/markets` — market intelligence and screening space
 - `/markets/factors` — factor-family ranking and screening workspace built on stored factor APIs
 - `/bots` — automation management space
