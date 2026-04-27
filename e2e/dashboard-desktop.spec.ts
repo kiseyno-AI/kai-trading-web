@@ -44,6 +44,8 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Filtering/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
@@ -219,6 +221,24 @@ test.describe("dashboard desktop", () => {
               captured_at: now,
             },
           ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          summary: {
+            entries: 3200,
+            requested_symbol: null,
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 3000,
+            watchlist_count: 120,
+            failed_count: 200,
+          },
+          items: [],
         }),
       });
     });
@@ -629,6 +649,24 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          summary: {
+            entries: 2,
+            requested_symbol: null,
+            matched_symbols: ["123456", "654321"],
+            missing_symbols: [],
+            passed_count: 1,
+            watchlist_count: 1,
+            failed_count: 1,
+          },
+          items: [],
+        }),
+      });
+    });
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       const url = new URL(route.request().url());
       const query = url.searchParams.get("q") ?? "";
@@ -702,11 +740,17 @@ test.describe("dashboard desktop", () => {
     await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
+    const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-15/);
-    await expect(filteringCard).toContainText("Completed");
-    await expect(filteringCard).not.toContainText("Market date 2026-04-15");
-    await expect(filteringCard).toContainText(/Checked\s*2/);
-    await expect(filteringCard).toContainText(/Pass\s*1/);
+    await expect(piotroskiSection).toContainText("Piotroski");
+    await expect(piotroskiSection).toContainText("Completed");
+    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
+    await expect(piotroskiSection).toContainText(/Checked\s*2/);
+    await expect(piotroskiSection).toContainText(/Pass\s*1/);
+    await expect(marketRiskSection).toContainText("KIS Risk");
+    await expect(marketRiskSection).toContainText(/Watchlist\s*1/);
+    await expect(marketRiskSection).toContainText(/Fail\s*1/);
     await expect(filteringCard).not.toContainText("Requested");
 
     await expect.poll(() => searchRequests).toContain("123456");
@@ -948,6 +992,32 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const requestedMarketDate = requestUrl.searchParams.get("market_date");
+      const effectiveMarketDate = "2026-04-15";
+      const isLatestFallback = requestedMarketDate === "2026-04-16";
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          requested_market_date: requestedMarketDate,
+          resolved_market_date: effectiveMarketDate,
+          is_latest_fallback: isLatestFallback,
+          market_date: effectiveMarketDate,
+          summary: {
+            entries: 4,
+            requested_symbol: null,
+            matched_symbols: ["000660", "005930", "005380", "035420"],
+            missing_symbols: [],
+            passed_count: 3,
+            watchlist_count: 1,
+            failed_count: 1,
+          },
+          items: [],
+        }),
+      });
+    });
     await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -990,14 +1060,20 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
+    const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
     await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-16/);
-    await expect(filteringCard).toContainText("Completed");
-    await expect(filteringCard).toContainText(/Market date\s*2026-04-15/);
-    await expect(filteringCard).toContainText(/Checked\s*4/);
-    await expect(filteringCard).toContainText(/Pass\s*4/);
-    await expect(filteringCard).toContainText("Requested 2026-04-16");
-    await expect(filteringCard).toContainText("Latest available 2026-04-15");
+    await expect(piotroskiSection).toContainText("Completed");
+    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
+    await expect(piotroskiSection).toContainText(/Checked\s*4/);
+    await expect(piotroskiSection).toContainText(/Pass\s*4/);
+    await expect(piotroskiSection).toContainText("Requested 2026-04-16");
+    await expect(piotroskiSection).toContainText("Latest available 2026-04-15");
+    await expect(marketRiskSection).toContainText(/Pass\s*3/);
+    await expect(marketRiskSection).toContainText(/Watchlist\s*1/);
+    await expect(marketRiskSection).toContainText(/Fail\s*1/);
+    await expect(marketRiskSection).toContainText("Requested 2026-04-16");
 
     await filteringCard
       .getByRole("link", { name: /Open the full Piotroski filter pass list/i })
@@ -1453,6 +1529,24 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-15",
+          summary: {
+            entries: 2,
+            requested_symbol: null,
+            matched_symbols: ["005930", "000660"],
+            missing_symbols: [],
+            passed_count: 1,
+            watchlist_count: 1,
+            failed_count: 1,
+          },
+          items: [],
+        }),
+      });
+    });
     await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
       const requestUrl = new URL(route.request().url());
 
@@ -1500,10 +1594,14 @@ test.describe("dashboard desktop", () => {
     await expectEodStageStatus(page.locator('[aria-label="Fundamentals freshness"]'), "synced");
 
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
-    await expect(filteringCard).not.toContainText("Market date 2026-04-15");
-    await expect(filteringCard).toContainText("Completed");
-    await expect(filteringCard).toContainText(/Checked\s*2/);
-    await expect(filteringCard).toContainText(/Pass\s*1/);
+    const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
+    const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
+    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
+    await expect(piotroskiSection).toContainText("Completed");
+    await expect(piotroskiSection).toContainText(/Checked\s*2/);
+    await expect(piotroskiSection).toContainText(/Pass\s*1/);
+    await expect(marketRiskSection).toContainText(/Watchlist\s*1/);
+    await expect(marketRiskSection).toContainText(/Fail\s*1/);
   });
 
   test("D2 EOD status shows break day on non-trading market days", async ({ page }) => {
@@ -2078,6 +2176,24 @@ test.describe("dashboard desktop", () => {
             missing_symbols: [],
             passed_count: 132,
             not_passed_count: 3445,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-23",
+          summary: {
+            entries: 3577,
+            requested_symbol: null,
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 3200,
+            watchlist_count: 180,
+            failed_count: 377,
           },
           items: [],
         }),

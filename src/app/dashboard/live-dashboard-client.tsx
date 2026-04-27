@@ -31,7 +31,7 @@ import {
   UNKNOWN_LABEL,
   buildAgentRoleCards,
   buildEodStageCard,
-  buildPiotroskiFilteringCardModel,
+  buildFilteringCardModel,
   buildTrackedSymbolCardModels,
   formatEodSymbolCount,
   getAgentProgressStatusLabel,
@@ -67,10 +67,10 @@ import type {
   AgentRoleCard,
   AgentRoleStatus,
   EodStageCard,
+  FilteringCardModel,
   FundamentalsUpdatedActivityModel,
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
-  PiotroskiFilteringCardModel,
   TrackedSymbolCardModel,
 } from "@/features/dashboard/live-dashboard-types";
 import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-data";
@@ -306,29 +306,24 @@ const EodStatusCard = memo(function EodStatusCard({
   );
 });
 
-type PiotroskiFilteringCardProps = {
+type FilteringCardProps = {
   copy: DashboardLiveCopy;
-  filteringCardModel: PiotroskiFilteringCardModel;
-  marketDateContext: string | null;
+  filteringCardModel: FilteringCardModel;
 };
 
-const PiotroskiFilteringCard = memo(function PiotroskiFilteringCard({
+const FilteringCard = memo(function FilteringCard({
   copy,
   filteringCardModel,
-  marketDateContext,
-}: PiotroskiFilteringCardProps) {
+}: FilteringCardProps) {
   return (
     <article className={`${styles.integrityStat} ${styles.filteringCard}`}>
       <div className={styles.sectionHeaderRow}>
         <div>
-          <p className={styles.sectionEyebrow}>{copy.operational.piotroskiEyebrow}</p>
-          <h2 className={styles.sectionTitle}>{copy.operational.piotroskiTitle}</h2>
-          {marketDateContext ? (
-            <p className={styles.cardContext}>{copy.operational.marketDate} {marketDateContext}</p>
-          ) : null}
+          <p className={styles.sectionEyebrow}>{copy.operational.filteringEyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.operational.filteringTitle}</h2>
         </div>
         <Link
-          href={buildPiotroskiListHref(filteringCardModel.displayMarketDate)}
+          href={buildPiotroskiListHref(filteringCardModel.piotroskiDisplayMarketDate)}
           className={styles.sectionLink}
           aria-label={copy.operational.openPiotroskiList}
         >
@@ -336,24 +331,37 @@ const PiotroskiFilteringCard = memo(function PiotroskiFilteringCard({
         </Link>
       </div>
 
-      <div className={styles.statusMetricGrid}>
-        <div className={styles.statusMetric}>
-          <span>{copy.operational.status}</span>
-          <strong>
-            <span className={`pill ${filteringCardModel.statusTone}`}>{filteringCardModel.statusLabel}</span>
-          </strong>
-        </div>
-        <div className={styles.statusMetric}>
-          <span>{copy.operational.checked}</span>
-          <strong>{filteringCardModel.checkedCountLabel}</strong>
-        </div>
-        <div className={styles.statusMetric}>
-          <span>{copy.operational.pass}</span>
-          <strong>{filteringCardModel.passCountLabel}</strong>
-        </div>
-      </div>
+      <div className={styles.filterStageList}>
+        {filteringCardModel.stages.map((stage) => (
+          <section
+            key={stage.key}
+            className={styles.filterStageSection}
+            data-filter-stage={stage.key}
+            aria-label={`${stage.label} filtering status`}
+          >
+            <div className={styles.filterStageHeader}>
+              <div>
+                <h3 className={styles.filterStageTitle}>{stage.label}</h3>
+                {stage.displayMarketDate ? (
+                  <p className={styles.cardContext}>{copy.operational.marketDate} {stage.displayMarketDateLabel}</p>
+                ) : null}
+              </div>
+              <span className={`pill ${stage.statusTone}`}>{stage.statusLabel}</span>
+            </div>
 
-      {filteringCardModel.note ? <p className={styles.cardContext}>{filteringCardModel.note}</p> : null}
+            <div className={styles.statusMetricGrid}>
+              {stage.metrics.map((metric) => (
+                <div key={metric.key} className={styles.statusMetric}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </div>
+              ))}
+            </div>
+
+            {stage.note ? <p className={styles.cardContext}>{stage.note}</p> : null}
+          </section>
+        ))}
+      </div>
     </article>
   );
 });
@@ -561,10 +569,13 @@ export function LiveDashboardClient({
     freshness,
     fundamentalsStatus,
     market,
+    marketRiskStatus,
+    marketRiskStatusError,
+    marketRiskStatusLoadState,
     marketError,
-    piotroskiBoard,
-    piotroskiBoardError,
-    piotroskiBoardLoadState,
+    piotroskiStatus,
+    piotroskiStatusError,
+    piotroskiStatusLoadState,
     pipelineStatus,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
@@ -837,19 +848,28 @@ export function LiveDashboardClient({
           : "neutral";
   const filteringCardModel = useMemo(
     () =>
-      buildPiotroskiFilteringCardModel({
+      buildFilteringCardModel({
         copy,
+        marketRiskStatus,
+        marketRiskStatusError,
+        marketRiskStatusLoadState,
         numberLocale,
-        piotroskiBoard,
-        piotroskiBoardError,
-        piotroskiBoardLoadState,
+        piotroskiStatus,
+        piotroskiStatusError,
+        piotroskiStatusLoadState,
         piotroskiMarketDate,
-    }),
-    [copy, numberLocale, piotroskiBoard, piotroskiBoardError, piotroskiBoardLoadState, piotroskiMarketDate],
-  );
-  const filteringCardMarketDateContext = getExceptionDateLabel(
-    filteringCardModel.displayMarketDate,
-    primaryLatestCycleDate,
+      }),
+    [
+      copy,
+      marketRiskStatus,
+      marketRiskStatusError,
+      marketRiskStatusLoadState,
+      numberLocale,
+      piotroskiStatus,
+      piotroskiStatusError,
+      piotroskiStatusLoadState,
+      piotroskiMarketDate,
+    ],
   );
   const trackedSymbolCards = useMemo(
     () => buildTrackedSymbolCardModels(tracked, symbolMetaBySymbol, freshness, copy, numberLocale),
@@ -978,7 +998,7 @@ export function LiveDashboardClient({
         <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.operational-integrity"
-            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results"
+            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
           />
 
           <div className={styles.panelHeader}>
@@ -1010,10 +1030,9 @@ export function LiveDashboardClient({
               onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
             />
 
-            <PiotroskiFilteringCard
+            <FilteringCard
               copy={copy}
               filteringCardModel={filteringCardModel}
-              marketDateContext={filteringCardMarketDateContext}
             />
 
             <AgentFeedbackCard

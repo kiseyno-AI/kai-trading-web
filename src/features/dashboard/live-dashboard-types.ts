@@ -134,14 +134,27 @@ export type AgentRoleCard = {
   metrics: AgentRoleMetric[];
 };
 
-export type PiotroskiFilteringCardModel = {
+export type FilteringStageMetric = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+export type FilteringStageModel = {
+  key: "piotroski" | "kis-risk";
   checkedCountLabel: string;
   displayMarketDate: string | null;
   displayMarketDateLabel: string;
+  label: string;
+  metrics: FilteringStageMetric[];
   note: string | null;
-  passCountLabel: string;
   statusLabel: string;
   statusTone: "positive" | "neutral" | "warning";
+};
+
+export type FilteringCardModel = {
+  piotroskiDisplayMarketDate: string | null;
+  stages: [FilteringStageModel, FilteringStageModel];
 };
 
 export type TrackedSymbolCardModel = {
@@ -174,4 +187,4 @@ export type AgentRoleResultSnapshot = {
   errorCount: number | null;
 };
 
-export type PiotroskiBoardLoadState = "idle" | "loading" | "ready" | "error";
+export type FilteringStageLoadState = "idle" | "loading" | "ready" | "error";

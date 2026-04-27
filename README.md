@@ -108,6 +108,7 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/eod/beta-factors` | `/eod/beta-factors` | `market_date`, optional `symbol`, optional `limit` |
 | `GET` | `/api/trading/eod/value-factors` | `/eod/value-factors` | `market_date`, optional `symbol`, optional `limit` |
 | `GET` | `/api/trading/eod/advanced-value-factors` | `/eod/advanced-value-factors` | `market_date`, optional `symbol`, optional `limit` |
+| `GET` | `/api/trading/eod/market-risk-filters` | `/eod/market-risk-filters` | optional `market_date`, optional `symbol`, optional `limit` |
 | `GET` | `/api/trading/eod/pipeline/status` | `/eod/pipeline/status` | optional `market_date` |
 | `GET` | `/api/trading/eod/technical-snapshots` | `/eod/technical-snapshots` | `market_date`, repeatable `symbols` |
 | `GET` | `/api/trading/eod/action-summaries` | `/eod/action-summaries` | `market_date`, repeatable `symbols` |
@@ -153,7 +154,7 @@ Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF 
 | Path | Role |
 |------|------|
 | `/` | Redirects to `/dashboard` |
-| `/dashboard` | Primary desk (server data from core when reachable); mobile and desktop Stitch layouts share the same API-backed data |
+| `/dashboard` | Primary desk (server data from core when reachable); mobile and desktop Stitch layouts share the same API-backed data, including Piotroski plus KIS market-risk status inside the shared Filtering card |
 | `/dashboard/symbol/[symbol]` | Symbol-scoped view; `/quotes/{symbol}` keeps polling until both quote and market-status routes report `CLOSED`, while explanatory cards use `/agent-context/symbol-day`, `/eod/piotroski-filter-results`, and the factor inspect reads `/eod/momentum-factors`, `/eod/low-risk-factors`, `/eod/beta-factors`, `/eod/value-factors`, and `/eod/advanced-value-factors` |
 | `/dashboard/symbol/[symbol]/action-summary` | Stitch Action Summary Detail; reuses `/eod/action-summaries` with aggregate fallback |
 | `/dashboard/symbol/[symbol]/technical-analysis` | Stitch Technical Analysis Detail; reuses `/eod/technical-snapshots` with aggregate fallback and renders the desktop candlestick view from `/symbols/{symbol}/price-bars` |

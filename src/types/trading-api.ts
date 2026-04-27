@@ -524,6 +524,54 @@ export type EodPiotroskiFilterResultsResponseDto = {
   items?: EodPiotroskiFilterResultItemDto[] | null;
 };
 
+export type EodMarketRiskFilterPayloadDto = {
+  feature_version?: string | null;
+  snapshot_source?: string | null;
+  snapshot_feature_version?: string | null;
+  snapshot_market_date?: string | null;
+  snapshot_market_code?: string | null;
+  snapshot_source_endpoint?: string | null;
+  snapshot_captured_at?: string | null;
+  blocking_reasons?: string[] | null;
+  watchlist_reasons?: string[] | null;
+};
+
+export type EodMarketRiskFilterResultItemDto = {
+  symbol: string;
+  name_ko?: string | null;
+  market?: string | null;
+  eod_run_id?: number | null;
+  market_date: string;
+  source?: string | null;
+  feature_version?: string | null;
+  risk_state: string;
+  passed_filter: boolean;
+  watchlist_flagged: boolean;
+  filter_payload: EodMarketRiskFilterPayloadDto | null;
+  captured_at: string | null;
+};
+
+export type EodMarketRiskFiltersResponseDto = {
+  market_date?: string | null;
+  requested_market_date?: string | null;
+  resolved_market_date?: string | null;
+  latest_mode?: boolean | null;
+  is_latest_fallback?: boolean | null;
+  fallback_policy?: string | null;
+  feature_version?: string | null;
+  summary: {
+    entries: number;
+    requested_symbol: string | null;
+    matched_symbols: string[];
+    missing_symbols: string[];
+    passed_count: number;
+    watchlist_count: number;
+    failed_count: number;
+  };
+  item?: EodMarketRiskFilterResultItemDto | null;
+  items?: EodMarketRiskFilterResultItemDto[] | null;
+};
+
 export type EodPipelineStageKey =
   | "price_collection"
   | "technical_snapshots"

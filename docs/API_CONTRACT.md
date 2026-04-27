@@ -20,6 +20,10 @@ This document defines the first practical frontend contract for wiring `trading-
     - The dashboard and Piotroski full-list page tolerate the richer optional date fields `requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and the returned effective `market_date`
     - D2 Filtering shows the returned effective `market_date` when present, otherwise falls back to `resolved_market_date`, then the requested market date; when the requested and effective dates differ, the card keeps a compact note so operators can tell whether Core resolved to another stored date or explicitly fell back to the latest available result
     - The D2 Filtering `More` link opens `/dashboard/piotroski-filter?marketDate=YYYY-MM-DD` using the effective/resolved date so the full pass list matches the dashboard summary, and row clicks still route to `/dashboard/symbol/[symbol]`
+  - `GET /eod/market-risk-filters?market_date=YYYY-MM-DD`
+    - D2 Filtering also renders the persisted KIS market-risk summary beside Piotroski inside the same card, using `summary.entries`, `summary.passed_count`, `summary.watchlist_count`, and `summary.failed_count`
+    - The card uses the same optional date-resolution fields `requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and `market_date` so operators can see when KIS risk status is showing the requested date versus the latest available stored result
+    - The dashboard treats Core as the source of truth for KIS risk pass/watchlist/fail counts and does not infer those counts from frontend-only logic
   - `GET /eod/pipeline/status`
     - `/dashboard` requests this endpoint with the active `market_date` from `/eod/freshness.today.trade_date`, falling back to the market server date when freshness has not loaded
     - When Core responds with an older `market_date` because the latest daily run is still the previous session, `/dashboard` keeps polling the requested active trade date but treats the response `market_date` as the resolved non-agent status basis for Daily Data Fetch, Filtering, and the DART daily inspect follow-up request
