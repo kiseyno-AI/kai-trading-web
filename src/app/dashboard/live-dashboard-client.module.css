@@ -217,6 +217,40 @@
   gap: 0.85rem;
 }
 
+.filterStageList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.filterStageSection {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: 0.65rem;
+  background: rgba(10, 14, 19, 0.58);
+}
+
+.filterStageHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.6rem;
+}
+
+.filterStageHeader :global(.pill) {
+  justify-self: end;
+}
+
+.filterStageTitle {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .cardContext {
   margin: 0.35rem 0 0;
   color: var(--muted-soft);
@@ -606,7 +640,7 @@
 
 .statusMetricGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
   gap: 0.55rem;
 }
 
@@ -1166,6 +1200,10 @@
   }
 
   .statusMetricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filterStageHeader {
     grid-template-columns: 1fr;
   }
 
@@ -1261,6 +1299,11 @@
   .integrityStat {
     min-height: 10rem;
     padding: 1.25rem;
+  }
+
+  .filterStageSection {
+    border-radius: 0.16rem;
+    background: rgba(10, 22, 38, 0.7);
   }
 
   .integrityStat strong,

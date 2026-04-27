@@ -15,10 +15,6 @@ import {
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
   warmMobileToolbarViewData,
 } from "@/lib/mobile-toolbar-data";
-import {
-  loadPiotroskiPassList,
-  type PiotroskiPassListResult,
-} from "@/lib/piotroski-pass-list";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   getCachedTradingApiJson,
@@ -36,8 +32,8 @@ import {
 import type {
   CoreMarketStatus,
   CoreTrackedQuotesResponse,
+  FilteringStageLoadState,
   LiveDashboardClientProps,
-  PiotroskiBoardLoadState,
   SymbolMetadataItem,
   SymbolSearchResponse,
 } from "./live-dashboard-types";
@@ -45,13 +41,49 @@ import type {
   AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
+  EodMarketRiskFiltersResponseDto,
   EodPipelineStatusResponseDto,
+  EodPiotroskiFilterResultsResponseDto,
 } from "@/types/trading-api";
 
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 
 function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
+}
+
+async function getJsonNoCache<T>(path: string): Promise<T> {
+  const response = await fetch(resolveTradingApiClientPath(path), {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+  const responseText = await response.text();
+  let parsedBody: unknown = null;
+
+  if (responseText) {
+    try {
+      parsedBody = JSON.parse(responseText) as T;
+    } catch (error) {
+      throw new Error(`Failed to parse JSON for ${path}: ${getDashboardLoadErrorMessage(error)}`);
+    }
+  }
+
+  if (!response.ok) {
+    if (
+      parsedBody &&
+      typeof parsedBody === "object" &&
+      "detail" in parsedBody &&
+      typeof parsedBody.detail === "string"
+    ) {
+      throw new Error(parsedBody.detail);
+    }
+
+    throw new Error(`HTTP ${response.status} for ${path}`);
+  }
+
+  return parsedBody as T;
 }
 
 export function useLiveDashboardData({
@@ -95,9 +127,14 @@ export function useLiveDashboardData({
   };
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
-  const [piotroskiBoard, setPiotroskiBoard] = useState<PiotroskiPassListResult | null>(null);
-  const [piotroskiBoardError, setPiotroskiBoardError] = useState<string | null>(null);
-  const [piotroskiBoardLoadState, setPiotroskiBoardLoadState] = useState<PiotroskiBoardLoadState>(
+  const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
+  const [piotroskiStatusError, setPiotroskiStatusError] = useState<string | null>(null);
+  const [piotroskiStatusLoadState, setPiotroskiStatusLoadState] = useState<FilteringStageLoadState>(
+    initialDashboardProcessMarketDate ? "loading" : "idle",
+  );
+  const [marketRiskStatus, setMarketRiskStatus] = useState<EodMarketRiskFiltersResponseDto | null>(null);
+  const [marketRiskStatusError, setMarketRiskStatusError] = useState<string | null>(null);
+  const [marketRiskStatusLoadState, setMarketRiskStatusLoadState] = useState<FilteringStageLoadState>(
     initialDashboardProcessMarketDate ? "loading" : "idle",
   );
   const [marketError, setMarketError] = useState<string | null>(initialError);
@@ -311,41 +348,60 @@ export function useLiveDashboardData({
     };
   }, []);
 
-  const piotroskiMarketDate = dashboardProcessMarketDate;
+  const filteringMarketDate = dashboardProcessMarketDate;
 
   useEffect(() => {
-    if (!piotroskiMarketDate) return;
+    if (!filteringMarketDate) return;
 
     let active = true;
 
-    const loadPiotroskiBoard = async () => {
-      setPiotroskiBoard(null);
-      setPiotroskiBoardError(null);
-      setPiotroskiBoardLoadState("loading");
+    const loadFilteringStatus = async () => {
+      setPiotroskiStatus(null);
+      setPiotroskiStatusError(null);
+      setPiotroskiStatusLoadState("loading");
+      setMarketRiskStatus(null);
+      setMarketRiskStatusError(null);
+      setMarketRiskStatusLoadState("loading");
 
-      try {
-        const data = await loadPiotroskiPassList({
-          marketDate: piotroskiMarketDate,
-          limit: 0,
-        });
-        if (!active) return;
-        setPiotroskiBoard(data);
-        setPiotroskiBoardLoadState("ready");
-      } catch (piotroskiBoardLoadError) {
-        console.error("Dashboard Piotroski board load failed", piotroskiBoardLoadError);
-        if (!active) return;
-        setPiotroskiBoard(null);
-        setPiotroskiBoardError(getDashboardLoadErrorMessage(piotroskiBoardLoadError));
-        setPiotroskiBoardLoadState("error");
+      const marketDateParam = encodeURIComponent(filteringMarketDate);
+      const [piotroskiResult, marketRiskResult] = await Promise.allSettled([
+        getJsonNoCache<EodPiotroskiFilterResultsResponseDto>(
+          `/api/trading/eod/piotroski-filter-results?market_date=${marketDateParam}`,
+        ),
+        getJsonNoCache<EodMarketRiskFiltersResponseDto>(
+          `/api/trading/eod/market-risk-filters?market_date=${marketDateParam}`,
+        ),
+      ]);
+
+      if (!active) return;
+
+      if (piotroskiResult.status === "fulfilled") {
+        setPiotroskiStatus(piotroskiResult.value);
+        setPiotroskiStatusLoadState("ready");
+      } else {
+        console.error("Dashboard Piotroski status load failed", piotroskiResult.reason);
+        setPiotroskiStatus(null);
+        setPiotroskiStatusError(getDashboardLoadErrorMessage(piotroskiResult.reason));
+        setPiotroskiStatusLoadState("error");
+      }
+
+      if (marketRiskResult.status === "fulfilled") {
+        setMarketRiskStatus(marketRiskResult.value);
+        setMarketRiskStatusLoadState("ready");
+      } else {
+        console.error("Dashboard market risk status load failed", marketRiskResult.reason);
+        setMarketRiskStatus(null);
+        setMarketRiskStatusError(getDashboardLoadErrorMessage(marketRiskResult.reason));
+        setMarketRiskStatusLoadState("error");
       }
     };
 
-    void loadPiotroskiBoard();
+    void loadFilteringStatus();
 
     return () => {
       active = false;
     };
-  }, [piotroskiMarketDate]);
+  }, [filteringMarketDate]);
 
   useEffect(() => {
     let active = true;
@@ -467,10 +523,13 @@ export function useLiveDashboardData({
     agentFeedbackProgressError,
     dashboardProcessMarketDate,
     market,
+    marketRiskStatus: filteringMarketDate ? marketRiskStatus : null,
+    marketRiskStatusError: filteringMarketDate ? marketRiskStatusError : null,
+    marketRiskStatusLoadState: filteringMarketDate ? marketRiskStatusLoadState : "idle",
     marketError,
-    piotroskiBoard: piotroskiMarketDate ? piotroskiBoard : null,
-    piotroskiBoardError: piotroskiMarketDate ? piotroskiBoardError : null,
-    piotroskiBoardLoadState: piotroskiMarketDate ? piotroskiBoardLoadState : "idle",
+    piotroskiStatus: filteringMarketDate ? piotroskiStatus : null,
+    piotroskiStatusError: filteringMarketDate ? piotroskiStatusError : null,
+    piotroskiStatusLoadState: filteringMarketDate ? piotroskiStatusLoadState : "idle",
     pipelineStatus,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,

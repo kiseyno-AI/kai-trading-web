@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
-import type { DartFundamentalsDailyRunDto, EodFreshnessStageDto } from "@/types/trading-api";
+import type {
+  DartFundamentalsDailyRunDto,
+  EodFreshnessStageDto,
+  EodMarketRiskFiltersResponseDto,
+  EodPiotroskiFilterResultsResponseDto,
+} from "@/types/trading-api";
 
 import {
   buildEodStageCard,
-  buildPiotroskiFilteringCardModel,
+  buildFilteringCardModel,
   buildTrackedSymbolCardModel,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
@@ -332,38 +337,66 @@ test("keeps latest-date detail when a stage differs from the primary latest cycl
 
 test("builds the Piotroski filtering card with the resolved latest-available note", () => {
   const copy = getDashboardLiveCopy("en");
-  const model = buildPiotroskiFilteringCardModel({
-    copy,
-    numberLocale: "en-US",
-    piotroskiBoard: {
-      marketDate: "2026-04-18",
-      requestedMarketDate: "2026-04-21",
-      resolvedMarketDate: "2026-04-18",
-      isLatestFallback: true,
-      totalPassedCount: 14,
-      summary: {
-        entries: 3200,
-        requested_symbol: null,
-        matched_symbols: [],
-        missing_symbols: [],
-        passed_count: 14,
-        not_passed_count: 3186,
-      },
-      items: [],
+  const piotroskiStatus: EodPiotroskiFilterResultsResponseDto = {
+    market_date: "2026-04-18",
+    requested_market_date: "2026-04-21",
+    resolved_market_date: "2026-04-18",
+    is_latest_fallback: true,
+    summary: {
+      entries: 3200,
+      requested_symbol: null,
+      matched_symbols: [],
+      missing_symbols: [],
+      passed_count: 14,
+      not_passed_count: 3186,
     },
-    piotroskiBoardError: null,
-    piotroskiBoardLoadState: "ready",
+    items: [],
+  };
+  const marketRiskStatus: EodMarketRiskFiltersResponseDto = {
+    market_date: "2026-04-18",
+    requested_market_date: "2026-04-21",
+    resolved_market_date: "2026-04-18",
+    is_latest_fallback: true,
+    summary: {
+      entries: 3200,
+      requested_symbol: null,
+      matched_symbols: [],
+      missing_symbols: [],
+      passed_count: 2900,
+      watchlist_count: 200,
+      failed_count: 100,
+    },
+    items: [],
+  };
+  const model = buildFilteringCardModel({
+    copy,
+    marketRiskStatus,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiStatus,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "ready",
     piotroskiMarketDate: "2026-04-21",
   });
+  const piotroskiStage = model.stages.find((stage) => stage.key === "piotroski");
+  const marketRiskStage = model.stages.find((stage) => stage.key === "kis-risk");
 
-  assert.equal(model.displayMarketDate, "2026-04-18");
-  assert.equal(model.displayMarketDateLabel, "2026-04-18");
-  assert.equal(model.statusTone, "positive");
-  assert.equal(model.statusLabel, copy.piotroski.completed);
-  assert.equal(model.checkedCountLabel, "3,200");
-  assert.equal(model.passCountLabel, "14");
+  assert.equal(model.piotroskiDisplayMarketDate, "2026-04-18");
+  assert.equal(piotroskiStage?.displayMarketDate, "2026-04-18");
+  assert.equal(piotroskiStage?.displayMarketDateLabel, "2026-04-18");
+  assert.equal(piotroskiStage?.statusTone, "positive");
+  assert.equal(piotroskiStage?.statusLabel, copy.piotroski.completed);
+  assert.equal(piotroskiStage?.checkedCountLabel, "3,200");
+  assert.equal(piotroskiStage?.metrics.find((metric) => metric.key === "pass")?.value, "14");
   assert.equal(
-    model.note,
+    piotroskiStage?.note,
+    `${copy.piotroski.requestedDate} 2026-04-21 · ${copy.piotroski.latestAvailableDate} 2026-04-18`,
+  );
+  assert.equal(marketRiskStage?.metrics.find((metric) => metric.key === "watchlist")?.value, "200");
+  assert.equal(marketRiskStage?.metrics.find((metric) => metric.key === "fail")?.value, "100");
+  assert.equal(
+    marketRiskStage?.note,
     `${copy.piotroski.requestedDate} 2026-04-21 · ${copy.piotroski.latestAvailableDate} 2026-04-18`,
   );
 });

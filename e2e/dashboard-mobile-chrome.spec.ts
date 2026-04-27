@@ -167,6 +167,24 @@ test.describe("dashboard mobile chrome", () => {
         }),
       });
     });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-16",
+          summary: {
+            entries: 3583,
+            requested_symbol: null,
+            matched_symbols: Array.from({ length: 3583 }, (_, index) => `SYM${index + 1}`),
+            missing_symbols: [],
+            passed_count: 3200,
+            watchlist_count: 180,
+            failed_count: 383,
+          },
+          items: [],
+        }),
+      });
+    });
     await page.route("**/api/trading/agent-context/feedback/progress**", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -204,6 +222,8 @@ test.describe("dashboard mobile chrome", () => {
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
+    const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     const agentFeedbackCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
 
     await expect(priceStage).toContainText(/3,570\s*\/\s*3,583/);
@@ -215,9 +235,14 @@ test.describe("dashboard mobile chrome", () => {
     await expect(fundamentalsStage).toContainText(/Checked\s*3,583/);
     await expect(priceStage).toContainText(/Failed\s*13/);
     await expect(fundamentalsStage).toContainText(/Failed\s*1,406/);
-    await expect(filteringCard).toContainText("Completed");
-    await expect(filteringCard).toContainText(/Checked\s*3,583/);
-    await expect(filteringCard).toContainText(/Pass\s*132/);
+    await expect(piotroskiSection).toContainText("Piotroski");
+    await expect(piotroskiSection).toContainText("Completed");
+    await expect(piotroskiSection).toContainText(/Checked\s*3,583/);
+    await expect(piotroskiSection).toContainText(/Pass\s*132/);
+    await expect(marketRiskSection).toContainText("KIS Risk");
+    await expect(marketRiskSection).toContainText(/Pass\s*3,200/);
+    await expect(marketRiskSection).toContainText(/Watchlist\s*180/);
+    await expect(marketRiskSection).toContainText(/Fail\s*383/);
     await expect(agentFeedbackCard).not.toContainText("Latest Run");
     await expect(agentFeedbackCard).toContainText(agentReviewCompletedLabel);
     await expect(agentFeedbackCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);
@@ -395,6 +420,24 @@ test.describe("dashboard mobile chrome", () => {
             missing_symbols: [],
             passed_count: 132,
             not_passed_count: 3445,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-23",
+          summary: {
+            entries: 3577,
+            requested_symbol: null,
+            matched_symbols: [],
+            missing_symbols: [],
+            passed_count: 3200,
+            watchlist_count: 177,
+            failed_count: 377,
           },
           items: [],
         }),

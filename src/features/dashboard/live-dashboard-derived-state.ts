@@ -6,6 +6,7 @@ import {
   getLatestTechnicalMarketDate,
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { resolvePiotroskiMarketDateResolution } from "@/lib/piotroski-pass-list";
 import {
   getPresenterStageDisplayLabel,
   getPresenterStageTone,
@@ -34,10 +35,12 @@ import type {
   DartFundamentalsDailyUpdatedEntryDto,
   EodFreshnessLayerStatusDto,
   EodFreshnessResponseDto,
+  EodMarketRiskFiltersResponseDto,
   EodFreshnessStageDto,
   EodPipelineStageDto,
   EodPipelineStageKey,
   EodPipelineStatusResponseDto,
+  EodPiotroskiFilterResultsResponseDto,
 } from "@/types/trading-api";
 
 import type {
@@ -53,16 +56,17 @@ import type {
   EodStageCard,
   EodStageDetail,
   EodStageId,
+  FilteringCardModel,
+  FilteringStageLoadState,
+  FilteringStageMetric,
+  FilteringStageModel,
   FundamentalsFailureDetails,
   FundamentalsUpdatedActivityModel,
   FundamentalsUpdatedEntryModel,
-  PiotroskiBoardLoadState,
-  PiotroskiFilteringCardModel,
   SymbolMetadataItem,
   SymbolSearchResponse,
   TrackedSymbolCardModel,
 } from "./live-dashboard-types";
-import type { PiotroskiPassListResult } from "@/lib/piotroski-pass-list";
 
 export const UNKNOWN_LABEL = "[확인 필요]";
 const EOD_PIPELINE_STATUS_RUNNING_POLL_MS = 1_000;
@@ -207,7 +211,7 @@ export function getPriceFreshnessLabel(item: CoreTrackedQuote, copy: DashboardLi
   return formatDisplayTimestamp(item.as_of ?? item.cached_at, copy.tracked.pending);
 }
 
-function getPiotroskiMarketDateNote(
+function getFilterMarketDateNote(
   requestedMarketDate: string | null | undefined,
   effectiveMarketDate: string | null | undefined,
   isLatestFallback: boolean,
@@ -230,65 +234,221 @@ function getPiotroskiMarketDateNote(
   return null;
 }
 
-export function buildPiotroskiFilteringCardModel({
+function buildFilteringStageStatusModel({
+  copy,
+  displayMarketDate,
+  loadState,
+  requestedMarketDate,
+  stageUnavailableMessage,
+  stagePendingForDateMessage,
+  stageMarketDatePendingMessage,
+  stageError,
+  isLatestFallback,
+}: {
+  copy: DashboardLiveCopy;
+  displayMarketDate: string | null;
+  loadState: FilteringStageLoadState;
+  requestedMarketDate: string | null;
+  stageUnavailableMessage: string;
+  stagePendingForDateMessage: string;
+  stageMarketDatePendingMessage: string;
+  stageError: string | null;
+  isLatestFallback: boolean;
+}) {
+  const statusLabel =
+    loadState === "ready"
+      ? copy.piotroski.completed
+      : loadState === "loading"
+        ? copy.piotroski.loading
+        : loadState === "error"
+          ? copy.piotroski.needsReview
+          : requestedMarketDate
+            ? copy.piotroski.pending
+            : copy.piotroski.waiting;
+  const statusTone =
+    loadState === "ready"
+      ? "positive"
+      : loadState === "error"
+        ? "warning"
+        : "neutral";
+  const note =
+    loadState === "error"
+      ? stageError ?? stageUnavailableMessage
+      : loadState === "ready"
+        ? getFilterMarketDateNote(requestedMarketDate, displayMarketDate, isLatestFallback, copy)
+        : requestedMarketDate
+          ? stagePendingForDateMessage
+          : stageMarketDatePendingMessage;
+
+  return {
+    note,
+    statusLabel,
+    statusTone,
+  } satisfies Pick<FilteringStageModel, "note" | "statusLabel" | "statusTone">;
+}
+
+function buildFilteringMetric(key: string, label: string, value: string): FilteringStageMetric {
+  return { key, label, value };
+}
+
+function buildPiotroskiFilteringStageModel({
   copy,
   numberLocale,
-  piotroskiBoard,
-  piotroskiBoardError,
-  piotroskiBoardLoadState,
+  piotroskiStatus,
+  piotroskiStatusError,
+  piotroskiStatusLoadState,
   piotroskiMarketDate,
 }: {
   copy: DashboardLiveCopy;
   numberLocale: string;
-  piotroskiBoard: PiotroskiPassListResult | null;
-  piotroskiBoardError: string | null;
-  piotroskiBoardLoadState: PiotroskiBoardLoadState;
+  piotroskiStatus: EodPiotroskiFilterResultsResponseDto | null;
+  piotroskiStatusError: string | null;
+  piotroskiStatusLoadState: FilteringStageLoadState;
   piotroskiMarketDate: string | null;
-}): PiotroskiFilteringCardModel {
-  const statusLabel =
-    piotroskiBoardLoadState === "ready"
-      ? copy.piotroski.completed
-      : piotroskiBoardLoadState === "loading"
-        ? copy.piotroski.loading
-        : piotroskiBoardLoadState === "error"
-          ? copy.piotroski.needsReview
-          : piotroskiMarketDate
-            ? copy.piotroski.pending
-            : copy.piotroski.waiting;
-  const statusTone =
-    piotroskiBoardLoadState === "ready"
-      ? "positive"
-      : piotroskiBoardLoadState === "error"
-        ? "warning"
-        : "neutral";
-  const requestedMarketDate = piotroskiBoard?.requestedMarketDate ?? piotroskiMarketDate;
-  const resolvedMarketDate = piotroskiBoard?.resolvedMarketDate ?? piotroskiBoard?.marketDate ?? piotroskiMarketDate;
-  const displayMarketDate = piotroskiBoard?.marketDate ?? resolvedMarketDate ?? piotroskiMarketDate;
-  const note =
-    piotroskiBoardLoadState === "error"
-      ? piotroskiBoardError ?? copy.piotroski.unavailable
-      : piotroskiBoardLoadState === "ready"
-        ? getPiotroskiMarketDateNote(
-            requestedMarketDate,
-            displayMarketDate,
-            piotroskiBoard?.isLatestFallback === true,
-            copy,
-          )
-        : piotroskiMarketDate
-          ? copy.piotroski.pendingForDate
-          : copy.piotroski.marketDatePending;
+}): FilteringStageModel {
+  const marketDateResolution = resolvePiotroskiMarketDateResolution(piotroskiStatus, piotroskiMarketDate);
+  const displayMarketDate = marketDateResolution.effectiveMarketDate;
+  const statusModel = buildFilteringStageStatusModel({
+    copy,
+    displayMarketDate,
+    loadState: piotroskiStatusLoadState,
+    requestedMarketDate: marketDateResolution.requestedMarketDate,
+    stageUnavailableMessage: copy.piotroski.unavailable,
+    stagePendingForDateMessage: copy.piotroski.pendingForDate,
+    stageMarketDatePendingMessage: copy.piotroski.marketDatePending,
+    stageError: piotroskiStatusError,
+    isLatestFallback: marketDateResolution.isLatestFallback,
+  });
 
   return {
-    checkedCountLabel: formatEodSymbolCount(piotroskiBoard?.summary.entries ?? null, numberLocale),
+    key: "piotroski",
+    checkedCountLabel: formatEodSymbolCount(piotroskiStatus?.summary.entries ?? null, numberLocale),
     displayMarketDate,
     displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
-    note,
-    passCountLabel: formatEodSymbolCount(
-      piotroskiBoard?.summary.passed_count ?? piotroskiBoard?.totalPassedCount ?? null,
-      numberLocale,
-    ),
-    statusLabel,
-    statusTone,
+    label: copy.operational.piotroskiSectionTitle,
+    metrics: [
+      buildFilteringMetric(
+        "checked",
+        copy.operational.checked,
+        formatEodSymbolCount(piotroskiStatus?.summary.entries ?? null, numberLocale),
+      ),
+      buildFilteringMetric(
+        "pass",
+        copy.operational.pass,
+        formatEodSymbolCount(piotroskiStatus?.summary.passed_count ?? null, numberLocale),
+      ),
+      buildFilteringMetric(
+        "not-pass",
+        copy.operational.notPass,
+        formatEodSymbolCount(piotroskiStatus?.summary.not_passed_count ?? null, numberLocale),
+      ),
+    ],
+    ...statusModel,
+  };
+}
+
+function buildMarketRiskFilteringStageModel({
+  copy,
+  marketRiskStatus,
+  marketRiskStatusError,
+  marketRiskStatusLoadState,
+  numberLocale,
+  requestedMarketDate,
+}: {
+  copy: DashboardLiveCopy;
+  marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
+  marketRiskStatusError: string | null;
+  marketRiskStatusLoadState: FilteringStageLoadState;
+  numberLocale: string;
+  requestedMarketDate: string | null;
+}): FilteringStageModel {
+  const marketDateResolution = resolvePiotroskiMarketDateResolution(marketRiskStatus, requestedMarketDate);
+  const displayMarketDate = marketDateResolution.effectiveMarketDate;
+  const statusModel = buildFilteringStageStatusModel({
+    copy,
+    displayMarketDate,
+    loadState: marketRiskStatusLoadState,
+    requestedMarketDate: marketDateResolution.requestedMarketDate,
+    stageUnavailableMessage: copy.marketRisk.unavailable,
+    stagePendingForDateMessage: copy.marketRisk.pendingForDate,
+    stageMarketDatePendingMessage: copy.marketRisk.marketDatePending,
+    stageError: marketRiskStatusError,
+    isLatestFallback: marketDateResolution.isLatestFallback,
+  });
+
+  return {
+    key: "kis-risk",
+    checkedCountLabel: formatEodSymbolCount(marketRiskStatus?.summary.entries ?? null, numberLocale),
+    displayMarketDate,
+    displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
+    label: copy.operational.kisRiskSectionTitle,
+    metrics: [
+      buildFilteringMetric(
+        "checked",
+        copy.operational.checked,
+        formatEodSymbolCount(marketRiskStatus?.summary.entries ?? null, numberLocale),
+      ),
+      buildFilteringMetric(
+        "pass",
+        copy.operational.pass,
+        formatEodSymbolCount(marketRiskStatus?.summary.passed_count ?? null, numberLocale),
+      ),
+      buildFilteringMetric(
+        "watchlist",
+        copy.operational.watchlist,
+        formatEodSymbolCount(marketRiskStatus?.summary.watchlist_count ?? null, numberLocale),
+      ),
+      buildFilteringMetric(
+        "fail",
+        copy.operational.fail,
+        formatEodSymbolCount(marketRiskStatus?.summary.failed_count ?? null, numberLocale),
+      ),
+    ],
+    ...statusModel,
+  };
+}
+
+export function buildFilteringCardModel({
+  copy,
+  marketRiskStatus,
+  marketRiskStatusError,
+  marketRiskStatusLoadState,
+  numberLocale,
+  piotroskiMarketDate,
+  piotroskiStatus,
+  piotroskiStatusError,
+  piotroskiStatusLoadState,
+}: {
+  copy: DashboardLiveCopy;
+  marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
+  marketRiskStatusError: string | null;
+  marketRiskStatusLoadState: FilteringStageLoadState;
+  numberLocale: string;
+  piotroskiMarketDate: string | null;
+  piotroskiStatus: EodPiotroskiFilterResultsResponseDto | null;
+  piotroskiStatusError: string | null;
+  piotroskiStatusLoadState: FilteringStageLoadState;
+}): FilteringCardModel {
+  const piotroskiStage = buildPiotroskiFilteringStageModel({
+    copy,
+    numberLocale,
+    piotroskiStatus,
+    piotroskiStatusError,
+    piotroskiStatusLoadState,
+    piotroskiMarketDate,
+  });
+  const marketRiskStage = buildMarketRiskFilteringStageModel({
+    copy,
+    marketRiskStatus,
+    marketRiskStatusError,
+    marketRiskStatusLoadState,
+    numberLocale,
+    requestedMarketDate: piotroskiMarketDate,
+  });
+
+  return {
+    piotroskiDisplayMarketDate: piotroskiStage.displayMarketDate,
+    stages: [piotroskiStage, marketRiskStage],
   };
 }
 
