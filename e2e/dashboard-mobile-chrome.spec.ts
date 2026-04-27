@@ -308,6 +308,250 @@ test.describe("dashboard mobile chrome", () => {
     }
   });
 
+  test("running EOD stages animate the current step badge and keep the count detail under the title on mobile", async ({
+    page,
+  }) => {
+    const now = "2026-04-27T15:43:03+09:00";
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market: "KRX",
+          state: "CLOSED",
+          is_trading_day: true,
+          is_open: false,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "CLOSED",
+          as_of: now,
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-27",
+            price: {
+              status: "running",
+              symbols_total: 2812,
+              symbols_succeeded: 206,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 2812,
+              symbols_succeeded: 2812,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 2812,
+              symbols_succeeded: 2812,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "ready",
+              symbols_total: 2273,
+              symbols_succeeded: 2273,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-24",
+            technical_market_date: "2026-04-24",
+            action_market_date: "2026-04-24",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-24",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-27",
+          status: "running",
+          stage_order: [
+            "price_collection",
+            "technical_snapshots",
+            "action_summaries",
+            "trending_ranks",
+            "signal_features",
+            "fundamentals_daily_refresh",
+          ],
+          stages: {
+            price_collection: {
+              status: "running",
+              processed: 206,
+              total: 2812,
+              failed: 0,
+              current_step: "fetch_symbol_ohlcv",
+              current_activity: "Loading historical candles",
+              current_symbol: "005930",
+            },
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-24",
+          summary: {
+            entries: 2812,
+            requested_symbol: null,
+            matched_symbols: [],
+            missing_symbols: [],
+            passed_count: 132,
+            not_passed_count: 2680,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-24",
+          summary: {
+            entries: 2812,
+            requested_symbol: null,
+            matched_symbols: [],
+            missing_symbols: [],
+            passed_count: 2410,
+            watchlist_count: 210,
+            failed_count: 192,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 17,
+            market_date: "2026-04-24",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 2273,
+            symbols_checked: 2273,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 2273,
+            symbols_refreshed: 0,
+            symbols_failed: 0,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-24T08:56:58.357390+09:00",
+            completed_at: "2026-04-24T09:11:58.357390+09:00",
+          },
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      const url = new URL(route.request().url());
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: url.searchParams.get("market_date"),
+            symbols: null,
+            expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+          },
+          summary: {
+            run_status: "completed",
+            is_live: false,
+            latest_feedback_at: now,
+            seconds_since_last_feedback: 120,
+            stalled_threshold_seconds: 300,
+            total_symbols: 2812,
+            processed_symbols: 2812,
+            completed_symbols: 2812,
+            in_progress_symbols: 0,
+            pending_symbols: 0,
+            progress_ratio: 1,
+            progress_percent: 100,
+            failed_items: 0,
+            completed_feedback_count: 2812,
+            expected_feedback_count: 2812,
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
+    const runningPill = priceStage.locator('.pill[data-status-badge="running"]');
+
+    await expect(priceStage).toContainText(/Fetch Symbol Ohlcv/i);
+    await expect(priceStage).toContainText("206 / 2,812");
+    await expect(runningPill).toBeVisible();
+
+    const runningAnimations = await runningPill.evaluate((element) => {
+      const spinner = element.querySelector('[aria-hidden="true"]');
+
+      return {
+        badgeSweep: getComputedStyle(element, "::after").animationName,
+        spinner: spinner ? getComputedStyle(spinner).animationName : null,
+      };
+    });
+
+    expect(runningAnimations.badgeSweep).toMatch(/eodRunningStatusSweep$/);
+    expect(runningAnimations.spinner).toMatch(/agentRoleSpin$/);
+
+    const stageLayout = await priceStage.evaluate((element) => {
+      const title = [...element.querySelectorAll("span")].find((child) => child.textContent?.trim() === "Price Fetch");
+      const detail = element.querySelector('[data-detail-tone="count"]');
+      const pill = element.querySelector('.pill[data-status-badge="running"]');
+
+      if (!title || !detail || !pill) return null;
+
+      const titleRect = title.getBoundingClientRect();
+      const detailRect = detail.getBoundingClientRect();
+      const pillRect = pill.getBoundingClientRect();
+
+      return {
+        detailLeft: detailRect.left,
+        detailRight: detailRect.right,
+        detailTop: detailRect.top,
+        pillLeft: pillRect.left,
+        titleBottom: titleRect.bottom,
+        titleLeft: titleRect.left,
+      };
+    });
+
+    expect(stageLayout).not.toBeNull();
+    expect(stageLayout!.detailTop).toBeGreaterThanOrEqual(stageLayout!.titleBottom - 1);
+    expect(Math.abs(stageLayout!.detailLeft - stageLayout!.titleLeft)).toBeLessThanOrEqual(2);
+    expect(stageLayout!.detailRight).toBeLessThanOrEqual(stageLayout!.pillLeft + 1);
+  });
+
   test("EOD stage cards stay readable on mobile when today and latest differ without the latest patch card", async ({
     page,
   }) => {

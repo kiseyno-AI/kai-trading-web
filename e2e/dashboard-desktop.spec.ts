@@ -524,6 +524,19 @@ test.describe("dashboard desktop", () => {
     await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/1,180 \/ 3,200/i);
     await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/Failed 12/i);
     await expect(page.locator('[aria-label="Fundamentals freshness"]')).toContainText(/Refresh Company Metrics/i);
+
+    const runningActionPill = page.locator('[aria-label="Action Summary freshness"] .pill[data-status-badge="running"]');
+    const runningPillAnimations = await runningActionPill.evaluate((element) => {
+      const spinner = element.querySelector('[aria-hidden="true"]');
+
+      return {
+        badgeSweep: getComputedStyle(element, "::after").animationName,
+        spinner: spinner ? getComputedStyle(spinner).animationName : null,
+      };
+    });
+
+    expect(runningPillAnimations.badgeSweep).toMatch(/eodRunningStatusSweep$/);
+    expect(runningPillAnimations.spinner).toMatch(/agentRoleSpin$/);
   });
 
   test("dashboard quote surfaces use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {

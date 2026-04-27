@@ -212,7 +212,70 @@ const EodStatusCard = memo(function EodStatusCard({
               data-status={stage.statusLabel}
             >
               <div className={styles.eodStageTop}>
-                <span className={styles.eodStageTitle}>{stage.label}</span>
+                <div className={styles.eodStageSummary}>
+                  <span className={styles.eodStageTitle}>{stage.label}</span>
+                  <div className={styles.eodStageDetails}>
+                    {stage.details.map((detail) => (
+                      <span
+                        key={detail.key}
+                        className={styles.eodStageDetailLine}
+                        data-detail-tone={detail.tone ?? "text"}
+                        data-detail-layout={detail.layout ?? "inline"}
+                      >
+                        {detail.label ? <span>{detail.label}</span> : null}
+                        {detail.label ? " " : null}
+                        <span className={styles.eodStageDetailValue}>{detail.value}</span>
+                      </span>
+                    ))}
+                    {visibleFundamentalsUpdatedItems.length > 0 ? (
+                      <div className={styles.fundamentalsUpdatedBlock}>
+                        <span className={styles.fundamentalsUpdatedLabel}>{copy.operational.updatedCompanies}</span>
+                        <div
+                          id="fundamentals-updated-company-list"
+                          className={styles.fundamentalsUpdatedList}
+                          role="list"
+                          aria-label={copy.operational.updatedCompanies}
+                        >
+                          {visibleFundamentalsUpdatedItems.map((item) => (
+                            <div key={item.key} className={styles.fundamentalsUpdatedRow} role="listitem">
+                              <span className={styles.fundamentalsUpdatedCompany}>{item.companyName}</span>
+                              <span className={styles.fundamentalsUpdatedCategory}>{item.categoryLabel}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {fundamentalsUpdatedActivity?.canExpand ? (
+                          <button
+                            type="button"
+                            className={styles.inlineToggleButton}
+                            aria-expanded={fundamentalsUpdatesExpanded}
+                            aria-controls="fundamentals-updated-company-list"
+                            aria-label={
+                              fundamentalsUpdatesExpanded
+                                ? copy.operational.showFewerUpdatedCompanies
+                                : copy.operational.showAllUpdatedCompanies
+                            }
+                            onClick={onToggleFundamentalsUpdatesExpanded}
+                          >
+                            {fundamentalsUpdatesExpanded ? copy.operational.less : copy.operational.more}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {stage.id === "fundamentals" && fundamentalsFailureDetails ? (
+                      <button
+                        type="button"
+                        className={styles.detailButton}
+                        aria-label={copy.operational.viewFundamentalsRunDetails}
+                        aria-haspopup="dialog"
+                        aria-expanded={fundamentalsDialogOpen}
+                        aria-controls="fundamentals-failure-dialog"
+                        onClick={onOpenFundamentalsDetails}
+                      >
+                        {copy.operational.viewDetail}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 {isStandaloneStatusIcon ? (
                   <span
                     className={`${styles.statusIconBadge} ${standaloneStatusClass}`}
@@ -232,71 +295,19 @@ const EodStatusCard = memo(function EodStatusCard({
                     {isIconOnlyStatus ? (
                       <span className={styles.statusPillIcon} aria-hidden="true" />
                     ) : (
-                      <span className={styles.statusPillLabel}>{displayedStatusLabel}</span>
+                      <span className={styles.statusPillLabel}>
+                        {stage.statusLabel === "running" ? (
+                          <span className={styles.runningStatusLabel}>
+                            <span className={styles.runningStatusSpinner} aria-hidden="true" />
+                            <span className={styles.runningStatusText}>{displayedStatusLabel}</span>
+                          </span>
+                        ) : (
+                          displayedStatusLabel
+                        )}
+                      </span>
                     )}
                   </span>
                 )}
-              </div>
-              <div className={styles.eodStageDetails}>
-                {stage.details.map((detail) => (
-                  <span
-                    key={detail.key}
-                    className={styles.eodStageDetailLine}
-                    data-detail-tone={detail.tone ?? "text"}
-                    data-detail-layout={detail.layout ?? "inline"}
-                  >
-                    {detail.label ? <span>{detail.label}</span> : null}
-                    {detail.label ? " " : null}
-                    <span className={styles.eodStageDetailValue}>{detail.value}</span>
-                  </span>
-                ))}
-                {visibleFundamentalsUpdatedItems.length > 0 ? (
-                  <div className={styles.fundamentalsUpdatedBlock}>
-                    <span className={styles.fundamentalsUpdatedLabel}>{copy.operational.updatedCompanies}</span>
-                    <div
-                      id="fundamentals-updated-company-list"
-                      className={styles.fundamentalsUpdatedList}
-                      role="list"
-                      aria-label={copy.operational.updatedCompanies}
-                    >
-                      {visibleFundamentalsUpdatedItems.map((item) => (
-                        <div key={item.key} className={styles.fundamentalsUpdatedRow} role="listitem">
-                          <span className={styles.fundamentalsUpdatedCompany}>{item.companyName}</span>
-                          <span className={styles.fundamentalsUpdatedCategory}>{item.categoryLabel}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {fundamentalsUpdatedActivity?.canExpand ? (
-                      <button
-                        type="button"
-                        className={styles.inlineToggleButton}
-                        aria-expanded={fundamentalsUpdatesExpanded}
-                        aria-controls="fundamentals-updated-company-list"
-                        aria-label={
-                          fundamentalsUpdatesExpanded
-                            ? copy.operational.showFewerUpdatedCompanies
-                            : copy.operational.showAllUpdatedCompanies
-                        }
-                        onClick={onToggleFundamentalsUpdatesExpanded}
-                      >
-                        {fundamentalsUpdatesExpanded ? copy.operational.less : copy.operational.more}
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
-                {stage.id === "fundamentals" && fundamentalsFailureDetails ? (
-                  <button
-                    type="button"
-                    className={styles.detailButton}
-                    aria-label={copy.operational.viewFundamentalsRunDetails}
-                    aria-haspopup="dialog"
-                    aria-expanded={fundamentalsDialogOpen}
-                    aria-controls="fundamentals-failure-dialog"
-                    onClick={onOpenFundamentalsDetails}
-                  >
-                    {copy.operational.viewDetail}
-                  </button>
-                ) : null}
               </div>
             </div>
           );
