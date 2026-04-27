@@ -41,8 +41,14 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
       return;
     }
 
+    const getContainerDimensions = () => ({
+      height: Math.max(container.clientHeight, 240),
+      width: Math.max(container.clientWidth, 1),
+    });
+    const initialDimensions = getContainerDimensions();
     const chart = createChart(container, {
-      autoSize: true,
+      autoSize: false,
+      height: initialDimensions.height,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "rgba(231, 242, 255, 0.78)",
@@ -76,6 +82,7 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
       localization: {
         priceFormatter: (value: number) => `KRW ${formatPrice(value)}`,
       },
+      width: initialDimensions.width,
       handleScroll: {
         mouseWheel: true,
         pressedMouseMove: true,
@@ -133,11 +140,51 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
       updateFocusedBar(normalizeTradeDate(param.time));
     };
 
+    const resolveTradeDateFromCoordinate = (coordinate: number) => {
+      const lastBarTradeDate = bars[bars.length - 1]?.trade_date ?? null;
+      const logicalIndex = chart.timeScale().coordinateToLogical(coordinate);
+      if (typeof logicalIndex === "number" && Number.isFinite(logicalIndex)) {
+        const clampedIndex = Math.max(0, Math.min(bars.length - 1, Math.round(logicalIndex)));
+        const logicalBar = bars[clampedIndex];
+        if (logicalBar && logicalBar.trade_date !== lastBarTradeDate) {
+          return logicalBar.trade_date;
+        }
+      }
+
+      const timeScaleTradeDate = normalizeTradeDate(chart.timeScale().coordinateToTime(coordinate) ?? undefined);
+      if (timeScaleTradeDate && timeScaleTradeDate !== lastBarTradeDate) {
+        return timeScaleTradeDate;
+      }
+
+      if (bars.length === 1) {
+        return lastBarTradeDate;
+      }
+
+      const clampedRatio = Math.max(0, Math.min(1, coordinate / Math.max(container.clientWidth, 1)));
+      const ratioIndex = Math.max(0, Math.min(bars.length - 1, Math.round(clampedRatio * (bars.length - 1))));
+      return bars[ratioIndex]?.trade_date ?? lastBarTradeDate;
+    };
+    const updateFocusedBarFromPointerPosition = (clientX: number) => {
+      const rect = container.getBoundingClientRect();
+      const coordinate = clientX - rect.left;
+      const tradeDate = resolveTradeDateFromCoordinate(coordinate);
+      updateFocusedBar(tradeDate);
+    };
+    const handlePointerMove = (event: PointerEvent) => {
+      updateFocusedBarFromPointerPosition(event.clientX);
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      updateFocusedBarFromPointerPosition(event.clientX);
+    };
+
     chart.subscribeCrosshairMove(handleCrosshairMove);
     chart.subscribeClick(handleClick);
+    container.addEventListener("pointermove", handlePointerMove);
+    container.addEventListener("pointerdown", handlePointerDown);
 
     const resizeObserver = new ResizeObserver(() => {
-      chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+      const nextDimensions = getContainerDimensions();
+      chart.applyOptions({ width: nextDimensions.width, height: nextDimensions.height });
     });
     resizeObserver.observe(container);
 
@@ -145,6 +192,8 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
       resizeObserver.disconnect();
       chart.unsubscribeCrosshairMove(handleCrosshairMove);
       chart.unsubscribeClick(handleClick);
+      container.removeEventListener("pointermove", handlePointerMove);
+      container.removeEventListener("pointerdown", handlePointerDown);
       chart.remove();
     };
   }, [bars, onSelectedBarChange, symbol]);

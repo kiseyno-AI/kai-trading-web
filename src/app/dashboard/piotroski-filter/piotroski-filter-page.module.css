@@ -15,19 +15,20 @@
   place-items: center;
   width: 2.1rem;
   height: 2.1rem;
-  border-radius: 0.75rem;
-  background: linear-gradient(145deg, #d9ddff, #7583cb);
-  color: #17223b;
-  font-family: var(--font-space-grotesk), sans-serif;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: var(--primary-foreground);
+  font-family: var(--font-manrope), sans-serif;
   font-size: 1rem;
   font-weight: 900;
+  box-shadow: 0 0 16px rgba(197, 192, 255, 0.18);
 }
 
 .brandTitle {
-  color: #ffffff;
-  font-family: var(--font-space-grotesk), sans-serif;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
   font-size: 0.98rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .appHeaderActions {
@@ -37,17 +38,19 @@
 }
 
 .marketDatePill {
-  color: #dee0ff;
+  color: var(--text-strong);
 }
 
 .heroPanel,
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(143, 144, 158, 0.14);
+  border: 1px solid rgba(71, 69, 85, 0.22);
   border-radius: 1.2rem;
-  background: rgba(18, 32, 50, 0.84);
-  box-shadow: 0 20px 38px rgba(1, 15, 32, 0.22);
+  background: rgba(28, 32, 37, 0.86);
+  box-shadow:
+    0 20px 38px rgba(10, 14, 19, 0.22),
+    0 0 20px rgba(197, 192, 255, 0.05);
 }
 
 .heroPanel {
@@ -63,7 +66,7 @@
 
 .eyebrow {
   margin: 0;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.22em;
@@ -72,7 +75,7 @@
 
 .pageTitle {
   margin: 0.35rem 0 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.4rem;
   font-weight: 800;
@@ -81,7 +84,7 @@
 
 .pageCopy {
   margin: 0.55rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.86rem;
   line-height: 1.6;
 }
@@ -90,8 +93,8 @@
   align-self: flex-start;
   padding: 0.62rem 0.8rem;
   border-radius: 999px;
-  background: rgba(63, 81, 181, 0.18);
-  color: #dee0ff;
+  background: linear-gradient(135deg, rgba(197, 192, 255, 0.2), rgba(109, 94, 247, 0.16));
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.72rem;
   font-weight: 700;
@@ -117,15 +120,15 @@
 .metric {
   min-width: 0;
   padding: 0.78rem 0.84rem;
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.95rem;
-  background: rgba(5, 20, 37, 0.6);
+  background: rgba(10, 14, 19, 0.64);
 }
 
 .summaryCard span,
 .metric span {
   display: block;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -135,7 +138,7 @@
   display: block;
   margin-top: 0.24rem;
   overflow-wrap: anywhere;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.92rem;
   font-weight: 700;
@@ -153,9 +156,9 @@
   flex-direction: column;
   gap: 0.9rem;
   padding: 0.95rem;
-  border: 1px solid rgba(143, 144, 158, 0.1);
+  border: 1px solid rgba(71, 69, 85, 0.16);
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.7);
+  background: rgba(24, 28, 33, 0.74);
   color: inherit;
   text-decoration: none;
   transition:
@@ -181,7 +184,7 @@
 .companyName {
   display: block;
   overflow-wrap: anywhere;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1rem;
   font-weight: 800;
@@ -190,7 +193,7 @@
 .symbolCode {
   display: block;
   margin-top: 0.22rem;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -202,22 +205,22 @@
 }
 
 .positiveTone {
-  color: #6ffbbe;
+  color: var(--positive);
 }
 
 .negativeTone {
-  color: #ffb3b6;
+  color: var(--negative);
 }
 
 .neutralTone {
-  color: #ffffff;
+  color: var(--text-strong);
 }
 
 .emptyState {
   padding: 1rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.56);
-  color: #c5c5d4;
+  background: rgba(24, 28, 33, 0.6);
+  color: var(--muted);
   font-size: 0.84rem;
   line-height: 1.55;
 }

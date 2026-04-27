@@ -7,9 +7,9 @@
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(143, 144, 158, 0.14);
+  border: 1px solid rgba(71, 69, 85, 0.22);
   border-radius: 1.25rem;
-  background: rgba(18, 32, 50, 0.92);
+  background: rgba(28, 32, 37, 0.92);
   box-shadow: 0 24px 48px rgba(1, 15, 32, 0.28);
 }
 
@@ -30,16 +30,17 @@
   display: grid;
   place-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(143, 144, 158, 0.16);
-  background: rgba(29, 43, 61, 0.78);
-  color: #ffffff;
+  border: 1px solid rgba(71, 69, 85, 0.22);
+  background: rgba(24, 28, 33, 0.82);
+  color: var(--text-strong);
   text-decoration: none;
   font-size: 1.05rem;
+  box-shadow: 0 10px 22px rgba(10, 14, 19, 0.2);
 }
 
 .sectionEyebrow {
   margin: 0;
-  color: #bac3ff;
+  color: var(--accent);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.64rem;
   font-weight: 700;
@@ -53,7 +54,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1rem;
   font-weight: 800;
@@ -71,9 +72,9 @@
 }
 
 .marketStatusClosedPill {
-  background: rgba(143, 144, 158, 0.2);
-  color: #f3f7ff;
-  box-shadow: inset 0 0 0 1px rgba(186, 195, 255, 0.2);
+  background: rgba(71, 69, 85, 0.26);
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px rgba(197, 192, 255, 0.14);
 }
 
 .heroCard,
@@ -87,13 +88,13 @@
 }
 
 .freshnessCard {
-  color: #d5e3fc;
+  color: var(--text);
 }
 
 .heroCard {
   background:
-    radial-gradient(circle at top right, rgba(186, 195, 255, 0.18), transparent 34%),
-    linear-gradient(145deg, rgba(18, 32, 50, 0.98), rgba(29, 43, 61, 0.82));
+    radial-gradient(circle at top right, rgba(197, 192, 255, 0.16), transparent 34%),
+    linear-gradient(145deg, rgba(28, 32, 37, 0.98), rgba(24, 28, 33, 0.86));
 }
 
 .heroTopRow,
@@ -112,7 +113,7 @@
 
 .heroTitleRow h1 {
   margin: 0.28rem 0 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 2.2rem;
   font-weight: 800;
@@ -121,7 +122,7 @@
 
 .heroCompany {
   margin: 0.2rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   line-height: 1.45;
 }
 
@@ -135,16 +136,17 @@
 
 .tradeButton {
   border: none;
-  border-radius: 0.95rem;
-  background: rgba(186, 195, 255, 0.2);
-  color: #ffffff;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: var(--primary-foreground);
   padding: 0.72rem 1rem;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  opacity: 0.65;
+  box-shadow: 0 16px 34px rgba(109, 94, 247, 0.24);
+  opacity: 0.9;
 }
 
 .watchBadge {
@@ -152,9 +154,9 @@
   height: 2.6rem;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(143, 144, 158, 0.2);
+  border: 1px solid rgba(71, 69, 85, 0.26);
   border-radius: 0.5rem;
-  background: rgba(13, 28, 46, 0.78);
+  background: rgba(24, 28, 33, 0.8);
   color: #dee0ff;
   cursor: pointer;
   padding: 0;
@@ -207,10 +209,10 @@
 
 .heroQuoteBlock strong {
   display: block;
-  color: #ffffff;
-  font-family: var(--font-space-grotesk), sans-serif;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
   font-size: 2.45rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.06em;
 }
 
@@ -228,7 +230,7 @@
 .metaCaption,
 .moduleApi,
 .coverageNote p {
-  color: #c5c5d4;
+  color: var(--muted);
   line-height: 1.5;
 }
 
@@ -259,8 +261,8 @@
   min-width: 0;
   padding: 0.85rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.72);
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  background: rgba(24, 28, 33, 0.76);
+  border: 1px solid rgba(71, 69, 85, 0.18);
 }
 
 .heroMetricCard span,
@@ -268,7 +270,7 @@
 .focusCard span,
 .historyMetricRow span {
   display: block;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -280,7 +282,7 @@
 .historyMetricRow strong {
   display: block;
   margin-top: 0.3rem;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
@@ -293,7 +295,7 @@
 .disclosureCard p,
 .companyStrip p {
   margin: 0.22rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.48;
 }
@@ -314,7 +316,7 @@
 
 .heroMetricRow dt {
   min-width: 0;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.76rem;
   line-height: 1.4;
 }
@@ -322,7 +324,7 @@
 .heroMetricRow dd {
   margin: 0;
   min-width: 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.82rem;
   font-weight: 700;
@@ -345,7 +347,7 @@
 .feedback {
   padding: 0.85rem 0.95rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.54);
+  background: rgba(24, 28, 33, 0.58);
   color: #fff4dd;
   line-height: 1.5;
 }
@@ -379,9 +381,9 @@
   justify-content: center;
   appearance: none;
   width: fit-content;
-  border: 1px solid rgba(143, 144, 158, 0.14);
+  border: 1px solid rgba(71, 69, 85, 0.22);
   border-radius: 999px;
-  background: rgba(13, 28, 46, 0.72);
+  background: rgba(24, 28, 33, 0.76);
   color: #dee0ff;
   cursor: pointer;
   font-family: var(--font-space-grotesk), sans-serif;
@@ -406,7 +408,7 @@
 
 .cardTitle {
   margin: 0.25rem 0 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.08rem;
   font-weight: 800;
@@ -422,8 +424,8 @@
 .rangeButton {
   border: none;
   border-radius: 0.72rem;
-  background: rgba(13, 28, 46, 0.78);
-  color: #93a3b8;
+  background: rgba(24, 28, 33, 0.8);
+  color: var(--muted-soft);
   padding: 0.42rem 0.62rem;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.68rem;
@@ -460,7 +462,7 @@
   min-height: 13rem;
   padding: 1rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.64);
+  background: rgba(24, 28, 33, 0.68);
 }
 
 .emptyPanel strong,
@@ -468,7 +470,7 @@
 .coverageNote strong,
 .historyHeader strong,
 .disclosureHeader strong {
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
@@ -487,7 +489,7 @@
 
 .chartFooter {
   gap: 0.3rem;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.75rem;
 }
 
@@ -507,14 +509,14 @@
   min-height: 0.9rem;
   padding: 0.55rem 0.7rem;
   border-radius: 999px;
-  background: rgba(13, 28, 46, 0.82);
+  background: rgba(24, 28, 33, 0.84);
 }
 
 .signalSell,
 .signalStrong {
   position: relative;
   z-index: 1;
-  color: #c5c5d4;
+  color: var(--muted);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
@@ -546,7 +548,7 @@
 .tagChip {
   padding: 0.38rem 0.55rem;
   border-radius: 999px;
-  background: rgba(13, 28, 46, 0.82);
+  background: rgba(24, 28, 33, 0.84);
   color: #dee0ff;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.68rem;
@@ -566,7 +568,7 @@
   margin-top: 0.95rem;
   padding: 0.9rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.72);
+  background: rgba(24, 28, 33, 0.76);
 }
 
 .companyAvatar {
@@ -576,7 +578,7 @@
   place-items: center;
   border-radius: 999px;
   background: rgba(63, 81, 181, 0.28);
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1rem;
   font-weight: 700;
@@ -591,8 +593,8 @@
   min-width: 0;
   padding: 0.9rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.68);
-  border: 1px solid rgba(143, 144, 158, 0.1);
+  background: rgba(24, 28, 33, 0.72);
+  border: 1px solid rgba(71, 69, 85, 0.16);
 }
 
 .disclosureCard {
@@ -626,7 +628,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   margin-top: 0.7rem;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
 }
 
@@ -674,7 +676,7 @@
 }
 
 .factorFamilyTitle {
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
@@ -682,7 +684,7 @@
 
 .factorFamilySubtitle {
   margin: 0.22rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.45;
 }
@@ -799,7 +801,7 @@
 
 .reportTitle {
   margin: 0.28rem 0 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.8rem;
   font-weight: 800;
@@ -824,9 +826,9 @@
   overflow: hidden;
   margin-top: 0.95rem;
   min-height: 32rem;
-  border: 1px solid rgba(143, 144, 158, 0.16);
+  border: 1px solid rgba(71, 69, 85, 0.22);
   border-radius: 0.5rem;
-  background: #ffffff;
+  background: var(--text-strong);
 }
 
 .reportFrame {
@@ -835,7 +837,7 @@
   min-height: 32rem;
   height: 70vh;
   border: 0;
-  background: #ffffff;
+  background: var(--text-strong);
 }
 
 @keyframes chartReveal {
@@ -872,7 +874,7 @@
 
   .panel {
     border-radius: 0.18rem;
-    background: rgba(18, 32, 50, 0.84);
+    background: rgba(28, 32, 37, 0.86);
     box-shadow: 0 30px 64px rgba(1, 15, 32, 0.26);
   }
 
@@ -897,7 +899,7 @@
   .heroCard {
     min-height: 18rem;
     background:
-      linear-gradient(90deg, rgba(18, 32, 50, 0.96), rgba(18, 32, 50, 0.72)),
+      linear-gradient(90deg, rgba(28, 32, 37, 0.96), rgba(18, 32, 50, 0.72)),
       radial-gradient(circle at 92% 12%, rgba(186, 195, 255, 0.14), transparent 20rem);
   }
 
