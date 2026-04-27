@@ -28,7 +28,14 @@ import {
   getEodPipelineStatusPollDelayMs,
   getQuoteCompanyName,
   pickSymbolMetadata,
+  shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
+import {
+  hasCompletedFilteringReload,
+  INITIAL_FILTERING_RELOAD_KEY,
+  isFilteringBackgroundReload,
+  type FilteringReloadKey,
+} from "./filtering-fallback-revalidation";
 import type {
   CoreMarketStatus,
   CoreTrackedQuotesResponse,
@@ -47,6 +54,7 @@ import type {
 } from "@/types/trading-api";
 
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
+const FILTERING_FALLBACK_REVALIDATE_DELAY_MS = 5_000;
 
 function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
@@ -128,14 +136,21 @@ export function useLiveDashboardData({
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
+  const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(null);
   const [piotroskiStatusError, setPiotroskiStatusError] = useState<string | null>(null);
   const [piotroskiStatusLoadState, setPiotroskiStatusLoadState] = useState<FilteringStageLoadState>(
     initialDashboardProcessMarketDate ? "loading" : "idle",
   );
   const [marketRiskStatus, setMarketRiskStatus] = useState<EodMarketRiskFiltersResponseDto | null>(null);
+  const marketRiskStatusRef = useRef<EodMarketRiskFiltersResponseDto | null>(null);
   const [marketRiskStatusError, setMarketRiskStatusError] = useState<string | null>(null);
   const [marketRiskStatusLoadState, setMarketRiskStatusLoadState] = useState<FilteringStageLoadState>(
     initialDashboardProcessMarketDate ? "loading" : "idle",
+  );
+  const [filteringReloadCount, setFilteringReloadCount] = useState(0);
+  const filteringReloadKeyRef = useRef<FilteringReloadKey>(INITIAL_FILTERING_RELOAD_KEY);
+  const [filteringReloadCompletionKey, setFilteringReloadCompletionKey] = useState<FilteringReloadKey>(
+    INITIAL_FILTERING_RELOAD_KEY,
   );
   const [marketError, setMarketError] = useState<string | null>(initialError);
   const [trackedError, setTrackedError] = useState<string | null>(initialError);
@@ -349,19 +364,44 @@ export function useLiveDashboardData({
   }, []);
 
   const filteringMarketDate = dashboardProcessMarketDate;
+  const shouldScheduleFilteringFallbackRevalidation = shouldRevalidateFilteringFallback({
+    requestedMarketDate: filteringMarketDate,
+    piotroskiStatus,
+    marketRiskStatus,
+    pipelineStatus,
+    agentFeedbackProgress,
+  });
+  const hasCompletedActiveFilteringReload = hasCompletedFilteringReload({
+    completionKey: filteringReloadCompletionKey,
+    currentMarketDate: filteringMarketDate,
+    reloadCount: filteringReloadCount,
+  });
 
   useEffect(() => {
     if (!filteringMarketDate) return;
 
     let active = true;
+    const isBackgroundReload = isFilteringBackgroundReload({
+      currentMarketDate: filteringMarketDate,
+      previousReloadKey: filteringReloadKeyRef.current,
+      reloadCount: filteringReloadCount,
+    });
+    filteringReloadKeyRef.current = {
+      marketDate: filteringMarketDate,
+      reloadCount: filteringReloadCount,
+    };
 
     const loadFilteringStatus = async () => {
-      setPiotroskiStatus(null);
-      setPiotroskiStatusError(null);
-      setPiotroskiStatusLoadState("loading");
-      setMarketRiskStatus(null);
-      setMarketRiskStatusError(null);
-      setMarketRiskStatusLoadState("loading");
+      if (!isBackgroundReload) {
+        piotroskiStatusRef.current = null;
+        setPiotroskiStatus(null);
+        setPiotroskiStatusError(null);
+        setPiotroskiStatusLoadState("loading");
+        marketRiskStatusRef.current = null;
+        setMarketRiskStatus(null);
+        setMarketRiskStatusError(null);
+        setMarketRiskStatusLoadState("loading");
+      }
 
       const marketDateParam = encodeURIComponent(filteringMarketDate);
       const [piotroskiResult, marketRiskResult] = await Promise.allSettled([
@@ -376,24 +416,39 @@ export function useLiveDashboardData({
       if (!active) return;
 
       if (piotroskiResult.status === "fulfilled") {
+        piotroskiStatusRef.current = piotroskiResult.value;
         setPiotroskiStatus(piotroskiResult.value);
+        setPiotroskiStatusError(null);
         setPiotroskiStatusLoadState("ready");
       } else {
         console.error("Dashboard Piotroski status load failed", piotroskiResult.reason);
-        setPiotroskiStatus(null);
-        setPiotroskiStatusError(getDashboardLoadErrorMessage(piotroskiResult.reason));
-        setPiotroskiStatusLoadState("error");
+        if (!isBackgroundReload) {
+          piotroskiStatusRef.current = null;
+          setPiotroskiStatus(null);
+          setPiotroskiStatusError(getDashboardLoadErrorMessage(piotroskiResult.reason));
+          setPiotroskiStatusLoadState("error");
+        }
       }
 
       if (marketRiskResult.status === "fulfilled") {
+        marketRiskStatusRef.current = marketRiskResult.value;
         setMarketRiskStatus(marketRiskResult.value);
+        setMarketRiskStatusError(null);
         setMarketRiskStatusLoadState("ready");
       } else {
         console.error("Dashboard market risk status load failed", marketRiskResult.reason);
-        setMarketRiskStatus(null);
-        setMarketRiskStatusError(getDashboardLoadErrorMessage(marketRiskResult.reason));
-        setMarketRiskStatusLoadState("error");
+        if (!isBackgroundReload) {
+          marketRiskStatusRef.current = null;
+          setMarketRiskStatus(null);
+          setMarketRiskStatusError(getDashboardLoadErrorMessage(marketRiskResult.reason));
+          setMarketRiskStatusLoadState("error");
+        }
       }
+
+      setFilteringReloadCompletionKey({
+        marketDate: filteringMarketDate,
+        reloadCount: filteringReloadCount,
+      });
     };
 
     void loadFilteringStatus();
@@ -401,7 +456,30 @@ export function useLiveDashboardData({
     return () => {
       active = false;
     };
-  }, [filteringMarketDate]);
+  }, [filteringMarketDate, filteringReloadCount]);
+
+  useEffect(() => {
+    if (
+      !filteringMarketDate ||
+      !shouldScheduleFilteringFallbackRevalidation ||
+      !hasCompletedActiveFilteringReload
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setFilteringReloadCount((current) => current + 1);
+    }, FILTERING_FALLBACK_REVALIDATE_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    filteringMarketDate,
+    filteringReloadCount,
+    hasCompletedActiveFilteringReload,
+    shouldScheduleFilteringFallbackRevalidation,
+  ]);
 
   useEffect(() => {
     let active = true;
