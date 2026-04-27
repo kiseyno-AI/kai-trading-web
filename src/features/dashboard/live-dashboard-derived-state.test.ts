@@ -12,6 +12,7 @@ import {
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedActivityModel,
+  getFundamentalsUpdatedSymbolsDetail,
   markAgentFeedbackProgressStopped,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
@@ -76,19 +77,12 @@ test("keeps same-day fundamentals coverage synced", () => {
   );
 });
 
-test("keeps legacy fundamentals count semantics when the structured updated-entry payload is absent", () => {
-  const latestRun = buildFundamentalsRun({
-    symbols_refreshed: 41,
-  }) as DartFundamentalsDailyRunDto & {
-    updated_entries_summary?: DartFundamentalsDailyRunDto["updated_entries_summary"];
-    updated_entries?: DartFundamentalsDailyRunDto["updated_entries"];
-  };
-  delete latestRun.updated_entries_summary;
-  delete latestRun.updated_entries;
-
+test("treats null-filled updated-entry rollout fields as absent structured payload", () => {
   const model = getFundamentalsUpdatedActivityModel(
     {
-      latest_run: latestRun,
+      latest_run: buildFundamentalsRun({
+        symbols_refreshed: 41,
+      }),
       runs: [],
     },
     "2026-04-21",
@@ -96,6 +90,33 @@ test("keeps legacy fundamentals count semantics when the structured updated-entr
   );
 
   assert.equal(model, null);
+});
+
+test("keeps the legacy Updated today fallback when rollout fields are null", () => {
+  const copy = getDashboardLiveCopy("en");
+
+  const detail = getFundamentalsUpdatedSymbolsDetail(
+    {
+      latest_run: buildFundamentalsRun({
+        symbols_refreshed: 41,
+        run_metadata: {
+          refreshed_symbols_sample: ["005930", "000660", "035420"],
+        },
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    copy,
+    "en-US",
+  );
+
+  assert.deepEqual(detail, {
+    key: "updated-symbols",
+    label: copy.operational.updatedToday,
+    value: "41 (005930, 000660, 035420 +38)",
+    tone: "text",
+    layout: "stacked",
+  });
 });
 
 test("uses a structured zero-count fundamentals activity payload without preview rows", () => {

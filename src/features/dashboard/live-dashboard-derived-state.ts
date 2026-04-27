@@ -967,10 +967,7 @@ export function getFundamentalsCheckedCount(
 function hasStructuredFundamentalsUpdatedEntriesPayload(run: DartFundamentalsDailyRunDto | null) {
   if (!run) return false;
 
-  return (
-    Object.prototype.hasOwnProperty.call(run, "updated_entries_summary") ||
-    Object.prototype.hasOwnProperty.call(run, "updated_entries")
-  );
+  return run.updated_entries_summary != null || run.updated_entries != null;
 }
 
 function getFundamentalsUpdatedEntriesSummary(run: DartFundamentalsDailyRunDto | null) {
