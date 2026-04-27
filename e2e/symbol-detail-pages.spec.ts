@@ -671,13 +671,13 @@ test.describe("symbol detail mobile pages", () => {
     await expect(workspaceLoader).toHaveCount(0);
     const chartImage = page.getByRole("img", { name: /Historical candlestick chart for 005930/i });
     const focusDateValue = page.locator("#chart article").first().locator("strong");
-    await expect(focusDateValue).toHaveText("2026.04.10");
-    const initialFocusDate = (await focusDateValue.textContent())?.trim() ?? "";
+    const latestFocusDate = "2026.04.10";
+    await expect(focusDateValue).toHaveText(latestFocusDate);
     const chartBounds = await chartImage.boundingBox();
     expect(chartBounds).not.toBeNull();
 
     let preservedFocusDate: string | null = null;
-    for (const xRatio of [0.2, 0.3, 0.4, 0.5, 0.6]) {
+    for (const xRatio of [0.02, 0.05, 0.08, 0.12, 0.16, 0.2, 0.24, 0.28]) {
       await chartImage.hover({
         position: {
           x: Math.round((chartBounds?.width ?? 0) * xRatio),
@@ -686,7 +686,7 @@ test.describe("symbol detail mobile pages", () => {
       });
 
       const nextFocusDate = (await focusDateValue.textContent())?.trim() ?? "";
-      if (nextFocusDate && nextFocusDate !== initialFocusDate) {
+      if (nextFocusDate && nextFocusDate !== latestFocusDate) {
         preservedFocusDate = nextFocusDate;
         await chartImage.click({
           position: {
@@ -700,6 +700,31 @@ test.describe("symbol detail mobile pages", () => {
 
     expect(preservedFocusDate).not.toBeNull();
     await expect(focusDateValue).toHaveText(preservedFocusDate!);
+
+    let latestFocusDateRestored = false;
+    for (const xRatio of [0.5, 0.55, 0.6, 0.7, 0.8, 0.9]) {
+      await chartImage.hover({
+        position: {
+          x: Math.round((chartBounds?.width ?? 0) * xRatio),
+          y: Math.round((chartBounds?.height ?? 0) * 0.45),
+        },
+      });
+
+      const nextFocusDate = (await focusDateValue.textContent())?.trim() ?? "";
+      if (nextFocusDate === latestFocusDate) {
+        latestFocusDateRestored = true;
+        await chartImage.click({
+          position: {
+            x: Math.round((chartBounds?.width ?? 0) * xRatio),
+            y: Math.round((chartBounds?.height ?? 0) * 0.45),
+          },
+        });
+        break;
+      }
+    }
+
+    expect(latestFocusDateRestored).toBe(true);
+    await expect(focusDateValue).toHaveText(latestFocusDate);
     const initialDetailUrl = page.url();
     await page.evaluate(() => {
       const state = window as Window & {
@@ -759,7 +784,7 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page).toHaveURL(initialDetailUrl);
     await expect(page.locator('[data-mode="technical-analysis"]')).toBeVisible();
     await expect(page.locator("#technical")).toBeVisible();
-    await expect(focusDateValue).toHaveText(preservedFocusDate!);
+    await expect(focusDateValue).toHaveText(latestFocusDate);
     await expect(workspaceLoader).toHaveCount(0);
     await expect.poll(() => requestCounts.technical).toBe(1);
     expect(requestCounts.fundamentals).toBe(0);

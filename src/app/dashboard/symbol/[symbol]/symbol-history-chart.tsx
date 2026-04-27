@@ -13,6 +13,7 @@ import {
 
 import { formatPrice } from "@/lib/format";
 import type { SymbolPriceBarDto } from "@/types/trading-api";
+import { resolveTradeDateFromChartCoordinate } from "@/features/symbol-detail/symbol-history-chart-selection";
 
 import styles from "./symbol-detail.module.css";
 
@@ -140,30 +141,14 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
       updateFocusedBar(normalizeTradeDate(param.time));
     };
 
-    const resolveTradeDateFromCoordinate = (coordinate: number) => {
-      const lastBarTradeDate = bars[bars.length - 1]?.trade_date ?? null;
-      const logicalIndex = chart.timeScale().coordinateToLogical(coordinate);
-      if (typeof logicalIndex === "number" && Number.isFinite(logicalIndex)) {
-        const clampedIndex = Math.max(0, Math.min(bars.length - 1, Math.round(logicalIndex)));
-        const logicalBar = bars[clampedIndex];
-        if (logicalBar && logicalBar.trade_date !== lastBarTradeDate) {
-          return logicalBar.trade_date;
-        }
-      }
-
-      const timeScaleTradeDate = normalizeTradeDate(chart.timeScale().coordinateToTime(coordinate) ?? undefined);
-      if (timeScaleTradeDate && timeScaleTradeDate !== lastBarTradeDate) {
-        return timeScaleTradeDate;
-      }
-
-      if (bars.length === 1) {
-        return lastBarTradeDate;
-      }
-
-      const clampedRatio = Math.max(0, Math.min(1, coordinate / Math.max(container.clientWidth, 1)));
-      const ratioIndex = Math.max(0, Math.min(bars.length - 1, Math.round(clampedRatio * (bars.length - 1))));
-      return bars[ratioIndex]?.trade_date ?? lastBarTradeDate;
-    };
+    const resolveTradeDateFromCoordinate = (coordinate: number) =>
+      resolveTradeDateFromChartCoordinate({
+        bars,
+        coordinate,
+        containerWidth: container.clientWidth,
+        logicalIndex: chart.timeScale().coordinateToLogical(coordinate),
+        timeScaleTradeDate: normalizeTradeDate(chart.timeScale().coordinateToTime(coordinate) ?? undefined),
+      });
     const updateFocusedBarFromPointerPosition = (clientX: number) => {
       const rect = container.getBoundingClientRect();
       const coordinate = clientX - rect.left;
