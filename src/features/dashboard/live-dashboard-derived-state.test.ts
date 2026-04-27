@@ -19,6 +19,7 @@ import {
   getFundamentalsUpdatedActivityModel,
   getFundamentalsUpdatedSymbolsDetail,
   markAgentFeedbackProgressStopped,
+  shouldRevalidateFilteringFallback,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
 
@@ -549,5 +550,115 @@ test("keeps pipeline polling at the active cadence while the status or any stage
       },
     }),
     30_000,
+  );
+});
+
+test("revalidates a requested-date filtering fallback while the active dashboard cycle is still running", () => {
+  assert.equal(
+    shouldRevalidateFilteringFallback({
+      requestedMarketDate: "2026-04-27",
+      piotroskiStatus: {
+        requested_market_date: "2026-04-27",
+        resolved_market_date: "2026-04-24",
+        market_date: "2026-04-24",
+        is_latest_fallback: true,
+      },
+      marketRiskStatus: null,
+      pipelineStatus: {
+        market_date: "2026-04-27",
+        status: "running",
+        stage_order: ["fundamentals_daily_refresh"],
+        stages: {
+          fundamentals_daily_refresh: {
+            status: "running",
+            processed: 120,
+            total: 3583,
+            failed: 0,
+          },
+        },
+      },
+      agentFeedbackProgress: null,
+    }),
+    true,
+  );
+});
+
+test("stops filtering fallback revalidation once the same-day response resolves or the cycle goes idle", () => {
+  const fallbackStatus = {
+    requested_market_date: "2026-04-27",
+    resolved_market_date: "2026-04-24",
+    market_date: "2026-04-24",
+    is_latest_fallback: true,
+  };
+
+  assert.equal(
+    shouldRevalidateFilteringFallback({
+      requestedMarketDate: "2026-04-27",
+      piotroskiStatus: {
+        requested_market_date: "2026-04-27",
+        resolved_market_date: "2026-04-27",
+        market_date: "2026-04-27",
+        is_latest_fallback: false,
+      },
+      marketRiskStatus: null,
+      pipelineStatus: {
+        market_date: "2026-04-27",
+        status: "running",
+        stage_order: [],
+        stages: {},
+      },
+      agentFeedbackProgress: null,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRevalidateFilteringFallback({
+      requestedMarketDate: "2026-04-27",
+      piotroskiStatus: fallbackStatus,
+      marketRiskStatus: null,
+      pipelineStatus: {
+        market_date: "2026-04-27",
+        status: "completed",
+        stage_order: ["fundamentals_daily_refresh"],
+        stages: {
+          fundamentals_daily_refresh: {
+            status: "completed",
+            processed: 3583,
+            total: 3583,
+            failed: 0,
+          },
+        },
+      },
+      agentFeedbackProgress: {
+        request: {
+          market_date: "2026-04-27",
+          symbols: null,
+          expected_agents: [],
+        },
+        summary: {
+          run_id: "run-27",
+          run_status: "completed",
+          run_table_status: "completed",
+          is_live: false,
+          run_started_at: "2026-04-27T17:00:00+09:00",
+          run_completed_at: "2026-04-27T17:45:00+09:00",
+          latest_feedback_at: "2026-04-27T17:45:00+09:00",
+          seconds_since_last_feedback: 30,
+          stalled_threshold_seconds: 300,
+          total_symbols: 3583,
+          processed_symbols: 3583,
+          completed_symbols: 3583,
+          in_progress_symbols: 0,
+          pending_symbols: 0,
+          progress_ratio: 1,
+          progress_percent: 100,
+          failed_items: 0,
+          completed_feedback_count: 0,
+          expected_feedback_count: 0,
+        },
+        result: null,
+      },
+    }),
+    false,
   );
 });

@@ -1114,6 +1114,332 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
   });
 
+  test("D2 Filtering revalidates a same-day Piotroski fallback once real same-day results arrive", async ({ page }) => {
+    const now = "2026-04-27T10:15:00+09:00";
+    let piotroskiRequestCount = 0;
+    let marketRiskRequestCount = 0;
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          is_trading_day: true,
+          server_time: now,
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_state: "OPEN",
+          as_of: now,
+          items: [
+            {
+              symbol: "005930",
+              company_name: "Samsung Electronics",
+              price: 71500,
+              change: 900,
+              change_pct: 1.27,
+              volume: 120000,
+              turnover: 8580000000,
+              as_of: now,
+              market_state: "OPEN",
+              source: "daily_price_bar",
+              fallback: true,
+              is_live: false,
+              available: true,
+              trade_date: "2026-04-27",
+              fallback_reason: "daily_price_bar_current_trade_date",
+              unavailable_reason: null,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          today: {
+            trade_date: "2026-04-27",
+            price: {
+              status: "ready",
+              symbols_total: 3583,
+              symbols_succeeded: 3583,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "ready",
+              symbols_total: 3583,
+              symbols_succeeded: 3583,
+              symbols_failed: 0,
+            },
+            action_summary: {
+              status: "ready",
+              symbols_total: 3583,
+              symbols_succeeded: 3583,
+              symbols_failed: 0,
+            },
+            fundamentals: {
+              status: "running",
+              symbols_total: 3583,
+              symbols_succeeded: 2400,
+              symbols_failed: 0,
+            },
+          },
+          latest: {
+            price_trade_date: "2026-04-27",
+            technical_market_date: "2026-04-27",
+            action_market_date: "2026-04-27",
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-27",
+          },
+          action: {
+            success: true,
+            latest_date: "2026-04-27",
+          },
+          fundamentals: {
+            success: true,
+            latest_date: "2026-04-27",
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-27",
+          status: "running",
+          stage_order: [
+            "price_collection",
+            "technical_snapshots",
+            "action_summaries",
+            "trending_ranks",
+            "signal_features",
+            "fundamentals_daily_refresh",
+          ],
+          stages: {
+            price_collection: {
+              status: "completed",
+              processed: 3583,
+              total: 3583,
+              failed: 0,
+            },
+            technical_snapshots: {
+              status: "completed",
+              processed: 3583,
+              total: 3583,
+              failed: 0,
+            },
+            action_summaries: {
+              status: "completed",
+              processed: 3583,
+              total: 3583,
+              failed: 0,
+            },
+            fundamentals_daily_refresh: {
+              status: "running",
+              processed: 2400,
+              total: 3583,
+              failed: 0,
+            },
+          },
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      piotroskiRequestCount += 1;
+
+      if (piotroskiRequestCount === 1) {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            requested_market_date: "2026-04-27",
+            resolved_market_date: "2026-04-24",
+            is_latest_fallback: true,
+            market_date: "2026-04-24",
+            summary: {
+              entries: 3200,
+              requested_symbol: null,
+              matched_symbols: ["005930"],
+              missing_symbols: [],
+              passed_count: 14,
+              not_passed_count: 3186,
+            },
+            items: [],
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          requested_market_date: "2026-04-27",
+          resolved_market_date: "2026-04-27",
+          is_latest_fallback: false,
+          market_date: "2026-04-27",
+          summary: {
+            entries: 3583,
+            requested_symbol: null,
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 27,
+            not_passed_count: 3556,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      marketRiskRequestCount += 1;
+
+      if (marketRiskRequestCount === 1) {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            requested_market_date: "2026-04-27",
+            resolved_market_date: "2026-04-24",
+            is_latest_fallback: true,
+            market_date: "2026-04-24",
+            summary: {
+              entries: 3200,
+              requested_symbol: null,
+              matched_symbols: ["005930"],
+              missing_symbols: [],
+              passed_count: 3000,
+              watchlist_count: 100,
+              failed_count: 100,
+            },
+            items: [],
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          requested_market_date: "2026-04-27",
+          resolved_market_date: "2026-04-27",
+          is_latest_fallback: false,
+          market_date: "2026-04-27",
+          summary: {
+            entries: 3583,
+            requested_symbol: null,
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 3300,
+            watchlist_count: 150,
+            failed_count: 133,
+          },
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          latest_run: {
+            id: 17,
+            market_date: "2026-04-27",
+            trigger: "internal_ops_cli",
+            status: "running",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 3583,
+            symbols_checked: 2400,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 2400,
+            symbols_refreshed: 2400,
+            symbols_failed: 0,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-27T09:30:00+09:00",
+            completed_at: null,
+          },
+          runs: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-27",
+            symbols: null,
+            expected_agents: [],
+          },
+          summary: {
+            run_id: "run-364",
+            run_status: "completed",
+            run_table_status: "completed",
+            is_live: false,
+            run_started_at: "2026-04-27T09:30:00+09:00",
+            run_completed_at: "2026-04-27T10:00:00+09:00",
+            latest_feedback_at: "2026-04-27T10:00:00+09:00",
+            seconds_since_last_feedback: 900,
+            stalled_threshold_seconds: 300,
+            total_symbols: 3583,
+            processed_symbols: 3583,
+            completed_symbols: 3583,
+            in_progress_symbols: 0,
+            pending_symbols: 0,
+            progress_ratio: 1,
+            progress_percent: 100,
+            failed_items: 0,
+            completed_feedback_count: 0,
+            expected_feedback_count: 0,
+          },
+          result: null,
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
+    const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
+
+    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-24/);
+    await expect(piotroskiSection).toContainText("Requested 2026-04-27");
+    await expect(piotroskiSection).toContainText("Latest available 2026-04-24");
+    await expect(piotroskiSection).toContainText(/Pass\s*14/);
+    await expect(marketRiskSection).toContainText("Requested 2026-04-27");
+
+    await expect.poll(() => piotroskiRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => marketRiskRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
+
+    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-27/);
+    await expect(piotroskiSection).toContainText(/Pass\s*27/);
+    await expect(piotroskiSection).not.toContainText("Latest available 2026-04-24");
+    await expect(piotroskiSection).not.toContainText("Requested 2026-04-27");
+    await expect(marketRiskSection).toContainText(/Market date\s*2026-04-27/);
+    await expect(marketRiskSection).not.toContainText("Latest available 2026-04-24");
+
+    const piotroskiRequestsAfterResolve = piotroskiRequestCount;
+    const marketRiskRequestsAfterResolve = marketRiskRequestCount;
+    await page.waitForTimeout(5500);
+
+    expect(piotroskiRequestCount).toBe(piotroskiRequestsAfterResolve);
+    expect(marketRiskRequestCount).toBe(marketRiskRequestsAfterResolve);
+  });
+
   test("tracked symbol cards keep quote content inside the card during desktop resizes", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 

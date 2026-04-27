@@ -789,6 +789,53 @@ export function getEodPipelineStatusPollDelayMs(pipelineStatus: EodPipelineStatu
     : EOD_PIPELINE_STATUS_IDLE_POLL_MS;
 }
 
+type FilteringFallbackStatus = {
+  market_date?: string | null;
+  requested_market_date?: string | null;
+  resolved_market_date?: string | null;
+  is_latest_fallback?: boolean | null;
+};
+
+function isFilteringFallbackForRequestedMarketDate(
+  response: FilteringFallbackStatus | null | undefined,
+  requestedMarketDate: string | null | undefined,
+) {
+  const currentRequestedMarketDate = resolvePiotroskiMarketDateResolution(null, requestedMarketDate).requestedMarketDate;
+  if (!currentRequestedMarketDate) return false;
+
+  const responseResolution = resolvePiotroskiMarketDateResolution(response, currentRequestedMarketDate);
+  return (
+    responseResolution.isLatestFallback &&
+    responseResolution.requestedMarketDate === currentRequestedMarketDate &&
+    responseResolution.effectiveMarketDate !== null &&
+    responseResolution.effectiveMarketDate !== currentRequestedMarketDate
+  );
+}
+
+export function shouldRevalidateFilteringFallback({
+  requestedMarketDate,
+  piotroskiStatus,
+  marketRiskStatus,
+  pipelineStatus,
+  agentFeedbackProgress,
+}: {
+  requestedMarketDate: string | null | undefined;
+  piotroskiStatus: FilteringFallbackStatus | null;
+  marketRiskStatus: FilteringFallbackStatus | null;
+  pipelineStatus: EodPipelineStatusResponseDto | null;
+  agentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
+}) {
+  const hasRequestedDateFallback =
+    isFilteringFallbackForRequestedMarketDate(piotroskiStatus, requestedMarketDate) ||
+    isFilteringFallbackForRequestedMarketDate(marketRiskStatus, requestedMarketDate);
+  if (!hasRequestedDateFallback) return false;
+
+  return (
+    getEodPipelineStatusPollDelayMs(pipelineStatus) === EOD_PIPELINE_STATUS_RUNNING_POLL_MS ||
+    getAgentFeedbackProgressPollDelayMs(agentFeedbackProgress) === AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS
+  );
+}
+
 function normalizeMarketState(value: string | null | undefined) {
   return value?.trim().toUpperCase().replace(/[\s-]+/g, "_") ?? null;
 }
