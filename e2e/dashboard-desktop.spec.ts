@@ -3557,7 +3557,9 @@ test.describe("dashboard desktop", () => {
     await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThanOrEqual(3);
   });
 
-  test("D2 fundamentals subcard maps the ready stage to synced", async ({ page }) => {
+  test("D2 fundamentals subcard maps the ready stage to synced and expands structured update previews", async ({
+    page,
+  }) => {
     const fundamentalsMarketDateRequests: Array<string | null> = [];
 
     await page.route("**/api/trading/eod/freshness", async (route) => {
@@ -3620,15 +3622,44 @@ test.describe("dashboard desktop", () => {
             symbols_missing: 0,
             symbols_stale: 0,
             symbols_fresh: 42,
-            symbols_refreshed: 42,
+            symbols_refreshed: 5,
             symbols_failed: 1,
             events_detected: 0,
             events_captured: 0,
             events_failed: 0,
-            error_message: null,
-            run_metadata: {
-              refreshed_symbols_sample: ["005930", "000660", "035420", "005380", "012450"],
+            updated_entries_summary: {
+              updated_count: 5,
+              visible_preview_limit: 3,
             },
+            updated_entries: [
+              {
+                symbol: "005930",
+                company_name: "Samsung Electronics",
+                category_label: "Financial statement refresh",
+              },
+              {
+                symbol: "000660",
+                company_name: "SK hynix",
+                category_label: "Quarterly filing capture",
+              },
+              {
+                symbol: "035420",
+                company_name: "NAVER",
+                category_label: "Correction filing refresh",
+              },
+              {
+                symbol: "005380",
+                company_name: "Hyundai Motor",
+                category_label: "Annual filing capture",
+              },
+              {
+                symbol: "012450",
+                company_name: "Hanwha Aerospace",
+                category_label: "Financial statement refresh",
+              },
+            ],
+            error_message: null,
+            run_metadata: {},
             started_at: "2026-04-16T08:56:58.357390+09:00",
             completed_at: "2026-04-16T09:11:08.375335+09:00",
           },
@@ -3643,27 +3674,29 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage).toBeVisible();
     await expectEodStageStatus(fundamentalsStage, "synced");
     await expect(fundamentalsStage.locator('.pill[data-status-badge="synced"]')).toHaveCount(0);
-    const checkedDetail = fundamentalsStage.locator('[data-detail-tone="count"]').filter({
-      hasText: "Checked",
-    });
-    await expect(checkedDetail).toContainText("Checked");
-    await expect(checkedDetail).toContainText("42");
-    const updatedTodayDetail = fundamentalsStage.locator('[data-detail-layout="stacked"]').filter({
+    const updatedTodayDetail = fundamentalsStage.locator('[data-detail-tone="count"]').filter({
       hasText: "Updated today",
     });
     await expect(updatedTodayDetail).toContainText("Updated today");
-    await expect(updatedTodayDetail).toContainText("42 (005930, 000660, 035420, 005380 +38)");
-    const updatedTodayLayout = await updatedTodayDetail.evaluate((element) => {
-      const [label, value] = [...element.querySelectorAll("span")];
-      if (!label || !value) return null;
-
-      return {
-        labelBottom: label.getBoundingClientRect().bottom,
-        valueTop: value.getBoundingClientRect().top,
-      };
-    });
-    expect(updatedTodayLayout).not.toBeNull();
-    expect(updatedTodayLayout!.labelBottom).toBeLessThanOrEqual(updatedTodayLayout!.valueTop + 1);
+    await expect(updatedTodayDetail).toContainText("5");
+    const updatedCompanyList = fundamentalsStage.getByRole("list", { name: "Updated companies" });
+    await expect(updatedCompanyList).toContainText("Samsung Electronics");
+    await expect(updatedCompanyList).toContainText("Financial statement refresh");
+    await expect(updatedCompanyList).toContainText("SK hynix");
+    await expect(updatedCompanyList).toContainText("Quarterly filing capture");
+    await expect(updatedCompanyList).toContainText("NAVER");
+    await expect(updatedCompanyList).toContainText("Correction filing refresh");
+    await expect(updatedCompanyList).not.toContainText("Hyundai Motor");
+    const moreButton = fundamentalsStage.getByRole("button", { name: /Show all updated companies/i });
+    await expect(moreButton).toBeVisible();
+    await expect(moreButton).toContainText("More");
+    await moreButton.click();
+    await expect(updatedCompanyList).toContainText("Hyundai Motor");
+    await expect(updatedCompanyList).toContainText("Annual filing capture");
+    await expect(updatedCompanyList).toContainText("Hanwha Aerospace");
+    await expect(
+      fundamentalsStage.getByRole("button", { name: /Show fewer updated companies/i }),
+    ).toContainText("Less");
     const failedDetail = fundamentalsStage.locator('[data-detail-tone="count"]').filter({
       hasText: "Failed",
     });

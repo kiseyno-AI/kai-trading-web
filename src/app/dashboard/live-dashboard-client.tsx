@@ -40,6 +40,7 @@ import {
   getDashboardLoadErrorMessage,
   getFirstTextValue,
   getFundamentalsCheckedCount,
+  getFundamentalsUpdatedActivityModel,
   getFundamentalsFailureDetails,
   getFundamentalsFreshnessLayer,
   getFundamentalsStatusLabel,
@@ -66,6 +67,7 @@ import type {
   AgentRoleCard,
   AgentRoleStatus,
   EodStageCard,
+  FundamentalsUpdatedActivityModel,
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
   PiotroskiFilteringCardModel,
@@ -151,16 +153,22 @@ type EodStatusCardProps = {
   copy: DashboardLiveCopy;
   eodStageCards: readonly EodStageCard[];
   fundamentalsDialogOpen: boolean;
+  fundamentalsUpdatedActivity: FundamentalsUpdatedActivityModel | null;
+  fundamentalsUpdatesExpanded: boolean;
   fundamentalsFailureDetails: FundamentalsFailureDetails | null;
   onOpenFundamentalsDetails: () => void;
+  onToggleFundamentalsUpdatesExpanded: () => void;
 };
 
 const EodStatusCard = memo(function EodStatusCard({
   copy,
   eodStageCards,
   fundamentalsDialogOpen,
+  fundamentalsUpdatedActivity,
+  fundamentalsUpdatesExpanded,
   fundamentalsFailureDetails,
   onOpenFundamentalsDetails,
+  onToggleFundamentalsUpdatesExpanded,
 }: EodStatusCardProps) {
   return (
     <article className={`${styles.integrityStat} ${styles.eodStatusCard}`}>
@@ -188,6 +196,12 @@ const EodStatusCard = memo(function EodStatusCard({
           const statusTitle = stage.statusBadgeTitle ?? (isIconOnlyStatus ? statusAriaLabel : undefined);
           const standaloneStatusClass =
             stage.statusLabel === "not synced" ? styles.notSyncedStatusIcon : styles.syncedStatusIcon;
+          const visibleFundamentalsUpdatedItems =
+            stage.id === "fundamentals" && fundamentalsUpdatedActivity
+              ? fundamentalsUpdatesExpanded
+                ? fundamentalsUpdatedActivity.allItems
+                : fundamentalsUpdatedActivity.previewItems
+              : [];
 
           return (
             <div
@@ -236,6 +250,40 @@ const EodStatusCard = memo(function EodStatusCard({
                     <span className={styles.eodStageDetailValue}>{detail.value}</span>
                   </span>
                 ))}
+                {visibleFundamentalsUpdatedItems.length > 0 ? (
+                  <div className={styles.fundamentalsUpdatedBlock}>
+                    <span className={styles.fundamentalsUpdatedLabel}>{copy.operational.updatedCompanies}</span>
+                    <div
+                      id="fundamentals-updated-company-list"
+                      className={styles.fundamentalsUpdatedList}
+                      role="list"
+                      aria-label={copy.operational.updatedCompanies}
+                    >
+                      {visibleFundamentalsUpdatedItems.map((item) => (
+                        <div key={item.key} className={styles.fundamentalsUpdatedRow} role="listitem">
+                          <span className={styles.fundamentalsUpdatedCompany}>{item.companyName}</span>
+                          <span className={styles.fundamentalsUpdatedCategory}>{item.categoryLabel}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {fundamentalsUpdatedActivity?.canExpand ? (
+                      <button
+                        type="button"
+                        className={styles.inlineToggleButton}
+                        aria-expanded={fundamentalsUpdatesExpanded}
+                        aria-controls="fundamentals-updated-company-list"
+                        aria-label={
+                          fundamentalsUpdatesExpanded
+                            ? copy.operational.showFewerUpdatedCompanies
+                            : copy.operational.showAllUpdatedCompanies
+                        }
+                        onClick={onToggleFundamentalsUpdatesExpanded}
+                      >
+                        {fundamentalsUpdatesExpanded ? copy.operational.less : copy.operational.more}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
                 {stage.id === "fundamentals" && fundamentalsFailureDetails ? (
                   <button
                     type="button"
@@ -535,6 +583,7 @@ export function LiveDashboardClient({
   const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
   const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
   const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
+  const [fundamentalsUpdatesExpanded, setFundamentalsUpdatesExpanded] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const agentFeedbackProgressRef = useRef(agentFeedbackProgress);
 
@@ -628,9 +677,40 @@ export function LiveDashboardClient({
     fundamentalsFreshnessStage,
     fundamentalsPipelineStage,
   );
+  const fundamentalsUpdatedActivity = useMemo(
+    () => getFundamentalsUpdatedActivityModel(fundamentalsStatus, eodStatusMarketDate, numberLocale),
+    [eodStatusMarketDate, fundamentalsStatus, numberLocale],
+  );
   const fundamentalsUpdatedSymbolsDetail = useMemo(
-    () => getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, todayTradeDate, copy, numberLocale),
-    [copy, fundamentalsStatus, numberLocale, todayTradeDate],
+    () =>
+      fundamentalsUpdatedActivity
+        ? null
+        : getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, eodStatusMarketDate, copy, numberLocale),
+    [copy, eodStatusMarketDate, fundamentalsStatus, fundamentalsUpdatedActivity, numberLocale],
+  );
+  const fundamentalsPrimaryCountDetail = useMemo(
+    () =>
+      fundamentalsUpdatedActivity
+        ? {
+            label: copy.operational.updatedToday,
+            value: fundamentalsUpdatedActivity.countLabel,
+          }
+        : {
+            label: copy.operational.checked,
+            value: formatEodSymbolCount(
+              getFundamentalsCheckedCount(freshness, fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
+              numberLocale,
+            ),
+          },
+    [
+      copy.operational.checked,
+      copy.operational.updatedToday,
+      freshness,
+      fundamentalsFreshnessWithPipelineStage,
+      fundamentalsStatus,
+      fundamentalsUpdatedActivity,
+      numberLocale,
+    ],
   );
   const eodStageCards = useMemo(() => {
     const fundamentalsStageCard = buildEodStageCard(
@@ -644,13 +724,7 @@ export function LiveDashboardClient({
       fundamentalsPipelineStage,
       copy,
       numberLocale,
-      {
-        label: copy.operational.checked,
-        value: formatEodSymbolCount(
-          getFundamentalsCheckedCount(freshness, fundamentalsStatus, fundamentalsFreshnessWithPipelineStage),
-          numberLocale,
-        ),
-      },
+      fundamentalsPrimaryCountDetail,
       getFundamentalsStageStatusLabel,
     );
 
@@ -704,10 +778,9 @@ export function LiveDashboardClient({
     actionPipelineStage,
     copy,
     eodStatusMarketDate,
-    freshness,
     fundamentalsFreshnessWithPipelineStage,
     fundamentalsPipelineStage,
-    fundamentalsStatus,
+    fundamentalsPrimaryCountDetail,
     fundamentalsUpdatedSymbolsDetail,
     isBreakDay,
     latestFundamentalsDate,
@@ -720,6 +793,13 @@ export function LiveDashboardClient({
     technicalLatestDate,
     technicalPipelineStage,
   ]);
+  useEffect(() => {
+    setFundamentalsUpdatesExpanded(false);
+  }, [fundamentalsUpdatedActivity?.key]);
+  const toggleFundamentalsUpdatesExpanded = useCallback(() => {
+    if (!fundamentalsUpdatedActivity?.canExpand) return;
+    setFundamentalsUpdatesExpanded((current) => !current);
+  }, [fundamentalsUpdatedActivity?.canExpand]);
   const agentProgressMarketDate = getAgentFeedbackProgressMarketDate(freshness);
   const displayedAgentFeedbackProgress = useMemo(
     () =>
@@ -923,8 +1003,11 @@ export function LiveDashboardClient({
               copy={copy}
               eodStageCards={eodStageCards}
               fundamentalsDialogOpen={fundamentalsDialogOpen}
+              fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
+              fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
               fundamentalsFailureDetails={fundamentalsFailureDetails}
               onOpenFundamentalsDetails={openFundamentalsDetails}
+              onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
             />
 
             <PiotroskiFilteringCard

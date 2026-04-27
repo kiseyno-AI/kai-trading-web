@@ -357,6 +357,71 @@
   overflow-wrap: normal;
 }
 
+.fundamentalsUpdatedBlock {
+  display: grid;
+  gap: 0.32rem;
+  margin-top: 0.2rem;
+}
+
+.fundamentalsUpdatedLabel {
+  color: #93a3b8;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fundamentalsUpdatedList {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.fundamentalsUpdatedRow {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.5rem 0.58rem;
+  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 0.45rem;
+  background: rgba(13, 28, 46, 0.72);
+}
+
+.fundamentalsUpdatedCompany {
+  color: #f6f8ff;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.fundamentalsUpdatedCategory {
+  color: #c5c5d4;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.inlineToggleButton {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #bac3ff;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.16em;
+  cursor: pointer;
+}
+
+.inlineToggleButton:hover {
+  color: #e8eeff;
+}
+
 .agentRoleList {
   display: grid;
   gap: 0.45rem;
@@ -683,6 +748,7 @@
 }
 
 .detailButton:focus-visible,
+.inlineToggleButton:focus-visible,
 .dialogCloseButton:focus-visible,
 .agentFeedbackStopButton:focus-visible,
 .dialogActionButton:focus-visible {

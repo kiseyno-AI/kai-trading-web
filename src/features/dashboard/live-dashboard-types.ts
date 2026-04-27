@@ -91,6 +91,21 @@ export type EodStageDetail = {
   layout?: "inline" | "stacked";
 };
 
+export type FundamentalsUpdatedEntryModel = {
+  key: string;
+  symbol: string;
+  companyName: string;
+  categoryLabel: string;
+};
+
+export type FundamentalsUpdatedActivityModel = {
+  key: string;
+  countLabel: string;
+  previewItems: FundamentalsUpdatedEntryModel[];
+  allItems: FundamentalsUpdatedEntryModel[];
+  canExpand: boolean;
+};
+
 export type EodStageCard = {
   id: EodStageId;
   label: string;
