@@ -16,8 +16,13 @@ import {
   buildEodPipelineStatusPath,
   EOD_PIPELINE_STATUS_UPSTREAM_PATH,
 } from "@/lib/eod-pipeline-status";
+import {
+  buildSignalDeciderFeedbackPath,
+  SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+} from "@/lib/signal-decider-feedback";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
 import type {
+  AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
@@ -89,6 +94,7 @@ export default async function DashboardPage() {
   let fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null = null;
   let pipelineStatus: EodPipelineStatusResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
+  let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
 
@@ -126,6 +132,17 @@ export default async function DashboardPage() {
         ? fetchServerTradingApiJson<AgentFeedbackProgressResponseDto>(progressPath, requestHeaders).catch(() => null)
         : Promise.resolve(null),
     ]);
+
+    const signalDeciderMarketDate = getAgentFeedbackProgressMarketDate(freshness);
+    signalDeciderFeedback = signalDeciderMarketDate
+      ? await fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
+          buildSignalDeciderFeedbackPath({
+            basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+            marketDate: signalDeciderMarketDate,
+          }),
+          requestHeaders,
+        ).catch(() => null)
+      : null;
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
     console.error("Dashboard server render failed", error);
@@ -141,6 +158,7 @@ export default async function DashboardPage() {
       initialFundamentalsStatus={fundamentalsStatus}
       initialPipelineStatus={pipelineStatus}
       initialAgentFeedbackProgress={agentFeedbackProgress}
+      initialSignalDeciderFeedback={signalDeciderFeedback}
     />
   );
 }

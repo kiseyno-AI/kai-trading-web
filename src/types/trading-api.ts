@@ -345,6 +345,60 @@ export type AgentFeedbackProgressResponseDto = {
   } | null;
 };
 
+export type AgentFeedbackStoredPayloadDto = Record<string, unknown> & {
+  role?: string | null;
+  agent_name?: string | null;
+  symbol?: string | null;
+  market_date?: string | null;
+  preferred_action?: string | null;
+  next_day_open_action?: string | null;
+  entry_price_basis?: string | null;
+  target_price?: number | string | null;
+  expected_return_pct?: number | string | null;
+  stop_loss_price?: number | string | null;
+  suggested_holding_period?: string | null;
+  confidence_score_10?: number | string | null;
+  conviction_score_10?: number | string | null;
+  thesis_summary?: string | null;
+  supporting_evidence?: unknown;
+  decision_risks?: unknown;
+  risk_flags?: unknown;
+  specialist_disagreement?: unknown;
+  traceability?: Record<string, unknown> | null;
+  details?: Record<string, unknown> | null;
+  summary?: string | null;
+};
+
+export type AgentFeedbackStoredItemDto = {
+  id: number | string;
+  market_date: string;
+  symbol: string;
+  agent: {
+    name: string;
+    version?: string | null;
+    run_id?: string | null;
+  };
+  summary: Record<string, unknown> | string | null;
+  feedback: AgentFeedbackStoredPayloadDto | null;
+  normalized_feedback?: AgentFeedbackStoredPayloadDto | null;
+  details?: Record<string, unknown> | null;
+  context?: Record<string, unknown> | null;
+  received_at: string | null;
+};
+
+export type AgentFeedbackListResponseDto = {
+  request: {
+    market_date: string;
+    symbols: string[];
+    agent_name: string | null;
+    limit: number;
+  };
+  summary: {
+    count: number;
+  };
+  items: AgentFeedbackStoredItemDto[];
+};
+
 export type AgentContextCoreControlAction = "kill" | "restart";
 export type AgentContextCoreControlSignal = "SIGTERM" | "SIGKILL";
 

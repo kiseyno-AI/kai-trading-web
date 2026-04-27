@@ -17,6 +17,10 @@ import {
 } from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
+  buildSignalDeciderFeedbackPath,
+  SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+} from "@/lib/signal-decider-feedback";
+import {
   getCachedTradingApiJson,
   seedTradingApiJsonCache,
   seedTradingApiJsonSnapshot,
@@ -45,6 +49,7 @@ import type {
   SymbolSearchResponse,
 } from "./live-dashboard-types";
 import type {
+  AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
@@ -102,6 +107,7 @@ export function useLiveDashboardData({
   initialFundamentalsStatus,
   initialPipelineStatus,
   initialAgentFeedbackProgress,
+  initialSignalDeciderFeedback,
 }: LiveDashboardClientProps) {
   const initialPipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
     initialFreshness?.today?.trade_date,
@@ -134,6 +140,10 @@ export function useLiveDashboardData({
     });
   };
   const [agentFeedbackProgressError, setAgentFeedbackProgressError] = useState<string | null>(null);
+  const [signalDeciderFeedback, setSignalDeciderFeedback] = useState<AgentFeedbackListResponseDto | null>(
+    initialSignalDeciderFeedback,
+  );
+  const [signalDeciderFeedbackError, setSignalDeciderFeedbackError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
   const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(null);
@@ -596,6 +606,44 @@ export function useLiveDashboardData({
     };
   }, [agentProgressMarketDate]);
 
+  const signalDeciderFeedbackRefreshKey = [
+    agentProgressMarketDate,
+    agentFeedbackProgress?.summary?.latest_feedback_at ?? "",
+    agentFeedbackProgress?.summary?.run_completed_at ?? "",
+    agentFeedbackProgress?.summary?.run_status ?? "",
+  ].join(":");
+
+  useEffect(() => {
+    if (!agentProgressMarketDate) {
+      return;
+    }
+
+    let active = true;
+    const feedbackPath = buildSignalDeciderFeedbackPath({
+      basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+      marketDate: agentProgressMarketDate,
+    });
+
+    const loadSignalDeciderFeedback = async () => {
+      try {
+        const data = await getJsonNoCache<AgentFeedbackListResponseDto>(feedbackPath);
+        if (!active) return;
+        setSignalDeciderFeedback(data);
+        setSignalDeciderFeedbackError(null);
+      } catch (feedbackError) {
+        console.error("Dashboard signal decider feedback load failed", feedbackError);
+        if (!active) return;
+        setSignalDeciderFeedbackError(getDashboardLoadErrorMessage(feedbackError));
+      }
+    };
+
+    void loadSignalDeciderFeedback();
+
+    return () => {
+      active = false;
+    };
+  }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
+
   return {
     agentFeedbackProgress,
     agentFeedbackProgressError,
@@ -611,6 +659,11 @@ export function useLiveDashboardData({
     pipelineStatus,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
+    signalDeciderFeedback:
+      agentProgressMarketDate && signalDeciderFeedback?.request?.market_date === agentProgressMarketDate
+        ? signalDeciderFeedback
+        : null,
+    signalDeciderFeedbackError: agentProgressMarketDate ? signalDeciderFeedbackError : null,
     symbolMetaBySymbol,
     tracked,
     trackedError,
