@@ -2,10 +2,10 @@
   position: relative;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top right, rgba(186, 195, 255, 0.16), transparent 32%),
-    radial-gradient(circle at bottom left, rgba(78, 222, 163, 0.12), transparent 28%),
-    linear-gradient(180deg, #07182d 0%, #051425 100%);
-  color: #d5e3fc;
+    radial-gradient(circle at top right, rgba(197, 192, 255, 0.16), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(74, 225, 118, 0.08), transparent 26%),
+    linear-gradient(180deg, #101419 0%, #0d1116 52%, #0a0e13 100%);
+  color: var(--text);
   overflow: hidden;
 }
 
@@ -29,7 +29,7 @@
   right: -3rem;
   width: 12rem;
   height: 12rem;
-  background: rgba(186, 195, 255, 0.18);
+  background: rgba(197, 192, 255, 0.18);
 }
 
 .glowSecondary {
@@ -37,7 +37,7 @@
   left: -4rem;
   width: 14rem;
   height: 14rem;
-  background: rgba(78, 222, 163, 0.14);
+  background: rgba(74, 225, 118, 0.12);
 }
 
 .headerFrame {
@@ -46,8 +46,9 @@
   z-index: 40;
   display: flex;
   justify-content: center;
-  padding: 0.75rem 0.75rem 0;
+  padding: 0.75rem 0.9rem 0;
   pointer-events: none;
+  background: linear-gradient(180deg, rgba(16, 20, 25, 0.88), rgba(16, 20, 25, 0));
 }
 
 .headerInner {
@@ -56,12 +57,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.8rem 0.95rem;
-  border: 1px solid rgba(143, 144, 158, 0.18);
-  border-radius: 1.2rem;
-  background: rgba(13, 28, 46, 0.88);
-  box-shadow: 0 18px 42px rgba(1, 15, 32, 0.42);
-  backdrop-filter: blur(18px);
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: 1.25rem;
+  background: rgba(16, 20, 25, 0.82);
+  box-shadow:
+    0 18px 42px rgba(10, 14, 19, 0.32),
+    0 0 24px rgba(197, 192, 255, 0.08);
+  backdrop-filter: blur(20px);
   pointer-events: auto;
 }
 
@@ -82,7 +85,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+  padding: 0 0.9rem calc(0.75rem + env(safe-area-inset-bottom));
   pointer-events: none;
 }
 
@@ -99,13 +102,13 @@
   min-width: 0;
   display: flex;
   justify-content: flex-start;
-  color: #c5c8ff;
-  font-family: var(--font-space-grotesk), sans-serif;
+  color: var(--accent);
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.65rem;
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  text-shadow: 0 1px 10px rgba(1, 15, 32, 0.7);
+  text-shadow: 0 1px 10px rgba(10, 14, 19, 0.55);
 }
 
 .localeSwitch {
@@ -113,10 +116,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.2rem;
   padding: 0.18rem;
-  border: 1px solid rgba(143, 144, 158, 0.14);
+  border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 999px;
-  background: rgba(13, 28, 46, 0.82);
-  box-shadow: 0 8px 24px rgba(1, 15, 32, 0.24);
+  background: rgba(24, 28, 33, 0.88);
+  box-shadow: 0 8px 24px rgba(10, 14, 19, 0.2);
 }
 
 .localeButton {
@@ -128,11 +131,11 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #93a3b8;
-  font-family: var(--font-space-grotesk), sans-serif;
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.64rem;
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: 0.08em;
   line-height: 1;
   transition:
     background-color 160ms ease,
@@ -140,12 +143,13 @@
 }
 
 .localeButton:hover {
-  color: #f6f8ff;
+  color: var(--text-strong);
 }
 
 .localeButtonActive {
-  background: #3f51b5;
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 16px rgba(197, 192, 255, 0.2);
 }
 
 .mobileLocaleSwitch {
@@ -157,12 +161,15 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
-  padding: 0.55rem;
-  border: 1px solid rgba(143, 144, 158, 0.16);
-  border-radius: 1.1rem;
-  background: rgba(13, 28, 46, 0.96);
-  box-shadow: 0 -8px 30px rgba(1, 15, 32, 0.38);
+  padding: 0.6rem;
+  border: 1px solid rgba(71, 69, 85, 0.16);
+  border-radius: 1.35rem 1.35rem 1rem 1rem;
+  background: rgba(16, 20, 25, 0.94);
+  box-shadow:
+    0 -8px 30px rgba(10, 14, 19, 0.34),
+    0 0 24px rgba(197, 192, 255, 0.08);
   pointer-events: auto;
+  backdrop-filter: blur(20px);
 }
 
 .navItem {
@@ -175,7 +182,7 @@
   gap: 0.3rem;
   padding: 0.55rem 0.35rem;
   border-radius: 0.9rem;
-  color: #c5c5d4;
+  color: var(--muted);
   text-decoration: none;
   transition:
     background-color 160ms ease,
@@ -184,8 +191,8 @@
 }
 
 .navItem:hover {
-  color: #f3f6ff;
-  background: rgba(40, 54, 72, 0.76);
+  color: var(--text-strong);
+  background: rgba(38, 42, 48, 0.82);
 }
 
 .navItem:active {
@@ -193,13 +200,16 @@
 }
 
 .navItemActive {
-  color: #ffffff;
-  background: #3f51b5;
+  color: var(--accent);
+  background: rgba(109, 94, 247, 0.1);
+  box-shadow:
+    inset 0 0 0 1px rgba(109, 94, 247, 0.18),
+    0 0 14px rgba(109, 94, 247, 0.1);
 }
 
 .navItemPending {
-  color: #f6f8ff;
-  background: rgba(40, 54, 72, 0.84);
+  color: var(--text-strong);
+  background: rgba(38, 42, 48, 0.9);
 }
 
 .navItemPending::after,
@@ -218,7 +228,7 @@
 }
 
 .navLabel {
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -241,9 +251,9 @@
     overflow-x: hidden;
     overflow-y: auto;
     background:
-      linear-gradient(90deg, rgba(18, 32, 50, 0.95) 0, rgba(18, 32, 50, 0.95) 16.5rem, transparent 16.5rem),
-      radial-gradient(circle at 86% 8%, rgba(186, 195, 255, 0.1), transparent 26rem),
-      linear-gradient(180deg, #071425 0%, #061324 48%, #05101f 100%);
+      linear-gradient(90deg, rgba(10, 14, 19, 0.96) 0, rgba(10, 14, 19, 0.96) 15.5rem, transparent 15.5rem),
+      radial-gradient(circle at 86% 8%, rgba(197, 192, 255, 0.1), transparent 26rem),
+      linear-gradient(180deg, #101419 0%, #0d1116 48%, #0a0e13 100%);
   }
 
   .desktopRail {
@@ -251,20 +261,20 @@
     inset: 0 auto 0 0;
     z-index: 50;
     display: flex;
-    width: 16.5rem;
+    width: 15.5rem;
     flex-direction: column;
-    gap: 4rem;
+    gap: 3.2rem;
     padding: 2rem 1rem;
-    border-right: 1px solid rgba(143, 144, 158, 0.12);
-    background: rgba(12, 26, 42, 0.92);
-    box-shadow: 18px 0 58px rgba(1, 15, 32, 0.32);
+    border-right: 1px solid rgba(71, 69, 85, 0.12);
+    background: rgba(10, 14, 19, 0.92);
+    box-shadow: 18px 0 58px rgba(10, 14, 19, 0.3);
   }
 
   .desktopBrand {
     display: flex;
     align-items: center;
     gap: 0.85rem;
-    color: #f6f8ff;
+    color: var(--text-strong);
   }
 
   .desktopBrandMark {
@@ -272,20 +282,21 @@
     height: 3.2rem;
     display: grid;
     place-items: center;
-    border-radius: 0.45rem;
-    background: linear-gradient(145deg, #d9ddff, #7f8dd6);
-    color: #182038;
-    font-family: var(--font-space-grotesk), sans-serif;
+    border-radius: 1rem;
+    background: linear-gradient(145deg, var(--accent), var(--accent-strong));
+    color: var(--primary-foreground);
+    font-family: var(--font-manrope), sans-serif;
     font-size: 1.08rem;
     font-weight: 800;
-    letter-spacing: 0;
+    letter-spacing: 0.08em;
+    box-shadow: 0 0 20px rgba(197, 192, 255, 0.18);
   }
 
   .desktopBrand strong,
   .desktopNavItem span,
   .desktopRailStatus span,
   .releaseValue {
-    font-family: var(--font-space-grotesk), sans-serif;
+    font-family: var(--font-inter), sans-serif;
   }
 
   .desktopBrand strong {
@@ -298,10 +309,10 @@
   .desktopBrand span {
     display: block;
     margin-top: 0.28rem;
-    color: #93a3b8;
+    color: var(--muted-soft);
     font-size: 0.7rem;
     font-weight: 800;
-    letter-spacing: 0;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
@@ -317,9 +328,9 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.95rem 1rem;
-    border-radius: 0.12rem;
-    color: #aeb8c8;
+    padding: 1rem;
+    border-radius: 1rem;
+    color: var(--muted);
     text-decoration: none;
     transition:
       background-color 160ms ease,
@@ -328,19 +339,21 @@
   }
 
   .desktopNavItem:hover {
-    color: #f6f8ff;
-    background: rgba(40, 54, 72, 0.7);
+    color: var(--text-strong);
+    background: rgba(38, 42, 48, 0.82);
   }
 
   .desktopNavItemActive {
-    color: #e6e8ff;
-    background: rgba(42, 58, 82, 0.92);
-    box-shadow: inset -3px 0 0 #c5c8ff;
+    color: var(--accent);
+    background: rgba(109, 94, 247, 0.1);
+    box-shadow:
+      inset 0 0 0 1px rgba(109, 94, 247, 0.18),
+      0 0 20px rgba(197, 192, 255, 0.08);
   }
 
   .desktopNavItemPending {
-    color: #f6f8ff;
-    background: rgba(40, 54, 72, 0.78);
+    color: var(--text-strong);
+    background: rgba(38, 42, 48, 0.84);
   }
 
   .desktopNavItem .navIcon,
@@ -369,29 +382,29 @@
     flex-direction: column;
     gap: 0.45rem;
     padding: 1rem;
-    border: 1px solid rgba(143, 144, 158, 0.1);
-    border-radius: 0.25rem;
-    background: rgba(18, 32, 50, 0.7);
+    border: 1px solid rgba(71, 69, 85, 0.16);
+    border-radius: 1.1rem;
+    background: rgba(24, 28, 33, 0.72);
   }
 
   .desktopLocaleSwitch {
     width: 100%;
     margin-top: 0.25rem;
-    background: rgba(7, 18, 34, 0.62);
+    background: rgba(10, 14, 19, 0.72);
   }
 
   .releaseKicker {
     display: block;
-    color: #93a3b8;
+    color: var(--muted-soft);
     font-size: 0.7rem;
     font-weight: 800;
-    letter-spacing: 0;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
   .releaseValue {
     display: block;
-    color: #f6f8ff;
+    color: var(--text-strong);
     font-size: 1.25rem;
     font-weight: 800;
     letter-spacing: 0;
@@ -403,12 +416,12 @@
     width: 3.5rem;
     height: 0.28rem;
     border-radius: 999px;
-    background: #c5c8ff;
-    box-shadow: 0 0 16px rgba(197, 200, 255, 0.45);
+    background: var(--accent);
+    box-shadow: 0 0 16px rgba(197, 192, 255, 0.32);
   }
 
   .headerFrame {
-    inset: 0 0 auto 16.5rem;
+    inset: 0 0 auto 15.5rem;
     justify-content: stretch;
     padding: 1.15rem 2rem 0;
   }
@@ -417,15 +430,15 @@
     width: 100%;
     max-width: none;
     min-height: 4.2rem;
-    border-radius: 0.18rem;
-    background: rgba(7, 18, 34, 0.84);
-    box-shadow: 0 18px 42px rgba(1, 15, 32, 0.22);
+    border-radius: 1.25rem;
+    background: rgba(16, 20, 25, 0.8);
+    box-shadow: 0 18px 42px rgba(10, 14, 19, 0.22);
   }
 
   .main {
     width: auto;
     max-width: none;
-    margin: 0 0 0 16.5rem;
+    margin: 0 0 0 15.5rem;
     padding: 6.7rem 2rem 3rem;
   }
 
@@ -458,23 +471,23 @@
 @media (min-width: 1440px) {
   .surface {
     background:
-      linear-gradient(90deg, rgba(18, 32, 50, 0.95) 0, rgba(18, 32, 50, 0.95) 18rem, transparent 18rem),
-      radial-gradient(circle at 86% 8%, rgba(186, 195, 255, 0.1), transparent 26rem),
-      linear-gradient(180deg, #071425 0%, #061324 48%, #05101f 100%);
+      linear-gradient(90deg, rgba(10, 14, 19, 0.96) 0, rgba(10, 14, 19, 0.96) 17rem, transparent 17rem),
+      radial-gradient(circle at 86% 8%, rgba(197, 192, 255, 0.1), transparent 26rem),
+      linear-gradient(180deg, #101419 0%, #0d1116 48%, #0a0e13 100%);
   }
 
   .desktopRail {
-    width: 18rem;
+    width: 17rem;
     padding-inline: 1.2rem;
   }
 
   .headerFrame {
-    left: 18rem;
+    left: 17rem;
     padding-inline: 2.4rem;
   }
 
   .main {
-    margin-left: 18rem;
+    margin-left: 17rem;
     padding-inline: 2.4rem;
   }
 }

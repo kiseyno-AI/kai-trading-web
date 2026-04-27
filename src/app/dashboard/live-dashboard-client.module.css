@@ -11,18 +11,19 @@
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: linear-gradient(145deg, rgba(63, 81, 181, 0.95), rgba(122, 135, 230, 0.72));
-  color: #ffffff;
-  font-family: var(--font-space-grotesk), sans-serif;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: var(--primary-foreground);
+  font-family: var(--font-manrope), sans-serif;
   font-size: 0.92rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 18px rgba(197, 192, 255, 0.18);
 }
 
 .brandEyebrow,
 .sectionEyebrow {
   margin: 0;
-  color: #bac3ff;
+  color: var(--accent);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.64rem;
   font-weight: 700;
@@ -32,7 +33,7 @@
 
 .brandTitle {
   display: block;
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1rem;
   font-weight: 800;
@@ -51,9 +52,9 @@
 }
 
 .marketStatusClosedPill {
-  background: rgba(143, 144, 158, 0.2);
-  color: #f3f7ff;
-  box-shadow: inset 0 0 0 1px rgba(186, 195, 255, 0.2);
+  background: rgba(71, 69, 85, 0.26);
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px rgba(197, 192, 255, 0.14);
 }
 
 .stack {
@@ -65,10 +66,12 @@
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(143, 144, 158, 0.14);
+  border: 1px solid rgba(71, 69, 85, 0.22);
   border-radius: 1.25rem;
-  background: rgba(18, 32, 50, 0.92);
-  box-shadow: 0 24px 48px rgba(1, 15, 32, 0.28);
+  background: rgba(28, 32, 37, 0.92);
+  box-shadow:
+    0 24px 48px rgba(10, 14, 19, 0.28),
+    0 0 24px rgba(197, 192, 255, 0.06);
 }
 
 .panelHeader {
@@ -101,7 +104,7 @@
 
 .heroTitle {
   margin: 0.28rem 0 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.85rem;
   font-weight: 800;
@@ -110,13 +113,13 @@
 
 .supportingCopy {
   margin: 0.45rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   line-height: 1.5;
 }
 
 .marketContext {
   margin: 0.55rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.84rem;
   line-height: 1.55;
 }
@@ -136,13 +139,13 @@
 }
 
 .primaryDateLabel {
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.78rem;
   line-height: 1.45;
 }
 
 .primaryDateValue {
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.9rem;
   font-weight: 700;
@@ -157,9 +160,9 @@
 
 .integrityStat {
   padding: 0.85rem;
-  border-radius: 0.5rem;
-  background: rgba(13, 28, 46, 0.82);
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  border-radius: 1rem;
+  background: rgba(24, 28, 33, 0.84);
+  border: 1px solid rgba(71, 69, 85, 0.18);
 }
 
 .integrityStat > span,
@@ -167,7 +170,7 @@
 .cardFooter span,
 .supportRow p {
   display: block;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -176,7 +179,7 @@
 .cardMeta strong {
   display: block;
   margin-top: 0.3rem;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
@@ -184,7 +187,7 @@
 
 .eodStatusDetails {
   margin: 0.6rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.84rem;
   line-height: 1.55;
 }
@@ -216,13 +219,13 @@
 
 .cardContext {
   margin: 0.35rem 0 0;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.78rem;
   line-height: 1.45;
 }
 
 .agentProgressDate {
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.78rem;
   line-height: 1.45;
 }
@@ -247,9 +250,9 @@
   justify-content: flex-start;
   gap: 0.5rem;
   padding: 0.8rem;
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.5rem;
-  background: rgba(5, 20, 37, 0.56);
+  background: rgba(10, 14, 19, 0.62);
 }
 
 .eodStageTop {
@@ -261,7 +264,7 @@
 
 .eodStageTitle {
   min-width: 0;
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.86rem;
   font-weight: 800;
@@ -316,7 +319,7 @@
   gap: 0.25rem;
   margin-top: 0;
   min-width: 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.76rem;
   line-height: 1.45;
 }
@@ -364,7 +367,7 @@
 }
 
 .fundamentalsUpdatedLabel {
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.68rem;
   line-height: 1.35;
   text-transform: uppercase;
@@ -380,13 +383,13 @@
   display: grid;
   gap: 0.12rem;
   padding: 0.5rem 0.58rem;
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.45rem;
-  background: rgba(13, 28, 46, 0.72);
+  background: rgba(24, 28, 33, 0.76);
 }
 
 .fundamentalsUpdatedCompany {
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.76rem;
   font-weight: 700;
@@ -395,7 +398,7 @@
 }
 
 .fundamentalsUpdatedCategory {
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -406,7 +409,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #bac3ff;
+  color: var(--accent);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
@@ -434,7 +437,7 @@
   grid-template-columns: minmax(0, 1fr);
   align-items: flex-start;
   padding: 0.62rem 0.68rem;
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.5rem;
   background: rgba(5, 20, 37, 0.46);
 }
@@ -456,7 +459,7 @@
 
 .agentRoleName {
   min-width: 0;
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.82rem;
   font-weight: 800;
@@ -502,7 +505,7 @@
   width: 0.28rem;
   height: 0.28rem;
   border-radius: 999px;
-  background: #93a3b8;
+  background: var(--muted-soft);
 }
 
 .agentRoleProgressIcon[data-role-progress-icon="attention"] {
@@ -523,14 +526,14 @@
   height: 0.34rem;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(143, 144, 158, 0.2);
+  background: rgba(71, 69, 85, 0.26);
 }
 
 .agentRoleProgressTrack i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #6ffbbe, #bac3ff);
+  background: linear-gradient(90deg, #6ffbbe, var(--accent));
 }
 
 .agentRoleProgressTrack[data-role-progress-track="completed"] i {
@@ -538,7 +541,7 @@
 }
 
 .agentRoleProgressTrack[data-role-progress-track="pending"] i {
-  background: #93a3b8;
+  background: var(--muted-soft);
 }
 
 .agentRoleProgressTrack[data-role-progress-track="attention"] i {
@@ -546,7 +549,7 @@
 }
 
 .agentRoleStatusText {
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -569,20 +572,20 @@
 .agentRoleMetric {
   min-width: 0;
   padding: 0.5rem 0.55rem;
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.45rem;
-  background: rgba(13, 28, 46, 0.72);
+  background: rgba(24, 28, 33, 0.76);
 }
 
 .agentRoleMetric dt {
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.66rem;
   line-height: 1.35;
 }
 
 .agentRoleMetric dd {
   margin: 0.18rem 0 0;
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.76rem;
   font-weight: 700;
@@ -611,12 +614,12 @@
   min-width: 0;
   padding: 0.72rem 0.78rem;
   border-radius: 0.95rem;
-  background: rgba(5, 20, 37, 0.6);
+  background: rgba(10, 14, 19, 0.64);
 }
 
 .statusMetric span {
   display: block;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -624,7 +627,7 @@
 .statusMetric strong {
   display: block;
   margin-top: 0.3rem;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
@@ -658,7 +661,7 @@
 }
 
 .supportRow strong {
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.94rem;
   font-weight: 700;
@@ -775,7 +778,7 @@
   overflow-y: auto;
   border: 1px solid rgba(186, 195, 255, 0.22);
   border-radius: 0.5rem;
-  background: rgba(13, 28, 46, 0.98);
+  background: rgba(24, 28, 33, 0.98);
   box-shadow: 0 28px 70px rgba(1, 15, 32, 0.46);
   padding: 1rem;
 }
@@ -793,7 +796,7 @@
 
 .dialogTitle {
   margin: 0.25rem 0 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.35rem;
   font-weight: 800;
@@ -807,7 +810,7 @@
   border: 1px solid rgba(186, 195, 255, 0.18);
   border-radius: 0.45rem;
   background: rgba(255, 255, 255, 0.06);
-  color: #f6f8ff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
@@ -821,7 +824,7 @@
 
 .confirmationMessage {
   margin: 0.95rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.55;
 }
@@ -843,8 +846,8 @@
   padding: 0 1rem;
   border: 1px solid rgba(186, 195, 255, 0.2);
   border-radius: 0.5rem;
-  background: rgba(18, 32, 50, 0.82);
-  color: #f6f8ff;
+  background: rgba(28, 32, 37, 0.82);
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
@@ -893,14 +896,14 @@
 .metadataBlock {
   min-width: 0;
   padding: 0.75rem;
-  border: 1px solid rgba(143, 144, 158, 0.12);
+  border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.45rem;
-  background: rgba(5, 20, 37, 0.56);
+  background: rgba(10, 14, 19, 0.62);
 }
 
 .failureDetailItem dt,
 .metadataBlock dt {
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
   line-height: 1.4;
 }
@@ -909,7 +912,7 @@
 .metadataBlock dd {
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.84rem;
   font-weight: 700;
@@ -922,7 +925,7 @@
 
 .metadataBlock strong {
   display: block;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.94rem;
   font-weight: 800;
@@ -950,7 +953,7 @@
 
 .sectionTitle {
   margin: 0.24rem 0 0;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.1rem;
   font-weight: 800;
@@ -985,15 +988,15 @@
   flex-direction: column;
   gap: 0.85rem;
   padding: 1rem;
-  border: 1px solid rgba(143, 144, 158, 0.14);
+  border: 1px solid rgba(71, 69, 85, 0.22);
   border-radius: 1.2rem;
-  background: rgba(13, 28, 46, 0.9);
+  background: rgba(24, 28, 33, 0.9);
   text-decoration: none;
   box-shadow: 0 20px 38px rgba(1, 15, 32, 0.22);
 }
 
 .trackedCardMuted {
-  background: rgba(13, 28, 46, 0.62);
+  background: rgba(24, 28, 33, 0.66);
 }
 
 .trackedCardTop {
@@ -1020,7 +1023,7 @@
 .companyName {
   display: block;
   overflow-wrap: anywhere;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1rem;
   font-weight: 700;
@@ -1029,7 +1032,7 @@
 
 .symbolCode {
   margin: 0.22rem 0 0;
-  color: #c5c5d4;
+  color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -1037,7 +1040,7 @@
 .priceBlock strong {
   display: block;
   overflow-wrap: anywhere;
-  color: #ffffff;
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1.55rem;
   font-weight: 700;
@@ -1061,7 +1064,7 @@
 .cardMeta > div {
   padding: 0.72rem 0.78rem;
   border-radius: 0.95rem;
-  background: rgba(5, 20, 37, 0.6);
+  background: rgba(10, 14, 19, 0.64);
 }
 
 .cardFooter {
@@ -1074,7 +1077,7 @@
 .cardFooter span {
   flex: 1;
   margin: 0;
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.72rem;
 }
 
@@ -1092,8 +1095,8 @@
   gap: 0.8rem;
   padding: 0.85rem 0.95rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.64);
-  border: 1px solid rgba(143, 144, 158, 0.1);
+  background: rgba(24, 28, 33, 0.68);
+  border: 1px solid rgba(71, 69, 85, 0.16);
 }
 
 .supportRow {
@@ -1131,11 +1134,11 @@
 }
 
 .supportPrice {
-  color: #ffffff;
+  color: var(--text-strong);
 }
 
 .supportScore {
-  color: #93a3b8;
+  color: var(--muted-soft);
   font-size: 0.74rem;
   font-weight: 600;
 }
@@ -1143,8 +1146,8 @@
 .emptyState {
   padding: 0.95rem;
   border-radius: 1rem;
-  background: rgba(13, 28, 46, 0.56);
-  color: #c5c5d4;
+  background: rgba(24, 28, 33, 0.6);
+  color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.5;
 }
@@ -1218,7 +1221,7 @@
 
   .panel {
     border-radius: 0.18rem;
-    background: rgba(18, 32, 50, 0.82);
+    background: rgba(28, 32, 37, 0.82);
     box-shadow: 0 28px 64px rgba(1, 15, 32, 0.24);
   }
 

@@ -12,9 +12,9 @@
   border: 1px solid var(--border);
   border-radius: 24px;
   background:
-    linear-gradient(180deg, rgba(18, 32, 50, 0.96), rgba(12, 23, 37, 0.94)),
-    radial-gradient(circle at top right, rgba(127, 184, 255, 0.16), transparent 32%);
-  box-shadow: var(--shadow-soft);
+    radial-gradient(circle at top right, rgba(197, 192, 255, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(28, 32, 37, 0.96), rgba(16, 20, 25, 0.94));
+  box-shadow: var(--shadow-soft), 0 0 24px rgba(197, 192, 255, 0.05);
 }
 
 .heroPanel {
@@ -65,7 +65,7 @@
   padding: 16px;
   border: 1px solid var(--outline);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(24, 28, 33, 0.82);
 }
 
 .summaryCard strong {
@@ -94,14 +94,15 @@
 }
 
 .primaryLink {
-  border: 1px solid rgba(127, 184, 255, 0.32);
-  background: linear-gradient(135deg, rgba(127, 184, 255, 0.24), rgba(186, 195, 255, 0.14));
-  color: var(--text-strong);
+  border: 1px solid rgba(109, 94, 247, 0.16);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: var(--primary-foreground);
+  box-shadow: 0 16px 34px rgba(109, 94, 247, 0.22);
 }
 
 .secondaryLink {
   border: 1px solid var(--outline);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(24, 28, 33, 0.78);
   color: var(--muted);
 }
 
@@ -138,8 +139,8 @@
   border: 1px solid var(--outline);
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(127, 184, 255, 0.08)),
-    rgba(255, 255, 255, 0.02);
+    linear-gradient(180deg, rgba(49, 53, 59, 0.7), rgba(24, 28, 33, 0.94)),
+    rgba(24, 28, 33, 0.84);
 }
 
 .favoriteCard strong,
@@ -167,8 +168,8 @@
   border: 1px solid var(--outline);
   border-radius: 22px;
   background:
-    radial-gradient(circle at top right, rgba(78, 222, 163, 0.08), transparent 30%),
-    rgba(255, 255, 255, 0.03);
+    radial-gradient(circle at top right, rgba(74, 225, 118, 0.08), transparent 30%),
+    rgba(24, 28, 33, 0.84);
 }
 
 .cardHeader,
@@ -210,8 +211,8 @@
 }
 
 .badgeFavorite {
-  border: 1px solid rgba(186, 195, 255, 0.28);
-  background: rgba(186, 195, 255, 0.14);
+  border: 1px solid rgba(197, 192, 255, 0.18);
+  background: rgba(109, 94, 247, 0.12);
   color: var(--accent);
 }
 

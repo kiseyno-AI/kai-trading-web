@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Inter, Manrope } from "next/font/google";
 
 import { NavigationLoadingProvider } from "@/components/providers/navigation-loading-provider";
 import { AppStateProvider } from "@/components/providers/app-state-provider";
 import { WebDiagnosticsProvider } from "@/components/providers/web-diagnostics-provider";
 import "./globals.css";
 
-const sora = localFont({
-  src: "../../public/fonts/Sora-Variable.ttf",
-  variable: "--font-sora",
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
   display: "swap",
-  weight: "100 800",
+});
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -32,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sora.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} ${manrope.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <NavigationLoadingProvider>
           <AppStateProvider>

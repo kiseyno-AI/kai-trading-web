@@ -21,11 +21,11 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         glass:
-          "ui-button !h-auto !min-h-0 !w-auto !max-w-full !rounded-[var(--radius-md)] !border !border-[var(--border)] !bg-[rgba(255,255,255,0.03)] !text-[var(--text)] !shadow-none !gap-2.5 !px-3 !py-2 !text-sm !font-normal hover:!bg-[rgba(255,255,255,0.06)] focus-visible:!ring-2 focus-visible:!ring-[var(--ring)]",
+          "ui-button !h-auto !min-h-0 !w-auto !max-w-full !rounded-[20px] !border !border-[var(--border)] !bg-[rgba(49,53,59,0.46)] !text-[var(--text)] !shadow-[0_14px_30px_rgba(10,14,19,0.18)] !backdrop-blur-xl !gap-2.5 !px-3.5 !py-2.5 !text-sm !font-medium hover:!bg-[rgba(49,53,59,0.62)] focus-visible:!ring-2 focus-visible:!ring-[var(--ring)]",
         pill:
-          "ui-button !h-auto !min-h-[46px] !rounded-full !border !border-[var(--border)] !bg-[rgba(255,255,255,0.03)] !px-4 !py-3 !text-[var(--text)] !shadow-none hover:!bg-[rgba(255,255,255,0.06)]",
+          "ui-button !h-auto !min-h-[46px] !rounded-full !border !border-[var(--border)] !bg-[rgba(49,53,59,0.44)] !px-4 !py-3 !text-[var(--text)] !shadow-[0_14px_30px_rgba(10,14,19,0.18)] !backdrop-blur-xl hover:!bg-[rgba(49,53,59,0.6)]",
         primary:
-          "ui-button !h-auto !min-h-0 !rounded-[var(--radius-md)] !border !border-[var(--accent)] !bg-[var(--accent-soft)] !text-[var(--text)] !shadow-none !px-4 !py-2 hover:!brightness-110",
+          "ui-button !h-auto !min-h-0 !rounded-[18px] !border !border-transparent !bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] !text-[var(--primary-foreground)] !shadow-[0_18px_36px_rgba(109,94,247,0.28)] !px-4.5 !py-2.5 hover:!brightness-110",
       },
       size: {
         default:
