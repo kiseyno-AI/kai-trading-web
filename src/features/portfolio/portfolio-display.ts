@@ -71,7 +71,7 @@ function mergeMoneyAmounts(values: Array<PortfolioMoneyAmountDto | null | undefi
     return {
       amount: null,
       currency: null,
-      display: `${amounts.length} currencies`,
+      display: `${currencies.size} currencies`,
     };
   }
 
@@ -121,11 +121,18 @@ export function getPortfolioActivity(summary: PortfolioSummaryDto | null | undef
 }
 
 export function getPortfolioLastSyncedAt(summary: PortfolioSummaryDto | null | undefined) {
-  const accountSyncTimes = getPortfolioAccounts(summary)
-    .map((account) => account.lastSyncedAt)
-    .filter((value): value is string => Boolean(value));
+  const latestAccountSyncTime =
+    getPortfolioAccounts(summary)
+      .map((account) => account.lastSyncedAt)
+      .filter((value): value is string => Boolean(value))
+      .reduce<{ value: string; timestamp: number } | null>((latest, value) => {
+        const timestamp = Date.parse(value);
+        if (!Number.isFinite(timestamp)) return latest;
+        if (!latest || timestamp > latest.timestamp) return { value, timestamp };
+        return latest;
+      }, null)?.value ?? null;
 
-  return summary?.sync?.lastSyncedAt ?? summary?.asOf ?? accountSyncTimes[0] ?? null;
+  return summary?.sync?.lastSyncedAt ?? summary?.asOf ?? latestAccountSyncTime;
 }
 
 export function buildPortfolioMetricModels(

@@ -7,6 +7,7 @@ import {
   formatPortfolioPercent,
   getPortfolioActivity,
   getPortfolioHoldings,
+  getPortfolioLastSyncedAt,
 } from "./portfolio-display";
 import type { PortfolioSummaryDto } from "@/types/trading-api";
 
@@ -68,10 +69,24 @@ test("keeps mixed-currency account totals explicit instead of summing them", () 
     accounts: [
       { id: "kr", label: "KR", summary: { totalAssets: { amount: 1_000_000, currency: "KRW" } } },
       { id: "us", label: "US", summary: { totalAssets: { amount: 1000, currency: "USD" } } },
+      { id: "us-isa", label: "US ISA", summary: { totalAssets: { amount: 500, currency: "USD" } } },
     ],
   });
 
   assert.equal(metrics.find((metric) => metric.id === "total-assets")?.value, "2 currencies");
+});
+
+test("uses the newest account sync timestamp when top-level sync times are missing", () => {
+  assert.equal(
+    getPortfolioLastSyncedAt({
+      accounts: [
+        { id: "old", label: "Old", lastSyncedAt: "2026-04-27T12:00:00.000Z" },
+        { id: "new", label: "New", lastSyncedAt: "2026-04-28T03:00:00.000Z" },
+        { id: "middle", label: "Middle", lastSyncedAt: "2026-04-28T01:00:00.000Z" },
+      ],
+    }),
+    "2026-04-28T03:00:00.000Z",
+  );
 });
 
 test("flattens holdings and recent activity from every account", () => {
