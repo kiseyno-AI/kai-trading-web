@@ -2,7 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 
 const now = "2026-04-27T16:30:00+09:00";
 
-async function mockDashboardShell(page: Page) {
+type MockDashboardShellOptions = {
+  failSignalDeciderFeedbackRequestNumber?: number;
+};
+
+async function mockDashboardShell(page: Page, options: MockDashboardShellOptions = {}) {
+  let signalDeciderFeedbackRequestCount = 0;
+
   await page.route("**/api/trading/market/status", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -182,6 +188,19 @@ async function mockDashboardShell(page: Page) {
     });
   });
   await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
+    signalDeciderFeedbackRequestCount += 1;
+
+    if (signalDeciderFeedbackRequestCount === options.failSignalDeciderFeedbackRequestNumber) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "temporary feedback outage",
+        }),
+      });
+      return;
+    }
+
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -257,6 +276,10 @@ async function mockDashboardShell(page: Page) {
       }),
     });
   });
+
+  return {
+    getSignalDeciderFeedbackRequestCount: () => signalDeciderFeedbackRequestCount,
+  };
 }
 
 test("dashboard signal-decider card previews partial results and links to the detail page", async ({ page }) => {
@@ -281,4 +304,23 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(samsungRow).toContainText("Conviction 7/10");
   await expect(samsungRow).toContainText("Gap-down open");
   await expect(samsungRow).toContainText("Target ₩82,000");
+});
+
+test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {
+  const shell = await mockDashboardShell(page, {
+    failSignalDeciderFeedbackRequestNumber: 2,
+  });
+
+  await page.goto("/dashboard");
+
+  const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
+  await expect(card).toBeVisible();
+  await expect.poll(shell.getSignalDeciderFeedbackRequestCount, { timeout: 2_500 }).toBe(2);
+  await expect(card).toContainText("Signal-decider feedback is unavailable. temporary feedback outage", {
+    timeout: 1_000,
+  });
+  await expect.poll(shell.getSignalDeciderFeedbackRequestCount, { timeout: 7_000 }).toBeGreaterThanOrEqual(3);
+  await expect(card).toContainText("Partial");
+  await expect(card).toContainText("Samsung Electronics");
+  await expect(card).not.toContainText("Signal-decider feedback is unavailable.");
 });

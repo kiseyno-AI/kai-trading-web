@@ -31,6 +31,7 @@ import {
   getDashboardLoadErrorMessage,
   getEodPipelineStatusPollDelayMs,
   getQuoteCompanyName,
+  getSignalDeciderFeedbackPollDelayMs,
   pickSymbolMetadata,
   shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
@@ -619,28 +620,49 @@ export function useLiveDashboardData({
     }
 
     let active = true;
+    let timer: number | null = null;
     const feedbackPath = buildSignalDeciderFeedbackPath({
       basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
       marketDate: agentProgressMarketDate,
     });
 
-    const loadSignalDeciderFeedback = async () => {
+    function clearTimer() {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function scheduleNextLoad(hadError: boolean) {
+      if (!active) return;
+      clearTimer();
+      const nextDelayMs = getSignalDeciderFeedbackPollDelayMs({
+        progress: agentFeedbackProgressRef.current,
+        hadError,
+      });
+      if (nextDelayMs === null) return;
+      timer = window.setTimeout(loadSignalDeciderFeedback, nextDelayMs);
+    }
+
+    async function loadSignalDeciderFeedback() {
       try {
         const data = await getJsonNoCache<AgentFeedbackListResponseDto>(feedbackPath);
         if (!active) return;
         setSignalDeciderFeedback(data);
         setSignalDeciderFeedbackError(null);
+        scheduleNextLoad(false);
       } catch (feedbackError) {
         console.error("Dashboard signal decider feedback load failed", feedbackError);
         if (!active) return;
         setSignalDeciderFeedbackError(getDashboardLoadErrorMessage(feedbackError));
+        scheduleNextLoad(true);
       }
-    };
+    }
 
     void loadSignalDeciderFeedback();
 
     return () => {
       active = false;
+      clearTimer();
     };
   }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
 
