@@ -311,10 +311,14 @@ export type AgentFeedbackProgressResponseDto = {
     run_id: string | null;
     run_status: AgentFeedbackRunStatus | string;
     run_table_status: string | null;
+    cycle_status?: string | null;
     is_live: boolean;
     run_started_at: string | null;
     run_completed_at: string | null;
     current_role?: string | null;
+    completed_roles?: string[] | null;
+    remaining_roles?: string[] | null;
+    role_progress?: Record<string, unknown> | Array<Record<string, unknown>> | null;
     parallel_per_role?: number | null;
     latest_feedback_at: string | null;
     seconds_since_last_feedback: number | null;
@@ -623,6 +627,10 @@ export type DartFundamentalsDailyUpdatedEntryDto = {
 export type DartFundamentalsDailyUpdatedEntriesSummaryDto = {
   updated_count?: number | null;
   visible_preview_limit?: number | null;
+  visible_preview_count?: number | null;
+  has_more?: boolean | null;
+  remaining_count?: number | null;
+  full_list_available?: boolean | null;
 };
 
 export type DartFundamentalsDailyRunMetadataDto = Record<string, unknown> & {
@@ -652,6 +660,7 @@ export type DartFundamentalsDailyRunDto = {
   events_captured: number | null;
   events_failed: number | null;
   updated_entries_summary?: DartFundamentalsDailyUpdatedEntriesSummaryDto | null;
+  updated_entries_preview?: DartFundamentalsDailyUpdatedEntryDto[] | null;
   updated_entries?: DartFundamentalsDailyUpdatedEntryDto[] | null;
   error_message: string | null;
   run_metadata: DartFundamentalsDailyRunMetadataDto | null;

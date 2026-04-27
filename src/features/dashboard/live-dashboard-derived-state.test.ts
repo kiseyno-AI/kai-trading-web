@@ -10,6 +10,7 @@ import type {
 } from "@/types/trading-api";
 
 import {
+  buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
   buildTrackedSymbolCardModel,
@@ -18,6 +19,7 @@ import {
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedActivityModel,
   getFundamentalsUpdatedSymbolsDetail,
+  getResolvedAgentProgressRunStatus,
   markAgentFeedbackProgressStopped,
   shouldRevalidateFilteringFallback,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
@@ -184,6 +186,44 @@ test("builds a one-item fundamentals activity preview from the structured update
   ]);
 });
 
+test("uses updated_entries_preview when the structured full list is not present yet", () => {
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        updated_entries_summary: {
+          updated_count: 2,
+          visible_preview_limit: 3,
+          visible_preview_count: 2,
+          has_more: false,
+          remaining_count: 0,
+          full_list_available: true,
+        },
+        updated_entries_preview: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            category_label: "Financial statement refresh",
+          },
+          {
+            symbol: "000660",
+            company_name: "SK hynix",
+            category_label: "Quarterly filing capture",
+          },
+        ],
+        updated_entries: null,
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.equal(model?.countLabel, "2");
+  assert.equal(model?.canExpand, false);
+  assert.deepEqual(model?.previewItems.map((item) => item.companyName), ["Samsung Electronics", "SK hynix"]);
+  assert.deepEqual(model?.allItems.map((item) => item.companyName), ["Samsung Electronics", "SK hynix"]);
+});
+
 test("keeps exactly three structured fundamentals preview rows without showing expansion", () => {
   const model = getFundamentalsUpdatedActivityModel(
     {
@@ -280,6 +320,7 @@ test("keeps running stage badge, title, and tone mapping stable", () => {
     "2026-04-21",
     "2026-04-18",
     "2026-04-18",
+    "2026-04-18",
     false,
     {
       status: "running",
@@ -309,6 +350,7 @@ test("hides repeated latest-date detail when a stage matches the primary latest 
     "2026-04-21",
     "2026-04-18",
     "2026-04-18",
+    "2026-04-18",
     false,
     null,
     copy,
@@ -326,6 +368,7 @@ test("keeps latest-date detail when a stage differs from the primary latest cycl
     buildStage("ready"),
     "2026-04-21",
     "2026-04-17",
+    "2026-04-17",
     "2026-04-18",
     false,
     null,
@@ -334,6 +377,31 @@ test("keeps latest-date detail when a stage differs from the primary latest cycl
   );
 
   assert.equal(card.details.find((detail) => detail.key === "latest-date")?.value, "2026-04-17");
+});
+
+test("treats a pipeline-completed stage as synced while keeping the stale stored latest date visible", () => {
+  const copy = getDashboardLiveCopy("en");
+  const card = buildEodStageCard(
+    "technical",
+    copy.stage.technical,
+    buildStage("ready"),
+    "2026-04-27",
+    "2026-04-24",
+    "2026-04-27",
+    "2026-04-27",
+    false,
+    {
+      status: "completed",
+      processed: 3583,
+      total: 3583,
+      failed: 0,
+    },
+    copy,
+    "en-US",
+  );
+
+  assert.equal(card.statusLabel, "synced");
+  assert.equal(card.details.find((detail) => detail.key === "latest-date")?.value, "2026-04-24");
 });
 
 test("builds the Piotroski filtering card with the resolved latest-available note", () => {
@@ -583,7 +651,7 @@ test("revalidates a requested-date filtering fallback while the active dashboard
   );
 });
 
-test("stops filtering fallback revalidation once the same-day response resolves or the cycle goes idle", () => {
+test("keeps filtering fallback revalidation alive until the same-day response resolves", () => {
   const fallbackStatus = {
     requested_market_date: "2026-04-27",
     resolved_market_date: "2026-04-24",
@@ -659,6 +727,110 @@ test("stops filtering fallback revalidation once the same-day response resolves 
         result: null,
       },
     }),
-    false,
+    true,
   );
+});
+
+test("keeps the active summarizer row running when top-level feedback summary says the cycle is live", () => {
+  const copy = getDashboardLiveCopy("en");
+  const progress = {
+    request: {
+      market_date: "2026-04-27",
+      symbols: null,
+      expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+    },
+    summary: {
+      run_id: "feedback-cycle-2026-04-27-b41f820e31",
+      run_status: "pending",
+      run_table_status: "running",
+      cycle_status: "running",
+      is_live: true,
+      run_started_at: "2026-04-27T17:00:00+09:00",
+      run_completed_at: null,
+      current_role: "technical-summarizer",
+      completed_roles: ["eod-summarizer"],
+      remaining_roles: ["technical-summarizer", "fundamental-summarizer"],
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-27T17:10:05+09:00",
+      seconds_since_last_feedback: 2,
+      stalled_threshold_seconds: 60,
+      total_symbols: 2812,
+      processed_symbols: 97,
+      completed_symbols: 97,
+      in_progress_symbols: 1,
+      pending_symbols: 2715,
+      progress_ratio: 0.3,
+      progress_percent: 30,
+      failed_items: 0,
+      completed_feedback_count: 136,
+      expected_feedback_count: 2812,
+      role_progress: {
+        "eod-summarizer": {
+          status: "partial",
+          processed_symbols: 97,
+          completed_symbols: 97,
+        },
+        "technical-summarizer": {
+          status: "pending",
+          processed_symbols: 39,
+          completed_symbols: 39,
+          boundary_status: "pending",
+        },
+      },
+    },
+    result: null,
+  };
+
+  assert.equal(getAgentFeedbackProgressPollDelayMs(progress), 1_000);
+
+  const roleCards = buildAgentRoleCards(progress, copy, "en-US");
+  assert.deepEqual(
+    roleCards.map((role) => [role.role, role.status]),
+    [
+      ["eod-summarizer", "completed"],
+      ["technical-summarizer", "running"],
+      ["fundamental-summarizer", "pending"],
+    ],
+  );
+  assert.equal(roleCards[1]?.metrics.length > 0, true);
+});
+
+test("does not treat a stale latest_feedback_at timestamp as active progress when the top-level summary is pending", () => {
+  const progress = {
+    request: {
+      market_date: "2026-04-27",
+      symbols: null,
+      expected_agents: ["technical-summarizer"],
+    },
+    summary: {
+      run_id: "feedback-cycle-2026-04-27-idle",
+      run_status: "pending",
+      run_table_status: null,
+      cycle_status: null,
+      is_live: false,
+      run_started_at: "2026-04-27T17:00:00+09:00",
+      run_completed_at: null,
+      current_role: "technical-summarizer",
+      completed_roles: [],
+      remaining_roles: ["technical-summarizer"],
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-27T17:10:05+09:00",
+      seconds_since_last_feedback: 600,
+      stalled_threshold_seconds: 60,
+      total_symbols: 2812,
+      processed_symbols: 0,
+      completed_symbols: 0,
+      in_progress_symbols: 0,
+      pending_symbols: 2812,
+      progress_ratio: 0,
+      progress_percent: 0,
+      failed_items: 0,
+      completed_feedback_count: 0,
+      expected_feedback_count: 2812,
+    },
+    result: null,
+  };
+
+  assert.equal(getResolvedAgentProgressRunStatus(progress), "pending");
+  assert.equal(getAgentFeedbackProgressPollDelayMs(progress), 30_000);
 });
