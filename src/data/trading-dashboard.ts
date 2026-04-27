@@ -41,6 +41,7 @@ export type DashboardData = {
 export const dashboardData: DashboardData = {
   nav: [
     { id: "dashboard", label: "Dashboard", icon: "◫", href: "/dashboard", description: "Main command surface" },
+    { id: "portfolio", label: "Assets", icon: "▣", href: "/portfolio", description: "Account state and holdings" },
     { id: "markets", label: "Markets", icon: "◌", href: "/markets", description: "Track market breadth" },
     { id: "bots", label: "Bots", icon: "◎", href: "/bots", description: "Manage automation" },
     { id: "analytics", label: "Analytics", icon: "◭", href: "/dashboard#analytics", description: "Signal overview" },
@@ -49,6 +50,7 @@ export const dashboardData: DashboardData = {
   searchSuggestions: [
     { label: "BTC/USDT · Perpetual", type: "Market", route: "/markets" },
     { label: "ETH/KRW · Spot", type: "Market", route: "/markets" },
+    { label: "Portfolio Assets", type: "Route", route: "/portfolio" },
     { label: "Mean Reversion Bot", type: "Strategy", route: "/bots" },
     { label: "Momentum Breakout Engine", type: "Strategy", route: "/bots" },
     { label: "SOL/USDT · Watchlist", type: "Market", route: "/dashboard" },

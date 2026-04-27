@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:regression:display": "node --import tsx --test src/features/dashboard/dashboard-display-semantics.regression.test.ts src/features/symbol-detail/symbol-detail-display-semantics.regression.test.ts",
-    "test:unit": "node --import tsx --test src/lib/*.test.ts src/features/dashboard/*.test.ts src/features/symbol-detail/*.test.ts",
+    "test:unit": "node --import tsx --test src/lib/*.test.ts src/features/dashboard/*.test.ts src/features/symbol-detail/*.test.ts src/features/portfolio/*.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

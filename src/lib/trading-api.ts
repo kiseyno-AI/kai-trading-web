@@ -77,6 +77,7 @@ type CoreTrackedSymbolsResponse = {
 const baseNav: NavItemDto[] = [
   { id: "dashboard", label: "Dashboard", icon: "◫", href: "/dashboard", description: "Main command surface" },
   { id: "search", label: "Search", icon: "⌕", href: "/search", description: "Find symbols by name or code" },
+  { id: "portfolio", label: "Assets", icon: "▣", href: "/portfolio", description: "Account state and holdings" },
   { id: "markets", label: "Markets", icon: "◌", href: "/markets", description: "Track market breadth" },
   { id: "bots", label: "Bots", icon: "◎", href: "/bots", description: "Manage automation" },
   { id: "analytics", label: "Analytics", icon: "◭", href: "/dashboard#analytics", description: "Signal overview" },
@@ -304,7 +305,7 @@ const mockTradingApi: TradingApiAdapter = {
       searchSuggestions: dashboardData.searchSuggestions.map((item, index) => ({
         id: `${item.type.toLowerCase()}-${index + 1}`,
         label: item.label,
-        type: item.type.toLowerCase() === "strategy" ? "bot" : "market",
+        type: item.type.toLowerCase() === "strategy" ? "bot" : item.type.toLowerCase() === "route" ? "route" : "market",
         route: item.route,
       })),
       metrics: dashboardData.metrics.map((metric) => ({

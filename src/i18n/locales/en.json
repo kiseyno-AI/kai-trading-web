@@ -47,6 +47,11 @@
       "title": "Search Workspace",
       "eyebrow": "Symbol Lookup"
     },
+    "portfolio": {
+      "label": "assets",
+      "title": "Portfolio Assets",
+      "eyebrow": "Account State"
+    },
     "markets": {
       "label": "markets",
       "title": "Market Radar",
@@ -82,6 +87,10 @@
         "label": "Search",
         "description": "Symbol and route lookup"
       },
+      "portfolio": {
+        "label": "Assets",
+        "description": "Account state and holdings"
+      },
       "markets": {
         "label": "Markets",
         "description": "Market breadth and screening"
@@ -94,6 +103,7 @@
     "searchSuggestions": {
       "dashboard": "Open dashboard",
       "search": "Open search workspace",
+      "portfolio": "Open portfolio assets",
       "markets": "Open market radar",
       "bots": "Open automation control"
     }
@@ -108,6 +118,7 @@
     "release": "Release",
     "dashboard": "Dashboard",
     "search": "Search",
+    "assets": "Assets",
     "mySymbols": "My Symbols"
   },
   "dashboard": {
@@ -173,6 +184,71 @@
     "synced": "Synced",
     "pending": "Pending",
     "notAvailable": "N/A"
+  },
+  "portfolio": {
+    "title": "Portfolio",
+    "brandMeta": "Account state and assets",
+    "breadcrumb": "Toolbar > Assets",
+    "heroCopy": "A read-only account surface for total assets, P/L, cash, buying power, holdings, allocation, and recent order or execution visibility as backend account APIs come online.",
+    "summaryMetrics": "Portfolio summary metrics",
+    "accountState": "Account state",
+    "accountsTitle": "Accounts",
+    "positionVisibility": "Position visibility",
+    "holdingsTitle": "Holdings",
+    "holdingsList": "Holdings list",
+    "accountAnalytics": "Account analytics",
+    "allocationTitle": "Allocation overview",
+    "tradingVisibility": "Trading visibility",
+    "recentActivityTitle": "Recent orders and executions",
+    "readOnly": "Read-only",
+    "readyForExpansion": "Ready for expansion",
+    "loading": "Loading...",
+    "loadingPortfolio": "Loading portfolio account state...",
+    "waitingForAccountApi": "Waiting for account API",
+    "unavailable": "Unavailable",
+    "account": "account",
+    "accounts": "accounts",
+    "holding": "holding",
+    "holdings": "holdings",
+    "cash": "Cash",
+    "buyingPower": "Buying power",
+    "quantity": "Quantity",
+    "marketValue": "Market value",
+    "lastPrice": "Last price",
+    "unrealizedPnl": "Unrealized P/L",
+    "lastSync": "Last sync",
+    "backToDashboard": "Back to Dashboard",
+    "openMySymbols": "Open My Symbols",
+    "order": "Order",
+    "metrics": {
+      "totalAssets": {
+        "label": "Total assets",
+        "detail": "Estimated equity across accounts"
+      },
+      "dayPnl": {
+        "label": "Today P/L",
+        "detail": "Session profit and loss"
+      },
+      "unrealizedPnl": {
+        "label": "Unrealized P/L",
+        "detail": "Open position profit and loss"
+      },
+      "cashBuyingPower": {
+        "label": "Cash / buying power",
+        "detail": "Available account liquidity"
+      }
+    },
+    "emptyAccountsTitle": "No account snapshot yet.",
+    "emptyAccountsBody": "Portfolio accounts will appear here when trading-core exposes account balance or brokerage account state.",
+    "emptyHoldingsTitle": "No holdings reported yet.",
+    "emptyHoldingsBody": "Positions can plug into this section from holdings or positions APIs without changing navigation.",
+    "emptyAllocationTitle": "Allocation data not populated.",
+    "emptyAllocationBody": "Allocation rows can come from backend analytics or holding-level percentages when those fields are available.",
+    "emptyActivityTitle": "No order or execution summary yet.",
+    "emptyActivityBody": "Recent order and fill summaries are reserved for read-only trading visibility and do not place trades from this page.",
+    "errors": {
+      "summaryUnavailable": "Portfolio feed unavailable."
+    }
   },
   "markets": {
     "title": "Markets",

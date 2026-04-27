@@ -33,6 +33,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });

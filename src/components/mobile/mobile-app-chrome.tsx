@@ -12,13 +12,14 @@ import type { Locale } from "@/types/trading-api";
 
 import styles from "./mobile-app-chrome.module.css";
 
-type MobileNavKey = "dashboard" | "search" | "symbols";
+type MobileNavKey = "dashboard" | "search" | "symbols" | "portfolio";
 
 type MobileAppChromeProps = {
   activeNav: MobileNavKey;
   header: ReactNode;
   children: ReactNode;
   mySymbolsHref?: string;
+  portfolioHref?: string;
   searchHref?: string;
 };
 
@@ -58,6 +59,16 @@ function SymbolsIcon() {
   );
 }
 
+function AssetsIcon() {
+  return (
+    <svg className={styles.navIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 8.5H20V18.5C20 19.6 19.1 20.5 18 20.5H6C4.9 20.5 4 19.6 4 18.5V8.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M8 8.5V6.5C8 5.4 8.9 4.5 10 4.5H14C15.1 4.5 16 5.4 16 6.5V8.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 13H16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function getItemClass(active: boolean) {
   return `${styles.navItem} ${active ? styles.navItemActive : ""}`.trim();
 }
@@ -75,6 +86,7 @@ export function MobileAppChrome({
   header,
   children,
   mySymbolsHref = "/my-symbols",
+  portfolioHref = "/portfolio",
   searchHref = "/search",
 }: MobileAppChromeProps) {
   const router = useRouter();
@@ -85,11 +97,12 @@ export function MobileAppChrome({
     const targets = [
       activeNav === "dashboard" ? null : DASHBOARD_HREF,
       activeNav === "search" ? null : searchHref,
+      activeNav === "portfolio" ? null : portfolioHref,
       activeNav === "symbols" ? null : mySymbolsHref,
     ];
 
     return [...new Set(targets.filter((target): target is string => typeof target === "string" && target.startsWith("/")))];
-  }, [activeNav, mySymbolsHref, searchHref]);
+  }, [activeNav, mySymbolsHref, portfolioHref, searchHref]);
 
   useEffect(() => {
     void warmMobileToolbarViewData(activeNav);
@@ -173,6 +186,7 @@ export function MobileAppChrome({
         <nav className={styles.desktopNav} aria-label={t.mobileChrome.primaryDesktopNavigation}>
           {renderDesktopNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
           {renderDesktopNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}
+          {renderDesktopNavItem(portfolioHref, activeNav === "portfolio", t.mobileChrome.assets, <AssetsIcon />)}
         </nav>
 
         <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>
@@ -199,6 +213,7 @@ export function MobileAppChrome({
         <nav className={styles.bottomNav} aria-label={t.mobileChrome.primaryNavigation}>
           {renderNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
           {renderNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}
+          {renderNavItem(portfolioHref, activeNav === "portfolio", t.mobileChrome.assets, <AssetsIcon />)}
           {renderNavItem(mySymbolsHref, activeNav === "symbols", t.mobileChrome.mySymbols, <SymbolsIcon />)}
         </nav>
       </div>
