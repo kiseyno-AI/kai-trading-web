@@ -1317,11 +1317,11 @@ export function getFundamentalsUpdatedActivityModel(
   const previewItems = previewSourceItems.slice(0, previewLimit);
   const displayedItems = allItems.length > 0 ? allItems : previewSourceItems;
   return {
-    key: `${latestRun?.id ?? "latest"}:${getFundamentalsRunDate(latestRun) ?? "unknown"}:${updatedCount}:${allItems.length}`,
+    key: `${latestRun?.id ?? "latest"}:${getFundamentalsRunDate(latestRun) ?? "unknown"}:${updatedCount}:${displayedItems.length}`,
     countLabel: formatEodSymbolCount(updatedCount, numberLocale),
     previewItems,
     allItems: displayedItems,
-    canExpand: allItems.length > previewItems.length,
+    canExpand: displayedItems.length > previewItems.length,
   };
 }
 

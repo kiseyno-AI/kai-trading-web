@@ -224,6 +224,58 @@ test("uses updated_entries_preview when the structured full list is not present 
   assert.deepEqual(model?.allItems.map((item) => item.companyName), ["Samsung Electronics", "SK hynix"]);
 });
 
+test("enables More when preview-only fundamentals entries exceed the visible preview limit", () => {
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        updated_entries_summary: {
+          updated_count: 4,
+          visible_preview_limit: 3,
+          visible_preview_count: 4,
+          has_more: true,
+          remaining_count: 1,
+          full_list_available: false,
+        },
+        updated_entries_preview: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            category_label: "Financial statement refresh",
+          },
+          {
+            symbol: "000660",
+            company_name: "SK hynix",
+            category_label: "Quarterly filing capture",
+          },
+          {
+            symbol: "035420",
+            company_name: "NAVER",
+            category_label: "Correction filing refresh",
+          },
+          {
+            symbol: "005380",
+            company_name: "Hyundai Motor",
+            category_label: "Annual filing capture",
+          },
+        ],
+        updated_entries: null,
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.equal(model?.previewItems.length, 3);
+  assert.equal(model?.allItems.length, 4);
+  assert.equal(model?.canExpand, true);
+  assert.deepEqual(model?.previewItems.map((item) => item.companyName), [
+    "Samsung Electronics",
+    "SK hynix",
+    "NAVER",
+  ]);
+});
+
 test("keeps exactly three structured fundamentals preview rows without showing expansion", () => {
   const model = getFundamentalsUpdatedActivityModel(
     {
