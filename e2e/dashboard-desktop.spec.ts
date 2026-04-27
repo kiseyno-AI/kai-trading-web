@@ -2617,12 +2617,12 @@ test.describe("dashboard desktop", () => {
     await expectEodStageStatus(technicalStage, "synced");
     await expectEodStageStatus(actionStage, "synced");
     await expectEodStageStatus(fundamentalsStage, "synced");
-    await expect(priceStage).toContainText("3,570 / 3,577");
+    await expect(priceStage).toContainText("3,577 / 3,577");
     await expect(priceStage).toContainText("Failed 7");
-    await expect(technicalStage).toContainText("3,570 / 3,577");
-    await expect(technicalStage).toContainText("Failed 7");
-    await expect(actionStage).toContainText("3,570 / 3,577");
-    await expect(actionStage).toContainText("Failed 7");
+    await expect(technicalStage).toContainText("3,577 / 3,577");
+    await expect(technicalStage).not.toContainText("Failed 7");
+    await expect(actionStage).toContainText("3,577 / 3,577");
+    await expect(actionStage).not.toContainText("Failed 7");
     await expect(fundamentalsStage).toContainText("Checked 3,577");
 
     await expect.poll(() => requestedMarketDate).toBe("2026-04-23");

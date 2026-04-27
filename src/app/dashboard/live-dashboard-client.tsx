@@ -46,6 +46,7 @@ import {
   getFundamentalsStatusLabel,
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedSymbolsDetail,
+  getPipelineStageResolvedStatusDate,
   getPipelineStage,
   getPriceFreshnessStage,
   getResolvedAgentProgressRunStatus,
@@ -400,6 +401,8 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
   isAgentFeedbackRunning,
   onOpenAgentFeedbackStopDialog,
 }: AgentFeedbackCardProps) {
+  const statusClass = isAgentFeedbackRunning ? styles.runningStatusPill : "";
+
   return (
     <article className={`${styles.integrityStat} ${styles.agentFeedbackCard}`}>
       <div className={styles.sectionHeaderRow}>
@@ -409,7 +412,16 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
             <p className={styles.cardContext}>{copy.operational.agentDate} {agentProgressDateContext}</p>
           ) : null}
         </div>
-        <span className={`pill ${agentFeedbackStatusTone}`}>{agentFeedbackHeaderStatusLabel}</span>
+        <span className={`pill ${agentFeedbackStatusTone} ${statusClass}`}>
+          {isAgentFeedbackRunning ? (
+            <span className={styles.runningStatusLabel}>
+              <span className={styles.runningStatusSpinner} aria-hidden="true" />
+              <span className={styles.runningStatusText}>{agentFeedbackHeaderStatusLabel}</span>
+            </span>
+          ) : (
+            agentFeedbackHeaderStatusLabel
+          )}
+        </span>
       </div>
       {agentRoleCards.length > 0 ? (
         <div className={styles.agentRoleList} role="list" aria-label={copy.operational.agentRoleProgress}>
@@ -741,6 +753,7 @@ export function LiveDashboardClient({
       fundamentalsFreshnessWithPipelineStage,
       eodStatusMarketDate,
       latestFundamentalsDate,
+      getPipelineStageResolvedStatusDate(fundamentalsPipelineStage, eodStatusMarketDate, latestFundamentalsDate),
       primaryLatestCycleDate,
       isBreakDay,
       fundamentalsPipelineStage,
@@ -757,6 +770,7 @@ export function LiveDashboardClient({
         priceFreshnessStage,
         eodStatusMarketDate,
         priceLatestDate,
+        getPipelineStageResolvedStatusDate(pricePipelineStage, eodStatusMarketDate, priceLatestDate),
         primaryLatestCycleDate,
         isBreakDay,
         pricePipelineStage,
@@ -769,6 +783,7 @@ export function LiveDashboardClient({
         technicalFreshnessStage,
         eodStatusMarketDate,
         technicalLatestDate,
+        getPipelineStageResolvedStatusDate(technicalPipelineStage, eodStatusMarketDate, technicalLatestDate),
         primaryLatestCycleDate,
         isBreakDay,
         technicalPipelineStage,
@@ -781,6 +796,7 @@ export function LiveDashboardClient({
         actionFreshnessStage,
         eodStatusMarketDate,
         actionLatestDate,
+        getPipelineStageResolvedStatusDate(actionPipelineStage, eodStatusMarketDate, actionLatestDate),
         primaryLatestCycleDate,
         isBreakDay,
         actionPipelineStage,

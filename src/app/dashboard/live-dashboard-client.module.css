@@ -278,6 +278,8 @@
 }
 
 .eodStageCard {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -287,6 +289,45 @@
   border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.5rem;
   background: rgba(10, 14, 19, 0.62);
+}
+
+.eodStageCard[data-status="synced"] {
+  border-color: rgba(111, 251, 190, 0.3);
+  background:
+    linear-gradient(180deg, rgba(111, 251, 190, 0.08), transparent 42%),
+    rgba(10, 14, 19, 0.66);
+  box-shadow: inset 0 0 0 1px rgba(111, 251, 190, 0.08);
+}
+
+.eodStageCard[data-status="running"] {
+  border-color: rgba(127, 184, 255, 0.34);
+  background:
+    linear-gradient(180deg, rgba(127, 184, 255, 0.12), transparent 46%),
+    rgba(10, 14, 19, 0.7);
+  box-shadow:
+    inset 0 0 0 1px rgba(127, 184, 255, 0.08),
+    0 0 0 1px rgba(127, 184, 255, 0.04);
+}
+
+.eodStageCard[data-status="running"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(127, 184, 255, 0.05) 24%,
+    rgba(111, 251, 190, 0.14) 46%,
+    rgba(127, 184, 255, 0.05) 66%,
+    transparent 100%
+  );
+  transform: translateX(-130%);
+  animation: eodRunningStatusSweep 1.9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.eodStageCard[data-status="not synced"] {
+  border-color: rgba(255, 212, 159, 0.22);
 }
 
 .eodStageTop {
@@ -501,6 +542,8 @@
 }
 
 .agentRoleRow {
+  position: relative;
+  overflow: hidden;
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -509,6 +552,38 @@
   border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.5rem;
   background: rgba(5, 20, 37, 0.46);
+}
+
+.agentRoleRow[data-role-status="completed"] {
+  border-color: rgba(111, 251, 190, 0.24);
+  background:
+    linear-gradient(180deg, rgba(111, 251, 190, 0.08), transparent 56%),
+    rgba(5, 20, 37, 0.5);
+}
+
+.agentRoleRow[data-role-status="running"] {
+  border-color: rgba(127, 184, 255, 0.34);
+  background:
+    linear-gradient(180deg, rgba(127, 184, 255, 0.12), transparent 54%),
+    rgba(5, 20, 37, 0.56);
+  box-shadow: inset 0 0 0 1px rgba(127, 184, 255, 0.08);
+}
+
+.agentRoleRow[data-role-status="running"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(127, 184, 255, 0.04) 20%,
+    rgba(111, 251, 190, 0.12) 48%,
+    rgba(127, 184, 255, 0.04) 72%,
+    transparent 100%
+  );
+  transform: translateX(-130%);
+  animation: agentProgressFlow 1.9s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .agentRoleContent {
@@ -605,6 +680,12 @@
   background: linear-gradient(90deg, #6ffbbe, var(--accent));
 }
 
+.agentRoleProgressTrack[data-role-progress-track="running"] i {
+  background: linear-gradient(90deg, #7fb8ff, #6ffbbe, #7fb8ff);
+  background-size: 160% 100%;
+  animation: agentProgressFlow 1.4s linear infinite;
+}
+
 .agentRoleProgressTrack[data-role-progress-track="completed"] i {
   background: linear-gradient(90deg, #6ffbbe, #9df7d1);
 }
@@ -665,6 +746,16 @@
 @keyframes agentRoleSpin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes agentProgressFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 140% 50%;
   }
 }
 
@@ -783,7 +874,8 @@
   transform: translate(-50%, -50%) rotate(-45deg);
 }
 
-.eodStageTop :global(.pill).runningStatusPill {
+.eodStageTop :global(.pill).runningStatusPill,
+.agentFeedbackCard :global(.pill).runningStatusPill {
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -793,7 +885,8 @@
   box-shadow: 0 0 0 1px rgba(127, 184, 255, 0.12);
 }
 
-.eodStageTop :global(.pill).runningStatusPill::after {
+.eodStageTop :global(.pill).runningStatusPill::after,
+.agentFeedbackCard :global(.pill).runningStatusPill::after {
   content: "";
   position: absolute;
   inset: 1px;
@@ -811,7 +904,8 @@
   pointer-events: none;
 }
 
-.eodStageTop :global(.pill).runningStatusPill .statusPillIcon {
+.eodStageTop :global(.pill).runningStatusPill .statusPillIcon,
+.agentFeedbackCard :global(.pill).runningStatusPill .statusPillIcon {
   border: 2px solid rgba(127, 184, 255, 0.36);
   border-top-color: #6ffbbe;
   background: transparent;

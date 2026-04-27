@@ -171,6 +171,8 @@ export function markAgentFeedbackProgressStopped(
       ...progress.summary,
       is_live: false,
       run_status: "stalled",
+      run_table_status: "stalled",
+      cycle_status: "stalled",
     },
   };
 }
@@ -539,7 +541,9 @@ export function getFundamentalsStatusLabel(
   if (normalizePipelineStageStatus(pipelineStage) === "running") return "running";
 
   const runStatus = normalizeFundamentalsStatusToken(getLatestFundamentalsRun(fundamentalsStatus)?.status);
-  if (runStatus === "running" || isFundamentalsFailureStatus(runStatus)) return runStatus ?? UNKNOWN_LABEL;
+  if (runStatus === "running" || runStatus === "completed" || isFundamentalsFailureStatus(runStatus)) {
+    return runStatus ?? UNKNOWN_LABEL;
+  }
 
   const latestCoverageStatus = normalizeFundamentalsStatusToken(latestAvailableCoverage?.status);
   if (hasTextValue(latestCoverageStatus)) return latestCoverageStatus;
@@ -756,6 +760,11 @@ function normalizePipelineStageStatus(stage: EodPipelineStageDto | null | undefi
   return normalizePipelineStatus(stage?.status);
 }
 
+function isCompletedPipelineStage(pipelineStage: EodPipelineStageDto | null | undefined) {
+  const normalizedStatus = normalizePipelineStageStatus(pipelineStage);
+  return normalizedStatus !== null && ["completed", "ready", "available", "success"].includes(normalizedStatus);
+}
+
 export function getPipelineStage(
   pipelineStatus: EodPipelineStatusResponseDto | null,
   key: EodPipelineStageKey,
@@ -767,14 +776,32 @@ export function mergeRunningPipelineStage(
   stage: EodFreshnessStageDto | null,
   pipelineStage: EodPipelineStageDto | null | undefined,
 ) {
-  if (!isRunningPipelineStage(pipelineStage)) return stage;
+  if (isRunningPipelineStage(pipelineStage)) {
+    return buildStage(
+      "running",
+      pipelineStage?.total ?? stage?.symbols_total,
+      pipelineStage?.processed ?? stage?.symbols_succeeded,
+      pipelineStage?.failed ?? stage?.symbols_failed,
+    );
+  }
+
+  if (!isCompletedPipelineStage(pipelineStage)) return stage;
 
   return buildStage(
-    "running",
+    "ready",
     pipelineStage?.total ?? stage?.symbols_total,
-    pipelineStage?.processed ?? stage?.symbols_succeeded,
+    pipelineStage?.processed ?? stage?.symbols_succeeded ?? pipelineStage?.total,
     pipelineStage?.failed ?? stage?.symbols_failed,
   );
+}
+
+export function getPipelineStageResolvedStatusDate(
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  resolvedMarketDate: string | null,
+  latestDate: string | null,
+) {
+  if (!isCompletedPipelineStage(pipelineStage)) return latestDate;
+  return getFirstTextValue(resolvedMarketDate, latestDate);
 }
 
 function hasRunningDashboardPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
@@ -832,7 +859,8 @@ export function shouldRevalidateFilteringFallback({
 
   return (
     getEodPipelineStatusPollDelayMs(pipelineStatus) === EOD_PIPELINE_STATUS_RUNNING_POLL_MS ||
-    getAgentFeedbackProgressPollDelayMs(agentFeedbackProgress) === AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS
+    getAgentFeedbackProgressPollDelayMs(agentFeedbackProgress) === AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS ||
+    hasRequestedDateFallback
   );
 }
 
@@ -1096,6 +1124,7 @@ export function buildEodStageCard(
   stage: EodFreshnessStageDto | null,
   todayTradeDate: string | null,
   latestDate: string | null,
+  statusDate: string | null,
   primaryLatestCycleDate: string | null,
   canShowBreakDay: boolean,
   pipelineStage: EodPipelineStageDto | null | undefined,
@@ -1112,7 +1141,7 @@ export function buildEodStageCard(
     canShowBreakDay: boolean,
   ) => EodStageCard["statusLabel"] = getEodStageStatusLabel,
 ): EodStageCard {
-  const statusLabel = statusLabelResolver(stage, todayTradeDate, latestDate, canShowBreakDay);
+  const statusLabel = statusLabelResolver(stage, todayTradeDate, statusDate, canShowBreakDay);
   const { label: statusBadgeLabel, title: statusBadgeTitle } = getEodStageStatusBadge(statusLabel, pipelineStage);
   const details: EodStageDetail[] = [
     {
@@ -1174,7 +1203,7 @@ export function getFundamentalsCheckedCount(
 function hasStructuredFundamentalsUpdatedEntriesPayload(run: DartFundamentalsDailyRunDto | null) {
   if (!run) return false;
 
-  return run.updated_entries_summary != null || run.updated_entries != null;
+  return run.updated_entries_summary != null || run.updated_entries_preview != null || run.updated_entries != null;
 }
 
 function getFundamentalsUpdatedEntriesSummary(run: DartFundamentalsDailyRunDto | null) {
@@ -1207,13 +1236,15 @@ function getFundamentalsUpdatedEntryCategoryLabel(entry: DartFundamentalsDailyUp
   return humanizeToken(getFirstTextValue(entry.update_category, entry.updateCategory));
 }
 
-function getFundamentalsUpdatedEntries(run: DartFundamentalsDailyRunDto | null): FundamentalsUpdatedEntryModel[] {
-  if (!Array.isArray(run?.updated_entries)) return [];
+function getNormalizedFundamentalsUpdatedEntries(
+  entries: DartFundamentalsDailyUpdatedEntryDto[] | null | undefined,
+): FundamentalsUpdatedEntryModel[] {
+  if (!Array.isArray(entries)) return [];
 
   const items: FundamentalsUpdatedEntryModel[] = [];
   const seenKeys = new Set<string>();
 
-  for (const entry of run.updated_entries) {
+  for (const entry of entries) {
     if (!entry || typeof entry !== "object") continue;
 
     const symbol = getFundamentalsUpdatedEntrySymbol(entry);
@@ -1234,6 +1265,19 @@ function getFundamentalsUpdatedEntries(run: DartFundamentalsDailyRunDto | null):
   }
 
   return items;
+}
+
+function getFundamentalsUpdatedEntries(run: DartFundamentalsDailyRunDto | null): FundamentalsUpdatedEntryModel[] {
+  return getNormalizedFundamentalsUpdatedEntries(run?.updated_entries);
+}
+
+function getFundamentalsUpdatedPreviewEntries(
+  run: DartFundamentalsDailyRunDto | null,
+  allItems: FundamentalsUpdatedEntryModel[],
+) {
+  const previewItems = getNormalizedFundamentalsUpdatedEntries(run?.updated_entries_preview);
+  if (previewItems.length > 0) return previewItems;
+  return allItems;
 }
 
 function getFundamentalsUpdatedCount(
@@ -1265,16 +1309,19 @@ export function getFundamentalsUpdatedActivityModel(
   if (!isActiveFundamentalsUpdatedRun(latestRun, activeMarketDate)) return null;
 
   const allItems = getFundamentalsUpdatedEntries(latestRun);
+  const previewSourceItems = getFundamentalsUpdatedPreviewEntries(latestRun, allItems);
   const updatedCount = getFundamentalsUpdatedCount(latestRun, allItems);
   if (!hasNumber(updatedCount)) return null;
 
   const previewLimit = getFundamentalsUpdatedPreviewLimit(getFundamentalsUpdatedEntriesSummary(latestRun));
+  const previewItems = previewSourceItems.slice(0, previewLimit);
+  const displayedItems = allItems.length > 0 ? allItems : previewSourceItems;
   return {
-    key: `${latestRun?.id ?? "latest"}:${getFundamentalsRunDate(latestRun) ?? "unknown"}:${updatedCount}:${allItems.length}`,
+    key: `${latestRun?.id ?? "latest"}:${getFundamentalsRunDate(latestRun) ?? "unknown"}:${updatedCount}:${displayedItems.length}`,
     countLabel: formatEodSymbolCount(updatedCount, numberLocale),
-    previewItems: allItems.slice(0, previewLimit),
-    allItems,
-    canExpand: allItems.length > previewLimit,
+    previewItems,
+    allItems: displayedItems,
+    canExpand: displayedItems.length > previewItems.length,
   };
 }
 
@@ -1420,17 +1467,46 @@ function normalizeAgentProgressRunStatus(status: unknown): AgentFeedbackRunStatu
     : null;
 }
 
+function hasAgentFeedbackLiveProgressEvidence(
+  progress: AgentFeedbackProgressResponseDto | null,
+  currentRole: string | null,
+) {
+  if (!progress || !currentRole || hasTextValue(progress.summary.run_completed_at)) return false;
+
+  const hasRecentFeedbackTimestamp =
+    hasTextValue(progress.summary.latest_feedback_at) &&
+    (!hasNumber(progress.summary.seconds_since_last_feedback) ||
+      !hasNumber(progress.summary.stalled_threshold_seconds) ||
+      progress.summary.stalled_threshold_seconds <= 0 ||
+      progress.summary.seconds_since_last_feedback <= progress.summary.stalled_threshold_seconds);
+
+  return (
+    progress.summary.is_live ||
+    (hasNumber(progress.summary.processed_symbols) && progress.summary.processed_symbols > 0) ||
+    (hasNumber(progress.summary.completed_feedback_count) && progress.summary.completed_feedback_count > 0) ||
+    hasRecentFeedbackTimestamp
+  );
+}
+
 export function getResolvedAgentProgressRunStatus(progress: AgentFeedbackProgressResponseDto | null) {
   if (!progress) return null;
 
   const summary = progress.summary;
   const runStatus = normalizeAgentProgressRunStatus(summary.run_status);
-  if (runStatus) return runStatus;
+  const runTableStatus = normalizeAgentProgressRunStatus(summary.run_table_status);
+  const cycleStatus = normalizeAgentProgressRunStatus(summary.cycle_status);
+  const currentRole = normalizeAgentRole(summary.current_role);
 
-  if (summary.is_live) return "running";
+  if (runStatus === "running" || runTableStatus === "running" || cycleStatus === "running") return "running";
+  if (runStatus === "stalled" || runTableStatus === "stalled" || cycleStatus === "stalled") return "stalled";
+  if (runStatus === "completed" || runTableStatus === "completed" || cycleStatus === "completed") {
+    return "completed";
+  }
+
+  if (summary.is_live || hasAgentFeedbackLiveProgressEvidence(progress, currentRole)) return "running";
   if (summary.failed_items > 0) return "stalled";
   if (summary.progress_percent >= 100) return "completed";
-  return "pending";
+  return runStatus ?? runTableStatus ?? cycleStatus ?? "pending";
 }
 
 export function isAgentFeedbackProgressRunning(progress: AgentFeedbackProgressResponseDto | null) {
@@ -1487,6 +1563,9 @@ function getOrderedAgentRoles(progress: AgentFeedbackProgressResponseDto | null)
   };
 
   progress?.request?.expected_agents?.forEach(addRole);
+  getSummaryAgentRoles(progress, "completed_roles").forEach(addRole);
+  getSummaryAgentRoles(progress, "remaining_roles").forEach(addRole);
+  getAgentRoleProgressSnapshots(progress).forEach((snapshot) => addRole(snapshot.role));
   getAgentRoleResultSnapshots(progress).forEach((snapshot) => addRole(snapshot.role));
   addRole(progress?.summary?.current_role);
 
@@ -1572,6 +1651,7 @@ function normalizeAgentRoleCardStatus(value: unknown): AgentRoleStatus | null {
     case "running":
     case "in_progress":
     case "processing":
+    case "partial":
       return "running";
     case "pending":
     case "queued":
@@ -1613,10 +1693,15 @@ function extractAgentRoleSnapshot(role: string, value: unknown): AgentRoleProgre
     "expected_count",
     "expected_feedback_count",
   ]);
-  const status =
+  const explicitStatus =
     normalizeAgentRoleCardStatus(
-      getRecordStringValue(value, ["status", "run_status", "role_status", "progress_status"]),
-    ) ?? "pending";
+      getRecordStringValue(value, ["status", "run_status", "role_status", "progress_status", "boundary_status"]),
+    );
+  const status =
+    explicitStatus ??
+    ((hasNumber(progressCount) && progressCount > 0) || (hasNumber(completedCount) && completedCount > 0)
+      ? "running"
+      : "pending");
   const progressPercent =
     getAgentProgressPercentFromRecord(value) ?? getAgentProgressPercentFromCounts(progressCount, totalCount);
 
@@ -1624,6 +1709,8 @@ function extractAgentRoleSnapshot(role: string, value: unknown): AgentRoleProgre
     role,
     status,
     completedCount,
+    progressCount,
+    totalCount,
     progressPercent,
   };
 }
@@ -1710,6 +1797,22 @@ function getAgentRoleProgressSnapshots(progress: AgentFeedbackProgressResponseDt
   return [];
 }
 
+function getSummaryAgentRoles(
+  progress: AgentFeedbackProgressResponseDto | null,
+  key: "completed_roles" | "remaining_roles",
+) {
+  const source = progress?.summary?.[key];
+  if (!Array.isArray(source)) return [];
+
+  return source
+    .filter((item): item is string => typeof item === "string" && hasTextValue(item))
+    .map((item) => item.trim());
+}
+
+function getCompletedAgentRoleSet(progress: AgentFeedbackProgressResponseDto | null) {
+  return new Set(getSummaryAgentRoles(progress, "completed_roles").map((role) => normalizeAgentRole(role) ?? role));
+}
+
 function buildAgentRoleResultMetrics(
   snapshot: AgentRoleResultSnapshot,
   copy: DashboardLiveCopy,
@@ -1750,6 +1853,39 @@ function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus, fallb
   if (!isSummarizerRole(role)) return false;
   if (status === "running") return true;
   return fallbackRole !== null && normalizeAgentRole(role) === fallbackRole;
+}
+
+function getRunningAgentRoleStatus(
+  role: string,
+  orderedRoles: string[],
+  currentRole: string | null,
+  snapshot: AgentRoleProgressSnapshot | null | undefined,
+  completedRoles: Set<string>,
+): AgentRoleStatus {
+  const normalizedRole = normalizeAgentRole(role) ?? role;
+  if (snapshot?.status === "attention") return "attention";
+  if (currentRole === normalizedRole) return "running";
+  if (completedRoles.has(normalizedRole)) return "completed";
+
+  const roleIndex = orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === normalizedRole);
+  const currentRoleIndex =
+    currentRole === null ? -1 : orderedRoles.findIndex((candidate) => normalizeAgentRole(candidate) === currentRole);
+
+  if (roleIndex >= 0 && currentRoleIndex >= 0) {
+    if (roleIndex < currentRoleIndex) return "completed";
+    if (roleIndex > currentRoleIndex) return "pending";
+  }
+
+  if (snapshot?.status === "completed") return "completed";
+  if (snapshot?.status === "running") return "running";
+  if (
+    (hasNumber(snapshot?.progressCount) && snapshot.progressCount > 0) ||
+    (hasNumber(snapshot?.completedCount) && snapshot.completedCount > 0)
+  ) {
+    return "running";
+  }
+
+  return snapshot?.status ?? getAgentRoleStatus(role, orderedRoles, currentRole);
 }
 
 function getNonRunningAgentRoleStatus(
@@ -1816,6 +1952,9 @@ function getAgentRoleProgressPercent(
 ) {
   if (hasNumber(snapshot?.progressPercent)) return snapshot.progressPercent;
 
+  const snapshotCountedPercent = getAgentProgressPercentFromCounts(snapshot?.progressCount, snapshot?.totalCount);
+  if (snapshotCountedPercent !== null) return snapshotCountedPercent;
+
   const totalSymbols = progress?.summary.total_symbols ?? null;
   const countedPercent = getAgentProgressPercentFromCounts(completedCount, totalSymbols);
   if (countedPercent !== null) return countedPercent;
@@ -1868,6 +2007,7 @@ export function buildAgentRoleCards(
   const roleSnapshotByRole = new Map(
     roleSnapshots.map((snapshot) => [normalizeAgentRole(snapshot.role) ?? snapshot.role, snapshot] as const),
   );
+  const completedRoles = getCompletedAgentRoleSet(progress);
 
   if (!isAgentFeedbackProgressRunning(progress)) {
     return orderedRoles.map((role) => {
@@ -1915,7 +2055,7 @@ export function buildAgentRoleCards(
 
   return orderedRoles.map((role) => {
     const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
-    const status = snapshot?.status ?? getAgentRoleStatus(role, orderedRoles, currentRole);
+    const status = getRunningAgentRoleStatus(role, orderedRoles, currentRole, snapshot, completedRoles);
     const roleMetrics = shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole) ? metrics : [];
 
     return buildAgentRoleCard(
