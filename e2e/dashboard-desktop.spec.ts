@@ -71,6 +71,13 @@ test.describe("dashboard desktop", () => {
 
     await expect(page.getByText(/Insight cockpit/i)).toBeVisible();
     await expect(page.locator('#dashboard-freshness [class*="supportingCopy"]')).toHaveCount(0);
+    const deciderCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });
+    await expect(deciderCard).toHaveCount(1);
+    await expect(deciderCard.getByText("Results", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Market date", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Action mix", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Run", { exact: true })).toHaveCount(0);
+    await expect(deciderCard.getByText("Errors", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 

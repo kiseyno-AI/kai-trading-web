@@ -536,10 +536,6 @@ function getSignalDeciderQualityTone(tone: string | null | undefined) {
   return "neutral";
 }
 
-function formatSignalDeciderCount(value: number | null | undefined, numberLocale: string) {
-  return typeof value === "number" ? value.toLocaleString(numberLocale) : UNKNOWN_LABEL;
-}
-
 function formatSignalDeciderResultCount(model: SignalDeciderFeedbackSummaryModel, numberLocale: string) {
   const completedCount = typeof model.completedCount === "number" ? model.completedCount : model.resultCount;
   const resultCount = completedCount.toLocaleString(numberLocale);
@@ -599,14 +595,6 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
         <div className={styles.statusMetric}>
           <span>{copy.signalDecider.date}</span>
           <strong>{model.marketDate ?? UNKNOWN_LABEL}</strong>
-        </div>
-        <div className={styles.statusMetric}>
-          <span>{copy.signalDecider.run}</span>
-          <strong>{model.runId ?? UNKNOWN_LABEL}</strong>
-        </div>
-        <div className={styles.statusMetric}>
-          <span>{copy.signalDecider.errors}</span>
-          <strong>{formatSignalDeciderCount(model.errorCount, numberLocale)}</strong>
         </div>
         <div className={styles.statusMetric}>
           <span>{copy.signalDecider.actionMix}</span>
