@@ -50,6 +50,7 @@ test.describe("dashboard mobile hero", () => {
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 
     const processDrawer = await openProcessMonitorDrawer(page);
+    await expect(processDrawer.locator('[class*="processMonitorDrawerSummary"]')).toHaveCount(0);
     await expect(processDrawer.getByText(/EOD Status/i)).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /Filtering/i })).toBeVisible();

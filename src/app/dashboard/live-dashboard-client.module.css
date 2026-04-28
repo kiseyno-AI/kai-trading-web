@@ -294,13 +294,6 @@
   white-space: nowrap;
 }
 
-.processMonitorSummary span,
-.processMonitorDrawerSummary span {
-  color: var(--muted-soft);
-  font-size: 0.68rem;
-  line-height: 1.35;
-}
-
 .processMonitorSummary strong {
   margin: 0;
   color: var(--text-strong);
@@ -308,6 +301,12 @@
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1.1;
+}
+
+.processMonitorSummary span {
+  color: var(--muted-soft);
+  font-size: 0.68rem;
+  line-height: 1.35;
 }
 
 .processMonitorLoadingValue {
@@ -382,32 +381,6 @@
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.45;
-}
-
-.processMonitorDrawerSummary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
-  margin-top: 1rem;
-}
-
-.processMonitorDrawerSummary > div {
-  min-width: 0;
-  padding: 0.72rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
-  border-radius: 0.55rem;
-  background: rgba(10, 14, 19, 0.62);
-}
-
-.processMonitorDrawerSummary strong {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.78rem;
-  font-weight: 800;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
 }
 
 .processMonitorSummary[data-process-status="completed"] {
@@ -1801,10 +1774,6 @@
 }
 
 @media (max-width: 520px) {
-  .processMonitorDrawerSummary {
-    grid-template-columns: 1fr;
-  }
-
   .eodStageGrid {
     grid-template-columns: 1fr;
   }
@@ -1906,10 +1875,6 @@
   .processMonitorDrawerHandle {
     width: 3.4rem;
     margin-bottom: 1rem;
-    border-radius: 0.16rem;
-  }
-
-  .processMonitorDrawerSummary > div {
     border-radius: 0.16rem;
   }
 

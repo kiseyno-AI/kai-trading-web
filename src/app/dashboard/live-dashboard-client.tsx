@@ -912,14 +912,12 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
 type ProcessMonitorDrawerProps = {
   children?: ReactNode;
   copy: DashboardLiveCopy;
-  model: ProcessMonitorModel;
   onClose: () => void;
 };
 
 const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
   children,
   copy,
-  model,
   onClose,
 }: ProcessMonitorDrawerProps) {
   return (
@@ -951,21 +949,6 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
           >
             {copy.operational.close}
           </button>
-        </div>
-
-        <div className={styles.processMonitorDrawerSummary} data-process-status={model.status}>
-          <div>
-            <span>{copy.processMonitor.current}</span>
-            <strong>{getProcessMonitorCurrentLabel(model, copy)}</strong>
-          </div>
-          <div>
-            <span>{copy.processMonitor.progress}</span>
-            <strong>{model.progressLabel}</strong>
-          </div>
-          <div>
-            <span>{copy.operational.status}</span>
-            <strong>{model.statusLabel}</strong>
-          </div>
         </div>
 
         {children ? (
@@ -1670,11 +1653,7 @@ export function LiveDashboardClient({
 
       {processMonitorDrawerOpen
         ? createPortal(
-            <ProcessMonitorDrawer
-              copy={copy}
-              model={processMonitorModel}
-              onClose={closeProcessMonitorDrawer}
-            >
+            <ProcessMonitorDrawer copy={copy} onClose={closeProcessMonitorDrawer}>
               <EodStatusCard
                 copy={copy}
                 eodStageCards={eodStageCards}
@@ -1686,10 +1665,7 @@ export function LiveDashboardClient({
                 onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
               />
 
-              <FilteringCard
-                copy={copy}
-                filteringCardModel={filteringCardModel}
-              />
+              <FilteringCard copy={copy} filteringCardModel={filteringCardModel} />
 
               <AgentFeedbackCard
                 agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
