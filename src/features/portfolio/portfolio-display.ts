@@ -322,7 +322,9 @@ export function resolvePortfolioSummaryState({
   summary,
 }: PortfolioSummaryStateInput): PortfolioSummaryState {
   if (loading && !summary && !error) return "loading";
-  if (!summary) return failureKind ?? "upstream-unavailable";
+  if (failureKind) return failureKind;
+  if (error) return "upstream-unavailable";
+  if (!summary) return "upstream-unavailable";
   if (hasNotConfiguredSignal(summary)) return "not-configured";
   if (isPortfolioSummaryStale(summary)) return "stale-sync";
   if (isPortfolioSummaryPartial(summary)) return "partial-data";

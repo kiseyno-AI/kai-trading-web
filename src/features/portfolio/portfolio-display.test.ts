@@ -182,6 +182,49 @@ test("distinguishes portfolio summary loading, connectivity, empty, stale, parti
   );
 });
 
+test("preserves fetch failure state when a cached portfolio summary remains available", () => {
+  const cachedEmptySummary: PortfolioSummaryDto = {
+    sync: { status: "synced" },
+    accounts: [{ id: "cached-empty", label: "Cached Empty", holdings: [] }],
+  };
+  const cachedSyncedSummary: PortfolioSummaryDto = {
+    sync: { status: "synced" },
+    accounts: [{ id: "cached-ready", label: "Cached Ready", holdings: [{ symbol: "005930" }] }],
+  };
+
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "TRADING_API_UPSTREAM_BASE_URL is required for deployed trading proxy requests.",
+      failureKind: "not-configured",
+      summary: cachedEmptySummary,
+    }),
+    "not-configured",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "connect ECONNREFUSED",
+      failureKind: "upstream-unavailable",
+      summary: cachedSyncedSummary,
+    }),
+    "upstream-unavailable",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "Portfolio response did not match the expected shape.",
+      failureKind: "invalid-response",
+      summary: cachedSyncedSummary,
+    }),
+    "invalid-response",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "Network request failed",
+      summary: cachedSyncedSummary,
+    }),
+    "upstream-unavailable",
+  );
+});
+
 test("classifies portfolio summary fetch failures without flattening every failure into unavailable", () => {
   assert.equal(classifyPortfolioSummaryFailure({ status: 404, message: "not implemented" }), "endpoint-pending");
   assert.equal(
