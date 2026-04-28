@@ -677,24 +677,47 @@ function humanizePortfolioStatus(value: string) {
 
 function getPortfolioStateStatusLabel(state: PortfolioSummaryState, summary: PortfolioSummaryDto | null, copy: DashboardLiveCopy) {
   if (state === "loading") return copy.portfolioState.statusLoading;
-  if (state === "unavailable") return copy.portfolioState.statusUnavailable;
-  if (state === "empty") return copy.portfolioState.statusEmpty;
-  if (state === "degraded") return copy.portfolioState.statusDegraded;
+  if (state === "connected-empty") return copy.portfolioState.statusEmpty;
+  if (
+    state === "endpoint-pending" ||
+    state === "invalid-response" ||
+    state === "not-configured" ||
+    state === "upstream-unavailable"
+  ) {
+    return copy.portfolioState.statusUnavailable;
+  }
+  if (state === "partial-data" || state === "stale-sync") return copy.portfolioState.statusDegraded;
 
   return summary?.sync?.status ? humanizePortfolioStatus(summary.sync.status) : copy.portfolioState.statusReady;
 }
 
 function getPortfolioStateStatusTone(state: PortfolioSummaryState) {
-  if (state === "ready") return "positive";
-  if (state === "unavailable" || state === "degraded") return "warning";
+  if (state === "fully-synced") return "positive";
+  if (
+    state === "endpoint-pending" ||
+    state === "invalid-response" ||
+    state === "not-configured" ||
+    state === "partial-data" ||
+    state === "stale-sync" ||
+    state === "upstream-unavailable"
+  ) {
+    return "warning";
+  }
   return "neutral";
 }
 
 function getPortfolioStateMetricFallback(state: PortfolioSummaryState, copy: DashboardLiveCopy) {
   if (state === "loading") return copy.portfolioState.loading;
-  if (state === "unavailable") return copy.portfolioState.unavailableMetric;
-  if (state === "degraded") return copy.portfolioState.degradedMetric;
-  if (state === "empty") return copy.portfolioState.emptyMetric;
+  if (
+    state === "endpoint-pending" ||
+    state === "invalid-response" ||
+    state === "not-configured" ||
+    state === "upstream-unavailable"
+  ) {
+    return copy.portfolioState.unavailableMetric;
+  }
+  if (state === "partial-data" || state === "stale-sync") return copy.portfolioState.degradedMetric;
+  if (state === "connected-empty") return copy.portfolioState.emptyMetric;
 
   return copy.portfolioState.waiting;
 }
@@ -730,11 +753,14 @@ const PortfolioStateCard = memo(function PortfolioStateCard({
   const context =
     state === "loading"
       ? copy.portfolioState.loadingSummary
-      : state === "unavailable"
+      : state === "endpoint-pending" ||
+          state === "invalid-response" ||
+          state === "not-configured" ||
+          state === "upstream-unavailable"
         ? error ?? copy.portfolioState.unavailable
-        : state === "degraded"
+        : state === "partial-data" || state === "stale-sync"
           ? syncMessage ?? copy.portfolioState.degradedSummary
-          : state === "empty"
+          : state === "connected-empty"
             ? copy.portfolioState.emptySummary
             : null;
 

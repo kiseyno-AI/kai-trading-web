@@ -133,13 +133,34 @@ test.describe("portfolio mobile route", () => {
     await page.goto("/portfolio");
 
     await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
-    await expect(page.getByText("Aggregate portfolio summary endpoint is not available yet. HTTP 404")).toBeVisible();
-    await expect(page.getByText("Portfolio summary unavailable.").first()).toBeVisible();
-    await expect(
-      page.getByText("The aggregate portfolio summary route is not returning a usable response yet.").first(),
-    ).toBeVisible();
+    await expect(page.getByText("Aggregate portfolio summary endpoint is not available yet. HTTP 404").first()).toBeVisible();
+    await expect(page.getByText("Aggregate endpoint pending.").first()).toBeVisible();
     await expect(page.getByText("No accounts in portfolio summary.")).toHaveCount(0);
     await expect(page.getByText("No holdings reported yet.")).toHaveCount(0);
+  });
+
+  test("separates upstream configuration and connectivity failures", async ({ page }) => {
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        status: 500,
+        json: { message: "TRADING_API_UPSTREAM_BASE_URL is required for deployed trading proxy requests." },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    await expect(page.getByText("Portfolio upstream not configured.").first()).toBeVisible();
+    await expect(page.getByText("Trading upstream configuration is missing.").first()).toBeVisible();
+    await expect(page.getByText("Trading-core portfolio API unreachable.")).toHaveCount(0);
+
+    await page.unroute("**/api/trading/portfolio/summary");
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({ status: 502, json: { message: "connect ECONNREFUSED 127.0.0.1:8000" } });
+    });
+    await page.reload();
+
+    await expect(page.getByText("Trading-core portfolio API unreachable.").first()).toBeVisible();
+    await expect(page.getByText("Trading-core portfolio upstream is unavailable. HTTP 502").first()).toBeVisible();
   });
 
   test("keeps connected empty holdings separate from unavailable summary", async ({ page }) => {
@@ -178,6 +199,7 @@ test.describe("portfolio mobile route", () => {
 
     await expect(page.getByText("KIS Empty Account")).toBeVisible();
     await expect(page.getByText("Connected empty")).toBeVisible();
+    await expect(page.getByText("Portfolio is connected and empty.")).toBeVisible();
     await expect(page.getByText("No holdings reported yet.")).toBeVisible();
     await expect(page.getByText("The aggregate summary is connected and returned no holdings for the current accounts.")).toBeVisible();
     await expect(page.getByText("Portfolio summary unavailable.")).toHaveCount(0);
@@ -226,10 +248,53 @@ test.describe("portfolio mobile route", () => {
 
     await page.goto("/portfolio");
 
-    await expect(page.getByText("Portfolio sync needs attention.")).toBeVisible();
+    await expect(page.getByText("Portfolio sync is stale.")).toBeVisible();
     await expect(page.getByText("KIS balance sync is older than the latest market session.")).toBeVisible();
     await expect(page.getByText("KIS Stale Account")).toBeVisible();
     await expect(page.getByText("Samsung Electronics")).toBeVisible();
     await expect(page.getByText("No order or execution summary yet.")).toBeVisible();
+  });
+
+  test("keeps returned sections visible when the portfolio summary is partial", async ({ page }) => {
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        json: {
+          asOf: "2026-04-21T09:12:00+09:00",
+          source: "portfolio-summary",
+          sync: {
+            status: "partial",
+            lastSyncedAt: "2026-04-21T09:12:00+09:00",
+            source: "kis",
+            message: "KIS holdings inquiry returned a partial response.",
+          },
+          accounts: [
+            {
+              id: "kis-partial",
+              label: "KIS Partial Account",
+              broker: "KIS",
+              accountType: "cash",
+              status: "partial",
+              baseCurrency: "KRW",
+              lastSyncedAt: "2026-04-21T09:12:00+09:00",
+              summary: {
+                totalAssets: { amount: 12500000, currency: "KRW" },
+              },
+            },
+          ],
+          notices: ["Tax lots are still pending."],
+        },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    await expect(page.getByText("Portfolio data is partial.")).toBeVisible();
+    await expect(page.getByText("KIS holdings inquiry returned a partial response.")).toBeVisible();
+    await expect(page.getByText("Tax lots are still pending.")).toBeVisible();
+    await expect(page.getByText("KIS Partial Account")).toBeVisible();
+    await expect(page.getByText("Not returned").first()).toBeVisible();
+    await expect(page.getByText("Holdings data is partial.")).toBeVisible();
+    await expect(page.getByText("Activity data is partial.")).toBeVisible();
+    await expect(page.getByText("Portfolio summary unavailable.")).toHaveCount(0);
   });
 });

@@ -87,7 +87,8 @@ This document defines the first practical frontend contract for wiring `trading-
   - The page is read-only and does not place trades.
   - The expected payload is `PortfolioSummaryDto` with `accounts[]`, per-account `summary` money fields, `holdings[]`, optional `allocation[]`, optional `recentActivity[]`, top-level `sync`, `asOf`, and `notices`.
   - Money fields use `{ amount, currency, display }` so backend responses can provide raw analytics values while still allowing display-ready fallbacks during integration.
-  - The route distinguishes loading, unavailable/config-missing, connected-but-empty holdings, and stale/degraded sync states instead of treating every missing payload as an empty portfolio.
+  - The route distinguishes loading, endpoint-pending, upstream-not-configured, upstream-unavailable, invalid-response, connected-but-empty, stale-sync, partial-data, and fully-synced states instead of treating every missing payload as an empty portfolio.
+  - Portfolio subsections map their own state for hero metrics, account cards, holdings, allocation, and recent activity so a missing or partial subsection does not collapse the full page into generic unavailable copy.
   - Multiple accounts are supported from the start; the summary cards aggregate same-currency account totals and avoid pretending mixed-currency values are a single number.
 - `/markets/factors` now reads:
   - `GET /eod/freshness` to resolve the latest stored price trade date when the route is opened without an explicit `marketDate`
