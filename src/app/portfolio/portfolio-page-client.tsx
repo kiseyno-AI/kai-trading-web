@@ -26,6 +26,7 @@ import {
   getPortfolioAllocations,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
+  getPortfolioNoticeMessages,
   getPortfolioSyncMessage,
   resolvePortfolioSummaryState,
   type PortfolioMetricId,
@@ -211,6 +212,7 @@ export default function PortfolioPageClient() {
   const accountCountLabel = `${accounts.length} ${accounts.length === 1 ? copy.account : copy.accounts}`;
   const holdingCountLabel = `${holdings.length} ${holdings.length === 1 ? copy.holding : copy.holdings}`;
   const syncMessage = getPortfolioSyncMessage(summary);
+  const noticeMessages = getPortfolioNoticeMessages(summary, portfolioState);
   const allocationRows =
     allocations.length > 0
       ? allocations
@@ -297,8 +299,8 @@ export default function PortfolioPageClient() {
           {portfolioState === "degraded" ? (
             <StateNotice title={copy.summaryDegradedTitle} body={syncMessage ?? copy.summaryDegradedBody} tone="warning" />
           ) : null}
-          {summary?.notices?.filter((notice) => notice !== syncMessage).map((notice) => (
-            <p key={notice} className={styles.notice}>{notice}</p>
+          {noticeMessages.map((notice, index) => (
+            <p key={`${notice}-${index}`} className={styles.notice}>{notice}</p>
           ))}
         </section>
 

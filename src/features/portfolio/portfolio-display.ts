@@ -169,6 +169,25 @@ export function getPortfolioSyncMessage(summary: PortfolioSummaryDto | null | un
   return summary?.notices?.find((notice) => notice.trim().length > 0)?.trim() ?? null;
 }
 
+export function getPortfolioNoticeMessages(
+  summary: PortfolioSummaryDto | null | undefined,
+  state: PortfolioSummaryState,
+) {
+  const notices = summary?.notices ?? [];
+  const renderedSyncMessage = state === "degraded" ? getPortfolioSyncMessage(summary) : null;
+  if (!renderedSyncMessage) return notices;
+
+  let suppressedRenderedNotice = false;
+  const normalizedRenderedSyncMessage = renderedSyncMessage.trim();
+
+  return notices.filter((notice) => {
+    if (suppressedRenderedNotice || notice.trim() !== normalizedRenderedSyncMessage) return true;
+
+    suppressedRenderedNotice = true;
+    return false;
+  });
+}
+
 export function isPortfolioSummaryDegraded(summary: PortfolioSummaryDto | null | undefined) {
   const topLevelStatus = getPortfolioSyncStatus(summary);
   if (topLevelStatus && DEGRADED_SYNC_STATUSES.has(topLevelStatus)) return true;

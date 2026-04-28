@@ -8,6 +8,7 @@ import {
   getPortfolioActivity,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
+  getPortfolioNoticeMessages,
   getPortfolioSyncMessage,
   resolvePortfolioSummaryState,
 } from "./portfolio-display";
@@ -166,4 +167,53 @@ test("surfaces sync messages before notice fallbacks", () => {
     "Account sync is stale.",
   );
   assert.equal(getPortfolioSyncMessage({ notices: ["Notice fallback"] }), "Notice fallback");
+});
+
+test("keeps notice fallback messages visible when no sync banner renders them", () => {
+  const summary: PortfolioSummaryDto = {
+    sync: { status: "synced" },
+    accounts: [
+      {
+        id: "ready-account",
+        label: "Ready Account",
+        holdings: [{ symbol: "005930" }],
+      },
+    ],
+    notices: ["Account API returned cached balances.", "Tax lots are still pending."],
+  };
+
+  assert.equal(getPortfolioSyncMessage(summary), "Account API returned cached balances.");
+  assert.deepEqual(getPortfolioNoticeMessages(summary, "ready"), [
+    "Account API returned cached balances.",
+    "Tax lots are still pending.",
+  ]);
+  assert.deepEqual(getPortfolioNoticeMessages({ ...summary, accounts: [] }, "empty"), [
+    "Account API returned cached balances.",
+    "Tax lots are still pending.",
+  ]);
+});
+
+test("suppresses only the notice actually rendered in the degraded sync banner", () => {
+  const summary: PortfolioSummaryDto = {
+    sync: { status: "stale" },
+    accounts: [
+      {
+        id: "stale-account",
+        label: "Stale Account",
+        status: "stale",
+        holdings: [{ symbol: "005930" }],
+      },
+    ],
+    notices: [
+      "KIS balance sync is older than the latest market session.",
+      "Tax lots are still pending.",
+      "KIS balance sync is older than the latest market session.",
+    ],
+  };
+
+  assert.equal(getPortfolioSyncMessage(summary), "KIS balance sync is older than the latest market session.");
+  assert.deepEqual(getPortfolioNoticeMessages(summary, "degraded"), [
+    "Tax lots are still pending.",
+    "KIS balance sync is older than the latest market session.",
+  ]);
 });
