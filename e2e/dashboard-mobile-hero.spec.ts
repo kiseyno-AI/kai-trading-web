@@ -50,6 +50,13 @@ test.describe("dashboard mobile hero", () => {
     await expect(deciderCard.getByText("Errors", { exact: true })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
     await expect(hero.getByRole("heading", { name: /Market condition/i })).toBeVisible();
+    const marketCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
+    await expect(marketCard.getByText("KOSPI", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("KOSDAQ", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
     await expect(hero.getByText(/EOD Status/i)).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Daily Data Fetch/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Filtering/i })).toHaveCount(0);

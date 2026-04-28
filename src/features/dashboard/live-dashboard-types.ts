@@ -4,6 +4,7 @@ import type {
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
   EodPipelineStatusResponseDto,
+  MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
 
@@ -54,6 +55,7 @@ export type LiveDashboardClientProps = {
   initialFreshness: EodFreshnessResponseDto | null;
   initialFundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null;
   initialPipelineStatus: EodPipelineStatusResponseDto | null;
+  initialMarketSnapshot: MarketSnapshotResponseDto | null;
   initialAgentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
   initialSignalDeciderFeedback: AgentFeedbackListResponseDto | null;
   initialPortfolioSummary: PortfolioSummaryDto | null;

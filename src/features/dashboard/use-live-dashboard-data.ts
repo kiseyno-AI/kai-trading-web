@@ -59,11 +59,13 @@ import type {
   EodMarketRiskFiltersResponseDto,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
 
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 const FILTERING_FALLBACK_REVALIDATE_DELAY_MS = 5_000;
+const MARKET_SNAPSHOT_PATH = "/api/trading/market/snapshot";
 
 function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
@@ -110,6 +112,7 @@ export function useLiveDashboardData({
   initialFreshness,
   initialFundamentalsStatus,
   initialPipelineStatus,
+  initialMarketSnapshot,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
   initialPortfolioSummary,
@@ -133,6 +136,8 @@ export function useLiveDashboardData({
   const pipelineStatusRequestDateRef = useRef<string | null>(initialPipelineRequestMarketDate);
   const marketServerTimeRef = useRef<string | null>(initialMarket.server_time ?? null);
   const freshnessTradeDateRef = useRef<string | null>(initialFreshness?.today?.trade_date ?? null);
+  const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshotResponseDto | null>(initialMarketSnapshot);
+  const [marketSnapshotError, setMarketSnapshotError] = useState<string | null>(null);
   const [agentFeedbackProgress, setAgentFeedbackProgressState] = useState<AgentFeedbackProgressResponseDto | null>(
     initialAgentFeedbackProgress,
   );
@@ -312,6 +317,31 @@ export function useLiveDashboardData({
 
     void loadMarket();
     const timer = window.setInterval(loadMarket, 60_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMarketSnapshot = async () => {
+      try {
+        const snapshot = await getJsonNoCache<MarketSnapshotResponseDto>(MARKET_SNAPSHOT_PATH);
+        if (!active) return;
+        setMarketSnapshot(snapshot);
+        setMarketSnapshotError(null);
+      } catch (snapshotError) {
+        console.error("Dashboard market snapshot load failed", snapshotError);
+        if (!active) return;
+        setMarketSnapshotError(getDashboardLoadErrorMessage(snapshotError));
+      }
+    };
+
+    void loadMarketSnapshot();
+    const timer = window.setInterval(loadMarketSnapshot, 60_000);
 
     return () => {
       active = false;
@@ -713,6 +743,8 @@ export function useLiveDashboardData({
     agentFeedbackProgressError,
     dashboardProcessMarketDate,
     market,
+    marketSnapshot,
+    marketSnapshotError,
     marketRiskStatus: filteringMarketDate ? marketRiskStatus : null,
     marketRiskStatusError: filteringMarketDate ? marketRiskStatusError : null,
     marketRiskStatusLoadState: filteringMarketDate ? marketRiskStatusLoadState : "idle",
