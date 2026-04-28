@@ -227,6 +227,7 @@ export type AgentRoleProgressSnapshot = {
   role: string;
   status: AgentRoleStatus;
   completedCount: number | null;
+  failedCount: number | null;
   progressCount: number | null;
   totalCount: number | null;
   progressPercent: number | null;
