@@ -392,10 +392,11 @@ test.describe("dashboard mobile chrome", () => {
     await expect(loadingSummary).toContainText(/Running/);
     await expect(loadingSummary).not.toContainText(/\d+\s*\/\s*\d+/);
 
-    const spinnerAnimationName = await loadingSummary.locator('[aria-hidden="true"]').first().evaluate((element) => {
-      return getComputedStyle(element).animationName;
-    });
-    expect(spinnerAnimationName).toMatch(/agentRoleSpin$/);
+    const loadingSpinner = loadingSummary.locator('[aria-hidden="true"]').first();
+    await expect(loadingSpinner).toBeVisible();
+    await expect
+      .poll(() => loadingSpinner.evaluate((element) => getComputedStyle(element).animationName))
+      .toMatch(/agentRoleSpin$/);
 
     pipelineStatus = "completed";
 
