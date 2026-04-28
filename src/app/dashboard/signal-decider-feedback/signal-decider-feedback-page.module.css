@@ -1,7 +1,7 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.15rem;
 }
 
 .appHeaderBrand {
@@ -56,8 +56,8 @@
 .heroPanel {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 1.15rem;
+  padding: 1.1rem;
 }
 
 .heroCopy {
@@ -108,19 +108,19 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 0.95rem;
-  padding: 1rem;
+  gap: 1.15rem;
+  padding: 1.1rem;
 }
 
 .summaryGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
   gap: 0.75rem;
 }
 
 .summaryCard {
   min-width: 0;
-  padding: 0.78rem 0.84rem;
+  padding: 0.9rem 0.95rem;
   border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.5rem;
   background: rgba(10, 14, 19, 0.64);
@@ -135,11 +135,11 @@
 
 .summaryCard strong {
   display: block;
-  margin-top: 0.24rem;
+  margin-top: 0.32rem;
   overflow-wrap: anywhere;
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.4;
 }
@@ -159,7 +159,11 @@
 .controls {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.65rem;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(71, 69, 85, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(10, 14, 19, 0.38);
 }
 
 .controls label {
@@ -226,16 +230,54 @@
 
 .resultsTable {
   width: 100%;
-  min-width: 82rem;
+  min-width: 78rem;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .resultsTable th,
 .resultsTable td {
-  padding: 0.82rem;
+  padding: 0.9rem;
   border-bottom: 1px solid rgba(71, 69, 85, 0.16);
   text-align: left;
   vertical-align: top;
+}
+
+.resultsTable th:nth-child(1) {
+  width: 13rem;
+}
+
+.resultsTable th:nth-child(2),
+.resultsTable th:nth-child(3) {
+  width: 8rem;
+}
+
+.resultsTable th:nth-child(4) {
+  width: 10rem;
+}
+
+.resultsTable th:nth-child(5) {
+  width: 10rem;
+}
+
+.resultsTable th:nth-child(6) {
+  width: 19rem;
+}
+
+.resultsTable th:nth-child(7) {
+  width: 10rem;
+}
+
+.resultsTable th:nth-child(8) {
+  width: 11rem;
+}
+
+.resultsTable th:nth-child(9) {
+  width: 10rem;
+}
+
+.resultsTable th:nth-child(10) {
+  width: 7rem;
 }
 
 .resultsTable th {
@@ -251,20 +293,60 @@
   color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .resultsTable td:nth-child(1),
 .resultsTable td:nth-child(2),
-.resultsTable td:nth-child(3),
-.resultsTable td:nth-child(4),
-.resultsTable td:nth-child(8),
-.resultsTable td:nth-child(9),
 .resultsTable td:nth-child(10) {
   white-space: nowrap;
 }
 
-.resultsTable td:nth-child(4) span {
-  display: block;
+.scoreStack {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.scoreStack > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.scoreStack span span {
+  color: var(--muted-soft);
+  font-size: 0.72rem;
+}
+
+.scoreStack strong {
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.82rem;
+}
+
+.thesisCell {
+  color: var(--text);
+}
+
+.traceSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+}
+
+.traceSummary span {
+  display: inline-flex;
+  min-height: 1.45rem;
+  align-items: center;
+  padding: 0.16rem 0.42rem;
+  border: 1px solid rgba(71, 69, 85, 0.16);
+  border-radius: 999px;
+  background: rgba(24, 28, 33, 0.72);
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .resultsTable tr:last-child td {
@@ -331,16 +413,19 @@
   inset: 0;
   z-index: 80;
   display: grid;
-  place-items: end center;
-  padding: 1rem;
+  place-items: center;
+  padding: 0.85rem;
   background: rgba(3, 7, 12, 0.68);
 }
 
+:global(main):has(.dialogBackdrop) {
+  z-index: 90;
+}
+
 .detailDialog {
-  width: min(100%, 58rem);
-  max-height: min(88vh, 56rem);
+  width: min(100%, 72rem);
+  max-height: min(92dvh, 62rem);
   overflow: auto;
-  padding: 1rem;
   border: 1px solid rgba(197, 192, 255, 0.22);
   border-radius: 0.5rem;
   background: rgba(18, 22, 28, 0.98);
@@ -348,54 +433,89 @@
 }
 
 .detailHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
-  padding-bottom: 0.9rem;
+  align-items: start;
+  padding: 1.05rem;
   border-bottom: 1px solid rgba(71, 69, 85, 0.2);
+  background: rgba(18, 22, 28, 0.96);
+  backdrop-filter: blur(18px);
+}
+
+.detailTitleBlock {
+  min-width: 0;
 }
 
 .detailHeader h2 {
   margin: 0.3rem 0 0;
   color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
-  font-size: 1.25rem;
+  font-size: 1.34rem;
   font-weight: 800;
   line-height: 1.25;
+}
+
+.detailSubtitle {
+  margin: 0.36rem 0 0;
+  color: var(--muted);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .detailBadges {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.42rem;
-  margin-top: 0.65rem;
+  gap: 0.45rem;
+  margin-top: 0.72rem;
 }
 
 .closeButton {
   width: auto;
-  min-height: 2.25rem;
-  padding: 0 0.75rem;
+  min-height: 2.35rem;
+  padding: 0 0.85rem;
   white-space: nowrap;
 }
 
-.detailGrid {
+.detailBody {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
-  gap: 0.72rem;
-  margin-top: 0.95rem;
+  grid-template-columns: 1fr;
+  gap: 0.95rem;
+  padding: 0.95rem;
 }
 
-.detailGrid div,
-.outcomeCard {
+.detailSidebar,
+.detailMain {
   min-width: 0;
-  padding: 0.75rem;
+  display: grid;
+  gap: 0.95rem;
+  align-content: start;
+}
+
+.detailGroup,
+.detailSection {
+  min-width: 0;
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.95rem;
   border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.58);
+  background: rgba(10, 14, 19, 0.46);
 }
 
-.detailGrid span,
+.detailGroupHeader {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.detailGroupHeader span,
+.decisionHero > span:last-child,
+.metricList dt,
+.contextList dt,
 .outcomeCard span {
   display: block;
   color: var(--muted-soft);
@@ -405,29 +525,98 @@
   text-transform: uppercase;
 }
 
-.detailGrid strong,
+.detailGroupHeader h3,
+.detailSection h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.decisionHero {
+  display: grid;
+  gap: 0.32rem;
+  align-items: start;
+  padding: 0.82rem;
+  border: 1px solid rgba(197, 192, 255, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(24, 28, 33, 0.72);
+}
+
+.decisionHero :global(.pill) {
+  justify-self: start;
+}
+
+.decisionHero strong {
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.metricList,
+.contextList {
+  display: grid;
+  gap: 0.58rem;
+  margin: 0;
+}
+
+.metricList div,
+.contextList div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(6.4rem, 0.7fr) minmax(0, 1.3fr);
+  gap: 0.72rem;
+  align-items: baseline;
+  padding-bottom: 0.58rem;
+  border-bottom: 1px solid rgba(71, 69, 85, 0.14);
+}
+
+.metricList div:last-child,
+.contextList div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.metricList dd,
+.contextList dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.thesisSection {
+  background: rgba(24, 28, 33, 0.62);
+}
+
+.outcomeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.72rem;
+}
+
+.outcomeCard {
+  min-width: 0;
+  padding: 0.82rem;
+  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(10, 14, 19, 0.58);
+}
+
 .outcomeCard strong {
   display: block;
   margin-top: 0.28rem;
   overflow-wrap: anywhere;
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.84rem;
+  font-size: 0.9rem;
   line-height: 1.45;
-}
-
-.detailSection {
-  display: grid;
-  gap: 0.6rem;
-  margin-top: 1rem;
-}
-
-.detailSection h3 {
-  margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.92rem;
-  font-weight: 800;
 }
 
 .detailSection p,
@@ -436,26 +625,21 @@
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
-  line-height: 1.55;
-}
-
-.outcomeGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  gap: 0.72rem;
+  line-height: 1.62;
 }
 
 .traceList {
-  display: grid;
-  gap: 0.54rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.58rem;
 }
 
 .traceRow {
   display: grid;
-  grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: minmax(6.8rem, 0.32fr) minmax(0, 1fr);
+  gap: 0.72rem;
   align-items: start;
-  padding: 0.65rem;
+  padding: 0.68rem;
   border: 1px solid rgba(71, 69, 85, 0.16);
   border-radius: 0.5rem;
   background: rgba(10, 14, 19, 0.44);
@@ -468,10 +652,26 @@
   white-space: normal;
 }
 
+.evidenceGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.95rem;
+}
+
 @media (min-width: 768px) {
   .controls {
     grid-template-columns: minmax(12rem, 1.1fr) minmax(12rem, 0.9fr) 9rem 11rem 11rem 10rem;
     align-items: end;
+  }
+
+  .detailBody {
+    grid-template-columns: minmax(17rem, 0.78fr) minmax(0, 1.6fr);
+    gap: 1.05rem;
+    padding: 1.05rem;
+  }
+
+  .evidenceGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -497,18 +697,29 @@
     font-size: clamp(1.9rem, 2.5vw, 2.6rem);
   }
 
-  .dialogBackdrop {
-    place-items: center;
+  .detailHeader {
+    padding: 1.18rem 1.25rem;
   }
 
-  .detailDialog {
-    padding: 1.35rem;
+  .detailBody {
+    gap: 1.15rem;
+    padding: 1.15rem;
   }
 }
 
 @media (max-width: 640px) {
   .detailHeader {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .closeButton {
+    justify-self: start;
+  }
+
+  .metricList div,
+  .contextList div {
+    grid-template-columns: 1fr;
+    gap: 0.22rem;
   }
 
   .traceRow {

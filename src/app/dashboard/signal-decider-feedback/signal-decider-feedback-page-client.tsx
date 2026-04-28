@@ -99,6 +99,12 @@ function getPillToneClass(tone: SignalDeciderQualityTone | null | undefined) {
   return "neutral";
 }
 
+function getActionToneClass(action: SignalDeciderAction) {
+  if (action === "buy") return "positive";
+  if (action === "reject") return "warning";
+  return "neutral";
+}
+
 function formatScore(value: number | null) {
   return value === null ? UNKNOWN_LABEL : `${value}/10`;
 }
@@ -128,14 +134,31 @@ function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
     .join(" · ");
 }
 
-function formatPricePlan(item: SignalDeciderFeedbackItem) {
-  const parts = [
-    item.targetPrice !== null ? `Target ₩${formatPrice(item.targetPrice)}` : null,
-    item.stopLossPrice !== null ? `Stop ₩${formatPrice(item.stopLossPrice)}` : null,
-    item.expectedReturnPct !== null ? `Return ${item.expectedReturnPct >= 0 ? "+" : ""}${item.expectedReturnPct.toFixed(2)}%` : null,
-  ].filter((part): part is string => part !== null);
+function formatCurrencyValue(value: number | null) {
+  return value === null ? UNKNOWN_LABEL : `₩${formatPrice(value)}`;
+}
 
-  return parts.length > 0 ? parts.join(" · ") : UNKNOWN_LABEL;
+function formatExpectedReturnValue(value: number | null) {
+  if (value === null) return UNKNOWN_LABEL;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function getDecisionPlanRows(item: SignalDeciderFeedbackItem) {
+  return [
+    { label: "Target", value: formatCurrencyValue(item.targetPrice) },
+    { label: "Stop", value: formatCurrencyValue(item.stopLossPrice) },
+    { label: "Expected return", value: formatExpectedReturnValue(item.expectedReturnPct) },
+  ];
+}
+
+function getRunContextRows(item: SignalDeciderFeedbackItem) {
+  return [
+    { label: "Symbol", value: item.symbol },
+    { label: "Market date", value: item.marketDate || UNKNOWN_LABEL },
+    { label: "Policy", value: item.policyVersion ?? UNKNOWN_LABEL },
+    { label: "Run", value: item.runId ?? UNKNOWN_LABEL },
+    { label: "Agent version", value: item.agentVersion ?? UNKNOWN_LABEL },
+  ];
 }
 
 function formatActionMix(actionCounts: Record<SignalDeciderAction, number>) {
@@ -568,9 +591,7 @@ export default function SignalDeciderFeedbackPageClient() {
                         </Link>
                       </td>
                       <td>
-                        <span className={`pill ${item.action === "buy" ? "positive" : item.action === "reject" ? "warning" : "neutral"}`}>
-                          {item.actionLabel}
-                        </span>
+                        <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
                       </td>
                       <td>
                         {getDecisionQualityLabel(item) ? (
@@ -582,20 +603,38 @@ export default function SignalDeciderFeedbackPageClient() {
                         )}
                       </td>
                       <td>
-                        <span>Conviction {formatScore(item.convictionScore)}</span>
-                        <span>Confidence {formatScore(item.confidenceScore)}</span>
+                        <div className={styles.scoreStack}>
+                          <span>
+                            <span>Conviction </span>
+                            <strong>{formatScore(item.convictionScore)}</strong>
+                          </span>
+                          <span>
+                            <span>Confidence </span>
+                            <strong>{formatScore(item.confidenceScore)}</strong>
+                          </span>
+                        </div>
                       </td>
                       <td>{formatOutcomeSummary(item)}</td>
-                      <td>{item.thesisSummary ?? UNKNOWN_LABEL}</td>
+                      <td className={styles.thesisCell}>{item.thesisSummary ?? UNKNOWN_LABEL}</td>
                       <td>
-                        {[
-                          item.riskFlags.length > 0 ? `${item.riskFlags.length} risks` : null,
-                          item.factorAttributions.length > 0 ? `${item.factorAttributions.length} factors` : null,
-                          item.gateResults.length > 0 ? `${item.gateResults.length} gates` : null,
-                          item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} evidence` : null,
-                        ]
-                          .filter((part): part is string => part !== null)
-                          .join(" · ") || UNKNOWN_LABEL}
+                        <div className={styles.traceSummary}>
+                          {[
+                            item.riskFlags.length > 0 ? `${item.riskFlags.length} risks` : null,
+                            item.factorAttributions.length > 0 ? `${item.factorAttributions.length} factors` : null,
+                            item.gateResults.length > 0 ? `${item.gateResults.length} gates` : null,
+                            item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} evidence` : null,
+                          ]
+                            .filter((part): part is string => part !== null)
+                            .map((part) => (
+                              <span key={part}>{part}</span>
+                            ))}
+                          {item.riskFlags.length === 0 &&
+                          item.factorAttributions.length === 0 &&
+                          item.gateResults.length === 0 &&
+                          item.upstreamEvidence.length === 0
+                            ? UNKNOWN_LABEL
+                            : null}
+                        </div>
                       </td>
                       <td>{item.policyVersion ?? UNKNOWN_LABEL}</td>
                       <td>{formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</td>
@@ -628,13 +667,16 @@ export default function SignalDeciderFeedbackPageClient() {
               onMouseDown={(event) => event.stopPropagation()}
             >
               <header className={styles.detailHeader}>
-                <div>
+                <div className={styles.detailTitleBlock}>
                   <p className={styles.eyebrow}>Decision review</p>
                   <h2 id="signal-decider-detail-title">
                     {selectedItem.companyName ?? selectedItem.symbol}
                   </h2>
+                  <p className={styles.detailSubtitle}>
+                    {selectedItem.symbol} · {selectedItem.marketDate || "Market date pending"}
+                  </p>
                   <div className={styles.detailBadges}>
-                    <span className={`pill ${selectedItem.action === "buy" ? "positive" : selectedItem.action === "reject" ? "warning" : "neutral"}`}>
+                    <span className={`pill ${getActionToneClass(selectedItem.action)}`}>
                       {selectedItem.actionLabel}
                     </span>
                     {getDecisionQualityLabel(selectedItem) ? (
@@ -649,84 +691,108 @@ export default function SignalDeciderFeedbackPageClient() {
                 </button>
               </header>
 
-              <div className={styles.detailGrid}>
-                <div>
-                  <span>Symbol</span>
-                  <strong>{selectedItem.symbol}</strong>
-                </div>
-                <div>
-                  <span>Market date</span>
-                  <strong>{selectedItem.marketDate || UNKNOWN_LABEL}</strong>
-                </div>
-                <div>
-                  <span>Policy</span>
-                  <strong>{selectedItem.policyVersion ?? UNKNOWN_LABEL}</strong>
-                </div>
-                <div>
-                  <span>Run</span>
-                  <strong>{selectedItem.runId ?? UNKNOWN_LABEL}</strong>
-                </div>
-                <div>
-                  <span>Agent version</span>
-                  <strong>{selectedItem.agentVersion ?? UNKNOWN_LABEL}</strong>
-                </div>
-                <div>
-                  <span>Plan</span>
-                  <strong>{formatPricePlan(selectedItem)}</strong>
+              <div className={styles.detailBody}>
+                <aside className={styles.detailSidebar} aria-label="Decision summary">
+                  <section className={styles.detailGroup}>
+                    <div className={styles.detailGroupHeader}>
+                      <span>Decision</span>
+                      <h3>Action plan</h3>
+                    </div>
+                    <div className={styles.decisionHero}>
+                      <span className={`pill ${getActionToneClass(selectedItem.action)}`}>{selectedItem.actionLabel}</span>
+                      <strong>{formatExpectedReturnValue(selectedItem.expectedReturnPct)}</strong>
+                      <span>Expected return</span>
+                    </div>
+                    <dl className={styles.metricList}>
+                      <div>
+                        <dt>Conviction</dt>
+                        <dd>{formatScore(selectedItem.convictionScore)}</dd>
+                      </div>
+                      <div>
+                        <dt>Confidence</dt>
+                        <dd>{formatScore(selectedItem.confidenceScore)}</dd>
+                      </div>
+                      {getDecisionPlanRows(selectedItem).map((row) => (
+                        <div key={row.label}>
+                          <dt>{row.label}</dt>
+                          <dd>{row.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+
+                  <section className={styles.detailGroup}>
+                    <div className={styles.detailGroupHeader}>
+                      <span>Context</span>
+                      <h3>Run metadata</h3>
+                    </div>
+                    <dl className={styles.contextList}>
+                      {getRunContextRows(selectedItem).map((row) => (
+                        <div key={row.label}>
+                          <dt>{row.label}</dt>
+                          <dd>{row.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                </aside>
+
+                <div className={styles.detailMain}>
+                  <section className={`${styles.detailSection} ${styles.thesisSection}`}>
+                    <h3>Thesis</h3>
+                    <p>{selectedItem.thesisSummary ?? UNKNOWN_LABEL}</p>
+                    {selectedItem.qualityReason ? <p>{selectedItem.qualityReason}</p> : null}
+                  </section>
+
+                  <section className={styles.detailSection}>
+                    <h3>Realized result</h3>
+                    {selectedItem.outcomeHorizons.length > 0 ? (
+                      <div className={styles.outcomeGrid}>
+                        {selectedItem.outcomeHorizons.map((outcome) => (
+                          <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
+                            <span>{outcome.horizon}</span>
+                            <strong>{formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? UNKNOWN_LABEL}</strong>
+                            <p>
+                              {[
+                                outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
+                                outcome.verdict,
+                                outcome.notes,
+                              ]
+                                .filter((part): part is string => hasTextValue(part))
+                                .join(" · ") || UNKNOWN_LABEL}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+                    )}
+                  </section>
+
+                  <section className={styles.detailSection}>
+                    <h3>Risks</h3>
+                    {selectedItem.riskFlags.length > 0 ? (
+                      <div className={styles.traceList}>
+                        {selectedItem.riskFlags.map((risk) => (
+                          <div key={risk} className={styles.traceRow}>
+                            <span className="pill warning">Risk</span>
+                            <p>{risk}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+                    )}
+                  </section>
+
+                  <div className={styles.evidenceGrid}>
+                    <TraceEntryList title="Factors" entries={selectedItem.factorAttributions} />
+                    <TraceEntryList title="Gates" entries={selectedItem.gateResults} />
+                    <TraceEntryList title="Upstream evidence" entries={selectedItem.upstreamEvidence} />
+                    <TraceEntryList title="Traceability" entries={selectedItem.traceability} />
+                  </div>
                 </div>
               </div>
-
-              <section className={styles.detailSection}>
-                <h3>Thesis</h3>
-                <p>{selectedItem.thesisSummary ?? UNKNOWN_LABEL}</p>
-                {selectedItem.qualityReason ? <p>{selectedItem.qualityReason}</p> : null}
-              </section>
-
-              <section className={styles.detailSection}>
-                <h3>Realized result</h3>
-                {selectedItem.outcomeHorizons.length > 0 ? (
-                  <div className={styles.outcomeGrid}>
-                    {selectedItem.outcomeHorizons.map((outcome) => (
-                      <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
-                        <span>{outcome.horizon}</span>
-                        <strong>{formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? UNKNOWN_LABEL}</strong>
-                        <p>
-                          {[
-                            outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
-                            outcome.verdict,
-                            outcome.notes,
-                          ]
-                            .filter((part): part is string => hasTextValue(part))
-                            .join(" · ") || UNKNOWN_LABEL}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
-                )}
-              </section>
-
-              <section className={styles.detailSection}>
-                <h3>Risks</h3>
-                {selectedItem.riskFlags.length > 0 ? (
-                  <div className={styles.traceList}>
-                    {selectedItem.riskFlags.map((risk) => (
-                      <div key={risk} className={styles.traceRow}>
-                        <span className="pill warning">Risk</span>
-                        <p>{risk}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
-                )}
-              </section>
-
-              <TraceEntryList title="Factors" entries={selectedItem.factorAttributions} />
-              <TraceEntryList title="Gates" entries={selectedItem.gateResults} />
-              <TraceEntryList title="Upstream evidence" entries={selectedItem.upstreamEvidence} />
-              <TraceEntryList title="Traceability" entries={selectedItem.traceability} />
             </section>
           </div>
         ) : null}
