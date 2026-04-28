@@ -191,6 +191,49 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.traceability[0]?.label, "Run Id");
 });
 
+test("preserves nested outcome horizons when a horizon map also includes direct metadata", () => {
+  const response = buildFeedbackResponse();
+  const firstItem = response.items[0];
+  assert.ok(firstItem);
+  assert.ok(firstItem.feedback);
+
+  firstItem.feedback = {
+    ...firstItem.feedback,
+    evaluation: {
+      quality_verdict: "weak_buy",
+      quality_reason: "Metadata lives beside horizon records.",
+      realized_results: {
+        summary: "Do not collapse nested horizon records.",
+        "1d": {
+          return_pct: 0.8,
+          verdict: "neutral",
+          close_price: 82600,
+        },
+        "3d": {
+          realized_return_pct: -1.4,
+          verdict: "weak_buy",
+          close_price: 80800,
+        },
+      },
+    },
+  };
+
+  const items = normalizeSignalDeciderFeedbackItems(response);
+  const samsung = items.find((item) => item.symbol === "005930");
+
+  assert.deepEqual(
+    samsung?.outcomeHorizons.map((outcome) => ({
+      horizon: outcome.horizon,
+      returnPct: outcome.returnPct,
+      verdict: outcome.verdict,
+    })),
+    [
+      { horizon: "1d", returnPct: 0.8, verdict: "Neutral" },
+      { horizon: "3d", returnPct: -1.4, verdict: "Weak Buy" },
+    ],
+  );
+});
+
 test("marks decider feedback complete when stored rows satisfy progress role counts", () => {
   assert.equal(
     resolveSignalDeciderFeedbackStatus({

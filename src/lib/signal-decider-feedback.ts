@@ -298,6 +298,41 @@ function normalizeTraceEntries(value: unknown): SignalDeciderTraceEntry[] {
   );
 }
 
+const OUTCOME_HORIZON_DIRECT_FIELD_KEYS = new Set([
+  "horizon",
+  "horizon_label",
+  "period",
+  "window",
+  "holding_period",
+  "days",
+  "horizon_days",
+  "horizon_day",
+  "return_pct",
+  "realized_return_pct",
+  "outcome_return_pct",
+  "pnl_pct",
+  "performance_pct",
+  "realized_price",
+  "exit_price",
+  "close_price",
+  "price",
+  "horizon_price",
+  "verdict",
+  "evaluation_verdict",
+  "quality_verdict",
+  "grade",
+  "status",
+  "result",
+  "notes",
+  "reason",
+  "summary",
+  "description",
+]);
+
+function isOutcomeHorizonDirectField(key: string) {
+  return OUTCOME_HORIZON_DIRECT_FIELD_KEYS.has(key);
+}
+
 function normalizeOutcomeHorizons(value: unknown): SignalDeciderOutcomeHorizon[] {
   const fromRecord = (
     record: Record<string, unknown>,
@@ -356,43 +391,21 @@ function normalizeOutcomeHorizons(value: unknown): SignalDeciderOutcomeHorizon[]
 
     if (isRecord(value)) {
       const direct = fromRecord(value, null);
+      const valueEntries = Object.entries(value);
+      const hasNestedHorizonRecords = valueEntries.some(([key, item]) => !isOutcomeHorizonDirectField(key) && isRecord(item));
       const hasOnlyDirectFields =
         direct !== null &&
-        Object.keys(value).some((key) =>
-          [
-            "horizon",
-            "horizon_label",
-            "period",
-            "window",
-            "holding_period",
-            "days",
-            "horizon_days",
-            "return_pct",
-            "realized_return_pct",
-            "outcome_return_pct",
-            "pnl_pct",
-            "realized_price",
-            "exit_price",
-            "close_price",
-            "verdict",
-            "evaluation_verdict",
-            "quality_verdict",
-            "grade",
-            "status",
-            "result",
-            "notes",
-            "reason",
-            "summary",
-          ].includes(key),
-        );
+        valueEntries.some(([key]) => isOutcomeHorizonDirectField(key)) &&
+        valueEntries.every(([key]) => isOutcomeHorizonDirectField(key));
 
       if (hasOnlyDirectFields) return [direct];
 
-      return Object.entries(value).flatMap(([key, item]) => {
+      return valueEntries.flatMap(([key, item]) => {
         if (isRecord(item)) {
           const entry = fromRecord(item, key);
           return entry ? [entry] : [];
         }
+        if (hasNestedHorizonRecords && isOutcomeHorizonDirectField(key)) return [];
         const text = formatUnknownValue(item);
         return text
           ? [
