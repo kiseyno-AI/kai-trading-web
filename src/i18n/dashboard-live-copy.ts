@@ -186,9 +186,7 @@ const dashboardLiveCopy = {
     signalDecider: {
       title: "Decider recommendations",
       date: "Market date",
-      run: "Run",
       results: "Results",
-      errors: "Errors",
       actionMix: "Action mix",
       preview: "Preview",
       empty: "No signal-decider results are stored for this cycle yet.",
@@ -440,9 +438,7 @@ const dashboardLiveCopy = {
     signalDecider: {
       title: "디사이더 추천",
       date: "기준일",
-      run: "실행",
       results: "결과",
-      errors: "오류",
       actionMix: "액션 분포",
       preview: "미리보기",
       empty: "이 사이클에 저장된 시그널 디사이더 결과가 아직 없습니다.",

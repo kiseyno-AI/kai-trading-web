@@ -53,7 +53,7 @@ Client loading:
 - `GET /api/trading/agent-context/feedback/progress?market_date={marketDate}` as a best-effort status overlay
 
 UI surfaces and fields:
-- Dashboard card: `summary.run_id`, progress role `requested_count`, `completed_count`, `error_count`, generic feedback row count, action mix from the full fetched signal-decider result window, compact preview rows, and link to the detail page.
+- Dashboard card: result count from stored rows/progress counts, market date, action mix from the full fetched signal-decider result window, compact preview rows, and link to the detail page.
 - Detail filters: market date, action, verdict, policy version, search query, and sort mode. Verdict and policy options are derived only from stored row fields that are present.
 - Detail table: `items[].symbol`, company metadata from row payload/context, preferred or next-day-open action, optional quality/evaluation verdict, optional realized result horizon summary, confidence/conviction, thesis, trace availability counts, optional policy version, and captured/received timestamps.
 - Detail dialog: thesis, quality reason, stop/target/return plan, optional realized results by horizon, risk flags, factor attribution, gate results, upstream evidence, and traceability fields extracted from generic row payload/details.
