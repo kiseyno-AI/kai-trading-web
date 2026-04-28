@@ -56,6 +56,37 @@ test.describe("dashboard mobile chrome", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
+  test("mobile process monitor grows above the toolbar as a floating overlay", async ({ page }) => {
+    await page.goto("/dashboard");
+
+    const bottomNav = page.getByRole("navigation", { name: /Primary/i });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const [viewport, drawerBox, bottomNavBox, backdropAlpha] = await Promise.all([
+      page.viewportSize(),
+      processDrawer.boundingBox(),
+      bottomNav.boundingBox(),
+      processDrawer.evaluate((element) => {
+        const backdrop = element.parentElement;
+        const backgroundColor = backdrop ? window.getComputedStyle(backdrop).backgroundColor : "";
+        const match = backgroundColor.match(/rgba?\([^,]+,[^,]+,[^,]+,\s*([0-9.]+)\)/);
+        return match ? Number(match[1]) : 1;
+      }),
+    ]);
+
+    expect(viewport).not.toBeNull();
+    expect(drawerBox).not.toBeNull();
+    expect(bottomNavBox).not.toBeNull();
+
+    if (!viewport || !drawerBox || !bottomNavBox) {
+      throw new Error("Expected mobile process monitor and toolbar to have layout boxes.");
+    }
+
+    expect(backdropAlpha).toBeLessThan(0.5);
+    expect(drawerBox.y).toBeGreaterThan(36);
+    expect(drawerBox.height).toBeLessThan(viewport.height - 110);
+    expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(bottomNavBox.y + 2);
+  });
+
   test("D2 EOD counts fit mobile cards with four-digit totals", async ({ page }) => {
     const now = "2026-04-16T09:10:00+09:00";
 
