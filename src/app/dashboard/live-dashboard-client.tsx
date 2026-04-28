@@ -867,6 +867,8 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
   onOpen,
 }: ProcessMonitorTriggerProps) {
   const currentLabel = getProcessMonitorCurrentLabel(model, copy);
+  const showLoadingSummary = placement === "mobile" && model.status === "running";
+  const summaryLabel = showLoadingSummary ? model.statusLabel : model.progressLabel;
 
   return (
     <button
@@ -875,7 +877,8 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
         placement === "desktop" ? styles.processMonitorDesktopBar : styles.processMonitorMobileBar
       }`}
       data-process-monitor-status={model.status}
-      aria-label={`${copy.processMonitor.open}: ${currentLabel} (${model.progressLabel})`}
+      aria-label={`${copy.processMonitor.open}: ${currentLabel} (${summaryLabel})`}
+      aria-busy={showLoadingSummary || undefined}
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls={PROCESS_MONITOR_DRAWER_ID}
@@ -887,9 +890,20 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
         <span className={styles.processMonitorCurrent}>{currentLabel}</span>
       </span>
 
-      <span className={styles.processMonitorSummary} data-process-status={model.status}>
+      <span
+        className={styles.processMonitorSummary}
+        data-process-status={model.status}
+        data-process-summary-mode={showLoadingSummary ? "loading" : "progress"}
+      >
         <span>{model.statusLabel}</span>
-        <strong>{model.progressLabel}</strong>
+        {showLoadingSummary ? (
+          <strong className={styles.processMonitorLoadingValue} aria-label={model.statusLabel}>
+            <span className={styles.processMonitorLoadingSpinner} aria-hidden="true" />
+            <span className={styles.processMonitorLoadingText}>{model.statusLabel}</span>
+          </strong>
+        ) : (
+          <strong>{model.progressLabel}</strong>
+        )}
       </span>
     </button>
   );
