@@ -101,7 +101,8 @@ test.describe("dashboard desktop", () => {
     await expect(marketCard.getByText("-₩91B net sell", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Constructive · Large caps leading", { exact: true })).toBeVisible();
     await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
+    await expect(page.locator("#tracked-symbols")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Daily Data Fetch/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Filtering/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Piotroski/i })).toHaveCount(0);
@@ -117,7 +118,7 @@ test.describe("dashboard desktop", () => {
     await expect(deciderCard.getByText("Action mix", { exact: true })).toBeVisible();
     await expect(deciderCard.getByText("Run", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Errors", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 
     const processDrawer = await openProcessMonitorDrawer(page);
@@ -657,7 +658,7 @@ test.describe("dashboard desktop", () => {
     expect(runningPillAnimations.spinner).toMatch(/agentRoleSpin$/);
   });
 
-  test("dashboard quote surfaces use symbol metadata when quote payload names fall back to the symbol", async ({ page }) => {
+  test("dashboard filtering stays clean after removing the ledger recommendation card", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
     const searchRequests: string[] = [];
 
@@ -697,29 +698,6 @@ test.describe("dashboard desktop", () => {
               unavailable_reason: null,
             },
           ],
-        }),
-      });
-    });
-    await page.route("**/api/trading/quotes/123456", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          symbol: "123456",
-          company_name: "123456",
-          price: 43100,
-          change: 530,
-          change_pct: 1.25,
-          volume: 2400,
-          turnover: 103440000,
-          market_state: "OPEN",
-          source: "daily_price_bar",
-          fallback: true,
-          is_live: false,
-          available: true,
-          cached_at: now,
-          trade_date: "2026-04-15",
-          fallback_reason: "daily_price_bar_current_trade_date",
-          unavailable_reason: null,
         }),
       });
     });
@@ -862,13 +840,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const symbolCard = page
-      .locator("a")
-      .filter({ hasText: "123456" })
-      .filter({ hasText: "Acme Precision" })
-      .first();
-    await expect(symbolCard).toBeVisible();
-    await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
+    await expect(page.locator("#tracked-symbols")).toHaveCount(0);
+    await expect(page.getByText("Acme Precision")).toHaveCount(0);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
@@ -884,7 +857,7 @@ test.describe("dashboard desktop", () => {
     await expect(marketRiskSection).toContainText(/Fail\s*1/);
     await expect(filteringCard).not.toContainText("Requested");
 
-    await expect.poll(() => searchRequests).toContain("123456");
+    expect(searchRequests).toEqual([]);
   });
 
   test("D2 Filtering More opens the full pass list and rows navigate to the symbol detail page", async ({ page }) => {
@@ -1613,166 +1586,6 @@ test.describe("dashboard desktop", () => {
 
     expect(piotroskiRequestCount).toBe(piotroskiRequestsAfterResolve);
     expect(marketRiskRequestCount).toBe(marketRiskRequestsAfterResolve);
-  });
-
-  test("tracked symbol cards keep quote content inside the card during desktop resizes", async ({ page }) => {
-    const now = "2026-04-15T09:10:00+09:00";
-
-    await page.route("**/api/trading/market/status", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          state: "OPEN",
-          is_open: true,
-          server_time: now,
-        }),
-      });
-    });
-    await page.route("**/api/trading/quotes/tracked", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          market_state: "OPEN",
-          as_of: now,
-          items: [
-            {
-              symbol: "005930",
-              company_name: "Samsung Electronics",
-              price: 71500,
-              change: 600,
-              change_pct: 0.84,
-              volume: 120000,
-              turnover: 8580000000,
-              as_of: now,
-              market_state: "OPEN",
-              source: "daily_price_bar",
-              fallback: true,
-              is_live: false,
-              available: true,
-              trade_date: "2026-04-15",
-              fallback_reason: "daily_price_bar_current_trade_date",
-              unavailable_reason: null,
-            },
-          ],
-        }),
-      });
-    });
-    await page.route("**/api/trading/eod/freshness", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          today: {
-            trade_date: "2026-04-16",
-            eod_status: "completed",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            symbols_failed: 0,
-            received: true,
-          },
-          latest: {
-            price_trade_date: "2026-04-15",
-            symbols_total: 250,
-            symbols_succeeded: 250,
-            technical_market_date: "2026-04-15",
-            action_market_date: "2026-04-15",
-          },
-          technical: {
-            success: true,
-            latest_date: "2026-04-15",
-          },
-        }),
-      });
-    });
-    await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect?**", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          runs: [],
-          latest_run: null,
-        }),
-      });
-    });
-    await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          request: {
-            market_date: "2026-04-15",
-            symbols: null,
-            expected_agents: [],
-          },
-          summary: {
-            run_status: "completed",
-            is_live: false,
-            latest_feedback_at: "2026-04-15T10:20:00+09:00",
-            seconds_since_last_feedback: 120,
-            stalled_threshold_seconds: 300,
-            total_symbols: 1,
-            processed_symbols: 1,
-            completed_symbols: 1,
-            in_progress_symbols: 0,
-            pending_symbols: 0,
-            progress_ratio: 1,
-            progress_percent: 100,
-            failed_items: 0,
-            completed_feedback_count: 3,
-            expected_feedback_count: 3,
-          },
-        }),
-      });
-    });
-
-    await page.setViewportSize({ width: 1920, height: 980 });
-    await page.goto("/dashboard");
-
-    const symbolCard = page
-      .locator("a")
-      .filter({ hasText: "005930" })
-      .filter({ hasText: "Samsung Electronics" })
-      .first();
-    await expect(symbolCard).toBeVisible();
-
-    for (const width of [1920, 1500, 1280, 1024]) {
-      await page.setViewportSize({ width, height: 980 });
-      await symbolCard.scrollIntoViewIfNeeded();
-      await expect(symbolCard).toBeVisible();
-
-      const metrics = await symbolCard.evaluate((card) => {
-        const cardRect = card.getBoundingClientRect();
-        const tolerance = 1;
-        const overflowingChildren = Array.from(card.children)
-          .filter((child) => !child.classList.contains("component-tag"))
-          .map((child) => {
-            const rect = child.getBoundingClientRect();
-            return {
-              tag: child.tagName.toLowerCase(),
-              left: rect.left - cardRect.left,
-              right: rect.right - cardRect.right,
-              top: rect.top - cardRect.top,
-              bottom: rect.bottom - cardRect.bottom,
-            };
-          })
-          .filter(
-            (rect) =>
-              rect.left < -tolerance ||
-              rect.right > tolerance ||
-              rect.top < -tolerance ||
-              rect.bottom > tolerance,
-          );
-
-        return {
-          clientHeight: card.clientHeight,
-          clientWidth: card.clientWidth,
-          overflowingChildren,
-          scrollHeight: card.scrollHeight,
-          scrollWidth: card.scrollWidth,
-        };
-      });
-
-      expect(metrics.overflowingChildren).toEqual([]);
-      expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
-      expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
-    }
   });
 
   test("D2 EOD status keeps ready stale latest dates synced and missing stages not synced", async ({ page }) => {

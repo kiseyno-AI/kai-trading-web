@@ -48,7 +48,6 @@ import {
   buildFilteringCardModel,
   buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
-  buildTrackedSymbolCardModels,
   formatEodSymbolCount,
   getAgentProgressStatusLabel,
   getAgentProgressStatusLabels,
@@ -89,7 +88,6 @@ import type {
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
   ProcessMonitorModel,
-  TrackedSymbolCardModel,
 } from "@/features/dashboard/live-dashboard-types";
 import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-data";
 import type {
@@ -1183,81 +1181,6 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
   );
 });
 
-type TrackedSymbolsSectionProps = {
-  copy: DashboardLiveCopy;
-  trackedSymbolCards: TrackedSymbolCardModel[];
-};
-
-const TrackedSymbolsSection = memo(function TrackedSymbolsSection({
-  copy,
-  trackedSymbolCards,
-}: TrackedSymbolsSectionProps) {
-  return (
-    <section className={`${styles.panel} ${styles.trackedPanel}`} id="tracked-symbols">
-      <div className={styles.sectionHeaderRow}>
-        <div>
-          <p className={styles.sectionEyebrow}>{copy.operational.trackedEyebrow}</p>
-          <h2 className={styles.sectionTitle}>{copy.operational.trackedTitle}</h2>
-        </div>
-        <Link href="/my-symbols" className={styles.sectionLink} aria-label={copy.operational.openMySymbols}>
-          {copy.operational.more}
-        </Link>
-      </div>
-
-      <div className={styles.trackedList}>
-        {trackedSymbolCards.map((item) => (
-          <Link
-            key={item.symbol}
-            href={item.href}
-            className={`${styles.trackedCard} ${item.isMuted ? styles.trackedCardMuted : ""}`.trim()}
-          >
-            <ComponentTag label={`dashboard.symbol-card.${item.symbol}`} api="/api/trading/quotes/tracked" />
-
-            <div className={styles.trackedCardTop}>
-              <div>
-                <strong className={styles.companyName}>{item.companyName}</strong>
-                <p className={`clamp-3 ${styles.symbolCode}`}>{item.symbol}</p>
-              </div>
-              <span className={`pill ${item.availabilityTone}`}>{item.availabilityLabel}</span>
-            </div>
-
-            <div className={styles.priceBlock}>
-              <strong>{item.priceLabel}</strong>
-              <span
-                className={
-                  item.changeTone === "positive"
-                    ? styles.positive
-                    : item.changeTone === "negative"
-                      ? styles.negative
-                      : ""
-                }
-              >
-                {item.changeLabel}
-              </span>
-            </div>
-
-            <div className={styles.cardMeta}>
-              <div>
-                <span>{copy.operational.priceFreshness}</span>
-                <strong>{item.priceFreshnessLabel}</strong>
-              </div>
-              <div>
-                <span>{copy.operational.technicalFreshness}</span>
-                <strong>{item.technicalFreshnessLabel}</strong>
-              </div>
-            </div>
-
-            <div className={styles.cardFooter}>
-              <span className="clamp-3">{item.sourceLabel}</span>
-              <span className="clamp-3">{item.turnoverLabel}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-});
-
 export function LiveDashboardClient({
   initialError = null,
   initialMarket,
@@ -1298,7 +1221,6 @@ export function LiveDashboardClient({
     setAgentFeedbackProgressError,
     signalDeciderFeedback,
     signalDeciderFeedbackError,
-    symbolMetaBySymbol,
     tracked,
     trackedError,
   } = useLiveDashboardData({
@@ -1608,10 +1530,6 @@ export function LiveDashboardClient({
       piotroskiMarketDate,
     ],
   );
-  const trackedSymbolCards = useMemo(
-    () => buildTrackedSymbolCardModels(tracked, symbolMetaBySymbol, freshness, copy, numberLocale),
-    [copy, freshness, numberLocale, symbolMetaBySymbol, tracked],
-  );
   const processMonitorModel = useMemo(
     () =>
       buildProcessMonitorModel({
@@ -1832,7 +1750,6 @@ export function LiveDashboardClient({
           </div>
         </section>
 
-        <TrackedSymbolsSection copy={copy} trackedSymbolCards={trackedSymbolCards} />
       </div>
 
       <ProcessMonitorTrigger

@@ -5,7 +5,7 @@ import {
   getLatestPriceTradeDate,
   getLatestTechnicalMarketDate,
 } from "@/lib/eod-freshness-latest";
-import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { formatDisplayTimestamp } from "@/lib/format";
 import { resolvePiotroskiMarketDateResolution } from "@/lib/piotroski-pass-list";
 import {
   getPresenterStageDisplayLabel,
@@ -51,7 +51,6 @@ import type {
   AgentRoleResultSnapshot,
   AgentRoleStatus,
   CoreMarketStatus,
-  CoreTrackedQuote,
   CoreTrackedQuotesResponse,
   DetailItem,
   EodStageCard,
@@ -69,9 +68,6 @@ import type {
   ProcessMonitorModel,
   ProcessMonitorStatus,
   ProcessMonitorStep,
-  SymbolMetadataItem,
-  SymbolSearchResponse,
-  TrackedSymbolCardModel,
 } from "./live-dashboard-types";
 
 export const UNKNOWN_LABEL = "[확인 필요]";
@@ -114,16 +110,6 @@ export function getStageStatusLabel(status: EodStageCard["statusLabel"], copy: D
   return getPresenterStageDisplayLabel(status, copy.stage);
 }
 
-export function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable"): string {
-  if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-export function formatSignedNumber(value: number | null | undefined, fallback = "Unavailable", numberLocale = "en-US"): string {
-  if (!hasNumber(value)) return fallback;
-  return `${value >= 0 ? "+" : ""}${value.toLocaleString(numberLocale)}`;
-}
-
 function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>): string | null {
   const normalizedSymbol = symbol.trim().toUpperCase();
   for (const value of values) {
@@ -134,28 +120,6 @@ function getUsableCompanyName(symbol: string, ...values: Array<string | null | u
   }
 
   return null;
-}
-
-export function getQuoteCompanyName(item: CoreTrackedQuote | undefined): string | null {
-  if (!item) return null;
-  return getUsableCompanyName(item.symbol, item.company_name, item.name_ko, item.name);
-}
-
-function getMetadataCompanyName(
-  item: CoreTrackedQuote,
-  metadata: SymbolMetadataItem | null | undefined,
-): string | null {
-  return getUsableCompanyName(item.symbol, metadata?.name_ko, metadata?.name, metadata?.company_name);
-}
-
-export function getCompanyName(item: CoreTrackedQuote | undefined, metadata?: SymbolMetadataItem | null): string {
-  if (!item) return "N/A";
-  return getQuoteCompanyName(item) ?? getMetadataCompanyName(item, metadata) ?? UNKNOWN_LABEL;
-}
-
-export function pickSymbolMetadata(symbol: string, response: SymbolSearchResponse): SymbolMetadataItem | null {
-  const normalizedSymbol = symbol.trim().toUpperCase();
-  return response.items.find((item) => item.symbol.trim().toUpperCase() === normalizedSymbol) ?? null;
 }
 
 export function getDashboardLoadErrorMessage(error: unknown) {
@@ -214,35 +178,6 @@ export function isOfflineTrackedPlaceholder(tracked: CoreTrackedQuotesResponse) 
     tracked.market_state === "offline-placeholder" ||
     tracked.items.some((item) => item.source === "mock" || item.fallback_reason === "offline_placeholder")
   );
-}
-
-export function describeQuoteSource(item: CoreTrackedQuote | undefined, copy: DashboardLiveCopy): string {
-  if (!item) return "N/A";
-  if (!item.available) {
-    return item.unavailable_reason
-      ? `${copy.tracked.quoteUnavailable} · ${item.unavailable_reason}`
-      : copy.tracked.quoteUnavailable;
-  }
-  if (!item.fallback) {
-    return item.is_live ? copy.tracked.liveKisQuote : item.source;
-  }
-  if (item.source === "daily_price_bar") {
-    return item.trade_date ? `${copy.tracked.dbEodFallback} · ${item.trade_date}` : copy.tracked.dbEodFallback;
-  }
-  if (item.source === "db_cache") {
-    return copy.tracked.sameDayDbQuoteCache;
-  }
-  if (item.source === "cache") {
-    return copy.tracked.sameDayMemoryCache;
-  }
-  return `${item.source} ${copy.tracked.fallbackSuffix}`;
-}
-
-export function getPriceFreshnessLabel(item: CoreTrackedQuote, copy: DashboardLiveCopy) {
-  if (!item.available) return item.trade_date ?? copy.tracked.unavailable;
-  if (item.is_live) return copy.tracked.live;
-  if (item.trade_date) return item.trade_date;
-  return formatDisplayTimestamp(item.as_of ?? item.cached_at, copy.tracked.pending);
 }
 
 function getFilterMarketDateNote(
@@ -768,52 +703,6 @@ export function buildProcessMonitorModel({
     currentStepLabel: currentGroup?.currentStepLabel ?? null,
     groups,
   };
-}
-
-export function buildTrackedSymbolCardModel(
-  item: CoreTrackedQuote,
-  metadata: SymbolMetadataItem | null | undefined,
-  freshness: EodFreshnessResponseDto | null,
-  copy: DashboardLiveCopy,
-  numberLocale: string,
-): TrackedSymbolCardModel {
-  return {
-    availabilityLabel: item.available
-      ? item.is_live
-        ? copy.tracked.live
-        : copy.tracked.fallback
-      : copy.tracked.unavailable,
-    availabilityTone: item.available ? ((item.change_pct ?? 0) >= 0 ? "positive" : "negative") : "warning",
-    changeLabel: item.available
-      ? `${formatSignedPercent(item.change_pct)} · ${formatSignedNumber(item.change, copy.tracked.unavailable, numberLocale)}`
-      : item.unavailable_reason ?? copy.tracked.noFreshQuoteSource,
-    changeTone: hasNumber(item.change_pct) ? (item.change_pct >= 0 ? "positive" : "negative") : null,
-    companyName: getCompanyName(item, metadata),
-    href: buildTrackedDetailHref(item, metadata),
-    isMuted: !item.available,
-    priceFreshnessLabel: getPriceFreshnessLabel(item, copy),
-    priceLabel: item.available ? `₩${formatPrice(item.price)}` : "N/A",
-    sourceLabel: describeQuoteSource(item, copy),
-    symbol: item.symbol,
-    technicalFreshnessLabel: getTechnicalFreshnessLabel(freshness),
-    turnoverLabel: `${copy.operational.turnover} ${formatTurnover(item.turnover)}`,
-  };
-}
-
-export function buildTrackedSymbolCardModels(
-  tracked: CoreTrackedQuotesResponse,
-  symbolMetaBySymbol: Record<string, SymbolMetadataItem | null>,
-  freshness: EodFreshnessResponseDto | null,
-  copy: DashboardLiveCopy,
-  numberLocale: string,
-): TrackedSymbolCardModel[] {
-  return tracked.items.map((item) =>
-    buildTrackedSymbolCardModel(item, symbolMetaBySymbol[item.symbol], freshness, copy, numberLocale),
-  );
-}
-
-export function getTechnicalFreshnessLabel(freshness: EodFreshnessResponseDto | null) {
-  return getFirstTextValue(freshness?.technical?.latest_date, getLatestTechnicalMarketDate(freshness)) ?? UNKNOWN_LABEL;
 }
 
 export function getFundamentalsFreshnessLayer(
@@ -2434,15 +2323,4 @@ export function hasCompletedDefaultAgentRoles(roleCards: AgentRoleCard[]) {
   );
 
   return DEFAULT_AGENT_ROLE_ORDER.every((role) => completedRoles.has(role));
-}
-
-export function buildTrackedDetailHref(item: CoreTrackedQuote, metadata?: SymbolMetadataItem | null) {
-  const params = new URLSearchParams();
-  const companyName = getQuoteCompanyName(item) ?? getMetadataCompanyName(item, metadata);
-  if (companyName) {
-    params.set("name", companyName);
-  }
-
-  const query = params.toString();
-  return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
