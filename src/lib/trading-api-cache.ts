@@ -21,7 +21,9 @@ type TradingApiCachePolicy = {
   ttlMs: number;
 };
 
-export type TradingApiJsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
+export type TradingApiJsonResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; message: string | null; status: number };
 
 const memoryCache = new Map<string, TradingApiCacheEntry>();
 const inFlightRequests = new Map<string, Promise<TradingApiJsonResult<unknown>>>();
@@ -135,6 +137,29 @@ function getSnapshotCacheKey(path: string, init?: RequestInit) {
   return `${SNAPSHOT_CACHE_KEY_PREFIX}${getCacheKey(path, init)}`;
 }
 
+function getJsonErrorMessage(parsedBody: unknown) {
+  if (!parsedBody || typeof parsedBody !== "object") return null;
+
+  const body = parsedBody as Record<string, unknown>;
+  for (const key of ["detail", "message", "error"]) {
+    const value = body[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  return null;
+}
+
+async function readJsonErrorMessage(response: Response) {
+  const responseText = await response.text();
+  if (!responseText) return null;
+
+  try {
+    return getJsonErrorMessage(JSON.parse(responseText));
+  } catch {
+    return responseText.trim() || null;
+  }
+}
+
 function getFreshMemoryEntry<T>(cacheKey: string, now: number) {
   const entry = memoryCache.get(cacheKey);
   if (!entry) return null;
@@ -214,7 +239,10 @@ async function fetchTradingApiJsonResult<T>(path: string, init?: RequestInit): P
       status: response.status,
     });
 
-    if (!response.ok) return { ok: false, status: response.status };
+    if (!response.ok) {
+      const message = await readJsonErrorMessage(response);
+      return { ok: false, message, status: response.status };
+    }
 
     const data = (await response.json()) as T;
     return { ok: true, data };

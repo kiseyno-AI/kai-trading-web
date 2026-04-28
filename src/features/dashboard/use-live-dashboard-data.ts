@@ -86,13 +86,14 @@ async function getJsonNoCache<T>(path: string): Promise<T> {
   }
 
   if (!response.ok) {
-    if (
-      parsedBody &&
-      typeof parsedBody === "object" &&
-      "detail" in parsedBody &&
-      typeof parsedBody.detail === "string"
-    ) {
-      throw new Error(parsedBody.detail);
+    if (parsedBody && typeof parsedBody === "object") {
+      const body = parsedBody as Record<string, unknown>;
+      for (const key of ["detail", "message", "error"]) {
+        const value = body[key];
+        if (typeof value === "string" && value.trim()) {
+          throw new Error(value.trim());
+        }
+      }
     }
 
     throw new Error(`HTTP ${response.status} for ${path}`);
@@ -152,6 +153,9 @@ export function useLiveDashboardData({
   const [signalDeciderFeedbackError, setSignalDeciderFeedbackError] = useState<string | null>(null);
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummaryDto | null>(initialPortfolioSummary);
   const [portfolioSummaryError, setPortfolioSummaryError] = useState<string | null>(null);
+  const [portfolioSummaryLoadState, setPortfolioSummaryLoadState] = useState<"error" | "loading" | "success">(
+    initialPortfolioSummary ? "success" : "loading",
+  );
   const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
   const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(null);
   const [piotroskiStatusError, setPiotroskiStatusError] = useState<string | null>(null);
@@ -266,10 +270,12 @@ export function useLiveDashboardData({
         setPortfolioSummary(summary);
         seedTradingApiJsonSnapshot(PORTFOLIO_SUMMARY_PATH, summary);
         setPortfolioSummaryError(null);
+        setPortfolioSummaryLoadState("success");
       } catch (portfolioError) {
         console.error("Dashboard portfolio summary load failed", portfolioError);
         if (!active) return;
         setPortfolioSummaryError(getDashboardLoadErrorMessage(portfolioError));
+        setPortfolioSummaryLoadState("error");
       }
     };
 
@@ -690,6 +696,7 @@ export function useLiveDashboardData({
     pipelineStatus,
     portfolioSummary,
     portfolioSummaryError,
+    portfolioSummaryLoadState,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
     signalDeciderFeedback:

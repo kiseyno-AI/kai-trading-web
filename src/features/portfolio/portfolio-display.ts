@@ -16,10 +16,29 @@ export type PortfolioMetricModel = {
   available: boolean;
 };
 
+export type PortfolioSummaryState = "loading" | "unavailable" | "empty" | "degraded" | "ready";
+
+type PortfolioSummaryStateInput = {
+  error?: string | null;
+  loading?: boolean;
+  summary: PortfolioSummaryDto | null | undefined;
+};
+
 const CURRENCY_SYMBOLS: Record<string, string> = {
   KRW: "₩",
   USD: "$",
 };
+
+const DEGRADED_SYNC_STATUSES = new Set([
+  "degraded",
+  "error",
+  "failed",
+  "failure",
+  "partial",
+  "stale",
+  "unavailable",
+  "warning",
+]);
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -103,6 +122,10 @@ function getMoneyTone(value: PortfolioMoneyAmountDto | null): PortfolioMetricMod
   return value.amount > 0 ? "positive" : "negative";
 }
 
+function normalizeStatusToken(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
 export function getPortfolioAccounts(summary: PortfolioSummaryDto | null | undefined) {
   return Array.isArray(summary?.accounts) ? summary.accounts : [];
 }
@@ -133,6 +156,37 @@ export function getPortfolioLastSyncedAt(summary: PortfolioSummaryDto | null | u
       }, null)?.value ?? null;
 
   return summary?.sync?.lastSyncedAt ?? summary?.asOf ?? latestAccountSyncTime;
+}
+
+export function getPortfolioSyncStatus(summary: PortfolioSummaryDto | null | undefined) {
+  return normalizeStatusToken(summary?.sync?.status) || null;
+}
+
+export function getPortfolioSyncMessage(summary: PortfolioSummaryDto | null | undefined) {
+  const message = summary?.sync?.message?.trim();
+  if (message) return message;
+
+  return summary?.notices?.find((notice) => notice.trim().length > 0)?.trim() ?? null;
+}
+
+export function isPortfolioSummaryDegraded(summary: PortfolioSummaryDto | null | undefined) {
+  const topLevelStatus = getPortfolioSyncStatus(summary);
+  if (topLevelStatus && DEGRADED_SYNC_STATUSES.has(topLevelStatus)) return true;
+
+  return getPortfolioAccounts(summary).some((account) => DEGRADED_SYNC_STATUSES.has(normalizeStatusToken(account.status)));
+}
+
+export function resolvePortfolioSummaryState({
+  error = null,
+  loading = false,
+  summary,
+}: PortfolioSummaryStateInput): PortfolioSummaryState {
+  if (loading && !summary && !error) return "loading";
+  if (error || !summary) return "unavailable";
+  if (isPortfolioSummaryDegraded(summary)) return "degraded";
+  if (getPortfolioHoldings(summary).length === 0) return "empty";
+
+  return "ready";
 }
 
 export function buildPortfolioMetricModels(

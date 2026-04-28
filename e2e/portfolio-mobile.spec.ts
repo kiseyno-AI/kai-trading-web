@@ -125,7 +125,7 @@ test.describe("portfolio mobile route", () => {
     await expect(page.getByRole("heading", { name: "Recent orders and executions" })).toBeVisible();
   });
 
-  test("shows empty and unavailable states when portfolio data is not populated", async ({ page }) => {
+  test("shows unavailable state when aggregate summary endpoint is pending", async ({ page }) => {
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({ status: 404, json: { detail: "not implemented" } });
     });
@@ -133,9 +133,103 @@ test.describe("portfolio mobile route", () => {
     await page.goto("/portfolio");
 
     await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
-    await expect(page.getByText("Portfolio feed unavailable. HTTP 404")).toBeVisible();
-    await expect(page.getByText("No account snapshot yet.")).toBeVisible();
+    await expect(page.getByText("Aggregate portfolio summary endpoint is not available yet. HTTP 404")).toBeVisible();
+    await expect(page.getByText("Portfolio summary unavailable.").first()).toBeVisible();
+    await expect(
+      page.getByText("The aggregate portfolio summary route is not returning a usable response yet.").first(),
+    ).toBeVisible();
+    await expect(page.getByText("No accounts in portfolio summary.")).toHaveCount(0);
+    await expect(page.getByText("No holdings reported yet.")).toHaveCount(0);
+  });
+
+  test("keeps connected empty holdings separate from unavailable summary", async ({ page }) => {
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        json: {
+          asOf: "2026-04-21T09:12:00+09:00",
+          source: "portfolio-summary",
+          sync: {
+            status: "synced",
+            lastSyncedAt: "2026-04-21T09:12:00+09:00",
+            source: "kis",
+          },
+          accounts: [
+            {
+              id: "kis-empty",
+              label: "KIS Empty Account",
+              broker: "KIS",
+              accountType: "cash",
+              status: "synced",
+              baseCurrency: "KRW",
+              lastSyncedAt: "2026-04-21T09:12:00+09:00",
+              summary: {
+                totalAssets: { amount: 1000000, currency: "KRW" },
+                cash: { amount: 1000000, currency: "KRW" },
+                buyingPower: { amount: 1000000, currency: "KRW" },
+              },
+              holdings: [],
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    await expect(page.getByText("KIS Empty Account")).toBeVisible();
+    await expect(page.getByText("Connected empty")).toBeVisible();
     await expect(page.getByText("No holdings reported yet.")).toBeVisible();
+    await expect(page.getByText("The aggregate summary is connected and returned no holdings for the current accounts.")).toBeVisible();
+    await expect(page.getByText("Portfolio summary unavailable.")).toHaveCount(0);
+  });
+
+  test("surfaces stale sync while still rendering returned holdings", async ({ page }) => {
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        json: {
+          asOf: "2026-04-21T09:12:00+09:00",
+          source: "portfolio-summary",
+          sync: {
+            status: "stale",
+            lastSyncedAt: "2026-04-20T09:12:00+09:00",
+            source: "kis",
+            message: "KIS balance sync is older than the latest market session.",
+          },
+          accounts: [
+            {
+              id: "kis-stale",
+              label: "KIS Stale Account",
+              broker: "KIS",
+              accountType: "cash",
+              status: "stale",
+              baseCurrency: "KRW",
+              lastSyncedAt: "2026-04-20T09:12:00+09:00",
+              summary: {
+                totalAssets: { amount: 12500000, currency: "KRW" },
+                cash: { amount: 1500000, currency: "KRW" },
+                buyingPower: { amount: 3000000, currency: "KRW" },
+              },
+              holdings: [
+                {
+                  symbol: "005930",
+                  name: "Samsung Electronics",
+                  market: "KOSPI",
+                  quantity: 12,
+                  marketValue: { amount: 858000, currency: "KRW" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    await expect(page.getByText("Portfolio sync needs attention.")).toBeVisible();
+    await expect(page.getByText("KIS balance sync is older than the latest market session.")).toBeVisible();
+    await expect(page.getByText("KIS Stale Account")).toBeVisible();
+    await expect(page.getByText("Samsung Electronics")).toBeVisible();
     await expect(page.getByText("No order or execution summary yet.")).toBeVisible();
   });
 });
