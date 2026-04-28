@@ -921,7 +921,7 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
   onClose,
 }: ProcessMonitorDrawerProps) {
   return (
-    <div className={styles.processMonitorDrawerBackdrop} onPointerDown={onClose}>
+    <div className={styles.processMonitorDrawerBackdrop}>
       <section
         id={PROCESS_MONITOR_DRAWER_ID}
         className={styles.processMonitorDrawer}
