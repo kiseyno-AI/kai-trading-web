@@ -1716,10 +1716,6 @@ function formatAgentProgressPercentValueLabel(value: number | null | undefined, 
   })}%`;
 }
 
-function formatAgentProgressPercentLabel(progress: AgentFeedbackProgressResponseDto | null, numberLocale: string) {
-  return formatAgentProgressPercentValueLabel(progress?.summary?.progress_percent, numberLocale);
-}
-
 function getAgentProgressPercentValue(progress: AgentFeedbackProgressResponseDto | null) {
   const percent = progress?.summary?.progress_percent;
   if (!hasNumber(percent)) return 0;
@@ -1850,6 +1846,14 @@ function getAgentRoleLabel(role: string, copy: DashboardLiveCopy) {
   return humanizeToken(role, role);
 }
 
+function isSignalDeciderRole(role: string) {
+  return normalizeAgentRole(role) === "signal-decider";
+}
+
+function isAgentRoleMetricCapable(role: string) {
+  return isSummarizerRole(role) || isSignalDeciderRole(role);
+}
+
 function getOrderedAgentRoles(progress: AgentFeedbackProgressResponseDto | null) {
   const roles: string[] = [];
   const seenRoles = new Set<string>();
@@ -1888,36 +1892,51 @@ function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: s
 
 function buildAgentRoleMetrics(
   progress: AgentFeedbackProgressResponseDto | null,
+  role: string,
+  snapshot: AgentRoleProgressSnapshot | null | undefined,
   copy: DashboardLiveCopy,
   numberLocale: string,
 ): AgentRoleMetric[] {
   if (!isAgentFeedbackProgressRunning(progress)) return [];
 
+  const useRoleLocalCounts = isSignalDeciderRole(role);
+  const progressPercent =
+    useRoleLocalCounts && hasNumber(snapshot?.progressPercent)
+      ? snapshot.progressPercent
+      : progress?.summary?.progress_percent;
+  const totalCount =
+    useRoleLocalCounts && hasNumber(snapshot?.totalCount) ? snapshot.totalCount : progress?.summary?.total_symbols;
+  const failedCount =
+    useRoleLocalCounts && hasNumber(snapshot?.failedCount) ? snapshot.failedCount : progress?.summary?.failed_items;
+  const completedCount =
+    useRoleLocalCounts && hasNumber(snapshot?.completedCount)
+      ? snapshot.completedCount
+      : useRoleLocalCounts
+        ? progress?.summary?.completed_symbols
+        : getResolvedAgentProgressRunStatus(progress) === "running"
+          ? progress?.summary?.processed_symbols
+          : progress?.summary?.completed_symbols;
+
   return [
     {
       key: "progress",
       label: copy.agentFeedback.metrics.progress,
-      value: formatAgentProgressPercentLabel(progress, numberLocale),
+      value: formatAgentProgressPercentValueLabel(progressPercent, numberLocale),
     },
     {
       key: "total",
       label: copy.agentFeedback.metrics.total,
-      value: formatAgentProgressCountLabel(progress?.summary?.total_symbols, numberLocale),
+      value: formatAgentProgressCountLabel(totalCount, numberLocale),
     },
     {
       key: "failed",
       label: copy.agentFeedback.metrics.failed,
-      value: formatAgentProgressCountLabel(progress?.summary?.failed_items, numberLocale),
+      value: formatAgentProgressCountLabel(failedCount, numberLocale),
     },
     {
       key: "completed",
       label: copy.agentFeedback.metrics.completed,
-      value: formatAgentProgressCountLabel(
-        getResolvedAgentProgressRunStatus(progress) === "running"
-          ? progress?.summary?.processed_symbols
-          : progress?.summary?.completed_symbols,
-        numberLocale,
-      ),
+      value: formatAgentProgressCountLabel(completedCount, numberLocale),
     },
   ];
 }
@@ -1994,6 +2013,13 @@ function extractAgentRoleSnapshot(role: string, value: unknown): AgentRoleProgre
     "expected_count",
     "expected_feedback_count",
   ]);
+  const failedCount = getRecordNumberValue(value, [
+    "failed_items",
+    "failed_symbols",
+    "failed_count",
+    "error_count",
+    "errors",
+  ]);
   const explicitStatus =
     normalizeAgentRoleCardStatus(
       getRecordStringValue(value, ["status", "run_status", "role_status", "progress_status", "boundary_status"]),
@@ -2010,6 +2036,7 @@ function extractAgentRoleSnapshot(role: string, value: unknown): AgentRoleProgre
     role,
     status,
     completedCount,
+    failedCount,
     progressCount,
     totalCount,
     progressPercent,
@@ -2151,7 +2178,7 @@ export function isSummarizerRole(role: string) {
 }
 
 function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus, fallbackRole: string | null) {
-  if (!isSummarizerRole(role)) return false;
+  if (!isAgentRoleMetricCapable(role)) return false;
   if (status === "running") return true;
   return fallbackRole !== null && normalizeAgentRole(role) === fallbackRole;
 }
@@ -2348,16 +2375,17 @@ export function buildAgentRoleCards(
     });
   }
 
-  const metrics = buildAgentRoleMetrics(progress, copy, numberLocale);
   const fallbackMetricsRole =
     currentRole === null
-      ? normalizeAgentRole(orderedRoles.find((role) => isSummarizerRole(role)) ?? orderedRoles[0])
+      ? normalizeAgentRole(orderedRoles.find((role) => isAgentRoleMetricCapable(role)) ?? orderedRoles[0])
       : null;
 
   return orderedRoles.map((role) => {
     const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
     const status = getRunningAgentRoleStatus(role, orderedRoles, currentRole, snapshot, completedRoles);
-    const roleMetrics = shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole) ? metrics : [];
+    const roleMetrics = shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole)
+      ? buildAgentRoleMetrics(progress, role, snapshot, copy, numberLocale)
+      : [];
 
     return buildAgentRoleCard(
       progress,

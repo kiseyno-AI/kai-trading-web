@@ -445,54 +445,59 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
       </div>
       {agentRoleCards.length > 0 ? (
         <div className={styles.agentRoleList} role="list" aria-label={copy.operational.agentRoleProgress}>
-          {agentRoleCards.map((role) => (
-            <div
-              key={role.role}
-              className={styles.agentRoleRow}
-              data-role-status={role.status}
-              role="listitem"
-              aria-label={`${role.label} ${agentRoleStatusLabels[role.status]}`}
-            >
-              <div className={styles.agentRoleContent}>
-                <span className={styles.agentRoleTitleRow}>
-                  <span className={styles.agentRoleName}>{role.label}</span>
-                  {isSummarizerRole(role.role) ? (
-                    <span
-                      className={styles.agentRoleProgressIcon}
-                      data-role-progress-icon={role.status}
-                      aria-hidden="true"
-                    />
+          {agentRoleCards.map((role) => {
+            const showRoleProgress =
+              isSummarizerRole(role.role) || role.metrics.some((metric) => metric.key === "progress");
+
+            return (
+              <div
+                key={role.role}
+                className={styles.agentRoleRow}
+                data-role-status={role.status}
+                role="listitem"
+                aria-label={`${role.label} ${agentRoleStatusLabels[role.status]}`}
+              >
+                <div className={styles.agentRoleContent}>
+                  <span className={styles.agentRoleTitleRow}>
+                    <span className={styles.agentRoleName}>{role.label}</span>
+                    {showRoleProgress ? (
+                      <span
+                        className={styles.agentRoleProgressIcon}
+                        data-role-progress-icon={role.status}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </span>
+                  {showRoleProgress ? (
+                    <div
+                      className={styles.agentRoleProgressTrack}
+                      data-role-progress-track={role.status}
+                      data-role-progress-value={role.progressPercent}
+                      role="progressbar"
+                      aria-label={`${role.label} ${copy.agentFeedback.metrics.progress}`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={role.progressPercent}
+                      aria-valuetext={role.progressLabel}
+                    >
+                      <i style={{ width: `${role.progressPercent}%` }} />
+                    </div>
                   ) : null}
-                </span>
-                {isSummarizerRole(role.role) ? (
-                  <div
-                    className={styles.agentRoleProgressTrack}
-                    data-role-progress-track={role.status}
-                    data-role-progress-value={role.progressPercent}
-                    role="progressbar"
-                    aria-label={`${role.label} ${copy.agentFeedback.metrics.progress}`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={role.progressPercent}
-                    aria-valuetext={role.progressLabel}
-                  >
-                    <i style={{ width: `${role.progressPercent}%` }} />
-                  </div>
-                ) : null}
-                <span className={styles.agentRoleStatusText}>{agentRoleStatusLabels[role.status]}</span>
-                {role.metrics.length > 0 ? (
-                  <dl className={styles.agentRoleMetrics}>
-                    {role.metrics.map((metric) => (
-                      <div key={metric.key} className={styles.agentRoleMetric}>
-                        <dt>{metric.label}</dt>
-                        <dd>{metric.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : null}
+                  <span className={styles.agentRoleStatusText}>{agentRoleStatusLabels[role.status]}</span>
+                  {role.metrics.length > 0 ? (
+                    <dl className={styles.agentRoleMetrics}>
+                      {role.metrics.map((metric) => (
+                        <div key={metric.key} className={styles.agentRoleMetric}>
+                          <dt>{metric.label}</dt>
+                          <dd>{metric.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className={styles.emptyState}>{copy.operational.agentProgressUnavailable}</div>

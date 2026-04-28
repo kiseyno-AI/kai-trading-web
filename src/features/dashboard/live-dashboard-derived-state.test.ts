@@ -1099,7 +1099,137 @@ test("keeps the active summarizer row running when top-level feedback summary sa
       ["fundamental-summarizer", "pending"],
     ],
   );
-  assert.equal(roleCards[1]?.metrics.length > 0, true);
+  assert.deepEqual(roleCards[1]?.metrics, [
+    {
+      key: "progress",
+      label: copy.agentFeedback.metrics.progress,
+      value: "30.00%",
+    },
+    {
+      key: "total",
+      label: copy.agentFeedback.metrics.total,
+      value: "2,812",
+    },
+    {
+      key: "failed",
+      label: copy.agentFeedback.metrics.failed,
+      value: "0",
+    },
+    {
+      key: "completed",
+      label: copy.agentFeedback.metrics.completed,
+      value: "97",
+    },
+  ]);
+});
+
+test("shows signal-decider metrics when a live cycle reaches the decider after summarizers", () => {
+  const copy = getDashboardLiveCopy("en");
+  const progress = {
+    request: {
+      market_date: "2026-04-27",
+      symbols: null,
+      expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer", "signal-decider"],
+    },
+    summary: {
+      run_id: "feedback-cycle-2026-04-27-signal-decider",
+      run_status: "pending",
+      run_table_status: "running",
+      cycle_status: "running",
+      is_live: true,
+      run_started_at: "2026-04-27T17:00:00+09:00",
+      run_completed_at: null,
+      current_role: "signal-decider",
+      completed_roles: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+      remaining_roles: ["signal-decider"],
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-27T17:28:05+09:00",
+      seconds_since_last_feedback: 2,
+      stalled_threshold_seconds: 60,
+      total_symbols: 10,
+      processed_symbols: 8,
+      completed_symbols: 6,
+      in_progress_symbols: 0,
+      pending_symbols: 2,
+      progress_ratio: 0.8,
+      progress_percent: 80,
+      failed_items: 2,
+      completed_feedback_count: 206,
+      expected_feedback_count: 210,
+      role_progress: {
+        "eod-summarizer": {
+          status: "completed",
+          processed_symbols: 10,
+          completed_symbols: 10,
+          total_symbols: 10,
+          progress_percent: 100,
+        },
+        "technical-summarizer": {
+          status: "completed",
+          processed_symbols: 10,
+          completed_symbols: 10,
+          total_symbols: 10,
+          progress_percent: 100,
+        },
+        "fundamental-summarizer": {
+          status: "completed",
+          processed_symbols: 10,
+          completed_symbols: 10,
+          total_symbols: 10,
+          progress_percent: 100,
+        },
+        "signal-decider": {
+          status: "running",
+          processed_symbols: 8,
+          completed_symbols: 6,
+          total_symbols: 10,
+          failed_items: 2,
+          progress_percent: 80,
+        },
+      },
+    },
+    result: null,
+  };
+
+  const roleCards = buildAgentRoleCards(progress, copy, "en-US");
+  assert.deepEqual(
+    roleCards.map((role) => [role.role, role.status]),
+    [
+      ["eod-summarizer", "completed"],
+      ["technical-summarizer", "completed"],
+      ["fundamental-summarizer", "completed"],
+      ["signal-decider", "running"],
+    ],
+  );
+
+  const signalDeciderRole = roleCards.find((role) => role.role === "signal-decider");
+  assert.equal(signalDeciderRole?.progressLabel, "80.00%");
+  assert.deepEqual(signalDeciderRole?.metrics, [
+    {
+      key: "progress",
+      label: copy.agentFeedback.metrics.progress,
+      value: "80.00%",
+    },
+    {
+      key: "total",
+      label: copy.agentFeedback.metrics.total,
+      value: "10",
+    },
+    {
+      key: "failed",
+      label: copy.agentFeedback.metrics.failed,
+      value: "2",
+    },
+    {
+      key: "completed",
+      label: copy.agentFeedback.metrics.completed,
+      value: "6",
+    },
+  ]);
+
+  for (const summarizerRole of roleCards.filter((role) => role.role.includes("summarizer"))) {
+    assert.deepEqual(summarizerRole.metrics, []);
+  }
 });
 
 test("does not treat a stale latest_feedback_at timestamp as active progress when the top-level summary is pending", () => {
