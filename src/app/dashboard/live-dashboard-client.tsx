@@ -531,6 +531,11 @@ function getSignalDeciderStatusTone(status: SignalDeciderFeedbackStatus) {
   return "neutral";
 }
 
+function getSignalDeciderQualityTone(tone: string | null | undefined) {
+  if (tone === "positive" || tone === "warning" || tone === "negative" || tone === "info") return tone;
+  return "neutral";
+}
+
 function formatSignalDeciderCount(value: number | null | undefined, numberLocale: string) {
   return typeof value === "number" ? value.toLocaleString(numberLocale) : UNKNOWN_LABEL;
 }
@@ -622,6 +627,11 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
                 <span className={`pill ${item.action === "buy" ? "positive" : item.action === "reject" ? "warning" : "neutral"}`}>
                   {item.actionLabel}
                 </span>
+                {item.qualityTag ? (
+                  <span className={`pill ${getSignalDeciderQualityTone(item.qualityTag.tone)}`}>
+                    {item.qualityTag.label}
+                  </span>
+                ) : null}
                 <span>
                   {item.convictionScore !== null
                     ? `${item.convictionScore}/10`

@@ -235,6 +235,35 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               conviction_score_10: 7,
               thesis_summary: "Momentum and fundamentals align for a tactical next-day setup.",
               decision_risks: ["Gap-down open", "Liquidity fade"],
+              policy_version: "decider-policy-2026.04",
+              evaluation: {
+                quality_verdict: "weak_buy",
+                quality_reason: "The buy worked intraday but failed the 3d realized hurdle.",
+                realized_results: {
+                  "1d": {
+                    return_pct: 0.82,
+                    verdict: "neutral",
+                    close_price: 82600,
+                  },
+                  "3d": {
+                    realized_return_pct: -1.44,
+                    verdict: "weak_buy",
+                    close_price: 80800,
+                  },
+                },
+                factors: [
+                  { label: "Momentum", score: 0.74, status: "positive" },
+                  { label: "Valuation", score: 0.32, status: "warning" },
+                ],
+                gate_results: {
+                  liquidity: { status: "pass", reason: "Turnover above floor" },
+                },
+              },
+              upstream_evidence: [{ source: "technical_snapshot", summary: "20d breakout persisted" }],
+              traceability: {
+                prompt_hash: "prompt-abc",
+                feature_snapshot_id: "feature-005930-2026-04-27",
+              },
             },
             normalized_feedback: null,
             details: null,
@@ -266,10 +295,28 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               conviction_score_10: 5,
               thesis_summary: "Wait for confirmation after the opening print.",
               risk_flags: ["Volume confirmation missing"],
+              policy_version: "decider-policy-2026.04",
+              evaluation: {
+                quality_verdict: "missed_opportunity",
+                missed_opportunity: true,
+                quality_reason: "Price cleared the confirmation band before the 3d horizon.",
+                realized_results: {
+                  "3d": {
+                    return_pct: 4.18,
+                    verdict: "missed_opportunity",
+                  },
+                },
+              },
             },
             normalized_feedback: null,
             details: null,
-            context: null,
+            context: {
+              symbol_day_context: {
+                company: {
+                  name_ko: "SK hynix",
+                },
+              },
+            },
             received_at: "2026-04-27T07:44:00+00:00",
           },
         ],
@@ -301,9 +348,25 @@ test("dashboard signal-decider card previews partial results and links to the de
 
   const samsungRow = page.locator("tr").filter({ hasText: "Samsung Electronics" });
   await expect(samsungRow).toContainText("Buy");
+  await expect(samsungRow).toContainText("Weak buy");
   await expect(samsungRow).toContainText("Conviction 7/10");
-  await expect(samsungRow).toContainText("Gap-down open");
-  await expect(samsungRow).toContainText("Target ₩82,000");
+  await expect(samsungRow).toContainText("1d +0.82%");
+  await expect(samsungRow).toContainText("decider-policy-2026.04");
+
+  await page.getByLabel("Signal-decider feedback filters").getByLabel("Verdict").selectOption("Missed Opportunity");
+  await expect(page.locator("tr").filter({ hasText: "SK hynix" })).toBeVisible();
+  await expect(page.locator("tr").filter({ hasText: "Samsung Electronics" })).toHaveCount(0);
+
+  await page.getByLabel("Signal-decider feedback filters").getByLabel("Verdict").selectOption("Weak Buy");
+  await expect(samsungRow).toBeVisible();
+  await samsungRow.getByRole("button", { name: "Review" }).click();
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("The buy worked intraday");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("3d");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("-1.44%");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Momentum");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Liquidity");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Technical Snapshot");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Feature Snapshot Id");
 });
 
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {

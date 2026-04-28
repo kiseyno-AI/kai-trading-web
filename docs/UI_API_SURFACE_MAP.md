@@ -54,10 +54,13 @@ Client loading:
 
 UI surfaces and fields:
 - Dashboard card: `summary.run_id`, progress role `requested_count`, `completed_count`, `error_count`, generic feedback row count, action mix, compact preview, and link to the detail page.
-- Detail table: `items[].symbol`, company metadata from row payload/context, preferred or next-day-open action, confidence/conviction, thesis, risk flags, stop/target/return plan, and captured/received timestamps.
+- Detail filters: market date, action, verdict, policy version, search query, and sort mode. Verdict and policy options are derived only from stored row fields that are present.
+- Detail table: `items[].symbol`, company metadata from row payload/context, preferred or next-day-open action, optional quality/evaluation verdict, optional realized result horizon summary, confidence/conviction, thesis, trace availability counts, optional policy version, and captured/received timestamps.
+- Detail dialog: thesis, quality reason, stop/target/return plan, optional realized results by horizon, risk flags, factor attribution, gate results, upstream evidence, and traceability fields extracted from generic row payload/details.
 
 Important behavior:
 - The route uses the generic stored feedback read filtered to `agent_name=signal-decider`; there is no signal-decider-specific read endpoint yet.
+- Dedicated Core decision list/detail/diagnostics/policy APIs from `kai-trading-core#234` and `#235` are still a dependency for guaranteed realized-result, missed-opportunity, bad-buy, and policy-version coverage. This page displays those fields when they are already stored on feedback rows, but it does not infer them from unrelated market data.
 - If Core omits `result.roles["signal-decider"]`, the UI does not infer completion from payload shape. It shows the available stored rows and falls back to conservative waiting/completed status copy.
 - This is a decision-support inspection surface only and does not create orders.
 
