@@ -28,6 +28,7 @@ import type {
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
   EodPipelineStatusResponseDto,
+  MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
 
@@ -95,6 +96,7 @@ export default async function DashboardPage() {
   let freshness: EodFreshnessResponseDto | null = null;
   let fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null = null;
   let pipelineStatus: EodPipelineStatusResponseDto | null = null;
+  let marketSnapshot: MarketSnapshotResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
   let portfolioSummary: PortfolioSummaryDto | null = null;
@@ -102,11 +104,12 @@ export default async function DashboardPage() {
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, freshness, portfolioSummary] = await Promise.all([
+    [market, tracked, freshness, portfolioSummary, marketSnapshot] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
       fetchServerTradingApiJson<PortfolioSummaryDto>("/portfolio/summary", requestHeaders).catch(() => null),
+      fetchServerTradingApiJson<MarketSnapshotResponseDto>("/market/snapshot", requestHeaders).catch(() => null),
     ]);
 
     const pipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
@@ -162,6 +165,7 @@ export default async function DashboardPage() {
       initialFreshness={freshness}
       initialFundamentalsStatus={fundamentalsStatus}
       initialPipelineStatus={pipelineStatus}
+      initialMarketSnapshot={marketSnapshot}
       initialAgentFeedbackProgress={agentFeedbackProgress}
       initialSignalDeciderFeedback={signalDeciderFeedback}
       initialPortfolioSummary={portfolioSummary}

@@ -719,6 +719,81 @@ export type EodMarketRiskFiltersResponseDto = {
   items?: EodMarketRiskFilterResultItemDto[] | null;
 };
 
+export type MarketSnapshotNumericValue = number | string | null;
+
+export type MarketSnapshotIndexDto = {
+  code?: string | null;
+  market?: string | null;
+  name?: string | null;
+  level?: MarketSnapshotNumericValue;
+  value?: MarketSnapshotNumericValue;
+  close?: MarketSnapshotNumericValue;
+  current?: MarketSnapshotNumericValue;
+  change?: MarketSnapshotNumericValue;
+  change_rate?: MarketSnapshotNumericValue;
+  change_pct?: MarketSnapshotNumericValue;
+  change_percent?: MarketSnapshotNumericValue;
+  market_date?: string | null;
+  as_of?: string | null;
+  source?: string | null;
+};
+
+export type MarketSnapshotFxRateDto = {
+  pair?: string | null;
+  base?: string | null;
+  quote?: string | null;
+  rate?: MarketSnapshotNumericValue;
+  value?: MarketSnapshotNumericValue;
+  change?: MarketSnapshotNumericValue;
+  change_rate?: MarketSnapshotNumericValue;
+  change_pct?: MarketSnapshotNumericValue;
+  change_percent?: MarketSnapshotNumericValue;
+  as_of?: string | null;
+  source?: string | null;
+};
+
+export type MarketSnapshotFlowDto = {
+  label?: string | null;
+  market?: string | null;
+  direction?: string | null;
+  summary?: string | null;
+  net_amount?: MarketSnapshotNumericValue;
+  net_buy_amount?: MarketSnapshotNumericValue;
+  amount?: MarketSnapshotNumericValue;
+  value?: MarketSnapshotNumericValue;
+  currency?: string | null;
+  unit?: string | null;
+  as_of?: string | null;
+  source?: string | null;
+};
+
+export type MarketSnapshotSummaryDto = {
+  market_bias?: string | null;
+  breadth?: string | null;
+  breadth_summary?: string | null;
+  market_breadth?: string | null;
+  line?: string | null;
+};
+
+export type MarketSnapshotResponseDto = {
+  market_date?: string | null;
+  as_of?: string | null;
+  source?: string | null;
+  indices?: {
+    kospi?: MarketSnapshotIndexDto | null;
+    kosdaq?: MarketSnapshotIndexDto | null;
+  } | MarketSnapshotIndexDto[] | null;
+  fx?: {
+    usdkrw?: MarketSnapshotFxRateDto | null;
+    usd_krw?: MarketSnapshotFxRateDto | null;
+  } | null;
+  flows?: {
+    foreign?: MarketSnapshotFlowDto | null;
+    institutional?: MarketSnapshotFlowDto | null;
+  } | null;
+  summary?: MarketSnapshotSummaryDto | string | null;
+};
+
 export type EodPipelineStageKey =
   | "price_collection"
   | "technical_snapshots"

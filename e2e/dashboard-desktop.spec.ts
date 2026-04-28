@@ -51,6 +51,30 @@ async function openEodStatusCard(page: Page) {
 
 test.describe("dashboard desktop", () => {
   test("dashboard labels match currently wired core data", async ({ page }) => {
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-04-28T10:15:00+09:00",
+          indices: {
+            kospi: { level: 2742.31, change: 18.42, change_rate: 0.68 },
+            kosdaq: { level: 842.17, change: -4.11, change_rate: -0.51 },
+          },
+          fx: {
+            usdkrw: { rate: 1378.2, change: 1.4, change_rate: 0.1 },
+          },
+          flows: {
+            foreign: { summary: "+₩248B net buy" },
+            institutional: { summary: "-₩91B net sell" },
+          },
+          summary: {
+            market_bias: "Constructive",
+            breadth: "Large caps leading",
+          },
+        }),
+      });
+    });
+
     await page.goto("/dashboard");
 
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
@@ -62,6 +86,21 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Market condition/i })).toBeVisible();
+    const marketCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
+    await expect(marketCard.getByText("KOSPI", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("KOSDAQ", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("2,742.31", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+18.42 (+0.68%)", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("842.17", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("-4.11 (-0.51%)", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("1,378.20", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+₩248B net buy", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("-₩91B net sell", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Constructive · Large caps leading", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Daily Data Fetch/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Filtering/i })).toHaveCount(0);
@@ -835,7 +874,6 @@ test.describe("dashboard desktop", () => {
     const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-15/);
     await expect(piotroskiSection).toContainText("Piotroski");
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
@@ -1157,7 +1195,6 @@ test.describe("dashboard desktop", () => {
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-16/);
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
     await expect(piotroskiSection).toContainText(/Checked\s*4/);
@@ -1816,7 +1853,6 @@ test.describe("dashboard desktop", () => {
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-15/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
@@ -2065,7 +2101,6 @@ test.describe("dashboard desktop", () => {
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-15/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "synced");
     await expectEodStageStatus(page.locator('[aria-label="Technical Analysis freshness"]'), "synced");
@@ -2195,7 +2230,6 @@ test.describe("dashboard desktop", () => {
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-17/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
@@ -2473,7 +2507,6 @@ test.describe("dashboard desktop", () => {
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-14/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "not synced");
     await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("250 / 250");
@@ -2755,7 +2788,6 @@ test.describe("dashboard desktop", () => {
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
 
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-23/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expect(eodStatusCard.getByText("Latest EOD patch")).toHaveCount(0);
     await expectEodStageStatus(priceStage, "synced");
@@ -2777,7 +2809,6 @@ test.describe("dashboard desktop", () => {
     page,
   }) => {
     const marketDateLabel = /(?:Market date|기준일) 2026-04-15/;
-    const latestCycleDateLabel = /(?:Latest cycle|최신 사이클)\s*2026-04-15/;
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
@@ -2949,11 +2980,7 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect.poll(() => requestedMarketDate).toBe("2026-04-15");
-    const freshnessPanel = page.locator("#dashboard-freshness");
     await expect(page.getByRole("banner").getByText("Market Open")).toBeVisible();
-    await expect(freshnessPanel.getByText(/^Market state\b/)).toBeVisible();
-    await expect(freshnessPanel.getByText(/Current time/)).toBeVisible();
-    await expect(freshnessPanel).toContainText(latestCycleDateLabel);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });

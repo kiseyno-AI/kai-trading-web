@@ -5,6 +5,8 @@ This document defines the first practical frontend contract for wiring `trading-
 ## Current shipped dashboard wiring
 - `/dashboard` currently renders from these live endpoints where available:
   - `GET /market/status`
+  - `GET /market/snapshot`
+    - The market-condition card is driven by this compact market snapshot surface when Core exposes it. Expected card fields are `indices.kospi`, `indices.kosdaq`, `fx.usdkrw`, `flows.foreign`, `flows.institutional`, and optional `summary.market_bias` / breadth text. The frontend displays only the values present in this payload and shows an explicit unavailable state when the endpoint is not yet available; it does not derive substitute KOSPI/KOSDAQ, FX, or investor-flow values from filtering/status endpoints.
   - `GET /quotes/tracked`
   - `GET /quotes/{symbol}`
   - `GET /symbols/search`
