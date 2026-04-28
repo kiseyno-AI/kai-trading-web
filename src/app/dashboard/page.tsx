@@ -27,6 +27,7 @@ import type {
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
   EodPipelineStatusResponseDto,
+  PortfolioSummaryDto,
 } from "@/types/trading-api";
 
 export const dynamic = "force-dynamic";
@@ -95,14 +96,16 @@ export default async function DashboardPage() {
   let pipelineStatus: EodPipelineStatusResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
+  let portfolioSummary: PortfolioSummaryDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, freshness] = await Promise.all([
+    [market, tracked, freshness, portfolioSummary] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
+      fetchServerTradingApiJson<PortfolioSummaryDto>("/portfolio/summary", requestHeaders).catch(() => null),
     ]);
 
     const pipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
@@ -159,6 +162,7 @@ export default async function DashboardPage() {
       initialPipelineStatus={pipelineStatus}
       initialAgentFeedbackProgress={agentFeedbackProgress}
       initialSignalDeciderFeedback={signalDeciderFeedback}
+      initialPortfolioSummary={portfolioSummary}
     />
   );
 }

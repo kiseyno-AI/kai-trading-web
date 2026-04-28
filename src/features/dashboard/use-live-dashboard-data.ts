@@ -12,6 +12,7 @@ import {
 import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
 import {
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
+  PORTFOLIO_SUMMARY_PATH,
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
   warmMobileToolbarViewData,
 } from "@/lib/mobile-toolbar-data";
@@ -57,6 +58,7 @@ import type {
   EodMarketRiskFiltersResponseDto,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  PortfolioSummaryDto,
 } from "@/types/trading-api";
 
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
@@ -109,6 +111,7 @@ export function useLiveDashboardData({
   initialPipelineStatus,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
+  initialPortfolioSummary,
 }: LiveDashboardClientProps) {
   const initialPipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
     initialFreshness?.today?.trade_date,
@@ -145,6 +148,8 @@ export function useLiveDashboardData({
     initialSignalDeciderFeedback,
   );
   const [signalDeciderFeedbackError, setSignalDeciderFeedbackError] = useState<string | null>(null);
+  const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummaryDto | null>(initialPortfolioSummary);
+  const [portfolioSummaryError, setPortfolioSummaryError] = useState<string | null>(null);
   const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
   const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(null);
@@ -186,6 +191,7 @@ export function useLiveDashboardData({
   useEffect(() => {
     seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, initialMarket);
     seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH, initialTracked);
+    seedTradingApiJsonSnapshot(PORTFOLIO_SUMMARY_PATH, initialPortfolioSummary);
     seedTradingApiJsonCache("/api/trading/eod/freshness", initialFreshness);
     seedTradingApiJsonCache(
       buildDartFundamentalsDailyInspectPath(
@@ -195,7 +201,14 @@ export function useLiveDashboardData({
       initialFundamentalsStatus,
     );
     void warmMobileToolbarViewData("dashboard");
-  }, [initialDashboardProcessMarketDate, initialFreshness, initialFundamentalsStatus, initialMarket, initialTracked]);
+  }, [
+    initialDashboardProcessMarketDate,
+    initialFreshness,
+    initialFundamentalsStatus,
+    initialMarket,
+    initialPortfolioSummary,
+    initialTracked,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -239,6 +252,32 @@ export function useLiveDashboardData({
     return () => {
       active = false;
       clearRetryTimer();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadPortfolioSummary = async () => {
+      try {
+        const summary = await getJsonNoCache<PortfolioSummaryDto>(PORTFOLIO_SUMMARY_PATH);
+        if (!active) return;
+        setPortfolioSummary(summary);
+        seedTradingApiJsonSnapshot(PORTFOLIO_SUMMARY_PATH, summary);
+        setPortfolioSummaryError(null);
+      } catch (portfolioError) {
+        console.error("Dashboard portfolio summary load failed", portfolioError);
+        if (!active) return;
+        setPortfolioSummaryError(getDashboardLoadErrorMessage(portfolioError));
+      }
+    };
+
+    void loadPortfolioSummary();
+    const timer = window.setInterval(loadPortfolioSummary, 60_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -679,6 +718,8 @@ export function useLiveDashboardData({
     piotroskiStatusError: filteringMarketDate ? piotroskiStatusError : null,
     piotroskiStatusLoadState: filteringMarketDate ? piotroskiStatusLoadState : "idle",
     pipelineStatus,
+    portfolioSummary,
+    portfolioSummaryError,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
     signalDeciderFeedback:

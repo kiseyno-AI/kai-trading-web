@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { RELEASE_DISPLAY_LABEL } from "@/lib/release-version";
 import { chromiumIPhone13 } from "./devices";
@@ -9,6 +9,24 @@ const agentReviewCompletedLabel = /Agent review completed|에이전트 분석 �
 const agentFeedbackStopButtonLabel = /Stop|중단/;
 const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트 피드백 실행을 중단할까요\?/;
 const yesLabel = /Yes|예/;
+
+async function openProcessMonitorDrawer(page: Page) {
+  const drawer = page.getByRole("dialog", { name: /Daily process monitor/i });
+  if (await drawer.isVisible().catch(() => false)) {
+    return drawer;
+  }
+
+  await page.getByRole("button", { name: /Open process monitor/i }).first().click();
+  await expect(drawer).toBeVisible();
+  return drawer;
+}
+
+async function openEodStatusCard(page: Page) {
+  const processDrawer = await openProcessMonitorDrawer(page);
+  const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
+  await expect(eodStatusCard).toBeVisible();
+  return eodStatusCard;
+}
 
 test.describe("dashboard mobile chrome", () => {
   test("dashboard top chrome is compact and fixed on mobile", async ({ page }) => {
@@ -30,7 +48,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(bottomNav).toBeVisible();
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_DISPLAY_LABEL);
-    await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
@@ -222,10 +240,11 @@ test.describe("dashboard mobile chrome", () => {
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
-    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
-    const agentFeedbackCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const agentFeedbackCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
 
     await expect(priceStage).toContainText(/3,570\s*\/\s*3,583/);
     await expect(priceStage).not.toContainText(/Succeeded/);
@@ -507,7 +526,8 @@ test.describe("dashboard mobile chrome", () => {
 
     await page.goto("/dashboard");
 
-    const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
+    const eodStatusCard = await openEodStatusCard(page);
+    const priceStage = eodStatusCard.locator('[aria-label="Price Fetch freshness"]');
     const runningPill = priceStage.locator('.pill[data-status-badge="running"]');
 
     await expect(priceStage).toContainText(/Fetch Symbol Ohlcv/i);
@@ -746,7 +766,8 @@ test.describe("dashboard mobile chrome", () => {
 
     await page.goto("/dashboard");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     const priceStage = eodStatusCard.locator('[data-stage="price"]');
 
     await expect(eodStatusCard.getByText("Latest EOD patch")).toHaveCount(0);
@@ -938,7 +959,9 @@ test.describe("dashboard mobile chrome", () => {
 
     await page.goto("/dashboard");
 
-    const stopButton = page.getByRole("button", { name: agentFeedbackStopButtonLabel });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
+    const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(stopButton).toBeVisible();
     await stopButton.click();
 

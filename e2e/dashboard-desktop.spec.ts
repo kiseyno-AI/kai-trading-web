@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 
@@ -31,6 +31,24 @@ async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
   await expect(stage.getByRole("img", { name: new RegExp(`^${status}`, "i") })).toBeVisible();
 }
 
+async function openProcessMonitorDrawer(page: Page) {
+  const drawer = page.getByRole("dialog", { name: /Daily process monitor/i });
+  if (await drawer.isVisible().catch(() => false)) {
+    return drawer;
+  }
+
+  await page.getByRole("button", { name: /Open process monitor/i }).first().click();
+  await expect(drawer).toBeVisible();
+  return drawer;
+}
+
+async function openEodStatusCard(page: Page) {
+  const processDrawer = await openProcessMonitorDrawer(page);
+  const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
+  await expect(eodStatusCard).toBeVisible();
+  return eodStatusCard;
+}
+
 test.describe("dashboard desktop", () => {
   test("dashboard labels match currently wired core data", async ({ page }) => {
     await page.goto("/dashboard");
@@ -40,16 +58,26 @@ test.describe("dashboard desktop", () => {
     await expect(desktopNav).toBeVisible();
     await expect(desktopNav.getByRole("link", { name: /Market Status/i })).toHaveCount(0);
     await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Market condition/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Filtering/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Daily Data Fetch/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Filtering/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Piotroski/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /KIS Risk/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
-    await expect(page.getByText(/Market Freshness Registry/i)).toBeVisible();
+    await expect(page.getByText(/Insight cockpit/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    await expect(processDrawer.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Filtering/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Open the full Piotroski filter pass list/i })).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
 
@@ -61,7 +89,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
-  test("desktop operational integrity keeps Agent Feedback below the top two cards", async ({ page }) => {
+  test("desktop process monitor drawer keeps detailed process cards grouped", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -304,9 +332,14 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const freshnessPanel = page.locator("#dashboard-freshness");
-    const eodCard = freshnessPanel.locator("article").filter({ hasText: "Daily Data Fetch" });
-    const filteringCard = freshnessPanel.locator("article").filter({ hasText: "Filtering" });
-    const agentFeedbackCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
+    await expect(freshnessPanel.locator("article").filter({ hasText: "Daily Data Fetch" })).toHaveCount(0);
+    await expect(freshnessPanel.locator("article").filter({ hasText: "Filtering" })).toHaveCount(0);
+    await expect(freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" })).toHaveCount(0);
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodCard = processDrawer.locator("article").filter({ hasText: "Daily Data Fetch" });
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
+    const agentFeedbackCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
 
     await expect(eodCard).toBeVisible();
     await expect(filteringCard).toBeVisible();
@@ -520,12 +553,15 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Pipeline activity/i)).toHaveCount(0);
     await expect(page.getByText(/Current step/i)).toHaveCount(0);
     await expect(page.getByText(/Current activity/i)).toHaveCount(0);
-    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/Build Symbol Summary/i);
-    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/1,180 \/ 3,200/i);
-    await expect(page.locator('[aria-label="Action Summary freshness"]')).toContainText(/Failed 12/i);
-    await expect(page.locator('[aria-label="Fundamentals freshness"]')).toContainText(/Refresh Company Metrics/i);
+    const eodStatusCard = await openEodStatusCard(page);
+    const actionStage = eodStatusCard.locator('[aria-label="Action Summary freshness"]');
+    const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
+    await expect(actionStage).toContainText(/Build Symbol Summary/i);
+    await expect(actionStage).toContainText(/1,180 \/ 3,200/i);
+    await expect(actionStage).toContainText(/Failed 12/i);
+    await expect(fundamentalsStage).toContainText(/Refresh Company Metrics/i);
 
-    const runningActionPill = page.locator('[aria-label="Action Summary freshness"] .pill[data-status-badge="running"]');
+    const runningActionPill = actionStage.locator('.pill[data-status-badge="running"]');
     const runningPillAnimations = await runningActionPill.evaluate((element) => {
       const spinner = element.querySelector('[aria-hidden="true"]');
 
@@ -752,10 +788,11 @@ test.describe("dashboard desktop", () => {
     await expect(symbolCard).toBeVisible();
     await expect(symbolCard.getByText("123456", { exact: true })).toHaveCount(1);
 
-    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-15/);
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-15/);
     await expect(piotroskiSection).toContainText("Piotroski");
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
@@ -1072,11 +1109,12 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-16/);
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-16/);
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
     await expect(piotroskiSection).toContainText(/Checked\s*4/);
@@ -1118,6 +1156,10 @@ test.describe("dashboard desktop", () => {
     const now = "2026-04-27T10:15:00+09:00";
     let piotroskiRequestCount = 0;
     let marketRiskRequestCount = 0;
+    let releaseSameDayResults: () => void = () => {};
+    const sameDayResultsReady = new Promise<void>((resolve) => {
+      releaseSameDayResults = resolve;
+    });
 
     await page.route("**/api/trading/market/status", async (route) => {
       await route.fulfill({
@@ -1254,6 +1296,30 @@ test.describe("dashboard desktop", () => {
       });
     });
     await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      const requestedMarketDate = new URL(route.request().url()).searchParams.get("market_date") ?? "2026-04-27";
+
+      if (requestedMarketDate !== "2026-04-27") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            requested_market_date: requestedMarketDate,
+            resolved_market_date: requestedMarketDate,
+            is_latest_fallback: false,
+            market_date: requestedMarketDate,
+            summary: {
+              entries: 0,
+              requested_symbol: null,
+              matched_symbols: [],
+              missing_symbols: [],
+              passed_count: 0,
+              not_passed_count: 0,
+            },
+            items: [],
+          }),
+        });
+        return;
+      }
+
       piotroskiRequestCount += 1;
 
       if (piotroskiRequestCount === 1) {
@@ -1278,6 +1344,7 @@ test.describe("dashboard desktop", () => {
         return;
       }
 
+      await sameDayResultsReady;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -1298,6 +1365,31 @@ test.describe("dashboard desktop", () => {
       });
     });
     await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+      const requestedMarketDate = new URL(route.request().url()).searchParams.get("market_date") ?? "2026-04-27";
+
+      if (requestedMarketDate !== "2026-04-27") {
+        await route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            requested_market_date: requestedMarketDate,
+            resolved_market_date: requestedMarketDate,
+            is_latest_fallback: false,
+            market_date: requestedMarketDate,
+            summary: {
+              entries: 0,
+              requested_symbol: null,
+              matched_symbols: [],
+              missing_symbols: [],
+              passed_count: 0,
+              watchlist_count: 0,
+              failed_count: 0,
+            },
+            items: [],
+          }),
+        });
+        return;
+      }
+
       marketRiskRequestCount += 1;
 
       if (marketRiskRequestCount === 1) {
@@ -1323,6 +1415,7 @@ test.describe("dashboard desktop", () => {
         return;
       }
 
+      await sameDayResultsReady;
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -1412,7 +1505,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
 
@@ -1422,6 +1516,7 @@ test.describe("dashboard desktop", () => {
     await expect(piotroskiSection).toContainText(/Pass\s*14/);
     await expect(marketRiskSection).toContainText("Requested 2026-04-27");
 
+    releaseSameDayResults();
     await expect.poll(() => piotroskiRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
     await expect.poll(() => marketRiskRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
 
@@ -1675,9 +1770,10 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-15/);
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-15/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
@@ -1924,15 +2020,16 @@ test.describe("dashboard desktop", () => {
     await expect.poll(() => fundamentalsRequestedMarketDate).toBe("2026-04-15");
     await expect.poll(() => piotroskiRequestedMarketDate).toBe("2026-04-15");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-15/);
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-15/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "synced");
     await expectEodStageStatus(page.locator('[aria-label="Technical Analysis freshness"]'), "synced");
     await expectEodStageStatus(page.locator('[aria-label="Action Summary freshness"]'), "synced");
     await expectEodStageStatus(page.locator('[aria-label="Fundamentals freshness"]'), "synced");
 
-    const filteringCard = page.locator("#dashboard-freshness article").filter({ hasText: "Filtering" });
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
@@ -2052,9 +2149,10 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-17/);
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-17/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
@@ -2199,7 +2297,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
 
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
@@ -2261,7 +2360,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
@@ -2327,9 +2427,10 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-14/);
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-14/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expectEodStageStatus(page.locator('[aria-label="Price Fetch freshness"]'), "not synced");
     await expect(page.locator('[aria-label="Price Fetch freshness"]')).toContainText("250 / 250");
@@ -2603,14 +2704,15 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const eodStatusCard = page.locator("#dashboard-freshness article").filter({ hasText: "EOD Status" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
     const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
 
     await expect(eodStatusCard).toBeVisible();
-    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle date\s*2026-04-23/);
+    await expect(page.locator("#dashboard-freshness")).toContainText(/Latest cycle\s*2026-04-23/);
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expect(eodStatusCard.getByText("Latest EOD patch")).toHaveCount(0);
     await expectEodStageStatus(priceStage, "synced");
@@ -2632,7 +2734,7 @@ test.describe("dashboard desktop", () => {
     page,
   }) => {
     const marketDateLabel = /(?:Market date|기준일) 2026-04-15/;
-    const latestCycleDateLabel = /(?:Latest cycle date|최신 사이클 기준일)\s*2026-04-15/;
+    const latestCycleDateLabel = /(?:Latest cycle|최신 사이클)\s*2026-04-15/;
     const now = "2026-04-15T10:20:00+09:00";
     let requestedMarketDate: string | null = null;
     let progressRequestCount = 0;
@@ -2805,12 +2907,13 @@ test.describe("dashboard desktop", () => {
 
     await expect.poll(() => requestedMarketDate).toBe("2026-04-15");
     const freshnessPanel = page.locator("#dashboard-freshness");
-    await expect(page.getByText("Market Open")).toBeVisible();
-    await expect(freshnessPanel.getByText(/^Market state\b/)).toHaveCount(0);
+    await expect(page.getByRole("banner").getByText("Market Open")).toBeVisible();
+    await expect(freshnessPanel.getByText(/^Market state\b/)).toBeVisible();
     await expect(freshnessPanel.getByText(/Current time/)).toBeVisible();
     await expect(freshnessPanel).toContainText(latestCycleDateLabel);
 
-    const progressCard = freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toBeVisible();
     await expect(progressCard).not.toContainText("Latest Run");
@@ -2914,6 +3017,7 @@ test.describe("dashboard desktop", () => {
       const previousProgressRequestCount = progressRequestCount;
       await page.reload();
       await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
+      await openProcessMonitorDrawer(page);
       await expect(progressCard).toContainText(expectedLabel);
     }
 
@@ -2921,6 +3025,7 @@ test.describe("dashboard desktop", () => {
       const previousProgressRequestCount = progressRequestCount;
       await page.reload();
       await expect.poll(() => progressRequestCount).toBeGreaterThan(previousProgressRequestCount);
+      await openProcessMonitorDrawer(page);
       await expect(progressCard).toContainText(agentReviewCompletedLabel);
       await expect(progressCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);
 
@@ -3271,7 +3376,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(stopButton).toBeVisible();
@@ -3469,7 +3575,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(stopButton).toBeVisible();
@@ -3652,7 +3759,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toContainText(agentReviewRunningLabel);
     await expect(stopButton).toBeVisible();
@@ -3775,7 +3883,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const activeFundamentalRole = progressCard
       .locator('[data-role-status="running"]')
       .filter({ hasText: "Fundamental summarizer" });
@@ -3889,7 +3998,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const progressCard = page.locator("#dashboard-freshness article").filter({ hasText: "Agent Feedback" });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const activeTechnicalRole = progressCard
       .locator('[data-role-status="running"]')
       .filter({ hasText: "Technical summarizer" });
@@ -4125,7 +4235,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const eodStatusCard = await openEodStatusCard(page);
+    const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
     await expectEodStageStatus(fundamentalsStage, "synced");
     await expect(fundamentalsStage.locator('.pill[data-status-badge="synced"]')).toHaveCount(0);
@@ -4237,7 +4348,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const eodStatusCard = await openEodStatusCard(page);
+    const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
     await expectEodStageStatus(fundamentalsStage, "not synced");
     const latestDateDetail = fundamentalsStage.locator('[data-detail-tone="text"]').filter({
@@ -4348,7 +4460,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const eodStatusCard = await openEodStatusCard(page);
+    const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
     await expectEodStageStatus(fundamentalsStage, "not synced");
     await expect(fundamentalsStage).toContainText(/Checked\s*1/);
@@ -4433,7 +4546,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const eodStatusCard = await openEodStatusCard(page);
+    const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
     const fundamentalsTitle = fundamentalsStage.getByText("Fundamentals", { exact: true });
     const runningPill = fundamentalsStage.locator('.pill[data-status-badge="running"]');
 
@@ -4544,7 +4658,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const actionStage = page.locator('[aria-label="Action Summary freshness"]');
+    const eodStatusCard = await openEodStatusCard(page);
+    const actionStage = eodStatusCard.locator('[aria-label="Action Summary freshness"]');
     await expectEodStageStatus(actionStage, "not synced");
     await expect(actionStage.locator('.pill[data-status-badge="not synced"]')).toHaveCount(0);
 
@@ -4626,13 +4741,14 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
+    const eodStatusCard = await openEodStatusCard(page);
     for (const [label, status] of [
       ["Price Fetch", "synced"],
       ["Technical Analysis", "synced"],
       ["Action Summary", "synced"],
       ["Fundamentals", "not synced"],
     ] as const) {
-      const stageCard = page.locator(`[aria-label="${label} freshness"]`);
+      const stageCard = eodStatusCard.locator(`[aria-label="${label} freshness"]`);
       await expect(stageCard).toBeVisible();
       await expectEodStageStatus(stageCard, status);
 
@@ -4750,7 +4866,8 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
+    const eodStatusCard = await openEodStatusCard(page);
+    const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
 
     await fundamentalsStage.getByRole("button", { name: /View fundamentals run details/i }).click();

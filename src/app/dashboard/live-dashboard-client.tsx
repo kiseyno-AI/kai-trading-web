@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -24,6 +24,14 @@ import {
   type SignalDeciderFeedbackStatus,
   type SignalDeciderFeedbackSummaryModel,
 } from "@/lib/signal-decider-feedback";
+import {
+  buildPortfolioMetricModels,
+  getPortfolioAccounts,
+  getPortfolioHoldings,
+  getPortfolioLastSyncedAt,
+  type PortfolioMetricId,
+  type PortfolioMetricModel,
+} from "@/features/portfolio/portfolio-display";
 import {
   getFundamentalsRunDate,
   getLatestAvailableFundamentalsCoverage,
@@ -74,6 +82,7 @@ import {
 import type {
   AgentRoleCard,
   AgentRoleStatus,
+  CoreMarketStatus,
   EodStageCard,
   FilteringCardModel,
   FundamentalsUpdatedActivityModel,
@@ -86,6 +95,7 @@ import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-da
 import type {
   AgentContextCoreControlRequestDto,
   AgentContextCoreControlResponseDto,
+  PortfolioSummaryDto,
 } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
@@ -557,7 +567,10 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
   const statusTone = getSignalDeciderStatusTone(model.status);
 
   return (
-    <article className={`${styles.integrityStat} ${styles.signalDeciderCard}`} data-signal-decider-status={model.status}>
+    <article
+      className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.signalDeciderCard}`}
+      data-signal-decider-status={model.status}
+    >
       <div className={styles.sectionHeaderRow}>
         <div>
           <h2 className={styles.sectionTitle}>{copy.signalDecider.title}</h2>
@@ -626,6 +639,210 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
   );
 });
 
+function humanizeDashboardToken(value: string | null | undefined, fallback: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) return fallback;
+
+  return trimmed
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1).toLowerCase()}`)
+    .join(" ");
+}
+
+function getPortfolioMetricLabel(id: PortfolioMetricId, copy: DashboardLiveCopy) {
+  if (id === "total-assets") return copy.portfolioState.metrics.totalAssets;
+  if (id === "day-pnl") return copy.portfolioState.metrics.dayPnl;
+  if (id === "unrealized-pnl") return copy.portfolioState.metrics.unrealizedPnl;
+  return copy.portfolioState.metrics.cashBuyingPower;
+}
+
+function getPortfolioMetricClassName(metric: PortfolioMetricModel) {
+  if (metric.tone === "positive") return styles.positive;
+  if (metric.tone === "negative") return styles.negative;
+  return "";
+}
+
+function formatPortfolioCount(count: number, singularLabel: string, pluralLabel: string, numberLocale: string) {
+  const label = count === 1 ? singularLabel : pluralLabel;
+  return `${count.toLocaleString(numberLocale)} ${label}`;
+}
+
+type PortfolioStateCardProps = {
+  copy: DashboardLiveCopy;
+  error: string | null;
+  numberLocale: string;
+  summary: PortfolioSummaryDto | null;
+};
+
+const PortfolioStateCard = memo(function PortfolioStateCard({
+  copy,
+  error,
+  numberLocale,
+  summary,
+}: PortfolioStateCardProps) {
+  const metrics = buildPortfolioMetricModels(summary, copy.portfolioState.waiting);
+  const accounts = getPortfolioAccounts(summary);
+  const holdings = getPortfolioHoldings(summary);
+  const lastSyncedAt = getPortfolioLastSyncedAt(summary);
+  const hasAvailableMetrics = metrics.some((metric) => metric.available);
+  const statusLabel = error
+    ? copy.portfolioState.statusUnavailable
+    : hasAvailableMetrics
+      ? copy.portfolioState.statusReady
+      : copy.portfolioState.statusWaiting;
+  const statusTone = error ? "warning" : hasAvailableMetrics ? "positive" : "neutral";
+  const lastSyncedLabel = formatDisplayTimestamp(lastSyncedAt, copy.portfolioState.waiting);
+
+  return (
+    <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.portfolioStateCard}`}>
+      <ComponentTag label="dashboard.portfolio-state" api="/api/trading/portfolio/summary" />
+
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.portfolioState.eyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.portfolioState.title}</h2>
+        </div>
+        <span className={`pill ${statusTone}`}>{statusLabel}</span>
+      </div>
+
+      <div className={styles.portfolioMetricGrid} aria-label={copy.portfolioState.summaryMetrics}>
+        {metrics.map((metric) => (
+          <div key={metric.id} className={styles.portfolioMetric} data-portfolio-metric={metric.id}>
+            <span>{getPortfolioMetricLabel(metric.id, copy)}</span>
+            <strong className={getPortfolioMetricClassName(metric)}>{metric.value}</strong>
+          </div>
+        ))}
+      </div>
+
+      <dl className={styles.insightStateList}>
+        <div>
+          <dt>{copy.portfolioState.accountState}</dt>
+          <dd>{formatPortfolioCount(accounts.length, copy.portfolioState.account, copy.portfolioState.accounts, numberLocale)}</dd>
+        </div>
+        <div>
+          <dt>{copy.portfolioState.holdings}</dt>
+          <dd>
+            {formatPortfolioCount(
+              holdings.length,
+              copy.portfolioState.holding,
+              copy.portfolioState.holdingsPlural,
+              numberLocale,
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{copy.portfolioState.lastSync}</dt>
+          <dd>{lastSyncedLabel}</dd>
+        </div>
+      </dl>
+
+      {error ? <p className={styles.cardContext}>{error}</p> : null}
+
+      <Link href="/portfolio" className={styles.signalDeciderDetailLink} aria-label={copy.portfolioState.openDetail}>
+        {copy.portfolioState.openDetail}
+      </Link>
+    </article>
+  );
+});
+
+function getFilteringMetricValue(stage: FilteringCardModel["stages"][number] | null, key: string) {
+  return stage?.metrics.find((metric) => metric.key === key)?.value ?? UNKNOWN_LABEL;
+}
+
+function getMarketSessionTone(market: CoreMarketStatus) {
+  return market.is_open ? "positive" : "neutral";
+}
+
+type MarketOverviewCardProps = {
+  copy: DashboardLiveCopy;
+  filteringCardModel: FilteringCardModel;
+  market: CoreMarketStatus;
+  primaryLatestCycleDateLabel: string;
+};
+
+const MarketOverviewCard = memo(function MarketOverviewCard({
+  copy,
+  filteringCardModel,
+  market,
+  primaryLatestCycleDateLabel,
+}: MarketOverviewCardProps) {
+  const piotroskiStage = filteringCardModel.stages.find((stage) => stage.key === "piotroski") ?? null;
+  const riskStage = filteringCardModel.stages.find((stage) => stage.key === "kis-risk") ?? null;
+  const tradingDayLabel =
+    market.is_trading_day === false
+      ? copy.marketOverview.breakDay
+      : market.is_trading_day === true
+        ? copy.marketOverview.tradingDayOpen
+        : copy.marketOverview.unknown;
+
+  return (
+    <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.marketOverviewCard}`}>
+      <ComponentTag
+        label="dashboard.market-overview"
+        api="/api/trading/market/status + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
+      />
+
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.marketOverview.eyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.marketOverview.title}</h2>
+        </div>
+        <span className={`pill ${getMarketSessionTone(market)}`}>{market.is_open ? copy.marketOpen : copy.marketClosed}</span>
+      </div>
+
+      <dl className={styles.insightStateList}>
+        <div>
+          <dt>{copy.marketOverview.marketState}</dt>
+          <dd>{humanizeDashboardToken(market.state, copy.marketOverview.unknown)}</dd>
+        </div>
+        <div>
+          <dt>{copy.marketOverview.tradingDay}</dt>
+          <dd>{tradingDayLabel}</dd>
+        </div>
+        <div>
+          <dt>{copy.marketOverview.latestCycle}</dt>
+          <dd>{primaryLatestCycleDateLabel}</dd>
+        </div>
+        <div>
+          <dt>{copy.marketOverview.serverTime}</dt>
+          <dd>{formatDisplayTimestamp(market.server_time, UNKNOWN_LABEL)}</dd>
+        </div>
+      </dl>
+
+      <div className={styles.marketSignalGrid}>
+        <div>
+          <span>{copy.marketOverview.piotroskiBreadth}</span>
+          <strong>{getFilteringMetricValue(piotroskiStage, "pass")}</strong>
+        </div>
+        <div>
+          <span>{copy.marketOverview.riskPosture}</span>
+          <strong>{getFilteringMetricValue(riskStage, "pass")}</strong>
+        </div>
+        <div>
+          <span>{copy.marketOverview.riskWatchlist}</span>
+          <strong>{getFilteringMetricValue(riskStage, "watchlist")}</strong>
+        </div>
+      </div>
+
+      <p className={styles.cardContext}>{copy.marketOverview.conditionNote}</p>
+
+      <div className={styles.cardActionRow}>
+        <Link href="/markets" className={styles.signalDeciderDetailLink} aria-label={copy.marketOverview.openMarkets}>
+          {copy.marketOverview.openMarkets}
+        </Link>
+        <Link
+          href="/markets/factors"
+          className={styles.signalDeciderDetailLink}
+          aria-label={copy.marketOverview.openFactorScreening}
+        >
+          {copy.marketOverview.openFactorScreening}
+        </Link>
+      </div>
+    </article>
+  );
+});
+
 type ProcessMonitorTriggerProps = {
   copy: DashboardLiveCopy;
   model: ProcessMonitorModel;
@@ -689,6 +906,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
 });
 
 type ProcessMonitorDrawerProps = {
+  children?: ReactNode;
   copy: DashboardLiveCopy;
   model: ProcessMonitorModel;
   numberLocale: string;
@@ -696,6 +914,7 @@ type ProcessMonitorDrawerProps = {
 };
 
 const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
+  children,
   copy,
   model,
   numberLocale,
@@ -828,6 +1047,10 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
             </section>
           ))}
         </div>
+
+        {children ? (
+          <div className={`${styles.integrityGrid} ${styles.processMonitorDetailCards}`}>{children}</div>
+        ) : null}
       </section>
     </div>
   );
@@ -917,6 +1140,7 @@ export function LiveDashboardClient({
   initialPipelineStatus,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
+  initialPortfolioSummary,
 }: LiveDashboardClientProps) {
   const { locale } = useAppState();
   const copy = getDashboardLiveCopy(locale);
@@ -938,6 +1162,8 @@ export function LiveDashboardClient({
     piotroskiStatusError,
     piotroskiStatusLoadState,
     pipelineStatus,
+    portfolioSummary,
+    portfolioSummaryError,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
     signalDeciderFeedback,
@@ -954,6 +1180,7 @@ export function LiveDashboardClient({
     initialPipelineStatus,
     initialTracked,
     initialSignalDeciderFeedback,
+    initialPortfolioSummary,
   });
   const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
   const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
@@ -1402,26 +1629,17 @@ export function LiveDashboardClient({
           </section>
         ) : null}
 
-        <section className={`${styles.panel} ${styles.integrityPanel}`} id="dashboard-freshness">
+        <section className={`${styles.panel} ${styles.insightPanel}`} id="dashboard-freshness">
           <ComponentTag
-            label="dashboard.operational-integrity"
-            api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/market/status + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/feedback + /api/trading/agent-context/internal/core/control + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
+            label="dashboard.primary-insights"
+            api="/api/trading/agent-context/feedback + /api/trading/portfolio/summary + /api/trading/market/status + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters + grouped process monitor data"
           />
 
           <div className={styles.panelHeader}>
             <div>
-              <p className={styles.sectionEyebrow}>{copy.operational.eyebrow}</p>
-              <h1 className={styles.heroTitle}>{copy.operational.title}</h1>
-              <div className={styles.primaryDateList}>
-                <p className={styles.primaryDateItem}>
-                  <span className={styles.primaryDateLabel}>{copy.operational.serverTime}</span>
-                  <strong className={styles.primaryDateValue}>{formatDisplayTimestamp(market.server_time)}</strong>
-                </p>
-                <p className={styles.primaryDateItem}>
-                  <span className={styles.primaryDateLabel}>{copy.operational.latestCycleDate}</span>
-                  <strong className={styles.primaryDateValue}>{primaryLatestCycleDateLabel}</strong>
-                </p>
-              </div>
+              <p className={styles.sectionEyebrow}>{copy.insights.eyebrow}</p>
+              <h1 className={styles.heroTitle}>{copy.insights.title}</h1>
+              <p className={styles.supportingCopy}>{copy.insights.description}</p>
             </div>
           </div>
 
@@ -1433,40 +1651,26 @@ export function LiveDashboardClient({
             onOpen={openProcessMonitorDrawer}
           />
 
-          <div className={styles.integrityGrid}>
-            <EodStatusCard
-              copy={copy}
-              eodStageCards={eodStageCards}
-              fundamentalsDialogOpen={fundamentalsDialogOpen}
-              fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
-              fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
-              fundamentalsFailureDetails={fundamentalsFailureDetails}
-              onOpenFundamentalsDetails={openFundamentalsDetails}
-              onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
-            />
-
-            <FilteringCard
-              copy={copy}
-              filteringCardModel={filteringCardModel}
-            />
-
-            <AgentFeedbackCard
-              agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
-              agentFeedbackStatusTone={agentFeedbackStatusTone}
-              agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
-              agentProgressDateContext={agentProgressDateContext}
-              agentRoleCards={agentRoleCards}
-              agentRoleStatusLabels={agentRoleStatusLabels}
-              copy={copy}
-              isAgentFeedbackRunning={isAgentFeedbackRunning}
-              onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
-            />
-
+          <div className={styles.primaryInsightGrid}>
             <SignalDeciderFeedbackCard
               copy={copy}
               error={signalDeciderFeedbackError}
               model={signalDeciderFeedbackModel}
               numberLocale={numberLocale}
+            />
+
+            <PortfolioStateCard
+              copy={copy}
+              error={portfolioSummaryError}
+              numberLocale={numberLocale}
+              summary={portfolioSummary}
+            />
+
+            <MarketOverviewCard
+              copy={copy}
+              filteringCardModel={filteringCardModel}
+              market={market}
+              primaryLatestCycleDateLabel={primaryLatestCycleDateLabel}
             />
           </div>
         </section>
@@ -1551,7 +1755,35 @@ export function LiveDashboardClient({
               model={processMonitorModel}
               numberLocale={numberLocale}
               onClose={closeProcessMonitorDrawer}
-            />,
+            >
+              <EodStatusCard
+                copy={copy}
+                eodStageCards={eodStageCards}
+                fundamentalsDialogOpen={fundamentalsDialogOpen}
+                fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
+                fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
+                fundamentalsFailureDetails={fundamentalsFailureDetails}
+                onOpenFundamentalsDetails={openFundamentalsDetails}
+                onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
+              />
+
+              <FilteringCard
+                copy={copy}
+                filteringCardModel={filteringCardModel}
+              />
+
+              <AgentFeedbackCard
+                agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
+                agentFeedbackStatusTone={agentFeedbackStatusTone}
+                agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
+                agentProgressDateContext={agentProgressDateContext}
+                agentRoleCards={agentRoleCards}
+                agentRoleStatusLabels={agentRoleStatusLabels}
+                copy={copy}
+                isAgentFeedbackRunning={isAgentFeedbackRunning}
+                onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
+              />
+            </ProcessMonitorDrawer>,
             document.body,
           )
         : null}
