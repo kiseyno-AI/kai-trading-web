@@ -155,6 +155,7 @@ Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF 
 |------|------|
 | `/` | Redirects to `/dashboard` |
 | `/dashboard` | Primary desk (server data from core when reachable); mobile and desktop Stitch layouts share the same API-backed data, including Piotroski plus KIS market-risk status inside the shared Filtering card |
+| `/dashboard/signal-decider-feedback` | Signal-decider decision support review backed by generic stored feedback rows; shows action mix, optional verdict/outcome/policy filters, and row-level traceability when Core stores those fields |
 | `/dashboard/symbol/[symbol]` | Symbol-scoped view; `/quotes/{symbol}` keeps polling until both quote and market-status routes report `CLOSED`, while explanatory cards use `/agent-context/symbol-day`, `/eod/piotroski-filter-results`, and the factor inspect reads `/eod/momentum-factors`, `/eod/low-risk-factors`, `/eod/beta-factors`, `/eod/value-factors`, and `/eod/advanced-value-factors` |
 | `/dashboard/symbol/[symbol]/action-summary` | Stitch Action Summary Detail; reuses `/eod/action-summaries` with aggregate fallback |
 | `/dashboard/symbol/[symbol]/technical-analysis` | Stitch Technical Analysis Detail; reuses `/eod/technical-snapshots` with aggregate fallback and renders the desktop candlestick view from `/symbols/{symbol}/price-bars` |

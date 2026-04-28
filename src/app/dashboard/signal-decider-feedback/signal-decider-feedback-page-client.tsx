@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
@@ -17,6 +17,8 @@ import {
   type SignalDeciderAction,
   type SignalDeciderFeedbackItem,
   type SignalDeciderFeedbackStatus,
+  type SignalDeciderQualityTone,
+  type SignalDeciderTraceEntry,
 } from "@/lib/signal-decider-feedback";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import type {
@@ -31,6 +33,7 @@ const UNKNOWN_LABEL = "[확인 필요]";
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type SortMode = "priority" | "symbol" | "confidence" | "captured";
+const ALL_FILTER = "all";
 
 async function getJsonNoCache<T>(path: string): Promise<T> {
   const response = await fetch(resolveTradingApiClientPath(path), {
@@ -87,8 +90,41 @@ function getStatusToneClass(status: SignalDeciderFeedbackStatus) {
   return styles.neutralTone;
 }
 
+function getPillToneClass(tone: SignalDeciderQualityTone | null | undefined) {
+  if (tone === "positive") return "positive";
+  if (tone === "warning") return "warning";
+  if (tone === "negative") return "negative";
+  if (tone === "info") return "info";
+  return "neutral";
+}
+
 function formatScore(value: number | null) {
   return value === null ? UNKNOWN_LABEL : `${value}/10`;
+}
+
+function formatSignedPercent(value: number | null) {
+  if (value === null) return null;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
+  return item.qualityTag?.label ?? item.qualityVerdict ?? null;
+}
+
+function getDecisionQualityFilterValue(item: SignalDeciderFeedbackItem) {
+  return item.qualityVerdict ?? item.qualityTag?.label ?? null;
+}
+
+function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
+  if (item.outcomeHorizons.length === 0) return UNKNOWN_LABEL;
+
+  return item.outcomeHorizons
+    .slice(0, 2)
+    .map((outcome) => {
+      const result = formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? outcome.notes;
+      return result ? `${outcome.horizon} ${result}` : outcome.horizon;
+    })
+    .join(" · ");
 }
 
 function formatPricePlan(item: SignalDeciderFeedbackItem) {
@@ -117,14 +153,50 @@ function buildSymbolHref(item: SignalDeciderFeedbackItem) {
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
 
-function filterAndSortItems(items: SignalDeciderFeedbackItem[], query: string, actionFilter: ActionFilter, sortMode: SortMode) {
+function getUniqueOptions(values: Array<string | null | undefined>) {
+  return values
+    .filter((value): value is string => hasTextValue(value))
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .sort((left, right) => left.localeCompare(right, "en"));
+}
+
+function filterAndSortItems({
+  actionFilter,
+  items,
+  policyVersionFilter,
+  qualityFilter,
+  query,
+  sortMode,
+}: {
+  actionFilter: ActionFilter;
+  items: SignalDeciderFeedbackItem[];
+  policyVersionFilter: string;
+  qualityFilter: string;
+  query: string;
+  sortMode: SortMode;
+}) {
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = items.filter((item) => {
     const matchesAction = actionFilter === "all" || item.action === actionFilter;
     if (!matchesAction) return false;
+    const matchesQuality = qualityFilter === ALL_FILTER || getDecisionQualityFilterValue(item) === qualityFilter;
+    if (!matchesQuality) return false;
+    const matchesPolicy = policyVersionFilter === ALL_FILTER || item.policyVersion === policyVersionFilter;
+    if (!matchesPolicy) return false;
     if (!normalizedQuery) return true;
 
-    return [item.symbol, item.companyName, item.thesisSummary, ...item.riskFlags]
+    return [
+      item.symbol,
+      item.companyName,
+      item.thesisSummary,
+      item.policyVersion,
+      item.qualityVerdict,
+      item.qualityReason,
+      ...item.riskFlags,
+      ...item.factorAttributions.map((entry) => `${entry.label} ${entry.value ?? ""}`),
+      ...item.gateResults.map((entry) => `${entry.label} ${entry.value ?? ""}`),
+      ...item.upstreamEvidence.map((entry) => `${entry.label} ${entry.value ?? ""}`),
+    ]
       .filter((value): value is string => hasTextValue(value))
       .some((value) => value.toLowerCase().includes(normalizedQuery));
   });
@@ -143,10 +215,32 @@ function filterAndSortItems(items: SignalDeciderFeedbackItem[], query: string, a
   });
 }
 
+function TraceEntryList({ entries, title }: { entries: SignalDeciderTraceEntry[]; title: string }) {
+  return (
+    <section className={styles.detailSection}>
+      <h3>{title}</h3>
+      {entries.length > 0 ? (
+        <div className={styles.traceList}>
+          {entries.map((entry) => (
+            <div key={`${entry.label}-${entry.value ?? ""}`} className={styles.traceRow}>
+              <span className={`pill ${getPillToneClass(entry.tone)}`}>{entry.label}</span>
+              {entry.value ? <p>{entry.value}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+      )}
+    </section>
+  );
+}
+
 export default function SignalDeciderFeedbackPageClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
+  const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
   const [feedback, setFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [progress, setProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,11 +249,23 @@ export default function SignalDeciderFeedbackPageClient() {
   );
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
+  const [qualityFilter, setQualityFilter] = useState(ALL_FILTER);
+  const [policyVersionFilter, setPolicyVersionFilter] = useState(ALL_FILTER);
   const [sortMode, setSortMode] = useState<SortMode>("priority");
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     setMarketDate(requestedMarketDate);
   }, [requestedMarketDate]);
+
+  useEffect(() => {
+    if (requestedMarketDate) {
+      setMarketDateDraft(requestedMarketDate);
+      return;
+    }
+
+    if (marketDate) setMarketDateDraft(marketDate);
+  }, [marketDate, requestedMarketDate]);
 
   useEffect(() => {
     if (requestedMarketDate) return;
@@ -238,11 +344,70 @@ export default function SignalDeciderFeedbackPageClient() {
     () => buildSignalDeciderFeedbackSummary({ feedback, marketDate, progress, previewLimit: 5 }),
     [feedback, marketDate, progress],
   );
+  const qualityOptions = useMemo(
+    () => getUniqueOptions(summary.items.map(getDecisionQualityFilterValue)),
+    [summary.items],
+  );
+  const policyVersionOptions = useMemo(
+    () => getUniqueOptions(summary.items.map((item) => item.policyVersion)),
+    [summary.items],
+  );
   const visibleItems = useMemo(
-    () => filterAndSortItems(summary.items, query, actionFilter, sortMode),
-    [actionFilter, query, sortMode, summary.items],
+    () =>
+      filterAndSortItems({
+        actionFilter,
+        items: summary.items,
+        policyVersionFilter,
+        qualityFilter,
+        query,
+        sortMode,
+      }),
+    [actionFilter, policyVersionFilter, qualityFilter, query, sortMode, summary.items],
+  );
+  const selectedItem = useMemo(
+    () => summary.items.find((item) => item.id === selectedItemId) ?? null,
+    [selectedItemId, summary.items],
   );
   const displayedMarketDate = summary.marketDate ?? marketDate;
+
+  useEffect(() => {
+    if (qualityFilter !== ALL_FILTER && !qualityOptions.includes(qualityFilter)) setQualityFilter(ALL_FILTER);
+  }, [qualityFilter, qualityOptions]);
+
+  useEffect(() => {
+    if (policyVersionFilter !== ALL_FILTER && !policyVersionOptions.includes(policyVersionFilter)) {
+      setPolicyVersionFilter(ALL_FILTER);
+    }
+  }, [policyVersionFilter, policyVersionOptions]);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedItemId(null);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedItem]);
+
+  function handleMarketDateSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextMarketDate = marketDateDraft.trim();
+    if (!nextMarketDate) {
+      router.push("/dashboard/signal-decider-feedback");
+      return;
+    }
+
+    const params = new URLSearchParams({ marketDate: nextMarketDate });
+    router.push(`/dashboard/signal-decider-feedback?${params.toString()}`);
+  }
 
   return (
     <MobileAppChrome
@@ -304,10 +469,21 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
           </div>
 
-          <div className={styles.controls} aria-label="Signal-decider feedback filters">
+          <form className={styles.controls} aria-label="Signal-decider feedback filters" onSubmit={handleMarketDateSubmit}>
             <label>
               <span>Search</span>
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Symbol, thesis, risk" />
+            </label>
+            <label>
+              <span>Market date</span>
+              <div className={styles.inlineControl}>
+                <input
+                  type="date"
+                  value={marketDateDraft}
+                  onChange={(event) => setMarketDateDraft(event.target.value)}
+                />
+                <button type="submit">Load</button>
+              </div>
             </label>
             <label>
               <span>Action</span>
@@ -315,6 +491,36 @@ export default function SignalDeciderFeedbackPageClient() {
                 {ACTION_FILTERS.map((action) => (
                   <option key={action} value={action}>
                     {action === "all" ? "All actions" : formatSignalDeciderActionLabel(action)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Verdict</span>
+              <select
+                value={qualityFilter}
+                disabled={qualityOptions.length === 0}
+                onChange={(event) => setQualityFilter(event.target.value)}
+              >
+                <option value={ALL_FILTER}>{qualityOptions.length > 0 ? "All verdicts" : "No verdicts"}</option>
+                {qualityOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Policy</span>
+              <select
+                value={policyVersionFilter}
+                disabled={policyVersionOptions.length === 0}
+                onChange={(event) => setPolicyVersionFilter(event.target.value)}
+              >
+                <option value={ALL_FILTER}>{policyVersionOptions.length > 0 ? "All policies" : "No policies"}</option>
+                {policyVersionOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
                   </option>
                 ))}
               </select>
@@ -328,7 +534,7 @@ export default function SignalDeciderFeedbackPageClient() {
                 <option value="captured">Captured time</option>
               </select>
             </label>
-          </div>
+          </form>
 
           {loadState === "loading" ? (
             <div className={styles.emptyState}>Loading signal-decider feedback...</div>
@@ -341,11 +547,14 @@ export default function SignalDeciderFeedbackPageClient() {
                   <tr>
                     <th>Symbol</th>
                     <th>Action</th>
+                    <th>Verdict</th>
                     <th>Confidence</th>
+                    <th>Outcome</th>
                     <th>Thesis</th>
-                    <th>Risks</th>
-                    <th>Stop / target</th>
+                    <th>Trace</th>
+                    <th>Policy</th>
                     <th>Captured</th>
+                    <th>Review</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -363,13 +572,37 @@ export default function SignalDeciderFeedbackPageClient() {
                         </span>
                       </td>
                       <td>
+                        {getDecisionQualityLabel(item) ? (
+                          <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
+                            {getDecisionQualityLabel(item)}
+                          </span>
+                        ) : (
+                          UNKNOWN_LABEL
+                        )}
+                      </td>
+                      <td>
                         <span>Conviction {formatScore(item.convictionScore)}</span>
                         <span>Confidence {formatScore(item.confidenceScore)}</span>
                       </td>
+                      <td>{formatOutcomeSummary(item)}</td>
                       <td>{item.thesisSummary ?? UNKNOWN_LABEL}</td>
-                      <td>{item.riskFlags.length > 0 ? item.riskFlags.join(" · ") : UNKNOWN_LABEL}</td>
-                      <td>{formatPricePlan(item)}</td>
+                      <td>
+                        {[
+                          item.riskFlags.length > 0 ? `${item.riskFlags.length} risks` : null,
+                          item.factorAttributions.length > 0 ? `${item.factorAttributions.length} factors` : null,
+                          item.gateResults.length > 0 ? `${item.gateResults.length} gates` : null,
+                          item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} evidence` : null,
+                        ]
+                          .filter((part): part is string => part !== null)
+                          .join(" · ") || UNKNOWN_LABEL}
+                      </td>
+                      <td>{item.policyVersion ?? UNKNOWN_LABEL}</td>
                       <td>{formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</td>
+                      <td>
+                        <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
+                          Review
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -383,6 +616,119 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
           )}
         </section>
+
+        {selectedItem ? (
+          <div className={styles.dialogBackdrop} onMouseDown={() => setSelectedItemId(null)}>
+            <section
+              className={styles.detailDialog}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="signal-decider-detail-title"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <header className={styles.detailHeader}>
+                <div>
+                  <p className={styles.eyebrow}>Decision review</p>
+                  <h2 id="signal-decider-detail-title">
+                    {selectedItem.companyName ?? selectedItem.symbol}
+                  </h2>
+                  <div className={styles.detailBadges}>
+                    <span className={`pill ${selectedItem.action === "buy" ? "positive" : selectedItem.action === "reject" ? "warning" : "neutral"}`}>
+                      {selectedItem.actionLabel}
+                    </span>
+                    {getDecisionQualityLabel(selectedItem) ? (
+                      <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
+                        {getDecisionQualityLabel(selectedItem)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <button type="button" className={styles.closeButton} onClick={() => setSelectedItemId(null)}>
+                  Close
+                </button>
+              </header>
+
+              <div className={styles.detailGrid}>
+                <div>
+                  <span>Symbol</span>
+                  <strong>{selectedItem.symbol}</strong>
+                </div>
+                <div>
+                  <span>Market date</span>
+                  <strong>{selectedItem.marketDate || UNKNOWN_LABEL}</strong>
+                </div>
+                <div>
+                  <span>Policy</span>
+                  <strong>{selectedItem.policyVersion ?? UNKNOWN_LABEL}</strong>
+                </div>
+                <div>
+                  <span>Run</span>
+                  <strong>{selectedItem.runId ?? UNKNOWN_LABEL}</strong>
+                </div>
+                <div>
+                  <span>Agent version</span>
+                  <strong>{selectedItem.agentVersion ?? UNKNOWN_LABEL}</strong>
+                </div>
+                <div>
+                  <span>Plan</span>
+                  <strong>{formatPricePlan(selectedItem)}</strong>
+                </div>
+              </div>
+
+              <section className={styles.detailSection}>
+                <h3>Thesis</h3>
+                <p>{selectedItem.thesisSummary ?? UNKNOWN_LABEL}</p>
+                {selectedItem.qualityReason ? <p>{selectedItem.qualityReason}</p> : null}
+              </section>
+
+              <section className={styles.detailSection}>
+                <h3>Realized result</h3>
+                {selectedItem.outcomeHorizons.length > 0 ? (
+                  <div className={styles.outcomeGrid}>
+                    {selectedItem.outcomeHorizons.map((outcome) => (
+                      <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
+                        <span>{outcome.horizon}</span>
+                        <strong>{formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? UNKNOWN_LABEL}</strong>
+                        <p>
+                          {[
+                            outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
+                            outcome.verdict,
+                            outcome.notes,
+                          ]
+                            .filter((part): part is string => hasTextValue(part))
+                            .join(" · ") || UNKNOWN_LABEL}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+                )}
+              </section>
+
+              <section className={styles.detailSection}>
+                <h3>Risks</h3>
+                {selectedItem.riskFlags.length > 0 ? (
+                  <div className={styles.traceList}>
+                    {selectedItem.riskFlags.map((risk) => (
+                      <div key={risk} className={styles.traceRow}>
+                        <span className="pill warning">Risk</span>
+                        <p>{risk}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+                )}
+              </section>
+
+              <TraceEntryList title="Factors" entries={selectedItem.factorAttributions} />
+              <TraceEntryList title="Gates" entries={selectedItem.gateResults} />
+              <TraceEntryList title="Upstream evidence" entries={selectedItem.upstreamEvidence} />
+              <TraceEntryList title="Traceability" entries={selectedItem.traceability} />
+            </section>
+          </div>
+        ) : null}
       </div>
     </MobileAppChrome>
   );
