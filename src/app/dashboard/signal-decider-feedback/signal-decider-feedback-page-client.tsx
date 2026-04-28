@@ -14,6 +14,7 @@ import {
   buildSignalDeciderFeedbackPath,
   formatSignalDeciderActionLabel,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+  SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   type SignalDeciderAction,
   type SignalDeciderFeedbackItem,
   type SignalDeciderFeedbackStatus,
@@ -311,7 +312,7 @@ export default function SignalDeciderFeedbackPageClient() {
           getJsonNoCache<AgentFeedbackListResponseDto>(
             buildSignalDeciderFeedbackPath({
               basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
-              limit: 200,
+              limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate,
             }),
           ),

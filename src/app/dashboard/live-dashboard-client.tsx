@@ -541,8 +541,9 @@ function formatSignalDeciderCount(value: number | null | undefined, numberLocale
 }
 
 function formatSignalDeciderResultCount(model: SignalDeciderFeedbackSummaryModel, numberLocale: string) {
-  const resultCount = model.resultCount.toLocaleString(numberLocale);
-  if (typeof model.requestedCount === "number" && model.requestedCount > model.resultCount) {
+  const completedCount = typeof model.completedCount === "number" ? model.completedCount : model.resultCount;
+  const resultCount = completedCount.toLocaleString(numberLocale);
+  if (typeof model.requestedCount === "number" && model.requestedCount > completedCount) {
     return `${resultCount} / ${model.requestedCount.toLocaleString(numberLocale)}`;
   }
   return resultCount;
