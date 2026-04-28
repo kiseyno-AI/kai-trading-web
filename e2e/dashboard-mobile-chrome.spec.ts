@@ -407,6 +407,28 @@ test.describe("dashboard mobile chrome", () => {
     await expect(processBar).toHaveAccessibleName(/\d+\s*\/\s*\d+/);
   });
 
+  test("expanded mobile process monitor stays open through incidental contact and status refresh", async ({ page }) => {
+    let pipelineStatus: "running" | "completed" = "running";
+    await mockDashboardProcessStatusApis(page, () => pipelineStatus);
+
+    await page.goto("/dashboard");
+
+    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+    const processDrawer = await openProcessMonitorDrawer(page);
+    await expect(processDrawer).toBeVisible();
+
+    await page.mouse.click(8, 8);
+    await expect(processDrawer).toBeVisible();
+
+    pipelineStatus = "completed";
+
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "completed");
+    await expect(processDrawer).toBeVisible();
+
+    await processDrawer.getByRole("button", { name: /Close monitor/i }).click();
+    await expect(processDrawer).toBeHidden();
+  });
+
   test("mobile status bar stays clear of release and language controls", async ({ page }) => {
     for (const viewport of [
       { width: 360, height: 640 },
