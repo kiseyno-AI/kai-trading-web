@@ -26,6 +26,25 @@ async function waitForProcessMonitorDrawerLayout(drawer: Locator) {
     const animations = element.getAnimations();
     await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
   });
+
+  let previousBox: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const box = await drawer.boundingBox();
+        if (!box) {
+          previousBox = null;
+          return false;
+        }
+
+        const nextBox = [box.x, box.y, box.width, box.height].map((value) => value.toFixed(2)).join(":");
+        const isStable = nextBox === previousBox;
+        previousBox = nextBox;
+        return isStable;
+      },
+      { message: "process monitor drawer layout should settle after opening" },
+    )
+    .toBe(true);
 }
 
 async function openEodStatusCard(page: Page) {
