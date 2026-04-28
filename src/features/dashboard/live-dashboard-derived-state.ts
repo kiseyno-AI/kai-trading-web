@@ -501,6 +501,11 @@ function getProcessMonitorStatusProgressPercent(status: ProcessMonitorStatus) {
   }
 }
 
+function getEodProcessMonitorProgressPercent(status: ProcessMonitorStatus, countedProgressPercent: number | null) {
+  if (status === "running") return getProcessMonitorStatusProgressPercent(status);
+  return countedProgressPercent ?? getProcessMonitorStatusProgressPercent(status);
+}
+
 function buildProcessMonitorProgressLabel(completedCount: number, totalCount: number, numberLocale: string) {
   return `${completedCount.toLocaleString(numberLocale)} / ${totalCount.toLocaleString(numberLocale)}`;
 }
@@ -540,7 +545,7 @@ function buildEodProcessMonitorStep(stage: EodStageCard, copy: DashboardLiveCopy
     status,
     statusLabel: getProcessMonitorStatusLabel(status, copy),
     progressLabel,
-    progressPercent: countedProgressPercent ?? getProcessMonitorStatusProgressPercent(status),
+    progressPercent: getEodProcessMonitorProgressPercent(status, countedProgressPercent),
     metrics,
     note: stage.statusBadgeTitle,
   };
