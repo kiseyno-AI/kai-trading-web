@@ -63,6 +63,11 @@ import type {
   FundamentalsFailureDetails,
   FundamentalsUpdatedActivityModel,
   FundamentalsUpdatedEntryModel,
+  ProcessMonitorGroup,
+  ProcessMonitorMetric,
+  ProcessMonitorModel,
+  ProcessMonitorStatus,
+  ProcessMonitorStep,
   SymbolMetadataItem,
   SymbolSearchResponse,
   TrackedSymbolCardModel,
@@ -452,6 +457,285 @@ export function buildFilteringCardModel({
   return {
     piotroskiDisplayMarketDate: piotroskiStage.displayMarketDate,
     stages: [piotroskiStage, marketRiskStage],
+  };
+}
+
+function getProcessMonitorStatusLabel(status: ProcessMonitorStatus, copy: DashboardLiveCopy) {
+  return copy.processMonitor.statuses[status];
+}
+
+function parseProcessMonitorNumber(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+
+  const normalizedValue = value.replace(/[^\d.-]/g, "");
+  if (!normalizedValue) return null;
+
+  const parsedValue = Number(normalizedValue);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function getProcessMonitorProgressPercentFromLabel(value: string | null | undefined) {
+  if (!hasTextValue(value) || !value.includes("/")) return null;
+
+  const [completedRaw, totalRaw] = value.split("/");
+  const completed = parseProcessMonitorNumber(completedRaw);
+  const total = parseProcessMonitorNumber(totalRaw);
+  if (!hasNumber(completed) || !hasNumber(total) || total <= 0) return null;
+
+  return clampAgentProgressPercent((completed / total) * 100);
+}
+
+function getProcessMonitorStatusProgressPercent(status: ProcessMonitorStatus) {
+  switch (status) {
+    case "completed":
+      return 100;
+    case "partial":
+      return 70;
+    case "running":
+      return 40;
+    case "retry":
+      return 25;
+    case "pending":
+    case "error":
+      return 0;
+  }
+}
+
+function buildProcessMonitorProgressLabel(completedCount: number, totalCount: number, numberLocale: string) {
+  return `${completedCount.toLocaleString(numberLocale)} / ${totalCount.toLocaleString(numberLocale)}`;
+}
+
+function hasPositiveProcessMetric(metrics: readonly ProcessMonitorMetric[], key: string) {
+  const metric = metrics.find((item) => item.key === key);
+  const count = parseProcessMonitorNumber(metric?.value);
+  return hasNumber(count) && count > 0;
+}
+
+function getEodProcessMonitorStepStatus(stage: EodStageCard): ProcessMonitorStatus {
+  if (stage.statusLabel === "running") return "running";
+
+  const failedCount = parseProcessMonitorNumber(stage.details.find((detail) => detail.key === "failed")?.value);
+  if (hasNumber(failedCount) && failedCount > 0) {
+    return stage.statusLabel === "synced" ? "partial" : "error";
+  }
+
+  if (stage.statusLabel === "synced") return "completed";
+  if (stage.statusLabel === "break day") return "pending";
+  return "pending";
+}
+
+function buildEodProcessMonitorStep(stage: EodStageCard, copy: DashboardLiveCopy): ProcessMonitorStep {
+  const metrics = stage.details.map((detail) => ({
+    key: detail.key,
+    label: detail.label || copy.processMonitor.progress,
+    value: detail.value,
+  }));
+  const status = getEodProcessMonitorStepStatus(stage);
+  const progressLabel = stage.details.find((detail) => detail.key === "count")?.value ?? UNKNOWN_LABEL;
+  const countedProgressPercent = getProcessMonitorProgressPercentFromLabel(progressLabel);
+
+  return {
+    key: stage.id,
+    label: stage.label,
+    status,
+    statusLabel: getProcessMonitorStatusLabel(status, copy),
+    progressLabel,
+    progressPercent: countedProgressPercent ?? getProcessMonitorStatusProgressPercent(status),
+    metrics,
+    note: stage.statusBadgeTitle,
+  };
+}
+
+function getFilteringProcessMonitorStepStatus(stage: FilteringStageModel): ProcessMonitorStatus {
+  const normalizedStatusLabel = stage.statusLabel.trim().toLowerCase();
+  const normalizedNote = stage.note?.trim().toLowerCase() ?? "";
+
+  if (/\bretry\b|\bretrying\b|재시도/.test(normalizedStatusLabel) || /\bretry\b|\bretrying\b|재시도/.test(normalizedNote)) {
+    return "retry";
+  }
+  if (stage.statusTone === "warning") return "error";
+  if (normalizedStatusLabel.includes("loading") || normalizedStatusLabel.includes("로딩")) return "running";
+  if (stage.statusTone === "positive") return "completed";
+  return "pending";
+}
+
+function buildFilteringProcessMonitorStep(
+  stage: FilteringStageModel,
+  copy: DashboardLiveCopy,
+): ProcessMonitorStep {
+  const status = getFilteringProcessMonitorStepStatus(stage);
+  const metrics = stage.metrics.map((metric) => ({
+    key: metric.key,
+    label: metric.label,
+    value: metric.value,
+  }));
+
+  return {
+    key: stage.key,
+    label: stage.label,
+    status,
+    statusLabel: getProcessMonitorStatusLabel(status, copy),
+    progressLabel: stage.checkedCountLabel,
+    progressPercent: getProcessMonitorStatusProgressPercent(status),
+    metrics,
+    note: stage.note,
+  };
+}
+
+function getAgentProcessMonitorStepStatus(role: AgentRoleCard): ProcessMonitorStatus {
+  if (role.status === "running") return "running";
+  if (role.status === "pending") return "pending";
+  if (role.status === "attention") return "error";
+
+  if (hasPositiveProcessMetric(role.metrics, "errors")) {
+    return hasPositiveProcessMetric(role.metrics, "completed") ? "partial" : "error";
+  }
+
+  return "completed";
+}
+
+function buildAgentProcessMonitorStep(role: AgentRoleCard, copy: DashboardLiveCopy): ProcessMonitorStep {
+  const status = getAgentProcessMonitorStepStatus(role);
+  const metrics = role.metrics.map((metric) => ({
+    key: metric.key,
+    label: metric.label,
+    value: metric.value,
+  }));
+
+  return {
+    key: role.role,
+    label: role.label,
+    status,
+    statusLabel: getProcessMonitorStatusLabel(status, copy),
+    progressLabel: role.progressLabel,
+    progressPercent: role.progressPercent,
+    metrics,
+    note: null,
+  };
+}
+
+function getProcessMonitorAggregateStatus(steps: readonly ProcessMonitorStep[]): ProcessMonitorStatus {
+  if (steps.some((step) => step.status === "error")) return "error";
+  if (steps.some((step) => step.status === "retry")) return "retry";
+  if (steps.some((step) => step.status === "running")) return "running";
+  if (steps.some((step) => step.status === "partial")) return "partial";
+  if (steps.length > 0 && steps.every((step) => step.status === "completed")) return "completed";
+  return "pending";
+}
+
+function getProcessMonitorCurrentStep(steps: readonly ProcessMonitorStep[]) {
+  return (
+    steps.find((step) => step.status === "error") ??
+    steps.find((step) => step.status === "retry") ??
+    steps.find((step) => step.status === "running") ??
+    steps.find((step) => step.status === "partial") ??
+    steps.find((step) => step.status === "pending") ??
+    null
+  );
+}
+
+function getProcessMonitorCompletedCount(steps: readonly ProcessMonitorStep[]) {
+  return steps.filter((step) => step.status === "completed").length;
+}
+
+function getProcessMonitorGroupProgressPercent(steps: readonly ProcessMonitorStep[]) {
+  if (steps.length === 0) return 0;
+  const totalProgress = steps.reduce((sum, step) => sum + step.progressPercent, 0);
+  return clampAgentProgressPercent(totalProgress / steps.length);
+}
+
+function buildProcessMonitorGroup(
+  key: ProcessMonitorGroup["key"],
+  label: string,
+  steps: ProcessMonitorStep[],
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): ProcessMonitorGroup {
+  const status = getProcessMonitorAggregateStatus(steps);
+  const completedCount = getProcessMonitorCompletedCount(steps);
+  const totalCount = steps.length;
+  const currentStep = getProcessMonitorCurrentStep(steps);
+
+  return {
+    key,
+    label,
+    status,
+    statusLabel: getProcessMonitorStatusLabel(status, copy),
+    progressLabel: buildProcessMonitorProgressLabel(completedCount, totalCount, numberLocale),
+    progressPercent: getProcessMonitorGroupProgressPercent(steps),
+    completedCount,
+    totalCount,
+    currentStepLabel: currentStep?.label ?? null,
+    steps,
+  };
+}
+
+export function buildProcessMonitorModel({
+  agentRoleCards,
+  copy,
+  eodStageCards,
+  filteringCardModel,
+  numberLocale,
+}: {
+  agentRoleCards: AgentRoleCard[];
+  copy: DashboardLiveCopy;
+  eodStageCards: readonly EodStageCard[];
+  filteringCardModel: FilteringCardModel;
+  numberLocale: string;
+}): ProcessMonitorModel {
+  const groups = [
+    buildProcessMonitorGroup(
+      "patch",
+      copy.processMonitor.groups.patch,
+      eodStageCards.map((stage) => buildEodProcessMonitorStep(stage, copy)),
+      copy,
+      numberLocale,
+    ),
+    buildProcessMonitorGroup(
+      "filter",
+      copy.processMonitor.groups.filter,
+      filteringCardModel.stages.map((stage) => buildFilteringProcessMonitorStep(stage, copy)),
+      copy,
+      numberLocale,
+    ),
+    buildProcessMonitorGroup(
+      "agent-feedback",
+      copy.processMonitor.groups.agentFeedback,
+      agentRoleCards.map((role) => buildAgentProcessMonitorStep(role, copy)),
+      copy,
+      numberLocale,
+    ),
+  ] as [ProcessMonitorGroup, ProcessMonitorGroup, ProcessMonitorGroup];
+  const status = getProcessMonitorAggregateStatus(groups.map((group) => ({
+    key: group.key,
+    label: group.label,
+    status: group.status,
+    statusLabel: group.statusLabel,
+    progressLabel: group.progressLabel,
+    progressPercent: group.progressPercent,
+    metrics: [],
+    note: null,
+  } satisfies ProcessMonitorStep)));
+  const completedCount = groups.reduce((sum, group) => sum + group.completedCount, 0);
+  const totalCount = groups.reduce((sum, group) => sum + group.totalCount, 0);
+  const currentGroup =
+    groups.find((group) => group.status === "error") ??
+    groups.find((group) => group.status === "retry") ??
+    groups.find((group) => group.status === "running") ??
+    groups.find((group) => group.status === "partial") ??
+    groups.find((group) => group.status === "pending") ??
+    null;
+
+  return {
+    status,
+    statusLabel: getProcessMonitorStatusLabel(status, copy),
+    progressLabel: buildProcessMonitorProgressLabel(completedCount, totalCount, numberLocale),
+    progressPercent: totalCount > 0 ? clampAgentProgressPercent((completedCount / totalCount) * 100) : 0,
+    completedCount,
+    totalCount,
+    currentGroupLabel: currentGroup?.label ?? null,
+    currentStepLabel: currentGroup?.currentStepLabel ?? null,
+    groups,
   };
 }
 

@@ -159,6 +159,52 @@ export type FilteringCardModel = {
   stages: [FilteringStageModel, FilteringStageModel];
 };
 
+export type ProcessMonitorStatus = "completed" | "pending" | "running" | "partial" | "error" | "retry";
+
+export type ProcessMonitorMetric = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+export type ProcessMonitorStep = {
+  key: string;
+  label: string;
+  status: ProcessMonitorStatus;
+  statusLabel: string;
+  progressLabel: string;
+  progressPercent: number;
+  metrics: ProcessMonitorMetric[];
+  note: string | null;
+};
+
+export type ProcessMonitorGroupKey = "patch" | "filter" | "agent-feedback";
+
+export type ProcessMonitorGroup = {
+  key: ProcessMonitorGroupKey;
+  label: string;
+  status: ProcessMonitorStatus;
+  statusLabel: string;
+  progressLabel: string;
+  progressPercent: number;
+  completedCount: number;
+  totalCount: number;
+  currentStepLabel: string | null;
+  steps: ProcessMonitorStep[];
+};
+
+export type ProcessMonitorModel = {
+  status: ProcessMonitorStatus;
+  statusLabel: string;
+  progressLabel: string;
+  progressPercent: number;
+  completedCount: number;
+  totalCount: number;
+  currentGroupLabel: string | null;
+  currentStepLabel: string | null;
+  groups: [ProcessMonitorGroup, ProcessMonitorGroup, ProcessMonitorGroup];
+};
+
 export type TrackedSymbolCardModel = {
   availabilityLabel: string;
   availabilityTone: "positive" | "negative" | "warning";
