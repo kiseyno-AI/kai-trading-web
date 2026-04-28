@@ -425,7 +425,9 @@ test.describe("dashboard mobile chrome", () => {
     await expect(processBar).toHaveAttribute("data-process-monitor-status", "completed");
     await expect(processDrawer).toBeVisible();
 
-    await processDrawer.getByRole("button", { name: /Close monitor/i }).click();
+    const collapseButton = processDrawer.getByRole("button", { name: /Close monitor/i });
+    await expect(collapseButton.locator('[data-process-monitor-collapse-icon="down"]')).toBeVisible();
+    await collapseButton.click();
     await expect(processDrawer).toBeHidden();
   });
 
@@ -439,7 +441,7 @@ test.describe("dashboard mobile chrome", () => {
     }
   });
 
-  test("mobile process monitor grows above the toolbar as a floating overlay", async ({ page }) => {
+  test("mobile process monitor opens above the toolbar as a floating half-height sheet", async ({ page }) => {
     await page.goto("/dashboard");
 
     const bottomNav = page.getByRole("navigation", { name: /Primary/i });
@@ -467,8 +469,22 @@ test.describe("dashboard mobile chrome", () => {
 
     expect(backdropAlpha).toBeLessThan(0.5);
     expect(drawerBox.y).toBeGreaterThan(36);
-    expect(drawerBox.height).toBeLessThan(viewport.height - 110);
+    expect(drawerBox.height).toBeLessThanOrEqual(viewport.height * 0.52);
     expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(bottomNavBox.y + 2);
+
+    await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "open");
+    await expect
+      .poll(() => processDrawer.evaluate((element) => getComputedStyle(element).animationName))
+      .toMatch(/processMonitorFloatingSheetIn$/);
+
+    const collapseButton = processDrawer.getByRole("button", { name: /Close monitor/i });
+    await expect(collapseButton.locator('[data-process-monitor-collapse-icon="down"]')).toBeVisible();
+    await collapseButton.click();
+    await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "closing");
+    await expect
+      .poll(() => processDrawer.evaluate((element) => getComputedStyle(element).animationName).catch(() => ""))
+      .toMatch(/processMonitorFloatingSheetOut$|^$/);
+    await expect(processDrawer).toBeHidden();
   });
 
   test("D2 EOD counts fit mobile cards with four-digit totals", async ({ page }) => {
