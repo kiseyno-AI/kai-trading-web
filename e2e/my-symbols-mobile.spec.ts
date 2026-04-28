@@ -188,7 +188,7 @@ test.describe("my symbols mobile flow", () => {
 
     await expect.poll(() => page.evaluate(() => (window as Window & { __dashboardNavPendingSeen?: boolean }).__dashboardNavPendingSeen ?? false)).toBe(true);
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
     await expect(page.getByRole("status", { name: /Loading symbol workspace|Loading next surface/i })).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => (window as Window & { __globalLoaderSeen?: boolean }).__globalLoaderSeen ?? false)).toBe(false);
 
