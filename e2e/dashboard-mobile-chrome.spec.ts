@@ -47,6 +47,62 @@ async function waitForProcessMonitorDrawerLayout(drawer: Locator) {
     .toBe(true);
 }
 
+type LayoutBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function getOverlapArea(first: LayoutBox, second: LayoutBox) {
+  const overlapWidth = Math.max(
+    0,
+    Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y),
+  );
+
+  return overlapWidth * overlapHeight;
+}
+
+async function expectStatusChromeSeparated(page: Page, viewport: { width: number; height: number }) {
+  await page.setViewportSize(viewport);
+  await page.goto("/dashboard");
+
+  const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+  const releaseBadge = page.locator('[aria-label="Release version"]:visible').first();
+  const localeSwitch = page.locator('[aria-label="Locale switcher"]:visible').first();
+  const bottomNav = page.getByRole("navigation", { name: /Primary/i });
+
+  await expect(processBar).toBeVisible();
+  await expect(releaseBadge).toBeVisible();
+  await expect(localeSwitch).toBeVisible();
+  await expect(bottomNav).toBeVisible();
+
+  const [processBarBox, releaseBox, localeBox, bottomNavBox] = await Promise.all([
+    processBar.boundingBox(),
+    releaseBadge.boundingBox(),
+    localeSwitch.boundingBox(),
+    bottomNav.boundingBox(),
+  ]);
+
+  if (!processBarBox || !releaseBox || !localeBox || !bottomNavBox) {
+    throw new Error(`Expected visible dashboard chrome boxes at ${viewport.width}x${viewport.height}.`);
+  }
+
+  const processBarBottom = processBarBox.y + processBarBox.height;
+  const auxiliaryControlsTop = Math.min(releaseBox.y, localeBox.y);
+
+  expect(getOverlapArea(processBarBox, releaseBox)).toBe(0);
+  expect(getOverlapArea(processBarBox, localeBox)).toBe(0);
+  expect(getOverlapArea(processBarBox, bottomNavBox)).toBe(0);
+  expect(auxiliaryControlsTop - processBarBottom).toBeGreaterThanOrEqual(4);
+  expect(releaseBox.y).toBeLessThan(bottomNavBox.y);
+  expect(localeBox.y).toBeLessThan(bottomNavBox.y);
+}
+
 async function openEodStatusCard(page: Page) {
   const processDrawer = await openProcessMonitorDrawer(page);
   const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
@@ -80,6 +136,16 @@ test.describe("dashboard mobile chrome", () => {
     await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
+  });
+
+  test("mobile status bar stays clear of release and language controls", async ({ page }) => {
+    for (const viewport of [
+      { width: 360, height: 640 },
+      { width: 390, height: 664 },
+      { width: 768, height: 900 },
+    ]) {
+      await expectStatusChromeSeparated(page, viewport);
+    }
   });
 
   test("mobile process monitor grows above the toolbar as a floating overlay", async ({ page }) => {

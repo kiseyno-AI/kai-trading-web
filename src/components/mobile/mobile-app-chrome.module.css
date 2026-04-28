@@ -1,4 +1,6 @@
 .surface {
+  --mobile-bottom-chrome-height: calc(8rem + env(safe-area-inset-bottom));
+  --mobile-floating-status-offset: calc(var(--mobile-bottom-chrome-height) + 0.75rem);
   position: relative;
   min-height: 100vh;
   background:
@@ -102,13 +104,17 @@
   min-width: 0;
   display: flex;
   justify-content: flex-start;
+  overflow: hidden;
   color: var(--accent);
   font-family: var(--font-inter), sans-serif;
   font-size: 0.65rem;
   font-weight: 800;
   letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
   text-transform: uppercase;
   text-shadow: 0 1px 10px rgba(10, 14, 19, 0.55);
+  white-space: nowrap;
 }
 
 .localeSwitch {
