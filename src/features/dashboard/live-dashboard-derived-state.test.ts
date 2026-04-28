@@ -13,6 +13,7 @@ import {
   buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
+  buildProcessMonitorModel,
   buildTrackedSymbolCardModel,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
@@ -521,6 +522,134 @@ test("builds the Piotroski filtering card with the resolved latest-available not
     marketRiskStage?.note,
     `${copy.piotroski.requestedDate} 2026-04-21 · ${copy.piotroski.latestAvailableDate} 2026-04-18`,
   );
+});
+
+test("builds grouped daily process monitor state from patch, filter, and agent feedback cards", () => {
+  const copy = getDashboardLiveCopy("en");
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      copy.stage.price,
+      {
+        status: "ready",
+        symbols_total: 100,
+        symbols_succeeded: 100,
+        symbols_failed: 0,
+      },
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      null,
+      copy,
+      "en-US",
+    ),
+    buildEodStageCard(
+      "technical",
+      copy.stage.technical,
+      {
+        status: "running",
+        symbols_total: 100,
+        symbols_succeeded: 40,
+        symbols_failed: 0,
+      },
+      "2026-04-27",
+      "2026-04-26",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      {
+        status: "running",
+        current_step: "technical_snapshots",
+        processed: 40,
+        total: 100,
+        failed: 0,
+      },
+      copy,
+      "en-US",
+    ),
+  ];
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: {
+      market_date: "2026-04-27",
+      summary: {
+        entries: 100,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 90,
+        watchlist_count: 8,
+        failed_count: 2,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-27",
+    piotroskiStatus: null,
+    piotroskiStatusError: "Piotroski unavailable",
+    piotroskiStatusLoadState: "error",
+  });
+  const agentRoleCards = buildAgentRoleCards(
+    {
+      request: {
+        market_date: "2026-04-27",
+        symbols: null,
+        expected_agents: ["eod-summarizer", "technical-summarizer"],
+      },
+      summary: {
+        run_id: "run-370",
+        run_status: "running",
+        run_table_status: "running",
+        cycle_status: "running",
+        is_live: true,
+        run_started_at: "2026-04-27T17:00:00+09:00",
+        run_completed_at: null,
+        current_role: "technical-summarizer",
+        completed_roles: ["eod-summarizer"],
+        remaining_roles: ["technical-summarizer"],
+        parallel_per_role: 1,
+        latest_feedback_at: "2026-04-27T17:10:05+09:00",
+        seconds_since_last_feedback: 2,
+        stalled_threshold_seconds: 60,
+        total_symbols: 100,
+        processed_symbols: 52,
+        completed_symbols: 51,
+        in_progress_symbols: 1,
+        pending_symbols: 48,
+        progress_ratio: 0.52,
+        progress_percent: 52,
+        failed_items: 0,
+        completed_feedback_count: 51,
+        expected_feedback_count: 100,
+      },
+      result: null,
+    },
+    copy,
+    "en-US",
+  );
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+  });
+
+  assert.deepEqual(model.groups.map((group) => group.key), ["patch", "filter", "agent-feedback"]);
+  assert.equal(model.status, "error");
+  assert.equal(model.currentGroupLabel, copy.processMonitor.groups.filter);
+  assert.equal(model.currentStepLabel, copy.operational.piotroskiSectionTitle);
+  assert.equal(model.progressLabel, "3 / 6");
+  assert.equal(model.groups[0]?.status, "running");
+  assert.equal(model.groups[0]?.currentStepLabel, copy.stage.technical);
+  assert.equal(model.groups[1]?.status, "error");
+  assert.equal(model.groups[1]?.steps.find((step) => step.key === "piotroski")?.note, "Piotroski unavailable");
+  assert.equal(model.groups[2]?.status, "running");
 });
 
 test("builds tracked symbol cards from stable display values without raw DTO fallback logic in the view", () => {

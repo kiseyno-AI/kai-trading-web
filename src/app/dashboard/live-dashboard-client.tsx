@@ -38,6 +38,7 @@ import {
   buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
+  buildProcessMonitorModel,
   buildTrackedSymbolCardModels,
   formatEodSymbolCount,
   getAgentProgressStatusLabel,
@@ -78,6 +79,7 @@ import type {
   FundamentalsUpdatedActivityModel,
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
+  ProcessMonitorModel,
   TrackedSymbolCardModel,
 } from "@/features/dashboard/live-dashboard-types";
 import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-data";
@@ -90,6 +92,7 @@ import styles from "./live-dashboard-client.module.css";
 
 const AGENT_FEEDBACK_STOP_DIALOG_ID = "agent-feedback-stop-dialog";
 const AGENT_FEEDBACK_STOP_ERROR_ID = "agent-feedback-stop-error";
+const PROCESS_MONITOR_DRAWER_ID = "dashboard-process-monitor-drawer";
 const AGENT_FEEDBACK_STOP_CONTROL_CLIENT_PATH = "/api/trading/agent-context/internal/core/control";
 const AGENT_FEEDBACK_STOP_REQUEST = {
   action: "kill",
@@ -623,6 +626,213 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
   );
 });
 
+type ProcessMonitorTriggerProps = {
+  copy: DashboardLiveCopy;
+  model: ProcessMonitorModel;
+  open: boolean;
+  placement: "desktop" | "mobile";
+  onOpen: () => void;
+};
+
+function getProcessMonitorCurrentLabel(model: ProcessMonitorModel, copy: DashboardLiveCopy) {
+  if (model.currentGroupLabel && model.currentStepLabel) {
+    return `${copy.processMonitor.current}: ${model.currentGroupLabel} · ${model.currentStepLabel}`;
+  }
+
+  return copy.processMonitor.allComplete;
+}
+
+const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
+  copy,
+  model,
+  open,
+  placement,
+  onOpen,
+}: ProcessMonitorTriggerProps) {
+  const currentLabel = getProcessMonitorCurrentLabel(model, copy);
+
+  return (
+    <button
+      type="button"
+      className={`${styles.processMonitorBar} ${
+        placement === "desktop" ? styles.processMonitorDesktopBar : styles.processMonitorMobileBar
+      }`}
+      data-process-monitor-status={model.status}
+      aria-label={`${copy.processMonitor.open}: ${currentLabel} (${model.progressLabel})`}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-controls={PROCESS_MONITOR_DRAWER_ID}
+      onClick={onOpen}
+    >
+      <span className={styles.processMonitorMain}>
+        <span className={styles.processMonitorEyebrow}>{copy.processMonitor.drawerDescription}</span>
+        <strong>{copy.processMonitor.compactTitle}</strong>
+        <span className={styles.processMonitorCurrent}>{currentLabel}</span>
+      </span>
+
+      <span className={styles.processMonitorGroups} aria-hidden="true">
+        {model.groups.map((group) => (
+          <span key={group.key} className={styles.processMonitorGroupChip} data-process-status={group.status}>
+            <span className={styles.processMonitorStatusDot} />
+            <span>{group.label}</span>
+            <strong>{group.progressLabel}</strong>
+          </span>
+        ))}
+      </span>
+
+      <span className={styles.processMonitorSummary} data-process-status={model.status}>
+        <span>{model.statusLabel}</span>
+        <strong>{model.progressLabel}</strong>
+      </span>
+    </button>
+  );
+});
+
+type ProcessMonitorDrawerProps = {
+  copy: DashboardLiveCopy;
+  model: ProcessMonitorModel;
+  numberLocale: string;
+  onClose: () => void;
+};
+
+const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
+  copy,
+  model,
+  numberLocale,
+  onClose,
+}: ProcessMonitorDrawerProps) {
+  return (
+    <div className={styles.processMonitorDrawerBackdrop} onPointerDown={onClose}>
+      <section
+        id={PROCESS_MONITOR_DRAWER_ID}
+        className={styles.processMonitorDrawer}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="process-monitor-title"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <div className={styles.dialogHeader}>
+          <div>
+            <p className={styles.sectionEyebrow}>{copy.processMonitor.drawerEyebrow}</p>
+            <h2 id="process-monitor-title" className={styles.dialogTitle}>
+              {copy.processMonitor.drawerTitle}
+            </h2>
+            <p className={styles.processMonitorDrawerDescription}>{copy.processMonitor.drawerDescription}</p>
+          </div>
+          <button
+            type="button"
+            className={styles.dialogCloseButton}
+            onClick={onClose}
+            aria-label={copy.processMonitor.close}
+            autoFocus
+          >
+            {copy.operational.close}
+          </button>
+        </div>
+
+        <div className={styles.processMonitorDrawerSummary} data-process-status={model.status}>
+          <div>
+            <span>{copy.processMonitor.current}</span>
+            <strong>{getProcessMonitorCurrentLabel(model, copy)}</strong>
+          </div>
+          <div>
+            <span>{copy.processMonitor.progress}</span>
+            <strong>{model.progressLabel}</strong>
+          </div>
+          <div>
+            <span>{copy.operational.status}</span>
+            <strong>{model.statusLabel}</strong>
+          </div>
+        </div>
+
+        <div className={styles.processMonitorGroupList} role="list">
+          {model.groups.map((group) => (
+            <section
+              key={group.key}
+              className={styles.processMonitorGroupCard}
+              data-process-status={group.status}
+              role="listitem"
+              aria-label={`${group.label} ${group.statusLabel}`}
+            >
+              <div className={styles.processMonitorGroupHeader}>
+                <div>
+                  <h3>{group.label}</h3>
+                  <p>
+                    {group.currentStepLabel
+                      ? `${copy.processMonitor.current}: ${group.currentStepLabel}`
+                      : copy.processMonitor.allComplete}
+                  </p>
+                </div>
+                <span className={styles.processMonitorGroupStatus} data-process-status={group.status}>
+                  {group.statusLabel}
+                </span>
+              </div>
+
+              <div
+                className={styles.processMonitorProgressTrack}
+                role="progressbar"
+                aria-label={`${group.label} ${copy.processMonitor.progress}`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(group.progressPercent)}
+                aria-valuetext={group.progressLabel}
+              >
+                <i style={{ width: `${group.progressPercent}%` }} />
+              </div>
+              <p className={styles.processMonitorGroupProgress}>{group.progressLabel}</p>
+
+              <ol className={styles.processMonitorStepList}>
+                {group.steps.map((step) => (
+                  <li key={step.key} className={styles.processMonitorStep} data-process-status={step.status}>
+                    <span className={styles.processMonitorStepMarker} aria-hidden="true" />
+                    <div className={styles.processMonitorStepBody}>
+                      <div className={styles.processMonitorStepHeader}>
+                        <strong>{step.label}</strong>
+                        <span data-process-status={step.status}>{step.statusLabel}</span>
+                      </div>
+                      <div
+                        className={styles.processMonitorStepProgress}
+                        role="progressbar"
+                        aria-label={`${step.label} ${copy.processMonitor.progress}`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(step.progressPercent)}
+                        aria-valuetext={step.progressLabel}
+                      >
+                        <i style={{ width: `${step.progressPercent}%` }} />
+                      </div>
+                      <div className={styles.processMonitorStepMeta}>
+                        <span>{step.progressLabel}</span>
+                        <span>
+                          {step.progressPercent.toLocaleString(numberLocale, {
+                            maximumFractionDigits: 0,
+                          })}
+                          %
+                        </span>
+                      </div>
+                      {step.metrics.length > 0 ? (
+                        <dl className={styles.processMonitorStepMetrics}>
+                          {step.metrics.map((metric) => (
+                            <div key={metric.key}>
+                              <dt>{metric.label}</dt>
+                              <dd>{metric.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      ) : null}
+                      {step.note ? <p className={styles.processMonitorStepNote}>{step.note}</p> : null}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+});
+
 type TrackedSymbolsSectionProps = {
   copy: DashboardLiveCopy;
   trackedSymbolCards: TrackedSymbolCardModel[];
@@ -750,6 +960,7 @@ export function LiveDashboardClient({
   const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
   const [fundamentalsUpdatesExpanded, setFundamentalsUpdatesExpanded] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
+  const [processMonitorDrawerOpen, setProcessMonitorDrawerOpen] = useState(false);
   const agentFeedbackProgressRef = useRef(agentFeedbackProgress);
 
   useEffect(() => {
@@ -1042,6 +1253,17 @@ export function LiveDashboardClient({
     () => buildTrackedSymbolCardModels(tracked, symbolMetaBySymbol, freshness, copy, numberLocale),
     [copy, freshness, numberLocale, symbolMetaBySymbol, tracked],
   );
+  const processMonitorModel = useMemo(
+    () =>
+      buildProcessMonitorModel({
+        agentRoleCards,
+        copy,
+        eodStageCards,
+        filteringCardModel,
+        numberLocale,
+      }),
+    [agentRoleCards, copy, eodStageCards, filteringCardModel, numberLocale],
+  );
   const marketBadgeLabel = market.is_open ? copy.marketOpen : copy.marketClosed;
   const coreUnavailable =
     market.state === "OFFLINE PLACEHOLDER" ||
@@ -1050,7 +1272,7 @@ export function LiveDashboardClient({
   const error = trackedError ?? marketError;
   const fundamentalsDialogOpen =
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
-  const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen;
+  const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen || processMonitorDrawerOpen;
 
   const openAgentFeedbackStopDialog = useCallback(() => {
     if (!isAgentFeedbackRunning) return;
@@ -1062,6 +1284,14 @@ export function LiveDashboardClient({
     if (!fundamentalsFailureDetails) return;
     setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key);
   }, [fundamentalsFailureDetails]);
+
+  const openProcessMonitorDrawer = useCallback(() => {
+    setProcessMonitorDrawerOpen(true);
+  }, []);
+
+  const closeProcessMonitorDrawer = useCallback(() => {
+    setProcessMonitorDrawerOpen(false);
+  }, []);
 
   function closeAgentFeedbackStopDialog() {
     if (agentFeedbackStopPending) return;
@@ -1115,6 +1345,10 @@ export function LiveDashboardClient({
           setAgentFeedbackStopDialogOpen(false);
           return;
         }
+        if (processMonitorDrawerOpen) {
+          setProcessMonitorDrawerOpen(false);
+          return;
+        }
         setOpenFundamentalsFailureKey(null);
       }
     };
@@ -1127,7 +1361,13 @@ export function LiveDashboardClient({
       window.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
     };
-  }, [agentFeedbackStopDialogOpen, agentFeedbackStopPending, dialogOpen, fundamentalsDialogOpen]);
+  }, [
+    agentFeedbackStopDialogOpen,
+    agentFeedbackStopPending,
+    dialogOpen,
+    fundamentalsDialogOpen,
+    processMonitorDrawerOpen,
+  ]);
 
   return (
     <MobileAppChrome
@@ -1185,6 +1425,14 @@ export function LiveDashboardClient({
             </div>
           </div>
 
+          <ProcessMonitorTrigger
+            copy={copy}
+            model={processMonitorModel}
+            open={processMonitorDrawerOpen}
+            placement="desktop"
+            onOpen={openProcessMonitorDrawer}
+          />
+
           <div className={styles.integrityGrid}>
             <EodStatusCard
               copy={copy}
@@ -1225,6 +1473,14 @@ export function LiveDashboardClient({
 
         <TrackedSymbolsSection copy={copy} trackedSymbolCards={trackedSymbolCards} />
       </div>
+
+      <ProcessMonitorTrigger
+        copy={copy}
+        model={processMonitorModel}
+        open={processMonitorDrawerOpen}
+        placement="mobile"
+        onOpen={openProcessMonitorDrawer}
+      />
 
       {fundamentalsDialogOpen && fundamentalsFailureDetails
         ? createPortal(
@@ -1284,6 +1540,18 @@ export function LiveDashboardClient({
                 ) : null}
               </section>
             </div>,
+            document.body,
+          )
+        : null}
+
+      {processMonitorDrawerOpen
+        ? createPortal(
+            <ProcessMonitorDrawer
+              copy={copy}
+              model={processMonitorModel}
+              numberLocale={numberLocale}
+              onClose={closeProcessMonitorDrawer}
+            />,
             document.body,
           )
         : null}
