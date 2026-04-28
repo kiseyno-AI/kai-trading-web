@@ -8,7 +8,7 @@ This workspace is KAI trading-web (Next.js App Router, TypeScript). Project AI g
 
 Before substantial edits, read AGENTS.md, RULES.md, and ARCHITECTURE.md at the repository root.
 
-Branch workflow: before task work, create and switch to a dedicated branch from main. After a PR is merged or work is cancelled, delete that branch locally and on the remote unless there is a specific reason to keep it. Before finishing, restore the main workspace checkout to main.
+Branch workflow: before task work, create and switch to a dedicated branch from main. After implementing the requested work, do not stop at local edits: commit the changes, push the branch, and open a pull request unless the user explicitly says not to. After a PR is merged or work is cancelled, delete that branch locally and on the remote unless there is a specific reason to keep it. Before finishing, restore the main workspace checkout to main.
 
 Layout: src/app (routes), src/features (domain composition), src/components (ui, navigation, layout, dashboard), src/lib (hooks, trading-api adapter, trading-upstream), src/data (mock/demo). Do not call brokers from the browser; use the Next BFF under src/app/api/trading/** or the configured API base URL.
 
@@ -24,7 +24,7 @@ After edits: run npm run lint; after UI or routing changes follow this verificat
 
 When creating pull requests, write the PR body as real multiline Markdown. Never build PR text with a literal "/n" sequence; use actual newlines via direct multiline text, a heredoc, or a file-based body such as gh pr create --body-file. Use this repo PR structure by default: Summary, Why, Verification, UI checked, Screenshots when practical, Closes #issue when applicable. Before considering the PR ready, verify the rendered PR body formatting in GitHub so headings, bullets, and spacing display correctly.
 
-ACP session handling: default ACP coding work to a fresh thread-spawned ACP session. Treat "acpx exited with code 1", empty spawned-session messages, and gateway errors such as "queue owner unavailable", "Resource not found", or "repairing dead named session" as dead-session symptoms. Silent run fallback is forbidden. Required recovery: clean up stale ACP sessions, restart the gateway if needed, then retry with a fresh spawned ACP session.
+ACP session handling: do not require ACP thread binding for Codex work. If ACP/Codex runtime is used, prefer whichever execution path is healthiest and most direct for the task rather than thread-bound binding. Treat "acpx exited with code 1", empty spawned-session messages, and gateway errors such as "queue owner unavailable", "Resource not found", or "repairing dead named session" as runtime-health symptoms. Silent run fallback is forbidden; recover by cleaning up stale sessions, restarting the gateway if needed, and relaunching through a healthy non-thread-bound path.
 
 Optional deeper workflow patterns: .codex/skills/codex-workflow
 
@@ -32,6 +32,7 @@ Optional deeper workflow patterns: .codex/skills/codex-workflow
 ## Working Rules
 - Read this file before making changes.
 - Before task work, create and switch to a dedicated branch from `main`.
+- Unless the user explicitly says otherwise, complete the full branch workflow for development work: implement, validate, commit, push, and open a PR.
 - Prefer simple, practical architecture over premature complexity.
 - Keep modules loosely coupled and clearly named.
 - Update docs when structure or design changes.
@@ -45,9 +46,10 @@ Optional deeper workflow patterns: .codex/skills/codex-workflow
 ## OpenAI Codex
 
 - **Project layer:** [`.codex/config.toml`](./.codex/config.toml) (`developer_instructions`) loads when the workspace is **trusted** in Codex. See [Codex configuration](https://developers.openai.com/codex/config-reference).
+- **Default completion rule for Codex work:** create a fresh task branch from `main`, implement the change, run the repo validation flow, commit, push, and open a PR unless the user explicitly asks for a different stopping point.
 - **Skills:** [`.codex/skills/*/SKILL.md`](./.codex/skills/) — start with `codex-workflow`, `shadcn-ui`, `playwright-iterate`, `trading-api-wiring`, `trading-web-quality`.
 - **Subagents:** [`.codex/agents/*.toml`](./.codex/agents/) for focused roles (e.g. `playwright_verifier`, `trading_api_specialist`).
-- **ACP sessions:** Default ACP coding work to a fresh thread-spawned ACP session. Treat `acpx exited with code 1`, empty spawned-session messages, and gateway errors such as `queue owner unavailable`, `Resource not found`, or `repairing dead named session` as dead-session symptoms. Silent run fallback is forbidden. Recover by cleaning up stale ACP sessions, restarting the gateway if needed, and retrying with a fresh spawned ACP session.
+- **ACP sessions:** Do not require ACP thread binding for Codex work. Use the healthiest available ACP/Codex execution path for the task. Treat `acpx exited with code 1`, empty spawned-session messages, and gateway errors such as `queue owner unavailable`, `Resource not found`, or `repairing dead named session` as runtime-health symptoms. Silent run fallback is forbidden. Recover by cleaning up stale ACP sessions, restarting the gateway if needed, and relaunching through a healthy non-thread-bound path.
 - **Quality loop:** After changes, run `npm run lint`; canonical build verification is `npx next build --webpack`; after UI/routing, also `npm run test:e2e`. Use `npm run build` only when you specifically need the repo default script, and do not let Turbopack-only instability block PR creation when the webpack build passes. If sandbox bind/policy blocks local runtime validation, ask Codex to record that clearly in the PR body and still complete commit/push/PR creation when implementation and static validation are done.
 - **Pull requests:** PR bodies must use real multiline Markdown, never a literal `"/n"` sequence. Prefer `Summary`, `Why`, `Verification`, `UI checked`, `Screenshots` when practical, and `Closes #issue` when applicable. Have Codex verify the rendered GitHub PR body before treating the PR as ready.
 - **Docs:** When Next.js / React / Tailwind APIs are unclear, have the agent verify against current official documentation rather than guessing.

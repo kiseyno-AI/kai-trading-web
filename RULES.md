@@ -10,6 +10,7 @@
 
 ## AI-assisted changes (Codex)
 - Create and switch to a dedicated branch from `main` before starting task work.
+- Unless the user explicitly says otherwise, complete the full development flow on that branch: implement, validate, commit, push, and open a PR.
 - After a PR is merged or work is cancelled, delete the created branch locally and on the remote unless there is a specific reason to keep it.
 - Before finishing, restore the main workspace checkout to `main`.
 - Resolve **ESLint** issues (`npm run lint`) before considering a change done.
