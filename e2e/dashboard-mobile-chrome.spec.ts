@@ -67,6 +67,244 @@ function getOverlapArea(first: LayoutBox, second: LayoutBox) {
   return overlapWidth * overlapHeight;
 }
 
+async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () => "running" | "completed") {
+  const now = "2026-04-16T09:10:00+09:00";
+
+  await page.route("**/api/trading/market/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        state: "OPEN",
+        is_open: true,
+        is_trading_day: true,
+        server_time: now,
+      }),
+    });
+  });
+  await page.route("**/api/trading/quotes/tracked", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_state: "OPEN",
+        as_of: now,
+        items: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            price: 71500,
+            change: 600,
+            change_pct: 0.84,
+            volume: 120000,
+            turnover: 8580000000,
+            as_of: now,
+            market_state: "OPEN",
+            source: "daily_price_bar",
+            fallback: true,
+            is_live: false,
+            available: true,
+            trade_date: "2026-04-16",
+            fallback_reason: "daily_price_bar_current_trade_date",
+            unavailable_reason: null,
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        today: {
+          trade_date: "2026-04-16",
+          price: {
+            status: "ready",
+            symbols_total: 3200,
+            symbols_succeeded: 3200,
+            symbols_failed: 0,
+          },
+          technical_analysis: {
+            status: "ready",
+            symbols_total: 3200,
+            symbols_succeeded: 3200,
+            symbols_failed: 0,
+          },
+          action_summary: {
+            status: "ready",
+            symbols_total: 3200,
+            symbols_succeeded: 3200,
+            symbols_failed: 0,
+          },
+          fundamentals: {
+            status: "ready",
+            symbols_total: 3200,
+            symbols_succeeded: 3200,
+            symbols_failed: 0,
+          },
+        },
+        latest: {
+          price_trade_date: "2026-04-16",
+          technical_market_date: "2026-04-16",
+          action_market_date: "2026-04-16",
+        },
+        technical: {
+          success: true,
+          latest_date: "2026-04-16",
+        },
+        action: {
+          success: true,
+          latest_date: "2026-04-16",
+        },
+        fundamentals: {
+          success: true,
+          latest_date: "2026-04-16",
+        },
+      }),
+    });
+  });
+  await page.route("**/api/trading/eod/pipeline/status**", async (route) => {
+    const status = getPipelineStatus();
+    const actionStatus = status === "running" ? "running" : "completed";
+    const actionProcessed = status === "running" ? 1180 : 3200;
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_date: "2026-04-16",
+        status,
+        stage_order: [
+          "price_collection",
+          "technical_snapshots",
+          "action_summaries",
+          "trending_ranks",
+          "signal_features",
+          "fundamentals_daily_refresh",
+        ],
+        stages: {
+          price_collection: {
+            status: "completed",
+            processed: 3200,
+            total: 3200,
+            failed: 0,
+          },
+          technical_snapshots: {
+            status: "completed",
+            processed: 3200,
+            total: 3200,
+            failed: 0,
+          },
+          action_summaries: {
+            status: actionStatus,
+            processed: actionProcessed,
+            total: 3200,
+            failed: 0,
+            current_step: status === "running" ? "build_symbol_summary" : null,
+            current_activity: status === "running" ? "Rendering EOD summaries" : null,
+            current_symbol: status === "running" ? "005930" : null,
+          },
+          fundamentals_daily_refresh: {
+            status: "completed",
+            processed: 3200,
+            total: 3200,
+            failed: 0,
+          },
+        },
+      }),
+    });
+  });
+  await page.route("**/api/trading/disclosures/dart/fundamentals/daily/inspect**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        latest_run: null,
+        runs: [],
+      }),
+    });
+  });
+  await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_date: "2026-04-16",
+        summary: {
+          entries: 3200,
+          requested_symbol: null,
+          matched_symbols: ["005930"],
+          missing_symbols: [],
+          passed_count: 128,
+          not_passed_count: 3072,
+        },
+        items: [],
+      }),
+    });
+  });
+  await page.route("**/api/trading/eod/market-risk-filters?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_date: "2026-04-16",
+        summary: {
+          entries: 3200,
+          requested_symbol: null,
+          matched_symbols: ["005930"],
+          missing_symbols: [],
+          passed_count: 3000,
+          watchlist_count: 120,
+          failed_count: 80,
+        },
+        items: [],
+      }),
+    });
+  });
+  await page.route("**/api/trading/agent-context/feedback/progress**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        request: {
+          market_date: "2026-04-16",
+          symbols: null,
+          expected_agents: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+        },
+        summary: {
+          run_status: "completed",
+          is_live: false,
+          latest_feedback_at: now,
+          seconds_since_last_feedback: 120,
+          stalled_threshold_seconds: 300,
+          total_symbols: 3200,
+          processed_symbols: 3200,
+          completed_symbols: 3200,
+          in_progress_symbols: 0,
+          pending_symbols: 0,
+          progress_ratio: 1,
+          progress_percent: 100,
+          failed_items: 0,
+          completed_feedback_count: 3200,
+          expected_feedback_count: 3200,
+        },
+        result: {
+          roles: {
+            "eod-summarizer": {
+              requested_count: 3200,
+              completed_count: 3200,
+              error_count: 0,
+            },
+            "technical-summarizer": {
+              requested_count: 3200,
+              completed_count: 3200,
+              error_count: 0,
+            },
+            "fundamental-summarizer": {
+              requested_count: 3200,
+              completed_count: 3200,
+              error_count: 0,
+            },
+          },
+        },
+      }),
+    });
+  });
+}
+
 async function expectStatusChromeSeparated(page: Page, viewport: { width: number; height: number }) {
   await page.setViewportSize(viewport);
   await page.goto("/dashboard");
@@ -136,6 +374,36 @@ test.describe("dashboard mobile chrome", () => {
     await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
+  });
+
+  test("mobile process monitor shows a loading indicator instead of stale progress while running", async ({ page }) => {
+    let pipelineStatus: "running" | "completed" = "running";
+    await mockDashboardProcessStatusApis(page, () => pipelineStatus);
+
+    await page.goto("/dashboard");
+
+    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "running");
+    await expect(processBar).toHaveAccessibleName(/\(Running\)$/);
+    await expect(processBar).not.toHaveAccessibleName(/\d+\s*\/\s*\d+/);
+
+    const loadingSummary = processBar.locator('[data-process-summary-mode="loading"]');
+    await expect(loadingSummary).toBeVisible();
+    await expect(loadingSummary).toContainText(/Running/);
+    await expect(loadingSummary).not.toContainText(/\d+\s*\/\s*\d+/);
+
+    const spinnerAnimationName = await loadingSummary.locator('[aria-hidden="true"]').first().evaluate((element) => {
+      return getComputedStyle(element).animationName;
+    });
+    expect(spinnerAnimationName).toMatch(/agentRoleSpin$/);
+
+    pipelineStatus = "completed";
+
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "completed");
+    const completedSummary = processBar.locator('[data-process-summary-mode="progress"]');
+    await expect(completedSummary).toBeVisible();
+    await expect(completedSummary).toContainText(/\d+\s*\/\s*\d+/);
+    await expect(processBar).toHaveAccessibleName(/\d+\s*\/\s*\d+/);
   });
 
   test("mobile status bar stays clear of release and language controls", async ({ page }) => {

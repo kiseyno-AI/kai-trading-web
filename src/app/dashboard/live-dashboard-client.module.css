@@ -310,6 +310,33 @@
   line-height: 1.1;
 }
 
+.processMonitorLoadingValue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.36rem;
+  color: #f3f7ff;
+}
+
+.processMonitorLoadingSpinner {
+  width: 0.76rem;
+  height: 0.76rem;
+  flex: 0 0 auto;
+  border: 2px solid rgba(127, 184, 255, 0.36);
+  border-top-color: #6ffbbe;
+  border-right-color: rgba(111, 251, 190, 0.78);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(111, 251, 190, 0.16);
+  animation: agentRoleSpin 0.82s linear infinite;
+}
+
+.processMonitorLoadingText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: eodRunningStatusPulse 1.16s ease-in-out infinite;
+}
+
 .processMonitorDrawerBackdrop {
   position: fixed;
   inset: 0;
