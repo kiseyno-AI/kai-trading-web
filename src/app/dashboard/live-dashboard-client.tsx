@@ -930,6 +930,8 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
         aria-labelledby="process-monitor-title"
         onPointerDown={(event) => event.stopPropagation()}
       >
+        <div className={styles.processMonitorDrawerHandle} aria-hidden="true" />
+
         <div className={styles.dialogHeader}>
           <div>
             <p className={styles.sectionEyebrow}>{copy.processMonitor.drawerEyebrow}</p>

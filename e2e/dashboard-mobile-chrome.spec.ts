@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { RELEASE_DISPLAY_LABEL } from "@/lib/release-version";
 import { chromiumIPhone13 } from "./devices";
@@ -19,6 +19,32 @@ async function openProcessMonitorDrawer(page: Page) {
   await page.getByRole("button", { name: /Open process monitor/i }).first().click();
   await expect(drawer).toBeVisible();
   return drawer;
+}
+
+async function waitForProcessMonitorDrawerLayout(drawer: Locator) {
+  await drawer.evaluate(async (element) => {
+    const animations = element.getAnimations();
+    await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+  });
+
+  let previousBox: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const box = await drawer.boundingBox();
+        if (!box) {
+          previousBox = null;
+          return false;
+        }
+
+        const nextBox = [box.x, box.y, box.width, box.height].map((value) => value.toFixed(2)).join(":");
+        const isStable = nextBox === previousBox;
+        previousBox = nextBox;
+        return isStable;
+      },
+      { message: "process monitor drawer layout should settle after opening" },
+    )
+    .toBe(true);
 }
 
 async function openEodStatusCard(page: Page) {
@@ -54,6 +80,38 @@ test.describe("dashboard mobile chrome", () => {
     await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
+  });
+
+  test("mobile process monitor grows above the toolbar as a floating overlay", async ({ page }) => {
+    await page.goto("/dashboard");
+
+    const bottomNav = page.getByRole("navigation", { name: /Primary/i });
+    const processDrawer = await openProcessMonitorDrawer(page);
+    await waitForProcessMonitorDrawerLayout(processDrawer);
+    const [viewport, drawerBox, bottomNavBox, backdropAlpha] = await Promise.all([
+      page.viewportSize(),
+      processDrawer.boundingBox(),
+      bottomNav.boundingBox(),
+      processDrawer.evaluate((element) => {
+        const backdrop = element.parentElement;
+        const backgroundColor = backdrop ? window.getComputedStyle(backdrop).backgroundColor : "";
+        const match = backgroundColor.match(/rgba?\([^,]+,[^,]+,[^,]+,\s*([0-9.]+)\)/);
+        return match ? Number(match[1]) : 1;
+      }),
+    ]);
+
+    expect(viewport).not.toBeNull();
+    expect(drawerBox).not.toBeNull();
+    expect(bottomNavBox).not.toBeNull();
+
+    if (!viewport || !drawerBox || !bottomNavBox) {
+      throw new Error("Expected mobile process monitor and toolbar to have layout boxes.");
+    }
+
+    expect(backdropAlpha).toBeLessThan(0.5);
+    expect(drawerBox.y).toBeGreaterThan(36);
+    expect(drawerBox.height).toBeLessThan(viewport.height - 110);
+    expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(bottomNavBox.y + 2);
   });
 
   test("D2 EOD counts fit mobile cards with four-digit totals", async ({ page }) => {

@@ -89,6 +89,38 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
+  test("desktop process monitor expands as a floating overlay over dashboard context", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/dashboard");
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const [viewport, drawerBox, freshnessPanelBox, backdropAlpha] = await Promise.all([
+      page.viewportSize(),
+      processDrawer.boundingBox(),
+      page.locator("#dashboard-freshness").boundingBox(),
+      processDrawer.evaluate((element) => {
+        const backdrop = element.parentElement;
+        const backgroundColor = backdrop ? window.getComputedStyle(backdrop).backgroundColor : "";
+        const match = backgroundColor.match(/rgba?\([^,]+,[^,]+,[^,]+,\s*([0-9.]+)\)/);
+        return match ? Number(match[1]) : 1;
+      }),
+    ]);
+
+    expect(viewport).not.toBeNull();
+    expect(drawerBox).not.toBeNull();
+    expect(freshnessPanelBox).not.toBeNull();
+
+    if (!viewport || !drawerBox || !freshnessPanelBox) {
+      throw new Error("Expected process monitor and dashboard context to have layout boxes.");
+    }
+
+    expect(backdropAlpha).toBeLessThan(0.5);
+    expect(drawerBox.y).toBeGreaterThan(72);
+    expect(drawerBox.height).toBeLessThan(viewport.height - 72);
+    expect(drawerBox.x).toBeGreaterThanOrEqual(freshnessPanelBox.x - 1);
+    expect(drawerBox.width).toBeLessThanOrEqual(freshnessPanelBox.width + 1);
+  });
+
   test("desktop process monitor drawer keeps detailed process cards grouped", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
