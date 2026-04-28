@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { RELEASE_DISPLAY_LABEL } from "@/lib/release-version";
 import { chromiumIPhone13 } from "./devices";
@@ -19,6 +19,13 @@ async function openProcessMonitorDrawer(page: Page) {
   await page.getByRole("button", { name: /Open process monitor/i }).first().click();
   await expect(drawer).toBeVisible();
   return drawer;
+}
+
+async function waitForProcessMonitorDrawerLayout(drawer: Locator) {
+  await drawer.evaluate(async (element) => {
+    const animations = element.getAnimations();
+    await Promise.all(animations.map((animation) => animation.finished.catch(() => undefined)));
+  });
 }
 
 async function openEodStatusCard(page: Page) {
@@ -61,6 +68,7 @@ test.describe("dashboard mobile chrome", () => {
 
     const bottomNav = page.getByRole("navigation", { name: /Primary/i });
     const processDrawer = await openProcessMonitorDrawer(page);
+    await waitForProcessMonitorDrawerLayout(processDrawer);
     const [viewport, drawerBox, bottomNavBox, backdropAlpha] = await Promise.all([
       page.viewportSize(),
       processDrawer.boundingBox(),
