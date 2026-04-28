@@ -887,16 +887,6 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
         <span className={styles.processMonitorCurrent}>{currentLabel}</span>
       </span>
 
-      <span className={styles.processMonitorGroups} aria-hidden="true">
-        {model.groups.map((group) => (
-          <span key={group.key} className={styles.processMonitorGroupChip} data-process-status={group.status}>
-            <span className={styles.processMonitorStatusDot} />
-            <span>{group.label}</span>
-            <strong>{group.progressLabel}</strong>
-          </span>
-        ))}
-      </span>
-
       <span className={styles.processMonitorSummary} data-process-status={model.status}>
         <span>{model.statusLabel}</span>
         <strong>{model.progressLabel}</strong>
@@ -909,7 +899,6 @@ type ProcessMonitorDrawerProps = {
   children?: ReactNode;
   copy: DashboardLiveCopy;
   model: ProcessMonitorModel;
-  numberLocale: string;
   onClose: () => void;
 };
 
@@ -917,7 +906,6 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
   children,
   copy,
   model,
-  numberLocale,
   onClose,
 }: ProcessMonitorDrawerProps) {
   return (
@@ -964,90 +952,6 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
             <span>{copy.operational.status}</span>
             <strong>{model.statusLabel}</strong>
           </div>
-        </div>
-
-        <div className={styles.processMonitorGroupList} role="list">
-          {model.groups.map((group) => (
-            <section
-              key={group.key}
-              className={styles.processMonitorGroupCard}
-              data-process-status={group.status}
-              role="listitem"
-              aria-label={`${group.label} ${group.statusLabel}`}
-            >
-              <div className={styles.processMonitorGroupHeader}>
-                <div>
-                  <h3>{group.label}</h3>
-                  <p>
-                    {group.currentStepLabel
-                      ? `${copy.processMonitor.current}: ${group.currentStepLabel}`
-                      : copy.processMonitor.allComplete}
-                  </p>
-                </div>
-                <span className={styles.processMonitorGroupStatus} data-process-status={group.status}>
-                  {group.statusLabel}
-                </span>
-              </div>
-
-              <div
-                className={styles.processMonitorProgressTrack}
-                role="progressbar"
-                aria-label={`${group.label} ${copy.processMonitor.progress}`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(group.progressPercent)}
-                aria-valuetext={group.progressLabel}
-              >
-                <i style={{ width: `${group.progressPercent}%` }} />
-              </div>
-              <p className={styles.processMonitorGroupProgress}>{group.progressLabel}</p>
-
-              <ol className={styles.processMonitorStepList}>
-                {group.steps.map((step) => (
-                  <li key={step.key} className={styles.processMonitorStep} data-process-status={step.status}>
-                    <span className={styles.processMonitorStepMarker} aria-hidden="true" />
-                    <div className={styles.processMonitorStepBody}>
-                      <div className={styles.processMonitorStepHeader}>
-                        <strong>{step.label}</strong>
-                        <span data-process-status={step.status}>{step.statusLabel}</span>
-                      </div>
-                      <div
-                        className={styles.processMonitorStepProgress}
-                        role="progressbar"
-                        aria-label={`${step.label} ${copy.processMonitor.progress}`}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(step.progressPercent)}
-                        aria-valuetext={step.progressLabel}
-                      >
-                        <i style={{ width: `${step.progressPercent}%` }} />
-                      </div>
-                      <div className={styles.processMonitorStepMeta}>
-                        <span>{step.progressLabel}</span>
-                        <span>
-                          {step.progressPercent.toLocaleString(numberLocale, {
-                            maximumFractionDigits: 0,
-                          })}
-                          %
-                        </span>
-                      </div>
-                      {step.metrics.length > 0 ? (
-                        <dl className={styles.processMonitorStepMetrics}>
-                          {step.metrics.map((metric) => (
-                            <div key={metric.key}>
-                              <dt>{metric.label}</dt>
-                              <dd>{metric.value}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      ) : null}
-                      {step.note ? <p className={styles.processMonitorStepNote}>{step.note}</p> : null}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          ))}
         </div>
 
         {children ? (
@@ -1755,7 +1659,6 @@ export function LiveDashboardClient({
             <ProcessMonitorDrawer
               copy={copy}
               model={processMonitorModel}
-              numberLocale={numberLocale}
               onClose={closeProcessMonitorDrawer}
             >
               <EodStatusCard

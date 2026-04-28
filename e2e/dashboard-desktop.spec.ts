@@ -376,6 +376,9 @@ test.describe("dashboard desktop", () => {
     await expect(eodCard).toBeVisible();
     await expect(filteringCard).toBeVisible();
     await expect(agentFeedbackCard).toBeVisible();
+    await expect(processDrawer.getByRole("listitem", { name: /^Patch / })).toHaveCount(0);
+    await expect(processDrawer.getByRole("listitem", { name: /^Filter / })).toHaveCount(0);
+    await expect(processDrawer.getByRole("listitem", { name: /^Agent Feedback / })).toHaveCount(0);
 
     const [eodBox, filteringBox, agentFeedbackBox] = await Promise.all([
       eodCard.boundingBox(),
