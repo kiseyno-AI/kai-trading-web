@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildPortfolioSectionStates,
   buildPortfolioMetricModels,
+  classifyPortfolioSummaryFailure,
   formatPortfolioMoney,
   formatPortfolioPercent,
   getPortfolioActivity,
@@ -114,9 +116,16 @@ test("flattens holdings and recent activity from every account", () => {
   assert.deepEqual(getPortfolioActivity(summary).map((item) => item.id), ["fill-1", "order-2"]);
 });
 
-test("distinguishes portfolio summary loading, unavailable, empty, degraded, and ready states", () => {
+test("distinguishes portfolio summary loading, connectivity, empty, stale, partial, and synced states", () => {
   assert.equal(resolvePortfolioSummaryState({ loading: true, summary: null }), "loading");
-  assert.equal(resolvePortfolioSummaryState({ error: "HTTP 404", summary: null }), "unavailable");
+  assert.equal(
+    resolvePortfolioSummaryState({ error: "HTTP 404", failureKind: "endpoint-pending", summary: null }),
+    "endpoint-pending",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({ error: "TRADING_API_UPSTREAM_BASE_URL missing", failureKind: "not-configured", summary: null }),
+    "not-configured",
+  );
   assert.equal(
     resolvePortfolioSummaryState({
       summary: {
@@ -124,7 +133,7 @@ test("distinguishes portfolio summary loading, unavailable, empty, degraded, and
         accounts: [{ id: "empty-account", label: "Empty Account", holdings: [] }],
       },
     }),
-    "empty",
+    "connected-empty",
   );
   assert.equal(
     resolvePortfolioSummaryState({
@@ -139,7 +148,22 @@ test("distinguishes portfolio summary loading, unavailable, empty, degraded, and
         ],
       },
     }),
-    "degraded",
+    "stale-sync",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({
+      summary: {
+        sync: { status: "partial", message: "Holdings are delayed." },
+        accounts: [
+          {
+            id: "partial-account",
+            label: "Partial Account",
+            holdings: [{ symbol: "005930" }],
+          },
+        ],
+      },
+    }),
+    "partial-data",
   );
   assert.equal(
     resolvePortfolioSummaryState({
@@ -154,7 +178,116 @@ test("distinguishes portfolio summary loading, unavailable, empty, degraded, and
         ],
       },
     }),
-    "ready",
+    "fully-synced",
+  );
+});
+
+test("preserves fetch failure state when a cached portfolio summary remains available", () => {
+  const cachedEmptySummary: PortfolioSummaryDto = {
+    sync: { status: "synced" },
+    accounts: [{ id: "cached-empty", label: "Cached Empty", holdings: [] }],
+  };
+  const cachedSyncedSummary: PortfolioSummaryDto = {
+    sync: { status: "synced" },
+    accounts: [{ id: "cached-ready", label: "Cached Ready", holdings: [{ symbol: "005930" }] }],
+  };
+
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "TRADING_API_UPSTREAM_BASE_URL is required for deployed trading proxy requests.",
+      failureKind: "not-configured",
+      summary: cachedEmptySummary,
+    }),
+    "not-configured",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "connect ECONNREFUSED",
+      failureKind: "upstream-unavailable",
+      summary: cachedSyncedSummary,
+    }),
+    "upstream-unavailable",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "Portfolio response did not match the expected shape.",
+      failureKind: "invalid-response",
+      summary: cachedSyncedSummary,
+    }),
+    "invalid-response",
+  );
+  assert.equal(
+    resolvePortfolioSummaryState({
+      error: "Network request failed",
+      summary: cachedSyncedSummary,
+    }),
+    "upstream-unavailable",
+  );
+});
+
+test("classifies portfolio summary fetch failures without flattening every failure into unavailable", () => {
+  assert.equal(classifyPortfolioSummaryFailure({ status: 404, message: "not implemented" }), "endpoint-pending");
+  assert.equal(
+    classifyPortfolioSummaryFailure({
+      status: 500,
+      message: "TRADING_API_UPSTREAM_BASE_URL is required for deployed trading proxy requests.",
+    }),
+    "not-configured",
+  );
+  assert.equal(classifyPortfolioSummaryFailure({ status: 502, message: "connect ECONNREFUSED" }), "upstream-unavailable");
+});
+
+test("builds section-level states from the returned portfolio payload", () => {
+  assert.deepEqual(
+    buildPortfolioSectionStates(
+      {
+        sync: { status: "synced" },
+        accounts: [
+          {
+            id: "cash-only",
+            label: "Cash Only",
+            holdings: [],
+            summary: {
+              cash: { amount: 1_000_000, currency: "KRW" },
+              totalAssets: { amount: 1_000_000, currency: "KRW" },
+            },
+          },
+        ],
+      },
+      "connected-empty",
+    ),
+    {
+      "hero-metrics": "partial-data",
+      accounts: "fully-synced",
+      holdings: "empty",
+      allocation: "empty",
+      activity: "empty",
+    },
+  );
+
+  assert.deepEqual(
+    buildPortfolioSectionStates(
+      {
+        sync: { status: "partial" },
+        accounts: [
+          {
+            id: "partial",
+            label: "Partial",
+            summary: {
+              totalAssets: { amount: 1_000_000, currency: "KRW" },
+            },
+          },
+        ],
+      },
+      "partial-data",
+    ),
+    {
+      "hero-metrics": "partial-data",
+      accounts: "partial-data",
+      holdings: "partial-data",
+      allocation: "partial-data",
+      activity: "partial-data",
+    },
   );
 });
 
@@ -187,7 +320,7 @@ test("keeps notice fallback messages visible when no sync banner renders them", 
     "Account API returned cached balances.",
     "Tax lots are still pending.",
   ]);
-  assert.deepEqual(getPortfolioNoticeMessages({ ...summary, accounts: [] }, "empty"), [
+  assert.deepEqual(getPortfolioNoticeMessages({ ...summary, accounts: [] }, "connected-empty"), [
     "Account API returned cached balances.",
     "Tax lots are still pending.",
   ]);
@@ -212,7 +345,7 @@ test("suppresses only the notice actually rendered in the degraded sync banner",
   };
 
   assert.equal(getPortfolioSyncMessage(summary), "KIS balance sync is older than the latest market session.");
-  assert.deepEqual(getPortfolioNoticeMessages(summary, "degraded"), [
+  assert.deepEqual(getPortfolioNoticeMessages(summary, "stale-sync"), [
     "Tax lots are still pending.",
     "KIS balance sync is older than the latest market session.",
   ]);

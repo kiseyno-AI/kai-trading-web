@@ -16,12 +16,36 @@ export type PortfolioMetricModel = {
   available: boolean;
 };
 
-export type PortfolioSummaryState = "loading" | "unavailable" | "empty" | "degraded" | "ready";
+export type PortfolioSummaryFailureKind =
+  | "endpoint-pending"
+  | "invalid-response"
+  | "not-configured"
+  | "upstream-unavailable";
+
+export type PortfolioSummaryState =
+  | "loading"
+  | PortfolioSummaryFailureKind
+  | "connected-empty"
+  | "stale-sync"
+  | "partial-data"
+  | "fully-synced";
+
+export type PortfolioSectionId = "hero-metrics" | "accounts" | "holdings" | "allocation" | "activity";
+
+export type PortfolioSectionState = Exclude<PortfolioSummaryState, "connected-empty"> | "empty";
+
+export type PortfolioSectionStates = Record<PortfolioSectionId, PortfolioSectionState>;
 
 type PortfolioSummaryStateInput = {
   error?: string | null;
+  failureKind?: PortfolioSummaryFailureKind | null;
   loading?: boolean;
   summary: PortfolioSummaryDto | null | undefined;
+};
+
+type PortfolioFailureInput = {
+  message?: string | null;
+  status: number;
 };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -29,16 +53,33 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: "$",
 };
 
-const DEGRADED_SYNC_STATUSES = new Set([
+const NOT_CONFIGURED_STATUS_TOKENS = new Set([
+  "account_not_configured",
+  "broker_not_configured",
+  "config_missing",
+  "configuration_missing",
+  "credentials_missing",
+  "missing_configuration",
+  "no_accounts_configured",
+  "not_configured",
+]);
+
+const STALE_SYNC_STATUS_TOKENS = new Set(["expired", "outdated", "stale", "stale_sync"]);
+
+const PARTIAL_SYNC_STATUS_TOKENS = new Set([
+  "completed_with_errors",
   "degraded",
   "error",
   "failed",
   "failure",
   "partial",
-  "stale",
+  "partial_data",
   "unavailable",
   "warning",
 ]);
+
+const NOT_CONFIGURED_MESSAGE_PATTERN =
+  /(TRADING_API_UPSTREAM|not configured|config(?:uration)? (?:is )?missing|missing config|missing credentials|no brokerage account|no accounts configured|account.*not configured)/i;
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -123,7 +164,72 @@ function getMoneyTone(value: PortfolioMoneyAmountDto | null): PortfolioMetricMod
 }
 
 function normalizeStatusToken(value: string | null | undefined) {
-  return value?.trim().toLowerCase() ?? "";
+  return value?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? "";
+}
+
+function statusMatches(value: string | null | undefined, tokens: Set<string>) {
+  const normalized = normalizeStatusToken(value);
+  return normalized ? tokens.has(normalized) : false;
+}
+
+function hasMessageSignal(value: string | null | undefined, pattern: RegExp) {
+  return pattern.test(value ?? "");
+}
+
+function getPortfolioStatusValues(summary: PortfolioSummaryDto | null | undefined) {
+  return [summary?.sync?.status, ...getPortfolioAccounts(summary).map((account) => account.status)];
+}
+
+function getPortfolioDiagnosticMessages(summary: PortfolioSummaryDto | null | undefined) {
+  return [summary?.sync?.message, ...(summary?.notices ?? [])].filter((value): value is string => Boolean(value));
+}
+
+function hasNotConfiguredSignal(summary: PortfolioSummaryDto | null | undefined) {
+  return (
+    getPortfolioStatusValues(summary).some((status) => statusMatches(status, NOT_CONFIGURED_STATUS_TOKENS)) ||
+    getPortfolioDiagnosticMessages(summary).some((message) => hasMessageSignal(message, NOT_CONFIGURED_MESSAGE_PATTERN))
+  );
+}
+
+function hasStaleSyncSignal(summary: PortfolioSummaryDto | null | undefined) {
+  return getPortfolioStatusValues(summary).some((status) => statusMatches(status, STALE_SYNC_STATUS_TOKENS));
+}
+
+function hasPartialDataSignal(summary: PortfolioSummaryDto | null | undefined) {
+  return getPortfolioStatusValues(summary).some((status) => statusMatches(status, PARTIAL_SYNC_STATUS_TOKENS));
+}
+
+function hasOwnArray<T extends object>(value: T, key: keyof T) {
+  return Array.isArray(value[key]);
+}
+
+function hasAllocationRows(summary: PortfolioSummaryDto | null | undefined) {
+  return getPortfolioAllocations(summary).length > 0 || getPortfolioHoldings(summary).some((holding) => hasNumber(holding.allocationPercent));
+}
+
+function hasMissingHoldingsPayload(summary: PortfolioSummaryDto | null | undefined) {
+  return getPortfolioAccounts(summary).some((account) => !hasOwnArray(account, "holdings"));
+}
+
+function hasPartialAccountSummary(account: PortfolioAccountDto) {
+  return !account.summary || (!getTotalAssets(account) && !getBuyingPower(account));
+}
+
+function getLoadedSectionState({
+  hasData,
+  hasPartialGap = false,
+  summaryState,
+}: {
+  hasData: boolean;
+  hasPartialGap?: boolean;
+  summaryState: PortfolioSummaryState;
+}): PortfolioSectionState {
+  if (summaryState === "stale-sync" && hasData) return "stale-sync";
+  if (summaryState === "partial-data") return "partial-data";
+  if (!hasData) return hasPartialGap ? "partial-data" : "empty";
+  if (hasPartialGap) return "partial-data";
+
+  return "fully-synced";
 }
 
 export function getPortfolioAccounts(summary: PortfolioSummaryDto | null | undefined) {
@@ -174,7 +280,7 @@ export function getPortfolioNoticeMessages(
   state: PortfolioSummaryState,
 ) {
   const notices = summary?.notices ?? [];
-  const renderedSyncMessage = state === "degraded" ? getPortfolioSyncMessage(summary) : null;
+  const renderedSyncMessage = state === "partial-data" || state === "stale-sync" ? getPortfolioSyncMessage(summary) : null;
   if (!renderedSyncMessage) return notices;
 
   let suppressedRenderedNotice = false;
@@ -189,23 +295,109 @@ export function getPortfolioNoticeMessages(
 }
 
 export function isPortfolioSummaryDegraded(summary: PortfolioSummaryDto | null | undefined) {
-  const topLevelStatus = getPortfolioSyncStatus(summary);
-  if (topLevelStatus && DEGRADED_SYNC_STATUSES.has(topLevelStatus)) return true;
+  return isPortfolioSummaryStale(summary) || isPortfolioSummaryPartial(summary);
+}
 
-  return getPortfolioAccounts(summary).some((account) => DEGRADED_SYNC_STATUSES.has(normalizeStatusToken(account.status)));
+export function isPortfolioSummaryStale(summary: PortfolioSummaryDto | null | undefined) {
+  return hasStaleSyncSignal(summary);
+}
+
+export function isPortfolioSummaryPartial(summary: PortfolioSummaryDto | null | undefined) {
+  return hasPartialDataSignal(summary);
+}
+
+export function classifyPortfolioSummaryFailure({ message = null, status }: PortfolioFailureInput): PortfolioSummaryFailureKind {
+  if (status === 404) return "endpoint-pending";
+  if (status === 401 || status === 403) return "not-configured";
+  if (hasMessageSignal(message, NOT_CONFIGURED_MESSAGE_PATTERN)) return "not-configured";
+  if (status >= 500 || status === 0) return "upstream-unavailable";
+
+  return "upstream-unavailable";
 }
 
 export function resolvePortfolioSummaryState({
   error = null,
+  failureKind = null,
   loading = false,
   summary,
 }: PortfolioSummaryStateInput): PortfolioSummaryState {
   if (loading && !summary && !error) return "loading";
-  if (error || !summary) return "unavailable";
-  if (isPortfolioSummaryDegraded(summary)) return "degraded";
-  if (getPortfolioHoldings(summary).length === 0) return "empty";
+  if (failureKind) return failureKind;
+  if (error) return "upstream-unavailable";
+  if (!summary) return "upstream-unavailable";
+  if (hasNotConfiguredSignal(summary)) return "not-configured";
+  if (isPortfolioSummaryStale(summary)) return "stale-sync";
+  if (isPortfolioSummaryPartial(summary)) return "partial-data";
+  if (getPortfolioHoldings(summary).length === 0) return "connected-empty";
 
-  return "ready";
+  return "fully-synced";
+}
+
+export function resolvePortfolioSectionState(
+  section: PortfolioSectionId,
+  summaryState: PortfolioSummaryState,
+  summary: PortfolioSummaryDto | null | undefined,
+): PortfolioSectionState {
+  if (
+    summaryState === "loading" ||
+    summaryState === "endpoint-pending" ||
+    summaryState === "invalid-response" ||
+    summaryState === "not-configured" ||
+    summaryState === "upstream-unavailable"
+  ) {
+    return summaryState;
+  }
+
+  if (section === "hero-metrics") {
+    const metrics = buildPortfolioMetricModels(summary);
+    return getLoadedSectionState({
+      hasData: metrics.some((metric) => metric.available),
+      hasPartialGap: metrics.some((metric) => !metric.available),
+      summaryState,
+    });
+  }
+
+  if (section === "accounts") {
+    const accounts = getPortfolioAccounts(summary);
+    return getLoadedSectionState({
+      hasData: accounts.length > 0,
+      hasPartialGap: accounts.some(hasPartialAccountSummary),
+      summaryState,
+    });
+  }
+
+  if (section === "holdings") {
+    return getLoadedSectionState({
+      hasData: getPortfolioHoldings(summary).length > 0,
+      hasPartialGap: hasMissingHoldingsPayload(summary),
+      summaryState,
+    });
+  }
+
+  if (section === "allocation") {
+    return getLoadedSectionState({
+      hasData: hasAllocationRows(summary),
+      summaryState,
+    });
+  }
+
+  return getLoadedSectionState({
+    hasData: getPortfolioActivity(summary).length > 0,
+    summaryState,
+  });
+}
+
+export function buildPortfolioSectionStates(
+  summary: PortfolioSummaryDto | null | undefined,
+  summaryState: PortfolioSummaryState,
+): PortfolioSectionStates {
+  return {
+    "hero-metrics": resolvePortfolioSectionState("hero-metrics", summaryState, summary),
+    accounts: resolvePortfolioSectionState("accounts", summaryState, summary),
+    holdings: resolvePortfolioSectionState("holdings", summaryState, summary),
+    allocation: resolvePortfolioSectionState("allocation", summaryState, summary),
+    activity: resolvePortfolioSectionState("activity", summaryState, summary),
+  };
 }
 
 export function buildPortfolioMetricModels(
