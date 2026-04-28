@@ -79,6 +79,7 @@ import {
   isOfflineTrackedPlaceholder,
   isSummarizerRole,
   markAgentFeedbackProgressStopped,
+  maskFutureEodStageCardsWhilePipelineRunning,
   mergeRunningPipelineStage,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "@/features/dashboard/live-dashboard-derived-state";
@@ -1461,7 +1462,7 @@ export function LiveDashboardClient({
       getFundamentalsStageStatusLabel,
     );
 
-    return [
+    const stageCards = [
       buildEodStageCard(
         "price",
         copy.stage.price,
@@ -1508,6 +1509,8 @@ export function LiveDashboardClient({
           }
         : fundamentalsStageCard,
     ] as const;
+
+    return maskFutureEodStageCardsWhilePipelineRunning(stageCards, pipelineStatus, numberLocale);
   }, [
     actionFreshnessStage,
     actionLatestDate,
@@ -1522,6 +1525,7 @@ export function LiveDashboardClient({
     latestFundamentalsDate,
     numberLocale,
     primaryLatestCycleDate,
+    pipelineStatus,
     priceFreshnessStage,
     priceLatestDate,
     pricePipelineStage,

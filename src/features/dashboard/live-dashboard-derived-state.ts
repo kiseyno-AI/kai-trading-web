@@ -1323,6 +1323,75 @@ export function isIconOnlyEodStageStatus(statusLabel: EodStageCard["statusLabel"
   return statusLabel === "synced" || statusLabel === "not synced";
 }
 
+const DASHBOARD_EOD_PIPELINE_STAGE_SEQUENCE: readonly {
+  cardId: EodStageId;
+  pipelineKey: EodPipelineStageKey;
+}[] = [
+  { cardId: "price", pipelineKey: "price_collection" },
+  { cardId: "technical", pipelineKey: "technical_snapshots" },
+  { cardId: "action", pipelineKey: "action_summaries" },
+  { cardId: "fundamentals", pipelineKey: "fundamentals_daily_refresh" },
+] as const;
+
+function getEodStageCardTotalCount(card: EodStageCard) {
+  const countValue = card.details.find((detail) => detail.key === "count")?.value ?? "";
+  const [, totalPart] = countValue.split("/").map((part) => part.trim());
+  if (!hasTextValue(totalPart)) return null;
+
+  const normalized = totalPart.replace(/[^\d.-]/g, "");
+  if (!normalized) return null;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getActiveDashboardEodPipelineStageIndex(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  if (normalizePipelineStatus(pipelineStatus?.status) !== "running") return null;
+
+  const runningIndex = DASHBOARD_EOD_PIPELINE_STAGE_SEQUENCE.findIndex(({ pipelineKey }) =>
+    isRunningPipelineStage(getPipelineStage(pipelineStatus, pipelineKey)),
+  );
+  if (runningIndex >= 0) return runningIndex;
+
+  const nextIncompleteIndex = DASHBOARD_EOD_PIPELINE_STAGE_SEQUENCE.findIndex(({ pipelineKey }) =>
+    !isCompletedPipelineStage(getPipelineStage(pipelineStatus, pipelineKey)),
+  );
+  return nextIncompleteIndex >= 0 ? nextIncompleteIndex : null;
+}
+
+export function maskFutureEodStageCardsWhilePipelineRunning(
+  cards: readonly EodStageCard[],
+  pipelineStatus: EodPipelineStatusResponseDto | null,
+  numberLocale: string,
+): readonly EodStageCard[] {
+  const activeStageIndex = getActiveDashboardEodPipelineStageIndex(pipelineStatus);
+  if (activeStageIndex === null) return cards;
+
+  return cards.map((card, index) => {
+    if (index <= activeStageIndex) return card;
+
+    const countDetail = card.details.find((detail) => detail.key === "count");
+    const totalCount = getEodStageCardTotalCount(card);
+
+    return {
+      ...card,
+      latestDate: null,
+      statusLabel: "waiting",
+      statusBadgeLabel: "waiting",
+      statusBadgeTitle: null,
+      tone: "neutral",
+      details: [
+        {
+          key: "count",
+          label: countDetail?.label ?? "",
+          value: `${formatEodSymbolCount(0, numberLocale)} / ${formatEodSymbolCount(totalCount, numberLocale)}`,
+          tone: "count",
+        },
+      ],
+    } satisfies EodStageCard;
+  });
+}
+
 export function buildEodStageCard(
   id: EodStageId,
   label: string,

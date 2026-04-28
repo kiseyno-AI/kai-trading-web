@@ -6,6 +6,7 @@ import type {
   DartFundamentalsDailyRunDto,
   EodFreshnessStageDto,
   EodMarketRiskFiltersResponseDto,
+  EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
   MarketSnapshotResponseDto,
 } from "@/types/trading-api";
@@ -24,6 +25,7 @@ import {
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
   markAgentFeedbackProgressStopped,
+  maskFutureEodStageCardsWhilePipelineRunning,
   shouldRevalidateFilteringFallback,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
@@ -107,11 +109,69 @@ test("keeps the market snapshot ready when present and the latest snapshot load 
   assert.equal(presentation.fallbackContextLabel, copy.marketOverview.conditionNote);
 });
 
+function buildPipelineStatus(overrides: Partial<EodPipelineStatusResponseDto> = {}): EodPipelineStatusResponseDto {
+  return {
+    market_date: "2026-04-21",
+    fs_div: "CFS",
+    status: "running",
+    stage_order: ["price_collection", "technical_snapshots", "action_summaries", "fundamentals_daily_refresh"],
+    stages: {},
+    ...overrides,
+  };
+}
+
 test("marks stale latest fundamentals coverage as not synced on an active trading day", () => {
   assert.equal(
     getFundamentalsStageStatusLabel(buildStage("ready"), "2026-04-21", "2026-04-18", false),
     "not synced",
   );
+});
+
+test("masks future EOD stages as waiting while the daily pipeline is still running", () => {
+  const copy = getDashboardLiveCopy("ko");
+  const cards = [
+    buildEodStageCard("price", copy.stage.price, buildStage("ready"), "2026-04-21", "2026-04-21", "2026-04-21", "2026-04-21", false, null, copy, "en-US"),
+    buildEodStageCard("technical", copy.stage.technical, buildStage("running"), "2026-04-21", "2026-04-20", "2026-04-21", "2026-04-21", false, null, copy, "en-US"),
+    buildEodStageCard("action", copy.stage.action, buildStage("ready"), "2026-04-21", "2026-04-20", "2026-04-20", "2026-04-21", false, null, copy, "en-US"),
+    buildEodStageCard("fundamentals", copy.stage.fundamentals, buildStage("ready"), "2026-04-21", "2026-04-20", "2026-04-20", "2026-04-21", false, null, copy, "en-US"),
+  ] as const;
+  const pipelineStatus = buildPipelineStatus({
+    stages: {
+      price_collection: { status: "completed", processed: 3583, total: 3583, failed: 0 },
+      technical_snapshots: { status: "running", processed: 1200, total: 3583, failed: 0 },
+    },
+  });
+
+  const masked = maskFutureEodStageCardsWhilePipelineRunning(cards, pipelineStatus, "en-US");
+
+  assert.equal(masked[0]?.statusLabel, "synced");
+  assert.equal(masked[1]?.statusLabel, "running");
+  assert.equal(masked[2]?.statusLabel, "waiting");
+  assert.equal(masked[2]?.latestDate, null);
+  assert.equal(masked[2]?.details.find((detail) => detail.key === "count")?.value, "0 / 3,583");
+  assert.equal(masked[3]?.statusLabel, "waiting");
+  assert.equal(masked[3]?.details.find((detail) => detail.key === "count")?.value, "0 / 3,583");
+});
+
+test("keeps recent EOD results visible when the daily pipeline is not running", () => {
+  const copy = getDashboardLiveCopy("ko");
+  const cards = [
+    buildEodStageCard("price", copy.stage.price, buildStage("ready"), "2026-04-21", "2026-04-21", "2026-04-21", "2026-04-21", false, null, copy, "en-US"),
+    buildEodStageCard("technical", copy.stage.technical, buildStage("ready"), "2026-04-21", "2026-04-20", "2026-04-20", "2026-04-21", false, null, copy, "en-US"),
+  ] as const;
+  const pipelineStatus = buildPipelineStatus({
+    status: "completed",
+    stages: {
+      price_collection: { status: "completed", processed: 3583, total: 3583, failed: 0 },
+      technical_snapshots: { status: "completed", processed: 3583, total: 3583, failed: 0 },
+    },
+  });
+
+  const masked = maskFutureEodStageCardsWhilePipelineRunning(cards, pipelineStatus, "en-US");
+
+  assert.equal(masked[1], cards[1]);
+  assert.equal(masked[1]?.latestDate, "2026-04-20");
+  assert.equal(masked[1]?.details.find((detail) => detail.key === "latest-date")?.value, "2026-04-20");
 });
 
 test("keeps stale fundamentals coverage in break-day state when the market is closed", () => {

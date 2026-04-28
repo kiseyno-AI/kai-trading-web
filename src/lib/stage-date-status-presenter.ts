@@ -1,10 +1,11 @@
-export type PresenterStageStatusLabel = "synced" | "running" | "break day" | "not synced";
+export type PresenterStageStatusLabel = "synced" | "running" | "waiting" | "break day" | "not synced";
 
 export type PresenterTone = "positive" | "warning" | "info" | "neutral";
 
 type PresenterStageStatusLabels = {
   synced: string;
   running: string;
+  waiting: string;
   breakDay: string;
   notSynced: string;
 };
@@ -70,7 +71,7 @@ export function resolvePresenterStageStatus({
 export function getPresenterStageTone(statusLabel: PresenterStageStatusLabel): PresenterTone {
   if (statusLabel === "synced") return "positive";
   if (statusLabel === "running") return "info";
-  if (statusLabel === "break day") return "neutral";
+  if (statusLabel === "waiting" || statusLabel === "break day") return "neutral";
   return "warning";
 }
 
@@ -83,6 +84,8 @@ export function getPresenterStageDisplayLabel(
       return labels.synced;
     case "running":
       return labels.running;
+    case "waiting":
+      return labels.waiting;
     case "break day":
       return labels.breakDay;
     case "not synced":

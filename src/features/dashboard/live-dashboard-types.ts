@@ -103,7 +103,7 @@ export type EodStageCard = {
   id: EodStageId;
   label: string;
   latestDate: string | null;
-  statusLabel: "synced" | "running" | "break day" | "not synced";
+  statusLabel: "synced" | "running" | "waiting" | "break day" | "not synced";
   statusBadgeLabel: string;
   statusBadgeTitle: string | null;
   tone: "positive" | "info" | "neutral" | "warning";
