@@ -103,6 +103,7 @@ import styles from "./live-dashboard-client.module.css";
 const AGENT_FEEDBACK_STOP_DIALOG_ID = "agent-feedback-stop-dialog";
 const AGENT_FEEDBACK_STOP_ERROR_ID = "agent-feedback-stop-error";
 const PROCESS_MONITOR_DRAWER_ID = "dashboard-process-monitor-drawer";
+const PROCESS_MONITOR_DRAWER_ANIMATION_MS = 240;
 const AGENT_FEEDBACK_STOP_CONTROL_CLIENT_PATH = "/api/trading/agent-context/internal/core/control";
 const AGENT_FEEDBACK_STOP_REQUEST = {
   action: "kill",
@@ -912,25 +913,41 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
 type ProcessMonitorDrawerProps = {
   children?: ReactNode;
   copy: DashboardLiveCopy;
+  state: "open" | "closing";
   onClose: () => void;
 };
 
 const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
   children,
   copy,
+  state,
   onClose,
 }: ProcessMonitorDrawerProps) {
   return (
-    <div className={styles.processMonitorDrawerBackdrop}>
+    <div className={styles.processMonitorDrawerBackdrop} data-process-monitor-state={state}>
       <section
         id={PROCESS_MONITOR_DRAWER_ID}
         className={styles.processMonitorDrawer}
+        data-process-monitor-state={state}
         role="dialog"
         aria-modal="true"
         aria-labelledby="process-monitor-title"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <div className={styles.processMonitorDrawerHandle} aria-hidden="true" />
+        <button
+          type="button"
+          className={styles.processMonitorDrawerCollapseButton}
+          onClick={onClose}
+          aria-label={copy.processMonitor.close}
+          autoFocus
+        >
+          <span className={styles.processMonitorDrawerHandle} aria-hidden="true" />
+          <span
+            className={styles.processMonitorDrawerCollapseIcon}
+            data-process-monitor-collapse-icon="down"
+            aria-hidden="true"
+          />
+        </button>
 
         <div className={styles.dialogHeader}>
           <div>
@@ -940,15 +957,6 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
             </h2>
             <p className={styles.processMonitorDrawerDescription}>{copy.processMonitor.drawerDescription}</p>
           </div>
-          <button
-            type="button"
-            className={styles.dialogCloseButton}
-            onClick={onClose}
-            aria-label={copy.processMonitor.close}
-            autoFocus
-          >
-            {copy.operational.close}
-          </button>
         </div>
 
         {children ? (
@@ -1091,6 +1099,8 @@ export function LiveDashboardClient({
   const [fundamentalsUpdatesExpanded, setFundamentalsUpdatesExpanded] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
   const [processMonitorDrawerOpen, setProcessMonitorDrawerOpen] = useState(false);
+  const [processMonitorDrawerClosing, setProcessMonitorDrawerClosing] = useState(false);
+  const processMonitorDrawerCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const agentFeedbackProgressRef = useRef(agentFeedbackProgress);
 
   useEffect(() => {
@@ -1402,7 +1412,9 @@ export function LiveDashboardClient({
   const error = trackedError ?? marketError;
   const fundamentalsDialogOpen =
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
-  const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen || processMonitorDrawerOpen;
+  const processMonitorDrawerMounted = processMonitorDrawerOpen || processMonitorDrawerClosing;
+  const processMonitorDrawerState = processMonitorDrawerOpen ? "open" : "closing";
+  const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen || processMonitorDrawerMounted;
 
   const openAgentFeedbackStopDialog = useCallback(() => {
     if (!isAgentFeedbackRunning) return;
@@ -1416,11 +1428,26 @@ export function LiveDashboardClient({
   }, [fundamentalsFailureDetails]);
 
   const openProcessMonitorDrawer = useCallback(() => {
+    if (processMonitorDrawerCloseTimerRef.current) {
+      clearTimeout(processMonitorDrawerCloseTimerRef.current);
+      processMonitorDrawerCloseTimerRef.current = null;
+    }
+
+    setProcessMonitorDrawerClosing(false);
     setProcessMonitorDrawerOpen(true);
   }, []);
 
   const closeProcessMonitorDrawer = useCallback(() => {
+    if (processMonitorDrawerCloseTimerRef.current) {
+      clearTimeout(processMonitorDrawerCloseTimerRef.current);
+    }
+
     setProcessMonitorDrawerOpen(false);
+    setProcessMonitorDrawerClosing(true);
+    processMonitorDrawerCloseTimerRef.current = setTimeout(() => {
+      setProcessMonitorDrawerClosing(false);
+      processMonitorDrawerCloseTimerRef.current = null;
+    }, PROCESS_MONITOR_DRAWER_ANIMATION_MS);
   }, []);
 
   function closeAgentFeedbackStopDialog() {
@@ -1465,6 +1492,14 @@ export function LiveDashboardClient({
   }, [isAgentFeedbackRunning]);
 
   useEffect(() => {
+    return () => {
+      if (processMonitorDrawerCloseTimerRef.current) {
+        clearTimeout(processMonitorDrawerCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!dialogOpen) return;
 
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -1475,8 +1510,8 @@ export function LiveDashboardClient({
           setAgentFeedbackStopDialogOpen(false);
           return;
         }
-        if (processMonitorDrawerOpen) {
-          setProcessMonitorDrawerOpen(false);
+        if (processMonitorDrawerMounted) {
+          closeProcessMonitorDrawer();
           return;
         }
         setOpenFundamentalsFailureKey(null);
@@ -1496,7 +1531,8 @@ export function LiveDashboardClient({
     agentFeedbackStopPending,
     dialogOpen,
     fundamentalsDialogOpen,
-    processMonitorDrawerOpen,
+    closeProcessMonitorDrawer,
+    processMonitorDrawerMounted,
   ]);
 
   return (
@@ -1651,9 +1687,13 @@ export function LiveDashboardClient({
           )
         : null}
 
-      {processMonitorDrawerOpen
+      {processMonitorDrawerMounted
         ? createPortal(
-            <ProcessMonitorDrawer copy={copy} onClose={closeProcessMonitorDrawer}>
+            <ProcessMonitorDrawer
+              copy={copy}
+              state={processMonitorDrawerState}
+              onClose={closeProcessMonitorDrawer}
+            >
               <EodStatusCard
                 copy={copy}
                 eodStageCards={eodStageCards}
