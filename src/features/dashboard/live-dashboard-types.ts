@@ -74,19 +74,6 @@ export type FundamentalsFailureDetails = {
   metadata: DetailItem[];
 };
 
-export type SymbolMetadataItem = {
-  symbol: string;
-  company_name?: string | null;
-  name?: string | null;
-  name_ko?: string | null;
-  market?: string | null;
-  standard_code?: string | null;
-};
-
-export type SymbolSearchResponse = {
-  items: SymbolMetadataItem[];
-};
-
 export type EodStageId = "price" | "technical" | "action" | "fundamentals";
 
 export type EodStageDetail = {
@@ -207,22 +194,6 @@ export type ProcessMonitorModel = {
   currentGroupLabel: string | null;
   currentStepLabel: string | null;
   groups: [ProcessMonitorGroup, ProcessMonitorGroup, ProcessMonitorGroup];
-};
-
-export type TrackedSymbolCardModel = {
-  availabilityLabel: string;
-  availabilityTone: "positive" | "negative" | "warning";
-  changeLabel: string;
-  changeTone: "positive" | "negative" | null;
-  companyName: string;
-  href: string;
-  isMuted: boolean;
-  priceFreshnessLabel: string;
-  priceLabel: string;
-  sourceLabel: string;
-  symbol: string;
-  technicalFreshnessLabel: string;
-  turnoverLabel: string;
 };
 
 export type AgentRoleProgressSnapshot = {

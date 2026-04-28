@@ -62,6 +62,8 @@ test.describe("dashboard mobile hero", () => {
     await expect(hero.getByRole("heading", { name: /Filtering/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Piotroski/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /KIS Risk/i })).toHaveCount(0);
+    await expect(page.locator("#tracked-symbols")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 
     const processDrawer = await openProcessMonitorDrawer(page);

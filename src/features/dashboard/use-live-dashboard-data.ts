@@ -32,9 +32,7 @@ import {
   getAgentFeedbackProgressPollDelayMs,
   getDashboardLoadErrorMessage,
   getEodPipelineStatusPollDelayMs,
-  getQuoteCompanyName,
   getSignalDeciderFeedbackPollDelayMs,
-  pickSymbolMetadata,
   shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
 import {
@@ -48,8 +46,6 @@ import type {
   CoreTrackedQuotesResponse,
   FilteringStageLoadState,
   LiveDashboardClientProps,
-  SymbolMetadataItem,
-  SymbolSearchResponse,
 } from "./live-dashboard-types";
 import type {
   AgentFeedbackListResponseDto,
@@ -156,7 +152,6 @@ export function useLiveDashboardData({
   const [signalDeciderFeedbackError, setSignalDeciderFeedbackError] = useState<string | null>(null);
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummaryDto | null>(initialPortfolioSummary);
   const [portfolioSummaryError, setPortfolioSummaryError] = useState<string | null>(null);
-  const [symbolMetaBySymbol, setSymbolMetaBySymbol] = useState<Record<string, SymbolMetadataItem | null>>({});
   const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
   const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(null);
   const [piotroskiStatusError, setPiotroskiStatusError] = useState<string | null>(null);
@@ -348,66 +343,6 @@ export function useLiveDashboardData({
       window.clearInterval(timer);
     };
   }, []);
-
-  const symbolsNeedingCompanyName = useMemo(
-    () => {
-      const missingSymbols = new Set<string>();
-
-      for (const item of tracked.items) {
-        if (getQuoteCompanyName(item)) continue;
-        if (Object.prototype.hasOwnProperty.call(symbolMetaBySymbol, item.symbol)) continue;
-        missingSymbols.add(item.symbol);
-      }
-
-      return Array.from(missingSymbols).sort();
-    },
-    [symbolMetaBySymbol, tracked.items],
-  );
-  const symbolMetadataLookupKey = symbolsNeedingCompanyName.join("|");
-
-  useEffect(() => {
-    if (!symbolMetadataLookupKey) return;
-
-    let active = true;
-    const symbols = symbolMetadataLookupKey.split("|").filter(Boolean);
-
-    const loadSymbolMetadata = async () => {
-      const entries = await Promise.all(
-        symbols.map(async (symbol) => {
-          try {
-            const data = await getJson<SymbolSearchResponse>(
-              `/api/trading/symbols/search?q=${encodeURIComponent(symbol)}&limit=8`,
-            );
-            return [symbol, pickSymbolMetadata(symbol, data)] as const;
-          } catch (metadataError) {
-            console.error("Dashboard symbol metadata load failed", metadataError);
-            return [symbol, null] as const;
-          }
-        }),
-      );
-
-      if (!active) return;
-      setSymbolMetaBySymbol((current) => {
-        let didChange = false;
-        const next = { ...current };
-        for (const [symbol, metadata] of entries) {
-          if (current[symbol] === metadata) {
-            continue;
-          }
-
-          next[symbol] = metadata;
-          didChange = true;
-        }
-        return didChange ? next : current;
-      });
-    };
-
-    void loadSymbolMetadata();
-
-    return () => {
-      active = false;
-    };
-  }, [symbolMetadataLookupKey]);
 
   useEffect(() => {
     let active = true;
@@ -762,7 +697,6 @@ export function useLiveDashboardData({
         ? signalDeciderFeedback
         : null,
     signalDeciderFeedbackError: agentProgressMarketDate ? signalDeciderFeedbackError : null,
-    symbolMetaBySymbol,
     tracked,
     trackedError,
     freshness,

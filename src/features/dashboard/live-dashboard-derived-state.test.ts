@@ -16,7 +16,6 @@ import {
   buildFilteringCardModel,
   buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
-  buildTrackedSymbolCardModel,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
@@ -766,54 +765,6 @@ test("keeps a running EOD process monitor step below complete progress when coun
   assert.equal(completedStep?.status, "completed");
   assert.equal(completedStep?.progressLabel, "100 / 100");
   assert.equal(completedStep?.progressPercent, 100);
-});
-
-test("builds tracked symbol cards from stable display values without raw DTO fallback logic in the view", () => {
-  const copy = getDashboardLiveCopy("en");
-  const model = buildTrackedSymbolCardModel(
-    {
-      symbol: "005930",
-      price: null,
-      change: null,
-      change_pct: null,
-      volume: null,
-      turnover: null,
-      as_of: null,
-      market_state: "CLOSED",
-      source: "db_cache",
-      fallback: true,
-      is_live: false,
-      available: false,
-      trade_date: "2026-04-18",
-      unavailable_reason: "Quote cache waiting for confirmation",
-    },
-    {
-      symbol: "005930",
-      name_ko: "Samsung Electronics",
-    },
-    {
-      technical: {
-        latest_date: "2026-04-18",
-      },
-    },
-    copy,
-    "en-US",
-  );
-
-  assert.equal(model.companyName, "Samsung Electronics");
-  assert.equal(model.href, "/dashboard/symbol/005930?name=Samsung+Electronics");
-  assert.equal(model.availabilityLabel, copy.tracked.unavailable);
-  assert.equal(model.availabilityTone, "warning");
-  assert.equal(model.priceLabel, "N/A");
-  assert.equal(model.changeLabel, "Quote cache waiting for confirmation");
-  assert.equal(model.changeTone, null);
-  assert.equal(model.priceFreshnessLabel, "2026-04-18");
-  assert.equal(model.technicalFreshnessLabel, "2026-04-18");
-  assert.equal(
-    model.sourceLabel,
-    `${copy.tracked.quoteUnavailable} · Quote cache waiting for confirmation`,
-  );
-  assert.equal(model.turnoverLabel, `${copy.operational.turnover} -`);
 });
 
 test("keeps dashboard polling at the active cadence until a stop acceptance marks the run stalled", () => {
