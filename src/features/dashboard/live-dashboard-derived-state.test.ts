@@ -7,12 +7,14 @@ import type {
   EodFreshnessStageDto,
   EodMarketRiskFiltersResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  MarketSnapshotResponseDto,
 } from "@/types/trading-api";
 
 import {
   buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
+  buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
   buildTrackedSymbolCardModel,
   getAgentFeedbackProgressPollDelayMs,
@@ -65,6 +67,46 @@ function buildFundamentalsRun(overrides: Partial<DartFundamentalsDailyRunDto> = 
     ...overrides,
   };
 }
+
+function buildMarketSnapshot(): MarketSnapshotResponseDto {
+  return {
+    market_date: "2026-04-21",
+    as_of: "2026-04-21T15:30:00+09:00",
+    indices: {
+      kospi: {
+        level: 2648.3,
+        change: 12.4,
+        change_rate: 0.47,
+      },
+    },
+    summary: {
+      line: "Large-cap breadth improved into the close.",
+    },
+  };
+}
+
+test("treats a stale market snapshot as unavailable while the latest snapshot load is errored", () => {
+  const copy = getDashboardLiveCopy("en");
+  const presentation = buildMarketSnapshotPresentation(copy, buildMarketSnapshot(), "HTTP 503");
+
+  assert.equal(presentation.isReady, false);
+  assert.equal(presentation.displaySnapshot, null);
+  assert.equal(presentation.statusLabel, copy.marketOverview.snapshotUnavailable);
+  assert.equal(presentation.statusTone, "warning");
+  assert.equal(presentation.fallbackContextLabel, copy.marketOverview.snapshotDependencyPending);
+});
+
+test("keeps the market snapshot ready when present and the latest snapshot load has no error", () => {
+  const copy = getDashboardLiveCopy("en");
+  const snapshot = buildMarketSnapshot();
+  const presentation = buildMarketSnapshotPresentation(copy, snapshot, null);
+
+  assert.equal(presentation.isReady, true);
+  assert.equal(presentation.displaySnapshot, snapshot);
+  assert.equal(presentation.statusLabel, copy.marketOverview.snapshotReady);
+  assert.equal(presentation.statusTone, "positive");
+  assert.equal(presentation.fallbackContextLabel, copy.marketOverview.conditionNote);
+});
 
 test("marks stale latest fundamentals coverage as not synced on an active trading day", () => {
   assert.equal(

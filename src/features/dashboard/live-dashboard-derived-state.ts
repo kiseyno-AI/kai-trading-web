@@ -41,6 +41,7 @@ import type {
   EodPipelineStageKey,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  MarketSnapshotResponseDto,
 } from "@/types/trading-api";
 
 import type {
@@ -159,6 +160,31 @@ export function pickSymbolMetadata(symbol: string, response: SymbolSearchRespons
 
 export function getDashboardLoadErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Failed to refresh dashboard data.";
+}
+
+export function buildMarketSnapshotPresentation(
+  copy: DashboardLiveCopy,
+  marketSnapshot: MarketSnapshotResponseDto | null,
+  marketSnapshotError: string | null,
+) {
+  const isReady = marketSnapshot !== null && marketSnapshotError === null;
+  const unavailableLabel = marketSnapshotError
+    ? copy.marketOverview.snapshotDependencyPending
+    : copy.marketOverview.snapshotWaiting;
+
+  return {
+    displaySnapshot: isReady ? marketSnapshot : null,
+    fallbackContextLabel: isReady ? copy.marketOverview.conditionNote : unavailableLabel,
+    isReady,
+    statusLabel: isReady ? copy.marketOverview.snapshotReady : copy.marketOverview.snapshotUnavailable,
+    statusTone: isReady ? "positive" : "warning",
+  } satisfies {
+    displaySnapshot: MarketSnapshotResponseDto | null;
+    fallbackContextLabel: string;
+    isReady: boolean;
+    statusLabel: string;
+    statusTone: "positive" | "warning";
+  };
 }
 
 export function shouldTreatAgentFeedbackStopDisconnectAsAccepted(error: unknown) {

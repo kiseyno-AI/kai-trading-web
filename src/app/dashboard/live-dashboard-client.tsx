@@ -46,6 +46,7 @@ import {
   buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
+  buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
   buildTrackedSymbolCardModels,
   formatEodSymbolCount,
@@ -962,9 +963,11 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
   marketSnapshotError,
   numberLocale,
 }: MarketOverviewCardProps) {
-  const kospi = getMarketSnapshotIndex(marketSnapshot, "kospi");
-  const kosdaq = getMarketSnapshotIndex(marketSnapshot, "kosdaq");
-  const fxRate = getMarketSnapshotFxRate(marketSnapshot);
+  const snapshotPresentation = buildMarketSnapshotPresentation(copy, marketSnapshot, marketSnapshotError);
+  const displaySnapshot = snapshotPresentation.displaySnapshot;
+  const kospi = getMarketSnapshotIndex(displaySnapshot, "kospi");
+  const kosdaq = getMarketSnapshotIndex(displaySnapshot, "kosdaq");
+  const fxRate = getMarketSnapshotFxRate(displaySnapshot);
   const kospiLevel = getMarketSnapshotIndexLevel(kospi);
   const kospiChange = getMarketSnapshotIndexChange(kospi);
   const kospiChangeRate = getMarketSnapshotIndexChangeRate(kospi);
@@ -974,13 +977,10 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
   const usdKrwRate = getMarketSnapshotFxValue(fxRate);
   const usdKrwChange = getMarketSnapshotFxChange(fxRate);
   const usdKrwChangeRate = getMarketSnapshotFxChangeRate(fxRate);
-  const foreignFlow = marketSnapshot?.flows?.foreign ?? null;
-  const institutionalFlow = marketSnapshot?.flows?.institutional ?? null;
-  const summaryLine = getMarketSnapshotSummaryLine(marketSnapshot);
-  const asOfLabel = getMarketSnapshotAsOf(marketSnapshot, kospi, kosdaq, fxRate);
-  const unavailableLabel = marketSnapshotError
-    ? copy.marketOverview.snapshotDependencyPending
-    : copy.marketOverview.snapshotWaiting;
+  const foreignFlow = displaySnapshot?.flows?.foreign ?? null;
+  const institutionalFlow = displaySnapshot?.flows?.institutional ?? null;
+  const summaryLine = getMarketSnapshotSummaryLine(displaySnapshot);
+  const asOfLabel = getMarketSnapshotAsOf(displaySnapshot, kospi, kosdaq, fxRate);
 
   return (
     <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.marketOverviewCard}`}>
@@ -994,8 +994,8 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
           <p className={styles.sectionEyebrow}>{copy.marketOverview.eyebrow}</p>
           <h2 className={styles.sectionTitle}>{copy.marketOverview.title}</h2>
         </div>
-        <span className={`pill ${marketSnapshot ? "positive" : "warning"}`}>
-          {marketSnapshot ? copy.marketOverview.snapshotReady : copy.marketOverview.snapshotUnavailable}
+        <span className={`pill ${snapshotPresentation.statusTone}`}>
+          {snapshotPresentation.statusLabel}
         </span>
       </div>
 
@@ -1048,7 +1048,7 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
       {summaryLine ? (
         <p className={styles.marketSummaryLine}>{summaryLine}</p>
       ) : (
-        <p className={styles.cardContext}>{marketSnapshot ? copy.marketOverview.conditionNote : unavailableLabel}</p>
+        <p className={styles.cardContext}>{snapshotPresentation.fallbackContextLabel}</p>
       )}
 
       <div className={styles.cardActionRow}>
