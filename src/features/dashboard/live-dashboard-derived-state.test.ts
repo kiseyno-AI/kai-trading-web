@@ -652,6 +652,80 @@ test("builds grouped daily process monitor state from patch, filter, and agent f
   assert.equal(model.groups[2]?.status, "running");
 });
 
+test("keeps a running EOD process monitor step below complete progress when count reaches total", () => {
+  const copy = getDashboardLiveCopy("en");
+  const runningStageCard = buildEodStageCard(
+    "technical",
+    copy.stage.technical,
+    {
+      status: "running",
+      symbols_total: 100,
+      symbols_succeeded: 100,
+      symbols_failed: 0,
+    },
+    "2026-04-27",
+    "2026-04-27",
+    "2026-04-27",
+    "2026-04-27",
+    false,
+    {
+      status: "running",
+      current_step: "technical_snapshots",
+      processed: 100,
+      total: 100,
+      failed: 0,
+    },
+    copy,
+    "en-US",
+  );
+  const completedStageCard = buildEodStageCard(
+    "action",
+    copy.stage.action,
+    {
+      status: "ready",
+      symbols_total: 100,
+      symbols_succeeded: 100,
+      symbols_failed: 0,
+    },
+    "2026-04-27",
+    "2026-04-27",
+    "2026-04-27",
+    "2026-04-27",
+    false,
+    null,
+    copy,
+    "en-US",
+  );
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "idle",
+    numberLocale: "en-US",
+    piotroskiMarketDate: null,
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards: [],
+    copy,
+    eodStageCards: [runningStageCard, completedStageCard],
+    filteringCardModel,
+    numberLocale: "en-US",
+  });
+  const runningStep = model.groups[0]?.steps.find((step) => step.key === "technical");
+  const completedStep = model.groups[0]?.steps.find((step) => step.key === "action");
+
+  assert.equal(runningStep?.status, "running");
+  assert.equal(runningStep?.progressLabel, "100 / 100");
+  assert.equal(runningStep?.progressPercent, 40);
+  assert.equal(completedStep?.status, "completed");
+  assert.equal(completedStep?.progressLabel, "100 / 100");
+  assert.equal(completedStep?.progressPercent, 100);
+});
+
 test("builds tracked symbol cards from stable display values without raw DTO fallback logic in the view", () => {
   const copy = getDashboardLiveCopy("en");
   const model = buildTrackedSymbolCardModel(
