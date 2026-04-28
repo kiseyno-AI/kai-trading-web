@@ -83,10 +83,11 @@ This document defines the first practical frontend contract for wiring `trading-
 - `/search` Q3 quick access reads `GET /symbols/favorites`, opens the `+` dialog against `GET /symbols/search`, and adds a symbol by posting the replacement set to `POST /scanner/tracked-symbols`, matching the current core write API that persists scanner membership in the database.
 - `/search` Q4 trending symbols now reads exact symbols from core trending sources: `GET /scanner/realtime-trending` for the KIS tab and `GET /scanner/trending-stocks` for stored `1d`, `5d`, and `20d` tabs. The card shows five rows first and requests a larger limit when the user taps More.
 - `/portfolio` is the first account/asset route and reads the frontend BFF endpoint `GET /api/trading/portfolio/summary`, which proxies upstream `GET /portfolio/summary`.
+  - As of the web-side pre-integration for `kai-trading-web#403`, the frontend is wired to this aggregate contract while the matching trading-core aggregate endpoint may still be pending.
   - The page is read-only and does not place trades.
   - The expected payload is `PortfolioSummaryDto` with `accounts[]`, per-account `summary` money fields, `holdings[]`, optional `allocation[]`, optional `recentActivity[]`, top-level `sync`, `asOf`, and `notices`.
   - Money fields use `{ amount, currency, display }` so backend responses can provide raw analytics values while still allowing display-ready fallbacks during integration.
-  - The route tolerates no accounts, no holdings, missing allocation, no recent activity, and unavailable upstream responses as explicit empty/loading/error states.
+  - The route distinguishes loading, unavailable/config-missing, connected-but-empty holdings, and stale/degraded sync states instead of treating every missing payload as an empty portfolio.
   - Multiple accounts are supported from the start; the summary cards aggregate same-currency account totals and avoid pretending mixed-currency values are a single number.
 - `/markets/factors` now reads:
   - `GET /eod/freshness` to resolve the latest stored price trade date when the route is opened without an explicit `marketDate`

@@ -29,8 +29,11 @@ import {
   getPortfolioAccounts,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
+  getPortfolioSyncMessage,
+  resolvePortfolioSummaryState,
   type PortfolioMetricId,
   type PortfolioMetricModel,
+  type PortfolioSummaryState,
 } from "@/features/portfolio/portfolio-display";
 import {
   getFundamentalsRunDate,
@@ -664,9 +667,42 @@ function formatPortfolioCount(count: number, singularLabel: string, pluralLabel:
   return `${count.toLocaleString(numberLocale)} ${label}`;
 }
 
+function humanizePortfolioStatus(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1).toLowerCase()}`)
+    .join(" ");
+}
+
+function getPortfolioStateStatusLabel(state: PortfolioSummaryState, summary: PortfolioSummaryDto | null, copy: DashboardLiveCopy) {
+  if (state === "loading") return copy.portfolioState.statusLoading;
+  if (state === "unavailable") return copy.portfolioState.statusUnavailable;
+  if (state === "empty") return copy.portfolioState.statusEmpty;
+  if (state === "degraded") return copy.portfolioState.statusDegraded;
+
+  return summary?.sync?.status ? humanizePortfolioStatus(summary.sync.status) : copy.portfolioState.statusReady;
+}
+
+function getPortfolioStateStatusTone(state: PortfolioSummaryState) {
+  if (state === "ready") return "positive";
+  if (state === "unavailable" || state === "degraded") return "warning";
+  return "neutral";
+}
+
+function getPortfolioStateMetricFallback(state: PortfolioSummaryState, copy: DashboardLiveCopy) {
+  if (state === "loading") return copy.portfolioState.loading;
+  if (state === "unavailable") return copy.portfolioState.unavailableMetric;
+  if (state === "degraded") return copy.portfolioState.degradedMetric;
+  if (state === "empty") return copy.portfolioState.emptyMetric;
+
+  return copy.portfolioState.waiting;
+}
+
 type PortfolioStateCardProps = {
   copy: DashboardLiveCopy;
   error: string | null;
+  loadState: "error" | "loading" | "success";
   numberLocale: string;
   summary: PortfolioSummaryDto | null;
 };
@@ -674,21 +710,33 @@ type PortfolioStateCardProps = {
 const PortfolioStateCard = memo(function PortfolioStateCard({
   copy,
   error,
+  loadState,
   numberLocale,
   summary,
 }: PortfolioStateCardProps) {
-  const metrics = buildPortfolioMetricModels(summary, copy.portfolioState.waiting);
+  const state = resolvePortfolioSummaryState({
+    error,
+    loading: loadState === "loading",
+    summary,
+  });
+  const metrics = buildPortfolioMetricModels(summary, getPortfolioStateMetricFallback(state, copy));
   const accounts = getPortfolioAccounts(summary);
   const holdings = getPortfolioHoldings(summary);
   const lastSyncedAt = getPortfolioLastSyncedAt(summary);
-  const hasAvailableMetrics = metrics.some((metric) => metric.available);
-  const statusLabel = error
-    ? copy.portfolioState.statusUnavailable
-    : hasAvailableMetrics
-      ? copy.portfolioState.statusReady
-      : copy.portfolioState.statusWaiting;
-  const statusTone = error ? "warning" : hasAvailableMetrics ? "positive" : "neutral";
+  const statusLabel = getPortfolioStateStatusLabel(state, summary, copy);
+  const statusTone = getPortfolioStateStatusTone(state);
   const lastSyncedLabel = formatDisplayTimestamp(lastSyncedAt, copy.portfolioState.waiting);
+  const syncMessage = getPortfolioSyncMessage(summary);
+  const context =
+    state === "loading"
+      ? copy.portfolioState.loadingSummary
+      : state === "unavailable"
+        ? error ?? copy.portfolioState.unavailable
+        : state === "degraded"
+          ? syncMessage ?? copy.portfolioState.degradedSummary
+          : state === "empty"
+            ? copy.portfolioState.emptySummary
+            : null;
 
   return (
     <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.portfolioStateCard}`}>
@@ -733,7 +781,7 @@ const PortfolioStateCard = memo(function PortfolioStateCard({
         </div>
       </dl>
 
-      {error ? <p className={styles.cardContext}>{error}</p> : null}
+      {context ? <p className={styles.cardContext}>{context}</p> : null}
 
       <Link href="/portfolio" className={styles.signalDeciderDetailLink} aria-label={copy.portfolioState.openDetail}>
         {copy.portfolioState.openDetail}
@@ -1217,6 +1265,7 @@ export function LiveDashboardClient({
     pipelineStatus,
     portfolioSummary,
     portfolioSummaryError,
+    portfolioSummaryLoadState,
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
     signalDeciderFeedback,
@@ -1737,6 +1786,7 @@ export function LiveDashboardClient({
             <PortfolioStateCard
               copy={copy}
               error={portfolioSummaryError}
+              loadState={portfolioSummaryLoadState}
               numberLocale={numberLocale}
               summary={portfolioSummary}
             />

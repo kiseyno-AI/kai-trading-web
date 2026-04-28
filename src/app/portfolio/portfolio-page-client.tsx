@@ -14,6 +14,7 @@ import {
   getTradingApiJsonResult,
   readTradingApiJsonSnapshot,
   seedTradingApiJsonSnapshot,
+  type TradingApiJsonResult,
 } from "@/lib/trading-api-cache";
 import type { PortfolioSummaryDto } from "@/types/trading-api";
 import {
@@ -25,7 +26,11 @@ import {
   getPortfolioAllocations,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
+  getPortfolioNoticeMessages,
+  getPortfolioSyncMessage,
+  resolvePortfolioSummaryState,
   type PortfolioMetricId,
+  type PortfolioSummaryState,
 } from "@/features/portfolio/portfolio-display";
 
 import styles from "./portfolio-page.module.css";
@@ -71,13 +76,73 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-function ErrorState({ message, title }: { message: string; title: string }) {
+function StateNotice({
+  body,
+  title,
+  tone = "neutral",
+}: {
+  body: string;
+  title: string;
+  tone?: "loading" | "neutral" | "warning";
+}) {
+  const className =
+    tone === "warning"
+      ? styles.errorState
+      : tone === "loading"
+        ? `${styles.emptyState} ${styles.loadingState}`
+        : styles.emptyState;
+
   return (
-    <div className={styles.errorState} role="alert">
+    <div className={className} role={tone === "warning" ? "alert" : "status"}>
       <strong>{title}</strong>
-      <p>{message}</p>
+      <p>{body}</p>
     </div>
   );
+}
+
+type PortfolioSummaryFailure = Extract<TradingApiJsonResult<PortfolioSummaryDto>, { ok: false }>;
+
+function getPortfolioUnavailableMessage(result: PortfolioSummaryFailure, copy: PortfolioCopy) {
+  if (result.status === 404) {
+    return `${copy.errors.endpointPending} HTTP ${result.status}`;
+  }
+
+  if (result.status === 500 && /TRADING_API_UPSTREAM|upstream.*config/i.test(result.message ?? "")) {
+    return result.message ? `${copy.errors.configMissing} ${result.message}` : copy.errors.configMissing;
+  }
+
+  const detail = result.message ? `: ${result.message}` : "";
+  return `${copy.errors.summaryUnavailable} HTTP ${result.status}${detail}`;
+}
+
+function getPortfolioStatusLabel(state: PortfolioSummaryState, summary: PortfolioSummaryDto | null, copy: PortfolioCopy) {
+  if (state === "loading") return copy.loading;
+  if (state === "unavailable") return copy.statusUnavailable;
+  if (state === "empty") return copy.statusEmpty;
+  if (state === "degraded") return humanizeToken(summary?.sync?.status, copy.statusDegraded);
+
+  return humanizeToken(summary?.sync?.status, copy.statusReady);
+}
+
+function getPortfolioStatusPillClassName(state: PortfolioSummaryState) {
+  if (state === "unavailable" || state === "degraded") {
+    return `${styles.statusPill} ${styles.statusPillWarning}`;
+  }
+
+  if (state === "ready") {
+    return `${styles.statusPill} ${styles.statusPillPositive}`;
+  }
+
+  return `${styles.statusPill} ${styles.statusPillNeutral}`;
+}
+
+function getUnavailableMetricDetail(state: PortfolioSummaryState, copy: PortfolioCopy) {
+  if (state === "loading") return copy.metricLoadingDetail;
+  if (state === "unavailable") return copy.metricUnavailableDetail;
+  if (state === "degraded") return copy.metricDegradedDetail;
+  if (state === "empty") return copy.metricEmptyDetail;
+
+  return copy.waitingForAccountApi;
 }
 
 export default function PortfolioPageClient() {
@@ -100,7 +165,15 @@ export default function PortfolioPageClient() {
         if (cancelled) return;
 
         if (!result.ok) {
-          setError(`${copy.errors.summaryUnavailable} HTTP ${result.status}`);
+          setError(getPortfolioUnavailableMessage(result, copy));
+          setSummary(null);
+          setLoading(false);
+          return;
+        }
+
+        if (!result.data || typeof result.data !== "object") {
+          setError(copy.errors.emptyResponse);
+          setSummary(null);
           setLoading(false);
           return;
         }
@@ -122,23 +195,24 @@ export default function PortfolioPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [copy.errors.summaryUnavailable]);
+  }, [copy]);
 
   const accounts = getPortfolioAccounts(summary);
   const holdings = getPortfolioHoldings(summary);
   const allocations = getPortfolioAllocations(summary);
   const activity = getPortfolioActivity(summary);
+  const portfolioState = resolvePortfolioSummaryState({ error, loading, summary });
   const metrics = useMemo(() => buildPortfolioMetricModels(summary, copy.unavailable), [copy.unavailable, summary]);
   const lastSyncedAt = getPortfolioLastSyncedAt(summary);
   const lastSyncedLabel = formatDisplayTimestamp(
     lastSyncedAt,
-    loading ? copy.loading : copy.waitingForAccountApi,
+    portfolioState === "loading" ? copy.loading : copy.waitingForAccountApi,
   );
-  const statusLabel = loading
-    ? copy.loading
-    : humanizeToken(summary?.sync?.status, error ? copy.unavailable : copy.waitingForAccountApi);
+  const statusLabel = getPortfolioStatusLabel(portfolioState, summary, copy);
   const accountCountLabel = `${accounts.length} ${accounts.length === 1 ? copy.account : copy.accounts}`;
   const holdingCountLabel = `${holdings.length} ${holdings.length === 1 ? copy.holding : copy.holdings}`;
+  const syncMessage = getPortfolioSyncMessage(summary);
+  const noticeMessages = getPortfolioNoticeMessages(summary, portfolioState);
   const allocationRows =
     allocations.length > 0
       ? allocations
@@ -166,9 +240,7 @@ export default function PortfolioPageClient() {
           </div>
 
           <div className={styles.headerActions}>
-            <span className={`${styles.statusPill} ${error ? styles.statusPillWarning : styles.statusPillNeutral}`}>
-              {statusLabel}
-            </span>
+            <span className={getPortfolioStatusPillClassName(portfolioState)}>{statusLabel}</span>
             <DevModeToggle />
           </div>
         </>
@@ -188,7 +260,7 @@ export default function PortfolioPageClient() {
                 <article key={metric.id} className={styles.summaryCard}>
                   <span>{metricCopy.label}</span>
                   <strong className={getSummaryValueClassName(metric.tone)}>{metric.value}</strong>
-                  <small>{metric.available ? metricCopy.detail : copy.waitingForAccountApi}</small>
+                  <small>{metric.available ? metricCopy.detail : getUnavailableMetricDetail(portfolioState, copy)}</small>
                 </article>
               );
             })}
@@ -218,10 +290,17 @@ export default function PortfolioPageClient() {
             </Link>
           </div>
 
-          {loading ? <p className={styles.notice} role="status">{copy.loadingPortfolio}</p> : null}
-          {error ? <ErrorState title={copy.unavailable} message={error} /> : null}
-          {summary?.notices?.map((notice) => (
-            <p key={notice} className={styles.notice}>{notice}</p>
+          {portfolioState === "loading" ? (
+            <StateNotice title={copy.loadingTitle} body={copy.loadingPortfolio} tone="loading" />
+          ) : null}
+          {portfolioState === "unavailable" && error ? (
+            <StateNotice title={copy.summaryUnavailableTitle} body={error} tone="warning" />
+          ) : null}
+          {portfolioState === "degraded" ? (
+            <StateNotice title={copy.summaryDegradedTitle} body={syncMessage ?? copy.summaryDegradedBody} tone="warning" />
+          ) : null}
+          {noticeMessages.map((notice, index) => (
+            <p key={`${notice}-${index}`} className={styles.notice}>{notice}</p>
           ))}
         </section>
 
@@ -234,7 +313,11 @@ export default function PortfolioPageClient() {
             <span className={styles.sectionMeta}>{accountCountLabel}</span>
           </div>
 
-          {accounts.length === 0 ? (
+          {portfolioState === "loading" ? (
+            <StateNotice title={copy.loadingTitle} body={copy.loadingPortfolio} tone="loading" />
+          ) : portfolioState === "unavailable" ? (
+            <StateNotice title={copy.summaryUnavailableTitle} body={copy.summaryUnavailableBody} tone="warning" />
+          ) : accounts.length === 0 ? (
             <EmptyState title={copy.emptyAccountsTitle} body={copy.emptyAccountsBody} />
           ) : (
             <div className={styles.accountGrid}>
@@ -281,7 +364,11 @@ export default function PortfolioPageClient() {
             <span className={styles.sectionMeta}>{holdingCountLabel}</span>
           </div>
 
-          {holdings.length === 0 ? (
+          {portfolioState === "loading" ? (
+            <StateNotice title={copy.loadingTitle} body={copy.loadingPortfolio} tone="loading" />
+          ) : portfolioState === "unavailable" ? (
+            <StateNotice title={copy.summaryUnavailableTitle} body={copy.summaryUnavailableBody} tone="warning" />
+          ) : holdings.length === 0 ? (
             <EmptyState title={copy.emptyHoldingsTitle} body={copy.emptyHoldingsBody} />
           ) : (
             <div className={styles.holdingList} aria-label={copy.holdingsList}>
@@ -338,7 +425,11 @@ export default function PortfolioPageClient() {
             <span className={styles.sectionMeta}>{copy.readyForExpansion}</span>
           </div>
 
-          {allocationRows.length === 0 ? (
+          {portfolioState === "loading" ? (
+            <StateNotice title={copy.loadingTitle} body={copy.loadingPortfolio} tone="loading" />
+          ) : portfolioState === "unavailable" ? (
+            <StateNotice title={copy.summaryUnavailableTitle} body={copy.summaryUnavailableBody} tone="warning" />
+          ) : allocationRows.length === 0 ? (
             <EmptyState title={copy.emptyAllocationTitle} body={copy.emptyAllocationBody} />
           ) : (
             <div className={styles.allocationList}>
@@ -367,7 +458,11 @@ export default function PortfolioPageClient() {
             <span className={styles.sectionMeta}>{copy.readOnly}</span>
           </div>
 
-          {activity.length === 0 ? (
+          {portfolioState === "loading" ? (
+            <StateNotice title={copy.loadingTitle} body={copy.loadingPortfolio} tone="loading" />
+          ) : portfolioState === "unavailable" ? (
+            <StateNotice title={copy.summaryUnavailableTitle} body={copy.summaryUnavailableBody} tone="warning" />
+          ) : activity.length === 0 ? (
             <EmptyState title={copy.emptyActivityTitle} body={copy.emptyActivityBody} />
           ) : (
             <div className={styles.activityList}>
