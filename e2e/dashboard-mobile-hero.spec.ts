@@ -39,6 +39,7 @@ test.describe("dashboard mobile hero", () => {
     expect(heroBox!.y).toBeLessThan(viewport!.height - 40);
     expect(heroBox!.x).toBeGreaterThanOrEqual(0);
     await expect(hero.getByText(/Insight cockpit/i)).toBeVisible();
+    await expect(hero.locator('[class*="supportingCopy"]')).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(hero.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
     await expect(hero.getByRole("heading", { name: /Market condition/i })).toBeVisible();

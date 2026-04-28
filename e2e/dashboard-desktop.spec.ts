@@ -70,6 +70,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Insight cockpit/i)).toBeVisible();
+    await expect(page.locator('#dashboard-freshness [class*="supportingCopy"]')).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 

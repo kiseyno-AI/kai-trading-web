@@ -13,8 +13,6 @@ const dashboardLiveCopy = {
     insights: {
       eyebrow: "Insight cockpit",
       title: "Decider, portfolio, and market state",
-      description:
-        "Recommendation output, account exposure, and market posture now lead the dashboard. Daily process detail stays available from the grouped monitor.",
     },
     portfolioState: {
       eyebrow: "Personal assets",
@@ -269,8 +267,6 @@ const dashboardLiveCopy = {
     insights: {
       eyebrow: "인사이트 콕핏",
       title: "디사이더, 포트폴리오, 마켓 상태",
-      description:
-        "추천 결과, 계좌 노출, 마켓 자세를 대시보드의 우선순위로 올리고 일별 프로세스 상세는 그룹 모니터에서 확인합니다.",
     },
     portfolioState: {
       eyebrow: "개인 자산",

@@ -112,12 +112,6 @@
   letter-spacing: -0.045em;
 }
 
-.supportingCopy {
-  margin: 0.45rem 0 0;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
 .marketContext {
   margin: 0.55rem 0 0;
   color: var(--muted);

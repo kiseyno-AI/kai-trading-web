@@ -1594,7 +1594,6 @@ export function LiveDashboardClient({
             <div>
               <p className={styles.sectionEyebrow}>{copy.insights.eyebrow}</p>
               <h1 className={styles.heroTitle}>{copy.insights.title}</h1>
-              <p className={styles.supportingCopy}>{copy.insights.description}</p>
             </div>
           </div>
 
