@@ -208,7 +208,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
           market_date: "2026-04-27",
           symbols: [],
           agent_name: "signal-decider",
-          limit: 100,
+          limit: 200,
         },
         summary: {
           count: 2,

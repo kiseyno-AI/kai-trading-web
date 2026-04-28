@@ -8,7 +8,7 @@ import type {
 export const SIGNAL_DECIDER_AGENT_NAME = "signal-decider";
 export const SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH = "/api/trading/agent-context/feedback";
 export const SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH = "/agent-context/feedback";
-export const SIGNAL_DECIDER_FEEDBACK_DEFAULT_LIMIT = 100;
+export const SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT = 200;
 
 export type SignalDeciderFeedbackStatus = "waiting" | "running" | "partial" | "completed" | "needs-review";
 
@@ -608,7 +608,7 @@ function compareSignalDeciderItems(left: SignalDeciderFeedbackItem, right: Signa
 
 export function buildSignalDeciderFeedbackPath({
   basePath,
-  limit = SIGNAL_DECIDER_FEEDBACK_DEFAULT_LIMIT,
+  limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   marketDate,
 }: {
   basePath: string;
@@ -618,7 +618,7 @@ export function buildSignalDeciderFeedbackPath({
   const params = new URLSearchParams({
     market_date: marketDate,
     agent_name: SIGNAL_DECIDER_AGENT_NAME,
-    limit: String(limit ?? SIGNAL_DECIDER_FEEDBACK_DEFAULT_LIMIT),
+    limit: String(limit ?? SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT),
   });
   return `${basePath}?${params.toString()}`;
 }
@@ -783,6 +783,15 @@ function getSignalDeciderRoleSnapshot(
 
   if (!isRecord(roles)) return null;
   return readSnapshot(roles[SIGNAL_DECIDER_AGENT_NAME]);
+}
+
+export function resolveSignalDeciderFeedbackResultLimit(
+  progress: AgentFeedbackProgressResponseDto | null | undefined,
+) {
+  const roleSnapshot = getSignalDeciderRoleSnapshot(progress);
+  const requestedLimit = Math.max(roleSnapshot?.completedCount ?? 0, roleSnapshot?.requestedCount ?? 0);
+  if (requestedLimit <= 0) return SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
+  return Math.min(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT, Math.ceil(requestedLimit));
 }
 
 function getSignalDeciderRoleProgressStatus(progress: AgentFeedbackProgressResponseDto | null | undefined) {

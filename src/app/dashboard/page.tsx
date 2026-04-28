@@ -18,6 +18,7 @@ import {
 } from "@/lib/eod-pipeline-status";
 import {
   buildSignalDeciderFeedbackPath,
+  resolveSignalDeciderFeedbackResultLimit,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
 } from "@/lib/signal-decider-feedback";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
@@ -141,6 +142,7 @@ export default async function DashboardPage() {
       ? await fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
           buildSignalDeciderFeedbackPath({
             basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+            limit: resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgress),
             marketDate: signalDeciderMarketDate,
           }),
           requestHeaders,

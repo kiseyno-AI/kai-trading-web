@@ -4,12 +4,18 @@ import test from "node:test";
 import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
+  AgentFeedbackStoredItemDto,
 } from "@/types/trading-api";
 
 import {
+  buildSignalDeciderFeedbackPath,
   buildSignalDeciderFeedbackSummary,
   normalizeSignalDeciderFeedbackItems,
+  resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
+  SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+  type SignalDeciderAction,
 } from "./signal-decider-feedback";
 
 function buildFeedbackResponse(
@@ -20,7 +26,7 @@ function buildFeedbackResponse(
       market_date: "2026-04-27",
       symbols: [],
       agent_name: "signal-decider",
-      limit: 100,
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
     },
     summary: {
       count: 2,
@@ -116,6 +122,41 @@ function buildFeedbackResponse(
       },
     ],
     ...overrides,
+  };
+}
+
+function buildStoredFeedbackItem({
+  action,
+  id,
+}: {
+  action: Exclude<SignalDeciderAction, "unknown">;
+  id: number;
+}): AgentFeedbackStoredItemDto {
+  const symbol = String(id).padStart(6, "0");
+
+  return {
+    id,
+    market_date: "2026-04-28",
+    symbol,
+    agent: {
+      name: "signal-decider",
+      run_id: "run-full-results",
+    },
+    summary: {},
+    feedback: {
+      role: "signal-decider",
+      symbol,
+      market_date: "2026-04-28",
+      preferred_action: action,
+      next_day_open_action: action,
+      confidence_score_10: 5,
+      conviction_score_10: 5,
+      thesis_summary: `${action} decision ${id}`,
+    },
+    normalized_feedback: null,
+    details: null,
+    context: null,
+    received_at: "2026-04-28T07:45:00+00:00",
   };
 }
 
@@ -293,6 +334,55 @@ test("marks decider feedback as needs review when progress exposes signal-decide
   );
 });
 
+test("builds signal-decider feedback paths with the full result window by default", () => {
+  const path = buildSignalDeciderFeedbackPath({
+    basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+    marketDate: "2026-04-28",
+  });
+  const url = new URL(`https://example.test${path}`);
+
+  assert.equal(url.searchParams.get("agent_name"), "signal-decider");
+  assert.equal(url.searchParams.get("limit"), String(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT));
+});
+
+test("sizes signal-decider feedback fetches from progress counts when available", () => {
+  assert.equal(
+    resolveSignalDeciderFeedbackResultLimit(
+      buildProgress({
+        result: {
+          market_date: "2026-04-28",
+          roles: {
+            "signal-decider": {
+              requested_count: 109,
+              completed_count: 105,
+              error_count: 4,
+            },
+          },
+        },
+      }),
+    ),
+    109,
+  );
+
+  assert.equal(
+    resolveSignalDeciderFeedbackResultLimit(
+      buildProgress({
+        result: {
+          market_date: "2026-04-28",
+          roles: {
+            "signal-decider": {
+              requested_count: 250,
+              completed_count: 250,
+              error_count: 0,
+            },
+          },
+        },
+      }),
+    ),
+    SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  );
+});
+
 test("builds a compact summary with preview, action counts, and detail href", () => {
   const model = buildSignalDeciderFeedbackSummary({
     feedback: buildFeedbackResponse(),
@@ -306,4 +396,53 @@ test("builds a compact summary with preview, action counts, and detail href", ()
   assert.equal(model.actionCounts.buy, 1);
   assert.equal(model.actionCounts.wait, 1);
   assert.equal(model.detailHref, "/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+});
+
+test("keeps signal-decider headline action counts independent from preview truncation", () => {
+  const items = Array.from({ length: 105 }, (_, index) =>
+    buildStoredFeedbackItem({
+      action: index === 104 ? "reject" : "wait",
+      id: index + 1,
+    }),
+  );
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback: buildFeedbackResponse({
+      request: {
+        market_date: "2026-04-28",
+        symbols: [],
+        agent_name: "signal-decider",
+        limit: 109,
+      },
+      summary: { count: items.length },
+      items,
+    }),
+    marketDate: "2026-04-28",
+    previewLimit: 3,
+    progress: buildProgress({
+      request: {
+        market_date: "2026-04-28",
+        symbols: null,
+        expected_agents: ["signal-decider"],
+      },
+      result: {
+        market_date: "2026-04-28",
+        roles: {
+          "signal-decider": {
+            requested_count: 109,
+            completed_count: 105,
+            error_count: 4,
+          },
+        },
+      },
+    }),
+  });
+
+  assert.equal(model.resultCount, 105);
+  assert.equal(model.previewItems.length, 3);
+  assert.equal(model.actionCounts.buy, 0);
+  assert.equal(model.actionCounts.wait, 104);
+  assert.equal(model.actionCounts.reject, 1);
+  assert.equal(model.completedCount, 105);
+  assert.equal(model.requestedCount, 109);
+  assert.equal(model.errorCount, 4);
 });
