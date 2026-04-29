@@ -88,7 +88,7 @@ Prefer:
 
 If a field is not confirmed by backend data, the UI must:
 
-- show `[확인 필요]`, `unavailable`, `pending`, or another explicit state label
+- show `needs review`, `unavailable`, `pending`, or another explicit state label
 - never synthesize a plausible-looking number or verdict
 
 ### 3.2 Freshness rules
@@ -394,7 +394,7 @@ Current contract:
 
 Expected behavior now:
 
-- if real scoring stage data is not yet integrated, the card must show clear pending / unavailable states rather than `[확인 필요]` everywhere or pretending completion
+- if real scoring stage data is not yet integrated, the card must show clear pending / unavailable states rather than `needs review` everywhere or pretending completion
 - each scoring family should be independently rendered
 
 #### F. Signal-decider preview card
@@ -637,7 +637,7 @@ Expected displayed data:
 
 Rules:
 
-- missing metrics render as unavailable / `[확인 필요]`
+- missing metrics render as unavailable / `needs review`
 - filing cards should remain useful even with incomplete highlight extraction
 
 #### G. Disclosures
