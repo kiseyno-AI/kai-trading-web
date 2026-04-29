@@ -214,7 +214,7 @@ function hasOutcomeReview(item: SignalDeciderFeedbackItem) {
 }
 
 function hasReviewData(item: SignalDeciderFeedbackItem) {
-  return hasQualityVerdict(item) || hasReviewNarrative(item) || hasOutcomeReview(item);
+  return hasQualityVerdict(item) || hasOutcomeReview(item);
 }
 
 function getReviewRows(item: SignalDeciderFeedbackItem) {

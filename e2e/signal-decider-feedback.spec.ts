@@ -331,6 +331,10 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               thesis_summary: "Wait for confirmation after the opening print.",
               risk_flags: ["Volume confirmation missing"],
               policy_version: "decider-policy-2026.04",
+              evaluation: {
+                quality_reason: "Narrative-only review text is not result evidence.",
+                review_conclusion: "No verdict or realized outcome is stored yet.",
+              },
             },
             normalized_feedback: null,
             details: null,
@@ -422,6 +426,8 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(hynixCard.getByTestId("signal-decider-review-pending")).toContainText(
     "Verdict and realized outcome are not present",
   );
+  await expect(hynixCard).not.toContainText("Narrative-only review text is not result evidence.");
+  await expect(hynixCard).not.toContainText("No verdict or realized outcome is stored yet.");
   await expect(hynixCard).not.toContainText("[확인 필요]");
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
 
