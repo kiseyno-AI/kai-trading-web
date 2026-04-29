@@ -17,6 +17,12 @@ import {
   EOD_PIPELINE_STATUS_UPSTREAM_PATH,
 } from "@/lib/eod-pipeline-status";
 import {
+  buildExecutionRuntimeMarketDatePath,
+  EXECUTION_RUNTIME_DAILY_BOARD_UPSTREAM_PATH,
+  EXECUTION_RUNTIME_MONITORED_SYMBOLS_UPSTREAM_PATH,
+  EXECUTION_RUNTIME_STATUS_UPSTREAM_PATH,
+} from "@/lib/execution-runtime";
+import {
   buildSignalDeciderFeedbackPath,
   resolveSignalDeciderFeedbackResultLimit,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
@@ -32,6 +38,9 @@ import type {
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
   EodValueFactorsResponseDto,
+  ExecutionRuntimeDailyBoardResponseDto,
+  ExecutionRuntimeMonitoredSymbolsResponseDto,
+  ExecutionRuntimeStatusResponseDto,
   MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
@@ -108,16 +117,23 @@ export default async function DashboardPage() {
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
   let portfolioSummary: PortfolioSummaryDto | null = null;
+  let executionRuntimeStatus: ExecutionRuntimeStatusResponseDto | null = null;
+  let executionRuntimeMonitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null = null;
+  let executionRuntimeDailyBoard: ExecutionRuntimeDailyBoardResponseDto | null = null;
   let initialError: string | null = null;
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, freshness, portfolioSummary, marketSnapshot] = await Promise.all([
+    [market, tracked, freshness, portfolioSummary, marketSnapshot, executionRuntimeStatus] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
       fetchServerTradingApiJson<PortfolioSummaryDto>("/portfolio/summary", requestHeaders).catch(() => null),
       fetchServerTradingApiJson<MarketSnapshotResponseDto>("/market/snapshot", requestHeaders).catch(() => null),
+      fetchServerTradingApiJson<ExecutionRuntimeStatusResponseDto>(
+        EXECUTION_RUNTIME_STATUS_UPSTREAM_PATH,
+        requestHeaders,
+      ).catch(() => null),
     ]);
 
     const pipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
@@ -133,6 +149,7 @@ export default async function DashboardPage() {
       pipelineStatus,
       pipelineRequestMarketDate,
     );
+    const executionRuntimeMarketDate = pipelineRequestMarketDate;
 
     const progressPath = buildAgentFeedbackProgressPath(freshness);
     [
@@ -142,6 +159,8 @@ export default async function DashboardPage() {
       marketRiskStatus,
       scoringValueFactors,
       scoringMomentumFactors,
+      executionRuntimeMonitoredSymbols,
+      executionRuntimeDailyBoard,
     ] = await Promise.all([
       fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
         buildDartFundamentalsDailyInspectPath(
@@ -177,6 +196,20 @@ export default async function DashboardPage() {
             requestHeaders,
           ).catch(() => null)
         : Promise.resolve(null),
+      fetchServerTradingApiJson<ExecutionRuntimeMonitoredSymbolsResponseDto>(
+        buildExecutionRuntimeMarketDatePath(
+          EXECUTION_RUNTIME_MONITORED_SYMBOLS_UPSTREAM_PATH,
+          executionRuntimeMarketDate,
+        ),
+        requestHeaders,
+      ).catch(() => null),
+      fetchServerTradingApiJson<ExecutionRuntimeDailyBoardResponseDto>(
+        buildExecutionRuntimeMarketDatePath(
+          EXECUTION_RUNTIME_DAILY_BOARD_UPSTREAM_PATH,
+          executionRuntimeMarketDate,
+        ),
+        requestHeaders,
+      ).catch(() => null),
     ]);
 
     const signalDeciderMarketDate = getAgentFeedbackProgressMarketDate(freshness);
@@ -212,6 +245,9 @@ export default async function DashboardPage() {
       initialAgentFeedbackProgress={agentFeedbackProgress}
       initialSignalDeciderFeedback={signalDeciderFeedback}
       initialPortfolioSummary={portfolioSummary}
+      initialExecutionRuntimeStatus={executionRuntimeStatus}
+      initialExecutionRuntimeMonitoredSymbols={executionRuntimeMonitoredSymbols}
+      initialExecutionRuntimeDailyBoard={executionRuntimeDailyBoard}
     />
   );
 }

@@ -49,6 +49,18 @@ This document defines the first practical frontend contract for wiring `trading-
     - Until dedicated Core endpoints from `kai-trading-core#234` / `#235` land, this route remains backed by generic stored feedback rows rather than `GET /trading/decisions`, `GET /trading/decisions/{decision_id}`, or decision-policy registry APIs.
     - Status remains anchored to `/agent-context/feedback/progress` role counts when present: requested/completed/error counts produce completed, partial, needs-review, running, or waiting states. When Core omits role counts for `signal-decider`, the UI shows stored row counts and conservative waiting/completed states instead of inferring cycle completeness from row content.
     - This surface is decision support only. The dashboard card links out to the detail page and neither surface creates orders or enables live-trading behavior.
+  - `GET /execution/runtime/status`
+    - `/dashboard` renders the execution runtime summary from this core-owned read model only. The web does not call `kai-trading-exec` directly.
+    - The card treats `status` values `ready`, `degraded`, `offline`, `paused`, and `kill_switched` as operator-facing states, while still showing separate mode, connection, paused / kill-switch / automation, monitoring heartbeat recency, open order count, active execution job count, and issue details when Core supplies them.
+    - Runtime reads are uncached in the browser because liveness, heartbeat, open orders, and active jobs can change during the same session.
+  - `GET /execution/runtime/monitored-symbols?market_date=YYYY-MM-DD`
+    - `/dashboard` renders current monitored symbols from Core's grouped execution-runtime view. It displays compact labels for `watching_target_stop`, `watching_fill`, `reconciling`, and `idle`, plus symbol identity, market, planned intents, status-count summary, and last event timestamp when present.
+    - The request uses the active same-day market date resolved from `/eod/freshness.today.trade_date` and `/market/status.server_time`; it does not read exec service URLs or credentials from the browser.
+  - `GET /execution/runtime/daily-board?market_date=YYYY-MM-DD`
+    - `/dashboard` renders the same-day execution board from Core's merged planning/readback model. The board preserves planned, accepted, scheduled, submitted, partial, filled, failed, and cancelled statuses and keeps partial row data visible instead of collapsing the section when optional fields such as quantities, prices, or timestamps are absent.
+    - Rows display symbol/company, intent, status, filled/planned quantity, price basis, last update, and failure reason when present. The route remains read-only and does not create orders.
+  - `GET /execution/runtime/symbols/{symbol}?market_date=YYYY-MM-DD`
+    - The BFF exposes this core-owned per-symbol execution detail path for later symbol/review drilldown work. The dashboard does not yet render a drilldown from it, and the web still avoids direct exec calls.
   - `POST /agent-context/internal/core/control`
     - The D2 Agent Feedback stop confirmation posts through the Next.js BFF to this authenticated admin endpoint with `{ "action": "kill", "signal_name": "SIGKILL", "port": 8000 }`, allowing the existing dashboard stop flow to invoke the new core control API without exposing the upstream bearer token to the browser
   - `GET /disclosures/dart/fundamentals/daily/inspect`

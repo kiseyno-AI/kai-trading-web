@@ -8,6 +8,9 @@ import type {
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
   EodValueFactorsResponseDto,
+  ExecutionRuntimeDailyBoardResponseDto,
+  ExecutionRuntimeMonitoredSymbolsResponseDto,
+  ExecutionRuntimeStatusResponseDto,
   MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
@@ -67,6 +70,9 @@ export type LiveDashboardClientProps = {
   initialAgentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
   initialSignalDeciderFeedback: AgentFeedbackListResponseDto | null;
   initialPortfolioSummary: PortfolioSummaryDto | null;
+  initialExecutionRuntimeStatus: ExecutionRuntimeStatusResponseDto | null;
+  initialExecutionRuntimeMonitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null;
+  initialExecutionRuntimeDailyBoard: ExecutionRuntimeDailyBoardResponseDto | null;
 };
 
 export type DetailItem = {

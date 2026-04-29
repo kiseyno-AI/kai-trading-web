@@ -105,6 +105,10 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/agent-context/feedback` | `/agent-context/feedback` | `market_date`, optional `agent_name`, optional `limit` |
 | `GET` | `/api/trading/agent-context/feedback/progress` | `/agent-context/feedback/progress` | `market_date`, optional repeatable `symbols` |
 | `POST` | `/api/trading/agent-context/internal/core/control` | `/agent-context/internal/core/control` | JSON `{ "action": "kill", "signal_name": "SIGKILL", "port": 8000 }` |
+| `GET` | `/api/trading/execution/runtime/status` | `/execution/runtime/status` | optional `refresh` |
+| `GET` | `/api/trading/execution/runtime/monitored-symbols` | `/execution/runtime/monitored-symbols` | optional `market_date`, optional `refresh` |
+| `GET` | `/api/trading/execution/runtime/daily-board` | `/execution/runtime/daily-board` | optional `market_date`, optional `refresh` |
+| `GET` | `/api/trading/execution/runtime/symbols/{symbol}` | `/execution/runtime/symbols/{symbol}` | optional `market_date`, optional `refresh` |
 | `GET` | `/api/trading/eod/freshness` | `/eod/freshness` | — |
 | `GET` | `/api/trading/eod/momentum-factors` | `/eod/momentum-factors` | `market_date`, repeatable inspect `symbols`, optional `limit` |
 | `GET` | `/api/trading/eod/low-risk-factors` | `/eod/low-risk-factors` | `market_date`, optional `symbol`, optional `limit` |
@@ -148,7 +152,7 @@ Bots and some overview calls may still use **mock** implementations in the same 
 
 ## Browser API cache
 
-Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF reads. Successful GET responses for stored EOD data, stored DART fundamentals history, technical/action summaries, favorites/tracked-symbol metadata, symbol search, aggregate symbol context, and price bars are cached in `sessionStorage` for up to 1 hour, so the data clears when the browser session ends. Trending scanner reads are cached for 10 minutes. EOD freshness and DART daily inspect are daily batch-status surfaces cached for 10 minutes. Live quote, market-status, market-snapshot, agent feedback progress, and EOD pipeline-status paths stay uncached so polling continues to reflect current price, market-open state, KOSPI/KOSDAQ/FX/flow context, active agent processing, and live post-close stage progress.
+Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF reads. Successful GET responses for stored EOD data, stored DART fundamentals history, technical/action summaries, favorites/tracked-symbol metadata, symbol search, aggregate symbol context, and price bars are cached in `sessionStorage` for up to 1 hour, so the data clears when the browser session ends. Trending scanner reads are cached for 10 minutes. EOD freshness and DART daily inspect are daily batch-status surfaces cached for 10 minutes. Live quote, market-status, market-snapshot, execution-runtime, agent feedback progress, and EOD pipeline-status paths stay uncached so polling continues to reflect current price, market-open state, KOSPI/KOSDAQ/FX/flow context, exec liveness/order state, active agent processing, and live post-close stage progress.
 
 ---
 

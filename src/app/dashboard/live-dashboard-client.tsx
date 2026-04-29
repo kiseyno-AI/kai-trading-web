@@ -36,6 +36,7 @@ import {
   type PortfolioMetricModel,
   type PortfolioSummaryState,
 } from "@/features/portfolio/portfolio-display";
+import { ExecutionRuntimePanel } from "@/features/dashboard/execution-runtime-panel";
 import {
   getFundamentalsRunDate,
   getLatestAvailableFundamentalsCoverage,
@@ -1388,6 +1389,9 @@ export function LiveDashboardClient({
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
   initialPortfolioSummary,
+  initialExecutionRuntimeStatus,
+  initialExecutionRuntimeMonitoredSymbols,
+  initialExecutionRuntimeDailyBoard,
 }: LiveDashboardClientProps) {
   const { locale } = useAppState();
   const copy = getDashboardLiveCopy(locale);
@@ -1398,6 +1402,13 @@ export function LiveDashboardClient({
     agentFeedbackProgress,
     agentFeedbackProgressError,
     dashboardProcessMarketDate,
+    executionRuntimeDailyBoard,
+    executionRuntimeDailyBoardError,
+    executionRuntimeMarketDate,
+    executionRuntimeMonitoredSymbols,
+    executionRuntimeMonitoredSymbolsError,
+    executionRuntimeStatus,
+    executionRuntimeStatusError,
     freshness,
     fundamentalsStatus,
     market,
@@ -1441,6 +1452,9 @@ export function LiveDashboardClient({
     initialTracked,
     initialSignalDeciderFeedback,
     initialPortfolioSummary,
+    initialExecutionRuntimeStatus,
+    initialExecutionRuntimeMonitoredSymbols,
+    initialExecutionRuntimeDailyBoard,
   });
   const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
   const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
@@ -2138,6 +2152,18 @@ export function LiveDashboardClient({
               />
             </div>
           </div>
+
+          <ExecutionRuntimePanel
+            board={executionRuntimeDailyBoard}
+            boardError={executionRuntimeDailyBoardError}
+            copy={copy}
+            marketDate={executionRuntimeMarketDate}
+            monitoredSymbols={executionRuntimeMonitoredSymbols}
+            monitoredSymbolsError={executionRuntimeMonitoredSymbolsError}
+            numberLocale={numberLocale}
+            status={executionRuntimeStatus}
+            statusError={executionRuntimeStatusError}
+          />
         </section>
 
       </div>
