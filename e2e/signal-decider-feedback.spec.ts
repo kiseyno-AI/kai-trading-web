@@ -417,11 +417,16 @@ test("dashboard signal-decider card previews partial results and links to the de
     samsungRow.getByTestId("signal-decider-score-area"),
   );
 
-  await page.getByLabel("Signal-decider feedback filters").getByLabel("Verdict").selectOption("Missed Opportunity");
+  const filters = page.getByLabel("Signal-decider feedback filters");
+  await expect(filters.getByLabel("Verdict")).toHaveCount(0);
+  await expect(filters.getByLabel("Policy")).toHaveCount(0);
+
+  const actionFilter = filters.getByRole("combobox").first();
+  await actionFilter.selectOption("wait");
   await expect(page.locator("tr").filter({ hasText: "SK hynix" })).toBeVisible();
   await expect(page.locator("tr").filter({ hasText: "Samsung Electronics" })).toHaveCount(0);
 
-  await page.getByLabel("Signal-decider feedback filters").getByLabel("Verdict").selectOption("Weak Buy");
+  await actionFilter.selectOption("buy");
   await expect(samsungRow).toBeVisible();
   await samsungRow.getByRole("button", { name: "Review" }).click();
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("The buy worked intraday");
