@@ -40,7 +40,8 @@ test.describe("smoke", () => {
     await page.goto("/dashboard");
     await expect(page).toHaveTitle(/Trading Dashboard Home/i);
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(page.getByText(/Sovereign Desk/i)).toHaveCount(0);
   });
 

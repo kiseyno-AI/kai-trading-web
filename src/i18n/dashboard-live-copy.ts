@@ -10,10 +10,6 @@ const dashboardLiveCopy = {
       title: "Offline placeholder active",
       description: "Core feed unreachable. Showing placeholder values until the upstream endpoints recover.",
     },
-    insights: {
-      eyebrow: "Insight cockpit",
-      title: "Decider, portfolio, and market state",
-    },
     portfolioState: {
       eyebrow: "Personal assets",
       title: "Portfolio state",
@@ -289,10 +285,6 @@ const dashboardLiveCopy = {
       eyebrow: "코어 연결 불가",
       title: "오프라인 플레이스홀더 활성화",
       description: "코어 피드에 연결할 수 없어 업스트림 엔드포인트가 복구될 때까지 플레이스홀더 값을 표시합니다.",
-    },
-    insights: {
-      eyebrow: "인사이트 콕핏",
-      title: "디사이더, 포트폴리오, 마켓 상태",
     },
     portfolioState: {
       eyebrow: "개인 자산",

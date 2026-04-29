@@ -23,7 +23,7 @@ test.describe("dashboard mobile hero", () => {
     await expect(hero).toBeVisible();
     await expect(bottomNav).toBeVisible();
     await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
 
     const [viewport, topbarBox, heroBox] = await Promise.all([
       page.viewportSize(),
@@ -38,7 +38,7 @@ test.describe("dashboard mobile hero", () => {
     expect(topbarBox!.height).toBeLessThan(120);
     expect(heroBox!.y).toBeLessThan(viewport!.height - 40);
     expect(heroBox!.x).toBeGreaterThanOrEqual(0);
-    await expect(hero.getByText(/Insight cockpit/i)).toBeVisible();
+    await expect(hero.getByText(/Insight cockpit/i)).toHaveCount(0);
     await expect(hero.locator('[class*="supportingCopy"]')).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     const deciderCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });

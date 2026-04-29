@@ -97,7 +97,7 @@ test.describe("dashboard desktop", () => {
     await expect(desktopNav).toBeVisible();
     await expect(desktopNav.getByRole("link", { name: /Market Status/i })).toHaveCount(0);
     await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Market condition/i })).toBeVisible();
@@ -125,7 +125,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /KIS Risk/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
-    await expect(page.getByText(/Insight cockpit/i)).toBeVisible();
+    await expect(page.getByText(/Insight cockpit/i)).toHaveCount(0);
     await expect(page.locator('#dashboard-freshness [class*="supportingCopy"]')).toHaveCount(0);
     const deciderCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });
     await expect(deciderCard).toHaveCount(1);

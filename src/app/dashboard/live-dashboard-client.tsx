@@ -2021,18 +2021,11 @@ export function LiveDashboardClient({
           </section>
         ) : null}
 
-        <section className={`${styles.panel} ${styles.insightPanel}`} id="dashboard-freshness">
+        <section className={styles.primaryInsightsSection} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.primary-insights"
             api="/api/trading/agent-context/feedback + /api/trading/portfolio/summary + /api/trading/market/status + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters + grouped process monitor data"
           />
-
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.sectionEyebrow}>{copy.insights.eyebrow}</p>
-              <h1 className={styles.heroTitle}>{copy.insights.title}</h1>
-            </div>
-          </div>
 
           <ProcessMonitorTrigger
             copy={copy}
