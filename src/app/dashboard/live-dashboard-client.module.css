@@ -640,6 +640,35 @@
   background: rgba(10, 14, 19, 0.58);
 }
 
+.filterFinalCount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.78rem 0.82rem;
+  border: 1px solid rgba(111, 251, 190, 0.22);
+  border-radius: 0.65rem;
+  background: rgba(22, 54, 42, 0.44);
+}
+
+.filterFinalCount span {
+  min-width: 0;
+  color: var(--muted-soft);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.filterFinalCount strong {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 1.08rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: right;
+}
+
 .filterStageHeader {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

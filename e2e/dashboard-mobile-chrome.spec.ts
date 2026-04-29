@@ -693,12 +693,12 @@ test.describe("dashboard mobile chrome", () => {
     await expect(fundamentalsStage).toContainText(/Failed\s*1,406/);
     await expect(piotroskiSection).toContainText("Piotroski");
     await expect(piotroskiSection).toContainText("Completed");
-    await expect(piotroskiSection).toContainText(/Checked\s*3,583/);
-    await expect(piotroskiSection).toContainText(/Pass\s*132/);
+    await expect(piotroskiSection).toContainText(/Filtered\s*132/);
+    await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(marketRiskSection).toContainText("KIS Risk");
-    await expect(marketRiskSection).toContainText(/Pass\s*3,200/);
-    await expect(marketRiskSection).toContainText(/Watchlist\s*180/);
-    await expect(marketRiskSection).toContainText(/Fail\s*383/);
+    await expect(marketRiskSection).toContainText(/Filtered\s*3,200/);
+    await expect(marketRiskSection).not.toContainText(/Watchlist|Fail/);
+    await expect(filteringCard).toContainText(/Final filtered symbols\s*3,583/);
     await expect(agentFeedbackCard).not.toContainText("Latest Run");
     await expect(agentFeedbackCard).toContainText(agentReviewCompletedLabel);
     await expect(agentFeedbackCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);

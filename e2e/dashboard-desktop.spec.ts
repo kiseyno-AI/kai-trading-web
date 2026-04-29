@@ -857,11 +857,12 @@ test.describe("dashboard desktop", () => {
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-15/);
     await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-15");
-    await expect(piotroskiSection).toContainText(/Checked\s*2/);
-    await expect(piotroskiSection).toContainText(/Pass\s*1/);
+    await expect(piotroskiSection).toContainText(/Filtered\s*1/);
+    await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(marketRiskSection).toContainText("KIS Risk");
-    await expect(marketRiskSection).toContainText(/Watchlist\s*1/);
-    await expect(marketRiskSection).toContainText(/Fail\s*1/);
+    await expect(marketRiskSection).toContainText(/Filtered\s*1/);
+    await expect(marketRiskSection).not.toContainText(/Watchlist|Fail/);
+    await expect(filteringCard).toContainText(/Final filtered symbols\s*1/);
     await expect(filteringCard).not.toContainText("Requested");
 
     expect(searchRequests).toEqual([]);
@@ -1178,14 +1179,14 @@ test.describe("dashboard desktop", () => {
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
     await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-16");
-    await expect(piotroskiSection).toContainText(/Checked\s*4/);
-    await expect(piotroskiSection).toContainText(/Pass\s*4/);
+    await expect(piotroskiSection).toContainText(/Filtered\s*4/);
+    await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(piotroskiSection).toContainText("Requested 2026-04-16");
     await expect(piotroskiSection).toContainText("Latest available 2026-04-15");
-    await expect(marketRiskSection).toContainText(/Pass\s*3/);
-    await expect(marketRiskSection).toContainText(/Watchlist\s*1/);
-    await expect(marketRiskSection).toContainText(/Fail\s*1/);
+    await expect(marketRiskSection).toContainText(/Filtered\s*3/);
+    await expect(marketRiskSection).not.toContainText(/Watchlist|Fail/);
     await expect(marketRiskSection).toContainText("Requested 2026-04-16");
+    await expect(filteringCard).toContainText(/Final filtered symbols\s*3/);
 
     await filteringCard
       .getByRole("link", { name: /Open the full Piotroski filter pass list/i })
@@ -1574,7 +1575,7 @@ test.describe("dashboard desktop", () => {
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-24/);
     await expect(piotroskiSection).toContainText("Requested 2026-04-27");
     await expect(piotroskiSection).toContainText("Latest available 2026-04-24");
-    await expect(piotroskiSection).toContainText(/Pass\s*14/);
+    await expect(piotroskiSection).toContainText(/Filtered\s*14/);
     await expect(marketRiskSection).toContainText("Requested 2026-04-27");
 
     releaseSameDayResults();
@@ -1582,7 +1583,7 @@ test.describe("dashboard desktop", () => {
     await expect.poll(() => marketRiskRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
 
     await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-27/);
-    await expect(piotroskiSection).toContainText(/Pass\s*27/);
+    await expect(piotroskiSection).toContainText(/Filtered\s*27/);
     await expect(piotroskiSection).not.toContainText("Latest available 2026-04-24");
     await expect(piotroskiSection).not.toContainText("Requested 2026-04-27");
     await expect(marketRiskSection).not.toContainText(/Market date\s*2026-04-27/);
@@ -1934,10 +1935,10 @@ test.describe("dashboard desktop", () => {
     await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-15/);
     await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-15");
     await expect(piotroskiSection).toContainText("Completed");
-    await expect(piotroskiSection).toContainText(/Checked\s*2/);
-    await expect(piotroskiSection).toContainText(/Pass\s*1/);
-    await expect(marketRiskSection).toContainText(/Watchlist\s*1/);
-    await expect(marketRiskSection).toContainText(/Fail\s*1/);
+    await expect(piotroskiSection).toContainText(/Filtered\s*1/);
+    await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
+    await expect(marketRiskSection).toContainText(/Filtered\s*1/);
+    await expect(marketRiskSection).not.toContainText(/Watchlist|Fail/);
   });
 
   test("D2 EOD status shows break day on non-trading market days", async ({ page }) => {

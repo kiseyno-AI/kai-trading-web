@@ -260,6 +260,23 @@ function buildFilteringMetric(key: string, label: string, value: string): Filter
   return { key, label, value };
 }
 
+function getAgentFeedbackTargetSymbolCount(progress: AgentFeedbackProgressResponseDto | null | undefined) {
+  const requestedSymbolsCount = progress?.request.symbols?.length;
+  if (hasNumber(requestedSymbolsCount)) return requestedSymbolsCount;
+
+  return progress?.summary.total_symbols ?? null;
+}
+
+function getFinalFilteredSymbolCount({
+  agentFeedbackProgress,
+  marketRiskStatus,
+}: {
+  agentFeedbackProgress: AgentFeedbackProgressResponseDto | null | undefined;
+  marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
+}) {
+  return getAgentFeedbackTargetSymbolCount(agentFeedbackProgress) ?? marketRiskStatus?.summary.passed_count ?? null;
+}
+
 function buildPiotroskiFilteringStageModel({
   copy,
   numberLocale,
@@ -288,28 +305,19 @@ function buildPiotroskiFilteringStageModel({
     stageError: piotroskiStatusError,
     isLatestFallback: marketDateResolution.isLatestFallback,
   });
+  const filteredCountLabel = formatEodSymbolCount(piotroskiStatus?.summary.passed_count ?? null, numberLocale);
 
   return {
     key: "piotroski",
-    checkedCountLabel: formatEodSymbolCount(piotroskiStatus?.summary.entries ?? null, numberLocale),
     displayMarketDate,
     displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
+    filteredCountLabel,
     label: copy.operational.piotroskiSectionTitle,
     metrics: [
       buildFilteringMetric(
-        "checked",
-        copy.operational.checked,
-        formatEodSymbolCount(piotroskiStatus?.summary.entries ?? null, numberLocale),
-      ),
-      buildFilteringMetric(
-        "pass",
-        copy.operational.pass,
-        formatEodSymbolCount(piotroskiStatus?.summary.passed_count ?? null, numberLocale),
-      ),
-      buildFilteringMetric(
-        "not-pass",
-        copy.operational.notPass,
-        formatEodSymbolCount(piotroskiStatus?.summary.not_passed_count ?? null, numberLocale),
+        "filtered",
+        copy.operational.filtered,
+        filteredCountLabel,
       ),
     ],
     ...statusModel,
@@ -344,33 +352,19 @@ function buildMarketRiskFilteringStageModel({
     stageError: marketRiskStatusError,
     isLatestFallback: marketDateResolution.isLatestFallback,
   });
+  const filteredCountLabel = formatEodSymbolCount(marketRiskStatus?.summary.passed_count ?? null, numberLocale);
 
   return {
     key: "kis-risk",
-    checkedCountLabel: formatEodSymbolCount(marketRiskStatus?.summary.entries ?? null, numberLocale),
     displayMarketDate,
     displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
+    filteredCountLabel,
     label: copy.operational.kisRiskSectionTitle,
     metrics: [
       buildFilteringMetric(
-        "checked",
-        copy.operational.checked,
-        formatEodSymbolCount(marketRiskStatus?.summary.entries ?? null, numberLocale),
-      ),
-      buildFilteringMetric(
-        "pass",
-        copy.operational.pass,
-        formatEodSymbolCount(marketRiskStatus?.summary.passed_count ?? null, numberLocale),
-      ),
-      buildFilteringMetric(
-        "watchlist",
-        copy.operational.watchlist,
-        formatEodSymbolCount(marketRiskStatus?.summary.watchlist_count ?? null, numberLocale),
-      ),
-      buildFilteringMetric(
-        "fail",
-        copy.operational.fail,
-        formatEodSymbolCount(marketRiskStatus?.summary.failed_count ?? null, numberLocale),
+        "filtered",
+        copy.operational.filtered,
+        filteredCountLabel,
       ),
     ],
     ...statusModel,
@@ -378,6 +372,7 @@ function buildMarketRiskFilteringStageModel({
 }
 
 export function buildFilteringCardModel({
+  agentFeedbackProgress,
   copy,
   marketRiskStatus,
   marketRiskStatusError,
@@ -388,6 +383,7 @@ export function buildFilteringCardModel({
   piotroskiStatusError,
   piotroskiStatusLoadState,
 }: {
+  agentFeedbackProgress?: AgentFeedbackProgressResponseDto | null;
   copy: DashboardLiveCopy;
   marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
   marketRiskStatusError: string | null;
@@ -414,8 +410,13 @@ export function buildFilteringCardModel({
     numberLocale,
     requestedMarketDate: piotroskiMarketDate,
   });
+  const finalFilteredCountLabel = formatEodSymbolCount(
+    getFinalFilteredSymbolCount({ agentFeedbackProgress, marketRiskStatus }),
+    numberLocale,
+  );
 
   return {
+    finalFilteredCountLabel,
     piotroskiDisplayMarketDate: piotroskiStage.displayMarketDate,
     stages: [piotroskiStage, marketRiskStage],
   };
@@ -541,7 +542,7 @@ function buildFilteringProcessMonitorStep(
     label: stage.label,
     status,
     statusLabel: getProcessMonitorStatusLabel(status, copy),
-    progressLabel: stage.checkedCountLabel,
+    progressLabel: stage.filteredCountLabel,
     progressPercent: getProcessMonitorStatusProgressPercent(status),
     metrics,
     note: stage.note,
