@@ -89,6 +89,7 @@ import type {
   AgentRoleStatus,
   EodStageCard,
   FilteringCardModel,
+  FilteringStageModel,
   FundamentalsUpdatedActivityModel,
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
@@ -351,6 +352,13 @@ type FilteringCardProps = {
   patchDate: string | null;
 };
 
+function getFilteringStatusIconClassName(status: FilteringStageModel["status"]) {
+  if (status === "completed") return styles.syncedStatusIcon;
+  if (status === "loading") return styles.filterLoadingStatusIcon;
+  if (status === "needs-review") return styles.filterNeedsReviewStatusIcon;
+  return styles.filterPendingStatusIcon;
+}
+
 const FilteringCard = memo(function FilteringCard({
   copy,
   filteringCardModel,
@@ -375,12 +383,14 @@ const FilteringCard = memo(function FilteringCard({
       <div className={styles.filterStageList}>
         {filteringCardModel.stages.map((stage) => {
           const displayMarketDateContext = getExceptionDateLabel(stage.displayMarketDate, patchDate);
+          const statusIconClassName = getFilteringStatusIconClassName(stage.status);
 
           return (
             <section
               key={stage.key}
               className={styles.filterStageSection}
               data-filter-stage={stage.key}
+              data-filter-status={stage.status}
               aria-label={`${stage.label} filtering status`}
             >
               <div className={styles.filterStageHeader}>
@@ -392,7 +402,13 @@ const FilteringCard = memo(function FilteringCard({
                     </p>
                   ) : null}
                 </div>
-                <span className={`pill ${stage.statusTone}`}>{stage.statusLabel}</span>
+                <span
+                  className={`${styles.statusIconBadge} ${styles.filterStatusIcon} ${statusIconClassName}`}
+                  title={stage.statusLabel}
+                  data-filter-status-badge={stage.status}
+                  role="img"
+                  aria-label={stage.statusLabel}
+                />
               </div>
 
               <div className={styles.statusMetricGrid}>

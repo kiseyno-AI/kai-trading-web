@@ -133,6 +133,8 @@ export type FilteringStageMetric = {
   value: string;
 };
 
+export type FilteringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
+
 export type FilteringStageModel = {
   key: "piotroski" | "kis-risk";
   displayMarketDate: string | null;
@@ -141,6 +143,7 @@ export type FilteringStageModel = {
   label: string;
   metrics: FilteringStageMetric[];
   note: string | null;
+  status: FilteringStageStatus;
   statusLabel: string;
   statusTone: "positive" | "neutral" | "warning";
 };

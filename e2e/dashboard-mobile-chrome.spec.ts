@@ -10,6 +10,17 @@ const agentFeedbackStopButtonLabel = /Stop|중단/;
 const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트 피드백 실행을 중단할까요\?/;
 const yesLabel = /Yes|예/;
 
+type FilteringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
+
+async function expectFilteringStageStatusIcon(stage: Locator, status: FilteringStageStatus, label: string) {
+  await expect(stage).toHaveAttribute("data-filter-status", status);
+  const badge = stage.locator(`[data-filter-status-badge="${status}"]`);
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText("");
+  await expect(stage.getByRole("img", { name: new RegExp(`^${label}$`, "i") })).toBeVisible();
+  await expect(stage).not.toContainText(label);
+}
+
 async function openProcessMonitorDrawer(page: Page) {
   const drawer = page.getByRole("dialog", { name: /Daily process monitor/i });
   if (await drawer.isVisible().catch(() => false)) {
@@ -692,10 +703,11 @@ test.describe("dashboard mobile chrome", () => {
     await expect(priceStage).toContainText(/Failed\s*13/);
     await expect(fundamentalsStage).toContainText(/Failed\s*1,406/);
     await expect(piotroskiSection).toContainText("Piotroski");
-    await expect(piotroskiSection).toContainText("Completed");
+    await expectFilteringStageStatusIcon(piotroskiSection, "completed", "Completed");
     await expect(piotroskiSection).toContainText(/Filtered\s*132/);
     await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(marketRiskSection).toContainText("KIS Risk");
+    await expectFilteringStageStatusIcon(marketRiskSection, "completed", "Completed");
     await expect(marketRiskSection).toContainText(/Filtered\s*3,200/);
     await expect(marketRiskSection).not.toContainText(/Watchlist|Fail/);
     await expect(filteringCard).toContainText(/Final filtered symbols\s*3,583/);
