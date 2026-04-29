@@ -2317,7 +2317,7 @@ test.describe("dashboard desktop", () => {
     await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
-    await expectEodStageStatus(actionStage, "not synced");
+    await expectEodStageStatus(actionStage, "break day");
     await expect(actionStage.getByText("Latest date")).toHaveCount(0);
 
     const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
@@ -2325,7 +2325,7 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage.getByText("Latest date")).toHaveCount(0);
   });
 
-  test("D2 EOD status keeps missing weekend stages as not synced while fundamentals retains latest coverage", async ({
+  test("D2 EOD status resolves latest-available weekend stages while preserving explicit failed stages", async ({
     page,
   }) => {
     const now = "2026-04-18T10:00:00+09:00";
@@ -2458,7 +2458,7 @@ test.describe("dashboard desktop", () => {
     await expectEodStageStatus(priceStage, "not synced");
 
     const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
-    await expectEodStageStatus(technicalStage, "not synced");
+    await expectEodStageStatus(technicalStage, "break day");
     await expect(technicalStage.getByText("Latest date")).toHaveCount(0);
 
     const actionStage = page.locator('[aria-label="Action Summary freshness"]');
