@@ -1309,7 +1309,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
         data-process-status={model.status}
         data-process-summary-mode={showLoadingSummary ? "loading" : "progress"}
       >
-        <span>{model.statusLabel}</span>
+        {showLoadingSummary ? null : <span>{model.statusLabel}</span>}
         {showLoadingSummary ? (
           <strong className={styles.processMonitorLoadingValue} aria-label={model.statusLabel}>
             <span className={styles.processMonitorLoadingSpinner} aria-hidden="true" />
