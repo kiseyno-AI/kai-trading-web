@@ -267,19 +267,6 @@
   white-space: nowrap;
 }
 
-.processMonitorEyebrow {
-  color: var(--accent);
-  font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  line-height: 1.1;
-  text-transform: uppercase;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .processMonitorCurrent {
   color: var(--muted-soft);
   font-size: 0.72rem;

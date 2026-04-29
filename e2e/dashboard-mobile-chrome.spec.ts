@@ -435,6 +435,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(processBar).toHaveAttribute("data-process-monitor-status", "running");
     await expect(processBar).toHaveAccessibleName(/\(Running\)$/);
     await expect(processBar).not.toHaveAccessibleName(/\d+\s*\/\s*\d+/);
+    await expect(processBar).not.toContainText(/Patch\s*\/\s*Filter(?:\s*\/\s*Scoring)?\s*\/\s*Agent Feedback/);
 
     const loadingSummary = processBar.locator('[data-process-summary-mode="loading"]');
     await expect(loadingSummary).toBeVisible();
