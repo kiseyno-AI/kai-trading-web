@@ -422,6 +422,7 @@ Rules:
 - this is decision support only
 - no order placement behavior
 - if verdict/outcome review fields are absent, decision data like thesis / target / stop must still show
+- missing review verdict/outcome must be shown as pending review data, not as a synthetic unknown verdict
 
 ---
 
@@ -498,6 +499,7 @@ Expected displayed row data where present:
 Rules:
 
 - if review/evaluation fields do not exist, the page must still show stored decision fields instead of degrading the entire row to unknown
+- decision data and review/result data must be visually separated so pending review data cannot be confused with the stored decision
 - no synthetic realized outcomes from unrelated market data
 - no execution actions
 

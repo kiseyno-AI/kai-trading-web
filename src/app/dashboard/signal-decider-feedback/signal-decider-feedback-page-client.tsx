@@ -32,6 +32,8 @@ import type {
 import styles from "./signal-decider-feedback-page.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
+const REVIEW_PENDING_LABEL = "Review pending";
+const REVIEW_PENDING_MESSAGE = "Verdict and realized outcome are not present in the stored feedback payload yet.";
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type SortMode = "priority" | "symbol" | "confidence" | "captured";
@@ -119,11 +121,13 @@ function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
 }
 
 function getDecisionQualityDisplayLabel(item: SignalDeciderFeedbackItem) {
-  return getDecisionQualityLabel(item) ?? UNKNOWN_LABEL;
+  return getDecisionQualityLabel(item) ?? REVIEW_PENDING_LABEL;
 }
 
 function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
-  if (item.outcomeHorizons.length === 0) return UNKNOWN_LABEL;
+  if (item.outcomeHorizons.length === 0) {
+    return item.pathOutcome?.label ?? item.intradayPathResult ?? REVIEW_PENDING_LABEL;
+  }
 
   return item.outcomeHorizons
     .slice(0, 2)
@@ -144,10 +148,29 @@ function formatExpectedReturnValue(value: number | null) {
 }
 
 function getDecisionPlanRows(item: SignalDeciderFeedbackItem) {
+  const actionRows = [
+    {
+      label: item.nextDayOpenAction !== "unknown" ? "Next-day action" : "Preferred action",
+      value: item.actionLabel,
+    },
+  ];
+
+  if (item.preferredAction !== "unknown" && item.preferredAction !== item.action) {
+    actionRows.push({
+      label: "Preferred action",
+      value: item.preferredActionLabel,
+    });
+  }
+
   return [
+    ...actionRows,
     { label: "Target", value: formatCurrencyValue(item.targetPrice) },
-    { label: "Stop", value: formatCurrencyValue(item.stopLossPrice) },
-    { label: "Expected return", value: formatExpectedReturnValue(item.expectedReturnPct) },
+    { label: "Stop-loss", value: formatCurrencyValue(item.stopLossPrice) },
+    ...(item.expectedReturnPct !== null
+      ? [{ label: "Expected return", value: formatExpectedReturnValue(item.expectedReturnPct) }]
+      : []),
+    ...(item.entryPriceBasis ? [{ label: "Entry basis", value: item.entryPriceBasis }] : []),
+    ...(item.suggestedHoldingPeriod ? [{ label: "Holding period", value: item.suggestedHoldingPeriod }] : []),
   ];
 }
 
@@ -176,6 +199,35 @@ function getTraceSummaryParts(item: SignalDeciderFeedbackItem) {
     item.gateResults.length > 0 ? `${item.gateResults.length} gates` : null,
     item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} evidence` : null,
   ].filter((part): part is string => part !== null);
+}
+
+function hasQualityVerdict(item: SignalDeciderFeedbackItem) {
+  return hasTextValue(getDecisionQualityLabel(item));
+}
+
+function hasReviewNarrative(item: SignalDeciderFeedbackItem) {
+  return hasTextValue(item.qualityReason) || hasTextValue(item.reviewConclusion);
+}
+
+function hasOutcomeReview(item: SignalDeciderFeedbackItem) {
+  return item.outcomeHorizons.length > 0 || item.pathOutcome !== null || hasTextValue(item.intradayPathResult);
+}
+
+function hasReviewData(item: SignalDeciderFeedbackItem) {
+  return hasQualityVerdict(item) || hasReviewNarrative(item) || hasOutcomeReview(item);
+}
+
+function getReviewRows(item: SignalDeciderFeedbackItem) {
+  return [
+    ...(hasQualityVerdict(item) ? [{ label: "Verdict", value: getDecisionQualityDisplayLabel(item) }] : []),
+    ...(hasOutcomeReview(item) ? [{ label: "Outcome", value: formatOutcomeSummary(item) }] : []),
+  ];
+}
+
+function getReviewNotes(item: SignalDeciderFeedbackItem) {
+  return [item.reviewConclusion, item.qualityReason].filter(
+    (note, index, notes): note is string => hasTextValue(note) && notes.indexOf(note) === index,
+  );
 }
 
 function buildSymbolHref(item: SignalDeciderFeedbackItem) {
@@ -495,8 +547,9 @@ export default function SignalDeciderFeedbackPageClient() {
           ) : visibleItems.length > 0 ? (
             <div className={styles.resultsList} aria-label="Signal-decider feedback results">
               {visibleItems.map((item) => {
-                const decisionQualityLabel = getDecisionQualityDisplayLabel(item);
                 const traceSummaryParts = getTraceSummaryParts(item);
+                const reviewRows = getReviewRows(item);
+                const reviewNotes = getReviewNotes(item);
 
                 return (
                   <article
@@ -512,40 +565,76 @@ export default function SignalDeciderFeedbackPageClient() {
                       </Link>
                       <div className={styles.resultBadges}>
                         <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
-                        <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
-                          {decisionQualityLabel}
-                        </span>
+                        {getDecisionQualityLabel(item) ? (
+                          <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
+                            {getDecisionQualityDisplayLabel(item)}
+                          </span>
+                        ) : null}
                       </div>
                     </header>
 
-                    <div className={styles.resultMetricGrid}>
-                      <div className={styles.scoreStack} data-testid="signal-decider-score-area">
-                        <span>
-                          <span>Conviction</span>
-                          <strong>{formatScore(item.convictionScore)}</strong>
-                        </span>
-                        <span>
-                          <span>Confidence</span>
-                          <strong>{formatScore(item.confidenceScore)}</strong>
-                        </span>
+                    <section className={styles.resultDecisionSection}>
+                      <div className={styles.resultSectionHeader}>
+                        <span>Decision</span>
+                        <strong>Stored signal</strong>
                       </div>
-                      <div className={styles.resultMetric}>
-                        <span>Outcome</span>
-                        <strong>{formatOutcomeSummary(item)}</strong>
+                      <div className={styles.resultMetricGrid}>
+                        <div className={styles.scoreStack} data-testid="signal-decider-score-area">
+                          <span>
+                            <span>Conviction</span>
+                            <strong>{formatScore(item.convictionScore)}</strong>
+                          </span>
+                          <span>
+                            <span>Confidence</span>
+                            <strong>{formatScore(item.confidenceScore)}</strong>
+                          </span>
+                        </div>
+                        {getDecisionPlanRows(item).map((row) => (
+                          <div key={row.label} className={styles.resultMetric}>
+                            <span>{row.label}</span>
+                            <strong>{row.value}</strong>
+                          </div>
+                        ))}
                       </div>
-                      <div className={styles.resultMetric}>
-                        <span>Policy</span>
-                        <strong>{item.policyVersion ?? UNKNOWN_LABEL}</strong>
-                      </div>
-                      <div className={styles.resultMetric}>
-                        <span>Captured</span>
-                        <strong>{formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</strong>
-                      </div>
-                    </div>
+                      <section className={styles.resultThesis}>
+                        <span>Thesis</span>
+                        <p>{item.thesisSummary ?? UNKNOWN_LABEL}</p>
+                      </section>
+                    </section>
 
-                    <section className={styles.resultThesis}>
-                      <span>Thesis</span>
-                      <p>{item.thesisSummary ?? UNKNOWN_LABEL}</p>
+                    <section className={styles.resultReviewSection}>
+                      <div className={styles.resultSectionHeader}>
+                        <span>Review</span>
+                        <strong>{hasReviewData(item) ? "Result evidence" : REVIEW_PENDING_LABEL}</strong>
+                      </div>
+                      {hasReviewData(item) ? (
+                        <>
+                          {reviewRows.length > 0 ? (
+                            <div className={styles.resultMetricGrid}>
+                              {reviewRows.map((row) => (
+                                <div key={row.label} className={styles.resultMetric}>
+                                  <span>{row.label}</span>
+                                  <strong>{row.value}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {reviewNotes.map((note) => (
+                            <p key={note} className={styles.reviewNote}>
+                              {note}
+                            </p>
+                          ))}
+                        </>
+                      ) : (
+                        <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
+                          <strong>{REVIEW_PENDING_LABEL}</strong>
+                          <p>{REVIEW_PENDING_MESSAGE}</p>
+                        </div>
+                      )}
+                      <div className={styles.resultMetaRow}>
+                        <span>Captured {formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</span>
+                        {item.policyVersion ? <span>Policy {item.policyVersion}</span> : null}
+                      </div>
                     </section>
 
                     <footer className={styles.resultFooter}>
@@ -611,9 +700,11 @@ export default function SignalDeciderFeedbackPageClient() {
                       <h3>Action plan</h3>
                     </div>
                     <div className={styles.decisionHero}>
-                      <span className={`pill ${getActionToneClass(selectedItem.action)}`}>{selectedItem.actionLabel}</span>
-                      <strong>{formatExpectedReturnValue(selectedItem.expectedReturnPct)}</strong>
-                      <span>Expected return</span>
+                      <strong>{selectedItem.actionLabel}</strong>
+                      <span>{selectedItem.nextDayOpenAction !== "unknown" ? "Next-day action" : "Preferred action"}</span>
+                      {selectedItem.expectedReturnPct !== null ? (
+                        <p>Expected return {formatExpectedReturnValue(selectedItem.expectedReturnPct)}</p>
+                      ) : null}
                     </div>
                     <dl className={styles.metricList}>
                       <div>
@@ -651,33 +742,64 @@ export default function SignalDeciderFeedbackPageClient() {
 
                 <div className={styles.detailMain}>
                   <section className={`${styles.detailSection} ${styles.thesisSection}`}>
-                    <h3>Thesis</h3>
+                    <h3>Decision thesis</h3>
                     <p>{selectedItem.thesisSummary ?? UNKNOWN_LABEL}</p>
-                    {selectedItem.qualityReason ? <p>{selectedItem.qualityReason}</p> : null}
                   </section>
 
-                  <section className={styles.detailSection}>
-                    <h3>Realized result</h3>
-                    {selectedItem.outcomeHorizons.length > 0 ? (
-                      <div className={styles.outcomeGrid}>
-                        {selectedItem.outcomeHorizons.map((outcome) => (
-                          <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
-                            <span>{outcome.horizon}</span>
-                            <strong>{formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? UNKNOWN_LABEL}</strong>
+                  <section className={`${styles.detailSection} ${styles.reviewDetailSection}`}>
+                    <h3>Review / result</h3>
+                    {hasReviewData(selectedItem) ? (
+                      <>
+                        {hasQualityVerdict(selectedItem) || hasReviewNarrative(selectedItem) ? (
+                          <div className={styles.reviewVerdictBlock}>
+                            {hasQualityVerdict(selectedItem) ? (
+                              <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
+                                {getDecisionQualityDisplayLabel(selectedItem)}
+                              </span>
+                            ) : null}
                             <p>
-                              {[
-                                outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
-                                outcome.verdict,
-                                outcome.notes,
-                              ]
-                                .filter((part): part is string => hasTextValue(part))
-                                .join(" · ") || UNKNOWN_LABEL}
+                              {selectedItem.reviewConclusion ??
+                                selectedItem.qualityReason ??
+                                getDecisionQualityDisplayLabel(selectedItem)}
                             </p>
+                            {selectedItem.qualityReason && selectedItem.qualityReason !== selectedItem.reviewConclusion ? (
+                              <p>{selectedItem.qualityReason}</p>
+                            ) : null}
                           </div>
-                        ))}
-                      </div>
+                        ) : null}
+                        {selectedItem.outcomeHorizons.length > 0 ? (
+                          <div className={styles.outcomeGrid}>
+                            {selectedItem.outcomeHorizons.map((outcome) => (
+                              <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
+                                <span>{outcome.horizon}</span>
+                                <strong>{formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? "Recorded"}</strong>
+                                <p>
+                                  {[
+                                    outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
+                                    outcome.verdict,
+                                    outcome.notes,
+                                  ]
+                                    .filter((part): part is string => hasTextValue(part))
+                                    .join(" · ") || "Outcome details recorded without additional notes."}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : hasOutcomeReview(selectedItem) ? (
+                          <p>
+                            {selectedItem.pathOutcome?.detail ??
+                              selectedItem.pathOutcome?.label ??
+                              selectedItem.intradayPathResult}
+                          </p>
+                        ) : (
+                          <p className={styles.detailEmpty}>Realized outcome is not present in this row yet.</p>
+                        )}
+                      </>
                     ) : (
-                      <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+                      <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
+                        <strong>{REVIEW_PENDING_LABEL}</strong>
+                        <p>{REVIEW_PENDING_MESSAGE}</p>
+                      </div>
                     )}
                   </section>
 
