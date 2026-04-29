@@ -199,6 +199,10 @@ const factorPayloads = {
         pbr: 1.4,
         dividend_yield: 0.025,
         per_status: "available",
+        pbr_status: "available",
+        dividend_yield_status: "available",
+        fcf_yield_status: "available",
+        ev_to_ebitda_status: "available",
         per_rank: 42,
         pbr_rank: 38,
         dividend_yield_rank: 19,
@@ -209,6 +213,10 @@ const factorPayloads = {
         value_rank: 9,
         value_percentile: 0.91,
         value_status: "scored",
+        unified_value_score: 0.88,
+        unified_value_rank: 7,
+        unified_value_percentile: 0.94,
+        unified_value_status: "scored",
         factor_payload: null,
         captured_at: null,
       },
@@ -612,6 +620,12 @@ test("factor screening supports switching, eligibility filtering, composite plac
   await page.getByRole("button", { name: /Low risk/i }).click();
   await expect(page.getByText("Low-risk score").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /Unified value/i }).click();
+  await expect(page.getByText("Unified value score").first()).toBeVisible();
+  await expect(page.getByText("Unified rank").first()).toBeVisible();
+  await expect(page.getByText("Overall status").first()).toBeVisible();
+  await expect(page.getByText(/EV \/ EBITDA: Available/i)).toBeVisible();
 
   await page.getByRole("button", { name: /Composite/i }).click();
   await expect(page.getByText(/Composite ranking slot reserved/i)).toBeVisible();

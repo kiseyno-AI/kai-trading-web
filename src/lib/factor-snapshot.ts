@@ -44,7 +44,7 @@ export const FACTOR_STATUS_LABELS: Record<string, string> = {
   insufficient_fundamentals: "Insufficient fundamentals",
   missing_market_date_bar: "Missing market-date bar",
   missing_metric: "Missing metric",
-  invalid_per: "Invalid PER",
+  invalid_per: "PER excluded",
   liquidity_excluded: "Liquidity excluded",
   ineligible: "Ineligible",
   overheated: "Overheated",
@@ -77,13 +77,13 @@ export const FACTOR_FAMILY_META: Record<
   },
   value: {
     api: "/api/trading/eod/value-factors",
-    subtitle: "PER, PBR, and dividend yield cross-sectional ranks",
-    title: "Value",
+    subtitle: "Unified valuation score with PER, PBR, dividend yield, FCF yield, and EV / EBITDA context",
+    title: "Unified value",
   },
   advancedValue: {
     api: "/api/trading/eod/advanced-value-factors",
-    subtitle: "FCF yield plus EV / EBITDA from stored DART fundamentals",
-    title: "Advanced value",
+    subtitle: "FCF yield plus EV / EBITDA component view from stored DART fundamentals",
+    title: "Advanced value components",
   },
 };
 
@@ -141,6 +141,34 @@ function normalizeSymbol(value: string) {
   return value.trim().toUpperCase();
 }
 
+function hasNumber(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+type UnifiedValueFieldSource = {
+  unified_value_score?: number | null;
+  unified_value_rank?: number | null;
+  unified_value_percentile?: number | null;
+  unified_value_status?: string | null;
+};
+
+export function hasUnifiedValueFields(item: UnifiedValueFieldSource | null | undefined) {
+  if (!item) return false;
+
+  return (
+    hasNumber(item.unified_value_score) ||
+    hasNumber(item.unified_value_rank) ||
+    hasNumber(item.unified_value_percentile) ||
+    Boolean(item.unified_value_status?.trim())
+  );
+}
+
+export function resolveUnifiedValueStatusCode(item: UnifiedValueFieldSource | null | undefined) {
+  const explicitStatus = item?.unified_value_status?.trim();
+  if (explicitStatus) return explicitStatus;
+  return hasUnifiedValueFields(item) ? "scored" : null;
+}
+
 function buildSymbolFactorPath(pathname: string, marketDate: string, symbol: string, symbolParamName: string) {
   const params = new URLSearchParams();
   params.set("market_date", marketDate);
@@ -177,6 +205,27 @@ export function buildFactorInspectPath(family: FactorFamilyId, options: { market
 
 export function getFactorStatusLabel(code: string) {
   return FACTOR_STATUS_LABELS[code] ?? code;
+}
+
+export function getUnifiedValueStatusDescriptor(
+  statusCode: string | null | undefined,
+): FactorStatusDescriptor {
+  switch (statusCode) {
+    case "scored":
+      return { code: "scored", tone: "positive" };
+    case "watchlist":
+      return { code: "watchlist", tone: "info" };
+    case "ineligible":
+      return { code: "ineligible", tone: "negative" };
+    case "invalid_per":
+    case "missing_metric":
+    case "insufficient_components":
+    case "insufficient_fundamentals":
+    case "missing_market_date_bar":
+      return { code: statusCode, tone: "warning" };
+    default:
+      return { code: statusCode?.trim() || "unavailable", tone: "warning" };
+  }
 }
 
 export function extractFactorInspectItems<T extends { symbol: string }>(
@@ -384,6 +433,10 @@ export function getValueFactorStatusDescriptor(
   item: EodValueFactorItemDto | null,
 ): FactorStatusDescriptor {
   if (!item) return { code: "unavailable", tone: "warning" };
+
+  if (hasUnifiedValueFields(item)) {
+    return getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item));
+  }
 
   switch (item.value_status) {
     case "scored":

@@ -7,10 +7,14 @@ import {
   extractFactorInspectItems,
   getAdvancedValueFactorStatusDescriptor,
   getBetaFactorStatusDescriptor,
+  getFactorStatusLabel,
   getLowRiskFactorStatusDescriptor,
   getMomentumFactorStatusDescriptor,
+  getUnifiedValueStatusDescriptor,
   getValueFactorStatusDescriptor,
+  hasUnifiedValueFields,
   pickFactorInspectItem,
+  resolveUnifiedValueStatusCode,
 } from "./factor-snapshot";
 
 test("buildFactorInspectPath uses the core read contract for each factor family", () => {
@@ -70,7 +74,7 @@ test("buildFactorFamilySnapshotResult keeps per-family HTTP failures isolated", 
     "2026-04-24",
     "005930",
     "/api/trading/eod/beta-factors?market_date=2026-04-24&symbol=005930",
-    { ok: false, status: 502 },
+    { ok: false, message: null, status: 502 },
   );
 
   assert.deepEqual(snapshot, {
@@ -183,6 +187,40 @@ test("factor status helpers preserve explainable family-specific states", () => 
     }),
     { code: "invalid_per", tone: "warning" },
   );
+
+  const unifiedValueItem = {
+    symbol: "005930",
+    market_date: "2026-04-24",
+    per: -4.2,
+    pbr: 1.1,
+    dividend_yield: 0.021,
+    per_status: "invalid_non_positive",
+    per_rank: null,
+    pbr_rank: 35,
+    dividend_yield_rank: 12,
+    per_percentile: null,
+    pbr_percentile: 0.79,
+    dividend_yield_percentile: 0.95,
+    value_score: null,
+    value_rank: null,
+    value_percentile: null,
+    value_status: "invalid_per",
+    unified_value_score: null,
+    unified_value_rank: null,
+    unified_value_percentile: null,
+    unified_value_status: "invalid_per",
+    factor_payload: null,
+    captured_at: null,
+  };
+
+  assert.equal(hasUnifiedValueFields(unifiedValueItem), true);
+  assert.equal(resolveUnifiedValueStatusCode(unifiedValueItem), "invalid_per");
+  assert.deepEqual(getValueFactorStatusDescriptor(unifiedValueItem), { code: "invalid_per", tone: "warning" });
+  assert.deepEqual(getUnifiedValueStatusDescriptor("insufficient_fundamentals"), {
+    code: "insufficient_fundamentals",
+    tone: "warning",
+  });
+  assert.equal(getFactorStatusLabel("invalid_per"), "PER excluded");
 
   assert.deepEqual(
     getAdvancedValueFactorStatusDescriptor({

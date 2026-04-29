@@ -953,6 +953,10 @@ test.describe("symbol detail desktop", () => {
             pbr: 1.24,
             dividend_yield: 0.021,
             per_status: "available",
+            pbr_status: "available",
+            dividend_yield_status: "available",
+            fcf_yield_status: "available",
+            ev_to_ebitda_status: "available",
             per_rank: 120,
             pbr_rank: 96,
             dividend_yield_rank: 48,
@@ -963,10 +967,17 @@ test.describe("symbol detail desktop", () => {
             value_rank: 54,
             value_percentile: 0.86,
             value_status: "scored",
+            unified_value_score: 0.812,
+            unified_value_rank: 34,
+            unified_value_percentile: 0.9,
+            unified_value_status: "scored",
             factor_payload: {
               metric_statuses: {
+                per: "available",
                 pbr: "available",
                 dividend_yield: "available",
+                fcf_yield: "available",
+                ev_to_ebitda: "available",
               },
             },
             captured_at: `${marketDate}T16:20:00+09:00`,
@@ -1029,13 +1040,17 @@ test.describe("symbol detail desktop", () => {
     await expect(betaCard).toContainText("Eligible");
 
     const valueCard = factorSection.locator("article").filter({
-      has: page.getByText("Value", { exact: true }),
+      has: page.getByText("Unified value", { exact: true }),
     });
     await expect(valueCard).toContainText("Scored");
-    await expect(valueCard).toContainText("76.3%");
+    await expect(valueCard).toContainText("Unified value score");
+    await expect(valueCard).toContainText("Overall status");
+    await expect(valueCard).toContainText("81.2%");
+    await expect(valueCard).toContainText("PER: Available");
+    await expect(valueCard).toContainText("EV / EBITDA: Available");
 
     const advancedValueCard = factorSection.locator("article").filter({
-      has: page.getByText("Advanced value", { exact: true }),
+      has: page.getByText("Advanced value components", { exact: true }),
     });
     await expect(advancedValueCard).toContainText("No row");
     await expect(advancedValueCard).toContainText("No stored factor row returned for this symbol-date.");

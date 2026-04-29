@@ -201,12 +201,12 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
         market_date: marketDate,
         feature_version: "value_v1",
         summary: {
-          entries: 1,
+          entries: 2,
           requested_symbol: null,
-          matched_symbols: ["005930"],
+          matched_symbols: ["005930", "035420"],
           missing_symbols: [],
           scored_count: 1,
-          invalid_per_count: 0,
+          invalid_per_count: 1,
           missing_metric_count: 0,
         },
         items: [
@@ -219,6 +219,10 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
             pbr: 1.4,
             dividend_yield: 0.025,
             per_status: "available",
+            pbr_status: "available",
+            dividend_yield_status: "available",
+            fcf_yield_status: "available",
+            ev_to_ebitda_status: "available",
             per_rank: 42,
             pbr_rank: 38,
             dividend_yield_rank: 19,
@@ -229,6 +233,40 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
             value_rank: 9,
             value_percentile: 0.91,
             value_status: "scored",
+            unified_value_score: 0.88,
+            unified_value_rank: 7,
+            unified_value_percentile: 0.94,
+            unified_value_status: "scored",
+            factor_payload: null,
+            captured_at: null,
+          },
+          {
+            symbol: "035420",
+            name_ko: "NAVER",
+            market: "KOSPI",
+            market_date: marketDate,
+            per: -3.2,
+            pbr: 1.1,
+            dividend_yield: 0.01,
+            per_status: "invalid_non_positive",
+            pbr_status: "available",
+            dividend_yield_status: "available",
+            fcf_yield_status: "missing_metric",
+            ev_to_ebitda_status: "insufficient_fundamentals",
+            per_rank: null,
+            pbr_rank: 47,
+            dividend_yield_rank: 63,
+            per_percentile: null,
+            pbr_percentile: 0.7,
+            dividend_yield_percentile: 0.54,
+            value_score: null,
+            value_rank: null,
+            value_percentile: null,
+            value_status: "invalid_per",
+            unified_value_score: null,
+            unified_value_rank: null,
+            unified_value_percentile: null,
+            unified_value_status: "invalid_per",
             factor_payload: null,
             captured_at: null,
           },
@@ -302,7 +340,18 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
     assert.equal(workspace.families.momentum.auditCount, 1);
     assert.equal(workspace.families.lowRisk.cautionCount, 1);
     assert.equal(workspace.families.beta.rows[0]?.statusLabel, "Eligible");
-    assert.equal(workspace.families.value.rows[0]?.displayRankLabel, "#9");
+    assert.equal(workspace.families.value.rows[0]?.displayRankLabel, "#7");
+    assert.deepEqual(
+      workspace.families.value.rows[0]?.metrics.slice(0, 4).map((metric) => metric.label),
+      ["Unified value score", "Unified percentile", "Unified rank", "Overall status"],
+    );
+    assert.match(workspace.families.value.rows[0]?.note ?? "", /PER: Available/);
+    assert.match(workspace.families.value.rows[0]?.note ?? "", /EV \/ EBITDA: Available/);
+    assert.equal(workspace.families.value.rows[1]?.statusLabel, "PER excluded");
+    assert.match(
+      workspace.families.value.rows[1]?.note ?? "",
+      /excluded from PER scoring because earnings were non-positive/,
+    );
     assert.match(
       workspace.families.value.rows[0]?.href ?? "",
       /\/dashboard\/symbol\/005930\?name=Samsung\+Electronics&market=KOSPI&marketDate=2026-04-23$/,

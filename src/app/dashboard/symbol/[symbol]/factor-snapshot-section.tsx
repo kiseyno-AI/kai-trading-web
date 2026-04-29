@@ -13,15 +13,18 @@ import {
   getFactorStatusLabel,
   getLowRiskFactorStatusDescriptor,
   getMomentumFactorStatusDescriptor,
+  getUnifiedValueStatusDescriptor,
   getValueFactorStatusDescriptor,
+  hasUnifiedValueFields,
   loadSymbolFactorSnapshot,
+  resolveUnifiedValueStatusCode,
   type FactorFamilyId,
   type FactorFamilySnapshotResult,
   type FactorStatusDescriptor,
   type SymbolFactorSnapshotDto,
 } from "@/lib/factor-snapshot";
 import { useUnitData } from "@/lib/use-unit-data";
-import type { EodValueFactorItemDto } from "@/types/trading-api";
+import type { EodAdvancedValueFactorItemDto, EodValueFactorItemDto } from "@/types/trading-api";
 
 import styles from "./symbol-detail.module.css";
 
@@ -57,6 +60,11 @@ type AnyFactorFamilyResult =
   | FactorFamilySnapshotResult<"value">
   | FactorFamilySnapshotResult<"advancedValue">;
 
+type FactorCardBuildContext = {
+  advancedValueResult: FactorFamilySnapshotResult<"advancedValue"> | null;
+  valueHasUnifiedFields: boolean;
+};
+
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -64,7 +72,28 @@ function hasNumber(value: number | null | undefined): value is number {
 function humanizeToken(value: string | null | undefined, fallback = "Unavailable") {
   if (!value) return fallback;
 
-  return value
+  const normalized = value.trim();
+  const knownLabels: Record<string, string> = {
+    available: "Available",
+    insufficient_components: "Insufficient components",
+    insufficient_fundamentals: "Insufficient fundamentals",
+    invalid_non_positive: "Earnings non-positive",
+    invalid_per: "PER excluded",
+    missing_depreciation_and_amortization: "Missing D&A",
+    missing_ebitda: "Missing EBITDA",
+    missing_enterprise_value: "Missing enterprise value",
+    missing_free_cash_flow: "Missing FCF",
+    missing_market_date_bar: "Missing market-date bar",
+    missing_metric: "Missing metric",
+    non_positive: "Non-positive",
+    scored: "Scored",
+  };
+
+  if (knownLabels[normalized]) {
+    return knownLabels[normalized];
+  }
+
+  return normalized
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
@@ -133,6 +162,23 @@ function getRecord(value: unknown) {
 
 function getString(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function readPayloadStatus(payload: Record<string, unknown> | null, key: string) {
+  const statusSources = [
+    getRecord(payload?.unified_value_component_statuses),
+    getRecord(payload?.unified_component_statuses),
+    getRecord(payload?.component_statuses),
+    getRecord(payload?.metric_statuses),
+    payload,
+  ];
+
+  for (const source of statusSources) {
+    const status = getString(source?.[key]);
+    if (status) return status;
+  }
+
+  return null;
 }
 
 function uniqueNotes(notes: Array<string | null | undefined>) {
@@ -346,70 +392,142 @@ function buildBetaCardModel(
   };
 }
 
-function readValueMetricStatuses(item: EodValueFactorItemDto) {
+function readValueMetricStatuses(
+  item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto,
+  advancedItem?: EodAdvancedValueFactorItemDto | null,
+) {
   const payload = getRecord(item.factor_payload);
-  const metricStatuses = getRecord(payload?.metric_statuses);
+  const advancedPayload = getRecord(advancedItem?.factor_payload);
 
   return {
-    per: item.per_status,
-    pbr: getString(metricStatuses?.pbr),
-    dividendYield: getString(metricStatuses?.dividend_yield),
+    dividendYield:
+      ("dividend_yield_status" in item ? item.dividend_yield_status : null) ??
+      readPayloadStatus(payload, "dividend_yield") ??
+      readPayloadStatus(advancedPayload, "dividend_yield"),
+    evToEbitda:
+      ("ev_to_ebitda_status" in item ? item.ev_to_ebitda_status : null) ??
+      advancedItem?.ev_to_ebitda_status ??
+      readPayloadStatus(payload, "ev_to_ebitda") ??
+      readPayloadStatus(advancedPayload, "ev_to_ebitda"),
+    fcfYield:
+      ("fcf_yield_status" in item ? item.fcf_yield_status : null) ??
+      advancedItem?.fcf_yield_status ??
+      readPayloadStatus(payload, "fcf_yield") ??
+      readPayloadStatus(advancedPayload, "fcf_yield"),
+    pbr:
+      ("pbr_status" in item ? item.pbr_status : null) ??
+      readPayloadStatus(payload, "pbr") ??
+      readPayloadStatus(advancedPayload, "pbr"),
+    per:
+      ("per_status" in item ? item.per_status : null) ??
+      readPayloadStatus(payload, "per") ??
+      readPayloadStatus(advancedPayload, "per"),
   };
 }
 
-function buildValueBody(status: FactorStatusDescriptor) {
+function buildValueComponentNotes(
+  item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto,
+  advancedItem?: EodAdvancedValueFactorItemDto | null,
+) {
+  const statuses = readValueMetricStatuses(item, advancedItem);
+  const hints = [
+    ["PER", statuses.per],
+    ["PBR", statuses.pbr],
+    ["Dividend yield", statuses.dividendYield],
+    ["FCF yield", statuses.fcfYield],
+    ["EV / EBITDA", statuses.evToEbitda],
+  ] as const;
+
+  return hints.map(([label, status]) => (status ? `${label}: ${humanizeToken(status)}` : null));
+}
+
+function buildValueBody(status: FactorStatusDescriptor, usesUnifiedValue: boolean) {
   switch (status.code) {
     case "scored":
-      return "Cross-sectional value ranks are available across PER, PBR, and dividend yield.";
+      return usesUnifiedValue
+        ? "Unified valuation score, rank, percentile, and overall status are available for this symbol-date."
+        : "Legacy cross-sectional value ranks are available across PER, PBR, and dividend yield.";
     case "invalid_per":
-      return "PER is non-positive, so the symbol is stored but cannot be value-scored.";
+      return "The symbol was excluded from PER scoring because earnings were non-positive.";
+    case "missing_metric":
+      return usesUnifiedValue
+        ? "Unified valuation scoring is incomplete because one or more required metrics were missing."
+        : "One or more required legacy value inputs were missing for this stored symbol-date row.";
+    case "insufficient_components":
+      return "Unified valuation scoring had too few usable components for a complete score.";
+    case "insufficient_fundamentals":
+      return "Unified valuation scoring needs a usable stored fundamentals snapshot before all components can score.";
     case "missing_market_date_bar":
       return "No stored market-date bar was available for the requested date.";
     default:
-      return "One or more required value inputs were missing for this stored symbol-date row.";
+      return usesUnifiedValue
+        ? "Unified valuation status needs review for this stored row."
+        : "One or more required legacy value inputs were missing for this stored symbol-date row.";
   }
 }
 
 function buildValueCardModel(
   copy: SymbolDetailCopy,
   result: FactorFamilySnapshotResult<"value">,
+  advancedValueResult: FactorFamilySnapshotResult<"advancedValue"> | null,
 ): FactorCardModel {
   const item = result.item;
   if (!item) return buildUnavailableCardModel(copy, result);
 
-  const status = getValueFactorStatusDescriptor(item);
-  const metricStatuses = readValueMetricStatuses(item);
+  const advancedItem = advancedValueResult?.item ?? null;
+  const usesUnifiedValue = hasUnifiedValueFields(item);
+  const status = usesUnifiedValue
+    ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
+    : getValueFactorStatusDescriptor(item);
+  const componentNotes = buildValueComponentNotes(item, advancedItem);
 
   return {
     family: result.family,
-    title: FACTOR_FAMILY_META[result.family].title,
-    subtitle: FACTOR_FAMILY_META[result.family].subtitle,
+    title: usesUnifiedValue ? "Unified value" : "Value (legacy components)",
+    subtitle: usesUnifiedValue
+      ? "Unified valuation score with PER, PBR, dividend yield, FCF yield, and EV / EBITDA status context"
+      : "Legacy PER, PBR, and dividend-yield component ranks",
     status,
-    body: buildValueBody(status),
-    metrics: [
-      { label: "Value score", value: formatFactorScore(item.value_score, copy.common.unavailable) },
-      {
-        label: "Value percentile",
-        value: formatFactorScore(item.value_percentile, copy.common.unavailable),
-      },
-      { label: "PER", value: formatRatio(item.per, copy.common.unavailable) },
-      { label: "PBR", value: formatRatio(item.pbr, copy.common.unavailable) },
-      {
-        label: "Dividend yield",
-        value: formatDecimalPercent(item.dividend_yield, copy.common.unavailable),
-      },
-    ],
+    body: buildValueBody(status, usesUnifiedValue),
+    metrics: usesUnifiedValue
+      ? [
+          { label: "Unified value score", value: formatFactorScore(item.unified_value_score, copy.common.unavailable) },
+          {
+            label: "Unified percentile",
+            value: formatFactorScore(item.unified_value_percentile, copy.common.unavailable),
+          },
+          { label: "Unified rank", value: formatRank(item.unified_value_rank, "Unranked") },
+          { label: "Overall status", value: getFactorStatusLabel(status.code) },
+          { label: "Legacy value score", value: formatFactorScore(item.value_score, copy.common.unavailable) },
+        ]
+      : [
+          { label: "Legacy value score", value: formatFactorScore(item.value_score, copy.common.unavailable) },
+          {
+            label: "Legacy percentile",
+            value: formatFactorScore(item.value_percentile, copy.common.unavailable),
+          },
+          { label: "Legacy rank", value: formatRank(item.value_rank, "Unranked") },
+          { label: "PER", value: formatRatio(item.per, copy.common.unavailable) },
+          { label: "PBR", value: formatRatio(item.pbr, copy.common.unavailable) },
+          {
+            label: "Dividend yield",
+            value: formatDecimalPercent(item.dividend_yield, copy.common.unavailable),
+          },
+        ],
     notes: uniqueNotes([
-      metricStatuses.per ? `PER status: ${humanizeToken(metricStatuses.per)}` : null,
-      metricStatuses.pbr ? `PBR status: ${humanizeToken(metricStatuses.pbr)}` : null,
-      metricStatuses.dividendYield ? `Yield status: ${humanizeToken(metricStatuses.dividendYield)}` : null,
-      item.value_status ? `Row status: ${humanizeToken(item.value_status)}` : null,
+      ...componentNotes,
+      item.unified_value_status ? `Unified status: ${humanizeToken(item.unified_value_status)}` : null,
+      item.value_status ? `Legacy row status: ${humanizeToken(item.value_status)}` : null,
     ]),
     meta: buildCardMeta(copy, result),
   };
 }
 
-function buildAdvancedValueBody(status: FactorStatusDescriptor) {
+function buildAdvancedValueBody(status: FactorStatusDescriptor, usesUnifiedValue: boolean) {
+  if (usesUnifiedValue) {
+    return buildValueBody(status, true);
+  }
+
   switch (status.code) {
     case "eligible":
       return "FCF yield and EV / EBITDA both scored, so the advanced-value rank is fully available.";
@@ -429,38 +547,59 @@ function buildAdvancedValueBody(status: FactorStatusDescriptor) {
 function buildAdvancedValueCardModel(
   copy: SymbolDetailCopy,
   result: FactorFamilySnapshotResult<"advancedValue">,
+  context: FactorCardBuildContext,
 ): FactorCardModel {
   const item = result.item;
   if (!item) return buildUnavailableCardModel(copy, result);
 
-  const status = getAdvancedValueFactorStatusDescriptor(item);
+  const usesUnifiedValue = hasUnifiedValueFields(item) && !context.valueHasUnifiedFields;
+  const status = usesUnifiedValue
+    ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
+    : getAdvancedValueFactorStatusDescriptor(item);
+  const componentNotes = buildValueComponentNotes(item);
 
   return {
     family: result.family,
-    title: FACTOR_FAMILY_META[result.family].title,
-    subtitle: FACTOR_FAMILY_META[result.family].subtitle,
+    title: usesUnifiedValue ? "Unified value" : "Advanced value components",
+    subtitle: usesUnifiedValue
+      ? "Unified valuation score sourced from the advanced value inspect row"
+      : "FCF yield and EV / EBITDA component view from stored DART fundamentals",
     status,
-    body: buildAdvancedValueBody(status),
-    metrics: [
-      {
-        label: "Advanced score",
-        value: formatFactorScore(item.advanced_value_score, copy.common.unavailable),
-      },
-      {
-        label: "Advanced percentile",
-        value: formatFactorScore(item.advanced_value_percentile, copy.common.unavailable),
-      },
-      {
-        label: "FCF yield",
-        value: formatDecimalPercent(item.fcf_yield, copy.common.unavailable, { signed: true }),
-        valueClassName: getValueToneClassName(item.fcf_yield),
-      },
-      { label: "EV / EBITDA", value: formatRatio(item.ev_to_ebitda, copy.common.unavailable) },
-      { label: "Components", value: `${item.advanced_value_components_used} / 2` },
-    ],
+    body: buildAdvancedValueBody(status, usesUnifiedValue),
+    metrics: usesUnifiedValue
+      ? [
+          { label: "Unified value score", value: formatFactorScore(item.unified_value_score, copy.common.unavailable) },
+          {
+            label: "Unified percentile",
+            value: formatFactorScore(item.unified_value_percentile, copy.common.unavailable),
+          },
+          { label: "Unified rank", value: formatRank(item.unified_value_rank, "Unranked") },
+          { label: "Overall status", value: getFactorStatusLabel(status.code) },
+          {
+            label: "Advanced component score",
+            value: formatFactorScore(item.advanced_value_score, copy.common.unavailable),
+          },
+        ]
+      : [
+          {
+            label: "Advanced component score",
+            value: formatFactorScore(item.advanced_value_score, copy.common.unavailable),
+          },
+          {
+            label: "Component percentile",
+            value: formatFactorScore(item.advanced_value_percentile, copy.common.unavailable),
+          },
+          {
+            label: "FCF yield",
+            value: formatDecimalPercent(item.fcf_yield, copy.common.unavailable, { signed: true }),
+            valueClassName: getValueToneClassName(item.fcf_yield),
+          },
+          { label: "EV / EBITDA", value: formatRatio(item.ev_to_ebitda, copy.common.unavailable) },
+          { label: "Components", value: `${item.advanced_value_components_used} / 2` },
+        ],
     notes: uniqueNotes([
-      item.fcf_yield_status ? `FCF yield: ${humanizeToken(item.fcf_yield_status)}` : null,
-      item.ev_to_ebitda_status ? `EV / EBITDA: ${humanizeToken(item.ev_to_ebitda_status)}` : null,
+      ...componentNotes,
+      item.unified_value_status ? `Unified status: ${humanizeToken(item.unified_value_status)}` : null,
       item.advanced_value_classification
         ? `Classification: ${humanizeToken(item.advanced_value_classification)}`
         : null,
@@ -473,6 +612,7 @@ function buildFactorCardModel(
   copy: SymbolDetailCopy,
   numberLocale: string,
   result: AnyFactorFamilyResult,
+  context: FactorCardBuildContext,
 ): FactorCardModel {
   switch (result.family) {
     case "momentum":
@@ -482,9 +622,9 @@ function buildFactorCardModel(
     case "beta":
       return buildBetaCardModel(copy, result);
     case "value":
-      return buildValueCardModel(copy, result);
+      return buildValueCardModel(copy, result, context.advancedValueResult);
     case "advancedValue":
-      return buildAdvancedValueCardModel(copy, result);
+      return buildAdvancedValueCardModel(copy, result, context);
   }
 }
 
@@ -526,9 +666,19 @@ export const FactorSnapshotSection = memo(function FactorSnapshotSection({
       ),
     [factorSnapshot],
   );
+  const advancedValueResult = factorSnapshot?.families.advancedValue ?? null;
+  const valueHasUnifiedFields = Boolean(
+    factorSnapshot?.families.value.item && hasUnifiedValueFields(factorSnapshot.families.value.item),
+  );
   const familyCards = useMemo(
-    () => familyResults.map((result) => buildFactorCardModel(copy, numberLocale, result)),
-    [copy, familyResults, numberLocale],
+    () =>
+      familyResults.map((result) =>
+        buildFactorCardModel(copy, numberLocale, result, {
+          advancedValueResult,
+          valueHasUnifiedFields,
+        }),
+      ),
+    [advancedValueResult, copy, familyResults, numberLocale, valueHasUnifiedFields],
   );
   const readyFamilyCount = useMemo(
     () => familyResults.filter((result) => result.ok && result.item).length,
