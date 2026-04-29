@@ -1,6 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function mockSignalReviewCalendar(page: Page) {
+type SignalReviewCalendarMockOptions = {
+  feedbackDelays?: Partial<Record<string, Promise<void>>>;
+};
+
+function createDeferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalendarMockOptions = {}) {
   await page.route("**/api/trading/eod/freshness", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -68,6 +80,7 @@ async function mockSignalReviewCalendar(page: Page) {
   await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
+    await options.feedbackDelays?.[marketDate];
     const items =
       marketDate === "2026-04-27"
         ? [
@@ -216,5 +229,29 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await dialog.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: /2026-04-26/ }).click();
   await expect(page).toHaveURL(/\/calendar\?date=2026-04-26/);
+  await expect(page.getByText("No signal-decider decisions are stored for the selected date.").first()).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-04-27/);
+  await expect(samsungRow).toContainText("Target hit intraday first");
+});
+
+test("signal review calendar hides previous selected-date rows while a new date is loading", async ({ page }) => {
+  const delayedFeedback = createDeferred();
+  await mockSignalReviewCalendar(page, {
+    feedbackDelays: {
+      "2026-04-26": delayedFeedback.promise,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-04-27");
+  await expect(page.getByText("Samsung Electronics").first()).toBeVisible();
+
+  await page.getByRole("button", { name: /2026-04-26/ }).click();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-04-26/);
+  await expect(page.getByText("Loading selected-date decisions...").first()).toBeVisible();
+  await expect(page.getByText("Samsung Electronics")).toHaveCount(0);
+
+  delayedFeedback.resolve();
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.").first()).toBeVisible();
 });

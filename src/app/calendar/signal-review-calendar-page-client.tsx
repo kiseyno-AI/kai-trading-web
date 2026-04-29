@@ -312,20 +312,45 @@ export default function SignalReviewCalendarPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
+  const requestedDateKey = isDateKey(requestedDate) ? requestedDate : null;
   const todayKey = useMemo(() => getTodayDateKey(), []);
-  const initialDate = isDateKey(requestedDate) ? requestedDate : null;
+  const initialDate = requestedDateKey;
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   const [monthKey, setMonthKey] = useState(getMonthKey(initialDate ?? todayKey));
   const [monthLoadState, setMonthLoadState] = useState<MonthLoadState>("idle");
   const [monthSnapshots, setMonthSnapshots] = useState<Record<string, CalendarDateSnapshot>>({});
   const [selectedFeedback, setSelectedFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [selectedProgress, setSelectedProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
+  const [selectedDataDate, setSelectedDataDate] = useState<string | null>(null);
   const [selectedLoadState, setSelectedLoadState] = useState<DetailLoadState>(initialDate ? "loading" : "idle");
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const { t } = useAppState();
   const copy = t.signalReview;
+
+  useEffect(() => {
+    let active = true;
+
+    queueMicrotask(() => {
+      if (!active) return;
+
+      if (requestedDateKey) {
+        setSelectedDate((current) => (current === requestedDateKey ? current : requestedDateKey));
+        setMonthKey((current) => {
+          const nextMonthKey = getMonthKey(requestedDateKey);
+          return current === nextMonthKey ? current : nextMonthKey;
+        });
+        return;
+      }
+
+      setSelectedDate((current) => (current === null ? current : null));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [requestedDate, requestedDateKey]);
 
   useEffect(() => {
     if (selectedDate) return;
@@ -417,6 +442,9 @@ export default function SignalReviewCalendarPageClient() {
       setSelectedLoadState("loading");
       setSelectedError(null);
       setProgressUnavailable(false);
+      setSelectedFeedback(null);
+      setSelectedProgress(null);
+      setSelectedDataDate(null);
       setSelectedItemId(null);
       try {
         const [feedback, progress] = await Promise.all([
@@ -434,12 +462,14 @@ export default function SignalReviewCalendarPageClient() {
         if (!active) return;
         setSelectedFeedback(feedback);
         setSelectedProgress(progress);
+        setSelectedDataDate(selectedDate);
         setProgressUnavailable(progress === null);
         setSelectedLoadState("ready");
       } catch (error) {
         if (!active) return;
         setSelectedFeedback(null);
         setSelectedProgress(null);
+        setSelectedDataDate(selectedDate);
         setSelectedLoadState("error");
         setSelectedError(error instanceof Error ? error.message : copy.states.selectedUnavailable);
       }
@@ -453,19 +483,25 @@ export default function SignalReviewCalendarPageClient() {
   }, [copy.states.selectedUnavailable, selectedDate]);
 
   const calendarDays = useMemo(() => buildCalendarDays(monthKey, todayKey), [monthKey, todayKey]);
+  const selectedDataMatchesDate = selectedDate !== null && selectedDataDate === selectedDate;
+  const selectedDisplayLoadState: DetailLoadState =
+    selectedDate === null ? "idle" : selectedDataMatchesDate ? selectedLoadState : "loading";
   const selectedSummary = useMemo(
     () =>
       buildSignalDeciderFeedbackSummary({
-        feedback: selectedFeedback,
+        feedback: selectedDisplayLoadState === "ready" ? selectedFeedback : null,
         marketDate: selectedDate,
-        progress: selectedProgress,
+        progress: selectedDisplayLoadState === "ready" ? selectedProgress : null,
         previewLimit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
       }),
-    [selectedDate, selectedFeedback, selectedProgress],
+    [selectedDate, selectedDisplayLoadState, selectedFeedback, selectedProgress],
   );
   const selectedItem = useMemo(
-    () => selectedSummary.items.find((item) => item.id === selectedItemId) ?? null,
-    [selectedItemId, selectedSummary.items],
+    () =>
+      selectedDisplayLoadState === "ready"
+        ? (selectedSummary.items.find((item) => item.id === selectedItemId) ?? null)
+        : null,
+    [selectedDisplayLoadState, selectedItemId, selectedSummary.items],
   );
   const reviewCount = useMemo(() => getReviewEvidenceCount(selectedSummary.items), [selectedSummary.items]);
   const pathCounts = useMemo(() => getPathOutcomeCounts(selectedSummary.items), [selectedSummary.items]);
@@ -620,7 +656,11 @@ export default function SignalReviewCalendarPageClient() {
                 <h2>{selectedDate ?? copy.status.pending}</h2>
               </div>
               <span className={`${styles.dayStatus} ${getStatusToneClass(selectedSummary.status)}`}>
-                {getFeedbackStatusLabel(selectedSummary.status, copy)}
+                {selectedDisplayLoadState === "loading"
+                  ? copy.status.loading
+                  : selectedDisplayLoadState === "error"
+                    ? copy.status.unavailable
+                    : getFeedbackStatusLabel(selectedSummary.status, copy)}
               </span>
             </header>
 
@@ -646,13 +686,13 @@ export default function SignalReviewCalendarPageClient() {
               </div>
             </div>
 
-            {progressUnavailable && selectedLoadState === "ready" ? (
+            {progressUnavailable && selectedDisplayLoadState === "ready" ? (
               <div className={styles.inlineNotice}>{copy.states.progressUnavailable}</div>
             ) : null}
 
-            {selectedLoadState === "loading" ? (
+            {selectedDisplayLoadState === "loading" ? (
               <div className={styles.emptyState}>{copy.states.loadingSelected}</div>
-            ) : selectedLoadState === "error" ? (
+            ) : selectedDisplayLoadState === "error" ? (
               <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>
             ) : selectedSummary.items.length === 0 ? (
               <div className={styles.emptyState}>{copy.states.emptySelected}</div>
@@ -687,7 +727,11 @@ export default function SignalReviewCalendarPageClient() {
             </div>
           </header>
 
-          {selectedSummary.items.length > 0 ? (
+          {selectedDisplayLoadState === "loading" ? (
+            <div className={styles.emptyState}>{copy.states.loadingSelected}</div>
+          ) : selectedDisplayLoadState === "error" ? (
+            <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>
+          ) : selectedSummary.items.length > 0 ? (
             <div className={styles.tableWrap}>
               <table className={styles.resultsTable}>
                 <thead>
