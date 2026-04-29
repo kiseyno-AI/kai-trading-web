@@ -34,7 +34,6 @@ const UNKNOWN_LABEL = "[확인 필요]";
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type SortMode = "priority" | "symbol" | "confidence" | "captured";
-const ALL_FILTER = "all";
 
 async function getJsonNoCache<T>(path: string): Promise<T> {
   const response = await fetch(resolveTradingApiClientPath(path), {
@@ -118,10 +117,6 @@ function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
   return item.qualityTag?.label ?? item.qualityVerdict ?? null;
 }
 
-function getDecisionQualityFilterValue(item: SignalDeciderFeedbackItem) {
-  return item.qualityVerdict ?? item.qualityTag?.label ?? null;
-}
-
 function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
   if (item.outcomeHorizons.length === 0) return UNKNOWN_LABEL;
 
@@ -177,25 +172,14 @@ function buildSymbolHref(item: SignalDeciderFeedbackItem) {
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
 
-function getUniqueOptions(values: Array<string | null | undefined>) {
-  return values
-    .filter((value): value is string => hasTextValue(value))
-    .filter((value, index, all) => all.indexOf(value) === index)
-    .sort((left, right) => left.localeCompare(right, "en"));
-}
-
 function filterAndSortItems({
   actionFilter,
   items,
-  policyVersionFilter,
-  qualityFilter,
   query,
   sortMode,
 }: {
   actionFilter: ActionFilter;
   items: SignalDeciderFeedbackItem[];
-  policyVersionFilter: string;
-  qualityFilter: string;
   query: string;
   sortMode: SortMode;
 }) {
@@ -203,10 +187,6 @@ function filterAndSortItems({
   const filtered = items.filter((item) => {
     const matchesAction = actionFilter === "all" || item.action === actionFilter;
     if (!matchesAction) return false;
-    const matchesQuality = qualityFilter === ALL_FILTER || getDecisionQualityFilterValue(item) === qualityFilter;
-    if (!matchesQuality) return false;
-    const matchesPolicy = policyVersionFilter === ALL_FILTER || item.policyVersion === policyVersionFilter;
-    if (!matchesPolicy) return false;
     if (!normalizedQuery) return true;
 
     return [
@@ -273,8 +253,6 @@ export default function SignalDeciderFeedbackPageClient() {
   );
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
-  const [qualityFilter, setQualityFilter] = useState(ALL_FILTER);
-  const [policyVersionFilter, setPolicyVersionFilter] = useState(ALL_FILTER);
   const [sortMode, setSortMode] = useState<SortMode>("priority");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
@@ -368,41 +346,21 @@ export default function SignalDeciderFeedbackPageClient() {
     () => buildSignalDeciderFeedbackSummary({ feedback, marketDate, progress, previewLimit: 5 }),
     [feedback, marketDate, progress],
   );
-  const qualityOptions = useMemo(
-    () => getUniqueOptions(summary.items.map(getDecisionQualityFilterValue)),
-    [summary.items],
-  );
-  const policyVersionOptions = useMemo(
-    () => getUniqueOptions(summary.items.map((item) => item.policyVersion)),
-    [summary.items],
-  );
   const visibleItems = useMemo(
     () =>
       filterAndSortItems({
         actionFilter,
         items: summary.items,
-        policyVersionFilter,
-        qualityFilter,
         query,
         sortMode,
       }),
-    [actionFilter, policyVersionFilter, qualityFilter, query, sortMode, summary.items],
+    [actionFilter, query, sortMode, summary.items],
   );
   const selectedItem = useMemo(
     () => summary.items.find((item) => item.id === selectedItemId) ?? null,
     [selectedItemId, summary.items],
   );
   const displayedMarketDate = summary.marketDate ?? marketDate;
-
-  useEffect(() => {
-    if (qualityFilter !== ALL_FILTER && !qualityOptions.includes(qualityFilter)) setQualityFilter(ALL_FILTER);
-  }, [qualityFilter, qualityOptions]);
-
-  useEffect(() => {
-    if (policyVersionFilter !== ALL_FILTER && !policyVersionOptions.includes(policyVersionFilter)) {
-      setPolicyVersionFilter(ALL_FILTER);
-    }
-  }, [policyVersionFilter, policyVersionOptions]);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -512,36 +470,6 @@ export default function SignalDeciderFeedbackPageClient() {
                 {ACTION_FILTERS.map((action) => (
                   <option key={action} value={action}>
                     {action === "all" ? "All actions" : formatSignalDeciderActionLabel(action)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Verdict</span>
-              <select
-                value={qualityFilter}
-                disabled={qualityOptions.length === 0}
-                onChange={(event) => setQualityFilter(event.target.value)}
-              >
-                <option value={ALL_FILTER}>{qualityOptions.length > 0 ? "All verdicts" : "No verdicts"}</option>
-                {qualityOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Policy</span>
-              <select
-                value={policyVersionFilter}
-                disabled={policyVersionOptions.length === 0}
-                onChange={(event) => setPolicyVersionFilter(event.target.value)}
-              >
-                <option value={ALL_FILTER}>{policyVersionOptions.length > 0 ? "All policies" : "No policies"}</option>
-                {policyVersionOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
                   </option>
                 ))}
               </select>
