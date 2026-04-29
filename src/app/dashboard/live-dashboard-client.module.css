@@ -371,13 +371,10 @@
 }
 
 .processMonitorDrawerCollapseButton {
-  width: 3.6rem;
-  min-height: 1.65rem;
+  width: 2.6rem;
+  min-height: 1.85rem;
   display: grid;
-  grid-template-columns: auto auto;
-  align-items: center;
-  justify-content: center;
-  gap: 0.24rem;
+  place-items: center;
   margin: -0.35rem auto 0.55rem;
   padding: 0.18rem 0.32rem;
   border: 1px solid rgba(186, 195, 255, 0.14);
@@ -397,17 +394,9 @@
   transform: translateY(1px);
 }
 
-.processMonitorDrawerHandle {
-  width: 1.55rem;
-  height: 0.2rem;
-  border-radius: 999px;
-  background: rgba(186, 195, 255, 0.36);
-  box-shadow: 0 0 16px rgba(127, 184, 255, 0.18);
-}
-
 .processMonitorDrawerCollapseIcon {
-  width: 0.58rem;
-  height: 0.58rem;
+  width: 0.68rem;
+  height: 0.68rem;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   opacity: 0.9;
@@ -1882,11 +1871,6 @@
   .processMonitorDrawerCollapseButton {
     border-radius: 0.18rem;
     margin-bottom: 0.8rem;
-  }
-
-  .processMonitorDrawerHandle {
-    width: 1.8rem;
-    border-radius: 0.16rem;
   }
 
   .panel {

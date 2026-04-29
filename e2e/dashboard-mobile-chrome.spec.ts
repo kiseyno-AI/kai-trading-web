@@ -407,7 +407,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(processBar).toHaveAccessibleName(/\d+\s*\/\s*\d+/);
   });
 
-  test("expanded mobile process monitor stays open through incidental contact and status refresh", async ({ page }) => {
+  test("expanded mobile process monitor keeps a single close arrow and dismisses from outside click", async ({ page }) => {
     let pipelineStatus: "running" | "completed" = "running";
     await mockDashboardProcessStatusApis(page, () => pipelineStatus);
 
@@ -417,7 +417,7 @@ test.describe("dashboard mobile chrome", () => {
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer).toBeVisible();
 
-    await page.mouse.click(8, 8);
+    await processDrawer.getByRole("heading", { name: /Daily process monitor/i }).click();
     await expect(processDrawer).toBeVisible();
 
     pipelineStatus = "completed";
@@ -427,7 +427,12 @@ test.describe("dashboard mobile chrome", () => {
 
     const collapseButton = processDrawer.getByRole("button", { name: /Close monitor/i });
     await expect(collapseButton.locator('[data-process-monitor-collapse-icon="down"]')).toBeVisible();
-    await collapseButton.click();
+    await expect.poll(() => collapseButton.evaluate((button) => button.children.length)).toBe(1);
+    await page.mouse.click(8, 8);
+    await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "closing");
+    await expect
+      .poll(() => processDrawer.evaluate((element) => getComputedStyle(element).animationName).catch(() => ""))
+      .toMatch(/processMonitorFloatingSheetOut$|^$/);
     await expect(processDrawer).toBeHidden();
   });
 

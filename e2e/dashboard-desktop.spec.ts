@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 
-type EodStageStatus = "synced" | "running" | "break day" | "not synced";
+type EodStageStatus = "synced" | "running" | "break day" | "not synced" | "waiting";
 
 const agentReviewRunningLabel = /Agent review running\.\.\.|에이전트 분석 중\.\.\./;
 const agentReviewNeedsAttentionLabel = /Agent review needs attention|에이전트 확인 필요/;
@@ -25,6 +25,11 @@ async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
 
   if (status === "running") {
     await expect(badge).toContainText(/\S+/);
+    return;
+  }
+
+  if (status === "waiting") {
+    await expect(badge).toContainText(/waiting/i);
     return;
   }
 
@@ -642,7 +647,8 @@ test.describe("dashboard desktop", () => {
     await expect(actionStage).toContainText(/Build Symbol Summary/i);
     await expect(actionStage).toContainText(/1,180 \/ 3,200/i);
     await expect(actionStage).toContainText(/Failed 12/i);
-    await expect(fundamentalsStage).toContainText(/Refresh Company Metrics/i);
+    await expectEodStageStatus(fundamentalsStage, "waiting");
+    await expect(fundamentalsStage).not.toContainText(/Refresh Company Metrics/i);
 
     const runningActionPill = actionStage.locator('.pill[data-status-badge="running"]');
     const runningPillAnimations = await runningActionPill.evaluate((element) => {

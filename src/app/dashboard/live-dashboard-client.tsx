@@ -1213,7 +1213,7 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
   onClose,
 }: ProcessMonitorDrawerProps) {
   return (
-    <div className={styles.processMonitorDrawerBackdrop} data-process-monitor-state={state}>
+    <div className={styles.processMonitorDrawerBackdrop} data-process-monitor-state={state} onPointerDown={onClose}>
       <section
         id={PROCESS_MONITOR_DRAWER_ID}
         className={styles.processMonitorDrawer}
@@ -1230,7 +1230,6 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
           aria-label={copy.processMonitor.close}
           autoFocus
         >
-          <span className={styles.processMonitorDrawerHandle} aria-hidden="true" />
           <span
             className={styles.processMonitorDrawerCollapseIcon}
             data-process-monitor-collapse-icon="down"
