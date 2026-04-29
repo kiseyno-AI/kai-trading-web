@@ -77,10 +77,10 @@ import {
   isBreakDayMarket,
   isIconOnlyEodStageStatus,
   isOfflineTrackedPlaceholder,
-  isSummarizerRole,
   markAgentFeedbackProgressStopped,
   maskFutureEodStageCardsWhilePipelineRunning,
   mergeRunningPipelineStage,
+  shouldShowAgentRoleProgress,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "@/features/dashboard/live-dashboard-derived-state";
 import type {
@@ -452,8 +452,7 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
       {agentRoleCards.length > 0 ? (
         <div className={styles.agentRoleList} role="list" aria-label={copy.operational.agentRoleProgress}>
           {agentRoleCards.map((role) => {
-            const showRoleProgress =
-              isSummarizerRole(role.role) || role.metrics.some((metric) => metric.key === "progress");
+            const showRoleProgress = shouldShowAgentRoleProgress(role);
 
             return (
               <div
