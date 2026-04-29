@@ -971,6 +971,21 @@ test.describe("symbol detail desktop", () => {
             unified_value_rank: 34,
             unified_value_percentile: 0.9,
             unified_value_status: "scored",
+            quality_score: 0.714,
+            quality_rank: 88,
+            quality_percentile: 0.76,
+            quality_status: "scored_partial",
+            components_possible: 6,
+            components_used: 5,
+            is_quality_score_complete: false,
+            quality_component_statuses: {
+              roe: "scored",
+              roa: "scored",
+              gross_profit_to_assets: "scored",
+              operating_cash_flow_to_net_income: "scored",
+              debt_ratio: "scored",
+              accruals_ratio: "missing_metric",
+            },
             factor_payload: {
               metric_statuses: {
                 per: "available",
@@ -1046,6 +1061,10 @@ test.describe("symbol detail desktop", () => {
     await expect(valueCard).toContainText("Unified value score");
     await expect(valueCard).toContainText("Overall status");
     await expect(valueCard).toContainText("81.2%");
+    await expect(valueCard).toContainText("Quality score");
+    await expect(valueCard).toContainText("71.4%");
+    await expect(valueCard).toContainText("5 used / 6 possible");
+    await expect(valueCard).toContainText("Accruals: Missing metric");
     await expect(valueCard).toContainText("PER: Available");
     await expect(valueCard).toContainText("EV / EBITDA: Available");
 

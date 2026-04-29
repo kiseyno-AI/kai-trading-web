@@ -715,6 +715,37 @@ export function FactorScreening() {
                         ))}
                       </div>
 
+                      {row.quality ? (
+                        <div className={styles.qualityBlock} aria-label={`${row.symbol} quality score status`}>
+                          <div className={styles.qualityHeader}>
+                            <div>
+                              <strong>{row.quality.title}</strong>
+                              <p>{row.quality.summary}</p>
+                            </div>
+                            <span className={`pill ${row.quality.tone}`}>{row.quality.calculationLabel}</span>
+                          </div>
+
+                          <div className={styles.qualityMetricGrid}>
+                            {row.quality.metrics.map((metric) => (
+                              <div key={`${row.symbol}:quality:${metric.label}`} className={styles.metricCard}>
+                                <span>{metric.label}</span>
+                                <strong>{metric.value}</strong>
+                              </div>
+                            ))}
+                          </div>
+
+                          {row.quality.componentHints.length > 0 ? (
+                            <div className={styles.qualityHintGroup}>
+                              {row.quality.componentHints.map((hint) => (
+                                <span key={`${row.symbol}:quality:${hint}`} className={styles.qualityHint}>
+                                  {hint}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+
                       <p className={styles.rowNote}>
                         <span>{copy.note}:</span> {row.note}
                       </p>

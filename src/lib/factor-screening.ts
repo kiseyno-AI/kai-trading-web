@@ -1,5 +1,12 @@
 import { getLatestPriceTradeDate } from "@/lib/eod-freshness-latest";
 import {
+  buildFactorQualitySummary,
+  formatQualityCount,
+  formatQualityRank,
+  formatQualityScore,
+  type FactorQualitySummary,
+} from "@/lib/factor-quality";
+import {
   FACTOR_FAMILY_META,
   FACTOR_FAMILY_ORDER,
   extractFactorInspectItems,
@@ -44,6 +51,16 @@ export type FactorScreeningMetric = {
   tone?: FactorScreeningTone;
 };
 
+export type FactorScreeningQuality = {
+  title: string;
+  statusLabel: string;
+  tone: FactorQualitySummary["tone"];
+  calculationLabel: string;
+  summary: string;
+  metrics: FactorScreeningMetric[];
+  componentHints: string[];
+};
+
 export type FactorScreeningRow = {
   family: FactorFamilyId;
   symbol: string;
@@ -58,6 +75,7 @@ export type FactorScreeningRow = {
   displayRank: number;
   displayRankLabel: string;
   metrics: FactorScreeningMetric[];
+  quality: FactorScreeningQuality | null;
   note: string;
   searchText: string;
   sortRank: number | null;
@@ -197,6 +215,53 @@ function metricToneFromValue(value: number | null | undefined): FactorScreeningT
 
 function buildMetric(label: string, value: string, tone?: FactorScreeningTone): FactorScreeningMetric {
   return { label, value, tone };
+}
+
+function buildQualityProgressLabel(quality: FactorQualitySummary) {
+  if (quality.componentsPossible === null && quality.componentsUsed === null) {
+    return "Component coverage unavailable";
+  }
+
+  return `${formatQualityCount(quality.componentsUsed)} used / ${formatQualityCount(quality.componentsPossible)} possible`;
+}
+
+function buildQualitySummaryText(quality: FactorQualitySummary) {
+  switch (quality.calculationState) {
+    case "complete":
+      return `Quality calculation complete: ${buildQualityProgressLabel(quality)}.`;
+    case "partial":
+      return `Quality calculation partial: ${buildQualityProgressLabel(quality)}.`;
+    case "unavailable":
+      return `Quality calculation unavailable: ${buildQualityProgressLabel(quality)}.`;
+  }
+}
+
+function buildScreeningQuality(
+  item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto,
+  options: { force?: boolean } = {},
+): FactorScreeningQuality | null {
+  const quality = buildFactorQualitySummary(item, options);
+  if (!quality) return null;
+
+  return {
+    calculationLabel: quality.calculationLabel,
+    componentHints: quality.componentStatuses.map(
+      (component) => `${component.label}: ${component.statusLabel}`,
+    ),
+    metrics: [
+      buildMetric("Quality score", formatQualityScore(quality.score)),
+      buildMetric("Quality percentile", formatQualityScore(quality.percentile)),
+      buildMetric("Quality rank", formatQualityRank(quality.rank)),
+      buildMetric("Score status", quality.statusLabel),
+      buildMetric("Possible components", formatQualityCount(quality.componentsPossible)),
+      buildMetric("Used components", formatQualityCount(quality.componentsUsed)),
+      buildMetric("Calculation", quality.calculationLabel),
+    ],
+    statusLabel: quality.statusLabel,
+    summary: buildQualitySummaryText(quality),
+    title: "Quality score",
+    tone: quality.tone,
+  };
 }
 
 function getRecord(value: unknown) {
@@ -512,6 +577,7 @@ function buildMomentumRows(response: EodMomentumFactorsResponseDto): FactorScree
         buildMetric("Rank", formatRank(item.momentum_rank)),
         buildMetric("5D return", formatSignedPercent(item.return_5d), metricToneFromValue(item.return_5d)),
       ],
+      quality: null,
       note: buildMomentumNote(status),
       searchText: normalizeText(
         [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code)].filter(Boolean).join(" "),
@@ -554,6 +620,7 @@ function buildLowRiskRows(
         buildMetric("Drawdown pct", formatPercentScore(item.max_drawdown_120d_percentile)),
         buildMetric("History days", formatInteger(item.history_days_available, numberLocale)),
       ],
+      quality: null,
       note: buildLowRiskNote(status),
       searchText: normalizeText(
         [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code)].filter(Boolean).join(" "),
@@ -593,6 +660,7 @@ function buildBetaRows(response: EodBetaFactorsResponseDto): FactorScreeningRow[
         buildMetric("Beta pct", formatPercentScore(item.beta_120d_percentile)),
         buildMetric("Benchmark", item.benchmark_id ?? "Unavailable"),
       ],
+      quality: null,
       note: buildBetaNote(status),
       searchText: normalizeText(
         [companyName, item.market ?? "", item.symbol, item.benchmark_id ?? "", getFactorStatusLabel(status.code)]
@@ -616,6 +684,7 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
       ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
       : getValueFactorStatusDescriptor(item);
     const componentHints = formatValueComponentHints(item);
+    const quality = buildScreeningQuality(item, { force: true });
     const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
 
     return {
@@ -646,9 +715,19 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
             buildMetric("Legacy rank", formatRank(item.value_rank)),
             buildMetric("Dividend yield", formatPercentScore(item.dividend_yield)),
           ],
+      quality,
       note: usesUnifiedValue ? buildUnifiedValueNote(status, componentHints) : buildValueNote(status),
       searchText: normalizeText(
-        [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code), ...componentHints]
+        [
+          companyName,
+          item.market ?? "",
+          item.symbol,
+          getFactorStatusLabel(status.code),
+          quality?.statusLabel ?? "",
+          quality?.calculationLabel ?? "",
+          ...componentHints,
+          ...(quality?.componentHints ?? []),
+        ]
           .filter(Boolean)
           .join(" "),
       ),
@@ -669,6 +748,7 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
     const usesUnifiedValue = hasUnifiedValueFields(item);
     const status = getAdvancedValueFactorStatusDescriptor(item);
     const componentHints = formatValueComponentHints(item);
+    const quality = usesUnifiedValue ? buildScreeningQuality(item) : null;
     const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
     const advancedMetrics = [
       buildMetric("Advanced component score", formatPercentScore(item.advanced_value_score)),
@@ -702,6 +782,7 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
       market: item.market ?? null,
       marketDate: item.market_date,
       metrics: [...advancedMetrics, ...unifiedMetrics],
+      quality,
       note: `${buildAdvancedValueNote(status)}${buildAdvancedValueUnifiedContextNote(item, componentHints)}`,
       searchText: normalizeText(
         [
@@ -713,6 +794,9 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
             ? getFactorStatusLabel(getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item)).code)
             : "",
           ...componentHints,
+          quality?.statusLabel ?? "",
+          quality?.calculationLabel ?? "",
+          ...(quality?.componentHints ?? []),
         ]
           .filter(Boolean)
           .join(" "),
