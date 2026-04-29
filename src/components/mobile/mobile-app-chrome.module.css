@@ -167,7 +167,7 @@
 .bottomNav {
   width: min(100%, 31rem);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.5rem;
   padding: 0.6rem;
   border: 1px solid rgba(71, 69, 85, 0.16);
@@ -243,7 +243,7 @@
   overflow-wrap: anywhere;
   text-align: center;
   font-family: var(--font-inter), sans-serif;
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.05;

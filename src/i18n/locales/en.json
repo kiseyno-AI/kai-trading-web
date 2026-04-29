@@ -52,6 +52,11 @@
       "title": "Portfolio Assets",
       "eyebrow": "Account State"
     },
+    "calendar": {
+      "label": "calendar",
+      "title": "Signal Review Calendar",
+      "eyebrow": "Decision Replay"
+    },
     "markets": {
       "label": "markets",
       "title": "Market Radar",
@@ -91,6 +96,10 @@
         "label": "Assets",
         "description": "Account state and holdings"
       },
+      "calendar": {
+        "label": "Calendar",
+        "description": "Signal decision replay"
+      },
       "markets": {
         "label": "Markets",
         "description": "Market breadth and screening"
@@ -104,6 +113,7 @@
       "dashboard": "Open dashboard",
       "search": "Open search workspace",
       "portfolio": "Open portfolio assets",
+      "calendar": "Open signal review calendar",
       "markets": "Open market radar",
       "bots": "Open automation control"
     }
@@ -118,6 +128,7 @@
     "release": "Release",
     "dashboard": "Dashboard",
     "search": "Search",
+    "calendar": "Calendar",
     "assets": "Assets",
     "mySymbols": "My Symbols"
   },
@@ -314,6 +325,111 @@
       "configMissing": "Trading upstream configuration is missing.",
       "upstreamUnavailable": "Trading-core portfolio upstream is unavailable.",
       "emptyResponse": "Portfolio summary returned an empty response."
+    }
+  },
+  "signalReview": {
+    "headerTitle": "Signal Review",
+    "eyebrow": "Signal-decider replay",
+    "title": "Signal Review Calendar",
+    "heroCopy": "Browse stored signal-decider dates, select a decision day, and inspect replay-style outcomes per symbol from the feedback rows trading-core has already stored.",
+    "calendar": {
+      "eyebrow": "Decision calendar"
+    },
+    "selected": {
+      "eyebrow": "Selected date"
+    },
+    "weekdays": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "actions": {
+      "backDashboard": "Back to dashboard",
+      "buy": "Buy",
+      "close": "Close",
+      "nextMonth": "Next month",
+      "openFeedback": "Open feedback table",
+      "previousMonth": "Previous month",
+      "reject": "Reject",
+      "review": "Review",
+      "today": "Today",
+      "unknown": "Unknown",
+      "wait": "Wait"
+    },
+    "labels": {
+      "captured": "Captured",
+      "confidence": "Confidence",
+      "conviction": "Conviction",
+      "decisions": "decisions",
+      "monthDecisions": "month decisions",
+      "policy": "Policy",
+      "run": "Run"
+    },
+    "status": {
+      "empty": "No rows",
+      "future": "Future",
+      "loading": "Loading",
+      "partial": "Partial",
+      "pending": "Pending",
+      "reviewed": "Reviewed",
+      "stored": "Stored",
+      "unavailable": "Unavailable",
+      "waiting": "Waiting",
+      "needsReview": "Needs review"
+    },
+    "states": {
+      "dependencyGapTitle": "Calendar index is not a dedicated Core contract yet.",
+      "dependencyGapBody": "This page uses the real generic signal-decider feedback read for each visible date. Counts, action mix, path results, and conclusions are shown only when stored feedback rows contain those fields; a dedicated calendar/replay endpoint is still a dependency gap.",
+      "emptySelected": "No signal-decider decisions are stored for the selected date.",
+      "loadingMonth": "Loading decision dates",
+      "loadingSelected": "Loading selected-date decisions...",
+      "partialMonth": "Month loaded with partial coverage",
+      "pathUnavailable": "Path unavailable",
+      "progressUnavailable": "Role progress is unavailable for this date, so completion state is based on stored rows only.",
+      "readyMonth": "Month scan ready",
+      "replayUnavailable": "Replay horizon results are not stored for this symbol yet.",
+      "selectedUnavailable": "Selected date review is unavailable.",
+      "unavailableMonth": "Calendar scan unavailable"
+    },
+    "summary": {
+      "actionMix": "Action mix",
+      "path": "Target / stop path",
+      "reviewed": "Reviewed rows",
+      "total": "Total decisions"
+    },
+    "outcomes": {
+      "ambiguous": "Ambiguous",
+      "stop": "Stop",
+      "target": "Target",
+      "unresolved": "Unresolved"
+    },
+    "table": {
+      "d1": "D+1",
+      "d3": "D+3",
+      "d5": "D+5",
+      "decision": "Decision",
+      "eyebrow": "Review rows",
+      "insight": "Review insight",
+      "path": "Intraday path",
+      "review": "Review",
+      "stop": "Stop",
+      "symbol": "Symbol",
+      "target": "Target",
+      "targetStop": "Target / Stop",
+      "title": "Selected-date decisions"
+    },
+    "detail": {
+      "actionPlan": "Action plan",
+      "conclusion": "Conclusion",
+      "eyebrow": "Symbol replay",
+      "pathInterpretation": "Target / stop interpretation",
+      "replaySummary": "Following sessions",
+      "risks": "Risks",
+      "runContext": "Run context"
     }
   },
   "markets": {

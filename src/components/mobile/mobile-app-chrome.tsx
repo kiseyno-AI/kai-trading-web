@@ -12,7 +12,7 @@ import type { Locale } from "@/types/trading-api";
 
 import styles from "./mobile-app-chrome.module.css";
 
-type MobileNavKey = "dashboard" | "search" | "symbols" | "portfolio";
+type MobileNavKey = "dashboard" | "search" | "symbols" | "portfolio" | "calendar";
 
 type MobileAppChromeProps = {
   activeNav: MobileNavKey;
@@ -71,6 +71,18 @@ function AssetsIcon() {
   );
 }
 
+function CalendarIcon() {
+  return (
+    <svg className={styles.navIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6.5 4.5V7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M17.5 4.5V7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M4.5 9H19.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <rect x="4.5" y="6" width="15" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 13H9.8M12 13H13.8M16 13H17.8M8 16.5H9.8M12 16.5H13.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function getItemClass(active: boolean) {
   return `${styles.navItem} ${active ? styles.navItemActive : ""}`.trim();
 }
@@ -103,6 +115,7 @@ export function MobileAppChrome({
       activeNav === "search" ? null : searchHref,
       activeNav === "portfolio" ? null : portfolioHref,
       activeNav === "symbols" ? null : mySymbolsHref,
+      activeNav === "calendar" ? null : "/calendar",
     ];
 
     return [...new Set(targets.filter((target): target is string => typeof target === "string" && target.startsWith("/")))];
@@ -190,6 +203,7 @@ export function MobileAppChrome({
         <nav className={styles.desktopNav} aria-label={t.mobileChrome.primaryDesktopNavigation}>
           {renderDesktopNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
           {renderDesktopNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}
+          {renderDesktopNavItem("/calendar", activeNav === "calendar", t.mobileChrome.calendar, <CalendarIcon />)}
           {renderDesktopNavItem(portfolioHref, activeNav === "portfolio", t.mobileChrome.assets, <AssetsIcon />)}
         </nav>
 
@@ -219,6 +233,7 @@ export function MobileAppChrome({
         <nav className={styles.bottomNav} aria-label={t.mobileChrome.primaryNavigation}>
           {renderNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
           {renderNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}
+          {renderNavItem("/calendar", activeNav === "calendar", t.mobileChrome.calendar, <CalendarIcon />)}
           {renderNavItem(portfolioHref, activeNav === "portfolio", t.mobileChrome.assets, <AssetsIcon />)}
           {renderNavItem(mySymbolsHref, activeNav === "symbols", t.mobileChrome.mySymbols, <SymbolsIcon />)}
         </nav>

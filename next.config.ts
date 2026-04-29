@@ -21,6 +21,9 @@ const nextConfig: NextConfig = {
     "postcards-rush-fridge-abstracts.trycloudflare.com",
     "hopes-car-ridge-organ.trycloudflare.com",
   ],
+  devIndicators: {
+    position: "top-left",
+  },
   turbopack: {
     root: configDirectory,
   },
