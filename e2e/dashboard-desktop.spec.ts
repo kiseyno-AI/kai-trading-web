@@ -1319,6 +1319,7 @@ test.describe("dashboard desktop", () => {
 
   test("D2 Filtering revalidates a same-day Piotroski fallback once real same-day results arrive", async ({ page }) => {
     const now = "2026-04-27T10:15:00+09:00";
+    let eodPipelineRunning = true;
     let piotroskiRequestCount = 0;
     let marketRiskRequestCount = 0;
     let releaseSameDayResults: () => void = () => {};
@@ -1451,8 +1452,8 @@ test.describe("dashboard desktop", () => {
               failed: 0,
             },
             fundamentals_daily_refresh: {
-              status: "running",
-              processed: 2400,
+              status: eodPipelineRunning ? "running" : "completed",
+              processed: eodPipelineRunning ? 2400 : 3583,
               total: 3583,
               failed: 0,
             },
@@ -1675,12 +1676,13 @@ test.describe("dashboard desktop", () => {
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
 
-    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-24/);
-    await expect(piotroskiSection).toContainText("Requested 2026-04-27");
-    await expect(piotroskiSection).toContainText("Latest available 2026-04-24");
-    await expect(piotroskiSection).toContainText(/Filtered\s*14/);
-    await expect(marketRiskSection).toContainText("Requested 2026-04-27");
+    await expect(piotroskiSection).toHaveAttribute("data-filter-status", "waiting");
+    await expect(marketRiskSection).toHaveAttribute("data-filter-status", "waiting");
+    await expect(piotroskiSection).toContainText(/Filtered\s*\[확인 필요\]/);
+    await expect(piotroskiSection).not.toContainText("Latest available 2026-04-24");
+    await expect(marketRiskSection).not.toContainText("Requested 2026-04-27");
 
+    eodPipelineRunning = false;
     releaseSameDayResults();
     await expect.poll(() => piotroskiRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
     await expect.poll(() => marketRiskRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
@@ -3997,17 +3999,19 @@ test.describe("dashboard desktop", () => {
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
-    const activeTechnicalRole = progressCard
-      .locator('[data-role-status="running"]')
+    const waitingTechnicalRole = progressCard
+      .locator('[data-role-status="pending"]')
       .filter({ hasText: "Technical summarizer" });
     const pendingFundamentalRole = progressCard
       .locator('[data-role-status="pending"]')
       .filter({ hasText: "Fundamental summarizer" });
 
-    await expect(progressCard).toContainText(agentReviewRunningLabel);
-    await expect(activeTechnicalRole).toBeVisible();
-    await expect(activeTechnicalRole).not.toContainText("EOD 진행 중");
-    await expect(activeTechnicalRole).not.toContainText("EOD -- 실패 13");
+    await expect(progressCard).toContainText("Waiting");
+    await expect(progressCard).not.toContainText(agentReviewRunningLabel);
+    await expect(progressCard.locator('[data-role-status="running"]')).toHaveCount(0);
+    await expect(waitingTechnicalRole).toBeVisible();
+    await expect(waitingTechnicalRole).not.toContainText("EOD 진행 중");
+    await expect(waitingTechnicalRole).not.toContainText("EOD -- 실패 13");
     await expect(pendingFundamentalRole).toBeVisible();
     await expect(pendingFundamentalRole).not.toContainText("EOD 진행 중");
     await expect(pendingFundamentalRole).not.toContainText("Tech 진행 중");
