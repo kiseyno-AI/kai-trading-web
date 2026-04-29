@@ -404,6 +404,7 @@ test("dashboard signal-decider card previews partial results and links to the de
   await detailLink.click();
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Back to dashboard/i })).toHaveCount(0);
 
   const samsungRow = page.locator("tr").filter({ hasText: "Samsung Electronics" });
   await expect(samsungRow).toContainText("Buy");
