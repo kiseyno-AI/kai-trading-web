@@ -1920,6 +1920,40 @@
 }
 
 @media (max-width: 520px) {
+  .eodStageCard[data-status="running"] .eodStageTop {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+  }
+
+  .eodStageCard[data-status="running"] .eodStageTop :global(.pill).runningStatusPill {
+    justify-self: start;
+    width: auto;
+    min-height: 2rem;
+    padding: 0.32rem 0.55rem;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .eodStageCard[data-status="running"] .statusPillLabel {
+    white-space: normal;
+  }
+
+  .eodStageCard[data-status="running"] .runningStatusLabel {
+    align-items: flex-start;
+  }
+
+  .eodStageCard[data-status="running"] .runningStatusSpinner {
+    margin-top: 0.12rem;
+  }
+
+  .eodStageCard[data-status="running"] .runningStatusText {
+    display: -webkit-box;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
   .signalDeciderPreviewRow {
     grid-template-columns: 1fr;
   }
