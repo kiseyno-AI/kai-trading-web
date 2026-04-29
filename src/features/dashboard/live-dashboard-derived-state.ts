@@ -540,11 +540,11 @@ export function buildMarketSnapshotPresentation(
       ? "stale"
       : normalizedPayloadStatus === "stale"
         ? "stale"
+        : normalizedPayloadStatus === "unavailable"
+          ? "unavailable"
         : normalizedPayloadStatus === "partial" || hasMissingFieldSignal
           ? "partial"
-          : normalizedPayloadStatus === "unavailable"
-            ? "unavailable"
-            : "ready";
+          : "ready";
   const isReady = status === "ready";
   const missingFieldLabels = getMarketSnapshotMissingFieldLabels(displaySnapshot, copy);
   const staleReason = displaySnapshot?.stale_reason?.trim() || marketSnapshotError;

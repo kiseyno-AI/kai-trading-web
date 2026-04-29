@@ -255,6 +255,46 @@ test("renders partial-but-usable market snapshots instead of collapsing the full
   assert.match(presentation.fallbackContextLabel, /Institutional flow/);
 });
 
+test("keeps explicit unavailable market snapshots unavailable when partial fragments exist", () => {
+  const copy = getDashboardLiveCopy("en");
+  const snapshot: MarketSnapshotResponseDto = {
+    status: "unavailable",
+    missing_fields: ["indices.kosdaq", "flows.institutional"],
+    market_date: "2026-04-21",
+    as_of: "2026-04-21T15:30:00+09:00",
+    indices: {
+      kospi: {
+        level: 2648.3,
+        change: 12.4,
+        change_rate: 0.47,
+      },
+    },
+    fx: {
+      usdkrw: {
+        value: 1378.1,
+      },
+    },
+    flows: {
+      foreign: {
+        value: 124_000_000_000,
+        unit: "KRW",
+      },
+    },
+    summary: {
+      line: "Large-cap breadth improved into the close.",
+    },
+  };
+  const presentation = buildMarketSnapshotPresentation(copy, snapshot, null);
+
+  assert.equal(presentation.isReady, false);
+  assert.equal(presentation.status, "unavailable");
+  assert.equal(presentation.statusLabel, copy.marketOverview.snapshotUnavailable);
+  assert.equal(presentation.statusTone, "warning");
+  assert.equal(presentation.displaySnapshot, null);
+  assert.deepEqual(presentation.missingFieldLabels, [copy.marketOverview.kosdaq, copy.marketOverview.institutionalFlow]);
+  assert.equal(presentation.fallbackContextLabel, copy.marketOverview.snapshotWaiting);
+});
+
 test("normalizes enveloped market snapshot responses before resolving presentation state", () => {
   const copy = getDashboardLiveCopy("en");
   const envelopedSnapshot = {
