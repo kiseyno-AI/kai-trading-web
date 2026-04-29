@@ -10,6 +10,7 @@ import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
+import { SurfaceState } from "@/components/ui/surface-state";
 import { getSearchPageCopy, type SearchPageCopy } from "@/i18n/search-page-copy";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
@@ -257,10 +258,9 @@ function formatChangePct(value: number | null | undefined) {
 
 function PanelUnavailable({ message, label }: { message: string; label: string }) {
   return (
-    <div className={styles.feedback} role="status">
-      <strong>{label}</strong>
-      <p className="clamp-3">{message}</p>
-    </div>
+    <SurfaceState className={styles.feedback} title={label} tone="warning">
+      <span className="clamp-3">{message}</span>
+    </SurfaceState>
   );
 }
 

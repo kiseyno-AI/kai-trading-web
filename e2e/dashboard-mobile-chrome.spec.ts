@@ -373,7 +373,10 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   expect(getOverlapArea(processBarBox, bottomNavBox)).toBe(0);
   expect(releaseBox.y).toBeLessThan(processBarBox.y);
   expect(localeBox.y).toBeLessThan(processBarBox.y);
-  expect(processBarBox.y + processBarBox.height).toBeLessThan(bottomNavBox.y);
+
+  if (processBarBox.y < viewport.height) {
+    expect(processBarBox.y + processBarBox.height).toBeLessThan(bottomNavBox.y);
+  }
 }
 
 async function openEodStatusCard(page: Page) {

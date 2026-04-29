@@ -7,9 +7,9 @@
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(71, 69, 85, 0.22);
-  border-radius: 1.25rem;
-  background: rgba(28, 32, 37, 0.92);
+  border: 1px solid rgba(134, 162, 194, 0.22);
+  border-radius: var(--radius-xl);
+  background: rgba(11, 22, 38, 0.92);
   box-shadow: 0 24px 48px rgba(1, 15, 32, 0.28);
 }
 
@@ -29,13 +29,13 @@
   height: 2.35rem;
   display: grid;
   place-items: center;
-  border-radius: 999px;
-  border: 1px solid rgba(71, 69, 85, 0.22);
-  background: rgba(24, 28, 33, 0.82);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(134, 162, 194, 0.22);
+  background: rgba(8, 17, 31, 0.82);
   color: var(--text-strong);
   text-decoration: none;
   font-size: 1.05rem;
-  box-shadow: 0 10px 22px rgba(10, 14, 19, 0.2);
+  box-shadow: 0 10px 22px rgba(3, 7, 13, 0.2);
 }
 
 .sectionEyebrow {
@@ -72,9 +72,9 @@
 }
 
 .marketStatusClosedPill {
-  background: rgba(71, 69, 85, 0.26);
+  background: rgba(134, 162, 194, 0.26);
   color: var(--text-strong);
-  box-shadow: inset 0 0 0 1px rgba(197, 192, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(88, 139, 255, 0.14);
 }
 
 .heroCard,
@@ -92,9 +92,8 @@
 }
 
 .heroCard {
-  background:
-    radial-gradient(circle at top right, rgba(197, 192, 255, 0.16), transparent 34%),
-    linear-gradient(145deg, rgba(28, 32, 37, 0.98), rgba(24, 28, 33, 0.86));
+  border-color: rgba(88, 139, 255, 0.28);
+  background: linear-gradient(180deg, rgba(0, 82, 255, 0.1), rgba(11, 22, 38, 0.94));
 }
 
 .heroTopRow,
@@ -117,7 +116,7 @@
   font-family: var(--font-manrope), sans-serif;
   font-size: 2.2rem;
   font-weight: 800;
-  letter-spacing: -0.05em;
+  letter-spacing: 0;
 }
 
 .heroCompany {
@@ -136,8 +135,8 @@
 
 .tradeButton {
   border: none;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-radius: var(--radius-lg);
+  background: var(--accent);
   color: var(--primary-foreground);
   padding: 0.72rem 1rem;
   font-family: var(--font-space-grotesk), sans-serif;
@@ -145,7 +144,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  box-shadow: 0 16px 34px rgba(109, 94, 247, 0.24);
+  box-shadow: 0 16px 34px rgba(0, 82, 255, 0.24);
   opacity: 0.9;
 }
 
@@ -154,10 +153,10 @@
   height: 2.6rem;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(71, 69, 85, 0.26);
-  border-radius: 0.5rem;
-  background: rgba(24, 28, 33, 0.8);
-  color: #dee0ff;
+  border: 1px solid rgba(134, 162, 194, 0.26);
+  border-radius: var(--radius-md);
+  background: rgba(8, 17, 31, 0.8);
+  color: #d6e2f2;
   cursor: pointer;
   padding: 0;
   appearance: none;
@@ -174,7 +173,7 @@
 .watchBadge:hover:not(:disabled),
 .watchBadge:focus-visible {
   border-color: rgba(247, 201, 72, 0.68);
-  color: #f7c948;
+  color: #f5b84b;
   transform: translateY(-1px);
 }
 
@@ -191,7 +190,7 @@
 .watchBadgeActive {
   border-color: rgba(247, 201, 72, 0.58);
   background: rgba(247, 201, 72, 0.14);
-  color: #f7c948;
+  color: #f5b84b;
 }
 
 .trackingFeedback {
@@ -213,7 +212,7 @@
   font-family: var(--font-manrope), sans-serif;
   font-size: 2.45rem;
   font-weight: 800;
-  letter-spacing: -0.06em;
+  letter-spacing: 0;
 }
 
 .heroQuoteBlock span {
@@ -260,9 +259,9 @@
 .focusCard {
   min-width: 0;
   padding: 0.85rem;
-  border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.76);
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 17, 31, 0.76);
+  border: 1px solid rgba(134, 162, 194, 0.18);
 }
 
 .heroMetricCard span,
@@ -347,8 +346,8 @@
 .feedback {
   padding: 0.85rem 0.95rem;
   border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.58);
-  color: #fff4dd;
+  background: rgba(8, 17, 31, 0.58);
+  color: #fff7e5;
   line-height: 1.5;
 }
 
@@ -357,9 +356,8 @@
   flex-direction: column;
   gap: 0.85rem;
   padding: 1rem;
-  background:
-    linear-gradient(135deg, rgba(13, 28, 46, 0.94), rgba(35, 40, 67, 0.8)),
-    radial-gradient(circle at 20% 0%, rgba(78, 222, 163, 0.12), transparent 34%);
+  border-color: rgba(88, 139, 255, 0.24);
+  background: rgba(11, 22, 38, 0.94);
 }
 
 .detailTabs {
@@ -381,10 +379,10 @@
   justify-content: center;
   appearance: none;
   width: fit-content;
-  border: 1px solid rgba(71, 69, 85, 0.22);
+  border: 1px solid rgba(134, 162, 194, 0.22);
   border-radius: 999px;
-  background: rgba(24, 28, 33, 0.76);
-  color: #dee0ff;
+  background: rgba(8, 17, 31, 0.76);
+  color: #d6e2f2;
   cursor: pointer;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.68rem;
@@ -397,9 +395,9 @@
 }
 
 .detailTabActive {
-  background: rgba(78, 222, 163, 0.16);
-  border-color: rgba(78, 222, 163, 0.36);
-  color: #dfffe8;
+  background: rgba(0, 82, 255, 0.18);
+  border-color: rgba(88, 139, 255, 0.42);
+  color: var(--text-strong);
 }
 
 .detailLink {
@@ -412,7 +410,7 @@
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.08rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .rangeRow {
@@ -424,7 +422,7 @@
 .rangeButton {
   border: none;
   border-radius: 0.72rem;
-  background: rgba(24, 28, 33, 0.8);
+  background: rgba(8, 17, 31, 0.8);
   color: var(--muted-soft);
   padding: 0.42rem 0.62rem;
   font-family: var(--font-space-grotesk), sans-serif;
@@ -435,16 +433,16 @@
 }
 
 .rangeButtonActive {
-  background: rgba(63, 81, 181, 0.26);
-  color: #dee0ff;
+  background: rgba(0, 82, 255, 0.22);
+  color: var(--text-strong);
 }
 
 .chartFrame {
   margin-top: 0.95rem;
   min-height: 14rem;
   padding: 0.4rem 0.4rem 0;
-  border-radius: 1rem;
-  background: rgba(5, 20, 37, 0.72);
+  border-radius: var(--radius-lg);
+  background: rgba(5, 11, 20, 0.72);
 }
 
 .candlestickChart {
@@ -461,8 +459,8 @@
   justify-content: center;
   min-height: 13rem;
   padding: 1rem;
-  border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.68);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 17, 31, 0.68);
 }
 
 .emptyPanel strong,
@@ -509,7 +507,7 @@
   min-height: 0.9rem;
   padding: 0.55rem 0.7rem;
   border-radius: 999px;
-  background: rgba(24, 28, 33, 0.84);
+  background: rgba(8, 17, 31, 0.84);
 }
 
 .signalSell,
@@ -525,13 +523,13 @@
 }
 
 .signalStrong {
-  color: #dfffe8;
+  color: #e7fff5;
 }
 
 .signalFill {
   position: absolute;
   inset: 0 auto 0 0;
-  background: linear-gradient(90deg, rgba(63, 81, 181, 0.35), rgba(78, 222, 163, 0.65));
+  background: var(--accent);
   border-radius: 999px;
 }
 
@@ -548,8 +546,8 @@
 .tagChip {
   padding: 0.38rem 0.55rem;
   border-radius: 999px;
-  background: rgba(24, 28, 33, 0.84);
-  color: #dee0ff;
+  background: rgba(0, 82, 255, 0.12);
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
@@ -567,8 +565,8 @@
   gap: 0.85rem;
   margin-top: 0.95rem;
   padding: 0.9rem;
-  border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.76);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 17, 31, 0.76);
 }
 
 .companyAvatar {
@@ -576,8 +574,8 @@
   height: 2.8rem;
   display: grid;
   place-items: center;
-  border-radius: 999px;
-  background: rgba(63, 81, 181, 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(0, 82, 255, 0.24);
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1rem;
@@ -592,9 +590,9 @@
 .coverageNote {
   min-width: 0;
   padding: 0.9rem;
-  border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.72);
-  border: 1px solid rgba(71, 69, 85, 0.16);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 17, 31, 0.72);
+  border: 1px solid rgba(134, 162, 194, 0.16);
 }
 
 .disclosureCard {
@@ -604,7 +602,7 @@
 }
 
 .disclosureCard:focus-visible {
-  outline: 2px solid rgba(78, 222, 163, 0.78);
+  outline: 2px solid rgba(88, 139, 255, 0.78);
   outline-offset: 3px;
 }
 
@@ -636,9 +634,9 @@
   display: inline-flex;
   align-items: center;
   margin-top: 0.78rem;
-  border-radius: 0.5rem;
-  background: rgba(78, 222, 163, 0.14);
-  color: #dfffe8;
+  border-radius: var(--radius-md);
+  background: rgba(0, 82, 255, 0.14);
+  color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
@@ -698,8 +696,8 @@
   gap: 0.72rem;
   margin-top: 0.85rem;
   padding: 0.82rem;
-  border: 1px solid rgba(78, 222, 163, 0.16);
-  border-radius: 0.9rem;
+  border: 1px solid rgba(88, 139, 255, 0.18);
+  border-radius: var(--radius-lg);
   background: rgba(5, 20, 37, 0.48);
 }
 
@@ -791,8 +789,8 @@
 }
 
 .freshnessCard :global(.pill.positive) {
-  background: rgba(78, 222, 163, 0.18);
-  border-color: rgba(78, 222, 163, 0.28);
+  background: rgba(22, 199, 132, 0.16);
+  border-color: rgba(22, 199, 132, 0.28);
   color: #b9ffdd;
 }
 
@@ -815,7 +813,7 @@
 }
 
 .positive {
-  color: #6ffbbe;
+  color: var(--positive);
 }
 
 .negative {
@@ -866,7 +864,7 @@
   overflow: hidden;
   margin-top: 0.95rem;
   min-height: 32rem;
-  border: 1px solid rgba(71, 69, 85, 0.22);
+  border: 1px solid rgba(134, 162, 194, 0.22);
   border-radius: 0.5rem;
   background: var(--text-strong);
 }
@@ -913,8 +911,8 @@
   }
 
   .panel {
-    border-radius: 0.18rem;
-    background: rgba(28, 32, 37, 0.86);
+    border-radius: var(--radius-xl);
+    background: rgba(11, 22, 38, 0.86);
     box-shadow: 0 30px 64px rgba(1, 15, 32, 0.26);
   }
 
@@ -938,9 +936,7 @@
 
   .heroCard {
     min-height: 18rem;
-    background:
-      linear-gradient(90deg, rgba(28, 32, 37, 0.96), rgba(18, 32, 50, 0.72)),
-      radial-gradient(circle at 92% 12%, rgba(186, 195, 255, 0.14), transparent 20rem);
+    background: linear-gradient(180deg, rgba(0, 82, 255, 0.1), rgba(11, 22, 38, 0.94));
   }
 
   .heroTopRow {

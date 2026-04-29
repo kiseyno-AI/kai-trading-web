@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { LanguageSwitchControl } from "@/components/navigation/language-switch-control";
+import { NavGlyph } from "@/components/navigation/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { SearchPicker } from "@/components/ui/search-picker";
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -59,7 +60,9 @@ export function Topbar({
 
       <div className="topbar-actions">
         <Link href="/search" className="topbar-link" aria-label={t.navigation.goToSearch}>
-          <span className="topbar-link-icon">SR</span>
+          <span className="topbar-link-icon" aria-hidden="true">
+            <NavGlyph id="search" />
+          </span>
           <span>{t.navigation.searchWorkspace}</span>
         </Link>
 

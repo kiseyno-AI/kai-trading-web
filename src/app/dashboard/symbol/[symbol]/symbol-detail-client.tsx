@@ -7,6 +7,7 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
+import { SurfaceState } from "@/components/ui/surface-state";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
 import {
   ActionSummarySection,
@@ -151,10 +152,9 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       <MobileAppChrome activeNav="symbols" mySymbolsHref="/my-symbols" header={pendingHeader}>
         <div className={styles.detailPage} data-mode={activeMode}>
           <section className={`${styles.panel} ${styles.chartCard}`} role="status" aria-live="polite" aria-busy="true">
-            <div className={styles.emptyPanel}>
-              <strong>{copy.loadingWorkspace}</strong>
-              <p className="clamp-3">{copy.common.loading}</p>
-            </div>
+            <SurfaceState className={styles.emptyPanel} title={copy.loadingWorkspace} tone="loading">
+              <span className="clamp-3">{copy.common.loading}</span>
+            </SurfaceState>
           </section>
         </div>
       </MobileAppChrome>
@@ -416,15 +416,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                     onSelectedBarChange={setSelectedBar}
                   />
                 ) : historyLoading ? (
-                  <div className={styles.emptyPanel}>
-                    <strong>{copy.chart.loadingTitle}</strong>
-                    <p className="clamp-3">{copy.chart.loadingBody}</p>
-                  </div>
+                  <SurfaceState className={styles.emptyPanel} title={copy.chart.loadingTitle} tone="loading">
+                    <span className="clamp-3">{copy.chart.loadingBody}</span>
+                  </SurfaceState>
                 ) : (
-                  <div className={styles.emptyPanel}>
-                    <strong>{copy.chart.emptyTitle}</strong>
-                    <p className="clamp-3">{copy.chart.emptyBody}</p>
-                  </div>
+                  <SurfaceState className={styles.emptyPanel} title={copy.chart.emptyTitle}>
+                    <span className="clamp-3">{copy.chart.emptyBody}</span>
+                  </SurfaceState>
                 )}
               </div>
 

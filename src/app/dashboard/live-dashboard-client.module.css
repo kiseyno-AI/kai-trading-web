@@ -8,16 +8,16 @@
 .brandMark {
   width: 2.35rem;
   height: 2.35rem;
-  border-radius: 999px;
+  border-radius: var(--radius-lg);
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: var(--accent);
   color: var(--primary-foreground);
   font-family: var(--font-manrope), sans-serif;
   font-size: 0.92rem;
   font-weight: 800;
   letter-spacing: 0.1em;
-  box-shadow: 0 0 18px rgba(197, 192, 255, 0.18);
+  box-shadow: 0 14px 24px rgba(0, 82, 255, 0.22);
 }
 
 .brandEyebrow,
@@ -37,7 +37,7 @@
   font-family: var(--font-manrope), sans-serif;
   font-size: 1rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .brandCopy {
@@ -69,9 +69,9 @@
 }
 
 .marketStatusClosedPill {
-  background: rgba(71, 69, 85, 0.26);
+  background: rgba(134, 162, 194, 0.26);
   color: var(--text-strong);
-  box-shadow: inset 0 0 0 1px rgba(197, 192, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(88, 139, 255, 0.14);
 }
 
 .stack {
@@ -83,12 +83,12 @@
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(71, 69, 85, 0.22);
-  border-radius: 1.25rem;
-  background: rgba(28, 32, 37, 0.92);
+  border: 1px solid rgba(134, 162, 194, 0.22);
+  border-radius: var(--radius-xl);
+  background: rgba(11, 22, 38, 0.92);
   box-shadow:
-    0 24px 48px rgba(10, 14, 19, 0.28),
-    0 0 24px rgba(197, 192, 255, 0.06);
+    0 24px 48px rgba(3, 7, 13, 0.28),
+    inset 0 0 0 1px rgba(88, 139, 255, 0.04);
 }
 
 .panelHeader {
@@ -113,7 +113,7 @@
 .alertTitle {
   display: block;
   margin-top: 0.35rem;
-  color: #fff4dd;
+  color: #fff7e5;
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.15rem;
   font-weight: 800;
@@ -125,7 +125,7 @@
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.85rem;
   font-weight: 800;
-  letter-spacing: -0.045em;
+  letter-spacing: 0;
 }
 
 .marketContext {
@@ -181,11 +181,11 @@
 
 .processMonitorDetailCards {
   padding-top: 0.85rem;
-  border-top: 1px solid rgba(71, 69, 85, 0.18);
+  border-top: 1px solid rgba(134, 162, 194, 0.18);
 }
 
 .dashboardWideShell {
-  padding-bottom: 4.8rem;
+  padding-bottom: 0;
 }
 
 .processMonitorBar {
@@ -198,14 +198,12 @@
   min-height: 4.2rem;
   padding: 0.78rem 0.85rem;
   border: 1px solid rgba(127, 184, 255, 0.24);
-  border-radius: 0.85rem;
-  background:
-    linear-gradient(135deg, rgba(16, 35, 54, 0.96), rgba(16, 20, 25, 0.94)),
-    rgba(16, 20, 25, 0.94);
+  border-radius: var(--radius-lg);
+  background: rgba(5, 11, 20, 0.94);
   color: inherit;
   text-align: left;
   box-shadow:
-    0 14px 34px rgba(10, 14, 19, 0.28),
+    0 14px 34px rgba(3, 7, 13, 0.28),
     inset 0 0 0 1px rgba(127, 184, 255, 0.04);
   cursor: pointer;
   transition:
@@ -217,7 +215,7 @@
 .processMonitorBar:hover {
   border-color: rgba(127, 184, 255, 0.42);
   box-shadow:
-    0 16px 38px rgba(10, 14, 19, 0.34),
+    0 16px 38px rgba(3, 7, 13, 0.34),
     inset 0 0 0 1px rgba(127, 184, 255, 0.08);
 }
 
@@ -239,11 +237,10 @@
 }
 
 .processMonitorMobileBar {
-  position: fixed;
-  inset: auto 0 var(--mobile-floating-status-offset, calc(8.75rem + env(safe-area-inset-bottom)));
-  z-index: 44;
-  width: min(calc(100% - 1.8rem), 31rem);
-  margin-inline: auto;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0.85rem auto 0;
   backdrop-filter: blur(18px);
 }
 
@@ -297,9 +294,9 @@
   display: grid;
   gap: 0.18rem;
   padding: 0.46rem 0.56rem;
-  border: 1px solid rgba(71, 69, 85, 0.2);
+  border: 1px solid rgba(134, 162, 194, 0.2);
   border-radius: 0.55rem;
-  background: rgba(10, 14, 19, 0.62);
+  background: rgba(3, 7, 13, 0.62);
   text-align: right;
   white-space: nowrap;
 }
@@ -332,7 +329,7 @@
   height: 0.76rem;
   flex: 0 0 auto;
   border: 2px solid rgba(127, 184, 255, 0.36);
-  border-top-color: #6ffbbe;
+  border-top-color: var(--positive);
   border-right-color: rgba(111, 251, 190, 0.78);
   border-radius: 999px;
   box-shadow: 0 0 12px rgba(111, 251, 190, 0.16);
@@ -370,10 +367,8 @@
   overflow-y: auto;
   padding: 1rem;
   border: 1px solid rgba(186, 195, 255, 0.24);
-  border-radius: 0.95rem;
-  background:
-    linear-gradient(135deg, rgba(16, 35, 54, 0.97), rgba(16, 20, 25, 0.96)),
-    rgba(16, 20, 25, 0.96);
+  border-radius: var(--radius-xl);
+  background: rgba(5, 11, 20, 0.96);
   box-shadow:
     0 26px 70px rgba(1, 15, 32, 0.42),
     inset 0 0 0 1px rgba(127, 184, 255, 0.05);
@@ -434,7 +429,7 @@
   gap: 0.42rem;
   margin-top: 0.8rem;
   padding-top: 0.78rem;
-  border-top: 1px solid rgba(71, 69, 85, 0.18);
+  border-top: 1px solid rgba(134, 162, 194, 0.18);
   color: var(--muted-soft);
   font-size: 0.76rem;
   line-height: 1.3;
@@ -462,7 +457,7 @@
 .processMonitorSummary[data-process-status="partial"],
 .processMonitorSummary[data-process-status="retry"] {
   border-color: rgba(227, 176, 74, 0.3);
-  color: #fff4dd;
+  color: #fff7e5;
 }
 
 .processMonitorSummary[data-process-status="error"] {
@@ -473,8 +468,8 @@
 .integrityStat {
   padding: 0.85rem;
   border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.84);
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  background: rgba(8, 17, 31, 0.84);
+  border: 1px solid rgba(134, 162, 194, 0.18);
 }
 
 .integrityStat > span,
@@ -564,9 +559,9 @@
 .insightStateList > div {
   min-width: 0;
   padding: 0.72rem 0.78rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.65rem;
-  background: rgba(10, 14, 19, 0.64);
+  background: rgba(3, 7, 13, 0.64);
 }
 
 .portfolioMetric span,
@@ -587,10 +582,11 @@
   margin: 0.3rem 0 0;
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 800;
   line-height: 1.35;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .marketIndexCard strong {
@@ -655,16 +651,16 @@
   display: grid;
   gap: 0.7rem;
   padding: 0.82rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.65rem;
-  background: rgba(10, 14, 19, 0.58);
+  background: rgba(3, 7, 13, 0.58);
 }
 
 .scoringStageSection {
   border-color: rgba(127, 184, 255, 0.2);
   background:
     linear-gradient(180deg, rgba(127, 184, 255, 0.06), transparent 48%),
-    rgba(10, 14, 19, 0.58);
+    rgba(3, 7, 13, 0.58);
 }
 
 .filterFinalCount {
@@ -747,16 +743,16 @@
   justify-content: flex-start;
   gap: 0.5rem;
   padding: 0.8rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.62);
+  background: rgba(3, 7, 13, 0.62);
 }
 
 .eodStageCard[data-status="synced"] {
   border-color: rgba(111, 251, 190, 0.3);
   background:
     linear-gradient(180deg, rgba(111, 251, 190, 0.08), transparent 42%),
-    rgba(10, 14, 19, 0.66);
+    rgba(3, 7, 13, 0.66);
   box-shadow: inset 0 0 0 1px rgba(111, 251, 190, 0.08);
 }
 
@@ -764,7 +760,7 @@
   border-color: rgba(127, 184, 255, 0.34);
   background:
     linear-gradient(180deg, rgba(127, 184, 255, 0.12), transparent 46%),
-    rgba(10, 14, 19, 0.7);
+    rgba(3, 7, 13, 0.7);
   box-shadow:
     inset 0 0 0 1px rgba(127, 184, 255, 0.08),
     0 0 0 1px rgba(127, 184, 255, 0.04);
@@ -877,7 +873,7 @@
   height: 0.6rem;
   flex: 0 0 auto;
   border: 1.75px solid rgba(127, 184, 255, 0.34);
-  border-top-color: #6ffbbe;
+  border-top-color: var(--positive);
   border-right-color: rgba(111, 251, 190, 0.76);
   border-radius: 999px;
   animation: agentRoleSpin 0.82s linear infinite;
@@ -960,9 +956,9 @@
   display: grid;
   gap: 0.12rem;
   padding: 0.5rem 0.58rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.45rem;
-  background: rgba(24, 28, 33, 0.76);
+  background: rgba(8, 17, 31, 0.76);
 }
 
 .fundamentalsUpdatedCompany {
@@ -1016,7 +1012,7 @@
   grid-template-columns: minmax(0, 1fr);
   align-items: flex-start;
   padding: 0.62rem 0.68rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
   background: rgba(5, 20, 37, 0.46);
 }
@@ -1092,7 +1088,7 @@
 .agentRoleProgressIcon[data-role-progress-icon="completed"] {
   border-color: rgba(111, 251, 190, 0.42);
   background: rgba(111, 251, 190, 0.12);
-  color: #6ffbbe;
+  color: var(--positive);
 }
 
 .agentRoleProgressIcon[data-role-progress-icon="completed"]::before {
@@ -1106,7 +1102,7 @@
 
 .agentRoleProgressIcon[data-role-progress-icon="running"] {
   border: 2px solid rgba(127, 184, 255, 0.36);
-  border-top-color: #6ffbbe;
+  border-top-color: var(--positive);
   background: transparent;
   animation: agentRoleSpin 0.82s linear infinite;
 }
@@ -1122,7 +1118,7 @@
 .agentRoleProgressIcon[data-role-progress-icon="attention"] {
   border-color: rgba(227, 176, 74, 0.42);
   background: rgba(227, 176, 74, 0.12);
-  color: #fff4dd;
+  color: #fff7e5;
 }
 
 .agentRoleProgressIcon[data-role-progress-icon="attention"]::before {
@@ -1137,24 +1133,24 @@
   height: 0.34rem;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(71, 69, 85, 0.26);
+  background: rgba(134, 162, 194, 0.26);
 }
 
 .agentRoleProgressTrack i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #6ffbbe, var(--accent));
+  background: var(--accent);
 }
 
 .agentRoleProgressTrack[data-role-progress-track="running"] i {
-  background: linear-gradient(90deg, #7fb8ff, #6ffbbe, #7fb8ff);
+  background: linear-gradient(90deg, var(--accent), var(--blue), var(--accent));
   background-size: 160% 100%;
   animation: agentProgressFlow 1.4s linear infinite;
 }
 
 .agentRoleProgressTrack[data-role-progress-track="completed"] i {
-  background: linear-gradient(90deg, #6ffbbe, #9df7d1);
+  background: var(--positive);
 }
 
 .agentRoleProgressTrack[data-role-progress-track="pending"] i {
@@ -1162,7 +1158,7 @@
 }
 
 .agentRoleProgressTrack[data-role-progress-track="attention"] i {
-  background: linear-gradient(90deg, #ffd49f, #fff4dd);
+  background: var(--warning);
 }
 
 .agentRoleStatusText {
@@ -1176,7 +1172,7 @@
 }
 
 .agentRoleRow[data-role-status="attention"] .agentRoleStatusText {
-  color: #fff4dd;
+  color: #fff7e5;
 }
 
 .agentRoleMetrics {
@@ -1189,9 +1185,9 @@
 .agentRoleMetric {
   min-width: 0;
   padding: 0.5rem 0.55rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.45rem;
-  background: rgba(24, 28, 33, 0.76);
+  background: rgba(8, 17, 31, 0.76);
 }
 
 .agentRoleMetric dt {
@@ -1241,7 +1237,7 @@
   min-width: 0;
   padding: 0.72rem 0.78rem;
   border-radius: 0.95rem;
-  background: rgba(10, 14, 19, 0.64);
+  background: rgba(3, 7, 13, 0.64);
 }
 
 .statusMetric span {
@@ -1271,7 +1267,7 @@
   border: 1px solid rgba(227, 176, 74, 0.28);
   border-radius: 0.55rem;
   background: rgba(50, 37, 12, 0.42);
-  color: #fff4dd;
+  color: #fff7e5;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
@@ -1299,7 +1295,7 @@
   gap: 0.42rem 0.65rem;
   align-items: center;
   padding: 0.68rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
   background: rgba(5, 20, 37, 0.46);
 }
@@ -1359,9 +1355,9 @@
   justify-content: center;
   min-height: 2.35rem;
   padding: 0.68rem 0.82rem;
-  border: 1px solid rgba(197, 192, 255, 0.18);
+  border: 1px solid rgba(88, 139, 255, 0.18);
   border-radius: 0.55rem;
-  background: rgba(109, 94, 247, 0.12);
+  background: rgba(0, 82, 255, 0.12);
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.74rem;
@@ -1373,8 +1369,8 @@
 }
 
 .signalDeciderDetailLink:hover {
-  border-color: rgba(197, 192, 255, 0.34);
-  background: rgba(109, 94, 247, 0.2);
+  border-color: rgba(88, 139, 255, 0.34);
+  background: rgba(0, 82, 255, 0.2);
 }
 
 .signalDeciderMoreLink {
@@ -1385,7 +1381,7 @@
   min-width: 5.5rem;
   min-height: 1.75rem;
   padding: 0.22rem 1rem;
-  border: 1px solid rgba(197, 192, 255, 0.28);
+  border: 1px solid rgba(88, 139, 255, 0.28);
   border-radius: 0.45rem;
   background: transparent;
   color: var(--text-strong);
@@ -1399,8 +1395,8 @@
 }
 
 .signalDeciderMoreLink:hover {
-  border-color: rgba(197, 192, 255, 0.44);
-  background: rgba(109, 94, 247, 0.12);
+  border-color: rgba(88, 139, 255, 0.44);
+  background: rgba(0, 82, 255, 0.12);
 }
 
 .supportRow strong {
@@ -1411,9 +1407,9 @@
 }
 
 .syncedStatusIcon {
-  color: #6ffbbe;
+  color: var(--positive);
   border: 1px solid rgba(111, 251, 190, 0.34);
-  background: radial-gradient(circle at 32% 28%, rgba(201, 255, 230, 0.52), rgba(111, 251, 190, 0.2) 52%, transparent 100%);
+  background: rgba(22, 199, 132, 0.16);
   box-shadow:
     inset 0 0 0 1px rgba(111, 251, 190, 0.08),
     0 0 16px rgba(111, 251, 190, 0.12);
@@ -1432,9 +1428,9 @@
 }
 
 .notSyncedStatusIcon {
-  color: #ffd49f;
+  color: var(--warning);
   border: 1px solid rgba(255, 212, 159, 0.36);
-  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.16), rgba(255, 212, 159, 0.2) 56%, transparent 100%);
+  background: rgba(245, 184, 75, 0.14);
 }
 
 .notSyncedStatusIcon::before,
@@ -1459,7 +1455,7 @@
 
 .filterLoadingStatusIcon {
   border: 2px solid rgba(127, 184, 255, 0.36);
-  border-top-color: #6ffbbe;
+  border-top-color: var(--accent);
   border-right-color: rgba(111, 251, 190, 0.78);
   background: transparent;
   box-shadow: 0 0 12px rgba(111, 251, 190, 0.14);
@@ -1467,9 +1463,9 @@
 }
 
 .filterNeedsReviewStatusIcon {
-  color: #ffd49f;
+  color: var(--warning);
   border: 1px solid rgba(227, 176, 74, 0.42);
-  background: radial-gradient(circle at 32% 28%, rgba(255, 244, 221, 0.26), rgba(227, 176, 74, 0.18) 58%, transparent 100%);
+  background: rgba(245, 184, 75, 0.14);
   box-shadow: inset 0 0 0 1px rgba(227, 176, 74, 0.08);
 }
 
@@ -1534,7 +1530,7 @@
 .eodStageTop :global(.pill).runningStatusPill .statusPillIcon,
 .agentFeedbackCard :global(.pill).runningStatusPill .statusPillIcon {
   border: 2px solid rgba(127, 184, 255, 0.36);
-  border-top-color: #6ffbbe;
+  border-top-color: var(--positive);
   background: transparent;
   animation: agentRoleSpin 0.82s linear infinite;
 }
@@ -1662,7 +1658,7 @@
   overflow-y: auto;
   border: 1px solid rgba(186, 195, 255, 0.22);
   border-radius: 0.5rem;
-  background: rgba(24, 28, 33, 0.98);
+  background: rgba(8, 17, 31, 0.98);
   box-shadow: 0 28px 70px rgba(1, 15, 32, 0.46);
   padding: 1rem;
 }
@@ -1684,7 +1680,7 @@
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.35rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .dialogCloseButton {
@@ -1714,7 +1710,7 @@
 }
 
 .confirmationError {
-  color: #fff4dd;
+  color: #fff7e5;
 }
 
 .dialogActions {
@@ -1730,7 +1726,7 @@
   padding: 0 1rem;
   border: 1px solid rgba(186, 195, 255, 0.2);
   border-radius: 0.5rem;
-  background: rgba(28, 32, 37, 0.82);
+  background: rgba(11, 22, 38, 0.82);
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.78rem;
@@ -1750,7 +1746,7 @@
 .dialogActionDanger {
   border-color: rgba(227, 176, 74, 0.28);
   background: rgba(50, 37, 12, 0.54);
-  color: #fff4dd;
+  color: #fff7e5;
 }
 
 .dialogActionDanger:hover {
@@ -1764,7 +1760,7 @@
   border: 1px solid rgba(227, 176, 74, 0.2);
   border-radius: 0.45rem;
   background: rgba(50, 37, 12, 0.42);
-  color: #fff4dd;
+  color: #fff7e5;
   font-size: 0.9rem;
   line-height: 1.55;
 }
@@ -1780,9 +1776,9 @@
 .metadataBlock {
   min-width: 0;
   padding: 0.75rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.45rem;
-  background: rgba(10, 14, 19, 0.62);
+  background: rgba(3, 7, 13, 0.62);
 }
 
 .failureDetailItem dt,
@@ -1835,14 +1831,14 @@
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.1rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .sectionLink {
   padding: 0.62rem 0.8rem;
   border-radius: 999px;
-  background: rgba(63, 81, 181, 0.18);
-  color: #dee0ff;
+  background: rgba(0, 82, 255, 0.18);
+  color: #d6e2f2;
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.72rem;
   font-weight: 700;
@@ -1871,8 +1867,8 @@
   gap: 0.8rem;
   padding: 0.85rem 0.95rem;
   border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.68);
-  border: 1px solid rgba(71, 69, 85, 0.16);
+  background: rgba(8, 17, 31, 0.68);
+  border: 1px solid rgba(134, 162, 194, 0.16);
 }
 
 .supportRow {
@@ -1922,14 +1918,14 @@
 .emptyState {
   padding: 0.95rem;
   border-radius: 1rem;
-  background: rgba(24, 28, 33, 0.6);
+  background: rgba(8, 17, 31, 0.6);
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.5;
 }
 
 .positive {
-  color: #6ffbbe;
+  color: var(--positive);
 }
 
 .negative {
@@ -1990,9 +1986,9 @@
   }
 
   .brandMark {
-    border-radius: 0.35rem;
-    background: linear-gradient(145deg, #d9ddff, #7583cb);
-    color: #17223b;
+    border-radius: var(--radius-lg);
+    background: var(--accent);
+    color: var(--primary-foreground);
   }
 
   .brandTitle {
@@ -2019,10 +2015,8 @@
     min-height: 3.7rem;
     margin-top: 1.1rem;
     padding: 0.72rem 0.9rem;
-    border-radius: 0.16rem;
-    background:
-      linear-gradient(90deg, rgba(10, 22, 38, 0.88), rgba(18, 32, 50, 0.7)),
-      rgba(12, 26, 42, 0.78);
+    border-radius: var(--radius-lg);
+    background: rgba(12, 26, 42, 0.82);
   }
 
   .processMonitorDrawerBackdrop {
@@ -2050,7 +2044,7 @@
 
   .panel {
     border-radius: 0.18rem;
-    background: rgba(28, 32, 37, 0.82);
+    background: rgba(11, 22, 38, 0.82);
     box-shadow: 0 28px 64px rgba(1, 15, 32, 0.24);
   }
 
@@ -2067,7 +2061,7 @@
 
   .heroTitle {
     font-size: clamp(2.05rem, 3vw, 3.2rem);
-    letter-spacing: -0.055em;
+    letter-spacing: 0;
   }
 
   .integrityGrid {
@@ -2136,7 +2130,7 @@
 
   .sectionTitle {
     font-size: clamp(1.35rem, 1.7vw, 2rem);
-    letter-spacing: -0.04em;
+    letter-spacing: 0;
   }
 
   .supportGrid {
