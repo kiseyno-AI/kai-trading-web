@@ -735,6 +735,7 @@ test("builds the Piotroski filtering card with the resolved latest-available not
   assert.equal(model.piotroskiDisplayMarketDate, "2026-04-18");
   assert.equal(piotroskiStage?.displayMarketDate, "2026-04-18");
   assert.equal(piotroskiStage?.displayMarketDateLabel, "2026-04-18");
+  assert.equal(piotroskiStage?.status, "completed");
   assert.equal(piotroskiStage?.statusTone, "positive");
   assert.equal(piotroskiStage?.statusLabel, copy.piotroski.completed);
   assert.equal(piotroskiStage?.filteredCountLabel, "14");
@@ -750,6 +751,7 @@ test("builds the Piotroski filtering card with the resolved latest-available not
     `${copy.piotroski.requestedDate} 2026-04-21 · ${copy.piotroski.latestAvailableDate} 2026-04-18`,
   );
   assert.equal(model.finalFilteredCountLabel, "2,900");
+  assert.equal(marketRiskStage?.status, "completed");
   assert.deepEqual(marketRiskStage?.metrics, [
     {
       key: "filtered",

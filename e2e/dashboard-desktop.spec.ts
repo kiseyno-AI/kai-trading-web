@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 
 type EodStageStatus = "synced" | "running" | "break day" | "not synced" | "waiting";
+type FilteringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
 
 const agentReviewRunningLabel = /Agent review running\.\.\.|에이전트 분석 중\.\.\./;
 const agentReviewNeedsAttentionLabel = /Agent review needs attention|에이전트 확인 필요/;
@@ -34,6 +35,15 @@ async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
   }
 
   await expect(stage.getByRole("img", { name: new RegExp(`^${status}`, "i") })).toBeVisible();
+}
+
+async function expectFilteringStageStatusIcon(stage: Locator, status: FilteringStageStatus, label: string) {
+  await expect(stage).toHaveAttribute("data-filter-status", status);
+  const badge = stage.locator(`[data-filter-status-badge="${status}"]`);
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText("");
+  await expect(stage.getByRole("img", { name: new RegExp(`^${label}$`, "i") })).toBeVisible();
+  await expect(stage).not.toContainText(label);
 }
 
 async function openProcessMonitorDrawer(page: Page) {
@@ -854,12 +864,13 @@ test.describe("dashboard desktop", () => {
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect(piotroskiSection).toContainText("Piotroski");
-    await expect(piotroskiSection).toContainText("Completed");
+    await expectFilteringStageStatusIcon(piotroskiSection, "completed", "Completed");
     await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-15/);
     await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-15");
     await expect(piotroskiSection).toContainText(/Filtered\s*1/);
     await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(marketRiskSection).toContainText("KIS Risk");
+    await expectFilteringStageStatusIcon(marketRiskSection, "completed", "Completed");
     await expect(marketRiskSection).toContainText(/Filtered\s*1/);
     await expect(marketRiskSection).not.toContainText(/Watchlist|Fail/);
     await expect(filteringCard).toContainText(/Final filtered symbols\s*1/);
@@ -1176,7 +1187,7 @@ test.describe("dashboard desktop", () => {
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
-    await expect(piotroskiSection).toContainText("Completed");
+    await expectFilteringStageStatusIcon(piotroskiSection, "completed", "Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
     await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-16");
     await expect(piotroskiSection).toContainText(/Filtered\s*4/);
@@ -1934,7 +1945,7 @@ test.describe("dashboard desktop", () => {
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-15/);
     await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-15");
-    await expect(piotroskiSection).toContainText("Completed");
+    await expectFilteringStageStatusIcon(piotroskiSection, "completed", "Completed");
     await expect(piotroskiSection).toContainText(/Filtered\s*1/);
     await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(marketRiskSection).toContainText(/Filtered\s*1/);

@@ -60,6 +60,7 @@ import type {
   FilteringStageLoadState,
   FilteringStageMetric,
   FilteringStageModel,
+  FilteringStageStatus,
   FundamentalsFailureDetails,
   FundamentalsUpdatedActivityModel,
   FundamentalsUpdatedEntryModel,
@@ -203,6 +204,30 @@ function getFilterMarketDateNote(
   return null;
 }
 
+function getFilteringStageStatus(
+  loadState: FilteringStageLoadState,
+  requestedMarketDate: string | null,
+): FilteringStageStatus {
+  if (loadState === "ready") return "completed";
+  if (loadState === "loading") return "loading";
+  if (loadState === "error") return "needs-review";
+  return requestedMarketDate ? "pending" : "waiting";
+}
+
+function getFilteringStageStatusLabel(status: FilteringStageStatus, copy: DashboardLiveCopy) {
+  if (status === "completed") return copy.piotroski.completed;
+  if (status === "loading") return copy.piotroski.loading;
+  if (status === "needs-review") return copy.piotroski.needsReview;
+  if (status === "pending") return copy.piotroski.pending;
+  return copy.piotroski.waiting;
+}
+
+function getFilteringStageStatusTone(status: FilteringStageStatus): FilteringStageModel["statusTone"] {
+  if (status === "completed") return "positive";
+  if (status === "needs-review") return "warning";
+  return "neutral";
+}
+
 function buildFilteringStageStatusModel({
   copy,
   displayMarketDate,
@@ -224,22 +249,9 @@ function buildFilteringStageStatusModel({
   stageError: string | null;
   isLatestFallback: boolean;
 }) {
-  const statusLabel =
-    loadState === "ready"
-      ? copy.piotroski.completed
-      : loadState === "loading"
-        ? copy.piotroski.loading
-        : loadState === "error"
-          ? copy.piotroski.needsReview
-          : requestedMarketDate
-            ? copy.piotroski.pending
-            : copy.piotroski.waiting;
-  const statusTone =
-    loadState === "ready"
-      ? "positive"
-      : loadState === "error"
-        ? "warning"
-        : "neutral";
+  const status = getFilteringStageStatus(loadState, requestedMarketDate);
+  const statusLabel = getFilteringStageStatusLabel(status, copy);
+  const statusTone = getFilteringStageStatusTone(status);
   const note =
     loadState === "error"
       ? stageError ?? stageUnavailableMessage
@@ -251,9 +263,10 @@ function buildFilteringStageStatusModel({
 
   return {
     note,
+    status,
     statusLabel,
     statusTone,
-  } satisfies Pick<FilteringStageModel, "note" | "statusLabel" | "statusTone">;
+  } satisfies Pick<FilteringStageModel, "note" | "status" | "statusLabel" | "statusTone">;
 }
 
 function buildFilteringMetric(key: string, label: string, value: string): FilteringStageMetric {
@@ -514,15 +527,14 @@ function buildEodProcessMonitorStep(stage: EodStageCard, copy: DashboardLiveCopy
 }
 
 function getFilteringProcessMonitorStepStatus(stage: FilteringStageModel): ProcessMonitorStatus {
-  const normalizedStatusLabel = stage.statusLabel.trim().toLowerCase();
   const normalizedNote = stage.note?.trim().toLowerCase() ?? "";
 
-  if (/\bretry\b|\bretrying\b|재시도/.test(normalizedStatusLabel) || /\bretry\b|\bretrying\b|재시도/.test(normalizedNote)) {
+  if (/\bretry\b|\bretrying\b|재시도/.test(normalizedNote)) {
     return "retry";
   }
-  if (stage.statusTone === "warning") return "error";
-  if (normalizedStatusLabel.includes("loading") || normalizedStatusLabel.includes("로딩")) return "running";
-  if (stage.statusTone === "positive") return "completed";
+  if (stage.status === "loading") return "running";
+  if (stage.status === "needs-review") return "error";
+  if (stage.status === "completed") return "completed";
   return "pending";
 }
 
