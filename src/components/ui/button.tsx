@@ -21,11 +21,11 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         glass:
-          "ui-button !h-auto !min-h-0 !w-auto !max-w-full !rounded-[20px] !border !border-[var(--border)] !bg-[rgba(49,53,59,0.46)] !text-[var(--text)] !shadow-[0_14px_30px_rgba(10,14,19,0.18)] !backdrop-blur-xl !gap-2.5 !px-3.5 !py-2.5 !text-sm !font-medium hover:!bg-[rgba(49,53,59,0.62)] focus-visible:!ring-2 focus-visible:!ring-[var(--ring)]",
+          "ui-button !h-auto !min-h-0 !w-auto !max-w-full !rounded-[var(--radius-lg)] !border !border-[var(--border)] !bg-[rgba(16,28,46,0.74)] !text-[var(--text)] !shadow-[0_10px_22px_rgba(3,7,13,0.18)] !backdrop-blur-xl !gap-2.5 !px-3.5 !py-2.5 !text-sm !font-medium hover:!bg-[rgba(22,35,55,0.92)] focus-visible:!ring-2 focus-visible:!ring-[var(--ring)]",
         pill:
-          "ui-button !h-auto !min-h-[46px] !rounded-full !border !border-[var(--border)] !bg-[rgba(49,53,59,0.44)] !px-4 !py-3 !text-[var(--text)] !shadow-[0_14px_30px_rgba(10,14,19,0.18)] !backdrop-blur-xl hover:!bg-[rgba(49,53,59,0.6)]",
+          "ui-button !h-auto !min-h-[42px] !rounded-full !border !border-[var(--border)] !bg-[rgba(16,28,46,0.74)] !px-4 !py-2.5 !text-[var(--text)] !shadow-[0_10px_22px_rgba(3,7,13,0.18)] !backdrop-blur-xl hover:!bg-[rgba(22,35,55,0.92)]",
         primary:
-          "ui-button !h-auto !min-h-0 !rounded-[18px] !border !border-transparent !bg-[linear-gradient(135deg,var(--accent)_0%,var(--accent-strong)_100%)] !text-[var(--primary-foreground)] !shadow-[0_18px_36px_rgba(109,94,247,0.28)] !px-4.5 !py-2.5 hover:!brightness-110",
+          "ui-button !h-auto !min-h-0 !rounded-[var(--radius-lg)] !border !border-transparent !bg-[var(--accent)] !text-[var(--primary-foreground)] !shadow-[0_16px_32px_rgba(0,82,255,0.28)] !px-4.5 !py-2.5 hover:!bg-[var(--accent-strong)]",
       },
       size: {
         default:

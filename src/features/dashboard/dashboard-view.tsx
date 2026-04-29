@@ -7,6 +7,7 @@ import { useAppState } from "@/components/providers/app-state-provider";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { WatchlistItem } from "@/components/dashboard/watchlist-item";
 import { Button } from "@/components/ui/button";
+import { SurfaceState } from "@/components/ui/surface-state";
 import { readStoredValue, storeValue } from "@/lib/persistence";
 import { tradingApi } from "@/lib/trading-api";
 import { logWebDiagnostic } from "@/lib/web-diagnostics";
@@ -31,7 +32,15 @@ export function DashboardView({ snapshot }: DashboardViewProps) {
   const resolvedWatchlist = snapshot?.watchlist ?? [];
 
   if (!resolvedActiveTab) {
-    return <section className="content-grid"><div className="glass section-card">Loading market surface…</div></section>;
+    return (
+      <section className="content-grid">
+        <div className="glass section-card">
+          <SurfaceState title="Loading market surface" tone="loading">
+            Preparing dashboard chart and orderbook state.
+          </SurfaceState>
+        </div>
+      </section>
+    );
   }
 
   const handleSetTab = (tab: string) => {

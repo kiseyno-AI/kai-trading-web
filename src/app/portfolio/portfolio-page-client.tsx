@@ -7,6 +7,7 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
+import { SurfaceState } from "@/components/ui/surface-state";
 import { formatDisplayTimestamp } from "@/lib/format";
 import { PORTFOLIO_SUMMARY_PATH } from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
@@ -78,12 +79,7 @@ function getSummaryValueClassName(tone: "positive" | "negative" | "neutral") {
 }
 
 function EmptyState({ title, body }: { title: string; body: string }) {
-  return (
-    <div className={styles.emptyState} role="status">
-      <strong>{title}</strong>
-      <p>{body}</p>
-    </div>
-  );
+  return <SurfaceState title={title}>{body}</SurfaceState>;
 }
 
 function StateNotice({
@@ -95,18 +91,13 @@ function StateNotice({
   title: string;
   tone?: "loading" | "neutral" | "warning";
 }) {
-  const className =
-    tone === "warning"
-      ? styles.errorState
-      : tone === "loading"
-        ? `${styles.emptyState} ${styles.loadingState}`
-        : styles.emptyState;
-
   return (
-    <div className={className} role={tone === "warning" ? "alert" : "status"}>
-      <strong>{title}</strong>
-      <p>{body}</p>
-    </div>
+    <SurfaceState
+      title={title}
+      tone={tone === "warning" ? "warning" : tone === "loading" ? "loading" : "neutral"}
+    >
+      {body}
+    </SurfaceState>
   );
 }
 

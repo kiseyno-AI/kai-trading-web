@@ -16,12 +16,12 @@
   width: 2.1rem;
   height: 2.1rem;
   border-radius: 0.5rem;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: var(--accent);
   color: var(--primary-foreground);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1rem;
   font-weight: 900;
-  box-shadow: 0 0 16px rgba(197, 192, 255, 0.18);
+  box-shadow: 0 0 16px rgba(88, 139, 255, 0.18);
 }
 
 .brandTitle {
@@ -45,12 +45,12 @@
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(71, 69, 85, 0.22);
+  border: 1px solid rgba(134, 162, 194, 0.22);
   border-radius: 0.5rem;
-  background: rgba(28, 32, 37, 0.86);
+  background: rgba(11, 22, 38, 0.86);
   box-shadow:
-    0 20px 38px rgba(10, 14, 19, 0.22),
-    0 0 20px rgba(197, 192, 255, 0.05);
+    0 20px 38px rgba(3, 7, 13, 0.22),
+    0 0 20px rgba(88, 139, 255, 0.05);
 }
 
 .heroPanel {
@@ -92,9 +92,9 @@
   align-self: flex-start;
   min-height: 2.35rem;
   padding: 0.72rem 0.82rem;
-  border: 1px solid rgba(197, 192, 255, 0.18);
+  border: 1px solid rgba(88, 139, 255, 0.18);
   border-radius: 0.5rem;
-  background: rgba(109, 94, 247, 0.12);
+  background: rgba(0, 82, 255, 0.12);
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.72rem;
@@ -121,9 +121,9 @@
 .summaryCard {
   min-width: 0;
   padding: 0.9rem 0.95rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.64);
+  background: rgba(3, 7, 13, 0.64);
 }
 
 .summaryCard span {
@@ -149,7 +149,7 @@
 }
 
 .warningTone {
-  color: #ffd49f;
+  color: var(--warning);
 }
 
 .neutralTone {
@@ -161,9 +161,9 @@
   grid-template-columns: 1fr;
   gap: 0.75rem;
   padding: 0.85rem;
-  border: 1px solid rgba(71, 69, 85, 0.14);
+  border: 1px solid rgba(134, 162, 194, 0.14);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.38);
+  background: rgba(3, 7, 13, 0.38);
 }
 
 .controls label {
@@ -187,9 +187,9 @@
 .closeButton {
   width: 100%;
   min-height: 2.55rem;
-  border: 1px solid rgba(71, 69, 85, 0.22);
+  border: 1px solid rgba(134, 162, 194, 0.22);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.7);
+  background: rgba(3, 7, 13, 0.7);
   color: var(--text-strong);
   font: inherit;
   font-size: 0.84rem;
@@ -200,7 +200,7 @@
 .reviewButton,
 .closeButton {
   cursor: pointer;
-  background: rgba(109, 94, 247, 0.14);
+  background: rgba(0, 82, 255, 0.14);
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.72rem;
@@ -223,9 +223,9 @@
 
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.5);
+  background: rgba(3, 7, 13, 0.5);
 }
 
 .resultsTable {
@@ -238,7 +238,7 @@
 .resultsTable th,
 .resultsTable td {
   padding: 0.9rem;
-  border-bottom: 1px solid rgba(71, 69, 85, 0.16);
+  border-bottom: 1px solid rgba(134, 162, 194, 0.16);
   text-align: left;
   vertical-align: top;
 }
@@ -362,9 +362,9 @@
   min-height: 1.45rem;
   align-items: center;
   padding: 0.16rem 0.42rem;
-  border: 1px solid rgba(71, 69, 85, 0.16);
+  border: 1px solid rgba(134, 162, 194, 0.16);
   border-radius: 999px;
-  background: rgba(24, 28, 33, 0.72);
+  background: rgba(8, 17, 31, 0.72);
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.2;
@@ -406,7 +406,7 @@
 .emptyState {
   padding: 1rem;
   border-radius: 0.5rem;
-  background: rgba(24, 28, 33, 0.6);
+  background: rgba(8, 17, 31, 0.6);
   color: var(--muted);
   font-size: 0.84rem;
   line-height: 1.55;
@@ -418,8 +418,8 @@
 .closeButton:hover,
 .controls button:hover {
   color: var(--text-strong);
-  border-color: rgba(197, 192, 255, 0.34);
-  background: rgba(109, 94, 247, 0.22);
+  border-color: rgba(88, 139, 255, 0.34);
+  background: rgba(0, 82, 255, 0.22);
 }
 
 .backLink:focus-visible,
@@ -451,7 +451,7 @@
   width: min(100%, 72rem);
   max-height: min(92dvh, 62rem);
   overflow: auto;
-  border: 1px solid rgba(197, 192, 255, 0.22);
+  border: 1px solid rgba(88, 139, 255, 0.22);
   border-radius: 0.5rem;
   background: rgba(18, 22, 28, 0.98);
   box-shadow: 0 26px 70px rgba(0, 0, 0, 0.42);
@@ -466,7 +466,7 @@
   gap: 1rem;
   align-items: start;
   padding: 1.05rem;
-  border-bottom: 1px solid rgba(71, 69, 85, 0.2);
+  border-bottom: 1px solid rgba(134, 162, 194, 0.2);
   background: rgba(18, 22, 28, 0.96);
   backdrop-filter: blur(18px);
 }
@@ -527,9 +527,9 @@
   display: grid;
   gap: 0.8rem;
   padding: 0.95rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.46);
+  background: rgba(3, 7, 13, 0.46);
 }
 
 .detailGroupHeader {
@@ -565,9 +565,9 @@
   gap: 0.32rem;
   align-items: start;
   padding: 0.82rem;
-  border: 1px solid rgba(197, 192, 255, 0.14);
+  border: 1px solid rgba(88, 139, 255, 0.14);
   border-radius: 0.5rem;
-  background: rgba(24, 28, 33, 0.72);
+  background: rgba(8, 17, 31, 0.72);
 }
 
 .decisionHero :global(.pill) {
@@ -596,7 +596,7 @@
   gap: 0.72rem;
   align-items: baseline;
   padding-bottom: 0.58rem;
-  border-bottom: 1px solid rgba(71, 69, 85, 0.14);
+  border-bottom: 1px solid rgba(134, 162, 194, 0.14);
 }
 
 .metricList div:last-child,
@@ -617,7 +617,7 @@
 }
 
 .thesisSection {
-  background: rgba(24, 28, 33, 0.62);
+  background: rgba(8, 17, 31, 0.62);
 }
 
 .outcomeGrid {
@@ -629,9 +629,9 @@
 .outcomeCard {
   min-width: 0;
   padding: 0.82rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.58);
+  background: rgba(3, 7, 13, 0.58);
 }
 
 .outcomeCard strong {
@@ -665,9 +665,9 @@
   gap: 0.72rem;
   align-items: start;
   padding: 0.68rem;
-  border: 1px solid rgba(71, 69, 85, 0.16);
+  border: 1px solid rgba(134, 162, 194, 0.16);
   border-radius: 0.5rem;
-  background: rgba(10, 14, 19, 0.44);
+  background: rgba(3, 7, 13, 0.44);
 }
 
 .traceRow :global(.pill) {

@@ -4,10 +4,10 @@
   align-items: center;
   gap: 0.2rem;
   padding: 0.18rem;
-  border: 1px solid rgba(71, 69, 85, 0.18);
+  border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 999px;
-  background: rgba(24, 28, 33, 0.84);
-  box-shadow: inset 0 0 0 1px rgba(71, 69, 85, 0.1);
+  background: rgba(8, 17, 31, 0.84);
+  box-shadow: inset 0 0 0 1px rgba(134, 162, 194, 0.1);
 }
 
 .button {
@@ -33,9 +33,9 @@
 }
 
 .buttonActive {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: var(--accent);
   color: var(--primary-foreground);
-  box-shadow: 0 0 16px rgba(197, 192, 255, 0.18);
+  box-shadow: 0 10px 22px rgba(0, 82, 255, 0.18);
 }
 
 .compact {
@@ -53,7 +53,7 @@
 .topbar {
   min-height: 40px;
   padding: 4px;
-  background: rgba(24, 28, 33, 0.82);
+  background: rgba(8, 17, 31, 0.82);
 }
 
 .topbarButton {
