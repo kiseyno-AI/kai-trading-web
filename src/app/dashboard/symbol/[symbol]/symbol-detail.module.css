@@ -693,6 +693,46 @@
   margin-top: 0.85rem;
 }
 
+.factorQualityBlock {
+  display: grid;
+  gap: 0.72rem;
+  margin-top: 0.85rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(78, 222, 163, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(5, 20, 37, 0.48);
+}
+
+.factorQualityHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.72rem;
+}
+
+.factorQualityHeader > div {
+  min-width: 0;
+}
+
+.factorQualityHeader strong {
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.factorQualityHeader p {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
+
+.factorQualityMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  gap: 0.55rem;
+}
+
 .moduleRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -947,6 +987,7 @@
   .disclosureCard,
   .factorCompositeCard,
   .factorFamilyCard,
+  .factorQualityBlock,
   .moduleRow,
   .coverageNote,
   .companyStrip,

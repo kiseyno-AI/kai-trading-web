@@ -217,6 +217,21 @@ const factorPayloads = {
         unified_value_rank: 7,
         unified_value_percentile: 0.94,
         unified_value_status: "scored",
+        quality_score: 0.78,
+        quality_rank: 12,
+        quality_percentile: 0.89,
+        quality_status: "scored_partial",
+        components_possible: 6,
+        components_used: 4,
+        is_quality_score_complete: false,
+        quality_component_statuses: {
+          roe: "scored",
+          roa: "scored",
+          gross_profit_to_assets: "missing_metric",
+          operating_cash_flow_to_net_income: "invalid_net_income",
+          debt_ratio: "scored",
+          accruals_ratio: "scored",
+        },
         factor_payload: null,
         captured_at: null,
       },
@@ -625,6 +640,10 @@ test("factor screening supports switching, eligibility filtering, composite plac
   await expect(page.getByText("Unified value score").first()).toBeVisible();
   await expect(page.getByText("Unified rank").first()).toBeVisible();
   await expect(page.getByText("Overall status").first()).toBeVisible();
+  await expect(page.getByText("Quality score").first()).toBeVisible();
+  await expect(page.getByText("Partial calculation").first()).toBeVisible();
+  await expect(page.getByText("4 used / 6 possible").first()).toBeVisible();
+  await expect(page.getByText("OCF / net income: Invalid net income").first()).toBeVisible();
   await expect(page.getByText(/EV \/ EBITDA: Available/i)).toBeVisible();
 
   await page.getByRole("button", { name: /Composite/i }).click();
@@ -660,6 +679,11 @@ test("factor screening stays usable on mobile viewport", async ({ page }) => {
   await page.getByRole("button", { name: /Low risk/i }).click();
   await expect(page.getByText("Low-risk score").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /Unified value/i }).click();
+  await expect(page.getByText("Quality score").first()).toBeVisible();
+  await expect(page.getByText("Partial calculation").first()).toBeVisible();
+  await expect(page.getByText("4 used / 6 possible").first()).toBeVisible();
 
   await page.getByRole("button", { name: /Composite/i }).click();
   await expect(page.getByText(/Composite ranking slot reserved/i)).toBeVisible();

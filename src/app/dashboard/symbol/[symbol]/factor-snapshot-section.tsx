@@ -6,6 +6,13 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import {
+  buildFactorQualitySummary,
+  formatQualityCount,
+  formatQualityRank,
+  formatQualityScore,
+  type FactorQualitySummary,
+} from "@/lib/factor-quality";
+import {
   FACTOR_FAMILY_META,
   FACTOR_FAMILY_ORDER,
   getAdvancedValueFactorStatusDescriptor,
@@ -42,6 +49,16 @@ type FactorCardMetric = {
   valueClassName?: string;
 };
 
+type FactorQualityModel = {
+  title: string;
+  statusLabel: string;
+  tone: FactorQualitySummary["tone"];
+  calculationLabel: string;
+  summary: string;
+  metrics: FactorCardMetric[];
+  componentNotes: string[];
+};
+
 type FactorCardModel = {
   family: FactorFamilyId;
   title: string;
@@ -49,6 +66,7 @@ type FactorCardModel = {
   status: FactorStatusDescriptor;
   body: string;
   metrics: FactorCardMetric[];
+  quality: FactorQualityModel | null;
   notes: string[];
   meta: string;
 };
@@ -215,6 +233,7 @@ function buildUnavailableCardModel(copy: SymbolDetailCopy, result: AnyFactorFami
         value: formatIsoDateLabel(result.requestedMarketDate, copy.common.datePending),
       },
     ],
+    quality: null,
     notes: uniqueNotes([
       result.ok ? "Stored factor row not found for this symbol-date." : null,
       !result.ok ? result.error : null,
@@ -267,6 +286,7 @@ function buildMomentumCardModel(
         valueClassName: getValueToneClassName(item.return_5d),
       },
     ],
+    quality: null,
     notes: uniqueNotes([
       item.has_sufficient_history ? "253-bar history ready" : insufficientHistoryReason ?? "History below 253 bars",
       item.is_price_above_ma120 ? "Price above MA120" : "Price below MA120",
@@ -330,6 +350,7 @@ function buildLowRiskCardModel(
         value: formatCompactNumber(item.avg_trading_value_20d, copy.common.unavailable, numberLocale),
       },
     ],
+    quality: null,
     notes: uniqueNotes([
       item.passes_liquidity_floor === true
         ? "Liquidity floor passed"
@@ -383,6 +404,7 @@ function buildBetaCardModel(
       },
       { label: "Benchmark", value: item.benchmark_id ?? copy.common.unavailable },
     ],
+    quality: null,
     notes: uniqueNotes([
       item.low_beta_classification ? humanizeToken(item.low_beta_classification) : null,
       `${item.history_days_available} history days`,
@@ -441,6 +463,53 @@ function buildValueComponentNotes(
   return hints.map(([label, status]) => (status ? `${label}: ${humanizeToken(status)}` : null));
 }
 
+function buildQualityProgressLabel(quality: FactorQualitySummary) {
+  if (quality.componentsPossible === null && quality.componentsUsed === null) {
+    return "Component coverage unavailable";
+  }
+
+  return `${formatQualityCount(quality.componentsUsed)} used / ${formatQualityCount(quality.componentsPossible)} possible`;
+}
+
+function buildQualitySummaryText(quality: FactorQualitySummary) {
+  switch (quality.calculationState) {
+    case "complete":
+      return `Quality calculation complete: ${buildQualityProgressLabel(quality)}.`;
+    case "partial":
+      return `Quality calculation partial: ${buildQualityProgressLabel(quality)}.`;
+    case "unavailable":
+      return `Quality calculation unavailable: ${buildQualityProgressLabel(quality)}.`;
+  }
+}
+
+function buildQualityModel(
+  item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto,
+  options: { force?: boolean } = {},
+): FactorQualityModel | null {
+  const quality = buildFactorQualitySummary(item, options);
+  if (!quality) return null;
+
+  return {
+    calculationLabel: quality.calculationLabel,
+    componentNotes: quality.componentStatuses.map(
+      (component) => `${component.label}: ${component.statusLabel}`,
+    ),
+    metrics: [
+      { label: "Quality score", value: formatQualityScore(quality.score) },
+      { label: "Quality percentile", value: formatQualityScore(quality.percentile) },
+      { label: "Quality rank", value: formatQualityRank(quality.rank) },
+      { label: "Score status", value: quality.statusLabel },
+      { label: "Possible components", value: formatQualityCount(quality.componentsPossible) },
+      { label: "Used components", value: formatQualityCount(quality.componentsUsed) },
+      { label: "Calculation", value: quality.calculationLabel },
+    ],
+    statusLabel: quality.statusLabel,
+    summary: buildQualitySummaryText(quality),
+    title: "Quality score",
+    tone: quality.tone,
+  };
+}
+
 function buildValueBody(status: FactorStatusDescriptor, usesUnifiedValue: boolean) {
   switch (status.code) {
     case "scored":
@@ -480,6 +549,7 @@ function buildValueCardModel(
     ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
     : getValueFactorStatusDescriptor(item);
   const componentNotes = buildValueComponentNotes(item, advancedItem);
+  const quality = buildQualityModel(item, { force: true });
 
   return {
     family: result.family,
@@ -514,7 +584,9 @@ function buildValueCardModel(
             value: formatDecimalPercent(item.dividend_yield, copy.common.unavailable),
           },
         ],
+    quality,
     notes: uniqueNotes([
+      quality ? `${quality.title}: ${quality.calculationLabel}` : null,
       ...componentNotes,
       item.unified_value_status ? `Unified status: ${humanizeToken(item.unified_value_status)}` : null,
       item.value_status ? `Legacy row status: ${humanizeToken(item.value_status)}` : null,
@@ -557,6 +629,7 @@ function buildAdvancedValueCardModel(
     ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
     : getAdvancedValueFactorStatusDescriptor(item);
   const componentNotes = buildValueComponentNotes(item);
+  const quality = usesUnifiedValue ? buildQualityModel(item) : null;
 
   return {
     family: result.family,
@@ -597,7 +670,9 @@ function buildAdvancedValueCardModel(
           { label: "EV / EBITDA", value: formatRatio(item.ev_to_ebitda, copy.common.unavailable) },
           { label: "Components", value: `${item.advanced_value_components_used} / 2` },
         ],
+    quality,
     notes: uniqueNotes([
+      quality ? `${quality.title}: ${quality.calculationLabel}` : null,
       ...componentNotes,
       item.unified_value_status ? `Unified status: ${humanizeToken(item.unified_value_status)}` : null,
       item.advanced_value_classification
@@ -785,6 +860,37 @@ export const FactorSnapshotSection = memo(function FactorSnapshotSection({
                   </article>
                 ))}
               </div>
+
+              {card.quality ? (
+                <div className={styles.factorQualityBlock} aria-label={`${card.title} quality score status`}>
+                  <div className={styles.factorQualityHeader}>
+                    <div>
+                      <strong>{card.quality.title}</strong>
+                      <p className={styles.supportingCopy}>{card.quality.summary}</p>
+                    </div>
+                    <span className={`pill ${card.quality.tone}`}>{card.quality.calculationLabel}</span>
+                  </div>
+
+                  <div className={styles.factorQualityMetricGrid}>
+                    {card.quality.metrics.map((metric) => (
+                      <article key={`${card.family}-quality-${metric.label}`} className={styles.metricCard}>
+                        <span>{metric.label}</span>
+                        <strong>{metric.value}</strong>
+                      </article>
+                    ))}
+                  </div>
+
+                  {card.quality.componentNotes.length > 0 ? (
+                    <div className={styles.tagGroup}>
+                      {card.quality.componentNotes.map((note) => (
+                        <span key={`${card.family}-quality-${note}`} className={styles.tagChip}>
+                          {note}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className={styles.tagGroup}>
                 {card.notes.map((note) => (

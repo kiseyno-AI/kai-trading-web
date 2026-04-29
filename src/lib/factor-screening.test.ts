@@ -237,6 +237,21 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
             unified_value_rank: 7,
             unified_value_percentile: 0.94,
             unified_value_status: "scored",
+            quality_score: 0.78,
+            quality_rank: 12,
+            quality_percentile: 0.89,
+            quality_status: "scored_partial",
+            components_possible: 6,
+            components_used: 4,
+            is_quality_score_complete: false,
+            quality_component_statuses: {
+              roe: "scored",
+              roa: "scored",
+              gross_profit_to_assets: "missing_metric",
+              operating_cash_flow_to_net_income: "invalid_net_income",
+              debt_ratio: "scored",
+              accruals_ratio: "scored",
+            },
             factor_payload: null,
             captured_at: null,
           },
@@ -383,6 +398,27 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
     );
     assert.match(workspace.families.value.rows[0]?.note ?? "", /PER: Available/);
     assert.match(workspace.families.value.rows[0]?.note ?? "", /EV \/ EBITDA: Available/);
+    assert.equal(workspace.families.value.rows[0]?.quality?.calculationLabel, "Partial calculation");
+    assert.deepEqual(
+      workspace.families.value.rows[0]?.quality?.metrics.map((metric) => `${metric.label}:${metric.value}`),
+      [
+        "Quality score:78.0%",
+        "Quality percentile:89.0%",
+        "Quality rank:#12",
+        "Score status:Partial",
+        "Possible components:6",
+        "Used components:4",
+        "Calculation:Partial calculation",
+      ],
+    );
+    assert.deepEqual(workspace.families.value.rows[0]?.quality?.componentHints, [
+      "ROE: Scored",
+      "ROA: Scored",
+      "Gross profit / assets: Missing metric",
+      "OCF / net income: Invalid net income",
+      "Debt ratio: Scored",
+      "Accruals: Scored",
+    ]);
     assert.equal(workspace.families.value.rows[1]?.statusLabel, "PER excluded");
     assert.match(
       workspace.families.value.rows[1]?.note ?? "",
@@ -463,6 +499,7 @@ test("market-date helpers and row filters preserve ranking intent without hiding
       market: "KOSPI",
       marketDate: "2026-04-23",
       metrics: [],
+      quality: null,
       note: "Eligible row",
       searchText: "samsung electronics 005930 eligible",
       sortRank: 3,
@@ -482,6 +519,7 @@ test("market-date helpers and row filters preserve ranking intent without hiding
       market: "KOSPI",
       marketDate: "2026-04-23",
       metrics: [],
+      quality: null,
       note: "Caution row",
       searchText: "naver 035420 watchlist",
       sortRank: 18,
@@ -501,6 +539,7 @@ test("market-date helpers and row filters preserve ranking intent without hiding
       market: "KOSPI",
       marketDate: "2026-04-23",
       metrics: [],
+      quality: null,
       note: "Audit row",
       searchText: "sk hynix 000660 insufficient history",
       sortRank: null,
