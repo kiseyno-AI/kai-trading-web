@@ -140,8 +140,8 @@ export default async function RealDashboardPage() {
                   <svg viewBox="0 0 760 360" className="main-chart" preserveAspectRatio="none" aria-label="tracked chart">
                     <defs>
                       <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(124, 92, 255, 0.35)" />
-                        <stop offset="100%" stopColor="rgba(124, 92, 255, 0)" />
+                        <stop offset="0%" stopColor="rgba(0, 82, 255, 0.3)" />
+                        <stop offset="100%" stopColor="rgba(0, 82, 255, 0)" />
                       </linearGradient>
                     </defs>
                     <path className="chart-fill" d="M0 280 C70 220, 110 250, 170 180 S290 90, 360 140 S500 240, 570 175 S670 70, 760 105 L760 360 L0 360 Z" />

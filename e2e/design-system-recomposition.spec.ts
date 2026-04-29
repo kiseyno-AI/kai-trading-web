@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Coinbase-style design system recomposition", () => {
+test.describe("KAI design-system recomposition", () => {
   test("shared shell uses the blue financial terminal tokens", async ({ page }) => {
     await page.goto("/markets");
 
@@ -9,7 +9,9 @@ test.describe("Coinbase-style design system recomposition", () => {
       return {
         accent: root.getPropertyValue("--accent").trim(),
         background: root.getPropertyValue("--background").trim(),
+        canvas: root.getPropertyValue("--app-canvas-background").trim(),
         radius: root.getPropertyValue("--radius-xl").trim(),
+        surface: root.getPropertyValue("--surface").trim(),
         text: root.getPropertyValue("--text").trim(),
       };
     });
@@ -17,7 +19,9 @@ test.describe("Coinbase-style design system recomposition", () => {
     expect(tokens).toEqual({
       accent: "#0052ff",
       background: "#050b14",
-      radius: "14px",
+      canvas: "#050b14",
+      radius: "12px",
+      surface: "#101c2e",
       text: "#d6e2f2",
     });
     await expect(page.getByRole("navigation").first()).toBeVisible();

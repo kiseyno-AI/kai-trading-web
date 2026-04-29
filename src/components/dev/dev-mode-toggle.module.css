@@ -1,10 +1,10 @@
 .toggle {
-  border: 1px solid rgba(143, 144, 158, 0.18);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(29, 43, 61, 0.78);
+  background: var(--control-surface);
   color: var(--muted);
   padding: 0.38rem 0.68rem;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -16,12 +16,12 @@
 }
 
 .toggle:hover {
-  color: #f5f7ff;
-  border-color: rgba(186, 195, 255, 0.35);
+  color: var(--text-strong);
+  border-color: var(--outline-strong);
 }
 
 .active {
-  background: rgba(0, 82, 255, 0.95);
-  color: var(--text-strong);
-  border-color: rgba(186, 195, 255, 0.45);
+  background: var(--accent);
+  color: var(--primary-foreground);
+  border-color: var(--accent);
 }

@@ -4636,9 +4636,9 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsTitle).toHaveCSS("text-overflow", "ellipsis");
     await expect(fundamentalsTitle).toHaveCSS("white-space", "nowrap");
     await expect(runningPill).toBeVisible();
-    await expect(runningPill).toHaveCSS("color", "rgb(243, 247, 255)");
-    await expect(runningPill).toHaveCSS("background-color", "rgba(127, 184, 255, 0.24)");
-    await expect(runningPill).toHaveCSS("border-top-color", "rgba(127, 184, 255, 0.45)");
+    await expect(runningPill).toHaveCSS("color", "rgb(244, 248, 255)");
+    await expect(runningPill).toHaveCSS("background-color", "rgba(74, 168, 255, 0.22)");
+    await expect(runningPill).toHaveCSS("border-top-color", "rgba(74, 168, 255, 0.38)");
 
     const titleRowLayout = await fundamentalsStage.evaluate((element) => {
       const title = [...element.querySelectorAll("span")].find((child) => child.textContent?.trim() === "Fundamentals");

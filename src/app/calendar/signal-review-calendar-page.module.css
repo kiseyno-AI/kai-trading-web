@@ -91,7 +91,7 @@
   background: rgba(0, 82, 255, 0.12);
   color: var(--text-strong);
   cursor: pointer;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -211,7 +211,7 @@
 .dayCell strong {
   align-self: end;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
 }
 
 .dayCell small {
@@ -220,7 +220,7 @@
 
 .dayNumber {
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.9rem;
   font-weight: 800;
 }
@@ -279,7 +279,7 @@
   margin-top: 0.28rem;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.9rem;
   line-height: 1.35;
 }
@@ -458,7 +458,7 @@
 .reviewButton:focus-visible,
 .closeButton:focus-visible,
 .monthControls button:focus-visible {
-  outline: 2px solid rgba(186, 195, 255, 0.88);
+  outline: 2px solid rgba(88, 139, 255, 0.88);
   outline-offset: 2px;
 }
 
@@ -562,7 +562,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.84rem;
   font-weight: 700;
 }
@@ -592,7 +592,7 @@
   display: block;
   margin-top: 0.28rem;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.92rem;
 }
 

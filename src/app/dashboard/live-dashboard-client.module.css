@@ -2,7 +2,7 @@
 .sectionEyebrow {
   margin: 0;
   color: var(--accent);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -18,12 +18,10 @@
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(134, 162, 194, 0.22);
+  border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: rgba(11, 22, 38, 0.92);
-  box-shadow:
-    0 24px 48px rgba(3, 7, 13, 0.28),
-    inset 0 0 0 1px rgba(88, 139, 255, 0.04);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft), var(--shadow-glow);
 }
 
 .primaryInsightsSection {
@@ -40,14 +38,14 @@
 }
 
 .alertPanel {
-  background: rgba(50, 37, 12, 0.92);
-  border-color: rgba(227, 176, 74, 0.28);
+  background: rgba(245, 184, 75, 0.09);
+  border-color: rgba(245, 184, 75, 0.28);
 }
 
 .alertTitle {
   display: block;
   margin-top: 0.35rem;
-  color: #fff7e5;
+  color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
   font-size: 1.15rem;
   font-weight: 800;
@@ -82,7 +80,7 @@
 
 .primaryDateValue {
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.9rem;
   font-weight: 700;
   line-height: 1.4;
@@ -133,14 +131,14 @@
   gap: 0.7rem;
   min-height: 4.2rem;
   padding: 0.78rem 0.85rem;
-  border: 1px solid rgba(127, 184, 255, 0.24);
+  border: 1px solid var(--outline-strong);
   border-radius: var(--radius-lg);
-  background: rgba(5, 11, 20, 0.94);
+  background: var(--surface-low);
   color: inherit;
   text-align: left;
   box-shadow:
-    0 14px 34px rgba(3, 7, 13, 0.28),
-    inset 0 0 0 1px rgba(127, 184, 255, 0.04);
+    var(--shadow-soft),
+    inset 0 0 0 1px rgba(74, 168, 255, 0.05);
   cursor: pointer;
   transition:
     border-color 140ms ease,
@@ -149,10 +147,10 @@
 }
 
 .processMonitorBar:hover {
-  border-color: rgba(127, 184, 255, 0.42);
+  border-color: rgba(88, 139, 255, 0.48);
   box-shadow:
-    0 16px 38px rgba(3, 7, 13, 0.34),
-    inset 0 0 0 1px rgba(127, 184, 255, 0.08);
+    var(--shadow),
+    inset 0 0 0 1px rgba(74, 168, 255, 0.08);
 }
 
 .processMonitorBar[data-process-monitor-status="completed"] {
@@ -217,9 +215,9 @@
   display: grid;
   gap: 0.18rem;
   padding: 0.46rem 0.56rem;
-  border: 1px solid rgba(134, 162, 194, 0.2);
+  border: 1px solid var(--border);
   border-radius: 0.55rem;
-  background: rgba(3, 7, 13, 0.62);
+  background: var(--canvas);
   text-align: right;
   white-space: nowrap;
 }
@@ -227,7 +225,7 @@
 .processMonitorSummary strong {
   margin: 0;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1.1;
@@ -244,16 +242,16 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.36rem;
-  color: #f3f7ff;
+  color: var(--text-strong);
 }
 
 .processMonitorLoadingSpinner {
   width: 0.76rem;
   height: 0.76rem;
   flex: 0 0 auto;
-  border: 2px solid rgba(127, 184, 255, 0.36);
-  border-top-color: var(--positive);
-  border-right-color: rgba(111, 251, 190, 0.78);
+  border: 2px solid rgba(74, 168, 255, 0.28);
+  border-top-color: var(--blue);
+  border-right-color: rgba(74, 168, 255, 0.72);
   border-radius: 999px;
   box-shadow: 0 0 12px rgba(111, 251, 190, 0.16);
   animation: agentRoleSpin 0.82s linear infinite;
@@ -274,8 +272,7 @@
   align-items: flex-end;
   justify-content: center;
   padding: 0.75rem 0.9rem var(--mobile-floating-status-offset);
-  background: rgba(1, 15, 32, 0.26);
-  backdrop-filter: blur(3px);
+  background: rgba(3, 7, 13, 0.42);
   animation: processMonitorBackdropIn 240ms ease both;
 }
 
@@ -289,12 +286,12 @@
   max-height: min(50dvh, 31rem);
   overflow-y: auto;
   padding: 1rem;
-  border: 1px solid rgba(186, 195, 255, 0.24);
+  border: 1px solid var(--outline-strong);
   border-radius: var(--radius-xl);
-  background: rgba(5, 11, 20, 0.96);
+  background: var(--surface);
   box-shadow:
-    0 26px 70px rgba(1, 15, 32, 0.42),
-    inset 0 0 0 1px rgba(127, 184, 255, 0.05);
+    var(--shadow),
+    inset 0 0 0 1px rgba(74, 168, 255, 0.05);
   overscroll-behavior: contain;
   transform-origin: bottom center;
   animation: processMonitorFloatingSheetIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -312,9 +309,9 @@
   place-items: center;
   margin: -0.35rem auto 0.55rem;
   padding: 0.18rem 0.32rem;
-  border: 1px solid rgba(186, 195, 255, 0.14);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--control-surface);
   color: var(--text-strong);
   cursor: pointer;
   transition:
@@ -324,8 +321,8 @@
 }
 
 .processMonitorDrawerCollapseButton:hover {
-  border-color: rgba(186, 195, 255, 0.28);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--outline-strong);
+  background: var(--control-surface-hover);
   transform: translateY(1px);
 }
 
@@ -361,7 +358,7 @@
 .processMonitorPatchDate strong {
   margin: 0;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.82rem;
   font-weight: 800;
   line-height: 1.2;
@@ -373,19 +370,19 @@
 }
 
 .processMonitorSummary[data-process-status="running"] {
-  border-color: rgba(127, 184, 255, 0.32);
+  border-color: rgba(74, 168, 255, 0.28);
   color: #cfe4ff;
 }
 
 .processMonitorSummary[data-process-status="partial"],
 .processMonitorSummary[data-process-status="retry"] {
   border-color: rgba(227, 176, 74, 0.3);
-  color: #fff7e5;
+  color: var(--text-strong);
 }
 
 .processMonitorSummary[data-process-status="error"] {
   border-color: rgba(255, 179, 182, 0.34);
-  color: #ffe1e2;
+  color: var(--negative);
 }
 
 .integrityStat {
@@ -407,7 +404,7 @@
   display: block;
   margin-top: 0.3rem;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
 }
@@ -504,7 +501,7 @@
   display: block;
   margin: 0.3rem 0 0;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.9rem;
   font-weight: 800;
   line-height: 1.35;
@@ -563,7 +560,7 @@
   padding: 0.58rem 0.62rem;
   border: 1px solid rgba(134, 162, 194, 0.14);
   border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(142, 164, 191, 0.08);
 }
 
 .marketSnapshotMetaGrid dt,
@@ -619,9 +616,9 @@
 }
 
 .scoringStageSection {
-  border-color: rgba(127, 184, 255, 0.2);
+  border-color: rgba(74, 168, 255, 0.2);
   background:
-    linear-gradient(180deg, rgba(127, 184, 255, 0.06), transparent 48%),
+    linear-gradient(180deg, rgba(74, 168, 255, 0.06), transparent 48%),
     rgba(3, 7, 13, 0.58);
 }
 
@@ -647,7 +644,7 @@
 .filterFinalCount strong {
   margin: 0;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 1.08rem;
   font-weight: 900;
   line-height: 1.15;
@@ -719,13 +716,13 @@
 }
 
 .eodStageCard[data-status="running"] {
-  border-color: rgba(127, 184, 255, 0.34);
+  border-color: rgba(74, 168, 255, 0.3);
   background:
-    linear-gradient(180deg, rgba(127, 184, 255, 0.12), transparent 46%),
+    linear-gradient(180deg, rgba(74, 168, 255, 0.12), transparent 46%),
     rgba(3, 7, 13, 0.7);
   box-shadow:
-    inset 0 0 0 1px rgba(127, 184, 255, 0.08),
-    0 0 0 1px rgba(127, 184, 255, 0.04);
+    inset 0 0 0 1px rgba(74, 168, 255, 0.08),
+    0 0 0 1px rgba(74, 168, 255, 0.04);
 }
 
 .eodStageCard[data-status="running"]::before {
@@ -735,9 +732,9 @@
   background: linear-gradient(
     115deg,
     transparent 0%,
-    rgba(127, 184, 255, 0.05) 24%,
+    rgba(74, 168, 255, 0.05) 24%,
     rgba(111, 251, 190, 0.14) 46%,
-    rgba(127, 184, 255, 0.05) 66%,
+    rgba(74, 168, 255, 0.05) 66%,
     transparent 100%
   );
   transform: translateX(-130%);
@@ -834,7 +831,7 @@
   width: 0.6rem;
   height: 0.6rem;
   flex: 0 0 auto;
-  border: 1.75px solid rgba(127, 184, 255, 0.34);
+  border: 1.75px solid rgba(74, 168, 255, 0.3);
   border-top-color: var(--positive);
   border-right-color: rgba(111, 251, 190, 0.76);
   border-radius: 999px;
@@ -881,7 +878,7 @@
 .eodStageDetailValue {
   min-width: 0;
   max-width: 100%;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -945,7 +942,7 @@
   border: 0;
   background: transparent;
   color: var(--accent);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -987,11 +984,11 @@
 }
 
 .agentRoleRow[data-role-status="running"] {
-  border-color: rgba(127, 184, 255, 0.34);
+  border-color: rgba(74, 168, 255, 0.3);
   background:
-    linear-gradient(180deg, rgba(127, 184, 255, 0.12), transparent 54%),
+    linear-gradient(180deg, rgba(74, 168, 255, 0.12), transparent 54%),
     rgba(5, 20, 37, 0.56);
-  box-shadow: inset 0 0 0 1px rgba(127, 184, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(74, 168, 255, 0.08);
 }
 
 .agentRoleRow[data-role-status="running"]::after {
@@ -1001,9 +998,9 @@
   background: linear-gradient(
     115deg,
     transparent 0%,
-    rgba(127, 184, 255, 0.04) 20%,
+    rgba(74, 168, 255, 0.04) 20%,
     rgba(111, 251, 190, 0.12) 48%,
-    rgba(127, 184, 255, 0.04) 72%,
+    rgba(74, 168, 255, 0.04) 72%,
     transparent 100%
   );
   transform: translateX(-130%);
@@ -1063,7 +1060,7 @@
 }
 
 .agentRoleProgressIcon[data-role-progress-icon="running"] {
-  border: 2px solid rgba(127, 184, 255, 0.36);
+  border: 2px solid rgba(74, 168, 255, 0.28);
   border-top-color: var(--positive);
   background: transparent;
   animation: agentRoleSpin 0.82s linear infinite;
@@ -1080,7 +1077,7 @@
 .agentRoleProgressIcon[data-role-progress-icon="attention"] {
   border-color: rgba(227, 176, 74, 0.42);
   background: rgba(227, 176, 74, 0.12);
-  color: #fff7e5;
+  color: var(--text-strong);
 }
 
 .agentRoleProgressIcon[data-role-progress-icon="attention"]::before {
@@ -1134,7 +1131,7 @@
 }
 
 .agentRoleRow[data-role-status="attention"] .agentRoleStatusText {
-  color: #fff7e5;
+  color: var(--text-strong);
 }
 
 .agentRoleMetrics {
@@ -1161,7 +1158,7 @@
 .agentRoleMetric dd {
   margin: 0.18rem 0 0;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.35;
@@ -1213,7 +1210,7 @@
   display: block;
   margin-top: 0.3rem;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -1229,8 +1226,8 @@
   border: 1px solid rgba(227, 176, 74, 0.28);
   border-radius: 0.55rem;
   background: rgba(50, 37, 12, 0.42);
-  color: #fff7e5;
-  font-family: var(--font-space-grotesk), sans-serif;
+  color: var(--text-strong);
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1307,7 +1304,7 @@
   min-width: 2.7rem;
   margin-left: auto;
   text-align: right;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-weight: 700;
 }
 
@@ -1321,7 +1318,7 @@
   border-radius: 0.55rem;
   background: rgba(0, 82, 255, 0.12);
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -1347,7 +1344,7 @@
   border-radius: 0.45rem;
   background: transparent;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0;
@@ -1416,7 +1413,7 @@
 }
 
 .filterLoadingStatusIcon {
-  border: 2px solid rgba(127, 184, 255, 0.36);
+  border: 2px solid rgba(74, 168, 255, 0.28);
   border-top-color: var(--accent);
   border-right-color: rgba(111, 251, 190, 0.78);
   background: transparent;
@@ -1443,7 +1440,7 @@
 }
 
 .filterPendingStatusIcon {
-  border: 1px solid rgba(186, 195, 255, 0.26);
+  border: 1px solid var(--outline-strong);
   background: rgba(147, 163, 184, 0.14);
 }
 
@@ -1464,10 +1461,10 @@
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  border: 1px solid rgba(127, 184, 255, 0.45);
-  background: rgba(127, 184, 255, 0.24);
-  color: #f3f7ff;
-  box-shadow: 0 0 0 1px rgba(127, 184, 255, 0.12);
+  border: 1px solid rgba(74, 168, 255, 0.38);
+  background: rgba(74, 168, 255, 0.22);
+  color: var(--text-strong);
+  box-shadow: 0 0 0 1px rgba(74, 168, 255, 0.12);
 }
 
 .eodStageTop :global(.pill).runningStatusPill::after,
@@ -1479,9 +1476,9 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(127, 184, 255, 0.06) 28%,
+    rgba(74, 168, 255, 0.06) 28%,
     rgba(111, 251, 190, 0.2) 50%,
-    rgba(127, 184, 255, 0.06) 72%,
+    rgba(74, 168, 255, 0.06) 72%,
     transparent 100%
   );
   transform: translateX(-120%);
@@ -1491,7 +1488,7 @@
 
 .eodStageTop :global(.pill).runningStatusPill .statusPillIcon,
 .agentFeedbackCard :global(.pill).runningStatusPill .statusPillIcon {
-  border: 2px solid rgba(127, 184, 255, 0.36);
+  border: 2px solid rgba(74, 168, 255, 0.28);
   border-top-color: var(--positive);
   background: transparent;
   animation: agentRoleSpin 0.82s linear infinite;
@@ -1572,7 +1569,7 @@
   border: 0;
   background: transparent;
   color: #e3b04a;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1585,7 +1582,7 @@
 }
 
 .detailButton:hover {
-  color: #f3d07c;
+  color: var(--warning);
 }
 
 .detailButton:focus-visible,
@@ -1597,7 +1594,7 @@
 .signalDeciderDetailLink:focus-visible,
 .signalDeciderMoreLink:focus-visible,
 .dialogActionButton:focus-visible {
-  outline: 2px solid rgba(186, 195, 255, 0.88);
+  outline: 2px solid rgba(88, 139, 255, 0.88);
   outline-offset: 2px;
 }
 
@@ -1618,7 +1615,7 @@
   width: min(42rem, 100%);
   max-height: min(46rem, calc(100vh - 2rem));
   overflow-y: auto;
-  border: 1px solid rgba(186, 195, 255, 0.22);
+  border: 1px solid var(--outline-strong);
   border-radius: 0.5rem;
   background: rgba(8, 17, 31, 0.98);
   box-shadow: 0 28px 70px rgba(1, 15, 32, 0.46);
@@ -1649,11 +1646,11 @@
   flex: 0 0 auto;
   min-height: 2rem;
   padding: 0 0.7rem;
-  border: 1px solid rgba(186, 195, 255, 0.18);
+  border: 1px solid var(--border);
   border-radius: 0.45rem;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-high);
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -1661,7 +1658,7 @@
 }
 
 .dialogCloseButton:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--control-surface-hover);
 }
 
 .confirmationMessage {
@@ -1672,7 +1669,7 @@
 }
 
 .confirmationError {
-  color: #fff7e5;
+  color: var(--text-strong);
 }
 
 .dialogActions {
@@ -1686,11 +1683,11 @@
 .dialogActionButton {
   min-height: 2.5rem;
   padding: 0 1rem;
-  border: 1px solid rgba(186, 195, 255, 0.2);
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: rgba(11, 22, 38, 0.82);
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1701,14 +1698,14 @@
 }
 
 .dialogActionSecondary:hover {
-  border-color: rgba(186, 195, 255, 0.36);
+  border-color: var(--outline-strong);
   background: rgba(25, 40, 60, 0.9);
 }
 
 .dialogActionDanger {
   border-color: rgba(227, 176, 74, 0.28);
   background: rgba(50, 37, 12, 0.54);
-  color: #fff7e5;
+  color: var(--text-strong);
 }
 
 .dialogActionDanger:hover {
@@ -1722,7 +1719,7 @@
   border: 1px solid rgba(227, 176, 74, 0.2);
   border-radius: 0.45rem;
   background: rgba(50, 37, 12, 0.42);
-  color: #fff7e5;
+  color: var(--text-strong);
   font-size: 0.9rem;
   line-height: 1.55;
 }
@@ -1755,7 +1752,7 @@
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.84rem;
   font-weight: 700;
   line-height: 1.45;
@@ -1801,7 +1798,7 @@
   border-radius: 999px;
   background: rgba(0, 82, 255, 0.18);
   color: #d6e2f2;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1853,7 +1850,7 @@
 }
 
 .supportRow span {
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.88rem;
   font-weight: 700;
 }
@@ -1891,7 +1888,7 @@
 }
 
 .negative {
-  color: #ffb3b6;
+  color: var(--negative);
 }
 
 @media (max-width: 520px) {
@@ -2024,7 +2021,7 @@
     width: min(62rem, calc(100vw - 19.5rem));
     max-height: min(58dvh, calc(100dvh - 8.7rem), 40rem);
     height: auto;
-    border: 1px solid rgba(186, 195, 255, 0.24);
+    border: 1px solid var(--outline-strong);
     border-radius: 0.2rem;
     padding: 1.35rem;
     transform-origin: top center;
