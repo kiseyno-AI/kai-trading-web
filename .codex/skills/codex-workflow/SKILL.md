@@ -34,6 +34,17 @@ Default implementation rules:
 - Avoid fixed card heights unless the visual contract truly requires them.
 - Treat “no awkward dead whitespace across common widths” as a real acceptance criterion for dashboard refactors.
 
+## Reusable top/bottom chrome
+
+When the task mentions top bars, bottom nav, floating toolbars, full-screen page wrappers, or repeated mobile/desktop chrome, read `references/reusable-chrome.md` before editing.
+
+Default implementation rules:
+- Prefer extending shared shell components over page-local toolbar copies.
+- Prefer slot/config-driven APIs over prop-bloat and near-duplicate variants.
+- Reuse one route/nav model across desktop/mobile placements where practical.
+- Keep toolbar data warming/prefetch logic separate from chrome rendering.
+- If a page only changes content/actions, the shell should stay shared.
+
 ## Quality loop (run in terminal from repo root)
 
 1. `npm run lint` — fix ESLint issues before stopping; do not silence rules without cause.

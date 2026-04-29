@@ -17,6 +17,12 @@ For dashboard/card rearrangement work, explicitly check for:
 - metric/header overflow after column collapse
 - partial-data states that change card height or alignment unexpectedly
 
+For topbar/bottom-nav/app-shell work, explicitly check for:
+- repeated page-local chrome markup that should be shared
+- route/nav labels or icons drifting between desktop and mobile shells
+- duplicated safe-area / floating spacing logic across pages
+- small per-page variations that should be slots or config instead of copied layout
+
 ## High-value tests
 
 - Mapping in `src/lib/trading-api.ts` (core JSON to dashboard DTOs) using fixture payloads.
