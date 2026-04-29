@@ -374,9 +374,9 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   expect(releaseBox.y).toBeLessThan(processBarBox.y);
   expect(localeBox.y).toBeLessThan(processBarBox.y);
 
-  if (processBarBox.y < viewport.height) {
-    expect(processBarBox.y + processBarBox.height).toBeLessThan(bottomNavBox.y);
-  }
+  const processBarGapToBottomNav = bottomNavBox.y - (processBarBox.y + processBarBox.height);
+  expect(processBarGapToBottomNav).toBeGreaterThanOrEqual(0);
+  expect(processBarGapToBottomNav).toBeLessThanOrEqual(12);
 }
 
 async function openEodStatusCard(page: Page) {
@@ -499,12 +499,14 @@ test.describe("dashboard mobile chrome", () => {
   test("mobile process monitor opens above the toolbar as a floating half-height sheet", async ({ page }) => {
     await page.goto("/dashboard");
 
+    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
     const bottomNav = page.getByRole("navigation", { name: /Primary/i });
     const processDrawer = await openProcessMonitorDrawer(page);
     await waitForProcessMonitorDrawerLayout(processDrawer);
-    const [viewport, drawerBox, bottomNavBox, backdropAlpha] = await Promise.all([
+    const [viewport, drawerBox, processBarBox, bottomNavBox, backdropAlpha] = await Promise.all([
       page.viewportSize(),
       processDrawer.boundingBox(),
+      processBar.boundingBox(),
       bottomNav.boundingBox(),
       processDrawer.evaluate((element) => {
         const backdrop = element.parentElement;
@@ -516,16 +518,18 @@ test.describe("dashboard mobile chrome", () => {
 
     expect(viewport).not.toBeNull();
     expect(drawerBox).not.toBeNull();
+    expect(processBarBox).not.toBeNull();
     expect(bottomNavBox).not.toBeNull();
 
-    if (!viewport || !drawerBox || !bottomNavBox) {
+    if (!viewport || !drawerBox || !processBarBox || !bottomNavBox) {
       throw new Error("Expected mobile process monitor and toolbar to have layout boxes.");
     }
 
     expect(backdropAlpha).toBeLessThan(0.5);
     expect(drawerBox.y).toBeGreaterThan(36);
     expect(drawerBox.height).toBeLessThanOrEqual(viewport.height * 0.52);
-    expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(bottomNavBox.y + 2);
+    expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(processBarBox.y + 2);
+    expect(processBarBox.y + processBarBox.height).toBeLessThanOrEqual(bottomNavBox.y + 12);
 
     await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "open");
     await expect

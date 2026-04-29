@@ -1962,6 +1962,15 @@ export function LiveDashboardClient({
       activeNav="dashboard"
       showDesktopRailLocaleSwitch={false}
       showMobileMetaRow={false}
+      bottomAccessory={
+        <ProcessMonitorTrigger
+          copy={copy}
+          model={processMonitorModel}
+          open={processMonitorDrawerOpen}
+          placement="mobile"
+          onOpen={openProcessMonitorDrawer}
+        />
+      }
       header={
         <>
           <div className={styles.appHeaderBrand}>
@@ -2046,14 +2055,6 @@ export function LiveDashboardClient({
         </section>
 
       </div>
-
-      <ProcessMonitorTrigger
-        copy={copy}
-        model={processMonitorModel}
-        open={processMonitorDrawerOpen}
-        placement="mobile"
-        onOpen={openProcessMonitorDrawer}
-      />
 
       {fundamentalsDialogOpen && fundamentalsFailureDetails
         ? createPortal(
