@@ -59,6 +59,7 @@ import {
   getFirstTextValue,
   getFundamentalsCheckedCount,
   getFundamentalsUpdatedActivityModel,
+  getFundamentalsUpdatedCountLabel,
   getFundamentalsFailureDetails,
   getFundamentalsFreshnessLayer,
   getFundamentalsStatusLabel,
@@ -1407,6 +1408,7 @@ export function LiveDashboardClient({
 
   const piotroskiMarketDate = dashboardProcessMarketDate;
   const eodStatusMarketDate = dashboardProcessMarketDate;
+  const fundamentalsActivityDate = getFirstTextValue(latestFundamentalsDate, eodStatusMarketDate);
   const isBreakDay = isBreakDayMarket(market);
   const priceFreshnessStage = mergeRunningPipelineStage(
     getPriceFreshnessStage(freshness, useTodayPriceStage),
@@ -1425,21 +1427,31 @@ export function LiveDashboardClient({
     fundamentalsPipelineStage,
   );
   const fundamentalsUpdatedActivity = useMemo(
-    () => getFundamentalsUpdatedActivityModel(fundamentalsStatus, eodStatusMarketDate, numberLocale),
-    [eodStatusMarketDate, fundamentalsStatus, numberLocale],
+    () => getFundamentalsUpdatedActivityModel(fundamentalsStatus, fundamentalsActivityDate, numberLocale),
+    [fundamentalsActivityDate, fundamentalsStatus, numberLocale],
   );
   const fundamentalsUpdatedSymbolsDetail = useMemo(
     () =>
       fundamentalsUpdatedActivity
         ? null
-        : getFundamentalsUpdatedSymbolsDetail(fundamentalsStatus, eodStatusMarketDate, copy, numberLocale),
-    [copy, eodStatusMarketDate, fundamentalsStatus, fundamentalsUpdatedActivity, numberLocale],
+        : getFundamentalsUpdatedSymbolsDetail(
+            fundamentalsStatus,
+            fundamentalsActivityDate,
+            copy,
+            numberLocale,
+            eodStatusMarketDate,
+          ),
+    [copy, eodStatusMarketDate, fundamentalsActivityDate, fundamentalsStatus, fundamentalsUpdatedActivity, numberLocale],
   );
   const fundamentalsPrimaryCountDetail = useMemo(
     () =>
       fundamentalsUpdatedActivity
         ? {
-            label: copy.operational.updatedToday,
+            label: getFundamentalsUpdatedCountLabel(
+              getFundamentalsRunDate(getLatestFundamentalsRun(fundamentalsStatus)),
+              eodStatusMarketDate,
+              copy,
+            ),
             value: fundamentalsUpdatedActivity.countLabel,
           }
         : {
@@ -1450,8 +1462,8 @@ export function LiveDashboardClient({
             ),
           },
     [
-      copy.operational.checked,
-      copy.operational.updatedToday,
+      copy,
+      eodStatusMarketDate,
       freshness,
       fundamentalsFreshnessWithPipelineStage,
       fundamentalsStatus,

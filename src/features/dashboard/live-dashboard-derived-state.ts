@@ -1256,14 +1256,14 @@ export function getFundamentalsFreshnessStage(
   );
   const normalizedStatus = normalizeFundamentalsStatusToken(fundamentalsStatusLabel);
   if (normalizedStatus === "running") return buildStage("running", symbolsTotal, symbolsChecked, symbolsFailed);
+  if (isFundamentalsFailureStatus(normalizedStatus)) {
+    return buildStage("missing", symbolsTotal, symbolsChecked, symbolsFailed);
+  }
   if (
     (normalizedStatus !== null && ["completed", "available", "ready", "success"].includes(normalizedStatus)) ||
     hasTextValue(latestFundamentalsDate)
   ) {
     return buildStage("ready", symbolsTotal, symbolsChecked, symbolsFailed);
-  }
-  if (isFundamentalsFailureStatus(normalizedStatus)) {
-    return buildStage("missing", symbolsTotal, symbolsChecked, symbolsFailed);
   }
 
   return freshness?.today?.fundamentals ?? null;
@@ -1294,7 +1294,6 @@ export function getFundamentalsStageStatusLabel(
     todayTradeDate,
     latestDate,
     canShowBreakDay,
-    staleReadyLabel: "not synced",
   });
 }
 
@@ -1569,21 +1568,33 @@ function getFundamentalsUpdatedCount(
 
 function isActiveFundamentalsUpdatedRun(
   run: DartFundamentalsDailyRunDto | null,
-  activeMarketDate: string | null,
+  displayMarketDate: string | null,
 ) {
-  const normalizedActiveMarketDate = getFirstTextValue(activeMarketDate);
+  const normalizedActiveMarketDate = getFirstTextValue(displayMarketDate);
   const latestRunDate = getFundamentalsRunDate(run);
   return Boolean(normalizedActiveMarketDate && latestRunDate === normalizedActiveMarketDate);
 }
 
+export function getFundamentalsUpdatedCountLabel(
+  runDate: string | null | undefined,
+  activeMarketDate: string | null | undefined,
+  copy: DashboardLiveCopy,
+) {
+  const normalizedRunDate = getFirstTextValue(runDate);
+  const normalizedActiveMarketDate = getFirstTextValue(activeMarketDate);
+  return normalizedRunDate && normalizedActiveMarketDate && normalizedRunDate !== normalizedActiveMarketDate
+    ? copy.operational.updatedRecently
+    : copy.operational.updatedToday;
+}
+
 export function getFundamentalsUpdatedActivityModel(
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
-  activeMarketDate: string | null,
+  displayMarketDate: string | null,
   numberLocale: string,
 ): FundamentalsUpdatedActivityModel | null {
   const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
   if (!hasStructuredFundamentalsUpdatedEntriesPayload(latestRun)) return null;
-  if (!isActiveFundamentalsUpdatedRun(latestRun, activeMarketDate)) return null;
+  if (!isActiveFundamentalsUpdatedRun(latestRun, displayMarketDate)) return null;
 
   const allItems = getFundamentalsUpdatedEntries(latestRun);
   const previewSourceItems = getFundamentalsUpdatedPreviewEntries(latestRun, allItems);
@@ -1650,15 +1661,16 @@ function getFundamentalsUpdatedSymbolSample(run: DartFundamentalsDailyRunDto | n
 
 export function getFundamentalsUpdatedSymbolsDetail(
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
-  activeMarketDate: string | null,
+  displayMarketDate: string | null,
   copy: DashboardLiveCopy,
   numberLocale: string,
+  activeMarketDate: string | null = displayMarketDate,
 ): EodStageDetail | null {
   const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
   if (hasStructuredFundamentalsUpdatedEntriesPayload(latestRun)) return null;
 
   const latestRunDate = getFundamentalsRunDate(latestRun);
-  const normalizedActiveMarketDate = getFirstTextValue(activeMarketDate);
+  const normalizedActiveMarketDate = getFirstTextValue(displayMarketDate);
   if (!normalizedActiveMarketDate || latestRunDate !== normalizedActiveMarketDate) return null;
 
   const refreshedCount = latestRun?.symbols_refreshed;
@@ -1678,7 +1690,7 @@ export function getFundamentalsUpdatedSymbolsDetail(
 
   return {
     key: "updated-symbols",
-    label: copy.operational.updatedToday,
+    label: getFundamentalsUpdatedCountLabel(latestRunDate, activeMarketDate, copy),
     value: `${countLabel}${symbolLabel}`,
     tone: "text",
     layout: "stacked",

@@ -21,7 +21,9 @@ import {
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedActivityModel,
+  getFundamentalsUpdatedCountLabel,
   getFundamentalsUpdatedSymbolsDetail,
+  getFundamentalsFreshnessStage,
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
   markAgentFeedbackProgressStopped,
@@ -121,10 +123,10 @@ function buildPipelineStatus(overrides: Partial<EodPipelineStatusResponseDto> = 
   };
 }
 
-test("marks stale latest fundamentals coverage as not synced on an active trading day", () => {
+test("keeps stale completed fundamentals coverage synced on an active trading day", () => {
   assert.equal(
     getFundamentalsStageStatusLabel(buildStage("ready"), "2026-04-21", "2026-04-18", false),
-    "not synced",
+    "synced",
   );
 });
 
@@ -182,6 +184,27 @@ test("keeps stale fundamentals coverage in break-day state when the market is cl
   );
 });
 
+test("keeps partial fundamentals runs in a not-synced stage even when the run has a latest date", () => {
+  const stage = getFundamentalsFreshnessStage(
+    null,
+    {
+      latest_run: buildFundamentalsRun({
+        market_date: "2026-04-18",
+        status: "partial",
+        symbols_checked: 3583,
+        symbols_failed: 1406,
+      }),
+      runs: [],
+    },
+    "partial",
+    "2026-04-18",
+    false,
+  );
+
+  assert.equal(stage?.status, "missing");
+  assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-18", false), "not synced");
+});
+
 test("keeps same-day fundamentals coverage synced", () => {
   assert.equal(
     getFundamentalsStageStatusLabel(buildStage("ready"), "2026-04-21", "2026-04-21", false),
@@ -231,6 +254,35 @@ test("keeps the legacy Updated today fallback when rollout fields are null", () 
   });
 });
 
+test("keeps the legacy updated-symbol fallback visible for the latest fundamentals run after date rollover", () => {
+  const copy = getDashboardLiveCopy("en");
+
+  const detail = getFundamentalsUpdatedSymbolsDetail(
+    {
+      latest_run: buildFundamentalsRun({
+        market_date: "2026-04-21",
+        symbols_refreshed: 2,
+        run_metadata: {
+          refreshed_symbols_sample: ["005930", "000660"],
+        },
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    copy,
+    "en-US",
+    "2026-04-22",
+  );
+
+  assert.deepEqual(detail, {
+    key: "updated-symbols",
+    label: copy.operational.updatedRecently,
+    value: "2 (005930, 000660)",
+    tone: "text",
+    layout: "stacked",
+  });
+});
+
 test("uses a structured zero-count fundamentals activity payload without preview rows", () => {
   const model = getFundamentalsUpdatedActivityModel(
     {
@@ -254,6 +306,38 @@ test("uses a structured zero-count fundamentals activity payload without preview
     allItems: [],
     canExpand: false,
   });
+});
+
+test("keeps structured fundamentals activity visible for the latest run date after process date rollover", () => {
+  const copy = getDashboardLiveCopy("en");
+  const model = getFundamentalsUpdatedActivityModel(
+    {
+      latest_run: buildFundamentalsRun({
+        market_date: "2026-04-21",
+        updated_entries_summary: {
+          updated_count: 1,
+          visible_preview_limit: 3,
+        },
+        updated_entries: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            category_label: "Financial statement refresh",
+          },
+        ],
+      }),
+      runs: [],
+    },
+    "2026-04-21",
+    "en-US",
+  );
+
+  assert.equal(model?.countLabel, "1");
+  assert.equal(
+    getFundamentalsUpdatedCountLabel("2026-04-21", "2026-04-22", copy),
+    copy.operational.updatedRecently,
+  );
+  assert.deepEqual(model?.previewItems.map((item) => item.companyName), ["Samsung Electronics"]);
 });
 
 test("builds a one-item fundamentals activity preview from the structured updated-entry payload", () => {
