@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const now = "2026-04-27T16:30:00+09:00";
 
@@ -15,6 +15,17 @@ async function openProcessMonitorDrawer(page: Page) {
   await page.getByRole("button", { name: /Open process monitor/i }).first().click();
   await expect(drawer).toBeVisible();
   return drawer;
+}
+
+async function expectVerticalCentersAligned(left: Locator, right: Locator, tolerancePx = 3) {
+  const [leftBox, rightBox] = await Promise.all([left.boundingBox(), right.boundingBox()]);
+  if (!leftBox || !rightBox) {
+    throw new Error("Expected both elements to be visible before checking alignment.");
+  }
+
+  const leftCenterY = leftBox.y + leftBox.height / 2;
+  const rightCenterY = rightBox.y + rightBox.height / 2;
+  expect(Math.abs(leftCenterY - rightCenterY)).toBeLessThanOrEqual(tolerancePx);
 }
 
 async function mockDashboardShell(page: Page, options: MockDashboardShellOptions = {}) {
@@ -353,6 +364,17 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(card).toContainText("Samsung Electronics");
   await expect(card).toContainText("Momentum and fundamentals align");
 
+  const samsungPreviewRow = page.getByRole("listitem", { name: /Samsung Electronics signal-decider feedback/i });
+  await expectVerticalCentersAligned(
+    samsungPreviewRow.getByText("Buy", { exact: true }),
+    samsungPreviewRow.getByText("7/10", { exact: true }),
+  );
+  const hynixPreviewRow = page.getByRole("listitem", { name: /SK hynix signal-decider feedback/i });
+  await expectVerticalCentersAligned(
+    hynixPreviewRow.getByText("Wait", { exact: true }),
+    hynixPreviewRow.getByText("5/10", { exact: true }),
+  );
+
   const processDrawer = await openProcessMonitorDrawer(page);
   const agentFeedbackCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
   await expect(agentFeedbackCard).toBeVisible();
@@ -372,6 +394,10 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(samsungRow).toContainText("Conviction 7/10");
   await expect(samsungRow).toContainText("1d +0.82%");
   await expect(samsungRow).toContainText("decider-policy-2026.04");
+  await expectVerticalCentersAligned(
+    samsungRow.getByText("Buy", { exact: true }).first(),
+    samsungRow.getByTestId("signal-decider-score-area"),
+  );
 
   await page.getByLabel("Signal-decider feedback filters").getByLabel("Verdict").selectOption("Missed Opportunity");
   await expect(page.locator("tr").filter({ hasText: "SK hynix" })).toBeVisible();

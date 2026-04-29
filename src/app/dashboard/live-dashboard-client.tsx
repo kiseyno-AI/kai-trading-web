@@ -641,9 +641,14 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
       {error ? <p className={styles.cardContext}>{copy.signalDecider.unavailable} {error}</p> : null}
 
       {model.previewItems.length > 0 ? (
-        <div className={styles.signalDeciderPreviewList} aria-label={copy.signalDecider.preview}>
+        <div className={styles.signalDeciderPreviewList} role="list" aria-label={copy.signalDecider.preview}>
           {model.previewItems.map((item) => (
-            <div key={item.id} className={styles.signalDeciderPreviewRow}>
+            <div
+              key={item.id}
+              className={styles.signalDeciderPreviewRow}
+              role="listitem"
+              aria-label={`${item.companyName ?? item.symbol} signal-decider feedback`}
+            >
               <div className={styles.signalDeciderPreviewMain}>
                 <strong>{item.companyName ?? item.symbol}</strong>
                 <span>{item.symbol}</span>
@@ -657,7 +662,7 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
                     {item.qualityTag.label}
                   </span>
                 ) : null}
-                <span>
+                <span className={styles.signalDeciderPreviewScore}>
                   {item.convictionScore !== null
                     ? `${item.convictionScore}/10`
                     : item.confidenceScore !== null
