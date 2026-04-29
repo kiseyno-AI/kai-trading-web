@@ -22,6 +22,7 @@ import {
   buildProcessMonitorModel,
   buildScoringCardModel,
   formatEodSymbolCount,
+  getActionFreshnessStage,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
@@ -35,6 +36,7 @@ import {
   getMarketSnapshotPollDelayMs,
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
+  getTechnicalFreshnessStage,
   markAgentFeedbackProgressStopped,
   maskAgentRoleCardsAsWaiting,
   maskFilteringCardModelAsWaiting,
@@ -468,6 +470,86 @@ test("uses live fundamentals pipeline counts and date while stored activity data
   assert.equal(card.statusBadgeLabel, "Fundamentals Daily Refresh");
   assert.equal(card.details.find((detail) => detail.key === "count")?.value, "247");
   assert.equal(card.details.find((detail) => detail.key === "latest-date")?.value, "2026-04-29");
+});
+
+test("uses stage-specific technical and action counts instead of aggregate EOD totals", () => {
+  const freshness = {
+    today: null,
+    latest: {
+      summary: {
+        market_date: "2026-04-27",
+        status: "completed",
+        symbols_total: 3583,
+        symbols_succeeded: 3583,
+        symbols_failed: 0,
+      },
+      stage_details: {
+        technical_snapshots: {
+          market_date: "2026-04-27",
+          status: "completed",
+          total: 120,
+          processed: 120,
+          failed: 0,
+        },
+        action_summaries: {
+          market_date: "2026-04-27",
+          status: "completed",
+          total: 87,
+          completed_count: 86,
+          failed: 1,
+        },
+      },
+    },
+    technical: {
+      success: true,
+      latest_date: "2026-04-27",
+    },
+    action: {
+      success: true,
+      latest_date: "2026-04-27",
+    },
+  };
+
+  const technicalStage = getTechnicalFreshnessStage(freshness, false);
+  const actionStage = getActionFreshnessStage(freshness, false);
+
+  assert.deepEqual(technicalStage, {
+    status: "ready",
+    symbols_total: 120,
+    symbols_succeeded: 120,
+    symbols_failed: 0,
+  });
+  assert.deepEqual(actionStage, {
+    status: "ready",
+    symbols_total: 87,
+    symbols_succeeded: 86,
+    symbols_failed: 1,
+  });
+});
+
+test("completed pipeline merge preserves stage-local counts over aggregate totals", () => {
+  const merged = mergeRunningPipelineStage(
+    {
+      status: "ready",
+      symbols_total: 7,
+      symbols_succeeded: 7,
+      symbols_failed: 0,
+    },
+    {
+      status: "completed",
+      processed: 3583,
+      total: 3583,
+      failed: 0,
+    },
+    { preferStageCountsOnCompleted: true },
+  );
+
+  assert.deepEqual(merged, {
+    status: "ready",
+    symbols_total: 7,
+    symbols_succeeded: 7,
+    symbols_failed: 0,
+  });
 });
 
 test("treats null-filled updated-entry rollout fields as absent structured payload", () => {
@@ -1839,6 +1921,7 @@ test("keeps the active summarizer row running when top-level feedback summary sa
           status: "pending",
           processed_symbols: 39,
           completed_symbols: 39,
+          total_symbols: 100,
           boundary_status: "pending",
         },
       },
@@ -1857,16 +1940,19 @@ test("keeps the active summarizer row running when top-level feedback summary sa
       ["fundamental-summarizer", "pending"],
     ],
   );
+  assert.equal(roleCards[0]?.progressLabel, "100.00%");
+  assert.equal(roleCards[1]?.progressLabel, "39.00%");
+  assert.equal(roleCards[2]?.progressLabel, "0.00%");
   assert.deepEqual(roleCards[1]?.metrics, [
     {
       key: "progress",
       label: copy.agentFeedback.metrics.progress,
-      value: "30.00%",
+      value: "39.00%",
     },
     {
       key: "total",
       label: copy.agentFeedback.metrics.total,
-      value: "2,812",
+      value: "100",
     },
     {
       key: "failed",
@@ -1876,9 +1962,81 @@ test("keeps the active summarizer row running when top-level feedback summary sa
     {
       key: "completed",
       label: copy.agentFeedback.metrics.completed,
-      value: "97",
+      value: "39",
     },
   ]);
+});
+
+test("preserves role-specific completed counts when the overall feedback cycle is completed", () => {
+  const copy = getDashboardLiveCopy("en");
+  const progress = {
+    request: {
+      market_date: "2026-04-27",
+      symbols: null,
+      expected_agents: ["technical-summarizer", "fundamental-summarizer", "signal-decider"],
+    },
+    summary: {
+      run_id: "feedback-cycle-2026-04-27-completed",
+      run_status: "completed",
+      run_table_status: "completed",
+      cycle_status: "completed",
+      is_live: false,
+      run_started_at: "2026-04-27T17:00:00+09:00",
+      run_completed_at: "2026-04-27T17:45:00+09:00",
+      current_role: null,
+      completed_roles: ["technical-summarizer", "fundamental-summarizer", "signal-decider"],
+      remaining_roles: [],
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-27T17:45:00+09:00",
+      seconds_since_last_feedback: 120,
+      stalled_threshold_seconds: 60,
+      total_symbols: 3583,
+      processed_symbols: 3583,
+      completed_symbols: 3583,
+      in_progress_symbols: 0,
+      pending_symbols: 0,
+      progress_ratio: 1,
+      progress_percent: 100,
+      failed_items: 0,
+      completed_feedback_count: 150,
+      expected_feedback_count: 150,
+      role_progress: {
+        "technical-summarizer": {
+          status: "completed",
+          processed_symbols: 120,
+        },
+        "fundamental-summarizer": {
+          status: "completed",
+          completed_symbols: 7,
+        },
+      },
+    },
+    result: {
+      market_date: "2026-04-27",
+      roles: {
+        "signal-decider": {
+          requested_count: 23,
+          completed_count: 23,
+          error_count: 0,
+        },
+      },
+    },
+  };
+
+  const roleCards = buildAgentRoleCards(progress, copy, "en-US");
+  const technicalRole = roleCards.find((role) => role.role === "technical-summarizer");
+  const fundamentalRole = roleCards.find((role) => role.role === "fundamental-summarizer");
+  const signalDeciderRole = roleCards.find((role) => role.role === "signal-decider");
+
+  assert.equal(technicalRole?.status, "completed");
+  assert.equal(technicalRole?.progressLabel, "100.00%");
+  assert.equal(technicalRole?.metrics.find((metric) => metric.key === "completed")?.value, "120");
+  assert.notEqual(technicalRole?.metrics.find((metric) => metric.key === "completed")?.value, "3,583");
+  assert.equal(fundamentalRole?.status, "completed");
+  assert.equal(fundamentalRole?.progressLabel, "100.00%");
+  assert.equal(fundamentalRole?.metrics.find((metric) => metric.key === "completed")?.value, "7");
+  assert.notEqual(fundamentalRole?.metrics.find((metric) => metric.key === "completed")?.value, "3,583");
+  assert.equal(signalDeciderRole?.metrics.find((metric) => metric.key === "completed")?.value, "23");
 });
 
 test("shows signal-decider metrics when a live cycle reaches the decider after summarizers", () => {

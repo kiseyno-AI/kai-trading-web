@@ -1546,14 +1546,17 @@ export function LiveDashboardClient({
   const technicalFreshnessStage = mergeRunningPipelineStage(
     getTechnicalFreshnessStage(freshness, useTodayTechnicalStage),
     technicalPipelineStage,
+    { preferStageCountsOnCompleted: true },
   );
   const actionFreshnessStage = mergeRunningPipelineStage(
     getActionFreshnessStage(freshness, useTodayActionStage),
     actionPipelineStage,
+    { preferStageCountsOnCompleted: true },
   );
   const fundamentalsFreshnessWithPipelineStage = mergeRunningPipelineStage(
     fundamentalsFreshnessStage,
     fundamentalsPipelineStage,
+    { preferStageCountsOnCompleted: true },
   );
   const fundamentalsUpdatedActivity = useMemo(
     () =>
