@@ -204,110 +204,59 @@
   gap: 0.42rem;
 }
 
-.tableWrap {
-  overflow-x: auto;
+.resultsList {
+  display: grid;
+  gap: 0.78rem;
+}
+
+.resultCard {
+  min-width: 0;
+  display: grid;
+  gap: 0.86rem;
+  padding: 0.92rem;
   border: 1px solid rgba(134, 162, 194, 0.18);
   border-radius: 0.5rem;
   background: rgba(3, 7, 13, 0.5);
 }
 
-.resultsTable {
-  width: 100%;
-  min-width: 78rem;
-  border-collapse: collapse;
-  table-layout: fixed;
+.resultHeader {
+  min-width: 0;
+  display: grid;
+  gap: 0.66rem;
 }
 
-.resultsTable th,
-.resultsTable td {
-  padding: 0.9rem;
-  border-bottom: 1px solid rgba(134, 162, 194, 0.16);
-  text-align: left;
-  vertical-align: top;
+.resultBadges {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  align-items: flex-start;
 }
 
-.resultsTable th:nth-child(1) {
-  width: 13rem;
-}
-
-.resultsTable th:nth-child(2),
-.resultsTable th:nth-child(3) {
-  width: 8rem;
-}
-
-.resultsTable th:nth-child(4) {
-  width: 10rem;
-}
-
-.resultsTable th:nth-child(5) {
-  width: 10rem;
-}
-
-.resultsTable th:nth-child(6) {
-  width: 19rem;
-}
-
-.resultsTable th:nth-child(7) {
-  width: 10rem;
-}
-
-.resultsTable th:nth-child(8) {
-  width: 11rem;
-}
-
-.resultsTable th:nth-child(9) {
-  width: 10rem;
-}
-
-.resultsTable th:nth-child(10) {
-  width: 7rem;
-}
-
-.resultsTable th {
-  color: var(--muted-soft);
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.resultsTable td {
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.5;
+.resultBadges :global(.pill) {
+  max-width: 100%;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
 
-.resultsTable td:nth-child(1),
-.resultsTable td:nth-child(2),
-.resultsTable td:nth-child(10) {
-  white-space: nowrap;
-}
-
-.resultsTable .actionCell,
-.resultsTable .scoreCell,
-.resultsTable .reviewCell {
-  vertical-align: middle;
-}
-
-.resultsTable .scoreCell {
-  text-align: right;
-}
-
-.resultsTable .reviewCell {
-  text-align: center;
-}
-
-.resultsTable .actionCell :global(.pill) {
-  min-width: 4.8rem;
+.resultMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr));
+  gap: 0.68rem;
 }
 
 .scoreStack {
   display: grid;
-  gap: 0.35rem;
-  width: min(100%, 8.5rem);
-  margin-left: auto;
+  gap: 0.42rem;
+}
+
+.scoreStack,
+.resultMetric {
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid rgba(134, 162, 194, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(8, 17, 31, 0.62);
 }
 
 .scoreStack > span {
@@ -317,21 +266,54 @@
   gap: 0.6rem;
 }
 
-.scoreStack span span {
+.scoreStack span span,
+.resultMetric span,
+.resultThesis > span {
+  display: block;
   color: var(--muted-soft);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.35;
+  text-transform: uppercase;
 }
 
-.scoreStack strong {
-  min-width: 2.8rem;
-  text-align: right;
+.scoreStack strong,
+.resultMetric strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.82rem;
+  line-height: 1.4;
 }
 
-.thesisCell {
+.resultThesis {
+  min-width: 0;
+  display: grid;
+  gap: 0.36rem;
+  padding: 0.78rem;
+  border: 1px solid rgba(134, 162, 194, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(8, 17, 31, 0.5);
+}
+
+.resultThesis p {
+  margin: 0;
+  overflow-wrap: anywhere;
   color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.62;
+}
+
+.resultFooter {
+  min-width: 0;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.resultFooter .reviewButton {
+  width: 100%;
 }
 
 .traceSummary {
@@ -351,11 +333,8 @@
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.2;
-  white-space: nowrap;
-}
-
-.resultsTable tr:last-child td {
-  border-bottom: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .symbolLink {
@@ -666,8 +645,23 @@
 
 @media (min-width: 768px) {
   .controls {
-    grid-template-columns: minmax(12rem, 1.1fr) minmax(12rem, 0.9fr) 9rem 11rem 11rem 10rem;
+    grid-template-columns: minmax(12rem, 1.2fr) minmax(12rem, 0.95fr) minmax(8rem, 0.62fr) minmax(10rem, 0.72fr);
     align-items: end;
+  }
+
+  .resultHeader,
+  .resultFooter {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .resultBadges,
+  .resultFooter .reviewButton {
+    justify-self: end;
+  }
+
+  .resultFooter .reviewButton {
+    width: auto;
   }
 
   .detailBody {

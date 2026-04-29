@@ -329,17 +329,6 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               thesis_summary: "Wait for confirmation after the opening print.",
               risk_flags: ["Volume confirmation missing"],
               policy_version: "decider-policy-2026.04",
-              evaluation: {
-                quality_verdict: "missed_opportunity",
-                missed_opportunity: true,
-                quality_reason: "Price cleared the confirmation band before the 3d horizon.",
-                realized_results: {
-                  "3d": {
-                    return_pct: 4.18,
-                    verdict: "missed_opportunity",
-                  },
-                },
-              },
             },
             normalized_feedback: null,
             details: null,
@@ -406,16 +395,13 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Back to dashboard/i })).toHaveCount(0);
 
-  const samsungRow = page.locator("tr").filter({ hasText: "Samsung Electronics" });
-  await expect(samsungRow).toContainText("Buy");
-  await expect(samsungRow).toContainText("Weak buy");
-  await expect(samsungRow).toContainText("Conviction 7/10");
-  await expect(samsungRow).toContainText("1d +0.82%");
-  await expect(samsungRow).toContainText("decider-policy-2026.04");
-  await expectVerticalCentersAligned(
-    samsungRow.getByText("Buy", { exact: true }).first(),
-    samsungRow.getByTestId("signal-decider-score-area"),
-  );
+  const samsungCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
+  await expect(samsungCard).toContainText("Buy");
+  await expect(samsungCard).toContainText("Weak buy");
+  await expect(samsungCard).toContainText(/Conviction\s*7\/10/);
+  await expect(samsungCard).toContainText("1d +0.82%");
+  await expect(samsungCard).toContainText("decider-policy-2026.04");
+  await expect(samsungCard.getByTestId("signal-decider-score-area")).toContainText(/Confidence\s*8\/10/);
 
   const filters = page.getByLabel("Signal-decider feedback filters");
   await expect(filters.getByLabel("Verdict")).toHaveCount(0);
@@ -423,12 +409,14 @@ test("dashboard signal-decider card previews partial results and links to the de
 
   const actionFilter = filters.getByRole("combobox").first();
   await actionFilter.selectOption("wait");
-  await expect(page.locator("tr").filter({ hasText: "SK hynix" })).toBeVisible();
-  await expect(page.locator("tr").filter({ hasText: "Samsung Electronics" })).toHaveCount(0);
+  const hynixCard = page.getByRole("article", { name: /SK hynix signal-decider feedback/i });
+  await expect(hynixCard).toBeVisible();
+  await expect(hynixCard).toContainText("[확인 필요]");
+  await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
 
   await actionFilter.selectOption("buy");
-  await expect(samsungRow).toBeVisible();
-  await samsungRow.getByRole("button", { name: "Review" }).click();
+  await expect(samsungCard).toBeVisible();
+  await samsungCard.getByRole("button", { name: "Review" }).click();
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("The buy worked intraday");
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("3d");
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("-1.44%");
@@ -436,6 +424,38 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Liquidity");
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Technical Snapshot");
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Feature Snapshot Id");
+});
+
+test("signal-decider feedback detail stacks content without horizontal scrolling on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+
+  await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  await expect(page.locator("table")).toHaveCount(0);
+
+  const samsungCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
+  await expect(samsungCard).toBeVisible();
+  await expect(samsungCard).toContainText("Thesis");
+  await expect(samsungCard).toContainText(/Conviction\s*7\/10/);
+  await expect(samsungCard).toContainText(/Confidence\s*8\/10/);
+  await expect(samsungCard).toContainText(/Outcome\s*1d \+0\.82%/);
+  await expect(samsungCard).toContainText(/Policy\s*decider-policy-2026\.04/);
+  await expect(samsungCard).toContainText("Captured");
+
+  const overflowMetrics = await page.evaluate(() => ({
+    documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    cardOverflows: Array.from(document.querySelectorAll('[data-testid="signal-decider-result-card"]')).map(
+      (element) => element.scrollWidth - element.clientWidth,
+    ),
+  }));
+
+  expect(overflowMetrics.documentOverflow).toBeLessThanOrEqual(1);
+  expect(overflowMetrics.cardOverflows.length).toBeGreaterThan(0);
+  for (const overflow of overflowMetrics.cardOverflows) {
+    expect(overflow).toBeLessThanOrEqual(1);
+  }
 });
 
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {

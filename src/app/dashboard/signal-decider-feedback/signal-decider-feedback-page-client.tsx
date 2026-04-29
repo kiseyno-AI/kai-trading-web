@@ -117,6 +117,10 @@ function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
   return item.qualityTag?.label ?? item.qualityVerdict ?? null;
 }
 
+function getDecisionQualityDisplayLabel(item: SignalDeciderFeedbackItem) {
+  return getDecisionQualityLabel(item) ?? UNKNOWN_LABEL;
+}
+
 function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
   if (item.outcomeHorizons.length === 0) return UNKNOWN_LABEL;
 
@@ -162,6 +166,15 @@ function formatActionMix(actionCounts: Record<SignalDeciderAction, number>) {
     .map((action) => `${formatSignalDeciderActionLabel(action)} ${actionCounts[action].toLocaleString("en-US")}`);
 
   return labels.length > 0 ? labels.join(" · ") : UNKNOWN_LABEL;
+}
+
+function getTraceSummaryParts(item: SignalDeciderFeedbackItem) {
+  return [
+    item.riskFlags.length > 0 ? `${item.riskFlags.length} risks` : null,
+    item.factorAttributions.length > 0 ? `${item.factorAttributions.length} factors` : null,
+    item.gateResults.length > 0 ? `${item.gateResults.length} gates` : null,
+    item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} evidence` : null,
+  ].filter((part): part is string => part !== null);
 }
 
 function buildSymbolHref(item: SignalDeciderFeedbackItem) {
@@ -490,88 +503,74 @@ export default function SignalDeciderFeedbackPageClient() {
           ) : loadState === "error" ? (
             <div className={styles.emptyState}>{error ?? "Signal-decider feedback is unavailable."}</div>
           ) : visibleItems.length > 0 ? (
-            <div className={styles.tableWrap}>
-              <table className={styles.resultsTable}>
-                <thead>
-                  <tr>
-                    <th>Symbol</th>
-                    <th>Action</th>
-                    <th>Verdict</th>
-                    <th>Confidence</th>
-                    <th>Outcome</th>
-                    <th>Thesis</th>
-                    <th>Trace</th>
-                    <th>Policy</th>
-                    <th>Captured</th>
-                    <th>Review</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleItems.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
-                          <strong>{item.companyName ?? item.symbol}</strong>
-                          <span>{item.symbol}</span>
-                        </Link>
-                      </td>
-                      <td className={styles.actionCell}>
+            <div className={styles.resultsList} aria-label="Signal-decider feedback results">
+              {visibleItems.map((item) => {
+                const decisionQualityLabel = getDecisionQualityDisplayLabel(item);
+                const traceSummaryParts = getTraceSummaryParts(item);
+
+                return (
+                  <article
+                    key={item.id}
+                    className={styles.resultCard}
+                    aria-label={`${item.companyName ?? item.symbol} signal-decider feedback`}
+                    data-testid="signal-decider-result-card"
+                  >
+                    <header className={styles.resultHeader}>
+                      <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
+                        <strong>{item.companyName ?? item.symbol}</strong>
+                        <span>{item.symbol}</span>
+                      </Link>
+                      <div className={styles.resultBadges}>
                         <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
-                      </td>
-                      <td>
-                        {getDecisionQualityLabel(item) ? (
-                          <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
-                            {getDecisionQualityLabel(item)}
-                          </span>
-                        ) : (
-                          UNKNOWN_LABEL
-                        )}
-                      </td>
-                      <td className={styles.scoreCell}>
-                        <div className={styles.scoreStack} data-testid="signal-decider-score-area">
-                          <span>
-                            <span>Conviction </span>
-                            <strong>{formatScore(item.convictionScore)}</strong>
-                          </span>
-                          <span>
-                            <span>Confidence </span>
-                            <strong>{formatScore(item.confidenceScore)}</strong>
-                          </span>
-                        </div>
-                      </td>
-                      <td>{formatOutcomeSummary(item)}</td>
-                      <td className={styles.thesisCell}>{item.thesisSummary ?? UNKNOWN_LABEL}</td>
-                      <td>
-                        <div className={styles.traceSummary}>
-                          {[
-                            item.riskFlags.length > 0 ? `${item.riskFlags.length} risks` : null,
-                            item.factorAttributions.length > 0 ? `${item.factorAttributions.length} factors` : null,
-                            item.gateResults.length > 0 ? `${item.gateResults.length} gates` : null,
-                            item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} evidence` : null,
-                          ]
-                            .filter((part): part is string => part !== null)
-                            .map((part) => (
-                              <span key={part}>{part}</span>
-                            ))}
-                          {item.riskFlags.length === 0 &&
-                          item.factorAttributions.length === 0 &&
-                          item.gateResults.length === 0 &&
-                          item.upstreamEvidence.length === 0
-                            ? UNKNOWN_LABEL
-                            : null}
-                        </div>
-                      </td>
-                      <td>{item.policyVersion ?? UNKNOWN_LABEL}</td>
-                      <td>{formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</td>
-                      <td className={styles.reviewCell}>
-                        <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
-                          Review
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
+                          {decisionQualityLabel}
+                        </span>
+                      </div>
+                    </header>
+
+                    <div className={styles.resultMetricGrid}>
+                      <div className={styles.scoreStack} data-testid="signal-decider-score-area">
+                        <span>
+                          <span>Conviction</span>
+                          <strong>{formatScore(item.convictionScore)}</strong>
+                        </span>
+                        <span>
+                          <span>Confidence</span>
+                          <strong>{formatScore(item.confidenceScore)}</strong>
+                        </span>
+                      </div>
+                      <div className={styles.resultMetric}>
+                        <span>Outcome</span>
+                        <strong>{formatOutcomeSummary(item)}</strong>
+                      </div>
+                      <div className={styles.resultMetric}>
+                        <span>Policy</span>
+                        <strong>{item.policyVersion ?? UNKNOWN_LABEL}</strong>
+                      </div>
+                      <div className={styles.resultMetric}>
+                        <span>Captured</span>
+                        <strong>{formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</strong>
+                      </div>
+                    </div>
+
+                    <section className={styles.resultThesis}>
+                      <span>Thesis</span>
+                      <p>{item.thesisSummary ?? UNKNOWN_LABEL}</p>
+                    </section>
+
+                    <footer className={styles.resultFooter}>
+                      <div className={styles.traceSummary} aria-label="Trace summary">
+                        {traceSummaryParts.length > 0
+                          ? traceSummaryParts.map((part) => <span key={part}>{part}</span>)
+                          : UNKNOWN_LABEL}
+                      </div>
+                      <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
+                        Review
+                      </button>
+                    </footer>
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className={styles.emptyState}>
@@ -604,11 +603,9 @@ export default function SignalDeciderFeedbackPageClient() {
                     <span className={`pill ${getActionToneClass(selectedItem.action)}`}>
                       {selectedItem.actionLabel}
                     </span>
-                    {getDecisionQualityLabel(selectedItem) ? (
-                      <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
-                        {getDecisionQualityLabel(selectedItem)}
-                      </span>
-                    ) : null}
+                    <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
+                      {getDecisionQualityDisplayLabel(selectedItem)}
+                    </span>
                   </div>
                 </div>
                 <button type="button" className={styles.closeButton} onClick={() => setSelectedItemId(null)}>
