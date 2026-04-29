@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { LanguageSwitchControl } from "@/components/navigation/language-switch-control";
 import { Button } from "@/components/ui/button";
 import { SearchPicker } from "@/components/ui/search-picker";
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -25,7 +26,7 @@ export function Topbar({
   suggestions,
   onToggleMobileNav,
 }: TopbarProps) {
-  const { devMode, locale, notificationsOn, setDevMode, setLocale, setNotificationsOn, t } = useAppState();
+  const { notificationsOn, setNotificationsOn, t } = useAppState();
   const routeLabel = t.routes[resolveRouteMessageKey(currentPath)].label;
 
   return (
@@ -62,25 +63,6 @@ export function Topbar({
           <span>{t.navigation.searchWorkspace}</span>
         </Link>
 
-        <div className="locale-switch" role="group" aria-label={t.common.languageSwitcher}>
-          <Button
-            className={locale === "en" ? "locale-chip active" : "locale-chip"}
-            variant="glass"
-            aria-label={t.common.languageEnglish}
-            onClick={() => setLocale("en")}
-          >
-            {t.languages.en.short}
-          </Button>
-          <Button
-            className={locale === "ko" ? "locale-chip active" : "locale-chip"}
-            variant="glass"
-            aria-label={t.common.languageKorean}
-            onClick={() => setLocale("ko")}
-          >
-            {t.languages.ko.short}
-          </Button>
-        </div>
-
         <Button
           className={notificationsOn ? "icon-pill" : "icon-pill muted-toggle"}
           variant="pill"
@@ -90,14 +72,7 @@ export function Topbar({
           {notificationsOn ? t.common.feedOn : t.common.feedOff}
         </Button>
 
-        <Button
-          className={devMode ? "icon-pill" : "icon-pill muted-toggle"}
-          variant="pill"
-          aria-pressed={devMode}
-          onClick={() => setDevMode(!devMode)}
-        >
-          {devMode ? t.common.tagsOn : t.common.tagsOff}
-        </Button>
+        <LanguageSwitchControl variant="topbar" />
 
         <div className="profile-pill">
           <span className="status-dot" />

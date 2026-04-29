@@ -703,37 +703,11 @@ kbd {
 
 .ui-button-pill,
 .icon-pill,
-.profile-pill,
-.locale-chip {
+.profile-pill {
   min-height: 40px;
   padding: 0 14px;
   border-radius: 999px;
   background: rgba(49, 53, 59, 0.42);
-}
-
-.locale-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(24, 28, 33, 0.82);
-  box-shadow: inset 0 0 0 1px rgba(71, 69, 85, 0.18);
-}
-
-.locale-chip {
-  min-width: 50px;
-  min-height: 34px;
-  padding: 0 12px;
-  color: var(--muted-soft);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-
-.locale-chip.active {
-  background: linear-gradient(135deg, rgba(197, 192, 255, 0.9), rgba(109, 94, 247, 0.8));
-  color: var(--primary-foreground);
 }
 
 .muted-toggle {
@@ -2053,21 +2027,9 @@ kbd {
     padding: 0 13px;
   }
 
-  .locale-switch,
   .icon-pill,
   .profile-pill {
     width: auto;
-  }
-
-  .locale-switch {
-    display: grid;
-    flex: 1 1 150px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .locale-chip {
-    width: 100%;
-    justify-content: center;
   }
 
   .icon-pill,

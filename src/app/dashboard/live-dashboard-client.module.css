@@ -40,6 +40,23 @@
   letter-spacing: -0.02em;
 }
 
+.brandCopy {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.brandVersion {
+  display: block;
+  color: var(--accent);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .appHeaderActions {
   display: flex;
   align-items: center;
@@ -1923,6 +1940,10 @@
 
   .brandTitle {
     font-size: 1.1rem;
+  }
+
+  .brandVersion {
+    display: none;
   }
 
   .dashboardWideShell {

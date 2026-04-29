@@ -143,6 +143,12 @@ test.describe("dashboard desktop", () => {
     await expect(processDrawer.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Open the full Piotroski filter pass list/i })).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
+    const headerLanguageSwitch = page.getByTestId("dashboard-header-language-switch");
+    await expect(headerLanguageSwitch).toBeVisible();
+    await expect(headerLanguageSwitch.getByRole("button", { name: /English/i })).toBeVisible();
+    await expect(headerLanguageSwitch.getByRole("button", { name: /Korean/i })).toBeVisible();
+    await expect(page.locator('[aria-label="Locale switcher"]:visible')).toHaveCount(1);
+    await expect(page.getByText(/Tags On|Tags Off|태그 켜짐|태그 꺼짐/)).toHaveCount(0);
 
     await expect(page.getByRole("heading", { name: /Layer sync events/i })).toHaveCount(0);
     await expect(page.getByText(/Real-Time Audit Feed/i)).toHaveCount(0);
