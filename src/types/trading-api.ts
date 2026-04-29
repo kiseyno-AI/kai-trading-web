@@ -800,7 +800,10 @@ export type EodPipelineStageKey =
   | "action_summaries"
   | "trending_ranks"
   | "signal_features"
-  | "fundamentals_daily_refresh";
+  | "fundamentals_daily_refresh"
+  | "unified_value_scoring"
+  | "quality_scoring"
+  | "momentum_scoring";
 
 export type EodPipelineStageDto = {
   status: string | null;

@@ -123,6 +123,30 @@ const dashboardLiveCopy = {
       stopDialogStopping: "Stopping...",
       viewFundamentalsRunDetails: "View fundamentals run details",
     },
+    scoring: {
+      eyebrow: "Score Layers",
+      title: "Scoring",
+      openFactorScreening: "Open the factor scoring workspace",
+      stages: {
+        unifiedValue: "Unified value scoring",
+        quality: "Quality scoring",
+        momentum: "Momentum scoring",
+      },
+      statuses: {
+        completed: "Completed",
+        running: "Running",
+        needsReview: "Needs review",
+        pending: "Pending",
+        waiting: "Waiting",
+      },
+      notes: {
+        completed: "EOD scoring status is complete for the selected market date.",
+        running: "EOD scoring is running for the selected market date.",
+        needsReview: "EOD scoring status needs review for the selected market date.",
+        pending: "Waiting for EOD scoring status for the selected market date.",
+        waiting: "Scoring market date is pending.",
+      },
+    },
     processMonitor: {
       compactTitle: "Daily process",
       current: "Current",
@@ -130,13 +154,14 @@ const dashboardLiveCopy = {
       open: "Open process monitor",
       drawerEyebrow: "Process Monitor",
       drawerTitle: "Daily process monitor",
-      drawerDescription: "Patch / Filter / Agent Feedback",
+      drawerDescription: "Patch / Filter / Scoring / Agent Feedback",
       close: "Close monitor",
       progress: "Progress",
       patchDate: "Patch date",
       groups: {
         patch: "Patch",
         filter: "Filter",
+        scoring: "Scoring",
         agentFeedback: "Agent Feedback",
       },
       statuses: {
@@ -378,6 +403,30 @@ const dashboardLiveCopy = {
       stopDialogStopping: "중단 중...",
       viewFundamentalsRunDetails: "펀더멘털 실행 상세 보기",
     },
+    scoring: {
+      eyebrow: "스코어 레이어",
+      title: "스코어링",
+      openFactorScreening: "팩터 스코어링 워크스페이스 열기",
+      stages: {
+        unifiedValue: "통합 밸류 스코어링",
+        quality: "퀄리티 스코어링",
+        momentum: "모멘텀 스코어링",
+      },
+      statuses: {
+        completed: "완료",
+        running: "실행 중",
+        needsReview: "확인 필요",
+        pending: "대기",
+        waiting: "대기",
+      },
+      notes: {
+        completed: "선택한 기준일의 EOD 스코어링 상태가 완료되었습니다.",
+        running: "선택한 기준일의 EOD 스코어링이 실행 중입니다.",
+        needsReview: "선택한 기준일의 EOD 스코어링 상태 확인이 필요합니다.",
+        pending: "선택한 기준일의 EOD 스코어링 상태를 기다리는 중입니다.",
+        waiting: "스코어링 기준일을 기다리는 중입니다.",
+      },
+    },
     processMonitor: {
       compactTitle: "일별 프로세스",
       current: "현재",
@@ -385,13 +434,14 @@ const dashboardLiveCopy = {
       open: "프로세스 모니터 열기",
       drawerEyebrow: "프로세스 모니터",
       drawerTitle: "일별 프로세스 모니터",
-      drawerDescription: "패치 / 필터 / 에이전트 피드백",
+      drawerDescription: "패치 / 필터 / 스코어링 / 에이전트 피드백",
       close: "모니터 닫기",
       progress: "진행",
       patchDate: "패치 날짜",
       groups: {
         patch: "패치",
         filter: "필터",
+        scoring: "스코어링",
         agentFeedback: "에이전트 피드백",
       },
       statuses: {

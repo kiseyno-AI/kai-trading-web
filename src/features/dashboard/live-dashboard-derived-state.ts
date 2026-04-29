@@ -69,6 +69,11 @@ import type {
   ProcessMonitorModel,
   ProcessMonitorStatus,
   ProcessMonitorStep,
+  ScoringCardModel,
+  ScoringStageKey,
+  ScoringStageMetric,
+  ScoringStageModel,
+  ScoringStageStatus,
 } from "./live-dashboard-types";
 
 export const UNKNOWN_LABEL = "[확인 필요]";
@@ -79,6 +84,23 @@ const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
 const SIGNAL_DECIDER_FEEDBACK_ERROR_RETRY_POLL_MS = 5_000;
 const FUNDAMENTALS_UPDATED_ENTRIES_PREVIEW_LIMIT = 3;
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
+const SCORING_STAGE_DEFINITIONS = [
+  {
+    key: "unified-value",
+    pipelineKey: "unified_value_scoring",
+  },
+  {
+    key: "quality",
+    pipelineKey: "quality_scoring",
+  },
+  {
+    key: "momentum",
+    pipelineKey: "momentum_scoring",
+  },
+] as const satisfies readonly {
+  key: ScoringStageKey;
+  pipelineKey: EodPipelineStageKey;
+}[];
 const DEFAULT_AGENT_ROLE_ORDER = [
   "eod-summarizer",
   "technical-summarizer",
@@ -435,6 +457,163 @@ export function buildFilteringCardModel({
   };
 }
 
+function getScoringStageLabel(stageKey: ScoringStageKey, copy: DashboardLiveCopy) {
+  if (stageKey === "unified-value") return copy.scoring.stages.unifiedValue;
+  if (stageKey === "quality") return copy.scoring.stages.quality;
+  return copy.scoring.stages.momentum;
+}
+
+function getScoringStageStatus(
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  requestedMarketDate: string | null,
+): ScoringStageStatus {
+  if (isRunningPipelineStage(pipelineStage)) return "loading";
+  if (isCompletedPipelineStage(pipelineStage)) return "completed";
+
+  const normalizedStatus = normalizePipelineStageStatus(pipelineStage);
+  if (
+    normalizedStatus &&
+    [
+      "failed",
+      "error",
+      "partial",
+      "needs review",
+      "needs-review",
+      "needs_review",
+      "completed with errors",
+      "completed-with-errors",
+      "completed_with_errors",
+    ].includes(normalizedStatus)
+  ) {
+    return "needs-review";
+  }
+
+  return requestedMarketDate ? "pending" : "waiting";
+}
+
+function getScoringStageStatusLabel(status: ScoringStageStatus, copy: DashboardLiveCopy) {
+  if (status === "completed") return copy.scoring.statuses.completed;
+  if (status === "loading") return copy.scoring.statuses.running;
+  if (status === "needs-review") return copy.scoring.statuses.needsReview;
+  if (status === "pending") return copy.scoring.statuses.pending;
+  return copy.scoring.statuses.waiting;
+}
+
+function getScoringStageStatusTone(status: ScoringStageStatus): ScoringStageModel["statusTone"] {
+  if (status === "completed") return "positive";
+  if (status === "needs-review") return "warning";
+  return "neutral";
+}
+
+function buildScoringMetric(key: string, label: string, value: string): ScoringStageMetric {
+  return { key, label, value };
+}
+
+function getScoringProgressLabel(
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  numberLocale: string,
+) {
+  const processedCount = pipelineStage?.processed;
+  const totalCount = pipelineStage?.total;
+
+  if (hasNumber(processedCount) && hasNumber(totalCount)) {
+    return buildProcessMonitorProgressLabel(processedCount, totalCount, numberLocale);
+  }
+  if (hasNumber(processedCount)) return processedCount.toLocaleString(numberLocale);
+  if (hasNumber(totalCount)) return `0 / ${totalCount.toLocaleString(numberLocale)}`;
+
+  return UNKNOWN_LABEL;
+}
+
+function getPipelineActivityLabel(pipelineStage: EodPipelineStageDto | null | undefined) {
+  const currentStep = formatPipelineDetailText(pipelineStage?.current_step);
+  const currentActivity = formatPipelineDetailText(pipelineStage?.current_activity);
+  const currentSymbol = pipelineStage?.current_symbol?.trim() || null;
+  const titleParts = [currentStep, currentActivity, currentSymbol ? `Symbol ${currentSymbol}` : null].filter(Boolean);
+
+  return titleParts.length > 0 ? titleParts.join(" · ") : null;
+}
+
+function getScoringStageNote(
+  status: ScoringStageStatus,
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  copy: DashboardLiveCopy,
+) {
+  if (status === "completed") return copy.scoring.notes.completed;
+  if (status === "loading") {
+    const activityLabel = getPipelineActivityLabel(pipelineStage);
+    return activityLabel ? `${copy.scoring.notes.running} ${activityLabel}` : copy.scoring.notes.running;
+  }
+  if (status === "needs-review") return copy.scoring.notes.needsReview;
+  if (status === "pending") return copy.scoring.notes.pending;
+  return copy.scoring.notes.waiting;
+}
+
+function buildScoringStageModel({
+  copy,
+  numberLocale,
+  pipelineStage,
+  requestedMarketDate,
+  stageKey,
+}: {
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  pipelineStage: EodPipelineStageDto | null | undefined;
+  requestedMarketDate: string | null;
+  stageKey: ScoringStageKey;
+}): ScoringStageModel {
+  const displayMarketDate = getFirstTextValue(requestedMarketDate);
+  const status = getScoringStageStatus(pipelineStage, displayMarketDate);
+  const progressLabel = getScoringProgressLabel(pipelineStage, numberLocale);
+  const failedCount = pipelineStage?.failed;
+  const metrics = [
+    buildScoringMetric("progress", copy.processMonitor.progress, progressLabel),
+  ];
+
+  if (hasNumber(failedCount)) {
+    metrics.push(buildScoringMetric("failed", copy.operational.failed, failedCount.toLocaleString(numberLocale)));
+  }
+
+  return {
+    key: stageKey,
+    displayMarketDate,
+    displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
+    label: getScoringStageLabel(stageKey, copy),
+    metrics,
+    note: getScoringStageNote(status, pipelineStage, copy),
+    progressLabel,
+    status,
+    statusLabel: getScoringStageStatusLabel(status, copy),
+    statusTone: getScoringStageStatusTone(status),
+  };
+}
+
+export function buildScoringCardModel({
+  copy,
+  numberLocale,
+  pipelineStatus,
+  scoringMarketDate,
+}: {
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  pipelineStatus: EodPipelineStatusResponseDto | null;
+  scoringMarketDate: string | null;
+}): ScoringCardModel {
+  const requestedMarketDate = getFirstTextValue(pipelineStatus?.market_date, scoringMarketDate);
+
+  return {
+    stages: SCORING_STAGE_DEFINITIONS.map((stage) =>
+      buildScoringStageModel({
+        copy,
+        numberLocale,
+        pipelineStage: getPipelineStage(pipelineStatus, stage.pipelineKey),
+        requestedMarketDate,
+        stageKey: stage.key,
+      }),
+    ),
+  };
+}
+
 function getProcessMonitorStatusLabel(status: ProcessMonitorStatus, copy: DashboardLiveCopy) {
   return copy.processMonitor.statuses[status];
 }
@@ -561,6 +740,34 @@ function buildFilteringProcessMonitorStep(
   };
 }
 
+function getScoringProcessMonitorStepStatus(stage: ScoringStageModel): ProcessMonitorStatus {
+  if (stage.status === "loading") return "running";
+  if (stage.status === "needs-review") return "error";
+  if (stage.status === "completed") return "completed";
+  return "pending";
+}
+
+function buildScoringProcessMonitorStep(stage: ScoringStageModel, copy: DashboardLiveCopy): ProcessMonitorStep {
+  const status = getScoringProcessMonitorStepStatus(stage);
+  const metrics = stage.metrics.map((metric) => ({
+    key: metric.key,
+    label: metric.label,
+    value: metric.value,
+  }));
+
+  return {
+    key: stage.key,
+    label: stage.label,
+    status,
+    statusLabel: getProcessMonitorStatusLabel(status, copy),
+    progressLabel: stage.progressLabel,
+    progressPercent: getProcessMonitorProgressPercentFromLabel(stage.progressLabel)
+      ?? getProcessMonitorStatusProgressPercent(status),
+    metrics,
+    note: stage.note,
+  };
+}
+
 function getAgentProcessMonitorStepStatus(role: AgentRoleCard): ProcessMonitorStatus {
   if (role.status === "running") return "running";
   if (role.status === "pending") return "pending";
@@ -656,6 +863,7 @@ export function buildProcessMonitorModel({
   filteringCardModel,
   numberLocale,
   patchDate = null,
+  scoringCardModel,
 }: {
   agentRoleCards: AgentRoleCard[];
   copy: DashboardLiveCopy;
@@ -663,6 +871,7 @@ export function buildProcessMonitorModel({
   filteringCardModel: FilteringCardModel;
   numberLocale: string;
   patchDate?: string | null;
+  scoringCardModel: ScoringCardModel;
 }): ProcessMonitorModel {
   const groups = [
     buildProcessMonitorGroup(
@@ -680,13 +889,20 @@ export function buildProcessMonitorModel({
       numberLocale,
     ),
     buildProcessMonitorGroup(
+      "scoring",
+      copy.processMonitor.groups.scoring,
+      scoringCardModel.stages.map((stage) => buildScoringProcessMonitorStep(stage, copy)),
+      copy,
+      numberLocale,
+    ),
+    buildProcessMonitorGroup(
       "agent-feedback",
       copy.processMonitor.groups.agentFeedback,
       agentRoleCards.map((role) => buildAgentProcessMonitorStep(role, copy)),
       copy,
       numberLocale,
     ),
-  ] as [ProcessMonitorGroup, ProcessMonitorGroup, ProcessMonitorGroup];
+  ];
   const status = getProcessMonitorAggregateStatus(groups.map((group) => ({
     key: group.key,
     label: group.label,
