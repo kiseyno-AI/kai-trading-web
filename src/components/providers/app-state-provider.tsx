@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { defaultLocale, messages, resolveLocale, type MessageTree } from "@/i18n/messages";
+import { readDevModePreference, storeDevModePreference } from "@/lib/dev-mode-preference";
 import { readStoredValue, storeValue, writeCookie } from "@/lib/persistence";
 import { logWebDiagnostic } from "@/lib/web-diagnostics";
 import type { Locale } from "@/types/trading-api";
@@ -21,7 +22,6 @@ const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 const LOCALE_KEY = "trading-web.locale";
 const NOTIFICATIONS_KEY = "trading-web.notifications";
-const DEV_MODE_KEY = "trading-web.dev-mode";
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
@@ -32,7 +32,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     const restorePersistedState = window.setTimeout(() => {
       setLocaleState(resolveLocale(readStoredValue(LOCALE_KEY, defaultLocale)));
       setNotificationsOnState(readStoredValue<boolean>(NOTIFICATIONS_KEY, true));
-      setDevModeState(readStoredValue<boolean>(DEV_MODE_KEY, false));
+      setDevModeState(readDevModePreference(false));
     }, 0);
 
     return () => window.clearTimeout(restorePersistedState);
@@ -73,7 +73,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       to: value,
     });
     setDevModeState(value);
-    storeValue(DEV_MODE_KEY, value);
+    storeDevModePreference(value);
     writeCookie("trading-web-dev-mode", value ? "on" : "off");
   }, [devMode]);
 
