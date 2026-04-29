@@ -193,3 +193,79 @@ test("uses the running fundamentals latest-run counters while the current refres
     },
   );
 });
+
+test("prefers the active today current_run over a stale completed latest_run for fundamentals counts", () => {
+  const freshness: EodFreshnessResponseDto = {
+    today: {
+      trade_date: "2026-04-21",
+      fundamentals: {
+        status: "running",
+        symbols_total: 0,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+        current_run: {
+          status: "running",
+          symbols_total: 3583,
+          symbols_checked: 1210,
+          symbols_refreshed: 1180,
+          symbols_failed: 3,
+        },
+      },
+    },
+    latest: {
+      stage_details: {
+        fundamentals: {
+          market_date: "2026-04-18",
+          status: "completed",
+          symbols_total: 3583,
+          symbols_checked: 1,
+          symbols_failed: 0,
+        },
+      },
+    },
+    fundamentals: {
+      success: true,
+      latest_date: "2026-04-18",
+    },
+  };
+  const fundamentalsStatus: DartFundamentalsDailyInspectResponseDto = {
+    latest_run: {
+      id: 24,
+      market_date: "2026-04-20",
+      trigger: "internal_ops_cli",
+      status: "completed",
+      fs_div: "CFS",
+      force: false,
+      symbol_limit: null,
+      symbol_offset: 0,
+      symbols_total: 3583,
+      symbols_checked: 3583,
+      symbols_missing: 0,
+      symbols_stale: 0,
+      symbols_fresh: 3583,
+      symbols_refreshed: 0,
+      symbols_failed: 0,
+      events_detected: 0,
+      events_captured: 0,
+      events_failed: 0,
+      error_message: null,
+      run_metadata: {},
+      started_at: "2026-04-20T09:00:00+09:00",
+      completed_at: "2026-04-20T10:00:00+09:00",
+    },
+    runs: [],
+  };
+
+  assert.equal(
+    shouldUseTodayFundamentalsStageData(freshness, fundamentalsStatus, buildPipelineStage("completed")),
+    true,
+  );
+  assert.deepEqual(
+    getFundamentalsStageDisplayCounts(freshness, fundamentalsStatus, freshness.today?.fundamentals, true),
+    {
+      symbolsTotal: 3583,
+      symbolsChecked: 1180,
+      symbolsFailed: 3,
+    },
+  );
+});

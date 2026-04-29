@@ -37,6 +37,25 @@ function isCompletedFundamentalsStatus(value: string | null | undefined) {
   return normalizedStatus !== null && ["completed", "ready", "available", "success"].includes(normalizedStatus);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getTodayFundamentalsCurrentRun(todayFundamentalsStage: EodFreshnessStageDto | null | undefined) {
+  if (!isRecord(todayFundamentalsStage)) return null;
+  const currentRun = (todayFundamentalsStage as Record<string, unknown>).current_run;
+  return isRecord(currentRun) ? currentRun : null;
+}
+
+function getCurrentRunNumber(currentRun: Record<string, unknown> | null, key: string) {
+  const value = currentRun?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getTodayFundamentalsCurrentRunStatus(todayFundamentalsStage: EodFreshnessStageDto | null | undefined) {
+  return normalizeFundamentalsStatusToken(getTodayFundamentalsCurrentRun(todayFundamentalsStage)?.status as string | null | undefined);
+}
+
 function isNewerIsoDate(left: string | null, right: string | null) {
   if (!hasTextValue(left)) return false;
   if (!hasTextValue(right)) return true;
@@ -215,6 +234,21 @@ export function getFundamentalsStageDisplayCounts(
   const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
   const latestRunStatus = normalizeFundamentalsStatusToken(latestRun?.status);
   const latestCoverage = getLatestAvailableFundamentalsCoverage(freshness, fundamentalsStatus);
+  const todayCurrentRun = getTodayFundamentalsCurrentRun(todayFundamentalsStage);
+  const todayCurrentRunStatus = getTodayFundamentalsCurrentRunStatus(todayFundamentalsStage);
+
+  if (todayCurrentRunStatus === "running") {
+    return {
+      symbolsTotal: getCurrentRunNumber(todayCurrentRun, "symbols_total"),
+      symbolsChecked:
+        getCurrentRunNumber(todayCurrentRun, "symbols_refreshed") ??
+        getCurrentRunNumber(todayCurrentRun, "symbols_checked") ??
+        getCurrentRunNumber(todayCurrentRun, "symbols_fresh") ??
+        getCurrentRunNumber(todayCurrentRun, "symbols_succeeded") ??
+        getCurrentRunNumber(todayCurrentRun, "symbols_total"),
+      symbolsFailed: getCurrentRunNumber(todayCurrentRun, "symbols_failed"),
+    };
+  }
 
   if (latestRunStatus === "running" && latestRun) {
     return {
@@ -280,5 +314,6 @@ export function shouldUseTodayFundamentalsStageData(
   pipelineStage: EodPipelineStageDto | null | undefined,
 ) {
   if (isRunningPipelineStage(pipelineStage)) return true;
+  if (getTodayFundamentalsCurrentRunStatus(freshness?.today?.fundamentals) === "running") return true;
   return getLatestAvailableFundamentalsCoverage(freshness, fundamentalsStatus) === null;
 }

@@ -977,6 +977,9 @@ export function getFundamentalsStatusLabel(
 ): string {
   if (normalizePipelineStageStatus(pipelineStage) === "running") return "running";
 
+  const todayStageStatus = normalizeFundamentalsStatusToken(freshness?.today?.fundamentals?.status);
+  if (todayStageStatus === "running") return "running";
+
   const runStatus = normalizeFundamentalsStatusToken(getLatestFundamentalsRun(fundamentalsStatus)?.status);
   if (runStatus === "running" || runStatus === "completed" || isFundamentalsFailureStatus(runStatus)) {
     return runStatus ?? UNKNOWN_LABEL;

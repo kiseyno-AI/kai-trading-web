@@ -23,6 +23,7 @@ import {
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
+  getFundamentalsStatusLabel,
   getFundamentalsUpdatedActivityModel,
   getFundamentalsUpdatedCountLabel,
   getFundamentalsUpdatedSymbolsDetail,
@@ -246,6 +247,54 @@ test("keeps partial fundamentals runs in a not-synced stage even when the run ha
 
   assert.equal(stage?.status, "missing");
   assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-18", false), "not synced");
+});
+
+test("prefers a running today fundamentals stage over a stale completed inspect run", () => {
+  const freshness = {
+    today: {
+      trade_date: "2026-04-21",
+      fundamentals: {
+        status: "running",
+        symbols_total: 0,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+    },
+    latest: null,
+    fundamentals: {
+      success: true,
+      latest_date: "2026-04-18",
+    },
+  };
+  const fundamentalsStatus = {
+    latest_run: buildFundamentalsRun({
+      market_date: "2026-04-18",
+      status: "completed",
+      symbols_checked: 3583,
+      completed_at: "2026-04-18T18:00:00+09:00",
+    }),
+    runs: [],
+  };
+
+  assert.equal(
+    getFundamentalsStatusLabel(
+      freshness,
+      fundamentalsStatus,
+      {
+        tradeDate: "2026-04-18",
+        status: "completed",
+        symbolsTotal: 3583,
+        symbolsChecked: 3583,
+        symbolsFailed: 0,
+        source: "latest_run",
+      },
+      null,
+    ),
+    "running",
+  );
+
+  const stage = getFundamentalsFreshnessStage(freshness, fundamentalsStatus, "running", "2026-04-18", true);
+  assert.equal(stage?.status, "running");
 });
 
 test("keeps same-day fundamentals coverage synced", () => {
