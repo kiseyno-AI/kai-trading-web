@@ -191,6 +191,7 @@ export type ProcessMonitorModel = {
   progressPercent: number;
   completedCount: number;
   totalCount: number;
+  patchDate: string | null;
   currentGroupLabel: string | null;
   currentStepLabel: string | null;
   groups: [ProcessMonitorGroup, ProcessMonitorGroup, ProcessMonitorGroup];

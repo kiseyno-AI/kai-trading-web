@@ -130,6 +130,7 @@ const dashboardLiveCopy = {
       drawerDescription: "Patch / Filter / Agent Feedback",
       close: "Close monitor",
       progress: "Progress",
+      patchDate: "Patch date",
       groups: {
         patch: "Patch",
         filter: "Filter",
@@ -381,6 +382,7 @@ const dashboardLiveCopy = {
       drawerDescription: "패치 / 필터 / 에이전트 피드백",
       close: "모니터 닫기",
       progress: "진행",
+      patchDate: "패치 날짜",
       groups: {
         patch: "패치",
         filter: "필터",
