@@ -18,6 +18,7 @@ type MobileAppChromeProps = {
   activeNav: MobileNavKey;
   header: ReactNode;
   children: ReactNode;
+  bottomAccessory?: ReactNode;
   mySymbolsHref?: string;
   portfolioHref?: string;
   searchHref?: string;
@@ -99,6 +100,7 @@ export function MobileAppChrome({
   activeNav,
   header,
   children,
+  bottomAccessory,
   mySymbolsHref = "/my-symbols",
   portfolioHref = "/portfolio",
   searchHref = "/search",
@@ -187,7 +189,11 @@ export function MobileAppChrome({
   };
 
   return (
-    <div className={styles.surface}>
+    <div
+      className={styles.surface}
+      data-mobile-bottom-accessory={bottomAccessory ? "present" : "absent"}
+      data-mobile-meta-row={showMobileMetaRow ? "visible" : "hidden"}
+    >
       <div className={styles.glowPrimary} />
       <div className={styles.glowSecondary} />
 
@@ -230,6 +236,7 @@ export function MobileAppChrome({
             {renderLocaleSwitch(`${styles.localeSwitch} ${styles.mobileLocaleSwitch}`)}
           </div>
         ) : null}
+        {bottomAccessory ? <div className={styles.bottomAccessory}>{bottomAccessory}</div> : null}
         <nav className={styles.bottomNav} aria-label={t.mobileChrome.primaryNavigation}>
           {renderNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
           {renderNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}

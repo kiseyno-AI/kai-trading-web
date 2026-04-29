@@ -1,5 +1,10 @@
 .surface {
-  --mobile-bottom-chrome-height: calc(8rem + env(safe-area-inset-bottom));
+  --mobile-bottom-accessory-height: 0rem;
+  --mobile-bottom-meta-height: 2.35rem;
+  --mobile-bottom-nav-height: calc(6.05rem + env(safe-area-inset-bottom));
+  --mobile-bottom-chrome-height: calc(
+    var(--mobile-bottom-nav-height) + var(--mobile-bottom-meta-height) + var(--mobile-bottom-accessory-height)
+  );
   --mobile-floating-status-offset: calc(var(--mobile-bottom-chrome-height) + 0.75rem);
   position: relative;
   min-height: 100vh;
@@ -8,6 +13,14 @@
     linear-gradient(180deg, #050b14 0%, #08111f 52%, #03070d 100%);
   color: var(--text);
   overflow: hidden;
+}
+
+.surface[data-mobile-meta-row="hidden"] {
+  --mobile-bottom-meta-height: 0rem;
+}
+
+.surface[data-mobile-bottom-accessory="present"] {
+  --mobile-bottom-accessory-height: 4.6rem;
 }
 
 .desktopRail {
@@ -69,6 +82,10 @@
   width: min(100%, 31rem);
   margin: 0 auto;
   padding: 5.5rem 0.9rem calc(7.6rem + env(safe-area-inset-bottom));
+}
+
+.surface[data-mobile-bottom-accessory="present"] .main {
+  padding-bottom: calc(var(--mobile-bottom-chrome-height) + 0.4rem);
 }
 
 .bottomNavFrame {
@@ -155,6 +172,11 @@
 
 .mobileLocaleSwitch {
   flex: 0 0 auto;
+}
+
+.bottomAccessory {
+  width: min(100%, 31rem);
+  pointer-events: auto;
 }
 
 .bottomNav {

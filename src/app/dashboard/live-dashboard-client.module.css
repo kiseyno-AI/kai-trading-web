@@ -240,7 +240,7 @@
   position: relative;
   z-index: 1;
   width: 100%;
-  margin: 0.85rem auto 0;
+  margin: 0 auto;
   backdrop-filter: blur(18px);
 }
 
@@ -350,7 +350,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0.75rem 0.9rem var(--mobile-floating-status-offset, calc(8.75rem + env(safe-area-inset-bottom)));
+  padding: 0.75rem 0.9rem var(--mobile-floating-status-offset, calc(10.75rem + env(safe-area-inset-bottom)));
   background: rgba(1, 15, 32, 0.26);
   backdrop-filter: blur(3px);
   animation: processMonitorBackdropIn 240ms ease both;
