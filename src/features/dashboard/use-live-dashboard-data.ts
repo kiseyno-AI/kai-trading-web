@@ -32,6 +32,7 @@ import {
   getAgentFeedbackProgressPollDelayMs,
   getDashboardLoadErrorMessage,
   getEodPipelineStatusPollDelayMs,
+  getMarketSnapshotPollDelayMs,
   getSignalDeciderFeedbackPollDelayMs,
   shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
@@ -62,17 +63,55 @@ import type {
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 const FILTERING_FALLBACK_REVALIDATE_DELAY_MS = 5_000;
 const MARKET_SNAPSHOT_PATH = "/api/trading/market/snapshot";
+const MARKET_SNAPSHOT_REQUEST_TIMEOUT_MS = 20_000;
+
+type DashboardTimeoutApi = {
+  clearTimeout: typeof globalThis.clearTimeout;
+  setTimeout: typeof globalThis.setTimeout;
+};
+
+export function createMarketSnapshotRequestTimeout({
+  timeoutApi = globalThis,
+  timeoutMs = MARKET_SNAPSHOT_REQUEST_TIMEOUT_MS,
+}: {
+  timeoutApi?: DashboardTimeoutApi;
+  timeoutMs?: number;
+} = {}) {
+  const abortController = new AbortController();
+  let timeoutCleared = false;
+  const timeout = timeoutApi.setTimeout(() => {
+    abortController.abort(new Error(`Market snapshot request timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
+
+  function clear() {
+    if (timeoutCleared) return;
+    timeoutCleared = true;
+    timeoutApi.clearTimeout(timeout);
+  }
+
+  return {
+    abort() {
+      clear();
+      if (!abortController.signal.aborted) {
+        abortController.abort();
+      }
+    },
+    clear,
+    signal: abortController.signal,
+  };
+}
 
 function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
 }
 
-async function getJsonNoCache<T>(path: string): Promise<T> {
+async function getJsonNoCache<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
   const response = await fetch(resolveTradingApiClientPath(path), {
     cache: "no-store",
     headers: {
       Accept: "application/json",
     },
+    signal: options.signal,
   });
   const responseText = await response.text();
   let parsedBody: unknown = null;
@@ -327,26 +366,61 @@ export function useLiveDashboardData({
 
   useEffect(() => {
     let active = true;
+    let consecutiveErrorCount = 0;
+    let timer: number | null = null;
+    let inFlightRequest: ReturnType<typeof createMarketSnapshotRequestTimeout> | null = null;
 
-    const loadMarketSnapshot = async () => {
+    function clearTimer() {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function scheduleNextLoad(hadError: boolean) {
+      if (!active) return;
+      clearTimer();
+      timer = window.setTimeout(
+        loadMarketSnapshot,
+        getMarketSnapshotPollDelayMs({
+          hadError,
+          consecutiveErrorCount,
+        }),
+      );
+    }
+
+    async function loadMarketSnapshot() {
+      const requestTimeout = createMarketSnapshotRequestTimeout();
+      inFlightRequest = requestTimeout;
+
       try {
-        const snapshot = await getJsonNoCache<MarketSnapshotResponseDto>(MARKET_SNAPSHOT_PATH);
+        const snapshot = await getJsonNoCache<MarketSnapshotResponseDto>(MARKET_SNAPSHOT_PATH, {
+          signal: requestTimeout.signal,
+        });
         if (!active) return;
+        consecutiveErrorCount = 0;
         setMarketSnapshot(snapshot);
         setMarketSnapshotError(null);
+        scheduleNextLoad(false);
       } catch (snapshotError) {
         console.error("Dashboard market snapshot load failed", snapshotError);
         if (!active) return;
+        consecutiveErrorCount += 1;
         setMarketSnapshotError(getDashboardLoadErrorMessage(snapshotError));
+        scheduleNextLoad(true);
+      } finally {
+        requestTimeout.clear();
+        if (inFlightRequest === requestTimeout) {
+          inFlightRequest = null;
+        }
       }
-    };
+    }
 
     void loadMarketSnapshot();
-    const timer = window.setInterval(loadMarketSnapshot, 60_000);
 
     return () => {
       active = false;
-      window.clearInterval(timer);
+      clearTimer();
+      inFlightRequest?.abort();
     };
   }, []);
 

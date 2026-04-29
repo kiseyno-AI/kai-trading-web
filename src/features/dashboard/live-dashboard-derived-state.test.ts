@@ -28,6 +28,7 @@ import {
   getFundamentalsUpdatedCountLabel,
   getFundamentalsUpdatedSymbolsDetail,
   getFundamentalsFreshnessStage,
+  getMarketSnapshotPollDelayMs,
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
   markAgentFeedbackProgressStopped,
@@ -154,6 +155,61 @@ test("keeps the market snapshot ready when present and the latest snapshot load 
   assert.equal(presentation.statusLabel, copy.marketOverview.snapshotReady);
   assert.equal(presentation.statusTone, "positive");
   assert.equal(presentation.fallbackContextLabel, copy.marketOverview.conditionNote);
+});
+
+test("retries market snapshot outages faster than the idle polling cadence until recovery", () => {
+  assert.equal(
+    getMarketSnapshotPollDelayMs({
+      hadError: true,
+      consecutiveErrorCount: 1,
+    }),
+    5_000,
+  );
+  assert.equal(
+    getMarketSnapshotPollDelayMs({
+      hadError: true,
+      consecutiveErrorCount: 2,
+    }),
+    15_000,
+  );
+  assert.equal(
+    getMarketSnapshotPollDelayMs({
+      hadError: true,
+      consecutiveErrorCount: 3,
+    }),
+    30_000,
+  );
+  assert.equal(
+    getMarketSnapshotPollDelayMs({
+      hadError: true,
+      consecutiveErrorCount: 12,
+    }),
+    30_000,
+  );
+  assert.equal(
+    getMarketSnapshotPollDelayMs({
+      hadError: false,
+      consecutiveErrorCount: 0,
+    }),
+    60_000,
+  );
+});
+
+test("moves the market snapshot presentation from outage fallback to ready after a valid retry", () => {
+  const copy = getDashboardLiveCopy("en");
+  const outagePresentation = buildMarketSnapshotPresentation(copy, null, "HTTP 503");
+
+  assert.equal(outagePresentation.isReady, false);
+  assert.equal(outagePresentation.statusLabel, copy.marketOverview.snapshotUnavailable);
+  assert.equal(outagePresentation.displaySnapshot, null);
+
+  const recoveredSnapshot = buildMarketSnapshot();
+  const recoveredPresentation = buildMarketSnapshotPresentation(copy, recoveredSnapshot, null);
+
+  assert.equal(recoveredPresentation.isReady, true);
+  assert.equal(recoveredPresentation.statusLabel, copy.marketOverview.snapshotReady);
+  assert.equal(recoveredPresentation.displaySnapshot, recoveredSnapshot);
+  assert.equal(recoveredPresentation.fallbackContextLabel, copy.marketOverview.conditionNote);
 });
 
 function buildPipelineStatus(overrides: Partial<EodPipelineStatusResponseDto> = {}): EodPipelineStatusResponseDto {
