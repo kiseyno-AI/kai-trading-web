@@ -2065,20 +2065,22 @@ export function LiveDashboardClient({
               numberLocale={numberLocale}
             />
 
-            <PortfolioStateCard
-              copy={copy}
-              error={portfolioSummaryError}
-              loadState={portfolioSummaryLoadState}
-              numberLocale={numberLocale}
-              summary={portfolioSummary}
-            />
+            <div className={styles.primaryInsightSideRail}>
+              <PortfolioStateCard
+                copy={copy}
+                error={portfolioSummaryError}
+                loadState={portfolioSummaryLoadState}
+                numberLocale={numberLocale}
+                summary={portfolioSummary}
+              />
 
-            <MarketOverviewCard
-              copy={copy}
-              marketSnapshot={marketSnapshot}
-              marketSnapshotError={marketSnapshotError}
-              numberLocale={numberLocale}
-            />
+              <MarketOverviewCard
+                copy={copy}
+                marketSnapshot={marketSnapshot}
+                marketSnapshotError={marketSnapshotError}
+                numberLocale={numberLocale}
+              />
+            </div>
           </div>
         </section>
 
