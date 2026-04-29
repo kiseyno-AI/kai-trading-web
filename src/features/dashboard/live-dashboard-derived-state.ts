@@ -1903,6 +1903,11 @@ function normalizeFundamentalsStatusToken(value: string | null | undefined) {
   return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }
 
+function isCompletedLatestAvailableStatus(value: string | null | undefined) {
+  const normalizedStatus = normalizeFundamentalsStatusToken(value);
+  return normalizedStatus !== null && ["completed", "available", "ready", "success"].includes(normalizedStatus);
+}
+
 function isFundamentalsFailureStatus(value: string | null | undefined) {
   const normalizedStatus = normalizeFundamentalsStatusToken(value);
   return (
@@ -1922,12 +1927,16 @@ export function getFundamentalsStatusLabel(
   const todayStageStatus = normalizeFundamentalsStatusToken(freshness?.today?.fundamentals?.status);
   if (todayStageStatus === "running") return "running";
 
+  const latestCoverageStatus = normalizeFundamentalsStatusToken(latestAvailableCoverage?.status);
+  if (isCompletedLatestAvailableStatus(latestCoverageStatus) || hasTextValue(latestAvailableCoverage?.tradeDate)) {
+    return latestCoverageStatus ?? "completed";
+  }
+
   const runStatus = normalizeFundamentalsStatusToken(getLatestFundamentalsRun(fundamentalsStatus)?.status);
   if (runStatus === "running" || runStatus === "completed" || isFundamentalsFailureStatus(runStatus)) {
     return runStatus ?? UNKNOWN_LABEL;
   }
 
-  const latestCoverageStatus = normalizeFundamentalsStatusToken(latestAvailableCoverage?.status);
   if (hasTextValue(latestCoverageStatus)) return latestCoverageStatus;
   if (hasTextValue(runStatus)) return runStatus;
 
@@ -2132,6 +2141,19 @@ function buildStage(
 
 function normalizeStageStatus(stage: EodFreshnessStageDto | null | undefined) {
   return stage?.status?.trim().toLowerCase() ?? null;
+}
+
+function isRunningFreshnessStage(stage: EodFreshnessStageDto | null | undefined) {
+  return normalizeStageStatus(stage) === "running";
+}
+
+function isProblemFreshnessStage(stage: EodFreshnessStageDto | null | undefined) {
+  const normalizedStatus = normalizeStageStatus(stage);
+  return (
+    (normalizedStatus !== null &&
+      ["failed", "error", "partial", "completed with errors", "needs review"].includes(normalizedStatus)) ||
+    (hasNumber(stage?.symbols_failed) && stage.symbols_failed > 0)
+  );
 }
 
 function normalizePipelineStatus(value: string | null | undefined) {
@@ -2437,52 +2459,65 @@ export function getPriceFreshnessStage(
   freshness: EodFreshnessResponseDto | null,
   useTodayStage: boolean,
 ): EodFreshnessStageDto | null {
+  const todayStage = getTodayPriceFreshnessStage(freshness);
+  if (isRunningFreshnessStage(todayStage)) return todayStage;
+
   return useTodayStage
-    ? getTodayPriceFreshnessStage(freshness) ?? getLatestPriceFreshnessStage(freshness)
-    : getLatestPriceFreshnessStage(freshness) ?? getTodayPriceFreshnessStage(freshness);
+    ? todayStage ?? getLatestPriceFreshnessStage(freshness)
+    : getLatestPriceFreshnessStage(freshness) ?? todayStage;
 }
 
 function getLatestTechnicalFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   const latestTechnicalStage = getLatestPatchStageFreshnessStage(freshness, "technical_analysis");
   if (latestTechnicalStage) return latestTechnicalStage;
 
+  const hasTechnicalDate =
+    getFirstTextValue(freshness?.technical?.latest_date, getLatestTechnicalMarketDate(freshness)) !== null;
+  if (hasTechnicalDate) return buildStage("ready", null, null, null);
+
   if (freshness?.technical?.success === false) {
     return buildStage("missing", null, null, null);
   }
 
-  const hasTechnicalDate =
-    getFirstTextValue(freshness?.technical?.latest_date, getLatestTechnicalMarketDate(freshness)) !== null;
-  return hasTechnicalDate && freshness?.technical?.success === true ? buildStage("ready", null, null, null) : null;
+  return null;
 }
 
 export function getTechnicalFreshnessStage(
   freshness: EodFreshnessResponseDto | null,
   useTodayStage: boolean,
 ): EodFreshnessStageDto | null {
-  if (useTodayStage && freshness?.today?.technical_analysis) return freshness.today.technical_analysis;
+  const todayStage = freshness?.today?.technical_analysis ?? null;
+  if (isRunningFreshnessStage(todayStage)) return todayStage;
+  if (useTodayStage && todayStage) return todayStage;
+  if (isProblemFreshnessStage(todayStage)) return todayStage;
 
-  return getLatestTechnicalFreshnessStage(freshness) ?? freshness?.today?.technical_analysis ?? null;
+  return getLatestTechnicalFreshnessStage(freshness) ?? todayStage;
 }
 
 function getLatestActionFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   const latestActionStage = getLatestPatchStageFreshnessStage(freshness, "action_summary");
   if (latestActionStage) return latestActionStage;
 
+  const latestActionDate = getFirstTextValue(freshness?.action?.latest_date, getLatestActionMarketDate(freshness));
+  if (latestActionDate) return buildStage("ready", null, null, null);
+
   if (freshness?.action?.success === false) {
     return buildStage("missing", null, null, null);
   }
 
-  const latestActionDate = getFirstTextValue(freshness?.action?.latest_date, getLatestActionMarketDate(freshness));
-  return latestActionDate && freshness?.action?.success === true ? buildStage("ready", null, null, null) : null;
+  return null;
 }
 
 export function getActionFreshnessStage(
   freshness: EodFreshnessResponseDto | null,
   useTodayStage: boolean,
 ): EodFreshnessStageDto | null {
-  if (useTodayStage && freshness?.today?.action_summary) return freshness.today.action_summary;
+  const todayStage = freshness?.today?.action_summary ?? null;
+  if (isRunningFreshnessStage(todayStage)) return todayStage;
+  if (useTodayStage && todayStage) return todayStage;
+  if (isProblemFreshnessStage(todayStage)) return todayStage;
 
-  return getLatestActionFreshnessStage(freshness) ?? freshness?.today?.action_summary ?? null;
+  return getLatestActionFreshnessStage(freshness) ?? todayStage;
 }
 
 export function getFundamentalsFreshnessStage(
@@ -2504,7 +2539,7 @@ export function getFundamentalsFreshnessStage(
     return buildStage("missing", symbolsTotal, symbolsChecked, symbolsFailed);
   }
   if (
-    (normalizedStatus !== null && ["completed", "available", "ready", "success"].includes(normalizedStatus)) ||
+    isCompletedLatestAvailableStatus(normalizedStatus) ||
     hasTextValue(latestFundamentalsDate)
   ) {
     return buildStage("ready", symbolsTotal, symbolsChecked, symbolsFailed);

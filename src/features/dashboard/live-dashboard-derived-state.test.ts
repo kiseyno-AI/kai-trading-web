@@ -36,6 +36,7 @@ import {
   getFundamentalsFreshnessStage,
   getPipelineStageResolvedStatusDate,
   getMarketSnapshotPollDelayMs,
+  getPriceFreshnessStage,
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
   getTechnicalFreshnessStage,
@@ -492,6 +493,75 @@ test("keeps partial fundamentals runs in a not-synced stage even when the run ha
   assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-18", false), "not synced");
 });
 
+test("prefers latest completed fundamentals coverage over a newer empty same-day run status", () => {
+  const freshness = {
+    today: {
+      trade_date: "2026-04-30",
+      fundamentals: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+    },
+    latest: {
+      stage_details: {
+        fundamentals: {
+          market_date: "2026-04-29",
+          status: "completed",
+          symbols_total: 2812,
+          symbols_checked: 2812,
+          symbols_failed: 0,
+        },
+      },
+    },
+    fundamentals: {
+      success: true,
+      latest_date: "2026-04-29",
+    },
+  };
+  const fundamentalsStatus = {
+    latest_run: buildFundamentalsRun({
+      market_date: "2026-04-30",
+      status: "partial",
+      symbols_total: 2812,
+      symbols_checked: 0,
+      symbols_failed: 0,
+    }),
+    runs: [],
+  };
+
+  const statusLabel = getFundamentalsStatusLabel(
+    freshness,
+    fundamentalsStatus,
+    {
+      tradeDate: "2026-04-29",
+      status: "completed",
+      symbolsTotal: 2812,
+      symbolsChecked: 2812,
+      symbolsFailed: 0,
+      source: "freshness_latest",
+    },
+    { status: "completed", processed: 2812, total: 2812, failed: 0 },
+  );
+  const stage = getFundamentalsFreshnessStage(
+    freshness,
+    fundamentalsStatus,
+    statusLabel,
+    "2026-04-29",
+    false,
+  );
+
+  assert.equal(statusLabel, "completed");
+  assert.deepEqual(stage, {
+    status: "ready",
+    symbols_total: 2812,
+    symbols_succeeded: 2812,
+    symbols_failed: 0,
+  });
+  assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-30", "2026-04-29", false), "synced");
+});
+
 test("prefers a running today fundamentals stage over a stale completed inspect run", () => {
   const freshness = {
     today: {
@@ -701,6 +771,54 @@ test("uses stage-specific technical and action counts instead of aggregate EOD t
     symbols_total: 87,
     symbols_succeeded: 86,
     symbols_failed: 1,
+  });
+});
+
+test("keeps latest technical and action dates healthy when same-day layer status is empty", () => {
+  const freshness = {
+    today: {
+      trade_date: "2026-04-30",
+      technical_analysis: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+      action_summary: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+    },
+    latest: {
+      technical_market_date: "2026-04-29",
+      action_market_date: "2026-04-29",
+    },
+    technical: {
+      success: false,
+      latest_date: "2026-04-29",
+    },
+    action: {
+      success: false,
+      latest_date: "2026-04-29",
+    },
+  };
+
+  const technicalStage = getTechnicalFreshnessStage(freshness, false);
+  const actionStage = getActionFreshnessStage(freshness, false);
+
+  assert.deepEqual(technicalStage, {
+    status: "ready",
+    symbols_total: null,
+    symbols_succeeded: null,
+    symbols_failed: null,
+  });
+  assert.deepEqual(actionStage, {
+    status: "ready",
+    symbols_total: null,
+    symbols_succeeded: null,
+    symbols_failed: null,
   });
 });
 
@@ -1957,6 +2075,292 @@ test("builds grouped daily process monitor state from patch, filter, scoring, an
   assert.equal(model.groups[2]?.status, "pending");
   assert.equal(model.groups[2]?.steps.find((step) => step.key === "unified-value")?.label, copy.scoring.stages.unifiedValue);
   assert.equal(model.groups[3]?.status, "running");
+});
+
+test("keeps the full daily process monitor completed from latest available data when today is empty", () => {
+  const copy = getDashboardLiveCopy("en");
+  const freshness = {
+    today: {
+      trade_date: "2026-04-30",
+      price: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+      technical_analysis: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+      action_summary: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+      fundamentals: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+    },
+    latest: {
+      summary: {
+        market_date: "2026-04-29",
+        status: "completed",
+        symbols_total: 2812,
+        symbols_succeeded: 2812,
+        symbols_failed: 0,
+      },
+      stage_details: {
+        price: {
+          market_date: "2026-04-29",
+          status: "completed",
+          symbols_total: 2812,
+          symbols_succeeded: 2812,
+          symbols_failed: 0,
+        },
+        technical_snapshots: {
+          market_date: "2026-04-29",
+          status: "completed",
+          total: 2812,
+          processed: 2812,
+          failed: 0,
+        },
+        action_summaries: {
+          market_date: "2026-04-29",
+          status: "completed",
+          total: 2812,
+          completed_count: 2812,
+          failed: 0,
+        },
+        fundamentals: {
+          market_date: "2026-04-29",
+          status: "completed",
+          symbols_total: 2812,
+          symbols_checked: 2812,
+          symbols_failed: 0,
+        },
+      },
+    },
+    technical: {
+      success: false,
+      latest_date: "2026-04-29",
+    },
+    action: {
+      success: false,
+      latest_date: "2026-04-29",
+    },
+    fundamentals: {
+      success: true,
+      latest_date: "2026-04-29",
+    },
+  };
+  const fundamentalsStatus = {
+    latest_run: buildFundamentalsRun({
+      market_date: "2026-04-30",
+      status: "partial",
+      symbols_total: 2812,
+      symbols_checked: 0,
+      symbols_failed: 0,
+    }),
+    runs: [],
+  };
+  const pipelineStatus = buildPipelineStatus({
+    market_date: "2026-04-29",
+    status: "completed",
+    stage_order: ["price_collection", "technical_snapshots", "action_summaries", "fundamentals_daily_refresh"],
+    stages: {
+      price_collection: { status: "completed", processed: 2812, total: 2812, failed: 0 },
+      technical_snapshots: { status: "completed", processed: 2812, total: 2812, failed: 0 },
+      action_summaries: { status: "completed", processed: 2812, total: 2812, failed: 0 },
+      fundamentals_daily_refresh: { status: "completed", processed: 2812, total: 2812, failed: 0 },
+    },
+  });
+  const latestCoverage = {
+    tradeDate: "2026-04-29",
+    status: "completed",
+    symbolsTotal: 2812,
+    symbolsChecked: 2812,
+    symbolsFailed: 0,
+    source: "freshness_latest" as const,
+  };
+  const fundamentalsStatusLabel = getFundamentalsStatusLabel(
+    freshness,
+    fundamentalsStatus,
+    latestCoverage,
+    pipelineStatus.stages.fundamentals_daily_refresh ?? null,
+  );
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      copy.stage.price,
+      getPriceFreshnessStage(freshness, false),
+      "2026-04-30",
+      "2026-04-29",
+      "2026-04-29",
+      "2026-04-29",
+      false,
+      pipelineStatus.stages.price_collection,
+      copy,
+      "en-US",
+    ),
+    buildEodStageCard(
+      "technical",
+      copy.stage.technical,
+      getTechnicalFreshnessStage(freshness, false),
+      "2026-04-30",
+      "2026-04-29",
+      "2026-04-29",
+      "2026-04-29",
+      false,
+      pipelineStatus.stages.technical_snapshots,
+      copy,
+      "en-US",
+    ),
+    buildEodStageCard(
+      "action",
+      copy.stage.action,
+      getActionFreshnessStage(freshness, false),
+      "2026-04-30",
+      "2026-04-29",
+      "2026-04-29",
+      "2026-04-29",
+      false,
+      pipelineStatus.stages.action_summaries,
+      copy,
+      "en-US",
+    ),
+    buildEodStageCard(
+      "fundamentals",
+      copy.stage.fundamentals,
+      getFundamentalsFreshnessStage(freshness, fundamentalsStatus, fundamentalsStatusLabel, "2026-04-29", false),
+      "2026-04-30",
+      "2026-04-29",
+      "2026-04-29",
+      "2026-04-29",
+      false,
+      pipelineStatus.stages.fundamentals_daily_refresh,
+      copy,
+      "en-US",
+      {
+        label: copy.operational.checked,
+        value: "2,812",
+      },
+      getFundamentalsStageStatusLabel,
+    ),
+  ];
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: {
+      market_date: "2026-04-29",
+      requested_market_date: "2026-04-30",
+      resolved_market_date: "2026-04-29",
+      is_latest_fallback: true,
+      summary: {
+        entries: 2812,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 2400,
+        watchlist_count: 200,
+        failed_count: 0,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-30",
+    piotroskiStatus: {
+      market_date: "2026-04-29",
+      requested_market_date: "2026-04-30",
+      resolved_market_date: "2026-04-29",
+      is_latest_fallback: true,
+      summary: {
+        entries: 2812,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 42,
+        not_passed_count: 2770,
+      },
+      items: [],
+    },
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "ready",
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-04-30",
+    scoringMomentumFactors: {
+      market_date: "2026-04-29",
+      requested_market_date: "2026-04-30",
+      resolved_market_date: "2026-04-29",
+      is_latest_fallback: true,
+      summary: {
+        entries: 2812,
+        requested_symbols: [],
+        matched_symbols: [],
+        missing_symbols: [],
+        ranked_symbols: 2812,
+        eligible_symbols: 2400,
+      },
+      items: [],
+    } as EodMomentumFactorsResponseDto,
+    scoringMomentumFactorsLoadState: "ready",
+    scoringValueFactors: {
+      market_date: "2026-04-29",
+      requested_market_date: "2026-04-30",
+      resolved_market_date: "2026-04-29",
+      is_latest_fallback: true,
+      summary: {
+        entries: 2812,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        scored_count: 2812,
+        invalid_per_count: 0,
+        missing_metric_count: 0,
+      },
+      items: [],
+    } as EodValueFactorsResponseDto,
+    scoringValueFactorsLoadState: "ready",
+  });
+  const agentRoleCards = buildAgentRoleCards(
+    buildAgentFeedbackProgress({ marketDate: "2026-04-29", totalSymbols: 2400 }),
+    copy,
+    "en-US",
+  );
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+    patchDate: "2026-04-29",
+    scoringCardModel,
+  });
+
+  assert.equal(model.patchDate, "2026-04-29");
+  assert.equal(model.status, "completed");
+  assert.equal(model.progressLabel, "10 / 10");
+  assert.deepEqual(model.groups.map((group) => group.status), ["completed", "completed", "completed", "completed"]);
+  assert.deepEqual(model.groups[0]?.steps.map((step) => step.status), [
+    "completed",
+    "completed",
+    "completed",
+    "completed",
+  ]);
+  assert.deepEqual(model.groups[2]?.steps.map((step) => step.status), ["completed", "completed", "completed"]);
+  assert.match(model.groups[1]?.steps[0]?.note ?? "", /Requested 2026-04-30/);
+  assert.match(model.groups[2]?.steps[0]?.note ?? "", /Latest available 2026-04-29/);
 });
 
 test("keeps a running EOD process monitor step below complete progress when count reaches total", () => {
