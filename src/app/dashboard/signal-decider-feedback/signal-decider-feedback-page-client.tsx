@@ -117,6 +117,10 @@ function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
   return item.qualityTag?.label ?? item.qualityVerdict ?? null;
 }
 
+function getDecisionQualityDisplayLabel(item: SignalDeciderFeedbackItem) {
+  return getDecisionQualityLabel(item) ?? UNKNOWN_LABEL;
+}
+
 function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
   if (item.outcomeHorizons.length === 0) return UNKNOWN_LABEL;
 
@@ -501,7 +505,7 @@ export default function SignalDeciderFeedbackPageClient() {
           ) : visibleItems.length > 0 ? (
             <div className={styles.resultsList} aria-label="Signal-decider feedback results">
               {visibleItems.map((item) => {
-                const decisionQualityLabel = getDecisionQualityLabel(item);
+                const decisionQualityLabel = getDecisionQualityDisplayLabel(item);
                 const traceSummaryParts = getTraceSummaryParts(item);
 
                 return (
@@ -518,11 +522,9 @@ export default function SignalDeciderFeedbackPageClient() {
                       </Link>
                       <div className={styles.resultBadges}>
                         <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
-                        {decisionQualityLabel ? (
-                          <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
-                            {decisionQualityLabel}
-                          </span>
-                        ) : null}
+                        <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
+                          {decisionQualityLabel}
+                        </span>
                       </div>
                     </header>
 
@@ -601,11 +603,9 @@ export default function SignalDeciderFeedbackPageClient() {
                     <span className={`pill ${getActionToneClass(selectedItem.action)}`}>
                       {selectedItem.actionLabel}
                     </span>
-                    {getDecisionQualityLabel(selectedItem) ? (
-                      <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
-                        {getDecisionQualityLabel(selectedItem)}
-                      </span>
-                    ) : null}
+                    <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
+                      {getDecisionQualityDisplayLabel(selectedItem)}
+                    </span>
                   </div>
                 </div>
                 <button type="button" className={styles.closeButton} onClick={() => setSelectedItemId(null)}>

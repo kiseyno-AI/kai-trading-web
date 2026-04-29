@@ -329,17 +329,6 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               thesis_summary: "Wait for confirmation after the opening print.",
               risk_flags: ["Volume confirmation missing"],
               policy_version: "decider-policy-2026.04",
-              evaluation: {
-                quality_verdict: "missed_opportunity",
-                missed_opportunity: true,
-                quality_reason: "Price cleared the confirmation band before the 3d horizon.",
-                realized_results: {
-                  "3d": {
-                    return_pct: 4.18,
-                    verdict: "missed_opportunity",
-                  },
-                },
-              },
             },
             normalized_feedback: null,
             details: null,
@@ -420,7 +409,9 @@ test("dashboard signal-decider card previews partial results and links to the de
 
   const actionFilter = filters.getByRole("combobox").first();
   await actionFilter.selectOption("wait");
-  await expect(page.getByRole("article", { name: /SK hynix signal-decider feedback/i })).toBeVisible();
+  const hynixCard = page.getByRole("article", { name: /SK hynix signal-decider feedback/i });
+  await expect(hynixCard).toBeVisible();
+  await expect(hynixCard).toContainText("[확인 필요]");
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
 
   await actionFilter.selectOption("buy");
