@@ -46,6 +46,9 @@ import type {
   EodPiotroskiFilterResultsResponseDto,
   EodValueFactorItemDto,
   EodValueFactorsResponseDto,
+  MarketSnapshotFlowDto,
+  MarketSnapshotFxRateDto,
+  MarketSnapshotIndexDto,
   MarketSnapshotResponseDto,
 } from "@/types/trading-api";
 
@@ -156,28 +159,429 @@ export function getDashboardLoadErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Failed to refresh dashboard data.";
 }
 
+export type MarketSnapshotPresentationStatus = "ready" | "partial" | "stale" | "unavailable";
+export type MarketSnapshotPresentationTone = "positive" | "info" | "neutral" | "warning";
+export type MarketSnapshotFieldId =
+  | "indices.kospi"
+  | "indices.kosdaq"
+  | "fx.usdkrw"
+  | "flows.foreign"
+  | "flows.institutional"
+  | "summary";
+
+const REQUIRED_MARKET_SNAPSHOT_FIELD_IDS = [
+  "indices.kospi",
+  "indices.kosdaq",
+  "fx.usdkrw",
+  "flows.foreign",
+  "flows.institutional",
+] as const satisfies readonly MarketSnapshotFieldId[];
+
+const MARKET_SNAPSHOT_FIELD_ALIASES = {
+  "indices.kospi": ["indices.kospi", "kospi", "kospi_index", "kospi index", "ks11"],
+  "indices.kosdaq": ["indices.kosdaq", "kosdaq", "kosdaq_index", "kosdaq index", "kq11"],
+  "fx.usdkrw": ["fx.usdkrw", "fx.usd_krw", "usdkrw", "usd_krw", "usd/krw", "usd-krw"],
+  "flows.foreign": ["flows.foreign", "foreign", "foreign_flow", "foreign investor", "foreign_investor"],
+  "flows.institutional": [
+    "flows.institutional",
+    "institutional",
+    "institutional_flow",
+    "institution",
+    "기관",
+  ],
+  summary: ["summary", "summary.line", "market_bias", "breadth_summary", "market posture"],
+} as const satisfies Record<MarketSnapshotFieldId, readonly string[]>;
+
+function isMarketSnapshotRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function asText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function normalizeMarketSnapshotToken(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "") ?? "";
+}
+
+function getRecordValueByNormalizedKey(record: Record<string, unknown>, aliases: readonly string[]) {
+  const aliasTokens = aliases.map((alias) => normalizeMarketSnapshotToken(alias)).filter(Boolean);
+  for (const [key, value] of Object.entries(record)) {
+    if (aliasTokens.includes(normalizeMarketSnapshotToken(key))) return value;
+  }
+
+  return undefined;
+}
+
+function getNestedDataPayload(value: unknown) {
+  if (!isMarketSnapshotRecord(value)) return null;
+  const data = value.data;
+  return isMarketSnapshotRecord(data) ? data : null;
+}
+
+export function normalizeMarketSnapshotResponse(
+  marketSnapshot: MarketSnapshotResponseDto | null,
+): MarketSnapshotResponseDto | null {
+  if (!marketSnapshot) return null;
+
+  const root = marketSnapshot as Record<string, unknown>;
+  const data = getNestedDataPayload(root);
+  if (!data) return marketSnapshot;
+
+  const normalizedData = normalizeMarketSnapshotResponse(data as MarketSnapshotResponseDto);
+  if (!normalizedData) return null;
+  const meta = isMarketSnapshotRecord(root.meta) ? root.meta : null;
+
+  return {
+    ...normalizedData,
+    as_of: normalizedData.as_of ?? asText(root.as_of) ?? asText(meta?.generatedAt) ?? null,
+    market_date: normalizedData.market_date ?? asText(root.market_date) ?? null,
+    missing_fields:
+      normalizedData.missing_fields ??
+      (Array.isArray(root.missing_fields) ? root.missing_fields.filter((field): field is string => typeof field === "string") : null),
+    source: normalizedData.source ?? asText(root.source) ?? asText(meta?.source) ?? null,
+    stale_reason: normalizedData.stale_reason ?? asText(root.stale_reason) ?? null,
+    status: normalizedData.status ?? asText(root.status) ?? null,
+  };
+}
+
+export function readMarketSnapshotNumber(...values: Array<number | string | null | undefined>) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value !== "string") continue;
+    const normalized = value.replace(/[,₩$%]/g, "").trim();
+    if (!normalized) continue;
+    const numericValue = Number(normalized);
+    if (Number.isFinite(numericValue)) return numericValue;
+  }
+
+  return null;
+}
+
+export function getMarketSnapshotIndex(snapshot: MarketSnapshotResponseDto | null, key: "kospi" | "kosdaq") {
+  const normalizedSnapshot = normalizeMarketSnapshotResponse(snapshot);
+  const indices = normalizedSnapshot?.indices;
+  if (!indices) return null;
+  const aliases = MARKET_SNAPSHOT_FIELD_ALIASES[`indices.${key}`];
+
+  if (Array.isArray(indices)) {
+    return (
+      indices.find((index) => {
+        const record = index as Record<string, unknown>;
+        const candidates = [
+          index.id,
+          index.label,
+          index.symbol,
+          index.code,
+          index.market,
+          index.name,
+          asText(record.index),
+          asText(record.index_name),
+        ].map(normalizeMarketSnapshotToken);
+        return aliases.some((alias) => candidates.includes(normalizeMarketSnapshotToken(alias)));
+      }) ?? null
+    );
+  }
+
+  const indexRecord = indices as Record<string, unknown>;
+  const directValue = getRecordValueByNormalizedKey(indexRecord, aliases);
+  return isMarketSnapshotRecord(directValue) ? (directValue as MarketSnapshotIndexDto) : null;
+}
+
+export function getMarketSnapshotFxRate(snapshot: MarketSnapshotResponseDto | null) {
+  const normalizedSnapshot = normalizeMarketSnapshotResponse(snapshot);
+  const fx = normalizedSnapshot?.fx;
+  if (!fx) return null;
+  const aliases = MARKET_SNAPSHOT_FIELD_ALIASES["fx.usdkrw"];
+
+  if (Array.isArray(fx)) {
+    return (
+      fx.find((rate) => {
+        const record = rate as Record<string, unknown>;
+        const candidates = [
+          rate.id,
+          rate.label,
+          rate.code,
+          rate.name,
+          rate.pair,
+          rate.base && rate.quote ? `${rate.base}${rate.quote}` : null,
+          rate.base && rate.quote ? `${rate.base}/${rate.quote}` : null,
+          asText(record.symbol),
+        ].map(normalizeMarketSnapshotToken);
+        return aliases.some((alias) => candidates.includes(normalizeMarketSnapshotToken(alias)));
+      }) ?? null
+    );
+  }
+
+  const fxRecord = fx as Record<string, unknown>;
+  const directValue = getRecordValueByNormalizedKey(fxRecord, aliases);
+  return isMarketSnapshotRecord(directValue) ? (directValue as MarketSnapshotFxRateDto) : null;
+}
+
+export function getMarketSnapshotFlow(
+  snapshot: MarketSnapshotResponseDto | null,
+  key: "foreign" | "institutional",
+) {
+  const normalizedSnapshot = normalizeMarketSnapshotResponse(snapshot);
+  const flows = normalizedSnapshot?.flows;
+  if (!flows) return null;
+  const aliases = MARKET_SNAPSHOT_FIELD_ALIASES[`flows.${key}`];
+
+  if (Array.isArray(flows)) {
+    return (
+      flows.find((flow) => {
+        const candidates = [
+          flow.id,
+          flow.name,
+          flow.label,
+          flow.market,
+          flow.investor_type,
+          flow.type,
+        ].map(normalizeMarketSnapshotToken);
+        return aliases.some((alias) => candidates.includes(normalizeMarketSnapshotToken(alias)));
+      }) ?? null
+    );
+  }
+
+  const flowsRecord = flows as Record<string, unknown>;
+  const directValue = getRecordValueByNormalizedKey(flowsRecord, aliases);
+  return isMarketSnapshotRecord(directValue) ? (directValue as MarketSnapshotFlowDto) : null;
+}
+
+export function getMarketSnapshotIndexLevel(index: MarketSnapshotIndexDto | null) {
+  return readMarketSnapshotNumber(index?.level, index?.value, index?.close, index?.current, index?.price, index?.last, index?.last_price);
+}
+
+export function getMarketSnapshotIndexChange(index: MarketSnapshotIndexDto | null) {
+  return readMarketSnapshotNumber(index?.change, index?.net_change, index?.point_change);
+}
+
+export function getMarketSnapshotIndexChangeRate(index: MarketSnapshotIndexDto | null) {
+  return readMarketSnapshotNumber(
+    index?.change_rate,
+    index?.change_pct,
+    index?.change_percent,
+    index?.pct_change,
+    index?.percent_change,
+    index?.rate_change,
+  );
+}
+
+export function getMarketSnapshotFxValue(fxRate: MarketSnapshotFxRateDto | null) {
+  return readMarketSnapshotNumber(fxRate?.rate, fxRate?.value, fxRate?.close, fxRate?.current, fxRate?.price, fxRate?.last, fxRate?.last_price);
+}
+
+export function getMarketSnapshotFxChange(fxRate: MarketSnapshotFxRateDto | null) {
+  return readMarketSnapshotNumber(fxRate?.change, fxRate?.net_change);
+}
+
+export function getMarketSnapshotFxChangeRate(fxRate: MarketSnapshotFxRateDto | null) {
+  return readMarketSnapshotNumber(
+    fxRate?.change_rate,
+    fxRate?.change_pct,
+    fxRate?.change_percent,
+    fxRate?.pct_change,
+    fxRate?.percent_change,
+    fxRate?.rate_change,
+  );
+}
+
+export function getMarketSnapshotFlowAmount(flow: MarketSnapshotFlowDto | null | undefined) {
+  return readMarketSnapshotNumber(
+    flow?.net_amount,
+    flow?.net_buy_amount,
+    flow?.net,
+    flow?.net_buy,
+    flow?.net_flow,
+    flow?.net_purchase,
+    flow?.amount,
+    flow?.value,
+  );
+}
+
+export function getMarketSnapshotSummaryLine(snapshot: MarketSnapshotResponseDto | null) {
+  const summary = normalizeMarketSnapshotResponse(snapshot)?.summary;
+  if (!summary) return null;
+  if (typeof summary === "string") return summary.trim() || null;
+
+  const bias = summary.market_bias?.trim() ?? "";
+  const breadth = (summary.breadth_summary ?? summary.breadth ?? summary.market_breadth ?? "").trim();
+  const line = summary.line?.trim() ?? "";
+
+  if (line) return line;
+  if (bias && breadth && bias !== breadth) return `${bias} · ${breadth}`;
+
+  return bias || breadth || null;
+}
+
+function hasMarketSnapshotIndexData(snapshot: MarketSnapshotResponseDto | null, key: "kospi" | "kosdaq") {
+  const index = getMarketSnapshotIndex(snapshot, key);
+  return (
+    getMarketSnapshotIndexLevel(index) !== null ||
+    getMarketSnapshotIndexChange(index) !== null ||
+    getMarketSnapshotIndexChangeRate(index) !== null
+  );
+}
+
+function hasMarketSnapshotFxData(snapshot: MarketSnapshotResponseDto | null) {
+  const fxRate = getMarketSnapshotFxRate(snapshot);
+  return (
+    getMarketSnapshotFxValue(fxRate) !== null ||
+    getMarketSnapshotFxChange(fxRate) !== null ||
+    getMarketSnapshotFxChangeRate(fxRate) !== null
+  );
+}
+
+function hasMarketSnapshotFlowData(snapshot: MarketSnapshotResponseDto | null, key: "foreign" | "institutional") {
+  const flow = getMarketSnapshotFlow(snapshot, key);
+  return Boolean(flow?.summary?.trim() || flow?.direction?.trim() || getMarketSnapshotFlowAmount(flow) !== null);
+}
+
+function hasMarketSnapshotFieldData(snapshot: MarketSnapshotResponseDto | null, fieldId: MarketSnapshotFieldId) {
+  if (fieldId === "indices.kospi") return hasMarketSnapshotIndexData(snapshot, "kospi");
+  if (fieldId === "indices.kosdaq") return hasMarketSnapshotIndexData(snapshot, "kosdaq");
+  if (fieldId === "fx.usdkrw") return hasMarketSnapshotFxData(snapshot);
+  if (fieldId === "flows.foreign") return hasMarketSnapshotFlowData(snapshot, "foreign");
+  if (fieldId === "flows.institutional") return hasMarketSnapshotFlowData(snapshot, "institutional");
+  return Boolean(getMarketSnapshotSummaryLine(snapshot));
+}
+
+function hasAnyMarketSnapshotData(snapshot: MarketSnapshotResponseDto | null) {
+  return (
+    REQUIRED_MARKET_SNAPSHOT_FIELD_IDS.some((fieldId) => hasMarketSnapshotFieldData(snapshot, fieldId)) ||
+    hasMarketSnapshotFieldData(snapshot, "summary")
+  );
+}
+
+function getComputedMissingMarketSnapshotFields(snapshot: MarketSnapshotResponseDto | null) {
+  return REQUIRED_MARKET_SNAPSHOT_FIELD_IDS.filter((fieldId) => !hasMarketSnapshotFieldData(snapshot, fieldId));
+}
+
+function resolveReportedMarketSnapshotMissingFields(snapshot: MarketSnapshotResponseDto | null) {
+  const missingFields = normalizeMarketSnapshotResponse(snapshot)?.missing_fields ?? [];
+  return missingFields
+    .map((field) => field.trim())
+    .filter(Boolean)
+    .map((field) => {
+      const fieldToken = normalizeMarketSnapshotToken(field);
+      const knownField = (Object.keys(MARKET_SNAPSHOT_FIELD_ALIASES) as MarketSnapshotFieldId[]).find((fieldId) => {
+        return MARKET_SNAPSHOT_FIELD_ALIASES[fieldId].some((alias) => normalizeMarketSnapshotToken(alias) === fieldToken);
+      });
+      return knownField ?? field;
+    });
+}
+
+function getMarketSnapshotFieldLabel(field: MarketSnapshotFieldId | string, copy: DashboardLiveCopy) {
+  const fieldToken = normalizeMarketSnapshotToken(field);
+
+  for (const [fieldId, aliases] of Object.entries(MARKET_SNAPSHOT_FIELD_ALIASES) as Array<[MarketSnapshotFieldId, readonly string[]]>) {
+    if (field === fieldId || aliases.some((alias) => normalizeMarketSnapshotToken(alias) === fieldToken)) {
+      if (fieldId === "indices.kospi") return copy.marketOverview.kospi;
+      if (fieldId === "indices.kosdaq") return copy.marketOverview.kosdaq;
+      if (fieldId === "fx.usdkrw") return copy.marketOverview.usdKrw;
+      if (fieldId === "flows.foreign") return copy.marketOverview.foreignFlow;
+      if (fieldId === "flows.institutional") return copy.marketOverview.institutionalFlow;
+      return copy.marketOverview.marketPosture;
+    }
+  }
+
+  return field
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getMarketSnapshotMissingFieldLabels(snapshot: MarketSnapshotResponseDto | null, copy: DashboardLiveCopy) {
+  const computedMissing = getComputedMissingMarketSnapshotFields(snapshot);
+  const reportedMissing = resolveReportedMarketSnapshotMissingFields(snapshot);
+  const labels = [...computedMissing, ...reportedMissing].map((field) => getMarketSnapshotFieldLabel(field, copy));
+  return [...new Set(labels)].filter(Boolean);
+}
+
+function normalizeMarketSnapshotStatus(status: string | null | undefined) {
+  const normalizedStatus = normalizeMarketSnapshotToken(status ?? null);
+  if (normalizedStatus === "ready" || normalizedStatus === "ok" || normalizedStatus === "complete") return "ready";
+  if (normalizedStatus === "partial" || normalizedStatus === "degraded" || normalizedStatus === "incomplete") return "partial";
+  if (normalizedStatus === "stale" || normalizedStatus === "cached") return "stale";
+  if (normalizedStatus === "unavailable" || normalizedStatus === "missing" || normalizedStatus === "error") {
+    return "unavailable";
+  }
+  return null;
+}
+
+function getMarketSnapshotStatusLabel(status: MarketSnapshotPresentationStatus, copy: DashboardLiveCopy) {
+  if (status === "ready") return copy.marketOverview.snapshotReady;
+  if (status === "partial") return copy.marketOverview.snapshotPartial;
+  if (status === "stale") return copy.marketOverview.snapshotStale;
+  return copy.marketOverview.snapshotUnavailable;
+}
+
+function getMarketSnapshotStatusTone(status: MarketSnapshotPresentationStatus): MarketSnapshotPresentationTone {
+  if (status === "ready") return "positive";
+  if (status === "partial") return "info";
+  if (status === "stale") return "warning";
+  return "warning";
+}
+
 export function buildMarketSnapshotPresentation(
   copy: DashboardLiveCopy,
   marketSnapshot: MarketSnapshotResponseDto | null,
   marketSnapshotError: string | null,
 ) {
-  const isReady = marketSnapshot !== null && marketSnapshotError === null;
+  const displaySnapshot = normalizeMarketSnapshotResponse(marketSnapshot);
+  const hasUsableData = hasAnyMarketSnapshotData(displaySnapshot);
+  const normalizedPayloadStatus = normalizeMarketSnapshotStatus(displaySnapshot?.status);
+  const reportedMissingFields = resolveReportedMarketSnapshotMissingFields(displaySnapshot);
+  const computedMissingRequiredFields = getComputedMissingMarketSnapshotFields(displaySnapshot);
+  const hasMissingFieldSignal = computedMissingRequiredFields.length > 0 || reportedMissingFields.length > 0;
+  const status: MarketSnapshotPresentationStatus = !hasUsableData
+    ? "unavailable"
+    : marketSnapshotError
+      ? "stale"
+      : normalizedPayloadStatus === "stale"
+        ? "stale"
+        : normalizedPayloadStatus === "unavailable"
+          ? "unavailable"
+        : normalizedPayloadStatus === "partial" || hasMissingFieldSignal
+          ? "partial"
+          : "ready";
+  const isReady = status === "ready";
+  const missingFieldLabels = getMarketSnapshotMissingFieldLabels(displaySnapshot, copy);
+  const staleReason = displaySnapshot?.stale_reason?.trim() || marketSnapshotError;
   const unavailableLabel = marketSnapshotError
     ? copy.marketOverview.snapshotDependencyPending
     : copy.marketOverview.snapshotWaiting;
+  const fallbackContextLabel =
+    status === "ready"
+      ? copy.marketOverview.conditionNote
+      : status === "partial"
+        ? missingFieldLabels.length > 0
+          ? `${copy.marketOverview.snapshotPartialContext} ${missingFieldLabels.join(", ")}`
+          : copy.marketOverview.snapshotPartialContext
+        : status === "stale"
+          ? staleReason
+            ? `${copy.marketOverview.snapshotStaleContext} ${staleReason}`
+            : copy.marketOverview.snapshotStaleContext
+          : unavailableLabel;
 
   return {
-    displaySnapshot: isReady ? marketSnapshot : null,
-    fallbackContextLabel: isReady ? copy.marketOverview.conditionNote : unavailableLabel,
+    displaySnapshot: status === "unavailable" ? null : displaySnapshot,
+    fallbackContextLabel,
     isReady,
-    statusLabel: isReady ? copy.marketOverview.snapshotReady : copy.marketOverview.snapshotUnavailable,
-    statusTone: isReady ? "positive" : "warning",
+    missingFieldLabels,
+    staleReason,
+    status,
+    statusLabel: getMarketSnapshotStatusLabel(status, copy),
+    statusTone: getMarketSnapshotStatusTone(status),
   } satisfies {
     displaySnapshot: MarketSnapshotResponseDto | null;
     fallbackContextLabel: string;
     isReady: boolean;
+    missingFieldLabels: string[];
+    staleReason: string | null;
+    status: MarketSnapshotPresentationStatus;
     statusLabel: string;
-    statusTone: "positive" | "warning";
+    statusTone: MarketSnapshotPresentationTone;
   };
 }
 

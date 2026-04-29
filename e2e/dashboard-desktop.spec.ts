@@ -204,11 +204,51 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const marketCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
-    await expect(marketCard.getByText("Unavailable", { exact: true })).toBeVisible();
+    await expect(marketCard.locator(".pill.warning", { hasText: "Unavailable" })).toBeVisible();
     await expect(marketCard.getByText("Snapshot", { exact: true })).toBeVisible({ timeout: 10_000 });
     await expect(marketCard.getByText("2,801.55", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Recovered snapshot visible without refresh.", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Unavailable", { exact: true })).toHaveCount(0);
+    await expect(marketCard.getByText("[확인 필요]", { exact: true })).toHaveCount(0);
+  });
+
+  test("market condition card keeps partial-but-usable snapshot values visible", async ({ page }) => {
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "partial",
+          data: {
+            as_of: "2026-04-28T10:21:00+09:00",
+            source: "core-market-snapshot",
+            indices: {
+              kospi: { level: 2742.31, change: 18.42, change_rate: 0.68 },
+            },
+            fx: {
+              usdkrw: { value: 1378.2 },
+            },
+            flows: {
+              foreign: { value: 248_000_000_000, unit: "KRW" },
+            },
+            summary: {
+              line: "Partial snapshot still carries usable market context.",
+            },
+            missing_fields: ["indices.kosdaq", "flows.institutional"],
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const marketCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
+    await expect(marketCard.getByText("Partial", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("2,742.31", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+18.42 (+0.68%)", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("1,378.20", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+248B KRW", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Partial snapshot still carries usable market context.", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText(/Missing:.*KOSDAQ.*Institutional flow/i)).toBeVisible();
     await expect(marketCard.getByText("[확인 필요]", { exact: true })).toHaveCount(0);
   });
 

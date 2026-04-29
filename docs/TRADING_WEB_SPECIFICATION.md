@@ -257,11 +257,16 @@ Expected displayed data when available:
 - institutional flow
 - optional market bias summary
 - optional breadth / market line summary
+- snapshot status: `ready`, `partial`, `stale`, or `unavailable`
+- optional `missing_fields` and `stale_reason` context
 
 Rules:
 
 - must not derive this card from Piotroski, risk-filter, or generic market status payloads
+- `/market/status` may only supply session / trading-day context for this card
 - if snapshot data is unavailable, show explicit unavailable state
+- if snapshot data is partial but still usable, keep the available values visible and label the card as partial
+- if a refresh fails after a usable snapshot was already loaded, keep the last usable values visible and label the card as stale
 - do not fabricate index, FX, or flow values
 
 #### C. Portfolio state card
