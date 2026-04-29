@@ -1367,6 +1367,32 @@
   background: rgba(109, 94, 247, 0.2);
 }
 
+.signalDeciderMoreLink {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.5rem;
+  min-height: 1.75rem;
+  padding: 0.22rem 1rem;
+  border: 1px solid rgba(197, 192, 255, 0.28);
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.signalDeciderMoreLink:hover {
+  border-color: rgba(197, 192, 255, 0.44);
+  background: rgba(109, 94, 247, 0.12);
+}
+
 .supportRow strong {
   color: var(--text-strong);
   font-family: var(--font-manrope), sans-serif;
@@ -1601,6 +1627,7 @@
 .dialogCloseButton:focus-visible,
 .agentFeedbackStopButton:focus-visible,
 .signalDeciderDetailLink:focus-visible,
+.signalDeciderMoreLink:focus-visible,
 .dialogActionButton:focus-visible {
   outline: 2px solid rgba(186, 195, 255, 0.88);
   outline-offset: 2px;

@@ -28,6 +28,17 @@ async function expectVerticalCentersAligned(left: Locator, right: Locator, toler
   expect(Math.abs(leftCenterY - rightCenterY)).toBeLessThanOrEqual(tolerancePx);
 }
 
+async function expectHorizontalCentersAligned(left: Locator, right: Locator, tolerancePx = 4) {
+  const [leftBox, rightBox] = await Promise.all([left.boundingBox(), right.boundingBox()]);
+  if (!leftBox || !rightBox) {
+    throw new Error("Expected both elements to be visible before checking alignment.");
+  }
+
+  const leftCenterX = leftBox.x + leftBox.width / 2;
+  const rightCenterX = rightBox.x + rightBox.width / 2;
+  expect(Math.abs(leftCenterX - rightCenterX)).toBeLessThanOrEqual(tolerancePx);
+}
+
 async function mockDashboardShell(page: Page, options: MockDashboardShellOptions = {}) {
   let signalDeciderFeedbackRequestCount = 0;
 
@@ -374,6 +385,12 @@ test("dashboard signal-decider card previews partial results and links to the de
     hynixPreviewRow.getByText("Wait", { exact: true }),
     hynixPreviewRow.getByText("5/10", { exact: true }),
   );
+  const detailLink = card.getByRole("link", { name: /Open the signal-decider feedback detail page/i });
+  await expect(detailLink).toHaveText("More");
+  await expectHorizontalCentersAligned(card, detailLink);
+  const detailLinkBox = await detailLink.boundingBox();
+  expect(detailLinkBox).not.toBeNull();
+  expect(detailLinkBox!.height).toBeLessThanOrEqual(32);
 
   const processDrawer = await openProcessMonitorDrawer(page);
   const agentFeedbackCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
@@ -384,7 +401,7 @@ test("dashboard signal-decider card previews partial results and links to the de
   await processDrawer.getByRole("button", { name: /Close monitor/i }).click();
   await expect(processDrawer).toHaveCount(0);
 
-  await card.getByRole("link", { name: /Open the signal-decider feedback detail page/i }).click();
+  await detailLink.click();
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
 
