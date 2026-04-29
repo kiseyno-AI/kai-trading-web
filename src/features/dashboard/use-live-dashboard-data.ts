@@ -148,6 +148,8 @@ export function useLiveDashboardData({
   initialFreshness,
   initialFundamentalsStatus,
   initialPipelineStatus,
+  initialPiotroskiStatus = null,
+  initialMarketRiskStatus = null,
   initialMarketSnapshot,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
@@ -195,17 +197,19 @@ export function useLiveDashboardData({
   const [portfolioSummaryLoadState, setPortfolioSummaryLoadState] = useState<"error" | "loading" | "success">(
     initialPortfolioSummary ? "success" : "loading",
   );
-  const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(null);
-  const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(null);
+  const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(
+    initialPiotroskiStatus,
+  );
+  const piotroskiStatusRef = useRef<EodPiotroskiFilterResultsResponseDto | null>(initialPiotroskiStatus);
   const [piotroskiStatusError, setPiotroskiStatusError] = useState<string | null>(null);
   const [piotroskiStatusLoadState, setPiotroskiStatusLoadState] = useState<FilteringStageLoadState>(
-    initialDashboardProcessMarketDate ? "loading" : "idle",
+    initialDashboardProcessMarketDate ? (initialPiotroskiStatus ? "ready" : "loading") : "idle",
   );
-  const [marketRiskStatus, setMarketRiskStatus] = useState<EodMarketRiskFiltersResponseDto | null>(null);
-  const marketRiskStatusRef = useRef<EodMarketRiskFiltersResponseDto | null>(null);
+  const [marketRiskStatus, setMarketRiskStatus] = useState<EodMarketRiskFiltersResponseDto | null>(initialMarketRiskStatus);
+  const marketRiskStatusRef = useRef<EodMarketRiskFiltersResponseDto | null>(initialMarketRiskStatus);
   const [marketRiskStatusError, setMarketRiskStatusError] = useState<string | null>(null);
   const [marketRiskStatusLoadState, setMarketRiskStatusLoadState] = useState<FilteringStageLoadState>(
-    initialDashboardProcessMarketDate ? "loading" : "idle",
+    initialDashboardProcessMarketDate ? (initialMarketRiskStatus ? "ready" : "loading") : "idle",
   );
   const [filteringReloadCount, setFilteringReloadCount] = useState(0);
   const filteringReloadKeyRef = useRef<FilteringReloadKey>(INITIAL_FILTERING_RELOAD_KEY);
@@ -244,12 +248,24 @@ export function useLiveDashboardData({
       ),
       initialFundamentalsStatus,
     );
+    if (initialDashboardProcessMarketDate) {
+      seedTradingApiJsonCache(
+        `/api/trading/eod/piotroski-filter-results?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}`,
+        initialPiotroskiStatus,
+      );
+      seedTradingApiJsonCache(
+        `/api/trading/eod/market-risk-filters?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}`,
+        initialMarketRiskStatus,
+      );
+    }
     void warmMobileToolbarViewData("dashboard");
   }, [
     initialDashboardProcessMarketDate,
     initialFreshness,
     initialFundamentalsStatus,
     initialMarket,
+    initialMarketRiskStatus,
+    initialPiotroskiStatus,
     initialPortfolioSummary,
     initialTracked,
   ]);
@@ -488,7 +504,16 @@ export function useLiveDashboardData({
     };
 
     const loadFilteringStatus = async () => {
-      if (!isBackgroundReload) {
+      const hasCurrentPiotroskiSnapshot = piotroskiStatusRef.current?.market_date === filteringMarketDate;
+      const hasCurrentMarketRiskSnapshot = marketRiskStatusRef.current?.market_date === filteringMarketDate;
+      const canReuseCurrentFilteringSnapshot =
+        !isBackgroundReload &&
+        hasCurrentPiotroskiSnapshot &&
+        hasCurrentMarketRiskSnapshot &&
+        !piotroskiStatusError &&
+        !marketRiskStatusError;
+
+      if (!isBackgroundReload && !canReuseCurrentFilteringSnapshot) {
         piotroskiStatusRef.current = null;
         setPiotroskiStatus(null);
         setPiotroskiStatusError(null);

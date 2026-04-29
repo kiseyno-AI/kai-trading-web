@@ -27,7 +27,9 @@ import type {
   AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
+  EodMarketRiskFiltersResponseDto,
   EodPipelineStatusResponseDto,
+  EodPiotroskiFilterResultsResponseDto,
   MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
@@ -96,6 +98,8 @@ export default async function DashboardPage() {
   let freshness: EodFreshnessResponseDto | null = null;
   let fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null = null;
   let pipelineStatus: EodPipelineStatusResponseDto | null = null;
+  let piotroskiStatus: EodPiotroskiFilterResultsResponseDto | null = null;
+  let marketRiskStatus: EodMarketRiskFiltersResponseDto | null = null;
   let marketSnapshot: MarketSnapshotResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
@@ -127,7 +131,7 @@ export default async function DashboardPage() {
     );
 
     const progressPath = buildAgentFeedbackProgressPath(freshness);
-    [fundamentalsStatus, agentFeedbackProgress] = await Promise.all([
+    [fundamentalsStatus, agentFeedbackProgress, piotroskiStatus, marketRiskStatus] = await Promise.all([
       fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
         buildDartFundamentalsDailyInspectPath(
           DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
@@ -137,6 +141,18 @@ export default async function DashboardPage() {
       ).catch(() => null),
       progressPath
         ? fetchServerTradingApiJson<AgentFeedbackProgressResponseDto>(progressPath, requestHeaders).catch(() => null)
+        : Promise.resolve(null),
+      resolvedDashboardProcessMarketDate
+        ? fetchServerTradingApiJson<EodPiotroskiFilterResultsResponseDto>(
+            `/eod/piotroski-filter-results?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}`,
+            requestHeaders,
+          ).catch(() => null)
+        : Promise.resolve(null),
+      resolvedDashboardProcessMarketDate
+        ? fetchServerTradingApiJson<EodMarketRiskFiltersResponseDto>(
+            `/eod/market-risk-filters?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}`,
+            requestHeaders,
+          ).catch(() => null)
         : Promise.resolve(null),
     ]);
 
@@ -165,6 +181,8 @@ export default async function DashboardPage() {
       initialFreshness={freshness}
       initialFundamentalsStatus={fundamentalsStatus}
       initialPipelineStatus={pipelineStatus}
+      initialPiotroskiStatus={piotroskiStatus}
+      initialMarketRiskStatus={marketRiskStatus}
       initialMarketSnapshot={marketSnapshot}
       initialAgentFeedbackProgress={agentFeedbackProgress}
       initialSignalDeciderFeedback={signalDeciderFeedback}
