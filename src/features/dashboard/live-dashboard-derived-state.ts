@@ -1535,6 +1535,9 @@ function getPatchStageFreshnessStatus(
   if (normalizedStatus && ["ready", "completed", "available", "success"].includes(normalizedStatus)) {
     return "ready";
   }
+  if (normalizedStatus && ["pending", "queued", "not started"].includes(normalizedStatus)) {
+    return "pending";
+  }
   if (hasNumber(symbolsTotal) && hasNumber(symbolsSucceeded)) {
     return symbolsSucceeded >= symbolsTotal ? "ready" : "running";
   }

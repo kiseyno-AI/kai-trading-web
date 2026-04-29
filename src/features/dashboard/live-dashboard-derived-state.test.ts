@@ -527,6 +527,73 @@ test("uses stage-specific technical and action counts instead of aggregate EOD t
   });
 });
 
+test("keeps pending latest patch stages out of ready state when numeric counts exist", () => {
+  for (const status of ["pending", "queued", "not-started"]) {
+    const stage = getTechnicalFreshnessStage(
+      {
+        today: null,
+        latest: {
+          stage_details: {
+            technical_snapshots: {
+              market_date: "2026-04-27",
+              status,
+              total: 100,
+              processed: 100,
+              failed: 0,
+            },
+          },
+        },
+        technical: {
+          success: true,
+          latest_date: "2026-04-27",
+        },
+      },
+      false,
+    );
+
+    assert.equal(stage?.status, "pending", `${status} should remain pending`);
+    assert.notEqual(stage?.status, "ready", `${status} should not be ready`);
+    assert.equal(stage?.symbols_total, 100);
+    assert.equal(stage?.symbols_succeeded, 100);
+  }
+});
+
+test("keeps explicit latest patch ready running and missing statuses ahead of numeric counts", () => {
+  const cases = [
+    { status: "completed", expected: "ready" },
+    { status: "running", expected: "running" },
+    { status: "failed", expected: "missing" },
+  ];
+
+  for (const { status, expected } of cases) {
+    const stage = getActionFreshnessStage(
+      {
+        today: null,
+        latest: {
+          stage_details: {
+            action_summaries: {
+              market_date: "2026-04-27",
+              status,
+              total: 100,
+              completed_count: 100,
+              failed: status === "failed" ? 1 : 0,
+            },
+          },
+        },
+        action: {
+          success: true,
+          latest_date: "2026-04-27",
+        },
+      },
+      false,
+    );
+
+    assert.equal(stage?.status, expected, `${status} should resolve to ${expected}`);
+    assert.equal(stage?.symbols_total, 100);
+    assert.equal(stage?.symbols_succeeded, 100);
+  }
+});
+
 test("completed pipeline merge preserves stage-local counts over aggregate totals", () => {
   const merged = mergeRunningPipelineStage(
     {
