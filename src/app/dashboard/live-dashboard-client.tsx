@@ -86,6 +86,7 @@ import {
   maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
   mergeRunningPipelineStage,
+  resolveFundamentalsPollingPresentation,
   shouldShowAgentRoleProgress,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "@/features/dashboard/live-dashboard-derived-state";
@@ -1527,7 +1528,16 @@ export function LiveDashboardClient({
 
   const piotroskiMarketDate = dashboardProcessMarketDate;
   const eodStatusMarketDate = dashboardProcessMarketDate;
-  const fundamentalsActivityDate = getFirstTextValue(latestFundamentalsDate, eodStatusMarketDate);
+  const fundamentalsPollingPresentation = resolveFundamentalsPollingPresentation({
+    latestFundamentalsDate,
+    pipelineStage: fundamentalsPipelineStage,
+    processMarketDate: eodStatusMarketDate,
+    todayTradeDate,
+  });
+  const fundamentalsActivityDate = getFirstTextValue(
+    fundamentalsPollingPresentation.latestDate,
+    eodStatusMarketDate,
+  );
   const isBreakDay = isBreakDayMarket(market);
   const priceFreshnessStage = mergeRunningPipelineStage(
     getPriceFreshnessStage(freshness, useTodayPriceStage),
@@ -1546,12 +1556,15 @@ export function LiveDashboardClient({
     fundamentalsPipelineStage,
   );
   const fundamentalsUpdatedActivity = useMemo(
-    () => getFundamentalsUpdatedActivityModel(fundamentalsStatus, fundamentalsActivityDate, numberLocale),
-    [fundamentalsActivityDate, fundamentalsStatus, numberLocale],
+    () =>
+      fundamentalsPollingPresentation.showStoredActivity
+        ? getFundamentalsUpdatedActivityModel(fundamentalsStatus, fundamentalsActivityDate, numberLocale)
+        : null,
+    [fundamentalsActivityDate, fundamentalsPollingPresentation.showStoredActivity, fundamentalsStatus, numberLocale],
   );
   const fundamentalsUpdatedSymbolsDetail = useMemo(
     () =>
-      fundamentalsUpdatedActivity
+      fundamentalsUpdatedActivity || !fundamentalsPollingPresentation.showStoredActivity
         ? null
         : getFundamentalsUpdatedSymbolsDetail(
             fundamentalsStatus,
@@ -1560,7 +1573,15 @@ export function LiveDashboardClient({
             numberLocale,
             eodStatusMarketDate,
           ),
-    [copy, eodStatusMarketDate, fundamentalsActivityDate, fundamentalsStatus, fundamentalsUpdatedActivity, numberLocale],
+    [
+      copy,
+      eodStatusMarketDate,
+      fundamentalsActivityDate,
+      fundamentalsPollingPresentation.showStoredActivity,
+      fundamentalsStatus,
+      fundamentalsUpdatedActivity,
+      numberLocale,
+    ],
   );
   const fundamentalsPrimaryCountDetail = useMemo(
     () =>
@@ -1596,8 +1617,12 @@ export function LiveDashboardClient({
       copy.stage.fundamentals,
       fundamentalsFreshnessWithPipelineStage,
       eodStatusMarketDate,
-      latestFundamentalsDate,
-      getPipelineStageResolvedStatusDate(fundamentalsPipelineStage, eodStatusMarketDate, latestFundamentalsDate),
+      fundamentalsPollingPresentation.latestDate,
+      getPipelineStageResolvedStatusDate(
+        fundamentalsPipelineStage,
+        eodStatusMarketDate,
+        fundamentalsPollingPresentation.latestDate,
+      ),
       primaryLatestCycleDate,
       isBreakDay,
       fundamentalsPipelineStage,
@@ -1663,11 +1688,11 @@ export function LiveDashboardClient({
     copy,
     eodStatusMarketDate,
     fundamentalsFreshnessWithPipelineStage,
+    fundamentalsPollingPresentation.latestDate,
     fundamentalsPipelineStage,
     fundamentalsPrimaryCountDetail,
     fundamentalsUpdatedSymbolsDetail,
     isBreakDay,
-    latestFundamentalsDate,
     numberLocale,
     primaryLatestCycleDate,
     pipelineStatus,

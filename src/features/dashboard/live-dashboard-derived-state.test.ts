@@ -21,6 +21,7 @@ import {
   buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
   buildScoringCardModel,
+  formatEodSymbolCount,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
@@ -28,7 +29,9 @@ import {
   getFundamentalsUpdatedActivityModel,
   getFundamentalsUpdatedCountLabel,
   getFundamentalsUpdatedSymbolsDetail,
+  getFundamentalsCheckedCount,
   getFundamentalsFreshnessStage,
+  getPipelineStageResolvedStatusDate,
   getMarketSnapshotPollDelayMs,
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
@@ -36,6 +39,8 @@ import {
   maskAgentRoleCardsAsWaiting,
   maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
+  mergeRunningPipelineStage,
+  resolveFundamentalsPollingPresentation,
   shouldRevalidateFilteringFallback,
   shouldShowAgentRoleProgress,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
@@ -361,6 +366,108 @@ test("keeps same-day fundamentals coverage synced", () => {
     getFundamentalsStageStatusLabel(buildStage("ready"), "2026-04-21", "2026-04-21", false),
     "synced",
   );
+});
+
+test("uses live fundamentals pipeline counts and date while stored activity data is stale", () => {
+  const copy = getDashboardLiveCopy("en");
+  const freshness = {
+    today: {
+      trade_date: "2026-04-29",
+      fundamentals: {
+        status: "ready",
+        symbols_total: 3583,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+    },
+    latest: {
+      stage_details: {
+        fundamentals: {
+          market_date: "2026-04-26",
+          status: "completed",
+          symbols_total: 3583,
+          symbols_checked: 9,
+          symbols_failed: 0,
+        },
+      },
+    },
+    fundamentals: {
+      success: true,
+      latest_date: "2026-04-26",
+    },
+  };
+  const fundamentalsStatus = {
+    latest_run: buildFundamentalsRun({
+      market_date: "2026-04-26",
+      symbols_checked: 9,
+      symbols_refreshed: 9,
+      updated_entries_summary: {
+        updated_count: 9,
+        visible_preview_limit: 3,
+      },
+      updated_entries: [
+        {
+          symbol: "005930",
+          company_name: "Samsung Electronics",
+          category_label: "Financial statement refresh",
+        },
+      ],
+    }),
+    runs: [],
+  };
+  const pipelineStage = {
+    status: "running",
+    processed: 247,
+    total: 3583,
+    failed: 1,
+    current_step: "fundamentals_daily_refresh",
+    current_activity: "sync_symbols",
+    current_symbol: "000660",
+  };
+  const presentation = resolveFundamentalsPollingPresentation({
+    latestFundamentalsDate: "2026-04-26",
+    pipelineStage,
+    processMarketDate: "2026-04-29",
+    todayTradeDate: "2026-04-29",
+  });
+  const storedActivity = getFundamentalsUpdatedActivityModel(fundamentalsStatus, "2026-04-26", "en-US");
+  const freshnessStage = getFundamentalsFreshnessStage(
+    freshness,
+    fundamentalsStatus,
+    "running",
+    "2026-04-26",
+    true,
+  );
+  const liveStage = mergeRunningPipelineStage(freshnessStage, pipelineStage);
+  const checkedCount = getFundamentalsCheckedCount(freshness, fundamentalsStatus, liveStage);
+  const card = buildEodStageCard(
+    "fundamentals",
+    copy.stage.fundamentals,
+    liveStage,
+    "2026-04-29",
+    presentation.latestDate,
+    getPipelineStageResolvedStatusDate(pipelineStage, "2026-04-29", presentation.latestDate),
+    "2026-04-26",
+    false,
+    pipelineStage,
+    copy,
+    "en-US",
+    {
+      label: copy.operational.checked,
+      value: formatEodSymbolCount(checkedCount, "en-US"),
+    },
+    getFundamentalsStageStatusLabel,
+  );
+
+  assert.ok(storedActivity, "expected a stored structured activity snapshot to exist");
+  assert.equal(presentation.useLivePollingView, true);
+  assert.equal(presentation.showStoredActivity, false);
+  assert.equal(presentation.latestDate, "2026-04-29");
+  assert.equal(checkedCount, 247);
+  assert.equal(card.statusLabel, "running");
+  assert.equal(card.statusBadgeLabel, "Fundamentals Daily Refresh");
+  assert.equal(card.details.find((detail) => detail.key === "count")?.value, "247");
+  assert.equal(card.details.find((detail) => detail.key === "latest-date")?.value, "2026-04-29");
 });
 
 test("treats null-filled updated-entry rollout fields as absent structured payload", () => {
