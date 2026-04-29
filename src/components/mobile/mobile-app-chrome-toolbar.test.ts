@@ -28,15 +28,22 @@ function collectFiles(directory: string, matcher: (path: string) => boolean) {
   return files;
 }
 
-test("routes that use MobileAppChrome compose the shared dashboard toolbar", () => {
+test("routes that use MobileAppChrome provide toolbar slots instead of page-local toolbar markup", () => {
   const offenders = collectFiles(appRoot, (path) => path.endsWith(".tsx"))
     .filter((path) => {
       const source = readFileSync(path, "utf8");
-      return source.includes("<MobileAppChrome") && !source.includes("<DashboardToolbar");
+      return source.includes("<MobileAppChrome") && (/<DashboardToolbar[\s>]/.test(source) || source.includes("header={"));
     })
     .map((path) => relative(repoRoot, path));
 
   assert.deepEqual(offenders, []);
+});
+
+test("MobileAppChrome owns the shared dashboard toolbar frame", () => {
+  const source = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
+
+  assert.match(source, /from "@\/components\/navigation\/dashboard-toolbar"/);
+  assert.match(source, /<DashboardToolbar \{\.\.\.topbar\} \/>/);
 });
 
 test("AppShell topbar composes the shared dashboard toolbar", () => {
@@ -44,6 +51,16 @@ test("AppShell topbar composes the shared dashboard toolbar", () => {
 
   assert.match(source, /from "@\/components\/navigation\/dashboard-toolbar"/);
   assert.match(source, /<DashboardToolbar/);
+});
+
+test("AppShell and MobileAppChrome share the central route model", () => {
+  const appShellSource = readFileSync(join(repoRoot, "src/components/layout/app-shell.tsx"), "utf8");
+  const mobileChromeSource = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
+
+  assert.match(appShellSource, /buildAppChromeNavItems/);
+  assert.match(appShellSource, /buildAppChromeSearchSuggestions/);
+  assert.match(mobileChromeSource, /FULL_PAGE_CHROME_ROUTE_KEYS/);
+  assert.match(mobileChromeSource, /buildAppChromeNavItems/);
 });
 
 test("legacy page-local toolbar selectors stay out of route chrome styles", () => {

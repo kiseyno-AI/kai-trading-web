@@ -96,7 +96,7 @@ test.describe("dashboard desktop", () => {
     const desktopNav = page.getByRole("navigation", { name: /Primary desktop/i });
     await expect(desktopNav).toBeVisible();
     await expect(desktopNav.getByRole("link", { name: /Market Status/i })).toHaveCount(0);
-    await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveCount(0);
+    await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveAttribute("href", "/my-symbols");
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();

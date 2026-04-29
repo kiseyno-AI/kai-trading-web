@@ -144,13 +144,14 @@ Used by the main operator surfaces such as:
 
 Expected behavior:
 
-- fixed top app bar composed from `src/components/navigation/dashboard-toolbar.tsx`
+- fixed top app bar composed inside `MobileAppChrome` from `src/components/navigation/dashboard-toolbar.tsx`; routes provide only `topbar` slots/config
 - bottom tab bar
 - active-tab highlighting
-- desktop left rail when viewed at larger widths
+- desktop left rail when viewed at larger widths, derived from the shared app chrome route model
 - locale switch in shell chrome
 - release version visibility
 - sibling-route prefetching for toolbar targets
+- bottom accessory and floating layer slots that inherit the shell-owned safe-area/floating offset
 
 Primary nav destinations:
 
@@ -168,7 +169,7 @@ Used by broader workspace-style routes such as:
 - `/markets/factors`
 - `/bots`
 
-`AppShell` uses the same shared dashboard toolbar component as `MobileAppChrome`, adding route copy, search, notification, locale, and profile slots instead of maintaining a separate top-bar implementation.
+`AppShell` uses the same shared dashboard toolbar component as `MobileAppChrome`, adding route copy, search, notification, locale, and profile slots instead of maintaining a separate top-bar implementation. Its default sidebar/nav and search suggestions are generated from the same route descriptors used by the full-page mobile chrome.
 
 Expected behavior:
 

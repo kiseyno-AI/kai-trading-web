@@ -29,8 +29,8 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 
 | Surface | File | API | Notes |
 | --- | --- | --- | --- |
-| Desktop rail | `src/components/mobile/mobile-app-chrome.tsx` | none | `MobileAppChrome` now renders a desktop-only KAI Trading rail with `Dashboard`, `Search`, `Market Status`, and `My Symbols` navigation. |
-| Desktop top bar | `src/components/navigation/dashboard-toolbar.tsx` | route slot/config | `MobileAppChrome` and `AppShell` compose the shared dashboard toolbar instead of keeping per-route top-bar markup. Screens provide only status/actions or a small leading control such as a back link. |
+| Desktop rail | `src/components/mobile/mobile-app-chrome.tsx` + `src/lib/app-chrome-routes.ts` | shared route model | `MobileAppChrome` renders a desktop-only KAI Trading rail from the same descriptors as the mobile bottom nav: `Dashboard`, `Search`, `Calendar`, `Assets`, and `My Symbols`. |
+| Desktop top bar | `src/components/navigation/dashboard-toolbar.tsx` | route slot/config | `MobileAppChrome` and `AppShell` compose the shared dashboard toolbar instead of keeping per-route top-bar markup. Screens provide only `topbar` slots/config such as status/actions or a small leading control. |
 
 ## Dashboard: `/dashboard`
 

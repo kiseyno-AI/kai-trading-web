@@ -11,7 +11,7 @@ import styles from "./dashboard-toolbar.module.css";
 
 export type DashboardToolbarStatusTone = "positive" | "negative" | "neutral" | "info" | "warning" | "closed";
 
-type DashboardToolbarProps = {
+export type DashboardToolbarProps = {
   actions?: ReactNode;
   className?: string;
   leading?: ReactNode;
