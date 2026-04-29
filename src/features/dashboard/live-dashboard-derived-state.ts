@@ -7,6 +7,7 @@ import {
   getLatestTechnicalMarketDate,
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp } from "@/lib/format";
+import { buildFactorQualitySummary } from "@/lib/factor-quality";
 import { resolvePiotroskiMarketDateResolution } from "@/lib/piotroski-pass-list";
 import {
   getPresenterStageDisplayLabel,
@@ -38,10 +39,13 @@ import type {
   EodFreshnessResponseDto,
   EodMarketRiskFiltersResponseDto,
   EodFreshnessStageDto,
+  EodMomentumFactorsResponseDto,
   EodPipelineStageDto,
   EodPipelineStageKey,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  EodValueFactorItemDto,
+  EodValueFactorsResponseDto,
   MarketSnapshotResponseDto,
 } from "@/types/trading-api";
 
@@ -521,16 +525,278 @@ function getScoringStageLabel(stageKey: ScoringStageKey, copy: DashboardLiveCopy
   return copy.scoring.stages.momentum;
 }
 
-function getScoringStageStatus(
-  pipelineStage: EodPipelineStageDto | null | undefined,
-  requestedMarketDate: string | null,
-): ScoringStageStatus {
-  if (isRunningPipelineStage(pipelineStage)) return "loading";
-  if (isCompletedPipelineStage(pipelineStage)) return "completed";
+type ScoringStageResultSummary = {
+  displayMarketDate: string | null;
+  error: string | null;
+  hasResult: boolean;
+  isLatestFallback: boolean;
+  loadState: FilteringStageLoadState;
+  metrics: ScoringStageMetric[];
+  progressLabel: string;
+  requestedMarketDate: string | null;
+};
 
-  const normalizedStatus = normalizePipelineStageStatus(pipelineStage);
-  if (
-    normalizedStatus &&
+function getFactorInspectItems<TItem extends { symbol: string }>(
+  response: {
+    item?: TItem | null;
+    items?: TItem[] | null;
+  } | null,
+) {
+  const itemsBySymbol = new Map<string, TItem>();
+
+  if (response?.item) {
+    itemsBySymbol.set(response.item.symbol.trim().toUpperCase(), response.item);
+  }
+
+  for (const item of response?.items ?? []) {
+    itemsBySymbol.set(item.symbol.trim().toUpperCase(), item);
+  }
+
+  return Array.from(itemsBySymbol.values());
+}
+
+function getScoringResultDateResolution(
+  response: {
+    market_date?: string | null;
+    requested_market_date?: string | null;
+    resolved_market_date?: string | null;
+    is_latest_fallback?: boolean | null;
+  } | null,
+  requestedMarketDate: string | null,
+) {
+  return resolvePiotroskiMarketDateResolution(response, requestedMarketDate);
+}
+
+function getScoringCountProgressLabel(
+  processedCount: number | null | undefined,
+  totalCount: number | null | undefined,
+  numberLocale: string,
+) {
+  if (hasNumber(processedCount) && hasNumber(totalCount)) {
+    return buildProcessMonitorProgressLabel(processedCount, totalCount, numberLocale);
+  }
+  if (hasNumber(processedCount)) return processedCount.toLocaleString(numberLocale);
+  if (hasNumber(totalCount)) return `0 / ${totalCount.toLocaleString(numberLocale)}`;
+  return UNKNOWN_LABEL;
+}
+
+function addScoringCountMetric(
+  metrics: ScoringStageMetric[],
+  key: string,
+  label: string,
+  value: number | null | undefined,
+  numberLocale: string,
+) {
+  if (!hasNumber(value) || value <= 0) return;
+  metrics.push(buildScoringMetric(key, label, value.toLocaleString(numberLocale)));
+}
+
+function buildBaseScoringResultSummary({
+  displayMarketDate,
+  error,
+  isLatestFallback,
+  loadState,
+  metrics,
+  processedCount,
+  requestedMarketDate,
+  totalCount,
+}: {
+  displayMarketDate: string | null;
+  error: string | null;
+  isLatestFallback: boolean;
+  loadState: FilteringStageLoadState;
+  metrics: ScoringStageMetric[];
+  processedCount: number | null;
+  requestedMarketDate: string | null;
+  totalCount: number | null;
+}): ScoringStageResultSummary {
+  return {
+    displayMarketDate,
+    error,
+    hasResult: loadState === "ready" && (hasNumber(processedCount) || hasNumber(totalCount)),
+    isLatestFallback,
+    loadState,
+    metrics,
+    progressLabel: metrics[0]?.value ?? UNKNOWN_LABEL,
+    requestedMarketDate,
+  };
+}
+
+function buildUnifiedValueScoringResultSummary({
+  copy,
+  numberLocale,
+  requestedMarketDate,
+  response,
+  responseError,
+  responseLoadState,
+}: {
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  requestedMarketDate: string | null;
+  response: EodValueFactorsResponseDto | null;
+  responseError: string | null;
+  responseLoadState: FilteringStageLoadState;
+}): ScoringStageResultSummary {
+  const resolution = getScoringResultDateResolution(response, requestedMarketDate);
+  const scoredCount = response?.summary.scored_count ?? null;
+  const totalCount = response?.summary.entries ?? null;
+  const metrics = [
+    buildScoringMetric(
+      "progress",
+      copy.processMonitor.progress,
+      getScoringCountProgressLabel(scoredCount, totalCount, numberLocale),
+    ),
+  ];
+
+  addScoringCountMetric(
+    metrics,
+    "invalid",
+    copy.scoring.metrics.invalid,
+    response?.summary.invalid_per_count,
+    numberLocale,
+  );
+  addScoringCountMetric(
+    metrics,
+    "missing",
+    copy.scoring.metrics.missing,
+    response?.summary.missing_metric_count,
+    numberLocale,
+  );
+
+  return buildBaseScoringResultSummary({
+    displayMarketDate: resolution.effectiveMarketDate,
+    error: responseError,
+    isLatestFallback: resolution.isLatestFallback,
+    loadState: responseLoadState,
+    metrics,
+    processedCount: scoredCount,
+    requestedMarketDate: resolution.requestedMarketDate,
+    totalCount,
+  });
+}
+
+function summarizeQualityScoringRows(items: EodValueFactorItemDto[]) {
+  return items.reduce(
+    (summary, item) => {
+      const quality = buildFactorQualitySummary(item);
+      if (!quality?.hasQualityFields) return summary;
+
+      if (quality.calculationState === "complete") summary.completeCount += 1;
+      if (quality.calculationState === "partial") summary.partialCount += 1;
+      if (quality.calculationState !== "unavailable") summary.scoredCount += 1;
+      return summary;
+    },
+    {
+      completeCount: 0,
+      partialCount: 0,
+      scoredCount: 0,
+    },
+  );
+}
+
+function buildQualityScoringResultSummary({
+  copy,
+  numberLocale,
+  requestedMarketDate,
+  response,
+  responseError,
+  responseLoadState,
+}: {
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  requestedMarketDate: string | null;
+  response: EodValueFactorsResponseDto | null;
+  responseError: string | null;
+  responseLoadState: FilteringStageLoadState;
+}): ScoringStageResultSummary {
+  const resolution = getScoringResultDateResolution(response, requestedMarketDate);
+  const items = response ? getFactorInspectItems(response) : [];
+  const qualitySummary = summarizeQualityScoringRows(items);
+  const totalCount = response?.summary.entries ?? (items.length > 0 ? items.length : null);
+  const scoredCount = response ? qualitySummary.scoredCount : null;
+  const missingCount = hasNumber(totalCount) ? Math.max(totalCount - qualitySummary.scoredCount, 0) : null;
+  const metrics = [
+    buildScoringMetric(
+      "progress",
+      copy.processMonitor.progress,
+      getScoringCountProgressLabel(scoredCount, totalCount, numberLocale),
+    ),
+  ];
+
+  addScoringCountMetric(
+    metrics,
+    "complete",
+    copy.agentFeedback.metrics.complete,
+    qualitySummary.completeCount,
+    numberLocale,
+  );
+  addScoringCountMetric(metrics, "partial", copy.scoring.metrics.partial, qualitySummary.partialCount, numberLocale);
+  addScoringCountMetric(metrics, "missing", copy.scoring.metrics.missing, missingCount, numberLocale);
+
+  return {
+    ...buildBaseScoringResultSummary({
+      displayMarketDate: resolution.effectiveMarketDate,
+      error: responseError,
+      isLatestFallback: resolution.isLatestFallback,
+      loadState: responseLoadState,
+      metrics,
+      processedCount: scoredCount,
+      requestedMarketDate: resolution.requestedMarketDate,
+      totalCount,
+    }),
+    hasResult: responseLoadState === "ready" && qualitySummary.scoredCount > 0,
+  };
+}
+
+function buildMomentumScoringResultSummary({
+  copy,
+  numberLocale,
+  requestedMarketDate,
+  response,
+  responseError,
+  responseLoadState,
+}: {
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  requestedMarketDate: string | null;
+  response: EodMomentumFactorsResponseDto | null;
+  responseError: string | null;
+  responseLoadState: FilteringStageLoadState;
+}): ScoringStageResultSummary {
+  const resolution = getScoringResultDateResolution(response, requestedMarketDate);
+  const rankedCount = response?.summary.ranked_symbols ?? null;
+  const totalCount = response?.summary.entries ?? null;
+  const metrics = [
+    buildScoringMetric(
+      "progress",
+      copy.processMonitor.progress,
+      getScoringCountProgressLabel(rankedCount, totalCount, numberLocale),
+    ),
+  ];
+
+  addScoringCountMetric(
+    metrics,
+    "eligible",
+    copy.scoring.metrics.eligible,
+    response?.summary.eligible_symbols,
+    numberLocale,
+  );
+
+  return buildBaseScoringResultSummary({
+    displayMarketDate: resolution.effectiveMarketDate,
+    error: responseError,
+    isLatestFallback: resolution.isLatestFallback,
+    loadState: responseLoadState,
+    metrics,
+    processedCount: rankedCount,
+    requestedMarketDate: resolution.requestedMarketDate,
+    totalCount,
+  });
+}
+
+function isProblemPipelineStageStatus(normalizedStatus: string | null) {
+  return (
+    normalizedStatus !== null &&
     [
       "failed",
       "error",
@@ -542,9 +808,38 @@ function getScoringStageStatus(
       "completed-with-errors",
       "completed_with_errors",
     ].includes(normalizedStatus)
-  ) {
-    return "needs-review";
+  );
+}
+
+function shouldUsePipelineScoringStage(pipelineStage: EodPipelineStageDto | null | undefined) {
+  const normalizedStatus = normalizePipelineStageStatus(pipelineStage);
+  return (
+    isRunningPipelineStage(pipelineStage) ||
+    isCompletedPipelineStage(pipelineStage) ||
+    isProblemPipelineStageStatus(normalizedStatus) ||
+    hasNumber(pipelineStage?.processed) ||
+    hasNumber(pipelineStage?.total) ||
+    (hasNumber(pipelineStage?.failed) && pipelineStage.failed > 0)
+  );
+}
+
+function getScoringStageStatus(
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  requestedMarketDate: string | null,
+  resultSummary: ScoringStageResultSummary,
+): ScoringStageStatus {
+  if (shouldUsePipelineScoringStage(pipelineStage)) {
+    if (isRunningPipelineStage(pipelineStage)) return "loading";
+    if (isCompletedPipelineStage(pipelineStage)) return "completed";
+
+    if (isProblemPipelineStageStatus(normalizePipelineStageStatus(pipelineStage))) {
+      return "needs-review";
+    }
+    if (hasNumber(pipelineStage?.failed) && pipelineStage.failed > 0) return "needs-review";
   }
+
+  if (resultSummary.loadState === "error") return "needs-review";
+  if (resultSummary.hasResult) return "completed";
 
   return requestedMarketDate ? "pending" : "waiting";
 }
@@ -570,7 +865,10 @@ function buildScoringMetric(key: string, label: string, value: string): ScoringS
 function getScoringProgressLabel(
   pipelineStage: EodPipelineStageDto | null | undefined,
   numberLocale: string,
+  resultSummary: ScoringStageResultSummary,
 ) {
+  if (!shouldUsePipelineScoringStage(pipelineStage)) return resultSummary.progressLabel;
+
   const processedCount = pipelineStage?.processed;
   const totalCount = pipelineStage?.total;
 
@@ -596,15 +894,139 @@ function getScoringStageNote(
   status: ScoringStageStatus,
   pipelineStage: EodPipelineStageDto | null | undefined,
   copy: DashboardLiveCopy,
+  resultSummary: ScoringStageResultSummary,
 ) {
-  if (status === "completed") return copy.scoring.notes.completed;
-  if (status === "loading") {
-    const activityLabel = getPipelineActivityLabel(pipelineStage);
-    return activityLabel ? `${copy.scoring.notes.running} ${activityLabel}` : copy.scoring.notes.running;
+  const dateNote = getFilterMarketDateNote(
+    resultSummary.requestedMarketDate,
+    resultSummary.displayMarketDate,
+    resultSummary.isLatestFallback,
+    copy,
+  );
+  const baseNote =
+    status === "completed"
+      ? copy.scoring.notes.completed
+      : status === "loading"
+        ? (() => {
+            const activityLabel = getPipelineActivityLabel(pipelineStage);
+            return activityLabel ? `${copy.scoring.notes.running} ${activityLabel}` : copy.scoring.notes.running;
+          })()
+        : status === "needs-review"
+          ? (resultSummary.error ?? copy.scoring.notes.needsReview)
+          : status === "pending"
+            ? copy.scoring.notes.pending
+            : copy.scoring.notes.waiting;
+
+  return [baseNote, dateNote].filter(Boolean).join(" ");
+}
+
+function getScoringStageMetrics(
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  progressLabel: string,
+  resultSummary: ScoringStageResultSummary,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+) {
+  if (!shouldUsePipelineScoringStage(pipelineStage)) return resultSummary.metrics;
+
+  const metrics = [
+    buildScoringMetric("progress", copy.processMonitor.progress, progressLabel),
+  ];
+  const failedCount = pipelineStage?.failed;
+
+  if (hasNumber(failedCount)) {
+    metrics.push(buildScoringMetric("failed", copy.operational.failed, failedCount.toLocaleString(numberLocale)));
   }
-  if (status === "needs-review") return copy.scoring.notes.needsReview;
-  if (status === "pending") return copy.scoring.notes.pending;
-  return copy.scoring.notes.waiting;
+
+  return metrics;
+}
+
+function getScoringStageDisplayMarketDate(
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  requestedMarketDate: string | null,
+  resultSummary: ScoringStageResultSummary,
+) {
+  if (shouldUsePipelineScoringStage(pipelineStage)) return requestedMarketDate;
+  return getFirstTextValue(resultSummary.displayMarketDate, requestedMarketDate);
+}
+
+function getScoringStageResultSummary(
+  stageKey: ScoringStageKey,
+  summaries: Record<ScoringStageKey, ScoringStageResultSummary>,
+) {
+  return summaries[stageKey];
+}
+
+function getScoringStageFallbackResultSummary(
+  requestedMarketDate: string | null,
+  copy: DashboardLiveCopy,
+): ScoringStageResultSummary {
+  return {
+    displayMarketDate: requestedMarketDate,
+    error: null,
+    hasResult: false,
+    isLatestFallback: false,
+    loadState: "idle",
+    metrics: [buildScoringMetric("progress", copy.processMonitor.progress, UNKNOWN_LABEL)],
+    progressLabel: UNKNOWN_LABEL,
+    requestedMarketDate,
+  };
+}
+
+function buildScoringStageResultSummaries({
+  copy,
+  numberLocale,
+  requestedMarketDate,
+  scoringMomentumFactors,
+  scoringMomentumFactorsError,
+  scoringMomentumFactorsLoadState,
+  scoringValueFactors,
+  scoringValueFactorsError,
+  scoringValueFactorsLoadState,
+}: {
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  requestedMarketDate: string | null;
+  scoringMomentumFactors: EodMomentumFactorsResponseDto | null;
+  scoringMomentumFactorsError: string | null;
+  scoringMomentumFactorsLoadState: FilteringStageLoadState;
+  scoringValueFactors: EodValueFactorsResponseDto | null;
+  scoringValueFactorsError: string | null;
+  scoringValueFactorsLoadState: FilteringStageLoadState;
+}): Record<ScoringStageKey, ScoringStageResultSummary> {
+  const fallback = getScoringStageFallbackResultSummary(requestedMarketDate, copy);
+
+  return {
+    "unified-value": scoringValueFactors || scoringValueFactorsLoadState !== "idle"
+      ? buildUnifiedValueScoringResultSummary({
+          copy,
+          numberLocale,
+          requestedMarketDate,
+          response: scoringValueFactors,
+          responseError: scoringValueFactorsError,
+          responseLoadState: scoringValueFactorsLoadState,
+        })
+      : fallback,
+    quality: scoringValueFactors || scoringValueFactorsLoadState !== "idle"
+      ? buildQualityScoringResultSummary({
+          copy,
+          numberLocale,
+          requestedMarketDate,
+          response: scoringValueFactors,
+          responseError: scoringValueFactorsError,
+          responseLoadState: scoringValueFactorsLoadState,
+        })
+      : fallback,
+    momentum: scoringMomentumFactors || scoringMomentumFactorsLoadState !== "idle"
+      ? buildMomentumScoringResultSummary({
+          copy,
+          numberLocale,
+          requestedMarketDate,
+          response: scoringMomentumFactors,
+          responseError: scoringMomentumFactorsError,
+          responseLoadState: scoringMomentumFactorsLoadState,
+        })
+      : fallback,
+  };
 }
 
 function buildScoringStageModel({
@@ -613,6 +1035,7 @@ function buildScoringStageModel({
   numberLocale,
   pipelineStage,
   requestedMarketDate,
+  resultSummary,
   stageKey,
 }: {
   copy: DashboardLiveCopy;
@@ -620,19 +1043,17 @@ function buildScoringStageModel({
   numberLocale: string;
   pipelineStage: EodPipelineStageDto | null | undefined;
   requestedMarketDate: string | null;
+  resultSummary: ScoringStageResultSummary;
   stageKey: ScoringStageKey;
 }): ScoringStageModel {
-  const displayMarketDate = getFirstTextValue(requestedMarketDate);
-  const status = forceWaiting ? "waiting" : getScoringStageStatus(pipelineStage, displayMarketDate);
-  const progressLabel = forceWaiting ? UNKNOWN_LABEL : getScoringProgressLabel(pipelineStage, numberLocale);
-  const failedCount = forceWaiting ? null : pipelineStage?.failed;
-  const metrics = [
-    buildScoringMetric("progress", copy.processMonitor.progress, progressLabel),
-  ];
-
-  if (hasNumber(failedCount)) {
-    metrics.push(buildScoringMetric("failed", copy.operational.failed, failedCount.toLocaleString(numberLocale)));
-  }
+  const displayMarketDate = forceWaiting
+    ? null
+    : getScoringStageDisplayMarketDate(pipelineStage, requestedMarketDate, resultSummary);
+  const status = forceWaiting ? "waiting" : getScoringStageStatus(pipelineStage, requestedMarketDate, resultSummary);
+  const progressLabel = forceWaiting ? UNKNOWN_LABEL : getScoringProgressLabel(pipelineStage, numberLocale, resultSummary);
+  const metrics = forceWaiting
+    ? [buildScoringMetric("progress", copy.processMonitor.progress, UNKNOWN_LABEL)]
+    : getScoringStageMetrics(pipelineStage, progressLabel, resultSummary, copy, numberLocale);
 
   return {
     key: stageKey,
@@ -640,7 +1061,7 @@ function buildScoringStageModel({
     displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
     label: getScoringStageLabel(stageKey, copy),
     metrics,
-    note: getScoringStageNote(status, pipelineStage, copy),
+    note: forceWaiting ? copy.scoring.notes.waiting : getScoringStageNote(status, pipelineStage, copy, resultSummary),
     progressLabel,
     status,
     statusLabel: getScoringStageStatusLabel(status, copy),
@@ -653,15 +1074,38 @@ export function buildScoringCardModel({
   forceWaiting = false,
   numberLocale,
   pipelineStatus,
+  scoringMomentumFactors = null,
+  scoringMomentumFactorsError = null,
+  scoringMomentumFactorsLoadState = "idle",
   scoringMarketDate,
+  scoringValueFactors = null,
+  scoringValueFactorsError = null,
+  scoringValueFactorsLoadState = "idle",
 }: {
   copy: DashboardLiveCopy;
   forceWaiting?: boolean;
   numberLocale: string;
   pipelineStatus: EodPipelineStatusResponseDto | null;
+  scoringMomentumFactors?: EodMomentumFactorsResponseDto | null;
+  scoringMomentumFactorsError?: string | null;
+  scoringMomentumFactorsLoadState?: FilteringStageLoadState;
   scoringMarketDate: string | null;
+  scoringValueFactors?: EodValueFactorsResponseDto | null;
+  scoringValueFactorsError?: string | null;
+  scoringValueFactorsLoadState?: FilteringStageLoadState;
 }): ScoringCardModel {
   const requestedMarketDate = getFirstTextValue(pipelineStatus?.market_date, scoringMarketDate);
+  const resultSummaries = buildScoringStageResultSummaries({
+    copy,
+    numberLocale,
+    requestedMarketDate,
+    scoringMomentumFactors,
+    scoringMomentumFactorsError,
+    scoringMomentumFactorsLoadState,
+    scoringValueFactors,
+    scoringValueFactorsError,
+    scoringValueFactorsLoadState,
+  });
 
   return {
     stages: SCORING_STAGE_DEFINITIONS.map((stage) =>
@@ -671,6 +1115,7 @@ export function buildScoringCardModel({
         numberLocale,
         pipelineStage: getPipelineStage(pipelineStatus, stage.pipelineKey),
         requestedMarketDate,
+        resultSummary: getScoringStageResultSummary(stage.key, resultSummaries),
         stageKey: stage.key,
       }),
     ),
@@ -1416,9 +1861,28 @@ export function shouldRevalidateFilteringFallback({
   pipelineStatus: EodPipelineStatusResponseDto | null;
   agentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
 }) {
-  const hasRequestedDateFallback =
-    isFilteringFallbackForRequestedMarketDate(piotroskiStatus, requestedMarketDate) ||
-    isFilteringFallbackForRequestedMarketDate(marketRiskStatus, requestedMarketDate);
+  return shouldRevalidateLatestAvailableFallback({
+    requestedMarketDate,
+    latestFallbackStatuses: [piotroskiStatus, marketRiskStatus],
+    pipelineStatus,
+    agentFeedbackProgress,
+  });
+}
+
+export function shouldRevalidateLatestAvailableFallback({
+  requestedMarketDate,
+  latestFallbackStatuses,
+  pipelineStatus,
+  agentFeedbackProgress,
+}: {
+  requestedMarketDate: string | null | undefined;
+  latestFallbackStatuses: Array<FilteringFallbackStatus | null>;
+  pipelineStatus: EodPipelineStatusResponseDto | null;
+  agentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
+}) {
+  const hasRequestedDateFallback = latestFallbackStatuses.some((status) =>
+    isFilteringFallbackForRequestedMarketDate(status, requestedMarketDate),
+  );
   if (!hasRequestedDateFallback) return false;
 
   return (

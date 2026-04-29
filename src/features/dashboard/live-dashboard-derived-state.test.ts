@@ -7,8 +7,10 @@ import type {
   DartFundamentalsDailyRunDto,
   EodFreshnessStageDto,
   EodMarketRiskFiltersResponseDto,
+  EodMomentumFactorsResponseDto,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  EodValueFactorsResponseDto,
   MarketSnapshotResponseDto,
 } from "@/types/trading-api";
 
@@ -1220,6 +1222,129 @@ test("builds a scoring card from non-agent pipeline scoring stages", () => {
   assert.equal(
     model.stages[2]?.note,
     `${copy.scoring.notes.running} Momentum Scoring · Rank Symbols · Symbol 005930`,
+  );
+});
+
+test("uses latest-valid factor results when same-day scoring stages are absent", () => {
+  const copy = getDashboardLiveCopy("en");
+  const scoringValueFactors = {
+    market_date: "2026-04-18",
+    requested_market_date: "2026-04-21",
+    resolved_market_date: "2026-04-18",
+    is_latest_fallback: true,
+    summary: {
+      entries: 3,
+      requested_symbol: null,
+      matched_symbols: ["005930", "000660", "035420"],
+      missing_symbols: [],
+      scored_count: 2,
+      invalid_per_count: 1,
+      missing_metric_count: 0,
+    },
+    items: [
+      {
+        symbol: "005930",
+        market_date: "2026-04-18",
+        quality_score: 0.91,
+        quality_status: "scored_complete",
+        is_quality_score_complete: true,
+      },
+      {
+        symbol: "000660",
+        market_date: "2026-04-18",
+        quality_score: 0.63,
+        quality_status: "scored_partial",
+        is_quality_score_complete: false,
+      },
+    ],
+  } as EodValueFactorsResponseDto;
+  const scoringMomentumFactors = {
+    market_date: "2026-04-18",
+    requested_market_date: "2026-04-21",
+    resolved_market_date: "2026-04-18",
+    is_latest_fallback: true,
+    summary: {
+      entries: 3,
+      requested_symbols: [],
+      matched_symbols: ["005930", "000660", "035420"],
+      missing_symbols: [],
+      ranked_symbols: 3,
+      eligible_symbols: 2,
+    },
+    items: [],
+  } as EodMomentumFactorsResponseDto;
+  const model = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: {
+      market_date: "2026-04-21",
+      status: "completed",
+      stage_order: ["price_collection", "technical_snapshots", "action_summaries"],
+      stages: {},
+    },
+    scoringMarketDate: "2026-04-21",
+    scoringMomentumFactors,
+    scoringMomentumFactorsLoadState: "ready",
+    scoringValueFactors,
+    scoringValueFactorsLoadState: "ready",
+  });
+
+  assert.deepEqual(model.stages.map((stage) => stage.status), ["completed", "completed", "completed"]);
+  assert.deepEqual(model.stages.map((stage) => stage.displayMarketDate), [
+    "2026-04-18",
+    "2026-04-18",
+    "2026-04-18",
+  ]);
+  assert.equal(model.stages[0]?.progressLabel, "2 / 3");
+  assert.deepEqual(model.stages[0]?.metrics, [
+    {
+      key: "progress",
+      label: copy.processMonitor.progress,
+      value: "2 / 3",
+    },
+    {
+      key: "invalid",
+      label: copy.scoring.metrics.invalid,
+      value: "1",
+    },
+  ]);
+  assert.deepEqual(model.stages[1]?.metrics, [
+    {
+      key: "progress",
+      label: copy.processMonitor.progress,
+      value: "2 / 3",
+    },
+    {
+      key: "complete",
+      label: copy.agentFeedback.metrics.complete,
+      value: "1",
+    },
+    {
+      key: "partial",
+      label: copy.scoring.metrics.partial,
+      value: "1",
+    },
+    {
+      key: "missing",
+      label: copy.scoring.metrics.missing,
+      value: "1",
+    },
+  ]);
+  assert.deepEqual(model.stages[2]?.metrics, [
+    {
+      key: "progress",
+      label: copy.processMonitor.progress,
+      value: "3 / 3",
+    },
+    {
+      key: "eligible",
+      label: copy.scoring.metrics.eligible,
+      value: "2",
+    },
+  ]);
+  assert.equal(
+    model.stages[0]?.note,
+    `${copy.scoring.notes.completed} ${copy.piotroski.requestedDate} 2026-04-21 · ${copy.piotroski.latestAvailableDate} 2026-04-18`,
   );
 });
 

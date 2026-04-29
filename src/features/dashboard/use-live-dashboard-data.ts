@@ -34,6 +34,7 @@ import {
   getEodPipelineStatusPollDelayMs,
   getMarketSnapshotPollDelayMs,
   getSignalDeciderFeedbackPollDelayMs,
+  shouldRevalidateLatestAvailableFallback,
   shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
 import {
@@ -54,8 +55,10 @@ import type {
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
   EodMarketRiskFiltersResponseDto,
+  EodMomentumFactorsResponseDto,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  EodValueFactorsResponseDto,
   MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
@@ -141,6 +144,32 @@ async function getJsonNoCache<T>(path: string, options: { signal?: AbortSignal }
   return parsedBody as T;
 }
 
+type LatestAvailableMarketDateResponse = {
+  market_date?: string | null;
+  requested_market_date?: string | null;
+  resolved_market_date?: string | null;
+  is_latest_fallback?: boolean | null;
+};
+
+function normalizeMarketDateKey(value: string | null | undefined) {
+  return value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
+}
+
+function hasResponseForRequestedMarketDate(
+  response: LatestAvailableMarketDateResponse | null | undefined,
+  requestedMarketDate: string | null,
+) {
+  const requestedDate = normalizeMarketDateKey(requestedMarketDate);
+  if (!response || !requestedDate) return false;
+
+  return (
+    normalizeMarketDateKey(response.market_date) === requestedDate ||
+    normalizeMarketDateKey(response.resolved_market_date) === requestedDate ||
+    normalizeMarketDateKey(response.requested_market_date) === requestedDate ||
+    response.is_latest_fallback === true
+  );
+}
+
 export function useLiveDashboardData({
   initialError = null,
   initialMarket,
@@ -150,6 +179,8 @@ export function useLiveDashboardData({
   initialPipelineStatus,
   initialPiotroskiStatus = null,
   initialMarketRiskStatus = null,
+  initialScoringValueFactors = null,
+  initialScoringMomentumFactors = null,
   initialMarketSnapshot,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
@@ -216,6 +247,27 @@ export function useLiveDashboardData({
   const [filteringReloadCompletionKey, setFilteringReloadCompletionKey] = useState<FilteringReloadKey>(
     INITIAL_FILTERING_RELOAD_KEY,
   );
+  const [scoringValueFactors, setScoringValueFactors] = useState<EodValueFactorsResponseDto | null>(
+    initialScoringValueFactors,
+  );
+  const scoringValueFactorsRef = useRef<EodValueFactorsResponseDto | null>(initialScoringValueFactors);
+  const [scoringValueFactorsError, setScoringValueFactorsError] = useState<string | null>(null);
+  const [scoringValueFactorsLoadState, setScoringValueFactorsLoadState] = useState<FilteringStageLoadState>(
+    initialDashboardProcessMarketDate ? (initialScoringValueFactors ? "ready" : "loading") : "idle",
+  );
+  const [scoringMomentumFactors, setScoringMomentumFactors] = useState<EodMomentumFactorsResponseDto | null>(
+    initialScoringMomentumFactors,
+  );
+  const scoringMomentumFactorsRef = useRef<EodMomentumFactorsResponseDto | null>(initialScoringMomentumFactors);
+  const [scoringMomentumFactorsError, setScoringMomentumFactorsError] = useState<string | null>(null);
+  const [scoringMomentumFactorsLoadState, setScoringMomentumFactorsLoadState] = useState<FilteringStageLoadState>(
+    initialDashboardProcessMarketDate ? (initialScoringMomentumFactors ? "ready" : "loading") : "idle",
+  );
+  const [scoringReloadCount, setScoringReloadCount] = useState(0);
+  const scoringReloadKeyRef = useRef<FilteringReloadKey>(INITIAL_FILTERING_RELOAD_KEY);
+  const [scoringReloadCompletionKey, setScoringReloadCompletionKey] = useState<FilteringReloadKey>(
+    INITIAL_FILTERING_RELOAD_KEY,
+  );
   const [marketError, setMarketError] = useState<string | null>(initialError);
   const [trackedError, setTrackedError] = useState<string | null>(initialError);
 
@@ -257,6 +309,14 @@ export function useLiveDashboardData({
         `/api/trading/eod/market-risk-filters?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}`,
         initialMarketRiskStatus,
       );
+      seedTradingApiJsonCache(
+        `/api/trading/eod/value-factors?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}`,
+        initialScoringValueFactors,
+      );
+      seedTradingApiJsonCache(
+        `/api/trading/eod/momentum-factors?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}`,
+        initialScoringMomentumFactors,
+      );
     }
     void warmMobileToolbarViewData("dashboard");
   }, [
@@ -267,6 +327,8 @@ export function useLiveDashboardData({
     initialMarketRiskStatus,
     initialPiotroskiStatus,
     initialPortfolioSummary,
+    initialScoringMomentumFactors,
+    initialScoringValueFactors,
     initialTracked,
   ]);
 
@@ -488,6 +550,18 @@ export function useLiveDashboardData({
     currentMarketDate: filteringMarketDate,
     reloadCount: filteringReloadCount,
   });
+  const scoringMarketDate = dashboardProcessMarketDate;
+  const shouldScheduleScoringFallbackRevalidation = shouldRevalidateLatestAvailableFallback({
+    requestedMarketDate: scoringMarketDate,
+    latestFallbackStatuses: [scoringValueFactors, scoringMomentumFactors],
+    pipelineStatus,
+    agentFeedbackProgress,
+  });
+  const hasCompletedActiveScoringReload = hasCompletedFilteringReload({
+    completionKey: scoringReloadCompletionKey,
+    currentMarketDate: scoringMarketDate,
+    reloadCount: scoringReloadCount,
+  });
 
   useEffect(() => {
     if (!filteringMarketDate) return;
@@ -504,14 +578,18 @@ export function useLiveDashboardData({
     };
 
     const loadFilteringStatus = async () => {
-      const hasCurrentPiotroskiSnapshot = piotroskiStatusRef.current?.market_date === filteringMarketDate;
-      const hasCurrentMarketRiskSnapshot = marketRiskStatusRef.current?.market_date === filteringMarketDate;
+      const hasCurrentPiotroskiSnapshot = hasResponseForRequestedMarketDate(
+        piotroskiStatusRef.current,
+        filteringMarketDate,
+      );
+      const hasCurrentMarketRiskSnapshot = hasResponseForRequestedMarketDate(
+        marketRiskStatusRef.current,
+        filteringMarketDate,
+      );
       const canReuseCurrentFilteringSnapshot =
         !isBackgroundReload &&
         hasCurrentPiotroskiSnapshot &&
-        hasCurrentMarketRiskSnapshot &&
-        !piotroskiStatusError &&
-        !marketRiskStatusError;
+        hasCurrentMarketRiskSnapshot;
 
       if (!isBackgroundReload && !canReuseCurrentFilteringSnapshot) {
         piotroskiStatusRef.current = null;
@@ -600,6 +678,123 @@ export function useLiveDashboardData({
     filteringReloadCount,
     hasCompletedActiveFilteringReload,
     shouldScheduleFilteringFallbackRevalidation,
+  ]);
+
+  useEffect(() => {
+    if (!scoringMarketDate) return;
+
+    let active = true;
+    const isBackgroundReload = isFilteringBackgroundReload({
+      currentMarketDate: scoringMarketDate,
+      previousReloadKey: scoringReloadKeyRef.current,
+      reloadCount: scoringReloadCount,
+    });
+    scoringReloadKeyRef.current = {
+      marketDate: scoringMarketDate,
+      reloadCount: scoringReloadCount,
+    };
+
+    const loadScoringStatus = async () => {
+      const hasCurrentValueSnapshot = hasResponseForRequestedMarketDate(
+        scoringValueFactorsRef.current,
+        scoringMarketDate,
+      );
+      const hasCurrentMomentumSnapshot = hasResponseForRequestedMarketDate(
+        scoringMomentumFactorsRef.current,
+        scoringMarketDate,
+      );
+      const canReuseCurrentScoringSnapshot =
+        !isBackgroundReload &&
+        hasCurrentValueSnapshot &&
+        hasCurrentMomentumSnapshot;
+
+      if (!isBackgroundReload && !canReuseCurrentScoringSnapshot) {
+        scoringValueFactorsRef.current = null;
+        setScoringValueFactors(null);
+        setScoringValueFactorsError(null);
+        setScoringValueFactorsLoadState("loading");
+        scoringMomentumFactorsRef.current = null;
+        setScoringMomentumFactors(null);
+        setScoringMomentumFactorsError(null);
+        setScoringMomentumFactorsLoadState("loading");
+      }
+
+      const marketDateParam = encodeURIComponent(scoringMarketDate);
+      const [valueResult, momentumResult] = await Promise.allSettled([
+        getJsonNoCache<EodValueFactorsResponseDto>(
+          `/api/trading/eod/value-factors?market_date=${marketDateParam}`,
+        ),
+        getJsonNoCache<EodMomentumFactorsResponseDto>(
+          `/api/trading/eod/momentum-factors?market_date=${marketDateParam}`,
+        ),
+      ]);
+
+      if (!active) return;
+
+      if (valueResult.status === "fulfilled") {
+        scoringValueFactorsRef.current = valueResult.value;
+        setScoringValueFactors(valueResult.value);
+        setScoringValueFactorsError(null);
+        setScoringValueFactorsLoadState("ready");
+      } else {
+        console.error("Dashboard value scoring summary load failed", valueResult.reason);
+        if (!isBackgroundReload) {
+          scoringValueFactorsRef.current = null;
+          setScoringValueFactors(null);
+          setScoringValueFactorsError(getDashboardLoadErrorMessage(valueResult.reason));
+          setScoringValueFactorsLoadState("error");
+        }
+      }
+
+      if (momentumResult.status === "fulfilled") {
+        scoringMomentumFactorsRef.current = momentumResult.value;
+        setScoringMomentumFactors(momentumResult.value);
+        setScoringMomentumFactorsError(null);
+        setScoringMomentumFactorsLoadState("ready");
+      } else {
+        console.error("Dashboard momentum scoring summary load failed", momentumResult.reason);
+        if (!isBackgroundReload) {
+          scoringMomentumFactorsRef.current = null;
+          setScoringMomentumFactors(null);
+          setScoringMomentumFactorsError(getDashboardLoadErrorMessage(momentumResult.reason));
+          setScoringMomentumFactorsLoadState("error");
+        }
+      }
+
+      setScoringReloadCompletionKey({
+        marketDate: scoringMarketDate,
+        reloadCount: scoringReloadCount,
+      });
+    };
+
+    void loadScoringStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [scoringMarketDate, scoringReloadCount]);
+
+  useEffect(() => {
+    if (
+      !scoringMarketDate ||
+      !shouldScheduleScoringFallbackRevalidation ||
+      !hasCompletedActiveScoringReload
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setScoringReloadCount((current) => current + 1);
+    }, FILTERING_FALLBACK_REVALIDATE_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    hasCompletedActiveScoringReload,
+    scoringMarketDate,
+    scoringReloadCount,
+    shouldScheduleScoringFallbackRevalidation,
   ]);
 
   useEffect(() => {
@@ -796,6 +991,12 @@ export function useLiveDashboardData({
     portfolioSummary,
     portfolioSummaryError,
     portfolioSummaryLoadState,
+    scoringMomentumFactors: scoringMarketDate ? scoringMomentumFactors : null,
+    scoringMomentumFactorsError: scoringMarketDate ? scoringMomentumFactorsError : null,
+    scoringMomentumFactorsLoadState: scoringMarketDate ? scoringMomentumFactorsLoadState : "idle",
+    scoringValueFactors: scoringMarketDate ? scoringValueFactors : null,
+    scoringValueFactorsError: scoringMarketDate ? scoringValueFactorsError : null,
+    scoringValueFactorsLoadState: scoringMarketDate ? scoringValueFactorsLoadState : "idle",
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
     signalDeciderFeedback:

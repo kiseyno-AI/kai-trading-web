@@ -950,6 +950,11 @@ export type EodActionSummariesResponseDto = {
 
 export type EodFactorInspectResponseDto<TItem, TSummary> = {
   market_date?: string | null;
+  requested_market_date?: string | null;
+  resolved_market_date?: string | null;
+  latest_mode?: boolean | null;
+  is_latest_fallback?: boolean | null;
+  fallback_policy?: string | null;
   feature_version?: string | null;
   summary: TSummary;
   item?: TItem | null;

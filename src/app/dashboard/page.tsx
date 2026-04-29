@@ -28,8 +28,10 @@ import type {
   DartFundamentalsDailyInspectResponseDto,
   EodFreshnessResponseDto,
   EodMarketRiskFiltersResponseDto,
+  EodMomentumFactorsResponseDto,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
+  EodValueFactorsResponseDto,
   MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
@@ -100,6 +102,8 @@ export default async function DashboardPage() {
   let pipelineStatus: EodPipelineStatusResponseDto | null = null;
   let piotroskiStatus: EodPiotroskiFilterResultsResponseDto | null = null;
   let marketRiskStatus: EodMarketRiskFiltersResponseDto | null = null;
+  let scoringValueFactors: EodValueFactorsResponseDto | null = null;
+  let scoringMomentumFactors: EodMomentumFactorsResponseDto | null = null;
   let marketSnapshot: MarketSnapshotResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
@@ -131,7 +135,14 @@ export default async function DashboardPage() {
     );
 
     const progressPath = buildAgentFeedbackProgressPath(freshness);
-    [fundamentalsStatus, agentFeedbackProgress, piotroskiStatus, marketRiskStatus] = await Promise.all([
+    [
+      fundamentalsStatus,
+      agentFeedbackProgress,
+      piotroskiStatus,
+      marketRiskStatus,
+      scoringValueFactors,
+      scoringMomentumFactors,
+    ] = await Promise.all([
       fetchServerTradingApiJson<DartFundamentalsDailyInspectResponseDto>(
         buildDartFundamentalsDailyInspectPath(
           DART_FUNDAMENTALS_DAILY_INSPECT_UPSTREAM_PATH,
@@ -151,6 +162,18 @@ export default async function DashboardPage() {
       resolvedDashboardProcessMarketDate
         ? fetchServerTradingApiJson<EodMarketRiskFiltersResponseDto>(
             `/eod/market-risk-filters?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}`,
+            requestHeaders,
+          ).catch(() => null)
+        : Promise.resolve(null),
+      resolvedDashboardProcessMarketDate
+        ? fetchServerTradingApiJson<EodValueFactorsResponseDto>(
+            `/eod/value-factors?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}`,
+            requestHeaders,
+          ).catch(() => null)
+        : Promise.resolve(null),
+      resolvedDashboardProcessMarketDate
+        ? fetchServerTradingApiJson<EodMomentumFactorsResponseDto>(
+            `/eod/momentum-factors?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}`,
             requestHeaders,
           ).catch(() => null)
         : Promise.resolve(null),
@@ -183,6 +206,8 @@ export default async function DashboardPage() {
       initialPipelineStatus={pipelineStatus}
       initialPiotroskiStatus={piotroskiStatus}
       initialMarketRiskStatus={marketRiskStatus}
+      initialScoringValueFactors={scoringValueFactors}
+      initialScoringMomentumFactors={scoringMomentumFactors}
       initialMarketSnapshot={marketSnapshot}
       initialAgentFeedbackProgress={agentFeedbackProgress}
       initialSignalDeciderFeedback={signalDeciderFeedback}

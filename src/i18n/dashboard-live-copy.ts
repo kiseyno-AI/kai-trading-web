@@ -135,6 +135,13 @@ const dashboardLiveCopy = {
         pending: "Pending",
         waiting: "Waiting",
       },
+      metrics: {
+        eligible: "Eligible",
+        invalid: "Invalid",
+        missing: "Missing",
+        partial: "Partial",
+        scored: "Scored",
+      },
       notes: {
         completed: "EOD scoring status is complete for the selected market date.",
         running: "EOD scoring is running for the selected market date.",
@@ -410,6 +417,13 @@ const dashboardLiveCopy = {
         needsReview: "확인 필요",
         pending: "대기",
         waiting: "대기",
+      },
+      metrics: {
+        eligible: "적격",
+        invalid: "무효",
+        missing: "누락",
+        partial: "부분",
+        scored: "스코어링",
       },
       notes: {
         completed: "선택한 기준일의 EOD 스코어링 상태가 완료되었습니다.",
