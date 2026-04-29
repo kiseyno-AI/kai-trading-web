@@ -678,7 +678,7 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
         <div className={styles.emptyState}>{copy.signalDecider.empty}</div>
       )}
 
-      <Link href={model.detailHref} className={styles.signalDeciderDetailLink} aria-label={copy.signalDecider.openDetail}>
+      <Link href={model.detailHref} className={styles.signalDeciderMoreLink} aria-label={copy.signalDecider.openDetail}>
         {copy.signalDecider.viewDetail}
       </Link>
     </article>
