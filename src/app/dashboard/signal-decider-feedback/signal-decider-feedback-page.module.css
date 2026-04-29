@@ -208,6 +208,50 @@
   gap: 0.68rem;
 }
 
+.resultDecisionSection,
+.resultReviewSection {
+  min-width: 0;
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(134, 162, 194, 0.14);
+  border-radius: 0.5rem;
+}
+
+.resultDecisionSection {
+  background: rgba(8, 17, 31, 0.58);
+}
+
+.resultReviewSection {
+  background: rgba(3, 7, 13, 0.38);
+}
+
+.resultSectionHeader {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.resultSectionHeader span,
+.resultMetaRow span {
+  color: var(--muted-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.resultSectionHeader strong {
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .scoreStack {
   display: grid;
   gap: 0.42rem;
@@ -255,10 +299,6 @@
   min-width: 0;
   display: grid;
   gap: 0.36rem;
-  padding: 0.78rem;
-  border: 1px solid rgba(134, 162, 194, 0.14);
-  border-radius: 0.5rem;
-  background: rgba(8, 17, 31, 0.5);
 }
 
 .resultThesis p {
@@ -267,6 +307,47 @@
   color: var(--text);
   font-size: 0.82rem;
   line-height: 1.62;
+}
+
+.reviewPending {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.72rem;
+  border: 1px dashed rgba(134, 162, 194, 0.26);
+  border-radius: 0.5rem;
+  background: rgba(8, 17, 31, 0.38);
+}
+
+.reviewPending strong {
+  color: var(--text-strong);
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.reviewPending p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.reviewNote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.resultMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.48rem;
+}
+
+.resultMetaRow span {
+  overflow-wrap: anywhere;
 }
 
 .resultFooter {
@@ -493,15 +574,18 @@
   background: rgba(8, 17, 31, 0.72);
 }
 
-.decisionHero :global(.pill) {
-  justify-self: start;
-}
-
 .decisionHero strong {
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 1.35rem;
   line-height: 1.1;
+}
+
+.decisionHero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .metricList,
@@ -541,6 +625,22 @@
 
 .thesisSection {
   background: rgba(8, 17, 31, 0.62);
+}
+
+.reviewDetailSection {
+  background: rgba(3, 7, 13, 0.4);
+}
+
+.reviewVerdictBlock {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.reviewVerdictBlock :global(.pill) {
+  justify-self: start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .outcomeGrid {

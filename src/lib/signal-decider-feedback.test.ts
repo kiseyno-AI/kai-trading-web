@@ -215,6 +215,8 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.symbol, "005930");
   assert.equal(items[0]?.companyName, "Samsung Electronics");
   assert.equal(items[0]?.action, "buy");
+  assert.equal(items[0]?.preferredAction, "buy");
+  assert.equal(items[0]?.nextDayOpenAction, "buy");
   assert.equal(items[0]?.confidenceScore, 8);
   assert.equal(items[0]?.convictionScore, 7);
   assert.equal(items[0]?.thesisSummary, "Momentum and fundamentals align.");
@@ -234,6 +236,53 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.gateResults[0]?.label, "Liquidity");
   assert.equal(items[0]?.upstreamEvidence[0]?.label, "Technical Snapshot");
   assert.equal(items[0]?.traceability[0]?.label, "Run Id");
+});
+
+test("preserves decision fields when review verdict and outcome are absent", () => {
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        id: "decision-only",
+        market_date: "2026-04-29",
+        symbol: "123456",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-04-29",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "123456",
+          market_date: "2026-04-29",
+          preferred_action: "buy",
+          target_price: "82,000",
+          stop_loss_price: "73,500",
+          thesis_summary: "Decision payload has thesis, target, and stop before review data exists.",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-04-29T07:45:00+00:00",
+      },
+    ],
+    summary: { count: 1 },
+  });
+
+  const items = normalizeSignalDeciderFeedbackItems(response);
+  const item = items[0];
+
+  assert.ok(item);
+  assert.equal(item.action, "buy");
+  assert.equal(item.preferredAction, "buy");
+  assert.equal(item.nextDayOpenAction, "unknown");
+  assert.equal(item.thesisSummary, "Decision payload has thesis, target, and stop before review data exists.");
+  assert.equal(item.targetPrice, 82000);
+  assert.equal(item.stopLossPrice, 73500);
+  assert.equal(item.qualityVerdict, null);
+  assert.equal(item.qualityTag, null);
+  assert.equal(item.reviewConclusion, null);
+  assert.equal(item.pathOutcome, null);
+  assert.deepEqual(item.outcomeHorizons, []);
 });
 
 test("preserves nested outcome horizons when a horizon map also includes direct metadata", () => {

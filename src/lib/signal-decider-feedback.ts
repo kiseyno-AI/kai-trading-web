@@ -68,6 +68,10 @@ export type SignalDeciderFeedbackItem = {
   agentVersion: string | null;
   action: SignalDeciderAction;
   actionLabel: string;
+  preferredAction: SignalDeciderAction;
+  preferredActionLabel: string;
+  nextDayOpenAction: SignalDeciderAction;
+  nextDayOpenActionLabel: string;
   confidenceScore: number | null;
   convictionScore: number | null;
   thesisSummary: string | null;
@@ -139,6 +143,18 @@ function normalizeAction(value: unknown): SignalDeciderAction {
   if (normalized === "hold" || normalized === "watch" || normalized === "watchlist") return "wait";
   if (normalized === "avoid" || normalized === "skip") return "reject";
   return "unknown";
+}
+
+function resolveDecisionActions(payload: AgentFeedbackStoredPayloadDto) {
+  const preferredAction = normalizeAction(payload.preferred_action);
+  const nextDayOpenAction = normalizeAction(payload.next_day_open_action);
+  const action = nextDayOpenAction !== "unknown" ? nextDayOpenAction : preferredAction;
+
+  return {
+    action,
+    preferredAction,
+    nextDayOpenAction,
+  };
 }
 
 export function formatSignalDeciderActionLabel(action: SignalDeciderAction) {
@@ -788,7 +804,7 @@ export function normalizeSignalDeciderFeedbackItems(
     .map((item) => {
       const payload = getPayload(item);
       const symbol = getStringValue(payload, ["symbol"]) ?? item.symbol;
-      const action = normalizeAction(payload.next_day_open_action ?? payload.preferred_action);
+      const { action, nextDayOpenAction, preferredAction } = resolveDecisionActions(payload);
       const context = isRecord(item.context) ? item.context : null;
       const details = isRecord(payload.details) ? payload.details : null;
       const itemDetails = isRecord(item.details) ? item.details : null;
@@ -883,6 +899,10 @@ export function normalizeSignalDeciderFeedbackItems(
         agentVersion: item.agent.version ?? null,
         action,
         actionLabel: formatSignalDeciderActionLabel(action),
+        preferredAction,
+        preferredActionLabel: formatSignalDeciderActionLabel(preferredAction),
+        nextDayOpenAction,
+        nextDayOpenActionLabel: formatSignalDeciderActionLabel(nextDayOpenAction),
         confidenceScore: normalizeScore10(payload.confidence_score_10 ?? payload.confidence),
         convictionScore: normalizeScore10(payload.conviction_score_10),
         thesisSummary:
