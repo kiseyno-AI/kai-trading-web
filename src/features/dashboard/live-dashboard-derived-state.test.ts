@@ -740,9 +740,11 @@ test("builds grouped daily process monitor state from patch, filter, and agent f
     eodStageCards,
     filteringCardModel,
     numberLocale: "en-US",
+    patchDate: "2026-04-27",
   });
 
   assert.deepEqual(model.groups.map((group) => group.key), ["patch", "filter", "agent-feedback"]);
+  assert.equal(model.patchDate, "2026-04-27");
   assert.equal(model.status, "error");
   assert.equal(model.currentGroupLabel, copy.processMonitor.groups.filter);
   assert.equal(model.currentStepLabel, copy.operational.piotroskiSectionTitle);

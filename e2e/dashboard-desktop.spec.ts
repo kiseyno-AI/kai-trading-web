@@ -855,7 +855,8 @@ test.describe("dashboard desktop", () => {
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect(piotroskiSection).toContainText("Piotroski");
     await expect(piotroskiSection).toContainText("Completed");
-    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
+    await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-15/);
+    await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-15");
     await expect(piotroskiSection).toContainText(/Checked\s*2/);
     await expect(piotroskiSection).toContainText(/Pass\s*1/);
     await expect(marketRiskSection).toContainText("KIS Risk");
@@ -1176,6 +1177,7 @@ test.describe("dashboard desktop", () => {
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
+    await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-16");
     await expect(piotroskiSection).toContainText(/Checked\s*4/);
     await expect(piotroskiSection).toContainText(/Pass\s*4/);
     await expect(piotroskiSection).toContainText("Requested 2026-04-16");
@@ -1579,11 +1581,11 @@ test.describe("dashboard desktop", () => {
     await expect.poll(() => piotroskiRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
     await expect.poll(() => marketRiskRequestCount, { timeout: 9000 }).toBeGreaterThanOrEqual(2);
 
-    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-27/);
+    await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-27/);
     await expect(piotroskiSection).toContainText(/Pass\s*27/);
     await expect(piotroskiSection).not.toContainText("Latest available 2026-04-24");
     await expect(piotroskiSection).not.toContainText("Requested 2026-04-27");
-    await expect(marketRiskSection).toContainText(/Market date\s*2026-04-27/);
+    await expect(marketRiskSection).not.toContainText(/Market date\s*2026-04-27/);
     await expect(marketRiskSection).not.toContainText("Latest available 2026-04-24");
 
     const piotroskiRequestsAfterResolve = piotroskiRequestCount;
@@ -1929,7 +1931,8 @@ test.describe("dashboard desktop", () => {
     const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
-    await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
+    await expect(piotroskiSection).not.toContainText(/Market date\s*2026-04-15/);
+    await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-15");
     await expect(piotroskiSection).toContainText("Completed");
     await expect(piotroskiSection).toContainText(/Checked\s*2/);
     await expect(piotroskiSection).toContainText(/Pass\s*1/);
@@ -2609,6 +2612,7 @@ test.describe("dashboard desktop", () => {
     await expect(eodStatusCard).toBeVisible();
     await expect(eodStatusCard.getByText("Current market date")).toHaveCount(0);
     await expect(eodStatusCard.getByText("Latest EOD patch")).toHaveCount(0);
+    await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-23");
     await expectEodStageStatus(priceStage, "synced");
     await expectEodStageStatus(technicalStage, "synced");
     await expectEodStageStatus(actionStage, "synced");

@@ -347,11 +347,13 @@ const EodStatusCard = memo(function EodStatusCard({
 type FilteringCardProps = {
   copy: DashboardLiveCopy;
   filteringCardModel: FilteringCardModel;
+  patchDate: string | null;
 };
 
 const FilteringCard = memo(function FilteringCard({
   copy,
   filteringCardModel,
+  patchDate,
 }: FilteringCardProps) {
   return (
     <article className={`${styles.integrityStat} ${styles.filteringCard}`}>
@@ -370,35 +372,41 @@ const FilteringCard = memo(function FilteringCard({
       </div>
 
       <div className={styles.filterStageList}>
-        {filteringCardModel.stages.map((stage) => (
-          <section
-            key={stage.key}
-            className={styles.filterStageSection}
-            data-filter-stage={stage.key}
-            aria-label={`${stage.label} filtering status`}
-          >
-            <div className={styles.filterStageHeader}>
-              <div>
-                <h3 className={styles.filterStageTitle}>{stage.label}</h3>
-                {stage.displayMarketDate ? (
-                  <p className={styles.cardContext}>{copy.operational.marketDate} {stage.displayMarketDateLabel}</p>
-                ) : null}
-              </div>
-              <span className={`pill ${stage.statusTone}`}>{stage.statusLabel}</span>
-            </div>
+        {filteringCardModel.stages.map((stage) => {
+          const displayMarketDateContext = getExceptionDateLabel(stage.displayMarketDate, patchDate);
 
-            <div className={styles.statusMetricGrid}>
-              {stage.metrics.map((metric) => (
-                <div key={metric.key} className={styles.statusMetric}>
-                  <span>{metric.label}</span>
-                  <strong>{metric.value}</strong>
+          return (
+            <section
+              key={stage.key}
+              className={styles.filterStageSection}
+              data-filter-stage={stage.key}
+              aria-label={`${stage.label} filtering status`}
+            >
+              <div className={styles.filterStageHeader}>
+                <div>
+                  <h3 className={styles.filterStageTitle}>{stage.label}</h3>
+                  {displayMarketDateContext ? (
+                    <p className={styles.cardContext}>
+                      {copy.operational.marketDate} {displayMarketDateContext}
+                    </p>
+                  ) : null}
                 </div>
-              ))}
-            </div>
+                <span className={`pill ${stage.statusTone}`}>{stage.statusLabel}</span>
+              </div>
 
-            {stage.note ? <p className={styles.cardContext}>{stage.note}</p> : null}
-          </section>
-        ))}
+              <div className={styles.statusMetricGrid}>
+                {stage.metrics.map((metric) => (
+                  <div key={metric.key} className={styles.statusMetric}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                  </div>
+                ))}
+              </div>
+
+              {stage.note ? <p className={styles.cardContext}>{stage.note}</p> : null}
+            </section>
+          );
+        })}
       </div>
     </article>
   );
@@ -1201,6 +1209,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
 type ProcessMonitorDrawerProps = {
   children?: ReactNode;
   copy: DashboardLiveCopy;
+  patchDate: string | null;
   state: "open" | "closing";
   onClose: () => void;
 };
@@ -1208,6 +1217,7 @@ type ProcessMonitorDrawerProps = {
 const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
   children,
   copy,
+  patchDate,
   state,
   onClose,
 }: ProcessMonitorDrawerProps) {
@@ -1248,6 +1258,12 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
 
         {children ? (
           <div className={`${styles.integrityGrid} ${styles.processMonitorDetailCards}`}>{children}</div>
+        ) : null}
+        {patchDate ? (
+          <div className={styles.processMonitorPatchDate} aria-label={copy.processMonitor.patchDate}>
+            <span>{copy.processMonitor.patchDate}</span>
+            <strong>{patchDate}</strong>
+          </div>
         ) : null}
       </section>
     </div>
@@ -1615,8 +1631,9 @@ export function LiveDashboardClient({
         eodStageCards,
         filteringCardModel,
         numberLocale,
+        patchDate: primaryLatestCycleDate,
       }),
-    [agentRoleCards, copy, eodStageCards, filteringCardModel, numberLocale],
+    [agentRoleCards, copy, eodStageCards, filteringCardModel, numberLocale, primaryLatestCycleDate],
   );
   const marketBadgeLabel = market.is_open ? copy.marketOpen : copy.marketClosed;
   const coreUnavailable =
@@ -1904,6 +1921,7 @@ export function LiveDashboardClient({
         ? createPortal(
             <ProcessMonitorDrawer
               copy={copy}
+              patchDate={processMonitorModel.patchDate}
               state={processMonitorDrawerState}
               onClose={closeProcessMonitorDrawer}
             >
@@ -1918,7 +1936,11 @@ export function LiveDashboardClient({
                 onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
               />
 
-              <FilteringCard copy={copy} filteringCardModel={filteringCardModel} />
+              <FilteringCard
+                copy={copy}
+                filteringCardModel={filteringCardModel}
+                patchDate={processMonitorModel.patchDate}
+              />
 
               <AgentFeedbackCard
                 agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}

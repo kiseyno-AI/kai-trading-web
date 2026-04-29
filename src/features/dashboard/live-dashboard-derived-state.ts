@@ -642,12 +642,14 @@ export function buildProcessMonitorModel({
   eodStageCards,
   filteringCardModel,
   numberLocale,
+  patchDate = null,
 }: {
   agentRoleCards: AgentRoleCard[];
   copy: DashboardLiveCopy;
   eodStageCards: readonly EodStageCard[];
   filteringCardModel: FilteringCardModel;
   numberLocale: string;
+  patchDate?: string | null;
 }): ProcessMonitorModel {
   const groups = [
     buildProcessMonitorGroup(
@@ -699,6 +701,7 @@ export function buildProcessMonitorModel({
     progressPercent: totalCount > 0 ? clampAgentProgressPercent((completedCount / totalCount) * 100) : 0,
     completedCount,
     totalCount,
+    patchDate: resolveNormalizedPresenterDate(patchDate),
     currentGroupLabel: currentGroup?.label ?? null,
     currentStepLabel: currentGroup?.currentStepLabel ?? null,
     groups,
