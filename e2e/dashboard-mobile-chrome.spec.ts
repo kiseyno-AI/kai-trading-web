@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { RELEASE_DISPLAY_LABEL } from "@/lib/release-version";
+import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 import { chromiumIPhone13 } from "./devices";
 
 test.use(chromiumIPhone13);
@@ -320,36 +320,39 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   await page.setViewportSize(viewport);
   await page.goto("/dashboard");
 
+  const topbar = page.locator("header.topbar");
   const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
-  const releaseBadge = page.locator('[aria-label="Release version"]:visible').first();
-  const localeSwitch = page.locator('[aria-label="Locale switcher"]:visible').first();
+  const releaseBadge = page.getByTestId("dashboard-header-release");
+  const localeSwitch = page.getByTestId("dashboard-header-language-switch");
   const bottomNav = page.getByRole("navigation", { name: /Primary/i });
 
+  await expect(topbar).toBeVisible();
   await expect(processBar).toBeVisible();
   await expect(releaseBadge).toBeVisible();
+  await expect(releaseBadge).toContainText(RELEASE_VERSION_LABEL);
   await expect(localeSwitch).toBeVisible();
   await expect(bottomNav).toBeVisible();
+  await expect(page.getByText(/Tags On|Tags Off|태그 켜짐|태그 꺼짐/)).toHaveCount(0);
 
-  const [processBarBox, releaseBox, localeBox, bottomNavBox] = await Promise.all([
+  const [topbarBox, processBarBox, releaseBox, localeBox, bottomNavBox] = await Promise.all([
+    topbar.boundingBox(),
     processBar.boundingBox(),
     releaseBadge.boundingBox(),
     localeSwitch.boundingBox(),
     bottomNav.boundingBox(),
   ]);
 
-  if (!processBarBox || !releaseBox || !localeBox || !bottomNavBox) {
+  if (!topbarBox || !processBarBox || !releaseBox || !localeBox || !bottomNavBox) {
     throw new Error(`Expected visible dashboard chrome boxes at ${viewport.width}x${viewport.height}.`);
   }
 
-  const processBarBottom = processBarBox.y + processBarBox.height;
-  const auxiliaryControlsTop = Math.min(releaseBox.y, localeBox.y);
-
+  expect(getOverlapArea(topbarBox, processBarBox)).toBe(0);
   expect(getOverlapArea(processBarBox, releaseBox)).toBe(0);
   expect(getOverlapArea(processBarBox, localeBox)).toBe(0);
   expect(getOverlapArea(processBarBox, bottomNavBox)).toBe(0);
-  expect(auxiliaryControlsTop - processBarBottom).toBeGreaterThanOrEqual(4);
-  expect(releaseBox.y).toBeLessThan(bottomNavBox.y);
-  expect(localeBox.y).toBeLessThan(bottomNavBox.y);
+  expect(releaseBox.y).toBeLessThan(processBarBox.y);
+  expect(localeBox.y).toBeLessThan(processBarBox.y);
+  expect(processBarBox.y + processBarBox.height).toBeLessThan(bottomNavBox.y);
 }
 
 async function openEodStatusCard(page: Page) {
@@ -377,8 +380,19 @@ test.describe("dashboard mobile chrome", () => {
     expect(topbarBox!.x).toBeGreaterThanOrEqual(0);
 
     await expect(bottomNav).toBeVisible();
-    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
-    await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_DISPLAY_LABEL);
+    const dashboardTitle = page.getByText(/Trading Dashboard/i).first();
+    const headerRelease = page.getByTestId("dashboard-header-release");
+    const headerLanguageSwitch = page.getByTestId("dashboard-header-language-switch");
+    await expect(dashboardTitle).toBeVisible();
+    await expect(headerRelease).toContainText(RELEASE_VERSION_LABEL);
+    await expect(headerLanguageSwitch).toBeVisible();
+    await expect(page.getByText(/Tags On|Tags Off|태그 켜짐|태그 꺼짐/)).toHaveCount(0);
+
+    const [titleBox, releaseBox] = await Promise.all([dashboardTitle.boundingBox(), headerRelease.boundingBox()]);
+    expect(titleBox).not.toBeNull();
+    expect(releaseBox).not.toBeNull();
+    expect(releaseBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height - 1);
+
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();

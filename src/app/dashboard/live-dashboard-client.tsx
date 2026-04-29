@@ -5,8 +5,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { LanguageSwitchControl } from "@/components/navigation/language-switch-control";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp } from "@/lib/format";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
+import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 import {
   buildSignalDeciderFeedbackSummary,
   formatSignalDeciderActionLabel,
@@ -1304,7 +1305,7 @@ export function LiveDashboardClient({
   initialSignalDeciderFeedback,
   initialPortfolioSummary,
 }: LiveDashboardClientProps) {
-  const { locale } = useAppState();
+  const { locale, t } = useAppState();
   const copy = getDashboardLiveCopy(locale);
   const numberLocale = getNumberLocale(locale);
   const agentProgressStatusLabels = useMemo(() => getAgentProgressStatusLabels(copy), [copy]);
@@ -1804,12 +1805,21 @@ export function LiveDashboardClient({
   return (
     <MobileAppChrome
       activeNav="dashboard"
+      showDesktopRailLocaleSwitch={false}
+      showMobileMetaRow={false}
       header={
         <>
           <div className={styles.appHeaderBrand}>
             <div className={styles.brandMark}>K</div>
-            <div>
+            <div className={styles.brandCopy}>
               <strong className={styles.brandTitle}>{copy.brandTitle}</strong>
+              <span
+                className={styles.brandVersion}
+                aria-label={t.mobileChrome.releaseVersion}
+                data-testid="dashboard-header-release"
+              >
+                {RELEASE_VERSION_LABEL}
+              </span>
             </div>
           </div>
 
@@ -1817,7 +1827,7 @@ export function LiveDashboardClient({
             <span className={`pill ${styles.marketStatusPill} ${market.is_open ? "positive" : styles.marketStatusClosedPill}`}>
               {marketBadgeLabel}
             </span>
-            <DevModeToggle />
+            <LanguageSwitchControl testId="dashboard-header-language-switch" />
           </div>
         </>
       }

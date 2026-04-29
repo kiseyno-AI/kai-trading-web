@@ -21,6 +21,8 @@ type MobileAppChromeProps = {
   mySymbolsHref?: string;
   portfolioHref?: string;
   searchHref?: string;
+  showDesktopRailLocaleSwitch?: boolean;
+  showMobileMetaRow?: boolean;
 };
 
 const DASHBOARD_HREF = "/dashboard";
@@ -88,6 +90,8 @@ export function MobileAppChrome({
   mySymbolsHref = "/my-symbols",
   portfolioHref = "/portfolio",
   searchHref = "/search",
+  showDesktopRailLocaleSwitch = true,
+  showMobileMetaRow = true,
 }: MobileAppChromeProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useAppState();
@@ -193,7 +197,7 @@ export function MobileAppChrome({
           <span className={styles.releaseKicker}>{t.mobileChrome.release}</span>
           <strong className={styles.releaseValue}>{RELEASE_VERSION_LABEL}</strong>
           <div className={styles.releaseRule} aria-hidden="true" />
-          {renderLocaleSwitch(`${styles.localeSwitch} ${styles.desktopLocaleSwitch}`)}
+          {showDesktopRailLocaleSwitch ? renderLocaleSwitch(`${styles.localeSwitch} ${styles.desktopLocaleSwitch}`) : null}
         </div>
       </aside>
 
@@ -204,12 +208,14 @@ export function MobileAppChrome({
       <main className={styles.main}>{children}</main>
 
       <div className={styles.bottomNavFrame}>
-        <div className={styles.mobileMetaRow}>
-          <div className={styles.mobileReleaseBadge} aria-label={t.mobileChrome.releaseVersion}>
-            {releaseDisplayLabel}
+        {showMobileMetaRow ? (
+          <div className={styles.mobileMetaRow}>
+            <div className={styles.mobileReleaseBadge} aria-label={t.mobileChrome.releaseVersion}>
+              {releaseDisplayLabel}
+            </div>
+            {renderLocaleSwitch(`${styles.localeSwitch} ${styles.mobileLocaleSwitch}`)}
           </div>
-          {renderLocaleSwitch(`${styles.localeSwitch} ${styles.mobileLocaleSwitch}`)}
-        </div>
+        ) : null}
         <nav className={styles.bottomNav} aria-label={t.mobileChrome.primaryNavigation}>
           {renderNavItem(DASHBOARD_HREF, activeNav === "dashboard", t.mobileChrome.dashboard, <DashboardIcon />)}
           {renderNavItem(searchHref, activeNav === "search", t.mobileChrome.search, <SearchIcon />)}
