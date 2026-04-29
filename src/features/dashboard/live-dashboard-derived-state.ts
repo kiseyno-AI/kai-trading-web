@@ -1,5 +1,6 @@
 import { type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import {
+  getLatestEodPatchStageDetail,
   getLatestActionMarketDate,
   getLatestEodStatus,
   getLatestPriceTradeDate,
@@ -1306,6 +1307,7 @@ export function getPipelineStage(
 export function mergeRunningPipelineStage(
   stage: EodFreshnessStageDto | null,
   pipelineStage: EodPipelineStageDto | null | undefined,
+  options: { preferStageCountsOnCompleted?: boolean } = {},
 ) {
   if (isRunningPipelineStage(pipelineStage)) {
     return buildStage(
@@ -1317,6 +1319,15 @@ export function mergeRunningPipelineStage(
   }
 
   if (!isCompletedPipelineStage(pipelineStage)) return stage;
+
+  if (options.preferStageCountsOnCompleted) {
+    return buildStage(
+      "ready",
+      stage?.symbols_total ?? pipelineStage?.total,
+      stage?.symbols_succeeded ?? pipelineStage?.processed,
+      stage?.symbols_failed ?? pipelineStage?.failed,
+    );
+  }
 
   return buildStage(
     "ready",
@@ -1508,6 +1519,51 @@ function getLatestPriceFreshnessStage(freshness: EodFreshnessResponseDto | null)
   );
 }
 
+function getPatchStageFreshnessStatus(
+  stageStatus: string | null,
+  symbolsTotal: number | null,
+  symbolsSucceeded: number | null,
+) {
+  const normalizedStatus = stageStatus?.trim().toLowerCase().replace(/[_-]+/g, " ") ?? null;
+  if (normalizedStatus === "running") return "running";
+  if (
+    normalizedStatus &&
+    ["failed", "error", "missing", "partial", "completed with errors", "needs review"].includes(normalizedStatus)
+  ) {
+    return "missing";
+  }
+  if (normalizedStatus && ["ready", "completed", "available", "success"].includes(normalizedStatus)) {
+    return "ready";
+  }
+  if (normalizedStatus && ["pending", "queued", "not started"].includes(normalizedStatus)) {
+    return "pending";
+  }
+  if (hasNumber(symbolsTotal) && hasNumber(symbolsSucceeded)) {
+    return symbolsSucceeded >= symbolsTotal ? "ready" : "running";
+  }
+  if (hasNumber(symbolsTotal) || hasNumber(symbolsSucceeded)) return "ready";
+  return null;
+}
+
+function getLatestPatchStageFreshnessStage(
+  freshness: EodFreshnessResponseDto | null,
+  key: "technical_analysis" | "action_summary",
+): EodFreshnessStageDto | null {
+  const detail = getLatestEodPatchStageDetail(freshness, key);
+  if (!detail) return null;
+
+  const hasStageEvidence =
+    hasTextValue(detail.tradeDate) ||
+    hasTextValue(detail.status) ||
+    hasNumber(detail.symbolsTotal) ||
+    hasNumber(detail.symbolsSucceeded) ||
+    hasNumber(detail.symbolsFailed);
+  if (!hasStageEvidence) return null;
+
+  const status = getPatchStageFreshnessStatus(detail.status, detail.symbolsTotal, detail.symbolsSucceeded);
+  return buildStage(status, detail.symbolsTotal, detail.symbolsSucceeded, detail.symbolsFailed);
+}
+
 export function getPriceFreshnessStage(
   freshness: EodFreshnessResponseDto | null,
   useTodayStage: boolean,
@@ -1518,29 +1574,16 @@ export function getPriceFreshnessStage(
 }
 
 function getLatestTechnicalFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+  const latestTechnicalStage = getLatestPatchStageFreshnessStage(freshness, "technical_analysis");
+  if (latestTechnicalStage) return latestTechnicalStage;
+
   if (freshness?.technical?.success === false) {
-    return buildStage(
-      "missing",
-      getLatestEodSymbolsTotal(freshness),
-      getLatestEodSymbolsSucceeded(freshness),
-      getLatestEodSymbolsFailed(freshness),
-    );
+    return buildStage("missing", null, null, null);
   }
 
   const hasTechnicalDate =
     getFirstTextValue(freshness?.technical?.latest_date, getLatestTechnicalMarketDate(freshness)) !== null;
-  const hasLatestCounts =
-    hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
-    hasNumber(getLatestEodSymbolsTotal(freshness)) ||
-    hasNumber(getLatestEodSymbolsFailed(freshness));
-  return hasTechnicalDate && (freshness?.technical?.success === true || hasLatestCounts)
-    ? buildStage(
-        "ready",
-        getLatestEodSymbolsTotal(freshness),
-        getLatestEodSymbolsSucceeded(freshness),
-        getLatestEodSymbolsFailed(freshness),
-      )
-    : null;
+  return hasTechnicalDate && freshness?.technical?.success === true ? buildStage("ready", null, null, null) : null;
 }
 
 export function getTechnicalFreshnessStage(
@@ -1553,28 +1596,15 @@ export function getTechnicalFreshnessStage(
 }
 
 function getLatestActionFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
+  const latestActionStage = getLatestPatchStageFreshnessStage(freshness, "action_summary");
+  if (latestActionStage) return latestActionStage;
+
   if (freshness?.action?.success === false) {
-    return buildStage(
-      "missing",
-      getLatestEodSymbolsTotal(freshness),
-      getLatestEodSymbolsSucceeded(freshness),
-      getLatestEodSymbolsFailed(freshness),
-    );
+    return buildStage("missing", null, null, null);
   }
 
   const latestActionDate = getFirstTextValue(freshness?.action?.latest_date, getLatestActionMarketDate(freshness));
-  const hasLatestCounts =
-    hasNumber(getLatestEodSymbolsSucceeded(freshness)) ||
-    hasNumber(getLatestEodSymbolsTotal(freshness)) ||
-    hasNumber(getLatestEodSymbolsFailed(freshness));
-  return latestActionDate && (freshness?.action?.success === true || hasLatestCounts)
-    ? buildStage(
-        "ready",
-        getLatestEodSymbolsTotal(freshness),
-        getLatestEodSymbolsSucceeded(freshness),
-        getLatestEodSymbolsFailed(freshness),
-      )
-    : null;
+  return latestActionDate && freshness?.action?.success === true ? buildStage("ready", null, null, null) : null;
 }
 
 export function getActionFreshnessStage(
@@ -2273,32 +2303,34 @@ function getAgentRoleStatus(role: string, orderedRoles: string[], currentRole: s
   return "pending";
 }
 
+function getAgentRoleSnapshotCount(snapshot: AgentRoleProgressSnapshot | null | undefined) {
+  return snapshot?.completedCount ?? snapshot?.progressCount ?? null;
+}
+
 function buildAgentRoleMetrics(
   progress: AgentFeedbackProgressResponseDto | null,
-  role: string,
+  status: AgentRoleStatus,
+  roleCompletedCount: number | null | undefined,
   snapshot: AgentRoleProgressSnapshot | null | undefined,
   copy: DashboardLiveCopy,
   numberLocale: string,
 ): AgentRoleMetric[] {
   if (!isAgentFeedbackProgressRunning(progress)) return [];
 
-  const useRoleLocalCounts = isSignalDeciderRole(role);
-  const progressPercent =
-    useRoleLocalCounts && hasNumber(snapshot?.progressPercent)
-      ? snapshot.progressPercent
-      : progress?.summary?.progress_percent;
-  const totalCount =
-    useRoleLocalCounts && hasNumber(snapshot?.totalCount) ? snapshot.totalCount : progress?.summary?.total_symbols;
-  const failedCount =
-    useRoleLocalCounts && hasNumber(snapshot?.failedCount) ? snapshot.failedCount : progress?.summary?.failed_items;
-  const completedCount =
-    useRoleLocalCounts && hasNumber(snapshot?.completedCount)
-      ? snapshot.completedCount
-      : useRoleLocalCounts
-        ? progress?.summary?.completed_symbols
-        : getResolvedAgentProgressRunStatus(progress) === "running"
-          ? progress?.summary?.processed_symbols
-          : progress?.summary?.completed_symbols;
+  const hasRoleSnapshot = snapshot !== null && snapshot !== undefined;
+  const progressPercent = getAgentRoleProgressPercent(progress, status, roleCompletedCount, snapshot);
+  const totalCount = hasNumber(snapshot?.totalCount)
+    ? snapshot.totalCount
+    : hasRoleSnapshot && status === "completed"
+      ? getAgentRoleSnapshotCount(snapshot)
+      : progress?.summary?.total_symbols;
+  const failedCount = hasNumber(snapshot?.failedCount) ? snapshot.failedCount : progress?.summary?.failed_items;
+  const metricCompletedCount =
+    roleCompletedCount ??
+    getAgentRoleSnapshotCount(snapshot) ??
+    (getResolvedAgentProgressRunStatus(progress) === "running"
+      ? progress?.summary?.processed_symbols
+      : progress?.summary?.completed_symbols);
 
   return [
     {
@@ -2319,7 +2351,7 @@ function buildAgentRoleMetrics(
     {
       key: "completed",
       label: copy.agentFeedback.metrics.completed,
-      value: formatAgentProgressCountLabel(completedCount, numberLocale),
+      value: formatAgentProgressCountLabel(metricCompletedCount, numberLocale),
     },
   ];
 }
@@ -2674,12 +2706,12 @@ function getAgentRoleProgressPercent(
   const snapshotCountedPercent = getAgentProgressPercentFromCounts(snapshot?.progressCount, snapshot?.totalCount);
   if (snapshotCountedPercent !== null) return snapshotCountedPercent;
 
+  if (status === "completed") return 100;
+  if (status === "pending") return 0;
+
   const totalSymbols = progress?.summary.total_symbols ?? null;
   const countedPercent = getAgentProgressPercentFromCounts(completedCount, totalSymbols);
   if (countedPercent !== null) return countedPercent;
-
-  if (status === "completed") return 100;
-  if (status === "pending") return 0;
 
   return getAgentProgressPercentValue(progress);
 }
@@ -2730,17 +2762,22 @@ export function buildAgentRoleCards(
 
   if (!isAgentFeedbackProgressRunning(progress)) {
     return orderedRoles.map((role) => {
-      const resultSnapshot = roleResultSnapshotByRole.get(normalizeAgentRole(role) ?? role);
-      const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
+      const normalizedRole = normalizeAgentRole(role) ?? role;
+      const resultSnapshot = roleResultSnapshotByRole.get(normalizedRole);
+      const snapshot = roleSnapshotByRole.get(normalizedRole);
       const fallbackStatus = getNonRunningAgentRoleStatus(runStatus, role, orderedRoles, currentRole);
       const status = resultSnapshot
         ? isCompletedAgentRoleResult(resultSnapshot)
           ? "completed"
           : fallbackStatus
-        : snapshot?.status ?? fallbackStatus;
+        : snapshot?.status === "attention"
+          ? "attention"
+          : completedRoles.has(normalizedRole)
+            ? "completed"
+            : snapshot?.status ?? fallbackStatus;
       const completedCount =
         resultSnapshot?.completedCount ??
-        snapshot?.completedCount ??
+        getAgentRoleSnapshotCount(snapshot) ??
         getNonRunningAgentRoleCompletedCount(progress, runStatus, role, orderedRoles, currentRole);
       const metrics = resultSnapshot
         ? buildAgentRoleResultMetrics(resultSnapshot, copy, numberLocale)
@@ -2774,15 +2811,16 @@ export function buildAgentRoleCards(
   return orderedRoles.map((role) => {
     const snapshot = roleSnapshotByRole.get(normalizeAgentRole(role) ?? role);
     const status = getRunningAgentRoleStatus(role, orderedRoles, currentRole, snapshot, completedRoles);
+    const completedCount = getAgentRoleSnapshotCount(snapshot);
     const roleMetrics = shouldShowAgentRoleMetrics(role, status, fallbackMetricsRole)
-      ? buildAgentRoleMetrics(progress, role, snapshot, copy, numberLocale)
+      ? buildAgentRoleMetrics(progress, status, completedCount, snapshot, copy, numberLocale)
       : [];
 
     return buildAgentRoleCard(
       progress,
       role,
       status,
-      snapshot?.completedCount,
+      completedCount,
       snapshot,
       roleMetrics,
       copy,
