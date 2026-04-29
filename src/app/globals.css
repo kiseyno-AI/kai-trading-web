@@ -404,57 +404,21 @@ kbd,
   position: sticky;
   top: 0;
   z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  display: grid;
+  gap: 16px;
   margin: 0 auto;
   padding: 18px 22px;
   border-radius: var(--radius-xl);
   background: linear-gradient(180deg, rgba(11, 22, 38, 0.94), rgba(8, 17, 31, 0.9));
 }
 
-.topbar-main {
+.topbar-content-row {
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
   min-width: 0;
-  align-items: flex-start;
-  gap: 20px;
-  flex: 1;
-}
-
-.topbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.topbar-brand-mark {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--primary-foreground);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  box-shadow: 0 14px 24px rgba(0, 82, 255, 0.22);
-}
-
-.topbar-brand-title {
-  color: var(--text-strong);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 20px;
-  font-weight: 800;
-}
-
-.topbar-brand-subtitle {
-  margin-top: 2px;
-  color: var(--muted-soft);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+  width: 100%;
 }
 
 .topbar-copy {
@@ -562,6 +526,10 @@ kbd,
 .search-wrap {
   position: relative;
   width: min(380px, 100%);
+}
+
+.topbar-content-row .search-wrap {
+  flex: 0 1 380px;
 }
 
 .search-button {
@@ -1912,17 +1880,9 @@ kbd {
     display: grid;
   }
 
-  .topbar {
-    flex-wrap: wrap;
-  }
-
-  .topbar-main,
-  .topbar-actions {
-    width: 100%;
-  }
-
-  .topbar-main {
-    flex-wrap: wrap;
+  .topbar-content-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .search-wrap {
@@ -1999,24 +1959,6 @@ kbd {
     border-radius: 20px;
   }
 
-  .topbar-main {
-    gap: 14px;
-  }
-
-  .topbar-compact-mobile .topbar-main {
-    align-items: center;
-    gap: 12px;
-  }
-
-  .topbar-brand {
-    gap: 12px;
-  }
-
-  .topbar-compact-mobile .topbar-brand {
-    display: none;
-  }
-
-  .topbar-brand-subtitle,
   .topbar-summary,
   .topbar-separator,
   .topbar-link {
@@ -2025,6 +1967,7 @@ kbd {
 
   .topbar-compact-mobile .search-wrap,
   .topbar-compact-mobile .topbar-actions,
+  .topbar-compact-mobile .topbar-content-row,
   .topbar-compact-mobile .topbar-page {
     display: none;
   }
@@ -2084,10 +2027,6 @@ kbd {
 }
 
 @media (max-width: 560px) {
-  .topbar-brand-title {
-    font-size: 18px;
-  }
-
   .profile-pill {
     min-height: 42px;
   }

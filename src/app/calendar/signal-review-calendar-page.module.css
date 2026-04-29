@@ -4,8 +4,6 @@
   gap: 1.15rem;
 }
 
-.appHeaderBrand,
-.appHeaderActions,
 .heroActions,
 .monthControls,
 .monthStateRow,
@@ -13,42 +11,6 @@
   display: flex;
   align-items: center;
   gap: 0.65rem;
-}
-
-.appHeaderBrand {
-  min-width: 0;
-}
-
-.appHeaderBrand span {
-  display: block;
-  margin-top: 0.14rem;
-  color: var(--muted-soft);
-  font-size: 0.72rem;
-}
-
-.brandMark {
-  display: grid;
-  place-items: center;
-  width: 2.15rem;
-  height: 2.15rem;
-  flex: 0 0 auto;
-  border-radius: 0.5rem;
-  background: var(--accent);
-  color: var(--primary-foreground);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.86rem;
-  font-weight: 900;
-}
-
-.brandTitle {
-  color: var(--text-strong);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.98rem;
-  font-weight: 800;
-}
-
-.monthPill {
-  color: var(--text-strong);
 }
 
 .heroPanel,
@@ -677,10 +639,6 @@
 }
 
 @media (max-width: 640px) {
-  .appHeaderActions {
-    display: none;
-  }
-
   .summaryGrid,
   .detailHeader,
   .detailGroup div {

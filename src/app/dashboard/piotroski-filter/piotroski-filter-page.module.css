@@ -4,43 +4,6 @@
   gap: 1rem;
 }
 
-.appHeaderBrand {
-  display: flex;
-  align-items: center;
-  gap: 0.72rem;
-}
-
-.brandMark {
-  display: grid;
-  place-items: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 0.9rem;
-  background: var(--accent);
-  color: var(--primary-foreground);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 1rem;
-  font-weight: 900;
-  box-shadow: 0 0 16px rgba(88, 139, 255, 0.18);
-}
-
-.brandTitle {
-  color: var(--text-strong);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.98rem;
-  font-weight: 800;
-}
-
-.appHeaderActions {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.marketDatePill {
-  color: var(--text-strong);
-}
-
 .heroPanel,
 .panel {
   position: relative;

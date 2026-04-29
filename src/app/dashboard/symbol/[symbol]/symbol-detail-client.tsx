@@ -6,6 +6,7 @@ import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { DashboardToolbar, DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
@@ -110,8 +111,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       : toolbarMarketOpenState
         ? copy.header.marketOpen
         : copy.header.marketClosed;
-  const toolbarMarketBadgeTone =
-    toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : styles.marketStatusClosedPill;
+  const toolbarMarketBadgeTone: DashboardToolbarStatusTone =
+    toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : "closed";
 
   const handleDetailModeNavigation = (
     event: ReactMouseEvent<HTMLButtonElement>,
@@ -130,21 +131,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   }, [setActiveMode]);
 
   const pendingHeader = (
-    <>
-      <div className={styles.headerBrand}>
+    <DashboardToolbar
+      leading={
         <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
           ←
         </Link>
-        <div>
-          <strong className={styles.headerTitle}>{copy.common.pending}</strong>
-        </div>
-      </div>
-
-      <div className={styles.headerActions}>
-        <span className={`pill ${styles.marketStatusPill} neutral`}>{copy.header.marketPending}</span>
-        <DevModeToggle />
-      </div>
-    </>
+      }
+      title={copy.common.pending}
+      status={<DashboardToolbarStatus>{copy.header.marketPending}</DashboardToolbarStatus>}
+      actions={<DevModeToggle />}
+    />
   );
 
   if (!symbolReady) {
@@ -166,25 +162,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       activeNav="symbols"
       mySymbolsHref="/my-symbols"
       header={
-        <>
-          <div className={styles.headerBrand}>
+        <DashboardToolbar
+          leading={
             <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
               ←
             </Link>
-            <div>
-              <strong className={styles.headerTitle} title={introTitle}>
-                {introTitle}
-              </strong>
-            </div>
-          </div>
-
-          <div className={styles.headerActions}>
-            <span className={`pill ${styles.marketStatusPill} ${toolbarMarketBadgeTone}`}>
-              {toolbarMarketBadgeLabel}
-            </span>
-            <DevModeToggle />
-          </div>
-        </>
+          }
+          title={introTitle}
+          status={<DashboardToolbarStatus tone={toolbarMarketBadgeTone}>{toolbarMarketBadgeLabel}</DashboardToolbarStatus>}
+          actions={<DevModeToggle />}
+        />
       }
     >
       <div className={styles.detailPage} data-mode={activeMode}>

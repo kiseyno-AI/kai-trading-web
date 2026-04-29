@@ -30,7 +30,7 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 | Surface | File | API | Notes |
 | --- | --- | --- | --- |
 | Desktop rail | `src/components/mobile/mobile-app-chrome.tsx` | none | `MobileAppChrome` now renders a desktop-only KAI Trading rail with `Dashboard`, `Search`, `Market Status`, and `My Symbols` navigation. |
-| Desktop top bar | `src/components/mobile/mobile-app-chrome.tsx` | page-specific | Reuses each route header and keeps the dev-mode toggle visible. |
+| Desktop top bar | `src/components/navigation/dashboard-toolbar.tsx` | route slot/config | `MobileAppChrome` and `AppShell` compose the shared dashboard toolbar instead of keeping per-route top-bar markup. Screens provide only status/actions or a small leading control such as a back link. |
 
 ## Dashboard: `/dashboard`
 
@@ -67,7 +67,7 @@ Desktop reference:
 
 | Tag | Component | API | Desktop behavior |
 | --- | --- | --- | --- |
-| `search.terminal-shell` | Centered Universal Search hero | `/api/trading/symbols/search` | Large centered terminal input, inline autocomplete under Q1 while typing, desktop top links, market-open badge, and dev toggle. |
+| `search.terminal-shell` | Centered Universal Search hero | `/api/trading/symbols/search` | Large centered terminal input, inline autocomplete under Q1 while typing, desktop top links, and shared dashboard-toolbar status/actions. |
 | `search.quick-access` | Quick Access favorites and `+` search dialog | `/api/trading/symbols/favorites`, `/api/trading/symbols/search`, `/api/trading/scanner/tracked-symbols` | Four wide cards render core favorites only. Empty Q3 stays empty until `+` opens the autocomplete dialog and saves through the tracked-symbol write route. |
 | `search.desktop-results-table` | Desktop results table | `/api/trading/symbols/search`, selected `/api/trading/quotes/{symbol}` | Rows render symbol metadata from search. Only the selected row shows quote-backed price, change, and freshness; market cap and unsupported coverage are `[확인 필요]`. |
 

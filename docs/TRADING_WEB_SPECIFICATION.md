@@ -144,7 +144,7 @@ Used by the main operator surfaces such as:
 
 Expected behavior:
 
-- fixed top app bar
+- fixed top app bar composed from `src/components/navigation/dashboard-toolbar.tsx`
 - bottom tab bar
 - active-tab highlighting
 - desktop left rail when viewed at larger widths
@@ -168,10 +168,12 @@ Used by broader workspace-style routes such as:
 - `/markets/factors`
 - `/bots`
 
+`AppShell` uses the same shared dashboard toolbar component as `MobileAppChrome`, adding route copy, search, notification, locale, and profile slots instead of maintaining a separate top-bar implementation.
+
 Expected behavior:
 
 - left sidebar on larger layouts
-- top bar with route title and eyebrow
+- shared top bar with route title and eyebrow
 - mobile nav drawer behavior when needed
 - route-level search suggestions and route metadata
 

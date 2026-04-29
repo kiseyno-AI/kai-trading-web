@@ -6,15 +6,15 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 
 - Mobile is the primary target for this spec. Desktop polish is intentionally secondary for this phase.
 - Long text is clamped to **3 lines maximum** in the refreshed mobile cards. Anything longer should visually truncate with `...`.
-- Dev-mode component tags stay available through the mobile chrome toggle: `Tags On` / `Tags Off`.
+- Dev-mode component tags stay available through the shared dashboard toolbar actions where a screen exposes `Tags On` / `Tags Off`.
 - If an upstream field is not confirmed by `kai-trading-core`, the UI must render `[확인 필요]` instead of inventing data.
 - Freshness is **layer-specific**. Price, technical, action, fundamentals, and disclosures must not imply one shared timestamp.
-- Dashboard and symbol detail now use a dedicated mobile shell with a fixed top app bar and a bottom tab bar (`Dashboard`, `Search`, `My Symbols`) instead of the old `AppShell` workspace chrome.
+- Dashboard and symbol detail now use a dedicated mobile shell with a fixed shared dashboard toolbar and a bottom tab bar (`Dashboard`, `Search`, `My Symbols`) instead of the old `AppShell` workspace chrome.
 - `/search` also uses this shell, matching the Stitch `Search - Mobile Terminal` screen instead of the legacy workspace panel.
 
 ## Dev tag workflow
 
-- Toggle dev tags in the mobile app bar.
+- Toggle dev tags from the shared dashboard toolbar on screens that expose the dev-mode action.
 - Each mobile section renders a `ComponentTag` in dev mode.
 - Use the tag names below to jump between code, UI review, and API validation.
 

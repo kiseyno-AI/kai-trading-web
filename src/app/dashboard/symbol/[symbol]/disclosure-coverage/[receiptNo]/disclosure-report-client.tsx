@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { DashboardToolbar, DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 
 import styles from "../../symbol-detail.module.css";
 
@@ -100,23 +101,16 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
       activeNav="symbols"
       mySymbolsHref="/my-symbols"
       header={
-        <>
-          <div className={styles.headerBrand}>
+        <DashboardToolbar
+          leading={
             <Link href={backHref} className={styles.backButton} aria-label="Back to disclosure coverage">
               &larr;
             </Link>
-            <div>
-              <strong className={styles.headerTitle} title={corpName}>
-                {corpName}
-              </strong>
-            </div>
-          </div>
-
-          <div className={styles.headerActions}>
-            <span className="pill info">S7 Report</span>
-            <DevModeToggle />
-          </div>
-        </>
+          }
+          title={corpName}
+          status={<DashboardToolbarStatus tone="info">S7 Report</DashboardToolbarStatus>}
+          actions={<DevModeToggle />}
+        />
       }
     >
       <div className={styles.reportDetailPage}>
