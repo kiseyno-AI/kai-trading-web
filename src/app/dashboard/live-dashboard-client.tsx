@@ -68,6 +68,17 @@ import {
   getFundamentalsStatusLabel,
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedSymbolsDetail,
+  getMarketSnapshotFlow,
+  getMarketSnapshotFlowAmount,
+  getMarketSnapshotFxChange,
+  getMarketSnapshotFxChangeRate,
+  getMarketSnapshotFxRate,
+  getMarketSnapshotFxValue,
+  getMarketSnapshotIndex,
+  getMarketSnapshotIndexChange,
+  getMarketSnapshotIndexChangeRate,
+  getMarketSnapshotIndexLevel,
+  getMarketSnapshotSummaryLine,
   getPipelineStageResolvedStatusDate,
   getPipelineStage,
   getPriceFreshnessStage,
@@ -86,6 +97,7 @@ import {
   maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
   mergeRunningPipelineStage,
+  normalizeMarketSnapshotToken,
   resolveFundamentalsPollingPresentation,
   shouldShowAgentRoleProgress,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
@@ -93,6 +105,7 @@ import {
 import type {
   AgentRoleCard,
   AgentRoleStatus,
+  CoreMarketStatus,
   EodStageCard,
   FilteringCardModel,
   FilteringStageModel,
@@ -944,19 +957,6 @@ const PortfolioStateCard = memo(function PortfolioStateCard({
 
 type MarketSnapshotTone = "positive" | "negative" | null;
 
-function readMarketSnapshotNumber(...values: Array<number | string | null | undefined>) {
-  for (const value of values) {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value !== "string") continue;
-    const normalized = value.replace(/,/g, "").trim();
-    if (!normalized) continue;
-    const numericValue = Number(normalized);
-    if (Number.isFinite(numericValue)) return numericValue;
-  }
-
-  return null;
-}
-
 function getMarketSnapshotTone(value: number | null): MarketSnapshotTone {
   if (value === null || value === 0) return null;
   return value > 0 ? "positive" : "negative";
@@ -968,8 +968,13 @@ function getMarketSnapshotToneClassName(tone: MarketSnapshotTone) {
   return "";
 }
 
-function formatMarketSnapshotNumber(value: number | null, numberLocale: string, maximumFractionDigits = 2) {
-  if (value === null) return UNKNOWN_LABEL;
+function formatMarketSnapshotNumber(
+  value: number | null,
+  numberLocale: string,
+  maximumFractionDigits = 2,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  if (value === null) return unavailableLabel;
 
   return value.toLocaleString(numberLocale, {
     maximumFractionDigits,
@@ -977,26 +982,36 @@ function formatMarketSnapshotNumber(value: number | null, numberLocale: string, 
   });
 }
 
-function formatSignedMarketSnapshotNumber(value: number | null, numberLocale: string, maximumFractionDigits = 2) {
-  if (value === null) return UNKNOWN_LABEL;
+function formatSignedMarketSnapshotNumber(
+  value: number | null,
+  numberLocale: string,
+  maximumFractionDigits = 2,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  if (value === null) return unavailableLabel;
   const prefix = value > 0 ? "+" : "";
 
   return `${prefix}${formatMarketSnapshotNumber(value, numberLocale, maximumFractionDigits)}`;
 }
 
-function formatSignedMarketSnapshotPercent(value: number | null, numberLocale: string) {
-  if (value === null) return UNKNOWN_LABEL;
+function formatSignedMarketSnapshotPercent(value: number | null, numberLocale: string, unavailableLabel = UNKNOWN_LABEL) {
+  if (value === null) return unavailableLabel;
 
   return `${formatSignedMarketSnapshotNumber(value, numberLocale, 2)}%`;
 }
 
-function formatMarketSnapshotDelta(change: number | null, changeRate: number | null, numberLocale: string) {
-  const changeLabel = formatSignedMarketSnapshotNumber(change, numberLocale, 2);
-  const rateLabel = formatSignedMarketSnapshotPercent(changeRate, numberLocale);
+function formatMarketSnapshotDelta(
+  change: number | null,
+  changeRate: number | null,
+  numberLocale: string,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  const changeLabel = formatSignedMarketSnapshotNumber(change, numberLocale, 2, unavailableLabel);
+  const rateLabel = formatSignedMarketSnapshotPercent(changeRate, numberLocale, unavailableLabel);
 
-  if (changeLabel === UNKNOWN_LABEL && rateLabel === UNKNOWN_LABEL) return UNKNOWN_LABEL;
-  if (changeLabel === UNKNOWN_LABEL) return rateLabel;
-  if (rateLabel === UNKNOWN_LABEL) return changeLabel;
+  if (changeLabel === unavailableLabel && rateLabel === unavailableLabel) return unavailableLabel;
+  if (changeLabel === unavailableLabel) return rateLabel;
+  if (rateLabel === unavailableLabel) return changeLabel;
 
   return `${changeLabel} (${rateLabel})`;
 }
@@ -1029,8 +1044,9 @@ function formatSignedMarketSnapshotAmount(
   value: number | null,
   flow: MarketSnapshotFlowDto | null | undefined,
   numberLocale: string,
+  unavailableLabel = UNKNOWN_LABEL,
 ) {
-  if (value === null) return UNKNOWN_LABEL;
+  if (value === null) return unavailableLabel;
   const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
   const currency = flow?.currency?.trim().toUpperCase() ?? "";
   const unit = flow?.unit?.trim();
@@ -1042,59 +1058,6 @@ function formatSignedMarketSnapshotAmount(
 
   return `${prefix}${amountLabel}`;
 }
-
-function normalizeMarketSnapshotToken(value: string | null | undefined) {
-  return value?.trim().toLowerCase().replace(/[\s_-]+/g, "") ?? "";
-}
-
-function getMarketSnapshotIndex(snapshot: MarketSnapshotResponseDto | null, key: "kospi" | "kosdaq") {
-  const indices = snapshot?.indices;
-  if (!indices) return null;
-
-  if (Array.isArray(indices)) {
-    return (
-      indices.find((index) => {
-        const candidates = [index.code, index.market, index.name].map(normalizeMarketSnapshotToken);
-        return candidates.some((candidate) => candidate === key);
-      }) ?? null
-    );
-  }
-
-  return indices[key] ?? null;
-}
-
-function getMarketSnapshotFxRate(snapshot: MarketSnapshotResponseDto | null) {
-  return snapshot?.fx?.usdkrw ?? snapshot?.fx?.usd_krw ?? null;
-}
-
-function getMarketSnapshotIndexLevel(index: MarketSnapshotIndexDto | null) {
-  return readMarketSnapshotNumber(index?.level, index?.value, index?.close, index?.current);
-}
-
-function getMarketSnapshotIndexChange(index: MarketSnapshotIndexDto | null) {
-  return readMarketSnapshotNumber(index?.change);
-}
-
-function getMarketSnapshotIndexChangeRate(index: MarketSnapshotIndexDto | null) {
-  return readMarketSnapshotNumber(index?.change_rate, index?.change_pct, index?.change_percent);
-}
-
-function getMarketSnapshotFxValue(fxRate: MarketSnapshotFxRateDto | null) {
-  return readMarketSnapshotNumber(fxRate?.rate, fxRate?.value);
-}
-
-function getMarketSnapshotFxChange(fxRate: MarketSnapshotFxRateDto | null) {
-  return readMarketSnapshotNumber(fxRate?.change);
-}
-
-function getMarketSnapshotFxChangeRate(fxRate: MarketSnapshotFxRateDto | null) {
-  return readMarketSnapshotNumber(fxRate?.change_rate, fxRate?.change_pct, fxRate?.change_percent);
-}
-
-function getMarketSnapshotFlowAmount(flow: MarketSnapshotFlowDto | null | undefined) {
-  return readMarketSnapshotNumber(flow?.net_amount, flow?.net_buy_amount, flow?.amount, flow?.value);
-}
-
 function getMarketSnapshotFlowTone(flow: MarketSnapshotFlowDto | null | undefined): MarketSnapshotTone {
   const amount = getMarketSnapshotFlowAmount(flow);
   if (amount !== null) return getMarketSnapshotTone(amount);
@@ -1106,29 +1069,18 @@ function getMarketSnapshotFlowTone(flow: MarketSnapshotFlowDto | null | undefine
   return null;
 }
 
-function formatMarketSnapshotFlow(flow: MarketSnapshotFlowDto | null | undefined, numberLocale: string) {
+function formatMarketSnapshotFlow(
+  flow: MarketSnapshotFlowDto | null | undefined,
+  numberLocale: string,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
   const summary = flow?.summary?.trim();
   if (summary) return summary;
 
   const amount = getMarketSnapshotFlowAmount(flow);
-  if (amount !== null) return formatSignedMarketSnapshotAmount(amount, flow, numberLocale);
+  if (amount !== null) return formatSignedMarketSnapshotAmount(amount, flow, numberLocale, unavailableLabel);
 
-  return flow?.direction?.trim() || UNKNOWN_LABEL;
-}
-
-function getMarketSnapshotSummaryLine(snapshot: MarketSnapshotResponseDto | null) {
-  const summary = snapshot?.summary;
-  if (!summary) return null;
-  if (typeof summary === "string") return summary.trim() || null;
-
-  const bias = summary.market_bias?.trim() ?? "";
-  const breadth = (summary.breadth_summary ?? summary.breadth ?? summary.market_breadth ?? "").trim();
-  const line = summary.line?.trim() ?? "";
-
-  if (line) return line;
-  if (bias && breadth && bias !== breadth) return `${bias} · ${breadth}`;
-
-  return bias || breadth || null;
+  return flow?.direction?.trim() || unavailableLabel;
 }
 
 function getMarketSnapshotAsOf(
@@ -1148,8 +1100,21 @@ function getMarketSnapshotAsOf(
   );
 }
 
+function getMarketSnapshotSessionLabel(marketStatus: CoreMarketStatus, copy: DashboardLiveCopy) {
+  if (marketStatus.is_open) return copy.marketOpen;
+  if (marketStatus.state?.trim()) return copy.marketClosed;
+  return copy.marketOverview.unknown;
+}
+
+function getMarketSnapshotTradingDayLabel(marketStatus: CoreMarketStatus, copy: DashboardLiveCopy) {
+  if (marketStatus.is_trading_day === true) return copy.marketOverview.tradingDayOpen;
+  if (marketStatus.is_trading_day === false) return copy.marketOverview.breakDay;
+  return copy.marketOverview.unknown;
+}
+
 type MarketOverviewCardProps = {
   copy: DashboardLiveCopy;
+  marketStatus: CoreMarketStatus;
   marketSnapshot: MarketSnapshotResponseDto | null;
   marketSnapshotError: string | null;
   numberLocale: string;
@@ -1157,6 +1122,7 @@ type MarketOverviewCardProps = {
 
 const MarketOverviewCard = memo(function MarketOverviewCard({
   copy,
+  marketStatus,
   marketSnapshot,
   marketSnapshotError,
   numberLocale,
@@ -1175,10 +1141,15 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
   const usdKrwRate = getMarketSnapshotFxValue(fxRate);
   const usdKrwChange = getMarketSnapshotFxChange(fxRate);
   const usdKrwChangeRate = getMarketSnapshotFxChangeRate(fxRate);
-  const foreignFlow = displaySnapshot?.flows?.foreign ?? null;
-  const institutionalFlow = displaySnapshot?.flows?.institutional ?? null;
+  const foreignFlow = getMarketSnapshotFlow(displaySnapshot, "foreign");
+  const institutionalFlow = getMarketSnapshotFlow(displaySnapshot, "institutional");
   const summaryLine = getMarketSnapshotSummaryLine(displaySnapshot);
   const asOfLabel = getMarketSnapshotAsOf(displaySnapshot, kospi, kosdaq, fxRate);
+  const unavailableLabel = copy.marketOverview.valueUnavailable;
+  const changeUnavailableLabel = copy.marketOverview.changeUnavailable;
+  const sourceLabel = displaySnapshot?.source?.trim() || copy.marketOverview.snapshotSourceFallback;
+  const sessionLabel = getMarketSnapshotSessionLabel(marketStatus, copy);
+  const tradingDayLabel = getMarketSnapshotTradingDayLabel(marketStatus, copy);
 
   return (
     <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.marketOverviewCard}`}>
@@ -1201,22 +1172,22 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
         <div className={styles.marketIndexCard}>
           <div className={styles.marketIndexHeader}>
             <span>{copy.marketOverview.kospi}</span>
-            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : UNKNOWN_LABEL}</span>
+            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : copy.marketOverview.asOfUnavailable}</span>
           </div>
-          <strong>{formatMarketSnapshotNumber(kospiLevel, numberLocale, 2)}</strong>
+          <strong>{formatMarketSnapshotNumber(kospiLevel, numberLocale, 2, unavailableLabel)}</strong>
           <span className={getMarketSnapshotToneClassName(getMarketSnapshotTone(kospiChange))}>
-            {formatMarketSnapshotDelta(kospiChange, kospiChangeRate, numberLocale)}
+            {formatMarketSnapshotDelta(kospiChange, kospiChangeRate, numberLocale, changeUnavailableLabel)}
           </span>
         </div>
 
         <div className={styles.marketIndexCard}>
           <div className={styles.marketIndexHeader}>
             <span>{copy.marketOverview.kosdaq}</span>
-            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : UNKNOWN_LABEL}</span>
+            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : copy.marketOverview.asOfUnavailable}</span>
           </div>
-          <strong>{formatMarketSnapshotNumber(kosdaqLevel, numberLocale, 2)}</strong>
+          <strong>{formatMarketSnapshotNumber(kosdaqLevel, numberLocale, 2, unavailableLabel)}</strong>
           <span className={getMarketSnapshotToneClassName(getMarketSnapshotTone(kosdaqChange))}>
-            {formatMarketSnapshotDelta(kosdaqChange, kosdaqChangeRate, numberLocale)}
+            {formatMarketSnapshotDelta(kosdaqChange, kosdaqChangeRate, numberLocale, changeUnavailableLabel)}
           </span>
         </div>
       </div>
@@ -1224,30 +1195,45 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
       <div className={styles.marketContextGrid}>
         <div>
           <span>{copy.marketOverview.usdKrw}</span>
-          <strong>{formatMarketSnapshotNumber(usdKrwRate, numberLocale, 2)}</strong>
+          <strong>{formatMarketSnapshotNumber(usdKrwRate, numberLocale, 2, unavailableLabel)}</strong>
           <small className={getMarketSnapshotToneClassName(getMarketSnapshotTone(usdKrwChange))}>
-            {formatMarketSnapshotDelta(usdKrwChange, usdKrwChangeRate, numberLocale)}
+            {formatMarketSnapshotDelta(usdKrwChange, usdKrwChangeRate, numberLocale, changeUnavailableLabel)}
           </small>
         </div>
         <div>
           <span>{copy.marketOverview.foreignFlow}</span>
           <strong className={getMarketSnapshotToneClassName(getMarketSnapshotFlowTone(foreignFlow))}>
-            {formatMarketSnapshotFlow(foreignFlow, numberLocale)}
+            {formatMarketSnapshotFlow(foreignFlow, numberLocale, unavailableLabel)}
           </strong>
         </div>
         <div>
           <span>{copy.marketOverview.institutionalFlow}</span>
           <strong className={getMarketSnapshotToneClassName(getMarketSnapshotFlowTone(institutionalFlow))}>
-            {formatMarketSnapshotFlow(institutionalFlow, numberLocale)}
+            {formatMarketSnapshotFlow(institutionalFlow, numberLocale, unavailableLabel)}
           </strong>
         </div>
       </div>
 
-      {summaryLine ? (
-        <p className={styles.marketSummaryLine}>{summaryLine}</p>
-      ) : (
+      {summaryLine ? <p className={styles.marketSummaryLine}>{summaryLine}</p> : null}
+
+      {!summaryLine || snapshotPresentation.status !== "ready" ? (
         <p className={styles.cardContext}>{snapshotPresentation.fallbackContextLabel}</p>
-      )}
+      ) : null}
+
+      <dl className={styles.marketSnapshotMetaGrid}>
+        <div>
+          <dt>{copy.marketOverview.session}</dt>
+          <dd>{sessionLabel}</dd>
+        </div>
+        <div>
+          <dt>{copy.marketOverview.tradingDay}</dt>
+          <dd>{tradingDayLabel}</dd>
+        </div>
+        <div>
+          <dt>{copy.marketOverview.source}</dt>
+          <dd>{sourceLabel}</dd>
+        </div>
+      </dl>
 
       <div className={styles.cardActionRow}>
         <Link href="/markets" className={styles.signalDeciderDetailLink} aria-label={copy.marketOverview.openMarkets}>
@@ -2100,6 +2086,7 @@ export function LiveDashboardClient({
 
               <MarketOverviewCard
                 copy={copy}
+                marketStatus={market}
                 marketSnapshot={marketSnapshot}
                 marketSnapshotError={marketSnapshotError}
                 numberLocale={numberLocale}

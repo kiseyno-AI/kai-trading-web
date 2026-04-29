@@ -721,7 +721,12 @@ export type EodMarketRiskFiltersResponseDto = {
 
 export type MarketSnapshotNumericValue = number | string | null;
 
+export type MarketSnapshotStatusDto = "ready" | "partial" | "unavailable" | "stale" | string;
+
 export type MarketSnapshotIndexDto = {
+  id?: string | null;
+  label?: string | null;
+  symbol?: string | null;
   code?: string | null;
   market?: string | null;
   name?: string | null;
@@ -729,36 +734,65 @@ export type MarketSnapshotIndexDto = {
   value?: MarketSnapshotNumericValue;
   close?: MarketSnapshotNumericValue;
   current?: MarketSnapshotNumericValue;
+  price?: MarketSnapshotNumericValue;
+  last?: MarketSnapshotNumericValue;
+  last_price?: MarketSnapshotNumericValue;
   change?: MarketSnapshotNumericValue;
+  net_change?: MarketSnapshotNumericValue;
+  point_change?: MarketSnapshotNumericValue;
   change_rate?: MarketSnapshotNumericValue;
   change_pct?: MarketSnapshotNumericValue;
   change_percent?: MarketSnapshotNumericValue;
+  pct_change?: MarketSnapshotNumericValue;
+  percent_change?: MarketSnapshotNumericValue;
+  rate_change?: MarketSnapshotNumericValue;
   market_date?: string | null;
   as_of?: string | null;
   source?: string | null;
 };
 
 export type MarketSnapshotFxRateDto = {
+  id?: string | null;
+  label?: string | null;
+  code?: string | null;
+  name?: string | null;
   pair?: string | null;
   base?: string | null;
   quote?: string | null;
   rate?: MarketSnapshotNumericValue;
   value?: MarketSnapshotNumericValue;
+  close?: MarketSnapshotNumericValue;
+  current?: MarketSnapshotNumericValue;
+  price?: MarketSnapshotNumericValue;
+  last?: MarketSnapshotNumericValue;
+  last_price?: MarketSnapshotNumericValue;
   change?: MarketSnapshotNumericValue;
+  net_change?: MarketSnapshotNumericValue;
   change_rate?: MarketSnapshotNumericValue;
   change_pct?: MarketSnapshotNumericValue;
   change_percent?: MarketSnapshotNumericValue;
+  pct_change?: MarketSnapshotNumericValue;
+  percent_change?: MarketSnapshotNumericValue;
+  rate_change?: MarketSnapshotNumericValue;
   as_of?: string | null;
   source?: string | null;
 };
 
 export type MarketSnapshotFlowDto = {
+  id?: string | null;
+  name?: string | null;
   label?: string | null;
   market?: string | null;
+  investor_type?: string | null;
+  type?: string | null;
   direction?: string | null;
   summary?: string | null;
   net_amount?: MarketSnapshotNumericValue;
   net_buy_amount?: MarketSnapshotNumericValue;
+  net?: MarketSnapshotNumericValue;
+  net_buy?: MarketSnapshotNumericValue;
+  net_flow?: MarketSnapshotNumericValue;
+  net_purchase?: MarketSnapshotNumericValue;
   amount?: MarketSnapshotNumericValue;
   value?: MarketSnapshotNumericValue;
   currency?: string | null;
@@ -779,6 +813,7 @@ export type MarketSnapshotResponseDto = {
   market_date?: string | null;
   as_of?: string | null;
   source?: string | null;
+  status?: MarketSnapshotStatusDto | null;
   indices?: {
     kospi?: MarketSnapshotIndexDto | null;
     kosdaq?: MarketSnapshotIndexDto | null;
@@ -786,12 +821,15 @@ export type MarketSnapshotResponseDto = {
   fx?: {
     usdkrw?: MarketSnapshotFxRateDto | null;
     usd_krw?: MarketSnapshotFxRateDto | null;
-  } | null;
+  } | MarketSnapshotFxRateDto[] | null;
   flows?: {
     foreign?: MarketSnapshotFlowDto | null;
     institutional?: MarketSnapshotFlowDto | null;
-  } | null;
+  } | MarketSnapshotFlowDto[] | null;
   summary?: MarketSnapshotSummaryDto | string | null;
+  missing_fields?: string[] | null;
+  stale_reason?: string | null;
+  data?: MarketSnapshotResponseDto | null;
 };
 
 export type EodPipelineStageKey =

@@ -146,12 +146,25 @@ function buildAgentFeedbackProgress({
   };
 }
 
-test("treats a stale market snapshot as unavailable while the latest snapshot load is errored", () => {
+test("keeps the last usable market snapshot visible as stale while the latest snapshot load is errored", () => {
   const copy = getDashboardLiveCopy("en");
   const presentation = buildMarketSnapshotPresentation(copy, buildMarketSnapshot(), "HTTP 503");
 
   assert.equal(presentation.isReady, false);
+  assert.equal(presentation.displaySnapshot?.market_date, "2026-04-21");
+  assert.equal(presentation.status, "stale");
+  assert.equal(presentation.statusLabel, copy.marketOverview.snapshotStale);
+  assert.equal(presentation.statusTone, "warning");
+  assert.equal(presentation.fallbackContextLabel, `${copy.marketOverview.snapshotStaleContext} HTTP 503`);
+});
+
+test("treats a missing market snapshot as unavailable when the snapshot load is errored", () => {
+  const copy = getDashboardLiveCopy("en");
+  const presentation = buildMarketSnapshotPresentation(copy, null, "HTTP 503");
+
+  assert.equal(presentation.isReady, false);
   assert.equal(presentation.displaySnapshot, null);
+  assert.equal(presentation.status, "unavailable");
   assert.equal(presentation.statusLabel, copy.marketOverview.snapshotUnavailable);
   assert.equal(presentation.statusTone, "warning");
   assert.equal(presentation.fallbackContextLabel, copy.marketOverview.snapshotDependencyPending);
@@ -159,14 +172,125 @@ test("treats a stale market snapshot as unavailable while the latest snapshot lo
 
 test("keeps the market snapshot ready when present and the latest snapshot load has no error", () => {
   const copy = getDashboardLiveCopy("en");
-  const snapshot = buildMarketSnapshot();
+  const snapshot: MarketSnapshotResponseDto = {
+    ...buildMarketSnapshot(),
+    indices: {
+      kospi: {
+        level: 2648.3,
+        change: 12.4,
+        change_rate: 0.47,
+      },
+      kosdaq: {
+        level: 812.22,
+        change: 3.1,
+        change_rate: 0.38,
+      },
+    },
+    fx: {
+      usdkrw: {
+        value: 1378.1,
+        change: -2.4,
+        change_rate: -0.17,
+      },
+    },
+    flows: {
+      foreign: {
+        value: 124_000_000_000,
+        unit: "KRW",
+      },
+      institutional: {
+        value: -44_000_000_000,
+        unit: "KRW",
+      },
+    },
+  };
   const presentation = buildMarketSnapshotPresentation(copy, snapshot, null);
 
   assert.equal(presentation.isReady, true);
   assert.equal(presentation.displaySnapshot, snapshot);
+  assert.equal(presentation.status, "ready");
   assert.equal(presentation.statusLabel, copy.marketOverview.snapshotReady);
   assert.equal(presentation.statusTone, "positive");
   assert.equal(presentation.fallbackContextLabel, copy.marketOverview.conditionNote);
+});
+
+test("renders partial-but-usable market snapshots instead of collapsing the full card state", () => {
+  const copy = getDashboardLiveCopy("en");
+  const snapshot: MarketSnapshotResponseDto = {
+    status: "ready",
+    market_date: "2026-04-21",
+    as_of: "2026-04-21T15:30:00+09:00",
+    indices: {
+      kospi: {
+        level: 2648.3,
+        change: 12.4,
+        change_rate: 0.47,
+      },
+    },
+    fx: {
+      usdkrw: {
+        value: 1378.1,
+      },
+    },
+    flows: {
+      foreign: {
+        value: 124_000_000_000,
+        unit: "KRW",
+      },
+    },
+    summary: {
+      line: "Large-cap breadth improved into the close.",
+    },
+  };
+  const presentation = buildMarketSnapshotPresentation(copy, snapshot, null);
+
+  assert.equal(presentation.isReady, false);
+  assert.equal(presentation.status, "partial");
+  assert.equal(presentation.statusLabel, copy.marketOverview.snapshotPartial);
+  assert.equal(presentation.statusTone, "info");
+  assert.equal(presentation.displaySnapshot, snapshot);
+  assert.deepEqual(presentation.missingFieldLabels, [copy.marketOverview.kosdaq, copy.marketOverview.institutionalFlow]);
+  assert.match(presentation.fallbackContextLabel, /Partial market snapshot/);
+  assert.match(presentation.fallbackContextLabel, /KOSDAQ/);
+  assert.match(presentation.fallbackContextLabel, /Institutional flow/);
+});
+
+test("normalizes enveloped market snapshot responses before resolving presentation state", () => {
+  const copy = getDashboardLiveCopy("en");
+  const envelopedSnapshot = {
+    status: "partial",
+    data: {
+      market_date: "2026-04-21",
+      indices: [
+        {
+          symbol: "KOSPI",
+          value: "2,648.30",
+        },
+      ],
+      fx: [
+        {
+          pair: "USD/KRW",
+          rate: "1,378.10",
+        },
+      ],
+      flows: [
+        {
+          investor_type: "foreign",
+          net_buy: "124000000000",
+          unit: "KRW",
+        },
+      ],
+    },
+    meta: {
+      source: "core",
+    },
+  } as unknown as MarketSnapshotResponseDto;
+  const presentation = buildMarketSnapshotPresentation(copy, envelopedSnapshot, null);
+
+  assert.equal(presentation.status, "partial");
+  assert.equal(presentation.displaySnapshot?.market_date, "2026-04-21");
+  assert.equal(presentation.displaySnapshot?.source, "core");
+  assert.deepEqual(presentation.missingFieldLabels, [copy.marketOverview.kosdaq, copy.marketOverview.institutionalFlow]);
 });
 
 test("retries market snapshot outages faster than the idle polling cadence until recovery", () => {
@@ -215,7 +339,18 @@ test("moves the market snapshot presentation from outage fallback to ready after
   assert.equal(outagePresentation.statusLabel, copy.marketOverview.snapshotUnavailable);
   assert.equal(outagePresentation.displaySnapshot, null);
 
-  const recoveredSnapshot = buildMarketSnapshot();
+  const recoveredSnapshot: MarketSnapshotResponseDto = {
+    ...buildMarketSnapshot(),
+    indices: {
+      kospi: { level: 2648.3 },
+      kosdaq: { level: 812.22 },
+    },
+    fx: { usdkrw: { value: 1378.1 } },
+    flows: {
+      foreign: { value: 124_000_000_000, unit: "KRW" },
+      institutional: { value: -44_000_000_000, unit: "KRW" },
+    },
+  };
   const recoveredPresentation = buildMarketSnapshotPresentation(copy, recoveredSnapshot, null);
 
   assert.equal(recoveredPresentation.isReady, true);
