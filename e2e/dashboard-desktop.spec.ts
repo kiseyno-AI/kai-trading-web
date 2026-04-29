@@ -164,6 +164,54 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
+  test("market condition card recovers after a temporary snapshot outage", async ({ page }) => {
+    let snapshotAttempts = 0;
+
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      snapshotAttempts += 1;
+
+      if (snapshotAttempts === 1) {
+        await route.fulfill({
+          contentType: "application/json",
+          status: 503,
+          body: JSON.stringify({ detail: "market snapshot temporarily unavailable" }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-04-28T10:17:00+09:00",
+          indices: {
+            kospi: { level: 2801.55, change: 21.35, change_rate: 0.77 },
+            kosdaq: { level: 853.44, change: 2.84, change_rate: 0.33 },
+          },
+          fx: {
+            usdkrw: { rate: 1369.4, change: -3.1, change_rate: -0.23 },
+          },
+          flows: {
+            foreign: { summary: "+₩312B net buy" },
+            institutional: { summary: "+₩64B net buy" },
+          },
+          summary: {
+            line: "Recovered snapshot visible without refresh.",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const marketCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
+    await expect(marketCard.getByText("Unavailable", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Snapshot", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(marketCard.getByText("2,801.55", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Recovered snapshot visible without refresh.", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Unavailable", { exact: true })).toHaveCount(0);
+    await expect(marketCard.getByText("[확인 필요]", { exact: true })).toHaveCount(0);
+  });
+
   test("desktop process monitor expands as a floating overlay over dashboard context", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/dashboard");

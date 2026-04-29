@@ -82,6 +82,8 @@ const EOD_PIPELINE_STATUS_IDLE_POLL_MS = 30_000;
 const AGENT_FEEDBACK_PROGRESS_RUNNING_POLL_MS = 1_000;
 const AGENT_FEEDBACK_PROGRESS_IDLE_POLL_MS = 30_000;
 const SIGNAL_DECIDER_FEEDBACK_ERROR_RETRY_POLL_MS = 5_000;
+const MARKET_SNAPSHOT_IDLE_POLL_MS = 60_000;
+const MARKET_SNAPSHOT_ERROR_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 const FUNDAMENTALS_UPDATED_ENTRIES_PREVIEW_LIMIT = 3;
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
 const SCORING_STAGE_DEFINITIONS = [
@@ -172,6 +174,24 @@ export function buildMarketSnapshotPresentation(
     statusLabel: string;
     statusTone: "positive" | "warning";
   };
+}
+
+export function getMarketSnapshotPollDelayMs({
+  hadError,
+  consecutiveErrorCount,
+}: {
+  hadError: boolean;
+  consecutiveErrorCount: number;
+}) {
+  if (!hadError) return MARKET_SNAPSHOT_IDLE_POLL_MS;
+
+  const normalizedErrorCount = Number.isFinite(consecutiveErrorCount)
+    ? Math.max(1, Math.floor(consecutiveErrorCount))
+    : 1;
+  const retryIndex = normalizedErrorCount - 1;
+  return MARKET_SNAPSHOT_ERROR_RETRY_DELAYS_MS[
+    Math.min(retryIndex, MARKET_SNAPSHOT_ERROR_RETRY_DELAYS_MS.length - 1)
+  ];
 }
 
 export function shouldTreatAgentFeedbackStopDisconnectAsAccepted(error: unknown) {

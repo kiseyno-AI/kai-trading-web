@@ -32,6 +32,7 @@ import {
   getAgentFeedbackProgressPollDelayMs,
   getDashboardLoadErrorMessage,
   getEodPipelineStatusPollDelayMs,
+  getMarketSnapshotPollDelayMs,
   getSignalDeciderFeedbackPollDelayMs,
   shouldRevalidateFilteringFallback,
 } from "./live-dashboard-derived-state";
@@ -327,26 +328,49 @@ export function useLiveDashboardData({
 
   useEffect(() => {
     let active = true;
+    let consecutiveErrorCount = 0;
+    let timer: number | null = null;
 
-    const loadMarketSnapshot = async () => {
+    function clearTimer() {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function scheduleNextLoad(hadError: boolean) {
+      if (!active) return;
+      clearTimer();
+      timer = window.setTimeout(
+        loadMarketSnapshot,
+        getMarketSnapshotPollDelayMs({
+          hadError,
+          consecutiveErrorCount,
+        }),
+      );
+    }
+
+    async function loadMarketSnapshot() {
       try {
         const snapshot = await getJsonNoCache<MarketSnapshotResponseDto>(MARKET_SNAPSHOT_PATH);
         if (!active) return;
+        consecutiveErrorCount = 0;
         setMarketSnapshot(snapshot);
         setMarketSnapshotError(null);
+        scheduleNextLoad(false);
       } catch (snapshotError) {
         console.error("Dashboard market snapshot load failed", snapshotError);
         if (!active) return;
+        consecutiveErrorCount += 1;
         setMarketSnapshotError(getDashboardLoadErrorMessage(snapshotError));
+        scheduleNextLoad(true);
       }
-    };
+    }
 
     void loadMarketSnapshot();
-    const timer = window.setInterval(loadMarketSnapshot, 60_000);
 
     return () => {
       active = false;
-      window.clearInterval(timer);
+      clearTimer();
     };
   }, []);
 
