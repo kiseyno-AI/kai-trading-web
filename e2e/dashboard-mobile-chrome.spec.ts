@@ -439,6 +439,7 @@ test.describe("dashboard mobile chrome", () => {
     const loadingSummary = processBar.locator('[data-process-summary-mode="loading"]');
     await expect(loadingSummary).toBeVisible();
     await expect(loadingSummary).toContainText(/Running/);
+    await expect(loadingSummary).toHaveText(/^Running$/);
     await expect(loadingSummary).not.toContainText(/\d+\s*\/\s*\d+/);
 
     const loadingSpinner = loadingSummary.locator('[aria-hidden="true"]').first();
