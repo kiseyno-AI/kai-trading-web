@@ -1168,7 +1168,7 @@ test("forces filtering, scoring, and feedback cards to waiting while EOD is chec
   assert.equal(agentRoleCards.every((role) => role.metrics.length === 0), true);
 });
 
-test("keeps refreshed EOD data visible while filtering is checking and makes later cards wait", () => {
+test("keeps refreshed EOD data visible and does not treat delayed filtering fetches as active running", () => {
   const copy = getDashboardLiveCopy("en");
   const eodStageCards = [
     buildEodStageCard(
@@ -1216,31 +1216,17 @@ test("keeps refreshed EOD data visible while filtering is checking and makes lat
     pipelineStatus,
     scoringCardModel: rawScoringCardModel,
   });
-  const scoringCardModel = buildScoringCardModel({
-    copy,
-    forceWaiting: waitState.waitForScoring,
-    numberLocale: "en-US",
-    pipelineStatus,
-    scoringMarketDate: "2026-04-27",
-  });
-  const agentRoleCards = maskAgentRoleCardsAsWaiting(
-    buildAgentRoleCards(buildAgentFeedbackProgress({ marketDate: "2026-04-27", totalSymbols: 90 }), copy, "en-US"),
-    "en-US",
-  );
 
   assert.equal(eodStageCards[0]?.statusLabel, "synced");
   assert.equal(eodStageCards[0]?.details.find((detail) => detail.key === "count")?.value, "100 / 100");
   assert.deepEqual(waitState, {
-    filteringChecking: true,
+    filteringChecking: false,
     scoringChecking: false,
-    waitForAgentFeedback: true,
+    waitForAgentFeedback: false,
     waitForFiltering: false,
-    waitForScoring: true,
+    waitForScoring: false,
   });
-  assert.deepEqual(rawFilteringCardModel.stages.map((stage) => stage.status), ["loading", "loading"]);
-  assert.deepEqual(scoringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting", "waiting"]);
-  assert.equal(agentRoleCards.length > 0, true);
-  assert.equal(agentRoleCards.every((role) => role.status === "pending"), true);
+  assert.deepEqual(rawFilteringCardModel.stages.map((stage) => stage.status), ["pending", "pending"]);
 });
 
 test("keeps EOD and filtering visible while scoring is checking and makes feedback wait", () => {

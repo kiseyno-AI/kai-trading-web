@@ -251,7 +251,6 @@ function getFilteringStageStatus(
   requestedMarketDate: string | null,
 ): FilteringStageStatus {
   if (loadState === "ready") return "completed";
-  if (loadState === "loading") return "loading";
   if (loadState === "error") return "needs-review";
   return requestedMarketDate ? "pending" : "waiting";
 }
