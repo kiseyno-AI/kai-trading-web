@@ -8,7 +8,10 @@ import {
   getFactorStatusLabel,
   getLowRiskFactorStatusDescriptor,
   getMomentumFactorStatusDescriptor,
+  getUnifiedValueStatusDescriptor,
   getValueFactorStatusDescriptor,
+  hasUnifiedValueFields,
+  resolveUnifiedValueStatusCode,
   type FactorFamilyId,
   type FactorStatusDescriptor,
 } from "@/lib/factor-snapshot";
@@ -131,13 +134,17 @@ const FACTOR_SCREENING_FAMILY_META: Record<
   },
   value: {
     ...FACTOR_FAMILY_META.value,
-    shortLabel: "Value",
-    sortBasis: "Value rank",
+    shortLabel: "Unified value",
+    sortBasis: "Unified value rank",
+    subtitle: "Unified valuation score with legacy PER, PBR, yield, and advanced component context",
+    title: "Unified value",
   },
   advancedValue: {
     ...FACTOR_FAMILY_META.advancedValue,
-    shortLabel: "Advanced value",
-    sortBasis: "Advanced-value rank",
+    shortLabel: "Advanced components",
+    sortBasis: "Advanced component rank",
+    subtitle: "Component view for FCF yield and EV / EBITDA from stored DART fundamentals",
+    title: "Advanced value components",
   },
   composite: COMPOSITE_FAMILY_META,
 };
@@ -190,6 +197,95 @@ function metricToneFromValue(value: number | null | undefined): FactorScreeningT
 
 function buildMetric(label: string, value: string, tone?: FactorScreeningTone): FactorScreeningMetric {
   return { label, value, tone };
+}
+
+function getRecord(value: unknown) {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function readPayloadStatus(payload: Record<string, unknown> | null, key: string) {
+  const statusSources = [
+    getRecord(payload?.unified_value_component_statuses),
+    getRecord(payload?.unified_component_statuses),
+    getRecord(payload?.component_statuses),
+    getRecord(payload?.metric_statuses),
+    payload,
+  ];
+
+  for (const source of statusSources) {
+    const status = getString(source?.[key]);
+    if (status) return status;
+  }
+
+  return null;
+}
+
+function humanizeStatusToken(value: string | null | undefined, fallback = "Unavailable") {
+  if (!value) return fallback;
+
+  const normalized = value.trim();
+  const knownLabels: Record<string, string> = {
+    available: "Available",
+    insufficient_components: "Insufficient components",
+    insufficient_fundamentals: "Insufficient fundamentals",
+    invalid_non_positive: "Earnings non-positive",
+    invalid_per: "PER excluded",
+    missing_depreciation_and_amortization: "Missing D&A",
+    missing_ebitda: "Missing EBITDA",
+    missing_enterprise_value: "Missing enterprise value",
+    missing_free_cash_flow: "Missing FCF",
+    missing_market_date_bar: "Missing market-date bar",
+    missing_metric: "Missing metric",
+    non_positive: "Non-positive",
+    scored: "Scored",
+  };
+
+  return (
+    knownLabels[normalized] ??
+    normalized
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
+}
+
+function readValueComponentStatuses(item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto) {
+  const payload = getRecord(item.factor_payload);
+
+  return {
+    dividendYield:
+      ("dividend_yield_status" in item ? item.dividend_yield_status : null) ??
+      readPayloadStatus(payload, "dividend_yield"),
+    evToEbitda:
+      ("ev_to_ebitda_status" in item ? item.ev_to_ebitda_status : null) ??
+      readPayloadStatus(payload, "ev_to_ebitda"),
+    fcfYield:
+      ("fcf_yield_status" in item ? item.fcf_yield_status : null) ??
+      readPayloadStatus(payload, "fcf_yield"),
+    pbr: ("pbr_status" in item ? item.pbr_status : null) ?? readPayloadStatus(payload, "pbr"),
+    per: ("per_status" in item ? item.per_status : null) ?? readPayloadStatus(payload, "per"),
+  };
+}
+
+function formatValueComponentHints(item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto) {
+  const statuses = readValueComponentStatuses(item);
+  const hints = [
+    ["PER", statuses.per],
+    ["PBR", statuses.pbr],
+    ["Dividend yield", statuses.dividendYield],
+    ["FCF yield", statuses.fcfYield],
+    ["EV / EBITDA", statuses.evToEbitda],
+  ] as const;
+
+  return hints
+    .map(([label, status]) => (status ? `${label}: ${humanizeStatusToken(status)}` : null))
+    .filter((hint): hint is string => Boolean(hint));
 }
 
 function buildSymbolHref(options: {
@@ -333,12 +429,47 @@ function buildValueNote(status: FactorStatusDescriptor) {
     case "scored":
       return "PER, PBR, and dividend yield all produced a valid value score.";
     case "invalid_per":
-      return "PER blocked scoring for this market-date row.";
+      return "The symbol was excluded from PER scoring because earnings were non-positive.";
     case "missing_market_date_bar":
       return "The market-date bar is missing, so the value score is incomplete.";
     default:
       return "One or more valuation inputs were missing from the stored value row.";
   }
+}
+
+function buildUnifiedValueNote(status: FactorStatusDescriptor, componentHints: string[]) {
+  const componentSuffix =
+    componentHints.length > 0 ? ` Components: ${componentHints.join(" · ")}.` : "";
+
+  switch (status.code) {
+    case "scored":
+      return `Unified valuation score is available across the supported value components.${componentSuffix}`;
+    case "invalid_per":
+      return `The symbol was excluded from PER scoring because earnings were non-positive.${componentSuffix}`;
+    case "missing_metric":
+      return `Unified valuation scoring is incomplete because one or more required metrics were missing.${componentSuffix}`;
+    case "insufficient_components":
+      return `Unified valuation scoring had too few usable components for a complete score.${componentSuffix}`;
+    case "insufficient_fundamentals":
+      return `Unified valuation scoring needs a usable stored fundamentals snapshot before all components can score.${componentSuffix}`;
+    case "missing_market_date_bar":
+      return `The market-date bar is missing, so unified valuation scoring is incomplete.${componentSuffix}`;
+    default:
+      return `Unified valuation status needs review for this stored row.${componentSuffix}`;
+  }
+}
+
+function buildAdvancedValueUnifiedContextNote(
+  item: EodAdvancedValueFactorItemDto,
+  componentHints: string[],
+) {
+  if (!hasUnifiedValueFields(item)) return "";
+
+  const unifiedStatus = getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item));
+  const componentSuffix =
+    componentHints.length > 0 ? ` Components: ${componentHints.join(" · ")}.` : "";
+
+  return ` Unified valuation context: ${getFactorStatusLabel(unifiedStatus.code)}.${componentSuffix}`;
 }
 
 function buildAdvancedValueNote(status: FactorStatusDescriptor) {
@@ -480,7 +611,11 @@ function buildBetaRows(response: EodBetaFactorsResponseDto): FactorScreeningRow[
 
 function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRow[] {
   return extractFactorInspectItems<EodValueFactorItemDto>(response).map((item) => {
-    const status = getValueFactorStatusDescriptor(item);
+    const usesUnifiedValue = hasUnifiedValueFields(item);
+    const status = usesUnifiedValue
+      ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
+      : getValueFactorStatusDescriptor(item);
+    const componentHints = formatValueComponentHints(item);
     const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
 
     return {
@@ -494,21 +629,33 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
         marketDate: item.market_date,
         symbol: item.symbol,
       }),
-      isEligible: item.value_status === "scored",
+      isEligible: status.code === "scored",
       market: item.market ?? null,
       marketDate: item.market_date,
-      metrics: [
-        buildMetric("Value score", formatPercentScore(item.value_score)),
-        buildMetric("Value pct", formatPercentScore(item.value_percentile)),
-        buildMetric("Rank", formatRank(item.value_rank)),
-        buildMetric("Dividend yield", formatPercentScore(item.dividend_yield)),
-      ],
-      note: buildValueNote(status),
+      metrics: usesUnifiedValue
+        ? [
+            buildMetric("Unified value score", formatPercentScore(item.unified_value_score)),
+            buildMetric("Unified percentile", formatPercentScore(item.unified_value_percentile)),
+            buildMetric("Unified rank", formatRank(item.unified_value_rank)),
+            buildMetric("Overall status", getFactorStatusLabel(status.code)),
+            buildMetric("Legacy value score", formatPercentScore(item.value_score)),
+          ]
+        : [
+            buildMetric("Legacy value score", formatPercentScore(item.value_score)),
+            buildMetric("Legacy value pct", formatPercentScore(item.value_percentile)),
+            buildMetric("Legacy rank", formatRank(item.value_rank)),
+            buildMetric("Dividend yield", formatPercentScore(item.dividend_yield)),
+          ],
+      note: usesUnifiedValue ? buildUnifiedValueNote(status, componentHints) : buildValueNote(status),
       searchText: normalizeText(
-        [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code)].filter(Boolean).join(" "),
+        [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code), ...componentHints]
+          .filter(Boolean)
+          .join(" "),
       ),
-      sortRank: item.value_rank ?? null,
-      sortScore: item.value_score ?? item.value_percentile ?? null,
+      sortRank: usesUnifiedValue ? (item.unified_value_rank ?? null) : (item.value_rank ?? null),
+      sortScore: usesUnifiedValue
+        ? (item.unified_value_score ?? item.unified_value_percentile ?? null)
+        : (item.value_score ?? item.value_percentile ?? null),
       status,
       statusBucket: getStatusBucket(status),
       statusLabel: getFactorStatusLabel(status.code),
@@ -519,8 +666,26 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
 
 function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): FactorScreeningRow[] {
   return extractFactorInspectItems<EodAdvancedValueFactorItemDto>(response).map((item) => {
+    const usesUnifiedValue = hasUnifiedValueFields(item);
     const status = getAdvancedValueFactorStatusDescriptor(item);
+    const componentHints = formatValueComponentHints(item);
     const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
+    const advancedMetrics = [
+      buildMetric("Advanced component score", formatPercentScore(item.advanced_value_score)),
+      buildMetric("Component pct", formatPercentScore(item.advanced_value_percentile)),
+      buildMetric("Component rank", formatRank(item.advanced_value_rank)),
+      buildMetric("FCF yield", formatPercentScore(item.fcf_yield)),
+    ];
+    const unifiedMetrics = usesUnifiedValue
+      ? [
+          buildMetric("Unified value score", formatPercentScore(item.unified_value_score)),
+          buildMetric("Unified rank", formatRank(item.unified_value_rank)),
+          buildMetric(
+            "Unified status",
+            getFactorStatusLabel(getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item)).code),
+          ),
+        ]
+      : [];
 
     return {
       companyName,
@@ -536,15 +701,21 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
       isEligible: item.is_advanced_value_eligible,
       market: item.market ?? null,
       marketDate: item.market_date,
-      metrics: [
-        buildMetric("Advanced score", formatPercentScore(item.advanced_value_score)),
-        buildMetric("Value pct", formatPercentScore(item.advanced_value_percentile)),
-        buildMetric("Rank", formatRank(item.advanced_value_rank)),
-        buildMetric("FCF yield", formatPercentScore(item.fcf_yield)),
-      ],
-      note: buildAdvancedValueNote(status),
+      metrics: [...advancedMetrics, ...unifiedMetrics],
+      note: `${buildAdvancedValueNote(status)}${buildAdvancedValueUnifiedContextNote(item, componentHints)}`,
       searchText: normalizeText(
-        [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code)].filter(Boolean).join(" "),
+        [
+          companyName,
+          item.market ?? "",
+          item.symbol,
+          getFactorStatusLabel(status.code),
+          usesUnifiedValue
+            ? getFactorStatusLabel(getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item)).code)
+            : "",
+          ...componentHints,
+        ]
+          .filter(Boolean)
+          .join(" "),
       ),
       sortRank: item.advanced_value_rank ?? null,
       sortScore: item.advanced_value_score ?? item.advanced_value_percentile ?? null,
@@ -709,7 +880,7 @@ async function loadAvailableFamilyDataset(
           family,
           featureVersion: result.data.feature_version ?? null,
           marketDate: result.data.market_date ?? options.marketDate,
-          note: "Cross-sectional value rows using the stored PER, PBR, and dividend-yield inputs.",
+          note: "Unified valuation rows, falling back to the legacy PER, PBR, and dividend-yield component view when unified fields are absent.",
           requestedMarketDate: options.marketDate,
           rows,
           summaryEntries: result.data.summary?.entries ?? rows.length,
@@ -726,7 +897,7 @@ async function loadAvailableFamilyDataset(
           family,
           featureVersion: result.data.feature_version ?? null,
           marketDate: result.data.market_date ?? options.marketDate,
-          note: "Stored FCF-yield and EV / EBITDA rows for the selected market date.",
+          note: "Stored advanced valuation component rows for FCF yield and EV / EBITDA.",
           requestedMarketDate: options.marketDate,
           rows,
           summaryEntries: result.data.summary?.entries ?? rows.length,

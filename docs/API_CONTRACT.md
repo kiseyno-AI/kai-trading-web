@@ -71,7 +71,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /agent-context/symbol-day` for company metadata, aggregate availability, fallback technical/action data, latest fundamentals summary, and recent disclosures; the S1 hero also uses the latest disclosure name/date from this payload for the Fundamental latest card
   - `GET /disclosures/dart/filings/document?rcept_no=...` for the S7 disclosure report detail document stream
   - `GET /scanner/tracked-symbols` and `POST /scanner/tracked-symbols` for the hero star toggle beside the disabled Trade action; the star is filled when the current symbol is already tracked, and toggling posts the replacement tracked-symbol set
-  - The overview body now includes an explainable `Factor Snapshot` section that reads the five persisted factor inspect endpoints directly, isolates missing or failed families per card, and keeps a reserved composite-summary slot above the family cards so a later composite endpoint can land without reworking the symbol-detail layout
+  - The overview body now includes an explainable `Factor Snapshot` section that reads the five persisted factor inspect endpoints directly, isolates missing or failed families per card, and keeps a reserved composite-summary slot above the family cards so a later composite endpoint can land without reworking the symbol-detail layout. When Core includes unified valuation fields on a value inspect row, the snapshot makes `unified_value_score`, `unified_value_rank`, `unified_value_percentile`, and `unified_value_status` the primary displayed valuation status while keeping legacy PER/PBR/dividend-yield and advanced component hints clearly labeled.
 - The symbol detail card stack also powers dedicated mobile Stitch detail routes:
   - `/dashboard/symbol/[symbol]/action-summary`
   - `/dashboard/symbol/[symbol]/technical-analysis`
@@ -99,7 +99,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /eod/beta-factors?market_date=YYYY-MM-DD`
   - `GET /eod/value-factors?market_date=YYYY-MM-DD`
   - `GET /eod/advanced-value-factors?market_date=YYYY-MM-DD`
-  - The route renders one reusable factor-screening pattern with family switching, market-date aware ranking, eligibility/caution/audit filtering, natural row navigation into `/dashboard/symbol/[symbol]`, and a reserved composite slot so a later composite endpoint can land without redesigning the page
+  - The route renders one reusable factor-screening pattern with family switching, market-date aware ranking, eligibility/caution/audit filtering, natural row navigation into `/dashboard/symbol/[symbol]`, and a reserved composite slot so a later composite endpoint can land without redesigning the page. The value family treats optional `unified_value_*` fields as primary when present and falls back to the legacy value score when they are absent.
 - The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.
 
 ## Goals

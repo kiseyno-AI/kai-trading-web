@@ -244,7 +244,7 @@ function getFamilyFallbackLabel(family: FactorScreeningFamilyId) {
     case "lowRisk":
       return "Low risk";
     case "advancedValue":
-      return "Advanced value";
+      return "Advanced value components";
     case "composite":
       return "Composite";
     default:

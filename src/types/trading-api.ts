@@ -1091,6 +1091,12 @@ export type EodValueFactorItemDto = {
   pbr: number | null;
   dividend_yield: number | null;
   per_status: string | null;
+  pbr_status?: string | null;
+  dividend_yield_status?: string | null;
+  fcf_yield?: number | null;
+  ev_to_ebitda?: number | null;
+  fcf_yield_status?: string | null;
+  ev_to_ebitda_status?: string | null;
   per_rank: number | null;
   pbr_rank: number | null;
   dividend_yield_rank: number | null;
@@ -1101,6 +1107,11 @@ export type EodValueFactorItemDto = {
   value_rank: number | null;
   value_percentile: number | null;
   value_status: string | null;
+  unified_value_score?: number | null;
+  unified_value_rank?: number | null;
+  unified_value_percentile?: number | null;
+  unified_value_status?: string | null;
+  unified_value_components_used?: number | null;
   factor_payload: Record<string, unknown> | null;
   captured_at: string | null;
 };
@@ -1127,6 +1138,9 @@ export type EodAdvancedValueFactorItemDto = {
   market_date: string;
   source?: string | null;
   feature_version?: string | null;
+  per_status?: string | null;
+  pbr_status?: string | null;
+  dividend_yield_status?: string | null;
   market_cap_proxy: number | null;
   enterprise_value: number | null;
   ebitda: number | null;
@@ -1147,6 +1161,11 @@ export type EodAdvancedValueFactorItemDto = {
   advanced_value_components_used: number;
   advanced_value_classification: string | null;
   is_advanced_value_eligible: boolean;
+  unified_value_score?: number | null;
+  unified_value_rank?: number | null;
+  unified_value_percentile?: number | null;
+  unified_value_status?: string | null;
+  unified_value_components_used?: number | null;
   factor_payload: Record<string, unknown> | null;
   captured_at: string | null;
 };
