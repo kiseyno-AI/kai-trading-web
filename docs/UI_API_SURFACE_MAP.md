@@ -64,6 +64,31 @@ Important behavior:
 - If Core omits `result.roles["signal-decider"]`, the UI does not infer completion from payload shape. It shows the available stored rows and falls back to conservative waiting/completed status copy.
 - This is a decision-support inspection surface only and does not create orders.
 
+## Signal Review Calendar route: `/calendar`
+
+Entry point:
+- `src/app/calendar/page.tsx`
+- `src/app/calendar/signal-review-calendar-page-client.tsx`
+
+Client loading:
+- `GET /api/trading/eod/freshness` when the route is opened without `date`
+- `GET /api/trading/agent-context/feedback?market_date={visibleMonthDate}&agent_name=signal-decider&limit=200` for each visible past date in the active month
+- `GET /api/trading/agent-context/feedback?market_date={selectedDate}&agent_name=signal-decider&limit=200` for the selected-date list
+- `GET /api/trading/agent-context/feedback/progress?market_date={selectedDate}` as a best-effort selected-date completion overlay
+
+UI surfaces and fields:
+- Navigation: `/calendar` is exposed as Calendar / Signal Review in the shared shell and responsive app chrome.
+- Month calendar: generic stored signal-decider feedback rows drive date-cell decision counts, buy/wait/reject mix, reviewed/partial/stored/empty/unavailable state, and month total counts. The calendar does not invent dates or outcomes when the feedback read returns no rows.
+- Selected-date summary: total decisions, action mix, reviewed row count, target/stop/unresolved path counts, and role-progress warning when progress is unavailable.
+- Decision table: symbol/company, decision, target/stop, D+1/D+3/D+5 realized horizon summaries when stored, intraday target/stop path when stored, and a review insight headline/conclusion when stored or derivable from explicit quality tags.
+- Symbol detail dialog: original action plan, target/stop interpretation, following-session outcomes, thesis/conclusion, risks, run id, policy version, and captured timestamp.
+
+Important behavior:
+- This page is backed by the same generic feedback route as `/dashboard/signal-decider-feedback`; there is no dedicated Core calendar index, replay detail, or decision-id endpoint yet.
+- Month-level metadata is therefore collected by probing dates in the active month. This keeps the UI truthful but is less efficient and less authoritative than a future Core aggregation endpoint.
+- Target/stop path, review conclusion, and replay horizon fields are optional stored-feedback fields. The UI labels missing fields as unavailable instead of deriving them from unrelated quote or price-bar data.
+- This is a review/debugging surface only and does not create orders or live-trading actions.
+
 ## Piotroski pass route: `/dashboard/piotroski-filter`
 
 Entry point:

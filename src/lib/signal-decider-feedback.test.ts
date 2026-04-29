@@ -58,6 +58,8 @@ function buildFeedbackResponse(
           evaluation: {
             quality_verdict: "weak_buy",
             quality_reason: "Positive but underperformed the 3d hurdle.",
+            target_stop_result: "target_hit_first",
+            review_conclusion: "Target hit intraday first, but the multi-day hold weakened.",
             realized_results: {
               "1d": {
                 return_pct: 0.8,
@@ -223,6 +225,8 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.qualityTag?.kind, "weak-buy");
   assert.equal(items[0]?.qualityVerdict, "Weak Buy");
   assert.equal(items[0]?.qualityReason, "Positive but underperformed the 3d hurdle.");
+  assert.equal(items[0]?.pathOutcome?.kind, "target-first");
+  assert.equal(items[0]?.reviewConclusion, "Target hit intraday first, but the multi-day hold weakened.");
   assert.equal(items[0]?.outcomeHorizons.length, 2);
   assert.equal(items[0]?.outcomeHorizons[1]?.horizon, "3d");
   assert.equal(items[0]?.outcomeHorizons[1]?.returnPct, -1.4);

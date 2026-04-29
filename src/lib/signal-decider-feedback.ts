@@ -24,10 +24,25 @@ export type SignalDeciderQualityKind =
   | "correct-decision"
   | "inconclusive";
 
+export type SignalDeciderPathOutcomeKind =
+  | "target-first"
+  | "stop-first"
+  | "target-hit"
+  | "stop-hit"
+  | "ambiguous"
+  | "unresolved";
+
 export type SignalDeciderQualityTag = {
   kind: SignalDeciderQualityKind;
   label: string;
   tone: SignalDeciderQualityTone;
+};
+
+export type SignalDeciderPathOutcome = {
+  kind: SignalDeciderPathOutcomeKind;
+  label: string;
+  tone: SignalDeciderQualityTone;
+  detail: string | null;
 };
 
 export type SignalDeciderOutcomeHorizon = {
@@ -66,6 +81,9 @@ export type SignalDeciderFeedbackItem = {
   qualityVerdict: string | null;
   qualityReason: string | null;
   qualityTag: SignalDeciderQualityTag | null;
+  reviewConclusion: string | null;
+  pathOutcome: SignalDeciderPathOutcome | null;
+  intradayPathResult: string | null;
   outcomeHorizons: SignalDeciderOutcomeHorizon[];
   factorAttributions: SignalDeciderTraceEntry[];
   gateResults: SignalDeciderTraceEntry[];
@@ -536,6 +554,138 @@ function normalizeQualityTag({
   };
 }
 
+function buildPathOutcome(
+  kind: SignalDeciderPathOutcomeKind,
+  detail: string | null,
+): SignalDeciderPathOutcome {
+  switch (kind) {
+    case "target-first":
+      return { kind, label: "Target first", tone: "positive", detail };
+    case "target-hit":
+      return { kind, label: "Target hit", tone: "positive", detail };
+    case "stop-first":
+      return { kind, label: "Stop first", tone: "negative", detail };
+    case "stop-hit":
+      return { kind, label: "Stop hit", tone: "negative", detail };
+    case "ambiguous":
+      return { kind, label: "Ambiguous path", tone: "warning", detail };
+    case "unresolved":
+      return { kind, label: "Unresolved path", tone: "neutral", detail };
+  }
+}
+
+function normalizePathOutcome(sources: Array<Record<string, unknown> | null | undefined>) {
+  const rawResult = getStringFromSources(sources, [
+    "target_stop_result",
+    "target_stop_outcome",
+    "stop_target_result",
+    "path_result",
+    "intraday_path_result",
+    "intraday_result",
+    "first_trigger",
+    "triggered_first",
+    "hit_order",
+    "trade_result",
+  ]);
+  const normalizedResult = normalizeToken(rawResult);
+  const detail =
+    getStringFromSources(sources, [
+      "path_reason",
+      "path_summary",
+      "target_stop_reason",
+      "target_stop_detail",
+      "intraday_path_summary",
+      "intraday_summary",
+      "replay_summary",
+      "review_summary",
+    ]) ?? (rawResult ? humanizeToken(rawResult) : null);
+  const targetHitFirst =
+    getBooleanFromSources(sources, ["target_hit_first", "target_first", "hit_target_first"]) === true ||
+    ((normalizedResult.includes("target") || normalizedResult.includes("profit")) &&
+      (normalizedResult.includes("first") || normalizedResult.includes("before")));
+  const stopHitFirst =
+    getBooleanFromSources(sources, ["stop_hit_first", "stop_first", "hit_stop_first"]) === true ||
+    ((normalizedResult.includes("stop") || normalizedResult.includes("loss")) &&
+      (normalizedResult.includes("first") || normalizedResult.includes("before")));
+  const targetHit =
+    targetHitFirst ||
+    getBooleanFromSources(sources, ["target_hit", "hit_target", "take_profit_hit"]) === true ||
+    normalizedResult.includes("target_hit") ||
+    normalizedResult.includes("take_profit") ||
+    normalizedResult.includes("profit_target");
+  const stopHit =
+    stopHitFirst ||
+    getBooleanFromSources(sources, ["stop_hit", "hit_stop", "stop_loss_hit"]) === true ||
+    normalizedResult.includes("stop_hit") ||
+    normalizedResult.includes("stop_loss");
+
+  if (targetHitFirst) return buildPathOutcome("target-first", detail);
+  if (stopHitFirst) return buildPathOutcome("stop-first", detail);
+  if (targetHit && stopHit) return buildPathOutcome("ambiguous", detail);
+  if (targetHit) return buildPathOutcome("target-hit", detail);
+  if (stopHit) return buildPathOutcome("stop-hit", detail);
+  if (
+    normalizedResult.includes("ambiguous") ||
+    normalizedResult.includes("mixed") ||
+    normalizedResult.includes("unknown_order")
+  ) {
+    return buildPathOutcome("ambiguous", detail);
+  }
+  if (
+    normalizedResult.includes("unresolved") ||
+    normalizedResult.includes("pending") ||
+    normalizedResult.includes("not_hit") ||
+    normalizedResult.includes("neither")
+  ) {
+    return buildPathOutcome("unresolved", detail);
+  }
+
+  return rawResult ? buildPathOutcome("ambiguous", detail) : null;
+}
+
+function resolveReviewConclusion({
+  action,
+  outcomeHorizons,
+  pathOutcome,
+  qualityTag,
+  sources,
+}: {
+  action: SignalDeciderAction;
+  outcomeHorizons: SignalDeciderOutcomeHorizon[];
+  pathOutcome: SignalDeciderPathOutcome | null;
+  qualityTag: SignalDeciderQualityTag | null;
+  sources: Array<Record<string, unknown> | null | undefined>;
+}) {
+  const explicitConclusion = getStringFromSources(sources, [
+    "review_conclusion",
+    "human_conclusion",
+    "conclusion",
+    "headline",
+    "insight_headline",
+    "review_insight_headline",
+    "decision_review_headline",
+  ]);
+  if (explicitConclusion) return explicitConclusion;
+
+  if (qualityTag?.kind === "good-buy") return "Buy decision was supported by the replay.";
+  if (qualityTag?.kind === "weak-buy") return "Buy worked only weakly or missed the review hurdle.";
+  if (qualityTag?.kind === "bad-buy") return "Buy decision failed the replay review.";
+  if (qualityTag?.kind === "missed-opportunity") return "Non-buy decision missed a later opportunity.";
+  if (qualityTag?.kind === "correct-decision") return "Original decision was supported by later action.";
+
+  if (pathOutcome?.kind === "target-first" || pathOutcome?.kind === "target-hit") {
+    return action === "buy" ? "Target path supported the buy." : "Later price action favored a buy.";
+  }
+  if (pathOutcome?.kind === "stop-first" || pathOutcome?.kind === "stop-hit") {
+    return action === "buy" ? "Stop path challenged the buy." : "Avoiding the trade was supported.";
+  }
+  if (pathOutcome?.kind === "ambiguous") return "Replay path is ambiguous.";
+  if (pathOutcome?.kind === "unresolved") return "Replay outcome is still unresolved.";
+
+  if (outcomeHorizons.length > 0) return "Review outcome is available by horizon.";
+  return null;
+}
+
 function flattenStringList(value: unknown): string[] {
   if (typeof value === "string" && hasTextValue(value)) return [value.trim()];
   if (!Array.isArray(value)) return [];
@@ -671,6 +821,22 @@ export function normalizeSignalDeciderFeedbackItems(
         "horizons",
         "results",
       ]).flatMap(normalizeOutcomeHorizons);
+      const pathOutcome = normalizePathOutcome([...rootSources, evaluationRecord, outcomeRecord]);
+      const intradayPathResult = getStringFromSources([...rootSources, evaluationRecord, outcomeRecord], [
+        "intraday_path_result",
+        "intraday_result",
+        "intraday_path_summary",
+        "path_summary",
+        "target_stop_result",
+        "target_stop_outcome",
+      ]);
+      const reviewConclusion = resolveReviewConclusion({
+        action,
+        outcomeHorizons,
+        pathOutcome,
+        qualityTag: quality.qualityTag,
+        sources: [...rootSources, evaluationRecord, outcomeRecord],
+      });
       const factorAttributions = getValuesFromSources([...rootSources, evaluationRecord], [
         "factors",
         "factor_attribution",
@@ -743,6 +909,9 @@ export function normalizeSignalDeciderFeedbackItems(
         qualityVerdict: quality.qualityVerdict,
         qualityReason: quality.qualityReason,
         qualityTag: quality.qualityTag,
+        reviewConclusion,
+        pathOutcome,
+        intradayPathResult,
         outcomeHorizons,
         factorAttributions,
         gateResults,
