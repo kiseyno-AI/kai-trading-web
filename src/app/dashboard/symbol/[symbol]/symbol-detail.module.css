@@ -7,10 +7,10 @@
 .panel {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(134, 162, 194, 0.22);
+  border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: rgba(11, 22, 38, 0.92);
-  box-shadow: 0 24px 48px rgba(1, 15, 32, 0.28);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .backButton {
@@ -19,18 +19,18 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(134, 162, 194, 0.22);
-  background: rgba(8, 17, 31, 0.82);
+  border: 1px solid var(--border);
+  background: var(--control-surface);
   color: var(--text-strong);
   text-decoration: none;
   font-size: 1.05rem;
-  box-shadow: 0 10px 22px rgba(3, 7, 13, 0.2);
+  box-shadow: none;
 }
 
 .sectionEyebrow {
   margin: 0;
   color: var(--accent);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -53,7 +53,7 @@
 
 .heroCard {
   border-color: rgba(88, 139, 255, 0.28);
-  background: linear-gradient(180deg, rgba(0, 82, 255, 0.1), rgba(11, 22, 38, 0.94));
+  background: var(--surface);
 }
 
 .heroTopRow,
@@ -95,16 +95,16 @@
 
 .tradeButton {
   border: none;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--accent);
   color: var(--primary-foreground);
   padding: 0.72rem 1rem;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  box-shadow: 0 16px 34px rgba(0, 82, 255, 0.24);
+  box-shadow: none;
   opacity: 0.9;
 }
 
@@ -113,10 +113,10 @@
   height: 2.6rem;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(134, 162, 194, 0.26);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: rgba(8, 17, 31, 0.8);
-  color: #d6e2f2;
+  background: var(--control-surface);
+  color: var(--text);
   cursor: pointer;
   padding: 0;
   appearance: none;
@@ -132,13 +132,13 @@
 
 .watchBadge:hover:not(:disabled),
 .watchBadge:focus-visible {
-  border-color: rgba(247, 201, 72, 0.68);
-  color: #f5b84b;
+  border-color: var(--outline-strong);
+  color: var(--text-strong);
   transform: translateY(-1px);
 }
 
 .watchBadge:focus-visible {
-  outline: 2px solid rgba(247, 201, 72, 0.52);
+  outline: 2px solid var(--outline-strong);
   outline-offset: 2px;
 }
 
@@ -148,15 +148,15 @@
 }
 
 .watchBadgeActive {
-  border-color: rgba(247, 201, 72, 0.58);
-  background: rgba(247, 201, 72, 0.14);
-  color: #f5b84b;
+  border-color: var(--outline-strong);
+  background: var(--accent-soft);
+  color: var(--text-strong);
 }
 
 .trackingFeedback {
   flex-basis: 100%;
   margin: 0;
-  color: #ffd9a3;
+  color: var(--warning);
   font-size: 0.72rem;
   line-height: 1.35;
   text-align: right;
@@ -178,7 +178,7 @@
 .heroQuoteBlock span {
   display: block;
   margin-top: 0.32rem;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.86rem;
   font-weight: 700;
 }
@@ -220,8 +220,8 @@
   min-width: 0;
   padding: 0.85rem;
   border-radius: var(--radius-lg);
-  background: rgba(8, 17, 31, 0.76);
-  border: 1px solid rgba(134, 162, 194, 0.18);
+  background: var(--surface-low);
+  border: 1px solid var(--border);
 }
 
 .heroMetricCard span,
@@ -242,7 +242,7 @@
   display: block;
   margin-top: 0.3rem;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.96rem;
   font-weight: 700;
 }
@@ -284,7 +284,7 @@
   margin: 0;
   min-width: 0;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.4;
@@ -292,8 +292,8 @@
 }
 
 .alertCard {
-  background: rgba(50, 37, 12, 0.9);
-  border-color: rgba(227, 176, 74, 0.28);
+  background: rgba(245, 184, 75, 0.09);
+  border-color: rgba(245, 184, 75, 0.28);
 }
 
 .errorList {
@@ -305,9 +305,9 @@
 
 .feedback {
   padding: 0.85rem 0.95rem;
-  border-radius: 1rem;
-  background: rgba(8, 17, 31, 0.58);
-  color: #fff7e5;
+  border-radius: var(--radius-md);
+  background: var(--surface-low);
+  color: var(--text);
   line-height: 1.5;
 }
 
@@ -317,7 +317,7 @@
   gap: 0.85rem;
   padding: 1rem;
   border-color: rgba(88, 139, 255, 0.24);
-  background: rgba(11, 22, 38, 0.94);
+  background: var(--surface);
 }
 
 .detailTabs {
@@ -339,12 +339,12 @@
   justify-content: center;
   appearance: none;
   width: fit-content;
-  border: 1px solid rgba(134, 162, 194, 0.22);
-  border-radius: 999px;
-  background: rgba(8, 17, 31, 0.76);
-  color: #d6e2f2;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--control-surface);
+  color: var(--text);
   cursor: pointer;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -382,10 +382,10 @@
 .rangeButton {
   border: none;
   border-radius: 0.72rem;
-  background: rgba(8, 17, 31, 0.8);
+  background: var(--control-surface);
   color: var(--muted-soft);
   padding: 0.42rem 0.62rem;
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -402,7 +402,7 @@
   min-height: 14rem;
   padding: 0.4rem 0.4rem 0;
   border-radius: var(--radius-lg);
-  background: rgba(5, 11, 20, 0.72);
+  background: var(--canvas);
 }
 
 .candlestickChart {
@@ -475,7 +475,7 @@
   position: relative;
   z-index: 1;
   color: var(--muted);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -483,7 +483,7 @@
 }
 
 .signalStrong {
-  color: #e7fff5;
+  color: var(--text-strong);
 }
 
 .signalFill {
@@ -508,7 +508,7 @@
   border-radius: 999px;
   background: rgba(0, 82, 255, 0.12);
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -537,7 +537,7 @@
   border-radius: var(--radius-lg);
   background: rgba(0, 82, 255, 0.24);
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 1rem;
   font-weight: 700;
 }
@@ -597,7 +597,7 @@
   border-radius: var(--radius-md);
   background: rgba(0, 82, 255, 0.14);
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -731,7 +731,7 @@
   justify-content: space-between;
   margin-top: 0;
   min-width: 0;
-  color: #d5e3fc;
+  color: var(--muted);
   line-height: 1.35;
 }
 
@@ -751,25 +751,25 @@
 .freshnessCard :global(.pill.positive) {
   background: rgba(22, 199, 132, 0.16);
   border-color: rgba(22, 199, 132, 0.28);
-  color: #b9ffdd;
+  color: var(--positive);
 }
 
 .freshnessCard :global(.pill.info) {
-  background: rgba(127, 184, 255, 0.18);
-  border-color: rgba(127, 184, 255, 0.28);
-  color: #cfe4ff;
+  background: var(--info-soft);
+  border-color: rgba(74, 168, 255, 0.28);
+  color: var(--blue);
 }
 
 .freshnessCard :global(.pill.warning) {
-  background: rgba(255, 204, 102, 0.16);
-  border-color: rgba(255, 204, 102, 0.28);
-  color: #ffe4a3;
+  background: var(--warning-soft);
+  border-color: rgba(245, 184, 75, 0.28);
+  color: var(--warning);
 }
 
 .freshnessCard :global(.pill.neutral) {
-  background: rgba(213, 227, 252, 0.1);
-  border-color: rgba(213, 227, 252, 0.18);
-  color: #d5e3fc;
+  background: rgba(142, 164, 191, 0.12);
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 .positive {
@@ -777,7 +777,7 @@
 }
 
 .negative {
-  color: #ffb3b6;
+  color: var(--negative);
 }
 
 .reportDetailPage {
@@ -896,7 +896,7 @@
 
   .heroCard {
     min-height: 18rem;
-    background: linear-gradient(180deg, rgba(0, 82, 255, 0.1), rgba(11, 22, 38, 0.94));
+    background: var(--surface);
   }
 
   .heroTopRow {
@@ -904,7 +904,7 @@
   }
 
   .sectionEyebrow {
-    letter-spacing: 0.28em;
+    letter-spacing: 0.14em;
   }
 
   .heroTitleRow {

@@ -84,7 +84,7 @@
   margin-top: 0.32rem;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.4;
@@ -148,7 +148,7 @@
   cursor: pointer;
   background: rgba(0, 82, 255, 0.14);
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -247,7 +247,7 @@
 
 .resultSectionHeader strong {
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.76rem;
   line-height: 1.35;
 }
@@ -290,7 +290,7 @@
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.82rem;
   line-height: 1.4;
 }
@@ -321,7 +321,7 @@
 
 .reviewPending strong {
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.82rem;
   line-height: 1.35;
 }
@@ -433,7 +433,7 @@
 .controls button:focus-visible,
 .reviewButton:focus-visible,
 .closeButton:focus-visible {
-  outline: 2px solid rgba(186, 195, 255, 0.88);
+  outline: 2px solid rgba(88, 139, 255, 0.88);
   outline-offset: 2px;
 }
 
@@ -491,7 +491,7 @@
 .detailSubtitle {
   margin: 0.36rem 0 0;
   color: var(--muted);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.8rem;
   line-height: 1.35;
 }
@@ -576,7 +576,7 @@
 
 .decisionHero strong {
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 1.35rem;
   line-height: 1.1;
 }
@@ -617,7 +617,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.4;
@@ -662,7 +662,7 @@
   margin-top: 0.28rem;
   overflow-wrap: anywhere;
   color: var(--text-strong);
-  font-family: var(--font-space-grotesk), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   font-size: 0.9rem;
   line-height: 1.45;
 }

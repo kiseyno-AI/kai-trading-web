@@ -11,8 +11,8 @@
   padding: 22px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: linear-gradient(180deg, rgba(0, 82, 255, 0.08), rgba(5, 11, 20, 0.94));
-  box-shadow: var(--shadow-soft), 0 0 24px rgba(88, 139, 255, 0.05);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft), var(--shadow-glow);
 }
 
 .heroPanel {
@@ -62,7 +62,7 @@
   padding: 16px;
   border: 1px solid var(--outline);
   border-radius: var(--radius-lg);
-  background: rgba(8, 17, 31, 0.82);
+  background: var(--surface-low);
 }
 
 .summaryCard strong {
@@ -84,7 +84,7 @@
   justify-content: center;
   min-height: 42px;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 700;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
@@ -94,12 +94,12 @@
   border: 1px solid rgba(0, 82, 255, 0.16);
   background: var(--accent);
   color: var(--primary-foreground);
-  box-shadow: 0 16px 34px rgba(0, 82, 255, 0.22);
+  box-shadow: none;
 }
 
 .secondaryLink {
   border: 1px solid var(--outline);
-  background: rgba(8, 17, 31, 0.78);
+  background: var(--control-surface);
   color: var(--muted);
 }
 
@@ -135,7 +135,7 @@
   padding: 16px;
   border: 1px solid var(--outline);
   border-radius: var(--radius-lg);
-  background: rgba(8, 17, 31, 0.84);
+  background: var(--surface-low);
 }
 
 .favoriteCard strong,
@@ -161,7 +161,7 @@
   padding: 18px;
   border: 1px solid var(--outline);
   border-radius: var(--radius-lg);
-  background: rgba(8, 17, 31, 0.84);
+  background: var(--surface-low);
 }
 
 .cardHeader,
@@ -214,14 +214,14 @@
 }
 
 .badgeInfo {
-  border: 1px solid rgba(127, 184, 255, 0.28);
-  background: rgba(127, 184, 255, 0.14);
+  border: 1px solid rgba(74, 168, 255, 0.28);
+  background: var(--info-soft);
   color: var(--blue);
 }
 
 .badgeWarning {
-  border: 1px solid rgba(255, 204, 102, 0.24);
-  background: rgba(255, 204, 102, 0.12);
+  border: 1px solid rgba(245, 184, 75, 0.28);
+  background: var(--warning-soft);
   color: var(--warning);
 }
 
@@ -253,9 +253,9 @@
   display: grid;
   gap: 6px;
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-low);
 }
 
 .metaGrid dd {
@@ -282,8 +282,8 @@
   gap: 8px;
   padding: 18px;
   border: 1px dashed var(--outline-strong);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-md);
+  background: var(--surface-low);
 }
 
 .panelState strong {
@@ -306,7 +306,7 @@
   .favoriteCard,
   .summaryCard,
   .panel {
-    border-radius: 20px;
+    border-radius: var(--radius-lg);
   }
 }
 

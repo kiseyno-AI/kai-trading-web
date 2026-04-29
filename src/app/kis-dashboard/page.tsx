@@ -112,18 +112,18 @@ export default async function KisDashboardPage() {
             marginBottom: 24,
             padding: 24,
             borderRadius: 20,
-            border: "1px solid rgba(255,107,122,0.24)",
+            border: "1px solid rgba(234,57,67,0.24)",
             background: "rgba(56,17,24,0.72)",
           }}
         >
-          <p style={{ margin: 0, color: "#ff9ba5", fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+          <p style={{ margin: 0, color: "#ea3943", fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase" }}>
             Live KIS Dashboard
           </p>
           <h1 style={{ margin: "10px 0 8px", fontSize: 34 }}>All upstream sections failed</h1>
-          <p style={{ margin: 0, color: "#ffd4da" }}>
+          <p style={{ margin: 0, color: "#d6e2f2" }}>
             The page stayed up, but no upstream data source responded successfully.
           </p>
-          <div style={{ marginTop: 16, color: "#ffd4da" }}>{failures.join(" | ")}</div>
+          <div style={{ marginTop: 16, color: "#d6e2f2" }}>{failures.join(" | ")}</div>
         </section>
       </main>
     );
@@ -154,9 +154,9 @@ export default async function KisDashboardPage() {
             marginBottom: 24,
             padding: 18,
             borderRadius: 18,
-            border: "1px solid rgba(255,193,94,0.24)",
+            border: "1px solid rgba(245,184,75,0.24)",
             background: "rgba(64,45,14,0.52)",
-            color: "#ffe2a6",
+            color: "#f5b84b",
           }}
         >
           Partial upstream failure: {failures.join(" | ")}
@@ -176,7 +176,7 @@ export default async function KisDashboardPage() {
           <div style={{ color: "#8ea4cc", fontSize: 12 }}>LEAD SYMBOL</div>
           <h2 style={{ margin: "10px 0" }}>{lead?.symbol ?? trackedSymbols[0] ?? "N/A"}</h2>
           <p style={{ margin: 0, color: "#cbd7ee" }}>Price: {lead && hasNumber(lead.price) ? `₩${lead.price.toLocaleString()}` : "-"}</p>
-          <p style={{ margin: "6px 0 0", color: lead && (lead.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a" }}>
+          <p style={{ margin: "6px 0 0", color: lead && (lead.change_pct ?? 0) >= 0 ? "#16c784" : "#ea3943" }}>
             {lead && hasNumber(lead.change_pct) ? formatSignedPercent(lead.change_pct) : (lead?.unavailable_reason ?? "Tracked quote feed unavailable")}
           </p>
         </article>
@@ -197,7 +197,7 @@ export default async function KisDashboardPage() {
               <p style={{ margin: 0, color: "#8ea4cc", fontSize: 12 }}>KIS WATCHLIST</p>
               <h2 style={{ margin: "8px 0 0" }}>Tracked Quotes</h2>
             </div>
-            <strong style={{ color: averageMove >= 0 ? "#35d07f" : "#ff6b7a" }}>
+            <strong style={{ color: averageMove >= 0 ? "#16c784" : "#ea3943" }}>
               {trackedItems.length ? formatSignedPercent(averageMove) : "No quote data"}
             </strong>
           </div>
@@ -211,7 +211,7 @@ export default async function KisDashboardPage() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div>{hasNumber(item.price) ? `₩${item.price.toLocaleString()}` : "Unavailable"}</div>
-                    <div style={{ marginTop: 6, color: (item.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a" }}>
+                    <div style={{ marginTop: 6, color: (item.change_pct ?? 0) >= 0 ? "#16c784" : "#ea3943" }}>
                       {hasNumber(item.change_pct) ? formatSignedPercent(item.change_pct) : (item.unavailable_reason ?? "Unavailable")}
                     </div>
                   </div>
@@ -237,7 +237,7 @@ export default async function KisDashboardPage() {
             </div>
             <div style={{ paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
               <span style={{ color: "#9fb0cf" }}>Lead change</span>
-              <div style={{ color: lead && (lead.change_pct ?? 0) >= 0 ? "#35d07f" : "#ff6b7a" }}>
+              <div style={{ color: lead && (lead.change_pct ?? 0) >= 0 ? "#16c784" : "#ea3943" }}>
                 {lead && hasNumber(lead.change_pct) ? formatSignedPercent(lead.change_pct) : (lead?.unavailable_reason ?? "Unavailable")}
               </div>
             </div>

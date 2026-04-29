@@ -6,26 +6,26 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-transparent bg-clip-padding text-sm font-semibold whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        default: "bg-primary text-primary-foreground hover:bg-[var(--accent-strong)] [a]:hover:bg-[var(--accent-strong)]",
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-[var(--control-surface)] text-foreground hover:border-[var(--control-border-hover)] hover:bg-[var(--control-surface-hover)] hover:text-[var(--text-strong)] aria-expanded:bg-[var(--control-surface-hover)] aria-expanded:text-[var(--text-strong)]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "border border-border bg-[var(--control-surface)] text-secondary-foreground hover:border-[var(--control-border-hover)] hover:bg-[var(--control-surface-hover)] aria-expanded:bg-[var(--control-surface-hover)] aria-expanded:text-secondary-foreground",
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "hover:bg-[var(--accent-soft)] hover:text-[var(--text-strong)] aria-expanded:bg-[var(--accent-soft)] aria-expanded:text-[var(--text-strong)]",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         glass:
-          "ui-button !h-auto !min-h-0 !w-auto !max-w-full !rounded-[var(--radius-lg)] !border !border-[var(--border)] !bg-[rgba(16,28,46,0.74)] !text-[var(--text)] !shadow-[0_10px_22px_rgba(3,7,13,0.18)] !backdrop-blur-xl !gap-2.5 !px-3.5 !py-2.5 !text-sm !font-medium hover:!bg-[rgba(22,35,55,0.92)] focus-visible:!ring-2 focus-visible:!ring-[var(--ring)]",
+          "ui-button !h-auto !min-h-0 !w-auto !max-w-full !rounded-[var(--radius-md)] !border !border-[var(--control-border)] !bg-[var(--control-surface)] !text-[var(--text)] !shadow-none !gap-2.5 !px-3.5 !py-2.5 !text-sm !font-semibold hover:!border-[var(--control-border-hover)] hover:!bg-[var(--control-surface-hover)] focus-visible:!ring-2 focus-visible:!ring-[var(--ring)]",
         pill:
-          "ui-button !h-auto !min-h-[42px] !rounded-full !border !border-[var(--border)] !bg-[rgba(16,28,46,0.74)] !px-4 !py-2.5 !text-[var(--text)] !shadow-[0_10px_22px_rgba(3,7,13,0.18)] !backdrop-blur-xl hover:!bg-[rgba(22,35,55,0.92)]",
+          "ui-button !h-auto !min-h-[38px] !rounded-full !border !border-[var(--control-border)] !bg-[var(--control-surface)] !px-4 !py-2 !text-[var(--text)] !shadow-none hover:!border-[var(--control-border-hover)] hover:!bg-[var(--control-surface-hover)]",
         primary:
-          "ui-button !h-auto !min-h-0 !rounded-[var(--radius-lg)] !border !border-transparent !bg-[var(--accent)] !text-[var(--primary-foreground)] !shadow-[0_16px_32px_rgba(0,82,255,0.28)] !px-4.5 !py-2.5 hover:!bg-[var(--accent-strong)]",
+          "ui-button !h-auto !min-h-0 !rounded-[var(--radius-md)] !border !border-transparent !bg-[var(--accent)] !text-[var(--primary-foreground)] !shadow-none !px-4.5 !py-2.5 hover:!bg-[var(--accent-strong)]",
       },
       size: {
         default:

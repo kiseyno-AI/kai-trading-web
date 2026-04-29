@@ -56,8 +56,8 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(255, 255, 255, 0.04)" },
-        horzLines: { color: "rgba(255, 255, 255, 0.08)" },
+        vertLines: { color: "rgba(134, 162, 194, 0.06)" },
+        horzLines: { color: "rgba(134, 162, 194, 0.08)" },
       },
       crosshair: {
         mode: CrosshairMode.MagnetOHLC,
@@ -73,10 +73,10 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
         },
       },
       rightPriceScale: {
-        borderColor: "rgba(255, 255, 255, 0.08)",
+        borderColor: "rgba(134, 162, 194, 0.12)",
       },
       timeScale: {
-        borderColor: "rgba(255, 255, 255, 0.08)",
+        borderColor: "rgba(134, 162, 194, 0.12)",
         minBarSpacing: bars.length > 500 ? 3 : 5,
         rightOffset: 4,
       },
@@ -101,12 +101,12 @@ export function SymbolHistoryChart({ symbol, bars, initialSelectedBarTradeDate, 
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#35d07f",
-      downColor: "#ff6b7a",
-      wickUpColor: "#52e398",
-      wickDownColor: "#ff8f9a",
+      upColor: "#16c784",
+      downColor: "#ea3943",
+      wickUpColor: "#16c784",
+      wickDownColor: "#ea3943",
       borderVisible: false,
-      priceLineColor: "#8ec5ff",
+      priceLineColor: "#4aa8ff",
       lastValueVisible: true,
     });
 

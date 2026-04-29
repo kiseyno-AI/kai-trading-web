@@ -34,6 +34,7 @@ export function Topbar({
   return (
     <header className={`glass topbar ${compactMobileChrome ? "topbar-compact-mobile" : ""}`}>
       <DashboardToolbar
+        className="app-shell-toolbar"
         title={t.navigation.brandTitle}
         subtitle={t.navigation.brandSubtitle}
         releaseTestId={null}

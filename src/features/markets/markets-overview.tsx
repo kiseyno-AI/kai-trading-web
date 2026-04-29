@@ -40,7 +40,7 @@ export function MarketsOverview() {
               <strong>{factorScreeningCopy}</strong>
             </div>
           </div>
-          <Link href="/markets/factors" className="ui-button ui-button-pill" style={{ marginTop: 18, width: "fit-content" }}>
+          <Link href="/markets/factors" className="ui-button ui-button-glass">
             <span>{factorScreeningLabel}</span>
           </Link>
         </div>
