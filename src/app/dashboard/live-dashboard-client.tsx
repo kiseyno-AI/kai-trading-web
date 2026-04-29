@@ -409,6 +409,11 @@ const FilteringCard = memo(function FilteringCard({
           );
         })}
       </div>
+
+      <div className={styles.filterFinalCount} aria-label={copy.operational.finalFilteredSymbols}>
+        <span>{copy.operational.finalFilteredSymbols}</span>
+        <strong>{filteringCardModel.finalFilteredCountLabel}</strong>
+      </div>
     </article>
   );
 });
@@ -1613,6 +1618,7 @@ export function LiveDashboardClient({
   const filteringCardModel = useMemo(
     () =>
       buildFilteringCardModel({
+        agentFeedbackProgress: displayedAgentFeedbackProgress,
         copy,
         marketRiskStatus,
         marketRiskStatusError,
@@ -1625,6 +1631,7 @@ export function LiveDashboardClient({
       }),
     [
       copy,
+      displayedAgentFeedbackProgress,
       marketRiskStatus,
       marketRiskStatusError,
       marketRiskStatusLoadState,

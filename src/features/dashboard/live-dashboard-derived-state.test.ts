@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import type {
+  AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyRunDto,
   EodFreshnessStageDto,
   EodMarketRiskFiltersResponseDto,
@@ -86,6 +87,46 @@ function buildMarketSnapshot(): MarketSnapshotResponseDto {
     summary: {
       line: "Large-cap breadth improved into the close.",
     },
+  };
+}
+
+function buildAgentFeedbackProgress({
+  marketDate = "2026-04-21",
+  symbols = null,
+  totalSymbols,
+}: {
+  marketDate?: string;
+  symbols?: string[] | null;
+  totalSymbols: number;
+}): AgentFeedbackProgressResponseDto {
+  return {
+    request: {
+      market_date: marketDate,
+      symbols,
+      expected_agents: ["eod-summarizer"],
+    },
+    summary: {
+      run_id: "run-filtering-count-test",
+      run_status: "completed",
+      run_table_status: "completed",
+      is_live: false,
+      run_started_at: "2026-04-21T09:00:00+09:00",
+      run_completed_at: "2026-04-21T09:10:00+09:00",
+      latest_feedback_at: "2026-04-21T09:10:00+09:00",
+      seconds_since_last_feedback: 120,
+      stalled_threshold_seconds: 300,
+      total_symbols: totalSymbols,
+      processed_symbols: totalSymbols,
+      completed_symbols: totalSymbols,
+      in_progress_symbols: 0,
+      pending_symbols: 0,
+      progress_ratio: 1,
+      progress_percent: 100,
+      failed_items: 0,
+      completed_feedback_count: totalSymbols,
+      expected_feedback_count: totalSymbols,
+    },
+    result: null,
   };
 }
 
@@ -696,18 +737,64 @@ test("builds the Piotroski filtering card with the resolved latest-available not
   assert.equal(piotroskiStage?.displayMarketDateLabel, "2026-04-18");
   assert.equal(piotroskiStage?.statusTone, "positive");
   assert.equal(piotroskiStage?.statusLabel, copy.piotroski.completed);
-  assert.equal(piotroskiStage?.checkedCountLabel, "3,200");
-  assert.equal(piotroskiStage?.metrics.find((metric) => metric.key === "pass")?.value, "14");
+  assert.equal(piotroskiStage?.filteredCountLabel, "14");
+  assert.deepEqual(piotroskiStage?.metrics, [
+    {
+      key: "filtered",
+      label: copy.operational.filtered,
+      value: "14",
+    },
+  ]);
   assert.equal(
     piotroskiStage?.note,
     `${copy.piotroski.requestedDate} 2026-04-21 · ${copy.piotroski.latestAvailableDate} 2026-04-18`,
   );
-  assert.equal(marketRiskStage?.metrics.find((metric) => metric.key === "watchlist")?.value, "200");
-  assert.equal(marketRiskStage?.metrics.find((metric) => metric.key === "fail")?.value, "100");
+  assert.equal(model.finalFilteredCountLabel, "2,900");
+  assert.deepEqual(marketRiskStage?.metrics, [
+    {
+      key: "filtered",
+      label: copy.operational.filtered,
+      value: "2,900",
+    },
+  ]);
   assert.equal(
     marketRiskStage?.note,
     `${copy.piotroski.requestedDate} 2026-04-21 · ${copy.piotroski.latestAvailableDate} 2026-04-18`,
   );
+});
+
+test("uses the agent feedback target as the final filtering count when progress is available", () => {
+  const copy = getDashboardLiveCopy("en");
+  const model = buildFilteringCardModel({
+    agentFeedbackProgress: buildAgentFeedbackProgress({
+      marketDate: "2026-04-21",
+      symbols: ["005930", "000660", "035420"],
+      totalSymbols: 42,
+    }),
+    copy,
+    marketRiskStatus: {
+      market_date: "2026-04-21",
+      summary: {
+        entries: 3200,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 2900,
+        watchlist_count: 200,
+        failed_count: 100,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-21",
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+
+  assert.equal(model.finalFilteredCountLabel, "3");
 });
 
 test("builds grouped daily process monitor state from patch, filter, and agent feedback cards", () => {

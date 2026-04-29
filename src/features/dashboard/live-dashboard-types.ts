@@ -135,9 +135,9 @@ export type FilteringStageMetric = {
 
 export type FilteringStageModel = {
   key: "piotroski" | "kis-risk";
-  checkedCountLabel: string;
   displayMarketDate: string | null;
   displayMarketDateLabel: string;
+  filteredCountLabel: string;
   label: string;
   metrics: FilteringStageMetric[];
   note: string | null;
@@ -146,6 +146,7 @@ export type FilteringStageModel = {
 };
 
 export type FilteringCardModel = {
+  finalFilteredCountLabel: string;
   piotroskiDisplayMarketDate: string | null;
   stages: [FilteringStageModel, FilteringStageModel];
 };
