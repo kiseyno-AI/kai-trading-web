@@ -417,7 +417,8 @@ test.describe("dashboard mobile chrome", () => {
     expect(releaseBox).not.toBeNull();
     expect(releaseBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height - 1);
 
-    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
