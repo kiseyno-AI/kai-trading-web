@@ -468,9 +468,6 @@ export default function SignalDeciderFeedbackPageClient() {
             </p>
           </div>
 
-          <Link href="/dashboard" className={styles.backLink}>
-            Back to dashboard
-          </Link>
         </section>
 
         <section className={styles.panel}>
