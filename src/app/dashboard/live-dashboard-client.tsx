@@ -1299,7 +1299,6 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
       onClick={onOpen}
     >
       <span className={styles.processMonitorMain}>
-        <span className={styles.processMonitorEyebrow}>{copy.processMonitor.drawerDescription}</span>
         <strong>{copy.processMonitor.compactTitle}</strong>
         <span className={styles.processMonitorCurrent}>{currentLabel}</span>
       </span>
