@@ -23,6 +23,17 @@ description: Default Codex working style for this Next.js repo—stack conventio
 - **Data & secrets:** No broker calls from the browser. Server-only env: `TRADING_API_UPSTREAM_*`, `TRADING_API_UPSTREAM_BEARER_TOKEN`. Client base URL only via `NEXT_PUBLIC_TRADING_API_BASE_URL` (never secrets there).
 - **UI:** Prefer shadcn/ui via CLI (`npx shadcn@latest add …`, `info`, `docs`). See `.codex/skills/shadcn-ui`. Existing desk `Button` variants: `glass`, `pill`, `primary`.
 
+## Responsive dashboard composition
+
+When the task mentions resolution changes, breakpoints, whitespace, card rearrangement, dashboard density, or “looks wrong on some screen sizes”, read `references/responsive-layouts.md` before editing.
+
+Default implementation rules:
+- Use **Grid for dashboard/card placement**, **Flexbox inside a component/card**.
+- Prefer `repeat(auto-fit, minmax(..., 1fr))` style card grids before adding many breakpoint-only column counts.
+- Use **container queries** when a component should reflow based on its own rendered width, not just the viewport.
+- Avoid fixed card heights unless the visual contract truly requires them.
+- Treat “no awkward dead whitespace across common widths” as a real acceptance criterion for dashboard refactors.
+
 ## Quality loop (run in terminal from repo root)
 
 1. `npm run lint` — fix ESLint issues before stopping; do not silence rules without cause.
@@ -30,7 +41,7 @@ description: Default Codex working style for this Next.js repo—stack conventio
 3. For user-facing UI changes, verify in this order: local branch/build preview first, Playwright MCP browser inspection on that local preview second, then deployed/production verification last.
 4. When that UI is responsive or plausibly used on mobile, include at least one mobile viewport in the Playwright MCP browser inspection step.
 5. `npm run test:e2e` — after UI or routing changes as part of that local-first verification loop (see `.codex/skills/playwright-iterate`).
-6. For responsive or mobile-sensitive UI changes, verify the affected flow with Playwright at a mobile viewport as well as desktop. Desktop-only inspection is insufficient.
+6. For responsive or mobile-sensitive UI changes, verify the affected flow with Playwright at mobile, tablet, laptop, and wide-desktop widths when the change affects dashboard/card layout. Desktop-only inspection is insufficient.
 
 For TDD-style work: add or extend tests first when the user asks, then implement until green.
 

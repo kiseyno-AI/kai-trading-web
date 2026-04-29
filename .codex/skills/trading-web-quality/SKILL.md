@@ -9,7 +9,13 @@ description: Suggests verification steps and tests for trading-web. Use when the
 
 From repository root: `npm run lint`, `npm run build`. Consider `npx tsc --noEmit` for explicit typechecking in CI.
 
-For UI or routing work, run `npm run test:e2e`. Use Playwright MCP for the browser-verification pass against the local preview. If the change is responsive or mobile-sensitive, include Playwright verification at mobile viewport sizes in addition to desktop; desktop-only inspection is insufficient.
+For UI or routing work, run `npm run test:e2e`. Use Playwright MCP for the browser-verification pass against the local preview. If the change is responsive, resolution-sensitive, or mobile-sensitive, include Playwright verification at mobile, tablet, laptop, and wide-desktop viewport sizes; desktop-only inspection is insufficient.
+
+For dashboard/card rearrangement work, explicitly check for:
+- dead whitespace after breakpoint changes
+- cards wrapping into uneven orphan rows
+- metric/header overflow after column collapse
+- partial-data states that change card height or alignment unexpectedly
 
 ## High-value tests
 
