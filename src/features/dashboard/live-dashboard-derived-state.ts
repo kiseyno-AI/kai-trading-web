@@ -477,6 +477,44 @@ export function buildFilteringCardModel({
   };
 }
 
+function buildWaitingFilteringStageModel(
+  stage: FilteringStageModel,
+  copy: DashboardLiveCopy,
+): FilteringStageModel {
+  return {
+    ...stage,
+    displayMarketDate: null,
+    displayMarketDateLabel: UNKNOWN_LABEL,
+    filteredCountLabel: UNKNOWN_LABEL,
+    metrics: stage.metrics.map((metric) => ({
+      ...metric,
+      value: UNKNOWN_LABEL,
+    })),
+    note: copy.piotroski.waiting,
+    status: "waiting",
+    statusLabel: getFilteringStageStatusLabel("waiting", copy),
+    statusTone: "neutral",
+  };
+}
+
+export function maskFilteringCardModelAsWaiting(
+  model: FilteringCardModel,
+  copy: DashboardLiveCopy,
+): FilteringCardModel {
+  return {
+    finalFilteredCountLabel: UNKNOWN_LABEL,
+    piotroskiDisplayMarketDate: null,
+    stages: [
+      buildWaitingFilteringStageModel(model.stages[0], copy),
+      buildWaitingFilteringStageModel(model.stages[1], copy),
+    ],
+  };
+}
+
+export function isFilteringCardChecking(model: FilteringCardModel) {
+  return model.stages.some((stage) => stage.status === "loading");
+}
+
 function getScoringStageLabel(stageKey: ScoringStageKey, copy: DashboardLiveCopy) {
   if (stageKey === "unified-value") return copy.scoring.stages.unifiedValue;
   if (stageKey === "quality") return copy.scoring.stages.quality;
@@ -571,21 +609,23 @@ function getScoringStageNote(
 
 function buildScoringStageModel({
   copy,
+  forceWaiting,
   numberLocale,
   pipelineStage,
   requestedMarketDate,
   stageKey,
 }: {
   copy: DashboardLiveCopy;
+  forceWaiting: boolean;
   numberLocale: string;
   pipelineStage: EodPipelineStageDto | null | undefined;
   requestedMarketDate: string | null;
   stageKey: ScoringStageKey;
 }): ScoringStageModel {
   const displayMarketDate = getFirstTextValue(requestedMarketDate);
-  const status = getScoringStageStatus(pipelineStage, displayMarketDate);
-  const progressLabel = getScoringProgressLabel(pipelineStage, numberLocale);
-  const failedCount = pipelineStage?.failed;
+  const status = forceWaiting ? "waiting" : getScoringStageStatus(pipelineStage, displayMarketDate);
+  const progressLabel = forceWaiting ? UNKNOWN_LABEL : getScoringProgressLabel(pipelineStage, numberLocale);
+  const failedCount = forceWaiting ? null : pipelineStage?.failed;
   const metrics = [
     buildScoringMetric("progress", copy.processMonitor.progress, progressLabel),
   ];
@@ -610,11 +650,13 @@ function buildScoringStageModel({
 
 export function buildScoringCardModel({
   copy,
+  forceWaiting = false,
   numberLocale,
   pipelineStatus,
   scoringMarketDate,
 }: {
   copy: DashboardLiveCopy;
+  forceWaiting?: boolean;
   numberLocale: string;
   pipelineStatus: EodPipelineStatusResponseDto | null;
   scoringMarketDate: string | null;
@@ -625,12 +667,42 @@ export function buildScoringCardModel({
     stages: SCORING_STAGE_DEFINITIONS.map((stage) =>
       buildScoringStageModel({
         copy,
+        forceWaiting,
         numberLocale,
         pipelineStage: getPipelineStage(pipelineStatus, stage.pipelineKey),
         requestedMarketDate,
         stageKey: stage.key,
       }),
     ),
+  };
+}
+
+export function isScoringCardChecking(model: ScoringCardModel) {
+  return model.stages.some((stage) => stage.status === "loading");
+}
+
+export function getDailyProcessDependencyWaitState({
+  eodStageCards,
+  filteringCardModel,
+  pipelineStatus,
+  scoringCardModel,
+}: {
+  eodStageCards: readonly EodStageCard[];
+  filteringCardModel: FilteringCardModel;
+  pipelineStatus: EodPipelineStatusResponseDto | null;
+  scoringCardModel: ScoringCardModel;
+}) {
+  const waitForFiltering = isEodProcessChecking(pipelineStatus, eodStageCards);
+  const filteringChecking = !waitForFiltering && isFilteringCardChecking(filteringCardModel);
+  const waitForScoring = waitForFiltering || filteringChecking;
+  const scoringChecking = !waitForScoring && isScoringCardChecking(scoringCardModel);
+
+  return {
+    filteringChecking,
+    scoringChecking,
+    waitForAgentFeedback: waitForScoring || scoringChecking,
+    waitForFiltering,
+    waitForScoring,
   };
 }
 
@@ -1599,6 +1671,28 @@ function getEodStageCardTotalCount(card: EodStageCard) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isDashboardEodPipelineStageKey(key: EodPipelineStageKey) {
+  return DASHBOARD_EOD_PIPELINE_STAGE_SEQUENCE.some((stage) => stage.pipelineKey === key);
+}
+
+function hasDashboardEodPipelineStageEvidence(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  if (!pipelineStatus) return false;
+
+  const orderedEodStage = pipelineStatus.stage_order.some(isDashboardEodPipelineStageKey);
+  const reportedEodStage = DASHBOARD_EOD_PIPELINE_STAGE_SEQUENCE.some(({ pipelineKey }) =>
+    Boolean(pipelineStatus.stages?.[pipelineKey]),
+  );
+  return orderedEodStage || reportedEodStage;
+}
+
+function hasExplicitRunningNonEodPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  if (!pipelineStatus) return false;
+
+  return Object.entries(pipelineStatus.stages ?? {}).some(
+    ([key, stage]) => !isDashboardEodPipelineStageKey(key as EodPipelineStageKey) && isRunningPipelineStage(stage),
+  );
+}
+
 function getActiveDashboardEodPipelineStageIndex(pipelineStatus: EodPipelineStatusResponseDto | null) {
   if (normalizePipelineStatus(pipelineStatus?.status) !== "running") return null;
 
@@ -1607,10 +1701,27 @@ function getActiveDashboardEodPipelineStageIndex(pipelineStatus: EodPipelineStat
   );
   if (runningIndex >= 0) return runningIndex;
 
+  if (
+    !hasDashboardEodPipelineStageEvidence(pipelineStatus) ||
+    hasExplicitRunningNonEodPipelineStage(pipelineStatus)
+  ) {
+    return null;
+  }
+
   const nextIncompleteIndex = DASHBOARD_EOD_PIPELINE_STAGE_SEQUENCE.findIndex(({ pipelineKey }) =>
     !isCompletedPipelineStage(getPipelineStage(pipelineStatus, pipelineKey)),
   );
   return nextIncompleteIndex >= 0 ? nextIncompleteIndex : null;
+}
+
+export function isEodProcessChecking(
+  pipelineStatus: EodPipelineStatusResponseDto | null,
+  eodStageCards: readonly EodStageCard[],
+) {
+  return (
+    eodStageCards.some((card) => card.statusLabel === "running") ||
+    getActiveDashboardEodPipelineStageIndex(pipelineStatus) !== null
+  );
 }
 
 export function maskFutureEodStageCardsWhilePipelineRunning(
@@ -2657,6 +2768,16 @@ export function buildAgentRoleCards(
       numberLocale,
     );
   });
+}
+
+export function maskAgentRoleCardsAsWaiting(roleCards: AgentRoleCard[], numberLocale: string): AgentRoleCard[] {
+  return roleCards.map((role) => ({
+    ...role,
+    status: "pending",
+    progressPercent: 0,
+    progressLabel: formatAgentProgressPercentValueLabel(0, numberLocale),
+    metrics: [],
+  }));
 }
 
 export function hasCompletedDefaultAgentRoles(roleCards: AgentRoleCard[]) {

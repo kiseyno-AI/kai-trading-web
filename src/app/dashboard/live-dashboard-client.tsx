@@ -60,6 +60,7 @@ import {
   getDashboardLoadErrorMessage,
   getFirstTextValue,
   getFundamentalsCheckedCount,
+  getDailyProcessDependencyWaitState,
   getFundamentalsUpdatedActivityModel,
   getFundamentalsUpdatedCountLabel,
   getFundamentalsFailureDetails,
@@ -81,6 +82,8 @@ import {
   isIconOnlyEodStageStatus,
   isOfflineTrackedPlaceholder,
   markAgentFeedbackProgressStopped,
+  maskAgentRoleCardsAsWaiting,
+  maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
   mergeRunningPipelineStage,
   shouldShowAgentRoleProgress,
@@ -1695,35 +1698,11 @@ export function LiveDashboardClient({
   );
   const rawAgentProgressDate = displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate;
   const agentProgressDateContext = getExceptionDateLabel(rawAgentProgressDate, primaryLatestCycleDate);
-  const isAgentFeedbackRunning = isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
-  const agentRoleCards = useMemo(
+  const baseAgentRoleCards = useMemo(
     () => buildAgentRoleCards(displayedAgentFeedbackProgress, copy, numberLocale),
     [copy, displayedAgentFeedbackProgress, numberLocale],
   );
-  const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
-  const showCompletedAgentFeedbackStatus =
-    agentProgressRunStatus === "pending" && hasCompletedDefaultAgentRoles(agentRoleCards);
-  const agentFeedbackHeaderStatusLabel = showCompletedAgentFeedbackStatus
-    ? agentProgressStatusLabels.completed
-    : agentProgressStatusLabel;
-  const agentFeedbackStatusTone =
-    showCompletedAgentFeedbackStatus || agentProgressRunStatus === "completed"
-      ? "positive"
-      : agentProgressRunStatus === "running"
-        ? "neutral"
-        : agentProgressRunStatus === "stalled"
-          ? "warning"
-          : "neutral";
-  const signalDeciderFeedbackModel = useMemo(
-    () =>
-      buildSignalDeciderFeedbackSummary({
-        feedback: signalDeciderFeedback,
-        marketDate: rawAgentProgressDate,
-        progress: displayedAgentFeedbackProgress,
-      }),
-    [displayedAgentFeedbackProgress, rawAgentProgressDate, signalDeciderFeedback],
-  );
-  const filteringCardModel = useMemo(
+  const rawFilteringCardModel = useMemo(
     () =>
       buildFilteringCardModel({
         agentFeedbackProgress: displayedAgentFeedbackProgress,
@@ -1750,7 +1729,7 @@ export function LiveDashboardClient({
       piotroskiMarketDate,
     ],
   );
-  const scoringCardModel = useMemo(
+  const rawScoringCardModel = useMemo(
     () =>
       buildScoringCardModel({
         copy,
@@ -1760,6 +1739,80 @@ export function LiveDashboardClient({
       }),
     [copy, eodStatusMarketDate, numberLocale, pipelineStatus],
   );
+  const dependencyWaitState = getDailyProcessDependencyWaitState({
+    eodStageCards,
+    filteringCardModel: rawFilteringCardModel,
+    pipelineStatus,
+    scoringCardModel: rawScoringCardModel,
+  });
+  const filteringCardModel = useMemo(
+    () =>
+      dependencyWaitState.waitForFiltering
+        ? maskFilteringCardModelAsWaiting(rawFilteringCardModel, copy)
+        : rawFilteringCardModel,
+    [copy, dependencyWaitState.waitForFiltering, rawFilteringCardModel],
+  );
+  const scoringCardModel = useMemo(
+    () =>
+      dependencyWaitState.waitForScoring
+        ? buildScoringCardModel({
+            copy,
+            forceWaiting: true,
+            numberLocale,
+            pipelineStatus,
+            scoringMarketDate: eodStatusMarketDate,
+          })
+        : rawScoringCardModel,
+    [copy, dependencyWaitState.waitForScoring, eodStatusMarketDate, numberLocale, pipelineStatus, rawScoringCardModel],
+  );
+  const waitForAgentFeedback = dependencyWaitState.waitForAgentFeedback;
+  const agentRoleCards = useMemo(
+    () =>
+      waitForAgentFeedback
+        ? maskAgentRoleCardsAsWaiting(baseAgentRoleCards, numberLocale)
+        : baseAgentRoleCards,
+    [baseAgentRoleCards, numberLocale, waitForAgentFeedback],
+  );
+  const displayedAgentRoleStatusLabels = useMemo(
+    () =>
+      waitForAgentFeedback
+        ? {
+            ...agentRoleStatusLabels,
+            pending: copy.scoring.statuses.waiting,
+          }
+        : agentRoleStatusLabels,
+    [agentRoleStatusLabels, copy.scoring.statuses.waiting, waitForAgentFeedback],
+  );
+  const agentProgressRunStatus = getResolvedAgentProgressRunStatus(displayedAgentFeedbackProgress);
+  const isAgentFeedbackRunning =
+    !waitForAgentFeedback && isAgentFeedbackProgressRunning(displayedAgentFeedbackProgress);
+  const showCompletedAgentFeedbackStatus =
+    !waitForAgentFeedback && agentProgressRunStatus === "pending" && hasCompletedDefaultAgentRoles(agentRoleCards);
+  const agentFeedbackHeaderStatusLabel = waitForAgentFeedback
+    ? copy.scoring.statuses.waiting
+    : showCompletedAgentFeedbackStatus
+      ? agentProgressStatusLabels.completed
+      : agentProgressStatusLabel;
+  const agentFeedbackStatusTone =
+    waitForAgentFeedback
+      ? "neutral"
+      : showCompletedAgentFeedbackStatus || agentProgressRunStatus === "completed"
+        ? "positive"
+        : agentProgressRunStatus === "running"
+          ? "neutral"
+          : agentProgressRunStatus === "stalled"
+            ? "warning"
+            : "neutral";
+  const signalDeciderFeedbackModel = useMemo(
+    () =>
+      buildSignalDeciderFeedbackSummary({
+        feedback: waitForAgentFeedback ? null : signalDeciderFeedback,
+        marketDate: rawAgentProgressDate,
+        progress: waitForAgentFeedback ? null : displayedAgentFeedbackProgress,
+      }),
+    [displayedAgentFeedbackProgress, rawAgentProgressDate, signalDeciderFeedback, waitForAgentFeedback],
+  );
+  const displayedSignalDeciderFeedbackError = waitForAgentFeedback ? null : signalDeciderFeedbackError;
   const processMonitorModel = useMemo(
     () =>
       buildProcessMonitorModel({
@@ -1970,7 +2023,7 @@ export function LiveDashboardClient({
           <div className={styles.primaryInsightGrid}>
             <SignalDeciderFeedbackCard
               copy={copy}
-              error={signalDeciderFeedbackError}
+              error={displayedSignalDeciderFeedbackError}
               model={signalDeciderFeedbackModel}
               numberLocale={numberLocale}
             />
@@ -2101,7 +2154,7 @@ export function LiveDashboardClient({
                 agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
                 agentProgressDateContext={agentProgressDateContext}
                 agentRoleCards={agentRoleCards}
-                agentRoleStatusLabels={agentRoleStatusLabels}
+                agentRoleStatusLabels={displayedAgentRoleStatusLabels}
                 copy={copy}
                 isAgentFeedbackRunning={isAgentFeedbackRunning}
                 onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}

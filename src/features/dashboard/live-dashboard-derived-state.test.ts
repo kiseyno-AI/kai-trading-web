@@ -15,6 +15,7 @@ import type {
 import {
   UNKNOWN_LABEL,
   buildAgentRoleCards,
+  getDailyProcessDependencyWaitState,
   buildEodStageCard,
   buildFilteringCardModel,
   buildMarketSnapshotPresentation,
@@ -32,6 +33,8 @@ import {
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
   markAgentFeedbackProgressStopped,
+  maskAgentRoleCardsAsWaiting,
+  maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
   shouldRevalidateFilteringFallback,
   shouldShowAgentRoleProgress,
@@ -962,6 +965,258 @@ test("builds a scoring card from non-agent pipeline scoring stages", () => {
     model.stages[2]?.note,
     `${copy.scoring.notes.running} Momentum Scoring · Rank Symbols · Symbol 005930`,
   );
+});
+
+test("forces filtering, scoring, and feedback cards to waiting while EOD is checking", () => {
+  const copy = getDashboardLiveCopy("en");
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      copy.stage.price,
+      { status: "running", symbols_total: 100, symbols_succeeded: 35, symbols_failed: 0 },
+      "2026-04-27",
+      "2026-04-26",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      { status: "running", processed: 35, total: 100, failed: 0 },
+      copy,
+      "en-US",
+    ),
+  ];
+  const pipelineStatus = buildPipelineStatus({
+    market_date: "2026-04-27",
+    stages: {
+      price_collection: { status: "running", processed: 35, total: 100, failed: 0 },
+    },
+  });
+  const rawFilteringCardModel = buildFilteringCardModel({
+    agentFeedbackProgress: buildAgentFeedbackProgress({ marketDate: "2026-04-27", totalSymbols: 90 }),
+    copy,
+    marketRiskStatus: {
+      market_date: "2026-04-27",
+      summary: {
+        entries: 100,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 90,
+        watchlist_count: 8,
+        failed_count: 2,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-27",
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const rawScoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-04-27",
+  });
+
+  const waitState = getDailyProcessDependencyWaitState({
+    eodStageCards,
+    filteringCardModel: rawFilteringCardModel,
+    pipelineStatus,
+    scoringCardModel: rawScoringCardModel,
+  });
+  const filteringCardModel = maskFilteringCardModelAsWaiting(rawFilteringCardModel, copy);
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    forceWaiting: true,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-04-27",
+  });
+  const agentRoleCards = maskAgentRoleCardsAsWaiting(
+    buildAgentRoleCards(buildAgentFeedbackProgress({ marketDate: "2026-04-27", totalSymbols: 90 }), copy, "en-US"),
+    "en-US",
+  );
+
+  assert.deepEqual(waitState, {
+    filteringChecking: false,
+    scoringChecking: false,
+    waitForAgentFeedback: true,
+    waitForFiltering: true,
+    waitForScoring: true,
+  });
+  assert.deepEqual(filteringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting"]);
+  assert.equal(filteringCardModel.finalFilteredCountLabel, UNKNOWN_LABEL);
+  assert.deepEqual(scoringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting", "waiting"]);
+  assert.deepEqual(scoringCardModel.stages.map((stage) => stage.progressLabel), [
+    UNKNOWN_LABEL,
+    UNKNOWN_LABEL,
+    UNKNOWN_LABEL,
+  ]);
+  assert.equal(agentRoleCards.length > 0, true);
+  assert.equal(agentRoleCards.every((role) => role.status === "pending"), true);
+  assert.equal(agentRoleCards.every((role) => role.progressPercent === 0), true);
+  assert.equal(agentRoleCards.every((role) => role.metrics.length === 0), true);
+});
+
+test("keeps refreshed EOD data visible while filtering is checking and makes later cards wait", () => {
+  const copy = getDashboardLiveCopy("en");
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      copy.stage.price,
+      { status: "ready", symbols_total: 100, symbols_succeeded: 100, symbols_failed: 0 },
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      { status: "completed", processed: 100, total: 100, failed: 0 },
+      copy,
+      "en-US",
+    ),
+  ];
+  const pipelineStatus = buildPipelineStatus({
+    market_date: "2026-04-27",
+    status: "completed",
+    stages: {
+      price_collection: { status: "completed", processed: 100, total: 100, failed: 0 },
+    },
+  });
+  const rawFilteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "loading",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-27",
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "loading",
+  });
+  const rawScoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-04-27",
+  });
+
+  const waitState = getDailyProcessDependencyWaitState({
+    eodStageCards,
+    filteringCardModel: rawFilteringCardModel,
+    pipelineStatus,
+    scoringCardModel: rawScoringCardModel,
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    forceWaiting: waitState.waitForScoring,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-04-27",
+  });
+  const agentRoleCards = maskAgentRoleCardsAsWaiting(
+    buildAgentRoleCards(buildAgentFeedbackProgress({ marketDate: "2026-04-27", totalSymbols: 90 }), copy, "en-US"),
+    "en-US",
+  );
+
+  assert.equal(eodStageCards[0]?.statusLabel, "synced");
+  assert.equal(eodStageCards[0]?.details.find((detail) => detail.key === "count")?.value, "100 / 100");
+  assert.deepEqual(waitState, {
+    filteringChecking: true,
+    scoringChecking: false,
+    waitForAgentFeedback: true,
+    waitForFiltering: false,
+    waitForScoring: true,
+  });
+  assert.deepEqual(rawFilteringCardModel.stages.map((stage) => stage.status), ["loading", "loading"]);
+  assert.deepEqual(scoringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting", "waiting"]);
+  assert.equal(agentRoleCards.length > 0, true);
+  assert.equal(agentRoleCards.every((role) => role.status === "pending"), true);
+});
+
+test("keeps EOD and filtering visible while scoring is checking and makes feedback wait", () => {
+  const copy = getDashboardLiveCopy("en");
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      copy.stage.price,
+      { status: "ready", symbols_total: 100, symbols_succeeded: 100, symbols_failed: 0 },
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      { status: "completed", processed: 100, total: 100, failed: 0 },
+      copy,
+      "en-US",
+    ),
+  ];
+  const rawFilteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: {
+      market_date: "2026-04-27",
+      summary: {
+        entries: 100,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 90,
+        watchlist_count: 8,
+        failed_count: 2,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-27",
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const pipelineStatus = buildPipelineStatus({
+    market_date: "2026-04-27",
+    status: "running",
+    stage_order: ["price_collection", "fundamentals_daily_refresh", "unified_value_scoring"],
+    stages: {
+      price_collection: { status: "completed", processed: 100, total: 100, failed: 0 },
+      fundamentals_daily_refresh: { status: "completed", processed: 100, total: 100, failed: 0 },
+      unified_value_scoring: { status: "running", processed: 35, total: 90, failed: 0 },
+    },
+  });
+  const rawScoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-04-27",
+  });
+
+  const waitState = getDailyProcessDependencyWaitState({
+    eodStageCards,
+    filteringCardModel: rawFilteringCardModel,
+    pipelineStatus,
+    scoringCardModel: rawScoringCardModel,
+  });
+  const agentRoleCards = maskAgentRoleCardsAsWaiting(
+    buildAgentRoleCards(buildAgentFeedbackProgress({ marketDate: "2026-04-27", totalSymbols: 90 }), copy, "en-US"),
+    "en-US",
+  );
+
+  assert.equal(eodStageCards[0]?.statusLabel, "synced");
+  assert.equal(rawFilteringCardModel.stages[1]?.status, "completed");
+  assert.deepEqual(rawScoringCardModel.stages.map((stage) => stage.status), ["loading", "pending", "pending"]);
+  assert.deepEqual(waitState, {
+    filteringChecking: false,
+    scoringChecking: true,
+    waitForAgentFeedback: true,
+    waitForFiltering: false,
+    waitForScoring: false,
+  });
+  assert.equal(agentRoleCards.length > 0, true);
+  assert.equal(agentRoleCards.every((role) => role.status === "pending"), true);
+  assert.equal(agentRoleCards.every((role) => role.progressPercent === 0), true);
 });
 
 test("builds grouped daily process monitor state from patch, filter, scoring, and agent feedback cards", () => {
