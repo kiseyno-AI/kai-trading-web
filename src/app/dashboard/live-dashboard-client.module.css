@@ -1287,6 +1287,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.42rem 0.65rem;
+  align-items: center;
   padding: 0.68rem;
   border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.5rem;
@@ -1317,10 +1318,13 @@
 }
 
 .signalDeciderPreviewMeta {
+  min-width: 0;
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.38rem;
+  align-self: center;
 }
 
 .signalDeciderPreviewRow p {
@@ -1329,6 +1333,14 @@
   color: var(--muted);
   font-size: 0.76rem;
   line-height: 1.45;
+}
+
+.signalDeciderPreviewScore {
+  min-width: 2.7rem;
+  margin-left: auto;
+  text-align: right;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-weight: 700;
 }
 
 .signalDeciderDetailLink {
@@ -1888,6 +1900,14 @@
 }
 
 @media (max-width: 520px) {
+  .signalDeciderPreviewRow {
+    grid-template-columns: 1fr;
+  }
+
+  .signalDeciderPreviewMeta {
+    justify-content: flex-start;
+  }
+
   .eodStageGrid {
     grid-template-columns: 1fr;
   }

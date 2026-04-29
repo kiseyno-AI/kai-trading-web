@@ -590,7 +590,7 @@ export default function SignalDeciderFeedbackPageClient() {
                           <span>{item.symbol}</span>
                         </Link>
                       </td>
-                      <td>
+                      <td className={styles.actionCell}>
                         <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
                       </td>
                       <td>
@@ -602,8 +602,8 @@ export default function SignalDeciderFeedbackPageClient() {
                           UNKNOWN_LABEL
                         )}
                       </td>
-                      <td>
-                        <div className={styles.scoreStack}>
+                      <td className={styles.scoreCell}>
+                        <div className={styles.scoreStack} data-testid="signal-decider-score-area">
                           <span>
                             <span>Conviction </span>
                             <strong>{formatScore(item.convictionScore)}</strong>
@@ -638,7 +638,7 @@ export default function SignalDeciderFeedbackPageClient() {
                       </td>
                       <td>{item.policyVersion ?? UNKNOWN_LABEL}</td>
                       <td>{formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</td>
-                      <td>
+                      <td className={styles.reviewCell}>
                         <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
                           Review
                         </button>

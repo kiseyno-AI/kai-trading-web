@@ -302,9 +302,29 @@
   white-space: nowrap;
 }
 
+.resultsTable .actionCell,
+.resultsTable .scoreCell,
+.resultsTable .reviewCell {
+  vertical-align: middle;
+}
+
+.resultsTable .scoreCell {
+  text-align: right;
+}
+
+.resultsTable .reviewCell {
+  text-align: center;
+}
+
+.resultsTable .actionCell :global(.pill) {
+  min-width: 4.8rem;
+}
+
 .scoreStack {
   display: grid;
   gap: 0.35rem;
+  width: min(100%, 8.5rem);
+  margin-left: auto;
 }
 
 .scoreStack > span {
@@ -320,6 +340,8 @@
 }
 
 .scoreStack strong {
+  min-width: 2.8rem;
+  text-align: right;
   color: var(--text-strong);
   font-family: var(--font-space-grotesk), sans-serif;
   font-size: 0.82rem;
@@ -373,6 +395,9 @@
 }
 
 .reviewButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 2.1rem;
   padding: 0 0.7rem;
   white-space: nowrap;
