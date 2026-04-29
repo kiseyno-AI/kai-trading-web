@@ -6,7 +6,7 @@ import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbar, DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
+import { DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
@@ -130,22 +130,20 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setActiveMode("system-freshness");
   }, [setActiveMode]);
 
-  const pendingHeader = (
-    <DashboardToolbar
-      leading={
-        <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
-          ←
-        </Link>
-      }
-      title={copy.common.pending}
-      status={<DashboardToolbarStatus>{copy.header.marketPending}</DashboardToolbarStatus>}
-      actions={<DevModeToggle />}
-    />
-  );
+  const pendingTopbar = {
+    leading: (
+      <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
+        ←
+      </Link>
+    ),
+    title: copy.common.pending,
+    status: <DashboardToolbarStatus>{copy.header.marketPending}</DashboardToolbarStatus>,
+    actions: <DevModeToggle />,
+  };
 
   if (!symbolReady) {
     return (
-      <MobileAppChrome activeNav="symbols" mySymbolsHref="/my-symbols" header={pendingHeader}>
+      <MobileAppChrome activeNav="symbols" topbar={pendingTopbar}>
         <div className={styles.detailPage} data-mode={activeMode}>
           <section className={`${styles.panel} ${styles.chartCard}`} role="status" aria-live="polite" aria-busy="true">
             <SurfaceState className={styles.emptyPanel} title={copy.loadingWorkspace} tone="loading">
@@ -160,19 +158,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   return (
     <MobileAppChrome
       activeNav="symbols"
-      mySymbolsHref="/my-symbols"
-      header={
-        <DashboardToolbar
-          leading={
-            <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
-              ←
-            </Link>
-          }
-          title={introTitle}
-          status={<DashboardToolbarStatus tone={toolbarMarketBadgeTone}>{toolbarMarketBadgeLabel}</DashboardToolbarStatus>}
-          actions={<DevModeToggle />}
-        />
-      }
+      topbar={{
+        leading: (
+          <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
+            ←
+          </Link>
+        ),
+        title: introTitle,
+        status: <DashboardToolbarStatus tone={toolbarMarketBadgeTone}>{toolbarMarketBadgeLabel}</DashboardToolbarStatus>,
+        actions: <DevModeToggle />,
+      }}
     >
       <div className={styles.detailPage} data-mode={activeMode}>
         <section className={`${styles.panel} ${styles.heroCard}`} id="summary">

@@ -5,8 +5,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbar, DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
+import { MobileAppChrome, MobileAppChromeDesktopRailFooter } from "@/components/mobile/mobile-app-chrome";
+import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { LanguageSwitchControl } from "@/components/navigation/language-switch-control";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
@@ -2020,26 +2020,71 @@ export function LiveDashboardClient({
     processMonitorDrawerMounted,
   ]);
 
+  const processMonitorFloatingLayer = processMonitorDrawerMounted ? (
+    <ProcessMonitorDrawer
+      copy={copy}
+      patchDate={processMonitorModel.patchDate}
+      state={processMonitorDrawerState}
+      onClose={closeProcessMonitorDrawer}
+    >
+      <EodStatusCard
+        copy={copy}
+        eodStageCards={eodStageCards}
+        fundamentalsDialogOpen={fundamentalsDialogOpen}
+        fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
+        fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
+        fundamentalsFailureDetails={fundamentalsFailureDetails}
+        onOpenFundamentalsDetails={openFundamentalsDetails}
+        onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
+      />
+
+      <FilteringCard
+        copy={copy}
+        filteringCardModel={filteringCardModel}
+        patchDate={processMonitorModel.patchDate}
+      />
+
+      <ScoringCard
+        copy={copy}
+        patchDate={processMonitorModel.patchDate}
+        scoringCardModel={scoringCardModel}
+      />
+
+      <AgentFeedbackCard
+        agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
+        agentFeedbackStatusTone={agentFeedbackStatusTone}
+        agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
+        agentProgressDateContext={agentProgressDateContext}
+        agentRoleCards={agentRoleCards}
+        agentRoleStatusLabels={displayedAgentRoleStatusLabels}
+        copy={copy}
+        isAgentFeedbackRunning={isAgentFeedbackRunning}
+        onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
+      />
+    </ProcessMonitorDrawer>
+  ) : null;
+
   return (
     <MobileAppChrome
       activeNav="dashboard"
-      showDesktopRailLocaleSwitch={false}
-      showMobileMetaRow={false}
-      bottomAccessory={
-        <ProcessMonitorTrigger
-          copy={copy}
-          model={processMonitorModel}
-          open={processMonitorDrawerOpen}
-          placement="mobile"
-          onOpen={openProcessMonitorDrawer}
-        />
-      }
-      header={
-        <DashboardToolbar
-          status={<DashboardToolbarStatus tone={market.is_open ? "positive" : "closed"}>{marketBadgeLabel}</DashboardToolbarStatus>}
-          actions={<LanguageSwitchControl testId="dashboard-header-language-switch" />}
-        />
-      }
+      desktopRail={{ footer: <MobileAppChromeDesktopRailFooter variant="release" /> }}
+      bottomChrome={{
+        meta: null,
+        accessory: (
+          <ProcessMonitorTrigger
+            copy={copy}
+            model={processMonitorModel}
+            open={processMonitorDrawerOpen}
+            placement="mobile"
+            onOpen={openProcessMonitorDrawer}
+          />
+        ),
+      }}
+      floatingLayer={processMonitorFloatingLayer}
+      topbar={{
+        status: <DashboardToolbarStatus tone={market.is_open ? "positive" : "closed"}>{marketBadgeLabel}</DashboardToolbarStatus>,
+        actions: <LanguageSwitchControl testId="dashboard-header-language-switch" />,
+      }}
     >
       <div className={`${styles.stack} ${styles.dashboardWideShell}`}>
         {coreUnavailable ? (
@@ -2155,53 +2200,6 @@ export function LiveDashboardClient({
                 ) : null}
               </section>
             </div>,
-            document.body,
-          )
-        : null}
-
-      {processMonitorDrawerMounted
-        ? createPortal(
-            <ProcessMonitorDrawer
-              copy={copy}
-              patchDate={processMonitorModel.patchDate}
-              state={processMonitorDrawerState}
-              onClose={closeProcessMonitorDrawer}
-            >
-              <EodStatusCard
-                copy={copy}
-                eodStageCards={eodStageCards}
-                fundamentalsDialogOpen={fundamentalsDialogOpen}
-                fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
-                fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
-                fundamentalsFailureDetails={fundamentalsFailureDetails}
-                onOpenFundamentalsDetails={openFundamentalsDetails}
-                onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
-              />
-
-              <FilteringCard
-                copy={copy}
-                filteringCardModel={filteringCardModel}
-                patchDate={processMonitorModel.patchDate}
-              />
-
-              <ScoringCard
-                copy={copy}
-                patchDate={processMonitorModel.patchDate}
-                scoringCardModel={scoringCardModel}
-              />
-
-              <AgentFeedbackCard
-                agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
-                agentFeedbackStatusTone={agentFeedbackStatusTone}
-                agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
-                agentProgressDateContext={agentProgressDateContext}
-                agentRoleCards={agentRoleCards}
-                agentRoleStatusLabels={displayedAgentRoleStatusLabels}
-                copy={copy}
-                isAgentFeedbackRunning={isAgentFeedbackRunning}
-                onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
-              />
-            </ProcessMonitorDrawer>,
             document.body,
           )
         : null}

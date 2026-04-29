@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import type { NavItemDto } from "@/types/trading-api";
 import { Drawer } from "@/components/ui/drawer";
-import { NavGlyph } from "@/components/navigation/app-sidebar";
+import { NavGlyph } from "@/components/navigation/nav-glyph";
 import { cn } from "@/lib/utils";
 
 type MobileNavProps = {

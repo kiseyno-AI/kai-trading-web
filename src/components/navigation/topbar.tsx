@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { LanguageSwitchControl } from "@/components/navigation/language-switch-control";
-import { NavGlyph } from "@/components/navigation/app-sidebar";
+import { NavGlyph } from "@/components/navigation/nav-glyph";
 import { DashboardToolbar } from "@/components/navigation/dashboard-toolbar";
 import { Button } from "@/components/ui/button";
 import { SearchPicker } from "@/components/ui/search-picker";

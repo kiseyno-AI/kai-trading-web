@@ -9,7 +9,7 @@ This document is the working map for the Stitch-driven mobile refresh. It tells 
 - Dev-mode component tags stay available through the shared dashboard toolbar actions where a screen exposes `Tags On` / `Tags Off`.
 - If an upstream field is not confirmed by `kai-trading-core`, the UI must render `[확인 필요]` instead of inventing data.
 - Freshness is **layer-specific**. Price, technical, action, fundamentals, and disclosures must not imply one shared timestamp.
-- Dashboard and symbol detail now use a dedicated mobile shell with a fixed shared dashboard toolbar and a bottom tab bar (`Dashboard`, `Search`, `My Symbols`) instead of the old `AppShell` workspace chrome.
+- Dashboard and symbol detail now use a dedicated mobile shell with a fixed shared dashboard toolbar and a bottom tab bar (`Dashboard`, `Search`, `Calendar`, `Assets`, `My Symbols`) instead of the old `AppShell` workspace chrome. Routes pass `topbar`/bottom slots while the shell owns toolbar rendering, nav placement, and safe-area spacing.
 - `/search` also uses this shell, matching the Stitch `Search - Mobile Terminal` screen instead of the legacy workspace panel.
 
 ## Dev tag workflow

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbar, DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
+import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { formatPrice } from "@/lib/format";
 import {
   buildPiotroskiSymbolHref,
@@ -154,12 +154,10 @@ export default function PiotroskiFilterPageClient() {
   return (
     <MobileAppChrome
       activeNav="dashboard"
-      header={
-        <DashboardToolbar
-          status={<DashboardToolbarStatus>{displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending"}</DashboardToolbarStatus>}
-          actions={<DevModeToggle />}
-        />
-      }
+      topbar={{
+        status: <DashboardToolbarStatus>{displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending"}</DashboardToolbarStatus>,
+        actions: <DevModeToggle />,
+      }}
     >
       <div className={styles.stack}>
         <section className={styles.heroPanel}>

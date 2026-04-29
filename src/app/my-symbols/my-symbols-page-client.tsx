@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbar, DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
+import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import type { MessageTree } from "@/i18n/messages";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
@@ -312,15 +312,12 @@ export default function MySymbolsPageClient() {
   return (
     <MobileAppChrome
       activeNav="symbols"
-      mySymbolsHref="/my-symbols"
-      header={
-        <DashboardToolbar
-          title={copy.title}
-          subtitle={copy.brandMeta}
-          status={<DashboardToolbarStatus tone={marketStatus.is_open ? "positive" : "warning"}>{marketBadgeLabel}</DashboardToolbarStatus>}
-          actions={<DevModeToggle />}
-        />
-      }
+      topbar={{
+        title: copy.title,
+        subtitle: copy.brandMeta,
+        status: <DashboardToolbarStatus tone={marketStatus.is_open ? "positive" : "warning"}>{marketBadgeLabel}</DashboardToolbarStatus>,
+        actions: <DevModeToggle />,
+      }}
     >
       <div className={styles.page}>
         <section className={`${styles.panel} ${styles.heroPanel}`}>

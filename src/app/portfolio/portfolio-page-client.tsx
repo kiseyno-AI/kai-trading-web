@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbar, DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
+import { DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { formatDisplayTimestamp } from "@/lib/format";
@@ -403,15 +403,12 @@ export default function PortfolioPageClient() {
   return (
     <MobileAppChrome
       activeNav="portfolio"
-      portfolioHref="/portfolio"
-      header={
-        <DashboardToolbar
-          title={copy.title}
-          subtitle={copy.brandMeta}
-          status={<DashboardToolbarStatus tone={getPortfolioToolbarStatusTone(portfolioState)}>{statusLabel}</DashboardToolbarStatus>}
-          actions={<DevModeToggle />}
-        />
-      }
+      topbar={{
+        title: copy.title,
+        subtitle: copy.brandMeta,
+        status: <DashboardToolbarStatus tone={getPortfolioToolbarStatusTone(portfolioState)}>{statusLabel}</DashboardToolbarStatus>,
+        actions: <DevModeToggle />,
+      }}
     >
       <div className={styles.page}>
         <section className={`${styles.panel} ${styles.heroPanel}`}>

@@ -7,67 +7,10 @@ import { AppSidebar } from "@/components/navigation/app-sidebar";
 import { MobileNav } from "@/components/navigation/mobile-nav";
 import { Topbar } from "@/components/navigation/topbar";
 import { useAppState } from "@/components/providers/app-state-provider";
-import { resolveRouteMessageKey, type MessageTree } from "@/i18n/messages";
+import { resolveRouteMessageKey } from "@/i18n/messages";
+import { buildAppChromeNavItems, buildAppChromeSearchSuggestions } from "@/lib/app-chrome-routes";
 import { logWebDiagnostic } from "@/lib/web-diagnostics";
-import type { DashboardSnapshotDto, NavItemDto, SearchSuggestionDto } from "@/types/trading-api";
-
-function buildDefaultNavItems(t: MessageTree): NavItemDto[] {
-  return [
-    {
-      id: "dashboard",
-      label: t.navigation.items.dashboard.label,
-      icon: "DB",
-      href: "/dashboard",
-      description: t.navigation.items.dashboard.description,
-    },
-    {
-      id: "search",
-      label: t.navigation.items.search.label,
-      icon: "SR",
-      href: "/search",
-      description: t.navigation.items.search.description,
-    },
-    {
-      id: "portfolio",
-      label: t.navigation.items.portfolio.label,
-      icon: "AS",
-      href: "/portfolio",
-      description: t.navigation.items.portfolio.description,
-    },
-    {
-      id: "calendar",
-      label: t.navigation.items.calendar.label,
-      icon: "CL",
-      href: "/calendar",
-      description: t.navigation.items.calendar.description,
-    },
-    {
-      id: "markets",
-      label: t.navigation.items.markets.label,
-      icon: "MK",
-      href: "/markets",
-      description: t.navigation.items.markets.description,
-    },
-    {
-      id: "bots",
-      label: t.navigation.items.bots.label,
-      icon: "BT",
-      href: "/bots",
-      description: t.navigation.items.bots.description,
-    },
-  ];
-}
-
-function buildDefaultSuggestions(t: MessageTree): SearchSuggestionDto[] {
-  return [
-    { id: "dashboard", label: t.navigation.searchSuggestions.dashboard, type: "route", route: "/dashboard" },
-    { id: "search", label: t.navigation.searchSuggestions.search, type: "route", route: "/search" },
-    { id: "portfolio", label: t.navigation.searchSuggestions.portfolio, type: "route", route: "/portfolio" },
-    { id: "calendar", label: t.navigation.searchSuggestions.calendar, type: "route", route: "/calendar" },
-    { id: "markets", label: t.navigation.searchSuggestions.markets, type: "route", route: "/markets" },
-    { id: "bots", label: t.navigation.searchSuggestions.bots, type: "route", route: "/bots" },
-  ];
-}
+import type { DashboardSnapshotDto } from "@/types/trading-api";
 
 type AppShellProps = {
   currentPath: string;
@@ -91,8 +34,8 @@ export function AppShell({
   const { t } = useAppState();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const routeCopy = t.routes[resolveRouteMessageKey(currentPath)];
-  const resolvedNavItems = navItems.length > 0 ? navItems : buildDefaultNavItems(t);
-  const resolvedSuggestions = suggestions.length > 0 ? suggestions : buildDefaultSuggestions(t);
+  const resolvedNavItems = navItems.length > 0 ? navItems : buildAppChromeNavItems(t);
+  const resolvedSuggestions = suggestions.length > 0 ? suggestions : buildAppChromeSearchSuggestions(t);
   const handleToggleMobileNav = () => {
     setMobileNavOpen((value) => {
       const nextValue = !value;

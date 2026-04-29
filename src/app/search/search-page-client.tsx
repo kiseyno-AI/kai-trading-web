@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbar, DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
+import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
@@ -922,13 +922,11 @@ export default function SearchPageClient() {
   return (
     <MobileAppChrome
       activeNav="search"
-      header={
-        <DashboardToolbar
-          title={copy.brandTitle}
-          status={<DashboardToolbarStatus tone={marketStatus.is_open ? "positive" : "closed"}>{marketBadgeLabel}</DashboardToolbarStatus>}
-          actions={<DevModeToggle />}
-        />
-      }
+      topbar={{
+        title: copy.brandTitle,
+        status: <DashboardToolbarStatus tone={marketStatus.is_open ? "positive" : "closed"}>{marketBadgeLabel}</DashboardToolbarStatus>,
+        actions: <DevModeToggle />,
+      }}
     >
       <div className={styles.searchTerminal}>
         <section className={styles.heroPanel}>
