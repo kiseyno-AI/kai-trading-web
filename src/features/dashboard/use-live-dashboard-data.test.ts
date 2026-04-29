@@ -4,7 +4,10 @@ import test from "node:test";
 
 import ts from "typescript";
 
-import { createMarketSnapshotRequestTimeout } from "./use-live-dashboard-data";
+import {
+  createMarketSnapshotRequestTimeout,
+  hasResponseForRequestedMarketDate,
+} from "./use-live-dashboard-data";
 
 type TimeoutOptions = NonNullable<Parameters<typeof createMarketSnapshotRequestTimeout>[0]>;
 type TimeoutApi = NonNullable<TimeoutOptions["timeoutApi"]>;
@@ -87,6 +90,44 @@ test("clears and aborts in-flight market snapshot requests on cleanup", () => {
 
   assert.equal(timeout.clearCount, 1);
   assert.equal(requestTimeout.signal.aborted, true);
+});
+
+test("requires a requested-date match before reusing latest fallback snapshots", () => {
+  const fallbackSnapshot = {
+    market_date: "2026-04-24",
+    requested_market_date: "2026-04-27",
+    resolved_market_date: "2026-04-24",
+    is_latest_fallback: true,
+  };
+
+  assert.equal(hasResponseForRequestedMarketDate(fallbackSnapshot, "2026-04-27"), true);
+  assert.equal(hasResponseForRequestedMarketDate(fallbackSnapshot, "2026-04-28"), false);
+  assert.equal(
+    hasResponseForRequestedMarketDate(
+      {
+        market_date: "2026-04-24",
+        resolved_market_date: "2026-04-24",
+        is_latest_fallback: true,
+      },
+      "2026-04-27",
+    ),
+    false,
+  );
+});
+
+test("continues to reuse non-fallback snapshots that resolve to the requested market date", () => {
+  assert.equal(
+    hasResponseForRequestedMarketDate(
+      {
+        market_date: "2026-04-27",
+        requested_market_date: null,
+        resolved_market_date: "2026-04-27",
+        is_latest_fallback: false,
+      },
+      "2026-04-27",
+    ),
+    true,
+  );
 });
 
 test("wires the market snapshot poll fetch through the timeout signal", () => {

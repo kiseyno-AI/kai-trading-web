@@ -715,6 +715,7 @@ function buildQualityScoringResultSummary({
   const totalCount = response?.summary.entries ?? (items.length > 0 ? items.length : null);
   const scoredCount = response ? qualitySummary.scoredCount : null;
   const missingCount = hasNumber(totalCount) ? Math.max(totalCount - qualitySummary.scoredCount, 0) : null;
+  const hasCompletedQualitySnapshot = responseLoadState === "ready" && hasNumber(totalCount) && totalCount > 0;
   const metrics = [
     buildScoringMetric(
       "progress",
@@ -744,7 +745,7 @@ function buildQualityScoringResultSummary({
       requestedMarketDate: resolution.requestedMarketDate,
       totalCount,
     }),
-    hasResult: responseLoadState === "ready" && qualitySummary.scoredCount > 0,
+    hasResult: hasCompletedQualitySnapshot,
   };
 }
 

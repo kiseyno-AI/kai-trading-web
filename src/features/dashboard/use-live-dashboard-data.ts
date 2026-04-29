@@ -155,18 +155,22 @@ function normalizeMarketDateKey(value: string | null | undefined) {
   return value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
 }
 
-function hasResponseForRequestedMarketDate(
+export function hasResponseForRequestedMarketDate(
   response: LatestAvailableMarketDateResponse | null | undefined,
   requestedMarketDate: string | null,
 ) {
   const requestedDate = normalizeMarketDateKey(requestedMarketDate);
   if (!response || !requestedDate) return false;
+  const responseRequestedDate = normalizeMarketDateKey(response.requested_market_date);
+
+  if (response.is_latest_fallback === true) {
+    return responseRequestedDate === requestedDate;
+  }
 
   return (
     normalizeMarketDateKey(response.market_date) === requestedDate ||
     normalizeMarketDateKey(response.resolved_market_date) === requestedDate ||
-    normalizeMarketDateKey(response.requested_market_date) === requestedDate ||
-    response.is_latest_fallback === true
+    responseRequestedDate === requestedDate
   );
 }
 
