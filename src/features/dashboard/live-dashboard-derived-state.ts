@@ -2161,6 +2161,14 @@ export function isSummarizerRole(role: string) {
   return (normalizeAgentRole(role) ?? "").includes("summarizer");
 }
 
+export function shouldShowAgentRoleProgress(role: AgentRoleCard) {
+  return (
+    isSummarizerRole(role.role) ||
+    isSignalDeciderRole(role.role) ||
+    role.metrics.some((metric) => metric.key === "progress")
+  );
+}
+
 function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus, fallbackRole: string | null) {
   if (!isAgentRoleMetricCapable(role)) return false;
   if (status === "running") return true;

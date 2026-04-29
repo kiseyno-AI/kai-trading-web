@@ -6,6 +6,17 @@ type MockDashboardShellOptions = {
   failSignalDeciderFeedbackRequestNumber?: number;
 };
 
+async function openProcessMonitorDrawer(page: Page) {
+  const drawer = page.getByRole("dialog", { name: /Daily process monitor/i });
+  if (await drawer.isVisible().catch(() => false)) {
+    return drawer;
+  }
+
+  await page.getByRole("button", { name: /Open process monitor/i }).first().click();
+  await expect(drawer).toBeVisible();
+  return drawer;
+}
+
 async function mockDashboardShell(page: Page, options: MockDashboardShellOptions = {}) {
   let signalDeciderFeedbackRequestCount = 0;
 
@@ -341,6 +352,15 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(card).toContainText("Buy 1 · Wait 1");
   await expect(card).toContainText("Samsung Electronics");
   await expect(card).toContainText("Momentum and fundamentals align");
+
+  const processDrawer = await openProcessMonitorDrawer(page);
+  const agentFeedbackCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
+  await expect(agentFeedbackCard).toBeVisible();
+  await expect(agentFeedbackCard.getByRole("listitem", { name: /Signal Decider/i })).toBeVisible();
+  await expect(agentFeedbackCard.getByRole("progressbar")).toHaveCount(4);
+  await expect(agentFeedbackCard.getByRole("progressbar", { name: /Signal Decider progress/i })).toBeVisible();
+  await processDrawer.getByRole("button", { name: /Close monitor/i }).click();
+  await expect(processDrawer).toHaveCount(0);
 
   await card.getByRole("link", { name: /Open the signal-decider feedback detail page/i }).click();
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);

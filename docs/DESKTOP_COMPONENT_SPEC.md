@@ -40,7 +40,7 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 | `dashboard.signal-decider-feedback` | Signal-decider feedback card and detail route | `/api/trading/agent-context/feedback?agent_name=signal-decider`, `/api/trading/agent-context/feedback/progress` | card status, result count, market date, action mix, preview rows, and detail rows with symbol/company, action, conviction/confidence, thesis, risks, stop/target, run id, and captured timestamp |
 | `dashboard.piotroski-board` | Piotroski full-list route | `/api/trading/eod/piotroski-filter-results`, `/api/trading/quotes/{symbol}`, `/api/trading/symbols/search` | `items[].symbol`, `items[].passed_filter`, `items[].piotroski_score`, per-symbol quote `price`, `change_pct`, metadata fallback name; the dashboard summary now lives inside D2 Filtering, while `More` opens `/dashboard/piotroski-filter` for the full list |
 
-- Agent Feedback role rows render compact progress bars under each EOD / Technical / Fundamental summarizer title, with the right-side status icon still derived from each row's resolved status.
+- Agent Feedback role rows render compact progress bars under each EOD / Technical / Fundamental summarizer and signal-decider title, with the right-side status icon still derived from each row's resolved status.
 - Signal-decider feedback uses the generic stored feedback read filtered by `agent_name=signal-decider`; if progress role counts are absent, the UI keeps row counts visible and avoids inferring full cycle completion.
 - At desktop widths, `Daily Data Fetch` and `Filtering` share the top row, while `Agent Feedback` spans the full row below them.
 

@@ -27,6 +27,7 @@ import {
   markAgentFeedbackProgressStopped,
   maskFutureEodStageCardsWhilePipelineRunning,
   shouldRevalidateFilteringFallback,
+  shouldShowAgentRoleProgress,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
 
@@ -1283,6 +1284,69 @@ test("shows signal-decider metrics when a live cycle reaches the decider after s
   for (const summarizerRole of roleCards.filter((role) => role.role.includes("summarizer"))) {
     assert.deepEqual(summarizerRole.metrics, []);
   }
+});
+
+test("keeps signal-decider eligible for row progress bars after running metrics are replaced by results", () => {
+  const copy = getDashboardLiveCopy("en");
+  const progress = {
+    request: {
+      market_date: "2026-04-27",
+      symbols: null,
+      expected_agents: ["preflight-gate", "signal-decider"],
+    },
+    summary: {
+      run_id: "feedback-cycle-2026-04-27-results",
+      run_status: "completed",
+      run_table_status: "completed",
+      cycle_status: "completed",
+      is_live: false,
+      run_started_at: "2026-04-27T17:00:00+09:00",
+      run_completed_at: "2026-04-27T17:30:00+09:00",
+      current_role: null,
+      completed_roles: ["preflight-gate", "signal-decider"],
+      remaining_roles: [],
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-27T17:30:00+09:00",
+      seconds_since_last_feedback: 120,
+      stalled_threshold_seconds: 60,
+      total_symbols: 3,
+      processed_symbols: 3,
+      completed_symbols: 3,
+      in_progress_symbols: 0,
+      pending_symbols: 0,
+      progress_ratio: 1,
+      progress_percent: 100,
+      failed_items: 0,
+      completed_feedback_count: 5,
+      expected_feedback_count: 5,
+    },
+    result: {
+      market_date: "2026-04-27",
+      roles: {
+        "preflight-gate": {
+          requested_count: 3,
+          completed_count: 3,
+          error_count: 0,
+        },
+        "signal-decider": {
+          requested_count: 3,
+          completed_count: 2,
+          error_count: 0,
+        },
+      },
+    },
+  };
+
+  const roleCards = buildAgentRoleCards(progress, copy, "en-US");
+  const preflightRole = roleCards.find((role) => role.role === "preflight-gate");
+  const signalDeciderRole = roleCards.find((role) => role.role === "signal-decider");
+
+  assert.ok(preflightRole);
+  assert.ok(signalDeciderRole);
+  assert.deepEqual(signalDeciderRole.metrics.map((metric) => metric.key), ["completed", "errors"]);
+  assert.equal(signalDeciderRole.metrics.some((metric) => metric.key === "progress"), false);
+  assert.equal(shouldShowAgentRoleProgress(signalDeciderRole), true);
+  assert.equal(shouldShowAgentRoleProgress(preflightRole), false);
 });
 
 test("does not treat a stale latest_feedback_at timestamp as active progress when the top-level summary is pending", () => {
