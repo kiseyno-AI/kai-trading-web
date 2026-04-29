@@ -60,6 +60,7 @@ test.describe("dashboard mobile hero", () => {
     await expect(hero.getByText(/EOD Status/i)).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Daily Data Fetch/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Filtering/i })).toHaveCount(0);
+    await expect(hero.getByRole("heading", { name: /^Scoring$/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Piotroski/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /KIS Risk/i })).toHaveCount(0);
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
@@ -71,6 +72,10 @@ test.describe("dashboard mobile hero", () => {
     await expect(processDrawer.getByText(/EOD Status/i)).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /Filtering/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /^Scoring$/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Unified value scoring/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Quality scoring/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Momentum scoring/i })).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
     await expect(processDrawer.locator('[aria-label="Price Fetch freshness"]')).toBeVisible();

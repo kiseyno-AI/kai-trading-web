@@ -52,6 +52,7 @@ import {
   buildFilteringCardModel,
   buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
+  buildScoringCardModel,
   formatEodSymbolCount,
   getAgentProgressStatusLabel,
   getAgentProgressStatusLabels,
@@ -95,6 +96,8 @@ import type {
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
   ProcessMonitorModel,
+  ScoringCardModel,
+  ScoringStageModel,
 } from "@/features/dashboard/live-dashboard-types";
 import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-data";
 import type {
@@ -430,6 +433,89 @@ const FilteringCard = memo(function FilteringCard({
       <div className={styles.filterFinalCount} aria-label={copy.operational.finalFilteredSymbols}>
         <span>{copy.operational.finalFilteredSymbols}</span>
         <strong>{filteringCardModel.finalFilteredCountLabel}</strong>
+      </div>
+    </article>
+  );
+});
+
+type ScoringCardProps = {
+  copy: DashboardLiveCopy;
+  patchDate: string | null;
+  scoringCardModel: ScoringCardModel;
+};
+
+function getScoringStatusIconClassName(status: ScoringStageModel["status"]) {
+  if (status === "completed") return styles.syncedStatusIcon;
+  if (status === "loading") return styles.filterLoadingStatusIcon;
+  if (status === "needs-review") return styles.filterNeedsReviewStatusIcon;
+  return styles.filterPendingStatusIcon;
+}
+
+const ScoringCard = memo(function ScoringCard({
+  copy,
+  patchDate,
+  scoringCardModel,
+}: ScoringCardProps) {
+  return (
+    <article className={`${styles.integrityStat} ${styles.scoringCard}`}>
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.scoring.eyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.scoring.title}</h2>
+        </div>
+        <Link
+          href="/markets/factors"
+          className={styles.sectionLink}
+          aria-label={copy.scoring.openFactorScreening}
+        >
+          {copy.operational.more}
+        </Link>
+      </div>
+
+      <div className={styles.filterStageList}>
+        {scoringCardModel.stages.map((stage) => {
+          const displayMarketDateContext = getExceptionDateLabel(stage.displayMarketDate, patchDate);
+          const statusIconClassName = getScoringStatusIconClassName(stage.status);
+
+          return (
+            <section
+              key={stage.key}
+              className={`${styles.filterStageSection} ${styles.scoringStageSection}`}
+              data-scoring-stage={stage.key}
+              data-scoring-status={stage.status}
+              aria-label={`${stage.label} status`}
+            >
+              <div className={styles.filterStageHeader}>
+                <div>
+                  <h3 className={styles.filterStageTitle}>{stage.label}</h3>
+                  {displayMarketDateContext ? (
+                    <p className={styles.cardContext}>
+                      {copy.operational.marketDate} {displayMarketDateContext}
+                    </p>
+                  ) : null}
+                </div>
+                <span
+                  className={`${styles.statusIconBadge} ${styles.filterStatusIcon} ${statusIconClassName}`}
+                  title={stage.statusLabel}
+                  data-scoring-status-badge={stage.status}
+                  role="img"
+                  aria-label={stage.statusLabel}
+                />
+              </div>
+
+              <div className={styles.statusMetricGrid}>
+                {stage.metrics.map((metric) => (
+                  <div key={metric.key} className={styles.statusMetric}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                  </div>
+                ))}
+              </div>
+
+              {stage.note ? <p className={styles.cardContext}>{stage.note}</p> : null}
+            </section>
+          );
+        })}
       </div>
     </article>
   );
@@ -1664,6 +1750,16 @@ export function LiveDashboardClient({
       piotroskiMarketDate,
     ],
   );
+  const scoringCardModel = useMemo(
+    () =>
+      buildScoringCardModel({
+        copy,
+        numberLocale,
+        pipelineStatus,
+        scoringMarketDate: eodStatusMarketDate,
+      }),
+    [copy, eodStatusMarketDate, numberLocale, pipelineStatus],
+  );
   const processMonitorModel = useMemo(
     () =>
       buildProcessMonitorModel({
@@ -1673,8 +1769,9 @@ export function LiveDashboardClient({
         filteringCardModel,
         numberLocale,
         patchDate: primaryLatestCycleDate,
+        scoringCardModel,
       }),
-    [agentRoleCards, copy, eodStageCards, filteringCardModel, numberLocale, primaryLatestCycleDate],
+    [agentRoleCards, copy, eodStageCards, filteringCardModel, numberLocale, primaryLatestCycleDate, scoringCardModel],
   );
   const marketBadgeLabel = market.is_open ? copy.marketOpen : copy.marketClosed;
   const coreUnavailable =
@@ -1990,6 +2087,12 @@ export function LiveDashboardClient({
                 copy={copy}
                 filteringCardModel={filteringCardModel}
                 patchDate={processMonitorModel.patchDate}
+              />
+
+              <ScoringCard
+                copy={copy}
+                patchDate={processMonitorModel.patchDate}
+                scoringCardModel={scoringCardModel}
               />
 
               <AgentFeedbackCard

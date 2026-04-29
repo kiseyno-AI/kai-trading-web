@@ -504,14 +504,16 @@
 .eodStatusCard,
 .agentFeedbackCard,
 .signalDeciderCard,
-.filteringCard {
+.filteringCard,
+.scoringCard {
   min-width: 0;
 }
 
 .eodStatusCard,
 .agentFeedbackCard,
 .signalDeciderCard,
-.filteringCard {
+.filteringCard,
+.scoringCard {
   display: flex;
   flex-direction: column;
 }
@@ -528,7 +530,8 @@
   gap: 0.75rem;
 }
 
-.filteringCard {
+.filteringCard,
+.scoringCard {
   gap: 0.85rem;
 }
 
@@ -655,6 +658,13 @@
   border: 1px solid rgba(71, 69, 85, 0.18);
   border-radius: 0.65rem;
   background: rgba(10, 14, 19, 0.58);
+}
+
+.scoringStageSection {
+  border-color: rgba(127, 184, 255, 0.2);
+  background:
+    linear-gradient(180deg, rgba(127, 184, 255, 0.06), transparent 48%),
+    rgba(10, 14, 19, 0.58);
 }
 
 .filterFinalCount {
@@ -2085,6 +2095,10 @@
   .agentFeedbackCard,
   .signalDeciderCard {
     grid-column: 1 / -1;
+  }
+
+  .scoringCard {
+    grid-column: 2;
   }
 
   .primaryInsightGrid > .signalDeciderCard,

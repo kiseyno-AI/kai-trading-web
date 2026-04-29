@@ -120,6 +120,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Daily Data Fetch/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Filtering/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /^Scoring$/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Piotroski/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /KIS Risk/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
@@ -139,8 +140,13 @@ test.describe("dashboard desktop", () => {
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /Filtering/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /^Scoring$/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Unified value scoring/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Quality scoring/i })).toBeVisible();
+    await expect(processDrawer.getByRole("heading", { name: /Momentum scoring/i })).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
     await expect(processDrawer.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Open the factor scoring workspace/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Open the full Piotroski filter pass list/i })).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
     const headerLanguageSwitch = page.getByTestId("dashboard-header-language-switch");
@@ -297,6 +303,9 @@ test.describe("dashboard desktop", () => {
             "trending_ranks",
             "signal_features",
             "fundamentals_daily_refresh",
+            "unified_value_scoring",
+            "quality_scoring",
+            "momentum_scoring",
           ],
           stages: {
             price_collection: {
@@ -318,6 +327,24 @@ test.describe("dashboard desktop", () => {
               failed: 0,
             },
             fundamentals_daily_refresh: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            unified_value_scoring: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            quality_scoring: {
+              status: "completed",
+              processed: 3200,
+              total: 3200,
+              failed: 0,
+            },
+            momentum_scoring: {
               status: "completed",
               processed: 3200,
               total: 3200,
@@ -435,37 +462,48 @@ test.describe("dashboard desktop", () => {
     const freshnessPanel = page.locator("#dashboard-freshness");
     await expect(freshnessPanel.locator("article").filter({ hasText: "Daily Data Fetch" })).toHaveCount(0);
     await expect(freshnessPanel.locator("article").filter({ hasText: "Filtering" })).toHaveCount(0);
+    await expect(freshnessPanel.locator("article").filter({ hasText: "Scoring" })).toHaveCount(0);
     await expect(freshnessPanel.locator("article").filter({ hasText: "Agent Feedback" })).toHaveCount(0);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodCard = processDrawer.locator("article").filter({ hasText: "Daily Data Fetch" });
     const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
+    const scoringCard = processDrawer.locator("article").filter({ hasText: "Scoring" });
     const agentFeedbackCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
 
     await expect(eodCard).toBeVisible();
     await expect(filteringCard).toBeVisible();
+    await expect(scoringCard).toBeVisible();
     await expect(agentFeedbackCard).toBeVisible();
     await expect(processDrawer.getByRole("listitem", { name: /^Patch / })).toHaveCount(0);
     await expect(processDrawer.getByRole("listitem", { name: /^Filter / })).toHaveCount(0);
+    await expect(processDrawer.getByRole("listitem", { name: /^Scoring / })).toHaveCount(0);
     await expect(processDrawer.getByRole("listitem", { name: /^Agent Feedback / })).toHaveCount(0);
+    await expect(scoringCard.locator('[data-scoring-stage="unified-value"]')).toContainText(/Progress\s*3,200\s*\/\s*3,200/);
+    await expect(scoringCard.locator('[data-scoring-stage="quality"]')).toContainText(/Progress\s*3,200\s*\/\s*3,200/);
+    await expect(scoringCard.locator('[data-scoring-stage="momentum"]')).toContainText(/Progress\s*3,200\s*\/\s*3,200/);
 
-    const [eodBox, filteringBox, agentFeedbackBox] = await Promise.all([
+    const [eodBox, filteringBox, scoringBox, agentFeedbackBox] = await Promise.all([
       eodCard.boundingBox(),
       filteringCard.boundingBox(),
+      scoringCard.boundingBox(),
       agentFeedbackCard.boundingBox(),
     ]);
 
     expect(eodBox).not.toBeNull();
     expect(filteringBox).not.toBeNull();
+    expect(scoringBox).not.toBeNull();
     expect(agentFeedbackBox).not.toBeNull();
 
-    if (!eodBox || !filteringBox || !agentFeedbackBox) {
+    if (!eodBox || !filteringBox || !scoringBox || !agentFeedbackBox) {
       throw new Error("Expected dashboard cards to have layout boxes.");
     }
 
     expect(Math.abs(eodBox.y - filteringBox.y)).toBeLessThan(24);
+    expect(Math.abs(scoringBox.x - filteringBox.x)).toBeLessThan(24);
+    expect(scoringBox.y).toBeGreaterThan(filteringBox.y + filteringBox.height - 24);
     expect(Math.abs(agentFeedbackBox.x - eodBox.x)).toBeLessThan(24);
-    expect(agentFeedbackBox.y).toBeGreaterThan(eodBox.y + eodBox.height - 24);
+    expect(agentFeedbackBox.y).toBeGreaterThan(scoringBox.y + scoringBox.height - 24);
     expect(agentFeedbackBox.width).toBeGreaterThan(filteringBox.width * 1.5);
   });
 

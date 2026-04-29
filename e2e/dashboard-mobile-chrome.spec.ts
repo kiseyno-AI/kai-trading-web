@@ -189,6 +189,9 @@ async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () 
           "trending_ranks",
           "signal_features",
           "fundamentals_daily_refresh",
+          "unified_value_scoring",
+          "quality_scoring",
+          "momentum_scoring",
         ],
         stages: {
           price_collection: {
@@ -213,6 +216,24 @@ async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () 
             current_symbol: status === "running" ? "005930" : null,
           },
           fundamentals_daily_refresh: {
+            status: "completed",
+            processed: 3200,
+            total: 3200,
+            failed: 0,
+          },
+          unified_value_scoring: {
+            status: "completed",
+            processed: 3200,
+            total: 3200,
+            failed: 0,
+          },
+          quality_scoring: {
+            status: "completed",
+            processed: 3200,
+            total: 3200,
+            failed: 0,
+          },
+          momentum_scoring: {
             status: "completed",
             processed: 3200,
             total: 3200,
@@ -705,6 +726,10 @@ test.describe("dashboard mobile chrome", () => {
     const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
+    const scoringCard = processDrawer.locator("article").filter({ hasText: "Scoring" });
+    const unifiedValueScoringSection = scoringCard.locator('[data-scoring-stage="unified-value"]');
+    const qualityScoringSection = scoringCard.locator('[data-scoring-stage="quality"]');
+    const momentumScoringSection = scoringCard.locator('[data-scoring-stage="momentum"]');
     const agentFeedbackCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
 
     await expect(priceStage).toContainText(/3,570\s*\/\s*3,583/);
@@ -725,6 +750,11 @@ test.describe("dashboard mobile chrome", () => {
     await expect(marketRiskSection).toContainText(/Filtered\s*3,200/);
     await expect(marketRiskSection).not.toContainText(/Watchlist|Fail/);
     await expect(filteringCard).toContainText(/Final filtered symbols\s*3,583/);
+    await expect(scoringCard).toBeVisible();
+    await expect(unifiedValueScoringSection).toContainText("Unified value scoring");
+    await expect(qualityScoringSection).toContainText("Quality scoring");
+    await expect(momentumScoringSection).toContainText("Momentum scoring");
+    await expect(unifiedValueScoringSection).toContainText(/Progress\s*\[확인 필요\]/);
     await expect(agentFeedbackCard).not.toContainText("Latest Run");
     await expect(agentFeedbackCard).toContainText(agentReviewCompletedLabel);
     await expect(agentFeedbackCard.getByRole("img", { name: agentReviewCompletedLabel })).toHaveCount(0);

@@ -13,11 +13,13 @@ import type {
 } from "@/types/trading-api";
 
 import {
+  UNKNOWN_LABEL,
   buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
   buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
+  buildScoringCardModel,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
   getFundamentalsStageStatusLabel,
@@ -799,7 +801,65 @@ test("uses the agent feedback target as the final filtering count when progress 
   assert.equal(model.finalFilteredCountLabel, "3");
 });
 
-test("builds grouped daily process monitor state from patch, filter, and agent feedback cards", () => {
+test("builds a scoring card from non-agent pipeline scoring stages", () => {
+  const copy = getDashboardLiveCopy("en");
+  const model = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: {
+      market_date: "2026-04-27",
+      status: "running",
+      stage_order: ["unified_value_scoring", "momentum_scoring"],
+      stages: {
+        unified_value_scoring: {
+          status: "completed",
+          processed: 3583,
+          total: 3583,
+          failed: 0,
+        },
+        momentum_scoring: {
+          status: "running",
+          processed: 1200,
+          total: 3583,
+          failed: 2,
+          current_step: "momentum_scoring",
+          current_activity: "rank_symbols",
+          current_symbol: "005930",
+        },
+      },
+    },
+    scoringMarketDate: "2026-04-27",
+  });
+
+  assert.deepEqual(model.stages.map((stage) => stage.key), ["unified-value", "quality", "momentum"]);
+  assert.equal(model.stages[0]?.label, copy.scoring.stages.unifiedValue);
+  assert.equal(model.stages[0]?.status, "completed");
+  assert.equal(model.stages[0]?.progressLabel, "3,583 / 3,583");
+  assert.equal(model.stages[0]?.note, copy.scoring.notes.completed);
+  assert.equal(model.stages[1]?.label, copy.scoring.stages.quality);
+  assert.equal(model.stages[1]?.status, "pending");
+  assert.equal(model.stages[1]?.progressLabel, UNKNOWN_LABEL);
+  assert.equal(model.stages[1]?.note, copy.scoring.notes.pending);
+  assert.equal(model.stages[2]?.status, "loading");
+  assert.deepEqual(model.stages[2]?.metrics, [
+    {
+      key: "progress",
+      label: copy.processMonitor.progress,
+      value: "1,200 / 3,583",
+    },
+    {
+      key: "failed",
+      label: copy.operational.failed,
+      value: "2",
+    },
+  ]);
+  assert.equal(
+    model.stages[2]?.note,
+    `${copy.scoring.notes.running} Momentum Scoring · Rank Symbols · Symbol 005930`,
+  );
+});
+
+test("builds grouped daily process monitor state from patch, filter, scoring, and agent feedback cards", () => {
   const copy = getDashboardLiveCopy("en");
   const eodStageCards = [
     buildEodStageCard(
@@ -906,6 +966,12 @@ test("builds grouped daily process monitor state from patch, filter, and agent f
     copy,
     "en-US",
   );
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: null,
+    scoringMarketDate: "2026-04-27",
+  });
 
   const model = buildProcessMonitorModel({
     agentRoleCards,
@@ -914,19 +980,22 @@ test("builds grouped daily process monitor state from patch, filter, and agent f
     filteringCardModel,
     numberLocale: "en-US",
     patchDate: "2026-04-27",
+    scoringCardModel,
   });
 
-  assert.deepEqual(model.groups.map((group) => group.key), ["patch", "filter", "agent-feedback"]);
+  assert.deepEqual(model.groups.map((group) => group.key), ["patch", "filter", "scoring", "agent-feedback"]);
   assert.equal(model.patchDate, "2026-04-27");
   assert.equal(model.status, "error");
   assert.equal(model.currentGroupLabel, copy.processMonitor.groups.filter);
   assert.equal(model.currentStepLabel, copy.operational.piotroskiSectionTitle);
-  assert.equal(model.progressLabel, "3 / 6");
+  assert.equal(model.progressLabel, "3 / 9");
   assert.equal(model.groups[0]?.status, "running");
   assert.equal(model.groups[0]?.currentStepLabel, copy.stage.technical);
   assert.equal(model.groups[1]?.status, "error");
   assert.equal(model.groups[1]?.steps.find((step) => step.key === "piotroski")?.note, "Piotroski unavailable");
-  assert.equal(model.groups[2]?.status, "running");
+  assert.equal(model.groups[2]?.status, "pending");
+  assert.equal(model.groups[2]?.steps.find((step) => step.key === "unified-value")?.label, copy.scoring.stages.unifiedValue);
+  assert.equal(model.groups[3]?.status, "running");
 });
 
 test("keeps a running EOD process monitor step below complete progress when count reaches total", () => {
@@ -984,6 +1053,12 @@ test("keeps a running EOD process monitor step below complete progress when coun
     piotroskiStatusError: null,
     piotroskiStatusLoadState: "idle",
   });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: null,
+    scoringMarketDate: null,
+  });
 
   const model = buildProcessMonitorModel({
     agentRoleCards: [],
@@ -991,6 +1066,7 @@ test("keeps a running EOD process monitor step below complete progress when coun
     eodStageCards: [runningStageCard, completedStageCard],
     filteringCardModel,
     numberLocale: "en-US",
+    scoringCardModel,
   });
   const runningStep = model.groups[0]?.steps.find((step) => step.key === "technical");
   const completedStep = model.groups[0]?.steps.find((step) => step.key === "action");

@@ -154,6 +154,33 @@ export type FilteringCardModel = {
   stages: [FilteringStageModel, FilteringStageModel];
 };
 
+export type ScoringStageKey = "unified-value" | "quality" | "momentum";
+
+export type ScoringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
+
+export type ScoringStageMetric = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+export type ScoringStageModel = {
+  key: ScoringStageKey;
+  displayMarketDate: string | null;
+  displayMarketDateLabel: string;
+  label: string;
+  metrics: ScoringStageMetric[];
+  note: string | null;
+  progressLabel: string;
+  status: ScoringStageStatus;
+  statusLabel: string;
+  statusTone: "positive" | "neutral" | "warning";
+};
+
+export type ScoringCardModel = {
+  stages: ScoringStageModel[];
+};
+
 export type ProcessMonitorStatus = "completed" | "pending" | "running" | "partial" | "error" | "retry";
 
 export type ProcessMonitorMetric = {
@@ -173,7 +200,7 @@ export type ProcessMonitorStep = {
   note: string | null;
 };
 
-export type ProcessMonitorGroupKey = "patch" | "filter" | "agent-feedback";
+export type ProcessMonitorGroupKey = "patch" | "filter" | "scoring" | "agent-feedback";
 
 export type ProcessMonitorGroup = {
   key: ProcessMonitorGroupKey;
@@ -198,7 +225,7 @@ export type ProcessMonitorModel = {
   patchDate: string | null;
   currentGroupLabel: string | null;
   currentStepLabel: string | null;
-  groups: [ProcessMonitorGroup, ProcessMonitorGroup, ProcessMonitorGroup];
+  groups: ProcessMonitorGroup[];
 };
 
 export type AgentRoleProgressSnapshot = {
