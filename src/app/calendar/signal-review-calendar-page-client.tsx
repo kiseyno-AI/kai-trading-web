@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { DashboardToolbar, DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
@@ -565,20 +566,12 @@ export default function SignalReviewCalendarPageClient() {
     <MobileAppChrome
       activeNav="calendar"
       header={
-        <>
-          <div className={styles.appHeaderBrand}>
-            <div className={styles.brandMark}>SR</div>
-            <div>
-              <strong className={styles.brandTitle}>{copy.headerTitle}</strong>
-              <span>{getSelectedDateHeader(selectedDate, copy)}</span>
-            </div>
-          </div>
-
-          <div className={styles.appHeaderActions}>
-            <span className={`pill ${styles.monthPill}`}>{formatMonthLabel(monthKey)}</span>
-            <DevModeToggle />
-          </div>
-        </>
+        <DashboardToolbar
+          title={copy.headerTitle}
+          subtitle={getSelectedDateHeader(selectedDate, copy)}
+          status={<DashboardToolbarStatus>{formatMonthLabel(monthKey)}</DashboardToolbarStatus>}
+          actions={<DevModeToggle />}
+        />
       }
     >
       <div className={styles.stack}>

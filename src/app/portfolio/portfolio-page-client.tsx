@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { DashboardToolbar, DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { formatDisplayTimestamp } from "@/lib/format";
@@ -145,7 +146,7 @@ function getPortfolioStatusLabel(state: PortfolioSummaryState, summary: Portfoli
   return humanizeToken(summary?.sync?.status, copy.statusFullySynced);
 }
 
-function getPortfolioStatusPillClassName(state: PortfolioSummaryState) {
+function getPortfolioToolbarStatusTone(state: PortfolioSummaryState): DashboardToolbarStatusTone {
   if (
     state === "endpoint-pending" ||
     state === "invalid-response" ||
@@ -154,14 +155,14 @@ function getPortfolioStatusPillClassName(state: PortfolioSummaryState) {
     state === "stale-sync" ||
     state === "upstream-unavailable"
   ) {
-    return `${styles.statusPill} ${styles.statusPillWarning}`;
+    return "warning";
   }
 
   if (state === "fully-synced") {
-    return `${styles.statusPill} ${styles.statusPillPositive}`;
+    return "positive";
   }
 
-  return `${styles.statusPill} ${styles.statusPillNeutral}`;
+  return "neutral";
 }
 
 function getUnavailableMetricDetail(state: PortfolioSummaryState, copy: PortfolioCopy) {
@@ -404,20 +405,12 @@ export default function PortfolioPageClient() {
       activeNav="portfolio"
       portfolioHref="/portfolio"
       header={
-        <>
-          <div className={styles.headerBrand}>
-            <div className={styles.brandMark}>K</div>
-            <div>
-              <strong className={styles.brandTitle}>{copy.title}</strong>
-              <span className={styles.brandMeta}>{copy.brandMeta}</span>
-            </div>
-          </div>
-
-          <div className={styles.headerActions}>
-            <span className={getPortfolioStatusPillClassName(portfolioState)}>{statusLabel}</span>
-            <DevModeToggle />
-          </div>
-        </>
+        <DashboardToolbar
+          title={copy.title}
+          subtitle={copy.brandMeta}
+          status={<DashboardToolbarStatus tone={getPortfolioToolbarStatusTone(portfolioState)}>{statusLabel}</DashboardToolbarStatus>}
+          actions={<DevModeToggle />}
+        />
       }
     >
       <div className={styles.page}>

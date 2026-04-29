@@ -7,6 +7,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { DashboardToolbar, DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
@@ -408,21 +409,10 @@ export default function SignalDeciderFeedbackPageClient() {
     <MobileAppChrome
       activeNav="dashboard"
       header={
-        <>
-          <div className={styles.appHeaderBrand}>
-            <div className={styles.brandMark}>K</div>
-            <div>
-              <strong className={styles.brandTitle}>Trading Dashboard</strong>
-            </div>
-          </div>
-
-          <div className={styles.appHeaderActions}>
-            <span className={`pill ${styles.marketDatePill}`}>
-              {displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending"}
-            </span>
-            <DevModeToggle />
-          </div>
-        </>
+        <DashboardToolbar
+          status={<DashboardToolbarStatus>{displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending"}</DashboardToolbarStatus>}
+          actions={<DevModeToggle />}
+        />
       }
     >
       <div className={styles.stack}>

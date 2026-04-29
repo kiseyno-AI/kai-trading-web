@@ -1,25 +1,3 @@
-.appHeaderBrand {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  min-width: 0;
-}
-
-.brandMark {
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: var(--radius-lg);
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  color: var(--primary-foreground);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.92rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  box-shadow: 0 14px 24px rgba(0, 82, 255, 0.22);
-}
-
 .brandEyebrow,
 .sectionEyebrow {
   margin: 0;
@@ -29,49 +7,6 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.brandTitle {
-  display: block;
-  color: var(--text-strong);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.brandCopy {
-  min-width: 0;
-  display: grid;
-  gap: 0.12rem;
-}
-
-.brandVersion {
-  display: block;
-  color: var(--accent);
-  font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.appHeaderActions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.marketStatusPill {
-  text-align: center;
-  line-height: 1.15;
-}
-
-.marketStatusClosedPill {
-  background: rgba(134, 162, 194, 0.26);
-  color: var(--text-strong);
-  box-shadow: inset 0 0 0 1px rgba(88, 139, 255, 0.14);
 }
 
 .stack {
@@ -2028,24 +1963,6 @@
 }
 
 @media (min-width: 1024px) {
-  .appHeaderBrand {
-    min-width: 18rem;
-  }
-
-  .brandMark {
-    border-radius: var(--radius-lg);
-    background: var(--accent);
-    color: var(--primary-foreground);
-  }
-
-  .brandTitle {
-    font-size: 1.1rem;
-  }
-
-  .brandVersion {
-    display: none;
-  }
-
   .dashboardWideShell {
     gap: 1.2rem;
     padding-bottom: 0;

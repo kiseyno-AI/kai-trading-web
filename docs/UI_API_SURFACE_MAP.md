@@ -185,7 +185,7 @@ Client loading:
 - `GET /api/trading/eod/advanced-value-factors?market_date={marketDate}`
 
 UI surfaces and fields:
-- Shared shell: standard `/markets` AppShell route with the existing rail/topbar chrome
+- Shared shell: standard `/markets` AppShell route with the shared dashboard toolbar chrome
 - Market-date controls: `/eod/freshness` -> latest stored `price_trade_date`, with the route preserving an explicit `marketDate` query param when provided
 - Family selector cards: each factor inspect response -> top-level `market_date`, `feature_version`, `summary.entries`, and client-derived eligible / caution / audit row counts from `item` / `items[]`
 - Ranked row list: family-specific factor items -> symbol, company name, market, ranking score / percentile / rank fields, classification or eligibility status, and one or more supporting factor details; row clicks navigate into `/dashboard/symbol/[symbol]` with forwarded `name`, `market`, and `marketDate`. The value family makes unified valuation fields primary when available, labels legacy value score fields as legacy, explains `invalid_per` as non-positive earnings excluding the symbol from PER scoring, and keeps quality-score status directly below the value metrics with possible / used component counts plus complete, partial, or unavailable calculation state.

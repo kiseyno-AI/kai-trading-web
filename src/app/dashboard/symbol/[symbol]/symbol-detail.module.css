@@ -13,17 +13,6 @@
   box-shadow: 0 24px 48px rgba(1, 15, 32, 0.28);
 }
 
-.headerBrand {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  min-width: 0;
-}
-
-.headerBrand > div {
-  min-width: 0;
-}
-
 .backButton {
   width: 2.35rem;
   height: 2.35rem;
@@ -46,35 +35,6 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.headerTitle {
-  display: block;
-  max-width: min(52vw, 28rem);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-strong);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.marketStatusPill {
-  text-align: center;
-  line-height: 1.15;
-}
-
-.marketStatusClosedPill {
-  background: rgba(134, 162, 194, 0.26);
-  color: var(--text-strong);
-  box-shadow: inset 0 0 0 1px rgba(88, 139, 255, 0.14);
 }
 
 .heroCard,

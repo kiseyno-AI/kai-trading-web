@@ -20,8 +20,6 @@
   background: linear-gradient(180deg, rgba(0, 82, 255, 0.1), rgba(11, 22, 38, 0.92));
 }
 
-.headerBrand,
-.headerActions,
 .cardHeader,
 .sectionHeader,
 .heroActions,
@@ -32,30 +30,8 @@
   gap: 0.75rem;
 }
 
-.headerBrand {
-  min-width: 0;
-}
-
-.brandMark {
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--primary-foreground);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.86rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.brandTitle,
-.brandMeta,
 .heroEyebrow,
 .sectionEyebrow,
-.statusPill,
 .summaryCard span,
 .summaryCard small,
 .sectionMeta,
@@ -71,25 +47,6 @@
   font-family: var(--font-inter), sans-serif;
 }
 
-.brandTitle {
-  display: block;
-  color: var(--text-strong);
-  font-size: 0.98rem;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.brandMeta {
-  display: block;
-  margin-top: 0.12rem;
-  color: var(--muted-soft);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.statusPill,
 .badge,
 .sectionMeta {
   display: inline-flex;
@@ -105,22 +62,6 @@
   font-weight: 800;
   line-height: 1;
   text-transform: uppercase;
-}
-
-.statusPillNeutral {
-  color: var(--accent);
-}
-
-.statusPillPositive {
-  border-color: rgba(74, 222, 128, 0.28);
-  background: rgba(74, 222, 128, 0.1);
-  color: var(--positive);
-}
-
-.statusPillWarning {
-  border-color: rgba(255, 201, 111, 0.28);
-  background: rgba(255, 201, 111, 0.1);
-  color: var(--warning);
 }
 
 .heroEyebrow,
