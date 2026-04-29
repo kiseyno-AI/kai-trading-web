@@ -276,12 +276,12 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
         market_date: marketDate,
         feature_version: "advanced_value_v1",
         summary: {
-          entries: 1,
+          entries: 2,
           requested_symbol: null,
-          matched_symbols: ["005930"],
+          matched_symbols: ["005930", "035420"],
           missing_symbols: [],
           eligible_count: 1,
-          watchlist_count: 0,
+          watchlist_count: 1,
           ineligible_count: 0,
           insufficient_components_count: 0,
         },
@@ -311,6 +311,42 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
             advanced_value_components_used: 2,
             advanced_value_classification: "eligible",
             is_advanced_value_eligible: true,
+            unified_value_score: null,
+            unified_value_rank: 1,
+            unified_value_percentile: null,
+            unified_value_status: "missing_metric",
+            factor_payload: null,
+            captured_at: null,
+          },
+          {
+            symbol: "035420",
+            name_ko: "NAVER",
+            market: "KOSPI",
+            market_date: marketDate,
+            market_cap_proxy: 310000000000,
+            enterprise_value: 325000000000,
+            ebitda: 39000000000,
+            free_cash_flow: 12000000000,
+            fcf_yield: 0.039,
+            ev_to_ebitda: 8.8,
+            fcf_yield_status: "available",
+            ev_to_ebitda_status: "available",
+            fcf_yield_valid_for_scoring: true,
+            ev_to_ebitda_valid_for_scoring: true,
+            fcf_yield_rank: 5,
+            ev_to_ebitda_rank: 12,
+            fcf_yield_percentile: 0.95,
+            ev_to_ebitda_percentile: 0.88,
+            advanced_value_score: 0.9,
+            advanced_value_rank: 2,
+            advanced_value_percentile: 0.97,
+            advanced_value_components_used: 2,
+            advanced_value_classification: "watchlist",
+            is_advanced_value_eligible: false,
+            unified_value_score: 0.99,
+            unified_value_rank: 99,
+            unified_value_percentile: 0.99,
+            unified_value_status: "scored",
             factor_payload: null,
             captured_at: null,
           },
@@ -356,6 +392,30 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
       workspace.families.value.rows[0]?.href ?? "",
       /\/dashboard\/symbol\/005930\?name=Samsung\+Electronics&market=KOSPI&marketDate=2026-04-23$/,
     );
+    assert.deepEqual(
+      workspace.families.advancedValue.rows.map((row) => `${row.symbol}:${row.displayRankLabel}:${row.statusLabel}`),
+      ["035420:#2:Watchlist", "005930:#11:Eligible"],
+    );
+    assert.deepEqual(
+      filterFactorScreeningRows(workspace.families.advancedValue.rows, {
+        eligibleOnly: true,
+        includeAudit: true,
+        includeCaution: true,
+        query: "",
+      }).map((row) => row.symbol),
+      ["005930"],
+    );
+    assert.equal(workspace.families.advancedValue.cautionCount, 1);
+    assert.equal(workspace.families.advancedValue.auditCount, 0);
+    assert.deepEqual(
+      workspace.families.advancedValue.rows[1]?.metrics.slice(0, 4).map((metric) => metric.label),
+      ["Advanced component score", "Component pct", "Component rank", "FCF yield"],
+    );
+    assert.equal(
+      workspace.families.advancedValue.rows[1]?.metrics.find((metric) => metric.label === "Unified rank")?.value,
+      "#1",
+    );
+    assert.match(workspace.families.advancedValue.rows[1]?.note ?? "", /Unified valuation context: Missing metric/);
     assert.equal(workspace.families.composite.state, "future");
     assert.equal(workspace.families.composite.totalRows, 0);
   } finally {

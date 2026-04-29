@@ -459,6 +459,19 @@ function buildUnifiedValueNote(status: FactorStatusDescriptor, componentHints: s
   }
 }
 
+function buildAdvancedValueUnifiedContextNote(
+  item: EodAdvancedValueFactorItemDto,
+  componentHints: string[],
+) {
+  if (!hasUnifiedValueFields(item)) return "";
+
+  const unifiedStatus = getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item));
+  const componentSuffix =
+    componentHints.length > 0 ? ` Components: ${componentHints.join(" · ")}.` : "";
+
+  return ` Unified valuation context: ${getFactorStatusLabel(unifiedStatus.code)}.${componentSuffix}`;
+}
+
 function buildAdvancedValueNote(status: FactorStatusDescriptor) {
   switch (status.code) {
     case "eligible":
@@ -654,11 +667,25 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
 function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): FactorScreeningRow[] {
   return extractFactorInspectItems<EodAdvancedValueFactorItemDto>(response).map((item) => {
     const usesUnifiedValue = hasUnifiedValueFields(item);
-    const status = usesUnifiedValue
-      ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
-      : getAdvancedValueFactorStatusDescriptor(item);
+    const status = getAdvancedValueFactorStatusDescriptor(item);
     const componentHints = formatValueComponentHints(item);
     const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
+    const advancedMetrics = [
+      buildMetric("Advanced component score", formatPercentScore(item.advanced_value_score)),
+      buildMetric("Component pct", formatPercentScore(item.advanced_value_percentile)),
+      buildMetric("Component rank", formatRank(item.advanced_value_rank)),
+      buildMetric("FCF yield", formatPercentScore(item.fcf_yield)),
+    ];
+    const unifiedMetrics = usesUnifiedValue
+      ? [
+          buildMetric("Unified value score", formatPercentScore(item.unified_value_score)),
+          buildMetric("Unified rank", formatRank(item.unified_value_rank)),
+          buildMetric(
+            "Unified status",
+            getFactorStatusLabel(getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item)).code),
+          ),
+        ]
+      : [];
 
     return {
       companyName,
@@ -671,33 +698,27 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
         marketDate: item.market_date,
         symbol: item.symbol,
       }),
-      isEligible: usesUnifiedValue ? status.code === "scored" : item.is_advanced_value_eligible,
+      isEligible: item.is_advanced_value_eligible,
       market: item.market ?? null,
       marketDate: item.market_date,
-      metrics: usesUnifiedValue
-        ? [
-            buildMetric("Unified value score", formatPercentScore(item.unified_value_score)),
-            buildMetric("Unified percentile", formatPercentScore(item.unified_value_percentile)),
-            buildMetric("Unified rank", formatRank(item.unified_value_rank)),
-            buildMetric("Overall status", getFactorStatusLabel(status.code)),
-            buildMetric("Advanced component score", formatPercentScore(item.advanced_value_score)),
-          ]
-        : [
-            buildMetric("Advanced component score", formatPercentScore(item.advanced_value_score)),
-            buildMetric("Component pct", formatPercentScore(item.advanced_value_percentile)),
-            buildMetric("Component rank", formatRank(item.advanced_value_rank)),
-            buildMetric("FCF yield", formatPercentScore(item.fcf_yield)),
-          ],
-      note: usesUnifiedValue ? buildUnifiedValueNote(status, componentHints) : buildAdvancedValueNote(status),
+      metrics: [...advancedMetrics, ...unifiedMetrics],
+      note: `${buildAdvancedValueNote(status)}${buildAdvancedValueUnifiedContextNote(item, componentHints)}`,
       searchText: normalizeText(
-        [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code), ...componentHints]
+        [
+          companyName,
+          item.market ?? "",
+          item.symbol,
+          getFactorStatusLabel(status.code),
+          usesUnifiedValue
+            ? getFactorStatusLabel(getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item)).code)
+            : "",
+          ...componentHints,
+        ]
           .filter(Boolean)
           .join(" "),
       ),
-      sortRank: usesUnifiedValue ? (item.unified_value_rank ?? null) : (item.advanced_value_rank ?? null),
-      sortScore: usesUnifiedValue
-        ? (item.unified_value_score ?? item.unified_value_percentile ?? null)
-        : (item.advanced_value_score ?? item.advanced_value_percentile ?? null),
+      sortRank: item.advanced_value_rank ?? null,
+      sortScore: item.advanced_value_score ?? item.advanced_value_percentile ?? null,
       status,
       statusBucket: getStatusBucket(status),
       statusLabel: getFactorStatusLabel(status.code),
