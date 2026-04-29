@@ -1916,6 +1916,17 @@ function isFundamentalsFailureStatus(value: string | null | undefined) {
   );
 }
 
+function isCurrentOrNewerFundamentalsRun(
+  run: DartFundamentalsDailyRunDto | null,
+  latestAvailableCoverage: ReturnType<typeof getLatestAvailableFundamentalsCoverage>,
+) {
+  const runDate = getFundamentalsRunDate(run);
+  const coverageDate = latestAvailableCoverage?.tradeDate ?? null;
+  if (!hasTextValue(coverageDate)) return true;
+  if (!hasTextValue(runDate)) return false;
+  return runDate >= coverageDate;
+}
+
 export function getFundamentalsStatusLabel(
   freshness: EodFreshnessResponseDto | null,
   fundamentalsStatus: DartFundamentalsDailyInspectResponseDto | null,
@@ -1927,12 +1938,17 @@ export function getFundamentalsStatusLabel(
   const todayStageStatus = normalizeFundamentalsStatusToken(freshness?.today?.fundamentals?.status);
   if (todayStageStatus === "running") return "running";
 
+  const latestRun = getLatestFundamentalsRun(fundamentalsStatus);
+  const runStatus = normalizeFundamentalsStatusToken(latestRun?.status);
+  if (isFundamentalsFailureStatus(runStatus) && isCurrentOrNewerFundamentalsRun(latestRun, latestAvailableCoverage)) {
+    return runStatus ?? UNKNOWN_LABEL;
+  }
+
   const latestCoverageStatus = normalizeFundamentalsStatusToken(latestAvailableCoverage?.status);
   if (isCompletedLatestAvailableStatus(latestCoverageStatus) || hasTextValue(latestAvailableCoverage?.tradeDate)) {
     return latestCoverageStatus ?? "completed";
   }
 
-  const runStatus = normalizeFundamentalsStatusToken(getLatestFundamentalsRun(fundamentalsStatus)?.status);
   if (runStatus === "running" || runStatus === "completed" || isFundamentalsFailureStatus(runStatus)) {
     return runStatus ?? UNKNOWN_LABEL;
   }
@@ -2535,6 +2551,10 @@ export function getFundamentalsFreshnessStage(
   );
   const normalizedStatus = normalizeFundamentalsStatusToken(fundamentalsStatusLabel);
   if (normalizedStatus === "running") return buildStage("running", symbolsTotal, symbolsChecked, symbolsFailed);
+  const latestAvailableCoverage = getLatestAvailableFundamentalsCoverage(freshness, fundamentalsStatus);
+  if (isCompletedLatestAvailableStatus(latestAvailableCoverage?.status)) {
+    return buildStage("ready", symbolsTotal, symbolsChecked, symbolsFailed);
+  }
   if (isFundamentalsFailureStatus(normalizedStatus)) {
     return buildStage("missing", symbolsTotal, symbolsChecked, symbolsFailed);
   }

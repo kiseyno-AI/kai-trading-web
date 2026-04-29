@@ -27,6 +27,7 @@ import {
   getActionFreshnessStage,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
+  getFundamentalsFailureDetails,
   getFundamentalsStageStatusLabel,
   getFundamentalsStatusLabel,
   getFundamentalsUpdatedActivityModel,
@@ -493,7 +494,8 @@ test("keeps partial fundamentals runs in a not-synced stage even when the run ha
   assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-18", false), "not synced");
 });
 
-test("prefers latest completed fundamentals coverage over a newer empty same-day run status", () => {
+test("surfaces a newer partial fundamentals run while keeping latest completed coverage synced", () => {
+  const copy = getDashboardLiveCopy("en");
   const freshness = {
     today: {
       trade_date: "2026-04-30",
@@ -551,8 +553,16 @@ test("prefers latest completed fundamentals coverage over a newer empty same-day
     "2026-04-29",
     false,
   );
+  const failureDetails = getFundamentalsFailureDetails(
+    freshness,
+    fundamentalsStatus,
+    "2026-04-29",
+    statusLabel,
+    copy,
+    "en-US",
+  );
 
-  assert.equal(statusLabel, "completed");
+  assert.equal(statusLabel, "partial");
   assert.deepEqual(stage, {
     status: "ready",
     symbols_total: 2812,
@@ -560,6 +570,7 @@ test("prefers latest completed fundamentals coverage over a newer empty same-day
     symbols_failed: 0,
   });
   assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-30", "2026-04-29", false), "synced");
+  assert.equal(failureDetails?.key, "17:2026-04-30:partial");
 });
 
 test("prefers a running today fundamentals stage over a stale completed inspect run", () => {
