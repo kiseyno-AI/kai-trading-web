@@ -833,6 +833,7 @@ test.describe("dashboard mobile chrome", () => {
     page,
   }) => {
     const now = "2026-04-27T15:43:03+09:00";
+    await page.setViewportSize({ width: 320, height: 740 });
 
     await page.route("**/api/trading/market/status", async (route) => {
       await route.fulfill({
@@ -863,15 +864,15 @@ test.describe("dashboard mobile chrome", () => {
           today: {
             trade_date: "2026-04-27",
             price: {
-              status: "running",
-              symbols_total: 2812,
-              symbols_succeeded: 206,
-              symbols_failed: 0,
-            },
-            technical_analysis: {
               status: "ready",
               symbols_total: 2812,
               symbols_succeeded: 2812,
+              symbols_failed: 0,
+            },
+            technical_analysis: {
+              status: "running",
+              symbols_total: 2812,
+              symbols_succeeded: 206,
               symbols_failed: 0,
             },
             action_summary: {
@@ -915,12 +916,18 @@ test.describe("dashboard mobile chrome", () => {
           ],
           stages: {
             price_collection: {
+              status: "completed",
+              processed: 2812,
+              total: 2812,
+              failed: 0,
+            },
+            technical_snapshots: {
               status: "running",
               processed: 206,
               total: 2812,
               failed: 0,
-              current_step: "fetch_symbol_ohlcv",
-              current_activity: "Loading historical candles",
+              current_step: "computing_technical_snapshot",
+              current_activity: "Computing technical snapshot",
               current_symbol: "005930",
             },
           },
@@ -1028,11 +1035,11 @@ test.describe("dashboard mobile chrome", () => {
     await page.goto("/dashboard");
 
     const eodStatusCard = await openEodStatusCard(page);
-    const priceStage = eodStatusCard.locator('[aria-label="Price Fetch freshness"]');
-    const runningPill = priceStage.locator('.pill[data-status-badge="running"]');
+    const technicalStage = eodStatusCard.locator('[aria-label="Technical Analysis freshness"]');
+    const runningPill = technicalStage.locator('.pill[data-status-badge="running"]');
 
-    await expect(priceStage).toContainText(/Fetch Symbol Ohlcv/i);
-    await expect(priceStage).toContainText("206 / 2,812");
+    await expect(technicalStage).toContainText(/Computing Technical Snapshot/i);
+    await expect(technicalStage).toContainText("206 / 2,812");
     await expect(runningPill).toBeVisible();
 
     const runningAnimations = await runningPill.evaluate((element) => {
@@ -1047,31 +1054,50 @@ test.describe("dashboard mobile chrome", () => {
     expect(runningAnimations.badgeSweep).toMatch(/eodRunningStatusSweep$/);
     expect(runningAnimations.spinner).toMatch(/agentRoleSpin$/);
 
-    const stageLayout = await priceStage.evaluate((element) => {
-      const title = [...element.querySelectorAll("span")].find((child) => child.textContent?.trim() === "Price Fetch");
+    const stageLayout = await technicalStage.evaluate((element) => {
+      const title = [...element.querySelectorAll("span")].find(
+        (child) => child.textContent?.trim() === "Technical Analysis",
+      );
       const detail = element.querySelector('[data-detail-tone="count"]');
       const pill = element.querySelector('.pill[data-status-badge="running"]');
 
       if (!title || !detail || !pill) return null;
 
+      const cardRect = element.getBoundingClientRect();
       const titleRect = title.getBoundingClientRect();
       const detailRect = detail.getBoundingClientRect();
       const pillRect = pill.getBoundingClientRect();
+      const overlapWidth = Math.max(0, Math.min(titleRect.right, pillRect.right) - Math.max(titleRect.left, pillRect.left));
+      const overlapHeight = Math.max(0, Math.min(titleRect.bottom, pillRect.bottom) - Math.max(titleRect.top, pillRect.top));
 
       return {
+        cardClientWidth: element.clientWidth,
+        cardRight: cardRect.right,
+        cardScrollWidth: element.scrollWidth,
+        detailBottom: detailRect.bottom,
         detailLeft: detailRect.left,
         detailRight: detailRect.right,
         detailTop: detailRect.top,
+        pillHeight: pillRect.height,
         pillLeft: pillRect.left,
+        pillRight: pillRect.right,
+        pillTop: pillRect.top,
+        titleBadgeOverlapArea: overlapWidth * overlapHeight,
         titleBottom: titleRect.bottom,
         titleLeft: titleRect.left,
+        titleWidth: titleRect.width,
       };
     });
 
     expect(stageLayout).not.toBeNull();
+    expect(stageLayout!.titleBadgeOverlapArea).toBe(0);
+    expect(stageLayout!.cardScrollWidth).toBeLessThanOrEqual(stageLayout!.cardClientWidth + 1);
+    expect(stageLayout!.pillRight).toBeLessThanOrEqual(stageLayout!.cardRight + 1);
+    expect(stageLayout!.pillHeight).toBeGreaterThan(28);
+    expect(stageLayout!.titleWidth).toBeGreaterThan(80);
     expect(stageLayout!.detailTop).toBeGreaterThanOrEqual(stageLayout!.titleBottom - 1);
     expect(Math.abs(stageLayout!.detailLeft - stageLayout!.titleLeft)).toBeLessThanOrEqual(2);
-    expect(stageLayout!.detailRight).toBeLessThanOrEqual(stageLayout!.pillLeft + 1);
+    expect(stageLayout!.pillTop).toBeGreaterThanOrEqual(stageLayout!.detailBottom - 1);
   });
 
   test("EOD stage cards stay readable on mobile when today and latest differ without the latest patch card", async ({
