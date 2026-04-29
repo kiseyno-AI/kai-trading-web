@@ -1336,6 +1336,28 @@ export function getPipelineStageResolvedStatusDate(
   return getFirstTextValue(resolvedMarketDate, latestDate);
 }
 
+export function resolveFundamentalsPollingPresentation({
+  latestFundamentalsDate,
+  pipelineStage,
+  processMarketDate,
+  todayTradeDate,
+}: {
+  latestFundamentalsDate: string | null;
+  pipelineStage: EodPipelineStageDto | null | undefined;
+  processMarketDate: string | null;
+  todayTradeDate: string | null;
+}) {
+  const useLivePollingView = isRunningPipelineStage(pipelineStage);
+
+  return {
+    latestDate: useLivePollingView
+      ? getFirstTextValue(processMarketDate, todayTradeDate, latestFundamentalsDate)
+      : latestFundamentalsDate,
+    showStoredActivity: !useLivePollingView,
+    useLivePollingView,
+  };
+}
+
 function hasRunningDashboardPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
   if (normalizePipelineStatus(pipelineStatus?.status) === "running") return true;
 
