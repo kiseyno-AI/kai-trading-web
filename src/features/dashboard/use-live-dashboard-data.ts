@@ -11,6 +11,12 @@ import {
 } from "@/lib/dart-fundamentals-daily";
 import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
 import {
+  buildExecutionRuntimeMarketDatePath,
+  EXECUTION_RUNTIME_DAILY_BOARD_CLIENT_PATH,
+  EXECUTION_RUNTIME_MONITORED_SYMBOLS_CLIENT_PATH,
+  EXECUTION_RUNTIME_STATUS_CLIENT_PATH,
+} from "@/lib/execution-runtime";
+import {
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
   PORTFOLIO_SUMMARY_PATH,
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
@@ -59,12 +65,16 @@ import type {
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
   EodValueFactorsResponseDto,
+  ExecutionRuntimeDailyBoardResponseDto,
+  ExecutionRuntimeMonitoredSymbolsResponseDto,
+  ExecutionRuntimeStatusResponseDto,
   MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
 
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 const FILTERING_FALLBACK_REVALIDATE_DELAY_MS = 5_000;
+const EXECUTION_RUNTIME_POLL_MS = 15_000;
 const MARKET_SNAPSHOT_PATH = "/api/trading/market/snapshot";
 const MARKET_SNAPSHOT_REQUEST_TIMEOUT_MS = 20_000;
 
@@ -189,6 +199,9 @@ export function useLiveDashboardData({
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
   initialPortfolioSummary,
+  initialExecutionRuntimeStatus,
+  initialExecutionRuntimeMonitoredSymbols,
+  initialExecutionRuntimeDailyBoard,
 }: LiveDashboardClientProps) {
   const initialPipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
     initialFreshness?.today?.trade_date,
@@ -232,6 +245,17 @@ export function useLiveDashboardData({
   const [portfolioSummaryLoadState, setPortfolioSummaryLoadState] = useState<"error" | "loading" | "success">(
     initialPortfolioSummary ? "success" : "loading",
   );
+  const [executionRuntimeStatus, setExecutionRuntimeStatus] = useState<ExecutionRuntimeStatusResponseDto | null>(
+    initialExecutionRuntimeStatus,
+  );
+  const [executionRuntimeStatusError, setExecutionRuntimeStatusError] = useState<string | null>(null);
+  const [executionRuntimeMonitoredSymbols, setExecutionRuntimeMonitoredSymbols] =
+    useState<ExecutionRuntimeMonitoredSymbolsResponseDto | null>(initialExecutionRuntimeMonitoredSymbols);
+  const [executionRuntimeMonitoredSymbolsError, setExecutionRuntimeMonitoredSymbolsError] =
+    useState<string | null>(null);
+  const [executionRuntimeDailyBoard, setExecutionRuntimeDailyBoard] =
+    useState<ExecutionRuntimeDailyBoardResponseDto | null>(initialExecutionRuntimeDailyBoard);
+  const [executionRuntimeDailyBoardError, setExecutionRuntimeDailyBoardError] = useState<string | null>(null);
   const [piotroskiStatus, setPiotroskiStatus] = useState<EodPiotroskiFilterResultsResponseDto | null>(
     initialPiotroskiStatus,
   );
@@ -291,6 +315,7 @@ export function useLiveDashboardData({
     () => buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_CLIENT_PATH, pipelineRequestMarketDate),
     [pipelineRequestMarketDate],
   );
+  const executionRuntimeMarketDate = pipelineRequestMarketDate;
 
   useEffect(() => {
     seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, initialMarket);
@@ -408,6 +433,60 @@ export function useLiveDashboardData({
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const monitoredSymbolsPath = buildExecutionRuntimeMarketDatePath(
+      EXECUTION_RUNTIME_MONITORED_SYMBOLS_CLIENT_PATH,
+      executionRuntimeMarketDate,
+    );
+    const dailyBoardPath = buildExecutionRuntimeMarketDatePath(
+      EXECUTION_RUNTIME_DAILY_BOARD_CLIENT_PATH,
+      executionRuntimeMarketDate,
+    );
+
+    const loadExecutionRuntime = async () => {
+      const [statusResult, monitoredSymbolsResult, dailyBoardResult] = await Promise.allSettled([
+        getJsonNoCache<ExecutionRuntimeStatusResponseDto>(EXECUTION_RUNTIME_STATUS_CLIENT_PATH),
+        getJsonNoCache<ExecutionRuntimeMonitoredSymbolsResponseDto>(monitoredSymbolsPath),
+        getJsonNoCache<ExecutionRuntimeDailyBoardResponseDto>(dailyBoardPath),
+      ]);
+
+      if (!active) return;
+
+      if (statusResult.status === "fulfilled") {
+        setExecutionRuntimeStatus(statusResult.value);
+        setExecutionRuntimeStatusError(null);
+      } else {
+        console.error("Dashboard execution runtime status load failed", statusResult.reason);
+        setExecutionRuntimeStatusError(getDashboardLoadErrorMessage(statusResult.reason));
+      }
+
+      if (monitoredSymbolsResult.status === "fulfilled") {
+        setExecutionRuntimeMonitoredSymbols(monitoredSymbolsResult.value);
+        setExecutionRuntimeMonitoredSymbolsError(null);
+      } else {
+        console.error("Dashboard execution runtime monitored symbols load failed", monitoredSymbolsResult.reason);
+        setExecutionRuntimeMonitoredSymbolsError(getDashboardLoadErrorMessage(monitoredSymbolsResult.reason));
+      }
+
+      if (dailyBoardResult.status === "fulfilled") {
+        setExecutionRuntimeDailyBoard(dailyBoardResult.value);
+        setExecutionRuntimeDailyBoardError(null);
+      } else {
+        console.error("Dashboard execution runtime daily board load failed", dailyBoardResult.reason);
+        setExecutionRuntimeDailyBoardError(getDashboardLoadErrorMessage(dailyBoardResult.reason));
+      }
+    };
+
+    void loadExecutionRuntime();
+    const timer = window.setInterval(loadExecutionRuntime, EXECUTION_RUNTIME_POLL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [executionRuntimeMarketDate]);
 
   useEffect(() => {
     let active = true;
@@ -981,6 +1060,13 @@ export function useLiveDashboardData({
     agentFeedbackProgress,
     agentFeedbackProgressError,
     dashboardProcessMarketDate,
+    executionRuntimeDailyBoard,
+    executionRuntimeDailyBoardError,
+    executionRuntimeMarketDate,
+    executionRuntimeMonitoredSymbols,
+    executionRuntimeMonitoredSymbolsError,
+    executionRuntimeStatus,
+    executionRuntimeStatusError,
     market,
     marketSnapshot,
     marketSnapshotError,

@@ -215,6 +215,181 @@ export type PortfolioSummaryDto = {
   notices?: string[];
 };
 
+export type ExecutionRuntimeStatusValue =
+  | "ready"
+  | "degraded"
+  | "offline"
+  | "paused"
+  | "kill_switched"
+  | string;
+
+export type ExecutionRuntimeMode = "live" | "paper" | "mock" | string;
+
+export type ExecutionRuntimeIssueDto = Record<string, unknown> & {
+  code?: string | null;
+  message?: string | null;
+};
+
+export type ExecutionRuntimeStatusResponseDto = Record<string, unknown> & {
+  status: ExecutionRuntimeStatusValue;
+  mode?: ExecutionRuntimeMode | null;
+  exec_connected?: boolean | null;
+  automation_enabled?: boolean | null;
+  paused?: boolean | null;
+  kill_switch_enabled?: boolean | null;
+  monitoring_alive?: boolean | null;
+  last_heartbeat_at?: string | null;
+  open_order_count?: number | null;
+  active_execution_job_count?: number | null;
+  issues?: ExecutionRuntimeIssueDto[] | null;
+  core_integration_mode?: string | null;
+  delegate_execution?: boolean | null;
+};
+
+export type ExecutionRuntimeBoardStatus =
+  | "planned"
+  | "accepted"
+  | "scheduled"
+  | "submitted"
+  | "partial"
+  | "filled"
+  | "cancelled"
+  | "failed"
+  | string;
+
+export type ExecutionRuntimeMonitoringState =
+  | "watching_target_stop"
+  | "watching_fill"
+  | "reconciling"
+  | "idle"
+  | string;
+
+export type ExecutionRuntimeQuantity = number | string | null;
+
+export type ExecutionRuntimeBoardItemDto = Record<string, unknown> & {
+  plan_item_id?: number | string | null;
+  account_reference?: string | null;
+  account_label?: string | null;
+  symbol: string;
+  name?: string | null;
+  market?: string | null;
+  intent?: string | null;
+  status: ExecutionRuntimeBoardStatus;
+  monitoring_state?: ExecutionRuntimeMonitoringState | null;
+  position_side?: string | null;
+  planned_intents?: string[] | null;
+  planned_quantity?: ExecutionRuntimeQuantity;
+  filled_quantity?: ExecutionRuntimeQuantity;
+  open_quantity?: ExecutionRuntimeQuantity;
+  planned_price?: ExecutionRuntimeQuantity;
+  avg_fill_price?: ExecutionRuntimeQuantity;
+  decision_source?: string | null;
+  decision_snapshot_id?: number | string | null;
+  policy_version?: string | null;
+  execution_plan_id?: string | null;
+  broker_order_id?: string | null;
+  last_updated_at?: string | null;
+  failure_reason?: string | null;
+  target_price?: ExecutionRuntimeQuantity;
+  stop_loss_price?: ExecutionRuntimeQuantity;
+  target_trade_date?: string | null;
+  source_market_date?: string | null;
+};
+
+export type ExecutionRuntimeDailyBoardSummaryDto = Record<string, unknown> & {
+  items_total?: number | null;
+  planned?: number | null;
+  accepted?: number | null;
+  scheduled?: number | null;
+  submitted?: number | null;
+  partial?: number | null;
+  filled?: number | null;
+  cancelled?: number | null;
+  failed?: number | null;
+};
+
+export type ExecutionRuntimeRequestDto = {
+  market_date?: string | null;
+  symbol?: string | null;
+  refresh?: boolean | null;
+};
+
+export type ExecutionRuntimeDailyBoardResponseDto = {
+  request?: ExecutionRuntimeRequestDto | null;
+  runtime?: ExecutionRuntimeStatusResponseDto | null;
+  market_date?: string | null;
+  summary?: ExecutionRuntimeDailyBoardSummaryDto | null;
+  items?: ExecutionRuntimeBoardItemDto[] | null;
+};
+
+export type ExecutionRuntimeMonitoredSymbolDto = Record<string, unknown> & {
+  symbol: string;
+  name?: string | null;
+  market?: string | null;
+  monitoring_state: ExecutionRuntimeMonitoringState;
+  position_side?: string | null;
+  planned_intents?: string[] | null;
+  last_event_at?: string | null;
+  account_references?: string[] | null;
+  status_counts?: Record<string, number> | null;
+};
+
+export type ExecutionRuntimeMonitoredSummaryDto = Record<string, unknown> & {
+  items_total?: number | null;
+  watching_target_stop?: number | null;
+  watching_fill?: number | null;
+  reconciling?: number | null;
+  idle?: number | null;
+  monitoring_state_counts?: Record<string, number> | null;
+};
+
+export type ExecutionRuntimeMonitoredSymbolsResponseDto = {
+  request?: ExecutionRuntimeRequestDto | null;
+  runtime?: ExecutionRuntimeStatusResponseDto | null;
+  market_date?: string | null;
+  summary?: ExecutionRuntimeMonitoredSummaryDto | null;
+  items?: ExecutionRuntimeMonitoredSymbolDto[] | null;
+};
+
+export type ExecutionRuntimeSymbolDetailSummaryDto = Record<string, unknown> & {
+  items_total?: number | null;
+  account_count?: number | null;
+  status_counts?: Record<string, number> | null;
+  planned_quantity_total?: ExecutionRuntimeQuantity;
+  filled_quantity_total?: ExecutionRuntimeQuantity;
+  open_quantity_total?: ExecutionRuntimeQuantity;
+  last_updated_at?: string | null;
+};
+
+export type ExecutionRuntimeSymbolDetailResponseDto = {
+  request?: ExecutionRuntimeRequestDto | null;
+  runtime?: ExecutionRuntimeStatusResponseDto | null;
+  market_date?: string | null;
+  symbol: string;
+  name?: string | null;
+  market?: string | null;
+  planning?: Record<string, unknown> | null;
+  monitoring?: {
+    state?: ExecutionRuntimeMonitoringState | null;
+    position_side?: string | null;
+    planned_intents?: string[] | null;
+    last_event_at?: string | null;
+    runtime_status?: ExecutionRuntimeStatusValue | null;
+  } | null;
+  summary?: ExecutionRuntimeSymbolDetailSummaryDto | null;
+  items?: Array<
+    ExecutionRuntimeBoardItemDto & {
+      dispatch?: Record<string, unknown> | null;
+      remote_state?: Record<string, unknown> | null;
+      orders?: Record<string, unknown>[] | null;
+      executions?: Record<string, unknown>[] | null;
+      positions?: Record<string, unknown>[] | null;
+      validation?: Record<string, unknown> | null;
+      traceability?: Record<string, unknown> | null;
+    }
+  > | null;
+};
+
 export type BotCommandRequestDto = {
   command: BotCommand;
   note?: string;

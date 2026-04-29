@@ -252,6 +252,114 @@ test.describe("dashboard desktop", () => {
     await expect(marketCard.getByText("[확인 필요]", { exact: true })).toHaveCount(0);
   });
 
+  test("execution runtime panel shows degraded status and partial board data", async ({ page }) => {
+    await page.route("**/api/trading/execution/runtime/status**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "degraded",
+          mode: "live",
+          exec_connected: true,
+          automation_enabled: false,
+          paused: false,
+          kill_switch_enabled: true,
+          monitoring_alive: false,
+          last_heartbeat_at: "2026-04-30T00:00:00Z",
+          open_order_count: 2,
+          active_execution_job_count: 1,
+          issues: [{ code: "readiness_reason", message: "monitor loop stalled" }],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/monitored-symbols**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-30",
+          runtime: { status: "degraded" },
+          summary: {
+            items_total: 1,
+            reconciling: 1,
+            monitoring_state_counts: { reconciling: 1 },
+          },
+          items: [
+            {
+              symbol: "005930",
+              name: "Samsung Electronics",
+              market: "KOSPI",
+              monitoring_state: "reconciling",
+              position_side: "long",
+              planned_intents: ["target_sell", "stop_sell"],
+              last_event_at: "2026-04-30T00:04:00Z",
+              status_counts: { partial: 1 },
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/daily-board**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-30",
+          runtime: { status: "degraded" },
+          summary: {
+            items_total: 2,
+            filled: 1,
+          },
+          items: [
+            {
+              symbol: "005930",
+              name: "Samsung Electronics",
+              market: "KOSPI",
+              intent: "next_open_buy",
+              status: "partial",
+              filled_quantity: "5",
+              planned_quantity: null,
+              avg_fill_price: null,
+              planned_price: null,
+              last_updated_at: null,
+            },
+            {
+              symbol: "000660",
+              name: null,
+              market: null,
+              intent: "next_open_buy",
+              status: "failed",
+              filled_quantity: 0,
+              planned_quantity: 10,
+              failure_reason: "broker rejected order",
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const runtimeCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /^Exec runtime$/i }) });
+    await expect(runtimeCard.getByText("Exec degraded", { exact: true })).toBeVisible();
+    await expect(runtimeCard.getByText("Live mode", { exact: true })).toBeVisible();
+    await expect(runtimeCard.getByText("Kill switch enabled", { exact: true })).toBeVisible();
+    await expect(runtimeCard.getByText("Open orders", { exact: true })).toBeVisible();
+    await expect(runtimeCard.getByText("2", { exact: true })).toBeVisible();
+    await expect(runtimeCard.getByText(/Readiness Reason: monitor loop stalled/i)).toBeVisible();
+
+    const monitoredCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Monitored symbols/i }) });
+    await expect(monitoredCard.getByText("Reconciling", { exact: true })).toBeVisible();
+    await expect(monitoredCard.getByText("Target sell / Stop sell", { exact: true })).toBeVisible();
+    await expect(monitoredCard.getByText("Partial 1", { exact: true })).toBeVisible();
+
+    const boardCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Same-day execution board/i }) });
+    const partialRow = boardCard.locator('[role="listitem"][data-board-status="partial"]');
+    await expect(partialRow.getByText("Partially filled", { exact: true })).toBeVisible();
+    await expect(partialRow.getByText("5", { exact: true })).toBeVisible();
+    await expect(partialRow.getByText("Price unavailable", { exact: true })).toBeVisible();
+    const failedRow = boardCard.locator('[role="listitem"][data-board-status="failed"]');
+    await expect(failedRow.getByText("Failed", { exact: true })).toBeVisible();
+    await expect(failedRow.getByText("broker rejected order", { exact: true })).toBeVisible();
+  });
+
   test("desktop process monitor expands as a floating overlay over dashboard context", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/dashboard");
