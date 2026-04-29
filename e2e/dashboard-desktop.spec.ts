@@ -4257,7 +4257,7 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });
 
-  test("D2 fundamentals subcard keeps latest available coverage when today activity is empty", async ({ page }) => {
+  test("D2 fundamentals subcard keeps recent update activity after the process date rolls forward", async ({ page }) => {
     const now = "2026-04-21T10:15:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -4345,7 +4345,41 @@ test.describe("dashboard desktop", () => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          latest_run: null,
+          latest_run: {
+            id: 24,
+            market_date: "2026-04-18",
+            trigger: "internal_ops_cli",
+            status: "completed",
+            fs_div: "CFS",
+            force: false,
+            symbol_limit: null,
+            symbol_offset: 0,
+            symbols_total: 3583,
+            symbols_checked: 1,
+            symbols_missing: 0,
+            symbols_stale: 0,
+            symbols_fresh: 1,
+            symbols_refreshed: 1,
+            symbols_failed: 0,
+            events_detected: 0,
+            events_captured: 0,
+            events_failed: 0,
+            updated_entries_summary: {
+              updated_count: 1,
+              visible_preview_limit: 3,
+            },
+            updated_entries: [
+              {
+                symbol: "005930",
+                company_name: "Samsung Electronics",
+                category_label: "Financial statement refresh",
+              },
+            ],
+            error_message: null,
+            run_metadata: {},
+            started_at: "2026-04-18T08:56:58.357390+09:00",
+            completed_at: "2026-04-18T09:11:08.375335+09:00",
+          },
           runs: [],
         }),
       });
@@ -4356,9 +4390,13 @@ test.describe("dashboard desktop", () => {
     const eodStatusCard = await openEodStatusCard(page);
     const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
     await expect(fundamentalsStage).toBeVisible();
-    await expectEodStageStatus(fundamentalsStage, "not synced");
-    await expect(fundamentalsStage).toContainText(/Checked\s*1/);
+    await expectEodStageStatus(fundamentalsStage, "synced");
+    await expect(fundamentalsStage.getByText("Checked")).toHaveCount(0);
+    await expect(fundamentalsStage).toContainText(/Recently updated\s*1/);
     await expect(fundamentalsStage).toContainText(/Latest date\s*2026-04-18/);
+    await expect(fundamentalsStage.getByRole("list", { name: "Updated companies" })).toContainText(
+      "Samsung Electronics",
+    );
     await expect(fundamentalsStage.getByText("Updated today")).toHaveCount(0);
     await expect(fundamentalsStage.getByText("[확인 필요]")).toHaveCount(0);
   });

@@ -160,10 +160,10 @@ test("TC-DASH-003 weekend and market-break semantics only surface break day when
   assert.equal(card.details.find((item) => item.key === "latest-date"), undefined);
 });
 
-test("TC-DASH-004 fundamentals stale-ready labels stay not-synced on active days and break-day on market breaks", () => {
+test("TC-DASH-004 fundamentals stale-ready labels stay synced on active days and break-day on market breaks", () => {
   const stage = buildStage("ready");
 
-  assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-18", false), "not synced");
+  assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-18", false), "synced");
   assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-18", true), "break day");
   assert.equal(getFundamentalsStageStatusLabel(stage, "2026-04-21", "2026-04-21", false), "synced");
 });
