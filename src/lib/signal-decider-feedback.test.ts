@@ -14,6 +14,7 @@ import {
   buildSignalDeciderLatestFeedbackPath,
   buildReviewDateQuery,
   buildSignalDeciderFeedbackListFromReviewDateResponse,
+  compactSignalDeciderFeedbackForDashboard,
   normalizeSignalDeciderFeedbackItems,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
@@ -730,6 +731,40 @@ test("keeps signal-decider headline action counts independent from preview trunc
   assert.equal(model.completedCount, 105);
   assert.equal(model.requestedCount, 109);
   assert.equal(model.errorCount, 4);
+});
+
+test("compacts dashboard signal-decider feedback rows to a preview-safe shape", () => {
+  const compactPayload = compactSignalDeciderFeedbackForDashboard(
+    buildFeedbackResponse({
+      summary: {
+        count: 2,
+        requested_count: 2,
+        completed_count: 2,
+        error_count: 0,
+      },
+    }),
+  );
+
+  assert.ok(compactPayload);
+  assert.equal(compactPayload.summary.count, 2);
+  assert.equal(compactPayload.request.limit, SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT);
+  assert.deepEqual(compactPayload.request.symbols, ["005930", "000660"]);
+  assert.equal(compactPayload.request.market_date, "2026-04-27");
+
+  const firstCompactItem = compactPayload.items[0];
+  const compactJson = JSON.stringify(compactPayload);
+
+  assert.ok(firstCompactItem);
+  assert.equal(String(firstCompactItem.id), "1");
+  assert.equal(firstCompactItem.summary.quality_tag?.kind, "weak-buy");
+  assert.equal(firstCompactItem.feedback?.preferred_action, "buy");
+  assert.equal(firstCompactItem.feedback?.risk_flags?.join(","), "Gap-down open");
+  assert.equal(firstCompactItem.details, null);
+  assert.equal(firstCompactItem.context?.symbol_day_context?.company?.name, "Samsung Electronics");
+  assert.equal(compactJson.includes('"traceability"'), false);
+  assert.equal(compactJson.includes('"decision_risks"'), false);
+  assert.equal(compactJson.includes('"upstream_evidence"'), false);
+  assert.equal(compactJson.includes('"normalized_feedback"'), true);
 });
 
 test("selects latest completed dashboard recommendations while the current signal-decider cycle is running", () => {

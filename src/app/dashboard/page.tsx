@@ -30,6 +30,7 @@ import {
 import {
   buildSignalDeciderFeedbackPath,
   buildSignalDeciderLatestFeedbackPath,
+  compactSignalDeciderFeedbackForDashboard,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderLatestFeedbackMarketDate,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
@@ -271,7 +272,9 @@ export default async function DashboardPage() {
               marketDate: signalDeciderMarketDate,
             }),
             requestHeaders,
-          ).catch(() => null)
+          )
+            .catch(() => null)
+            .then(compactSignalDeciderFeedbackForDashboard)
         : Promise.resolve(null),
       latestSignalDeciderFeedbackPath
         ? fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
