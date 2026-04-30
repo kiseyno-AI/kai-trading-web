@@ -274,3 +274,22 @@ test("loads dashboard signal-decider progress and feedback without the generic c
   assert.match(source, /latestSignalDeciderFeedbackMarketDate !== normalizeMarketDateKey\(agentProgressMarketDate\)/);
   assert.match(source, /marketDate: latestSignalDeciderFeedbackMarketDate,/);
 });
+
+test("avoids immediate duplicated signal-decider feedback loads on hydrated dashboard payloads", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.ok(
+    source.includes(
+      "const initialSignalDeciderFeedbackMarketDateRef = useRef<string | null>(\n    normalizeMarketDateKey(initialSignalDeciderFeedback?.request?.market_date),\n  );",
+    ),
+  );
+  assert.match(
+    source,
+    /const shouldSkipSignalDeciderFeedbackInitialLoad =\s*initialSignalDeciderFeedbackMarketDateRef.current !== null &&\s*initialSignalDeciderFeedbackMarketDateRef\.current === normalizeMarketDateKey\(agentProgressMarketDate\);/,
+  );
+  assert.match(
+    source,
+    /if \(shouldSkipSignalDeciderFeedbackInitialLoad\) {\s*scheduleNextLoad\(false\);/s,
+  );
+});

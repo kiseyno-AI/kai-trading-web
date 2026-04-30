@@ -1203,6 +1203,70 @@ export function normalizeSignalDeciderFeedbackItems(
     .sort(compareSignalDeciderItems);
 }
 
+export function compactSignalDeciderFeedbackForDashboard(
+  feedback: AgentFeedbackListResponseDto | null | undefined,
+): AgentFeedbackListResponseDto | null {
+  if (!feedback) return null;
+
+  const compactItems = normalizeSignalDeciderFeedbackItems(feedback).map((item) => {
+    return {
+      id: item.id,
+      market_date: item.marketDate,
+      symbol: item.symbol,
+      agent: {
+        name: SIGNAL_DECIDER_AGENT_NAME,
+        version: item.agentVersion,
+        run_id: item.runId,
+      },
+      summary: {
+        quality_tag: item.qualityTag,
+      },
+      feedback: {
+        symbol: item.symbol,
+        market_date: item.marketDate,
+        preferred_action: item.preferredAction,
+        next_day_open_action: item.nextDayOpenAction,
+        confidence_score_10: item.confidenceScore,
+        conviction_score_10: item.convictionScore,
+        thesis_summary: item.thesisSummary,
+        risk_flags: item.riskFlags,
+        target_price: item.targetPrice,
+        stop_loss_price: item.stopLossPrice,
+        expected_return_pct: item.expectedReturnPct,
+        company_name: item.companyName,
+        entry_price_basis: item.entryPriceBasis,
+        suggested_holding_period: item.suggestedHoldingPeriod,
+        policy_version: item.policyVersion,
+        quality_verdict: item.qualityVerdict,
+        quality_reason: item.qualityReason,
+      },
+      normalized_feedback: null,
+      details: null,
+      context: {
+        symbol_day_context: {
+          company: {
+            name: item.companyName,
+          },
+        },
+      },
+      received_at: item.receivedAt,
+    } satisfies AgentFeedbackStoredItemDto;
+  });
+
+  return {
+    ...feedback,
+    request: {
+      ...feedback.request,
+      symbols: compactItems.map((item) => item.symbol),
+    },
+    summary: {
+      ...feedback.summary,
+      count: feedback.summary.count,
+    },
+    items: compactItems,
+  };
+}
+
 function getSignalDeciderRoleSnapshot(
   progress: AgentFeedbackProgressResponseDto | null | undefined,
 ): SignalDeciderRoleSnapshot | null {

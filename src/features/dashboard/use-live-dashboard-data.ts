@@ -308,6 +308,9 @@ export function useLiveDashboardData({
   const [signalDeciderFeedback, setSignalDeciderFeedback] = useState<AgentFeedbackListResponseDto | null>(
     initialSignalDeciderFeedback,
   );
+  const initialSignalDeciderFeedbackMarketDateRef = useRef<string | null>(
+    normalizeMarketDateKey(initialSignalDeciderFeedback?.request?.market_date),
+  );
   const [latestSignalDeciderFeedback, setLatestSignalDeciderFeedback] =
     useState<AgentFeedbackListResponseDto | null>(initialLatestSignalDeciderFeedback);
   const [signalDeciderFeedbackError, setSignalDeciderFeedbackError] = useState<string | null>(null);
@@ -1174,6 +1177,9 @@ export function useLiveDashboardData({
 
     let active = true;
     let timer: number | null = null;
+    const shouldSkipSignalDeciderFeedbackInitialLoad =
+      initialSignalDeciderFeedbackMarketDateRef.current !== null &&
+      initialSignalDeciderFeedbackMarketDateRef.current === normalizeMarketDateKey(agentProgressMarketDate);
     const feedbackPath = buildSignalDeciderFeedbackPath({
       basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
       limit: resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgressRef.current),
@@ -1210,6 +1216,14 @@ export function useLiveDashboardData({
         setSignalDeciderFeedbackError(getDashboardLoadErrorMessage(feedbackError));
         scheduleNextLoad(true);
       }
+    }
+
+    if (shouldSkipSignalDeciderFeedbackInitialLoad) {
+      scheduleNextLoad(false);
+      return () => {
+        active = false;
+        clearTimer();
+      };
     }
 
     void loadSignalDeciderFeedback();
