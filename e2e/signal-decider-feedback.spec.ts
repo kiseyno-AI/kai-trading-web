@@ -3,9 +3,15 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 const now = "2026-04-27T16:30:00+09:00";
 
 type MockDashboardShellOptions = {
+  eodFreshnessDelayMs?: number;
+  failEodFreshness?: boolean;
   failSignalDeciderFeedbackRequestNumber?: number;
 };
 type SignalDeciderFeedbackMode = "normal" | "empty";
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function openProcessMonitorDrawer(page: Page) {
   const drawer = page.getByRole("dialog", { name: /Daily process monitor/i });
@@ -66,6 +72,21 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
     });
   });
   await page.route("**/api/trading/eod/freshness", async (route) => {
+    if (options.eodFreshnessDelayMs) {
+      await delay(options.eodFreshnessDelayMs);
+    }
+
+    if (options.failEodFreshness) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "freshness temporarily unavailable",
+        }),
+      });
+      return;
+    }
+
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -382,6 +403,73 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
   };
 }
 
+async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
+  await page.addInitScript((date) => {
+    const feedback = {
+      request: {
+        market_date: date,
+        symbols: [],
+        agent_name: "signal-decider",
+        limit: 200,
+      },
+      summary: {
+        count: 1,
+      },
+      items: [
+        {
+          id: "cached-dashboard-row",
+          market_date: date,
+          symbol: "005930",
+          agent: {
+            name: "signal-decider",
+            run_id: `feedback-cycle-${date}`,
+          },
+          summary: {},
+          feedback: {
+            role: "signal-decider",
+            symbol: "005930",
+            market_date: date,
+            preferred_action: "wait",
+            next_day_open_action: "wait",
+            confidence_score_10: 7,
+            conviction_score_10: 6,
+            thesis_summary: "Dashboard already loaded this stored signal-decider row.",
+          },
+          normalized_feedback: null,
+          details: null,
+          context: {
+            symbol_day_context: {
+              company: {
+                name_ko: "Samsung Electronics",
+              },
+            },
+          },
+          received_at: `${date}T07:45:00+00:00`,
+        },
+      ],
+    };
+
+    window.sessionStorage.setItem(
+      `kai.signalDeciderFeedback.v1:${date}`,
+      JSON.stringify({
+        version: 1,
+        marketDate: date,
+        cachedAt: Date.now(),
+        source: "dashboard",
+        feedback,
+        progress: null,
+      }),
+    );
+    window.sessionStorage.setItem(
+      "kai.signalDeciderFeedback.v1:dates",
+      JSON.stringify({
+        version: 1,
+        marketDates: [date],
+      }),
+    );
+  }, marketDate);
+}
+
 test("dashboard signal-decider card previews partial results and links to the detail page", async ({ page }) => {
   await mockDashboardShell(page);
 
@@ -537,6 +625,29 @@ test("signal-decider detail keeps dashboard stored rows when the direct detail r
   await expect(page.getByRole("article", { name: /SK hynix signal-decider feedback/i })).toBeVisible();
   await expect(page.getByText("Loading signal-decider feedback...")).toHaveCount(0);
   await expect(page.getByText(/No signal-decider rows are stored/)).toHaveCount(0);
+});
+
+test("signal-decider detail keeps cached latest rows when fallback freshness fails", async ({ page }) => {
+  await seedDashboardSignalDeciderCache(page, "2026-04-27");
+  await mockDashboardShell(page, {
+    eodFreshnessDelayMs: 150,
+    failEodFreshness: true,
+    failSignalDeciderFeedbackRequestNumber: 1,
+  });
+
+  await page.goto("/dashboard/signal-decider-feedback");
+
+  const cachedCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
+  await expect(cachedCard).toBeVisible();
+  await expect(cachedCard).toContainText("Dashboard already loaded this stored signal-decider row.");
+  await expect(page.getByText("Loading signal-decider feedback...")).toHaveCount(0);
+  await expect(page.getByText("freshness temporarily unavailable")).toHaveCount(0);
+  await expect(page.getByText("Signal-decider feedback is unavailable.")).toHaveCount(0);
+
+  await page.waitForTimeout(250);
+  await expect(cachedCard).toBeVisible();
+  await expect(cachedCard).toContainText("Dashboard already loaded this stored signal-decider row.");
+  await expect(page.getByText("freshness temporarily unavailable")).toHaveCount(0);
 });
 
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {

@@ -349,13 +349,17 @@ export default function SignalDeciderFeedbackPageClient() {
         const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
         if (!active) return;
         const resolvedMarketDate = getAgentFeedbackProgressMarketDate(freshness);
-        setMarketDate(resolvedMarketDate);
         if (!resolvedMarketDate) {
+          if (cachedLatest) return;
+          setMarketDate(null);
           setLoadState("error");
           setError("Signal-decider market date is unavailable.");
+          return;
         }
+        setMarketDate(resolvedMarketDate);
       } catch (freshnessError) {
         if (!active) return;
+        if (cachedLatest) return;
         setLoadState("error");
         setError(freshnessError instanceof Error ? freshnessError.message : "Signal-decider market date is unavailable.");
       }
