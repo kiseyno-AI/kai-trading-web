@@ -51,8 +51,7 @@ export const dashboardData: DashboardData = {
     { label: "BTC/USDT · Perpetual", type: "Market", route: "/markets" },
     { label: "ETH/KRW · Spot", type: "Market", route: "/markets" },
     { label: "Portfolio Assets", type: "Route", route: "/portfolio" },
-    { label: "Mean Reversion Bot", type: "Strategy", route: "/bots" },
-    { label: "Momentum Breakout Engine", type: "Strategy", route: "/bots" },
+    { label: "Bots Placeholder", type: "Route", route: "/bots" },
     { label: "SOL/USDT · Watchlist", type: "Market", route: "/dashboard" },
   ],
   metrics: [
@@ -62,7 +61,7 @@ export const dashboardData: DashboardData = {
       value: "$4,284,390",
       delta: "+2.48%",
       tone: "positive",
-      subtitle: "Across spot, futures, and bot allocations",
+      subtitle: "Across tracked market surfaces",
     },
     {
       id: "pnl",
@@ -108,14 +107,9 @@ export const dashboardData: DashboardData = {
     },
   },
   bots: {
-    title: "Bot Controls",
-    idleLabel: "Bot idle · Awaiting command",
-    actions: [
-      { id: "start", label: "Start Bot" },
-      { id: "pause", label: "Pause" },
-      { id: "hedge", label: "Hedge" },
-      { id: "stop", label: "Stop" },
-    ],
+    title: "Bot controls unavailable",
+    idleLabel: "No bot command API connected",
+    actions: [],
   },
   watchlist: [
     { symbol: "BTC/USDT", context: "Momentum intact", price: 87430, change: 1.82 },
@@ -137,21 +131,8 @@ export const dashboardData: DashboardData = {
   },
 };
 
-export const botStatusMap: Record<BotAction, string> = {
-  start: "Bot running · Momentum strategy engaged",
-  pause: "Bot paused · Monitoring only",
-  hedge: "Hedge active · Delta exposure reduced",
-  stop: "Bot stopped · Manual review required",
-};
-
 export const marketSpotlight = [
   { symbol: "BTC/USDT", trend: "Leading the tape", volume: "$12.4B", change: "+1.82%" },
   { symbol: "ETH/USDT", trend: "Retesting value area", volume: "$7.6B", change: "-0.44%" },
   { symbol: "SOL/USDT", trend: "Breakout continuation", volume: "$3.1B", change: "+3.15%" },
-];
-
-export const botPlaybooks = [
-  { name: "Momentum Breakout", mode: "Armed", risk: "Medium", allocation: "28%" },
-  { name: "Mean Reversion", mode: "Standby", risk: "Low", allocation: "14%" },
-  { name: "Funding Capture", mode: "Monitoring", risk: "Medium", allocation: "9%" },
 ];

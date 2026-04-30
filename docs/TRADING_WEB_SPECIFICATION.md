@@ -1022,8 +1022,9 @@ Current composition:
 
 Expected behavior:
 
-- show automation fleet / ops snapshot / playbooks as management surfaces
-- if actions are represented visually, they must not imply approved live-trading control unless the backend workflow is explicit and approved
+- show a conservative scaffold while no source-backed bot read model exists
+- do not display fabricated bot names, registered counts, execution modes, risk locks, status chips, or capital allocation percentages
+- if actions are represented visually later, they must not imply approved live-trading control unless the backend workflow is explicit and approved
 
 ---
 

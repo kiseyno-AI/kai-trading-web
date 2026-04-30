@@ -177,7 +177,7 @@ Returns enough data to render the current dashboard in a single request.
         "value": "$4,284,390",
         "delta": "+2.48%",
         "tone": "positive",
-        "subtitle": "Across spot, futures, and bot allocations"
+        "subtitle": "Across tracked market surfaces"
       },
       {
         "id": "live_pnl",
@@ -246,14 +246,9 @@ Returns enough data to render the current dashboard in a single request.
       ]
     },
     "botControls": {
-      "title": "Bot Controls",
-      "idleLabel": "Bot idle · Awaiting command",
-      "actions": [
-        { "id": "start", "label": "Start Bot" },
-        { "id": "pause", "label": "Pause" },
-        { "id": "hedge", "label": "Hedge" },
-        { "id": "stop", "label": "Stop" }
-      ]
+      "title": "Bot controls unavailable",
+      "idleLabel": "No bot command API connected",
+      "actions": []
     }
   },
   "meta": {
@@ -314,22 +309,13 @@ Optional dedicated endpoint for later refresh/streaming without reloading the fu
 ## 4) Bots overview
 
 ### `GET /api/v1/bots`
-Returns bot roster for `/bots`.
+Planned read model for `/bots`. The current `/bots` route is a scaffold and must not render a roster, execution state, risk fields, or capital allocation from mock data. Until this endpoint is backed by a real service, the UI should show explicit unavailable/scaffold copy instead of fabricated operational values.
 
 ### Response
 ```json
 {
   "data": {
-    "bots": [
-      {
-        "id": "bot-1",
-        "name": "Momentum Breakout",
-        "mode": "Armed",
-        "risk": "Medium",
-        "allocation": "28%",
-        "status": "running"
-      }
-    ]
+    "bots": []
   },
   "meta": {
     "generatedAt": "2026-03-29T08:10:00Z",
@@ -341,32 +327,10 @@ Returns bot roster for `/bots`.
 ## 5) Bot command endpoint
 
 ### `POST /api/v1/bots/{botId}/commands`
-Used by dashboard control buttons and future bot detail screens.
+Planned command endpoint for future bot detail screens. Placeholder UI must not expose command controls until the execution workflow, safety checks, and source-backed command status contract are explicit and approved.
 
-### Request
-```json
-{
-  "command": "hedge",
-  "note": "Triggered from dashboard quick actions"
-}
-```
-
-### Response
-```json
-{
-  "data": {
-    "botId": "bot-1",
-    "command": "hedge",
-    "status": "hedged",
-    "statusLabel": "Hedge active · Delta exposure reduced",
-    "acceptedAt": "2026-03-29T08:11:10Z"
-  },
-  "meta": {
-    "generatedAt": "2026-03-29T08:11:10Z",
-    "source": "api"
-  }
-}
-```
+### Request / response
+No active request or response contract is documented for the current web UI. Add source-backed DTOs here only after the execution workflow, safety checks, and operator-facing status semantics are approved.
 
 ## Backend implementation notes for `trading-core`
 - FastAPI router grouping suggestion:
