@@ -28,7 +28,6 @@ import {
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   buildSignalDeciderFeedbackPath,
-  buildSignalDeciderLatestFeedbackPath,
   resolveSignalDeciderFeedbackResultLimit,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
 } from "@/lib/signal-decider-feedback";
@@ -1090,10 +1089,15 @@ export function useLiveDashboardData({
   }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
 
   useEffect(() => {
+    if (!agentProgressMarketDate) {
+      return;
+    }
+
     let active = true;
-    const latestFeedbackPath = buildSignalDeciderLatestFeedbackPath({
+    const latestFeedbackPath = buildSignalDeciderFeedbackPath({
       basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
       limit: resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgressRef.current),
+      marketDate: agentProgressMarketDate,
     });
 
     const loadLatestSignalDeciderFeedback = async () => {
@@ -1113,7 +1117,7 @@ export function useLiveDashboardData({
     return () => {
       active = false;
     };
-  }, [signalDeciderFeedbackRefreshKey]);
+  }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
 
   return {
     agentFeedbackProgress,
