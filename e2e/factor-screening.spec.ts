@@ -283,6 +283,71 @@ const factorPayloads = {
   },
 } as const;
 
+type FactorPayloadFixtures = Record<keyof typeof factorPayloads, unknown>;
+
+const emptyFactorPayloads = {
+  momentum: {
+    ...factorPayloads.momentum,
+    summary: {
+      ...factorPayloads.momentum.summary,
+      entries: 0,
+      eligible_symbols: 0,
+      matched_symbols: [],
+      ranked_symbols: 0,
+    },
+    items: [],
+  },
+  lowRisk: {
+    ...factorPayloads.lowRisk,
+    summary: {
+      ...factorPayloads.lowRisk.summary,
+      eligible_count: 0,
+      entries: 0,
+      insufficient_history_count: 0,
+      liquidity_floor_pass_count: 0,
+      matched_symbols: [],
+    },
+    items: [],
+  },
+  beta: {
+    ...factorPayloads.beta,
+    summary: {
+      ...factorPayloads.beta.summary,
+      eligible_count: 0,
+      entries: 0,
+      insufficient_history_count: 0,
+      matched_symbols: [],
+      watchlist_count: 0,
+    },
+    items: [],
+  },
+  value: {
+    ...factorPayloads.value,
+    summary: {
+      ...factorPayloads.value.summary,
+      entries: 0,
+      invalid_per_count: 0,
+      matched_symbols: [],
+      missing_metric_count: 0,
+      scored_count: 0,
+    },
+    items: [],
+  },
+  advancedValue: {
+    ...factorPayloads.advancedValue,
+    summary: {
+      ...factorPayloads.advancedValue.summary,
+      eligible_count: 0,
+      entries: 0,
+      ineligible_count: 0,
+      insufficient_components_count: 0,
+      matched_symbols: [],
+      watchlist_count: 0,
+    },
+    items: [],
+  },
+} satisfies FactorPayloadFixtures;
+
 const symbolMeta = {
   "005930": {
     market: "KOSPI",
@@ -319,7 +384,7 @@ function buildQuote(symbol: keyof typeof symbolMeta) {
   };
 }
 
-async function stubFactorScreeningApis(page: Page) {
+async function stubFactorScreeningApis(page: Page, payloads: FactorPayloadFixtures = factorPayloads) {
   await page.route("**/api/trading/eod/freshness", async (route) => {
     await route.fulfill({
       json: {
@@ -344,19 +409,19 @@ async function stubFactorScreeningApis(page: Page) {
   });
 
   await page.route("**/api/trading/eod/momentum-factors?**", async (route) => {
-    await route.fulfill({ json: factorPayloads.momentum });
+    await route.fulfill({ json: payloads.momentum });
   });
   await page.route("**/api/trading/eod/low-risk-factors?**", async (route) => {
-    await route.fulfill({ json: factorPayloads.lowRisk });
+    await route.fulfill({ json: payloads.lowRisk });
   });
   await page.route("**/api/trading/eod/beta-factors?**", async (route) => {
-    await route.fulfill({ json: factorPayloads.beta });
+    await route.fulfill({ json: payloads.beta });
   });
   await page.route("**/api/trading/eod/value-factors?**", async (route) => {
-    await route.fulfill({ json: factorPayloads.value });
+    await route.fulfill({ json: payloads.value });
   });
   await page.route("**/api/trading/eod/advanced-value-factors?**", async (route) => {
-    await route.fulfill({ json: factorPayloads.advancedValue });
+    await route.fulfill({ json: payloads.advancedValue });
   });
 
   await page.route("**/api/trading/market/status", async (route) => {
@@ -656,6 +721,19 @@ test("factor screening supports switching, eligibility filtering, composite plac
     /\/dashboard\/symbol\/000660\?name=SK\+Hynix&market=KOSPI&marketDate=2026-04-23/,
   );
   await expect(page.getByRole("heading", { name: /SK Hynix/i })).toBeVisible();
+});
+
+test("factor screening removes loading copy after empty family results resolve", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await stubFactorScreeningApis(page, emptyFactorPayloads);
+
+  await page.goto(`/markets/factors?marketDate=${marketDate}`);
+
+  await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Momentum/i })).toContainText("Ready");
+  await expect(page.getByRole("button", { name: /Low risk/i })).toContainText("Ready");
+  await expect(page.getByText("Core returned no rows for this factor family and market date.")).toBeVisible();
+  await expect(page.getByText("Loading factor ranking rows...")).toHaveCount(0);
 });
 
 test("factor screening stays usable on mobile viewport", async ({ page }) => {
