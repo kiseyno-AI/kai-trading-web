@@ -25,6 +25,7 @@ import {
   type SignalDeciderFeedbackStatus,
   type SignalDeciderFeedbackSummaryModel,
 } from "@/lib/signal-decider-feedback";
+import { writeSignalDeciderFeedbackCache } from "@/lib/signal-decider-feedback-cache";
 import {
   buildPortfolioMetricModels,
   getPortfolioAccounts,
@@ -1889,6 +1890,16 @@ export function LiveDashboardClient({
       }),
     [displayedAgentFeedbackProgress, rawAgentProgressDate, signalDeciderFeedback, waitForAgentFeedback],
   );
+  useEffect(() => {
+    if (waitForAgentFeedback || !signalDeciderFeedback || signalDeciderFeedbackModel.resultCount <= 0) return;
+
+    writeSignalDeciderFeedbackCache({
+      feedback: signalDeciderFeedback,
+      marketDate: signalDeciderFeedbackModel.marketDate,
+      progress: displayedAgentFeedbackProgress,
+      source: "dashboard",
+    });
+  }, [displayedAgentFeedbackProgress, signalDeciderFeedback, signalDeciderFeedbackModel, waitForAgentFeedback]);
   const displayedSignalDeciderFeedbackError = waitForAgentFeedback ? null : signalDeciderFeedbackError;
   const processMonitorModel = useMemo(
     () =>

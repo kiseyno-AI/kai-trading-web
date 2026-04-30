@@ -24,7 +24,14 @@ import {
   type SignalDeciderPathOutcome,
   type SignalDeciderQualityTone,
 } from "@/lib/signal-decider-feedback";
-import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
+import {
+  readLatestSignalDeciderFeedbackCache,
+  readSignalDeciderFeedbackCache,
+  readSignalDeciderFeedbackCacheForMonth,
+  selectSignalDeciderFeedbackResponse,
+  writeSignalDeciderFeedbackCache,
+} from "@/lib/signal-decider-feedback-cache";
+import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
 import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
@@ -58,36 +65,6 @@ type CalendarDateSnapshot = {
 
 type MonthLoadState = "idle" | "loading" | "ready" | "partial" | "unavailable";
 type DetailLoadState = "idle" | "loading" | "ready" | "error";
-
-async function getJsonNoCache<T>(path: string): Promise<T> {
-  const response = await fetch(resolveTradingApiClientPath(path), {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-  const responseText = await response.text();
-  let parsedBody: unknown = null;
-
-  if (responseText) {
-    parsedBody = JSON.parse(responseText) as T;
-  }
-
-  if (!response.ok) {
-    if (
-      parsedBody &&
-      typeof parsedBody === "object" &&
-      "detail" in parsedBody &&
-      typeof parsedBody.detail === "string"
-    ) {
-      throw new Error(parsedBody.detail);
-    }
-
-    throw new Error(`HTTP ${response.status} for ${path}`);
-  }
-
-  return parsedBody as T;
-}
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -357,9 +334,22 @@ export default function SignalReviewCalendarPageClient() {
     if (selectedDate) return;
 
     let active = true;
+    const cachedLatest = readLatestSignalDeciderFeedbackCache();
+    if (cachedLatest) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setSelectedDate(cachedLatest.marketDate);
+        setMonthKey(getMonthKey(cachedLatest.marketDate));
+        router.replace(`/calendar?date=${encodeURIComponent(cachedLatest.marketDate)}`);
+      });
+      return () => {
+        active = false;
+      };
+    }
+
     const loadLatestDate = async () => {
       try {
-        const freshness = await getJsonNoCache<EodFreshnessResponseDto>("/api/trading/eod/freshness");
+        const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
         if (!active) return;
         const resolvedDate = getAgentFeedbackProgressMarketDate(freshness) ?? todayKey;
         setSelectedDate(resolvedDate);
@@ -384,33 +374,52 @@ export default function SignalReviewCalendarPageClient() {
 
     const loadMonth = async () => {
       const monthDays = buildCalendarDays(monthKey, todayKey).filter((day) => day.inMonth && !day.isFuture);
+      const cachedEntries = readSignalDeciderFeedbackCacheForMonth(monthKey);
+      const cachedByDate = new Map(cachedEntries.map((entry) => [entry.marketDate, entry]));
       setMonthLoadState("loading");
       setMonthSnapshots((current) => {
         const next = { ...current };
         for (const day of monthDays) {
-          next[day.dateKey] = {
-            actionCounts: { buy: 0, wait: 0, reject: 0, unknown: 0 },
-            dateKey: day.dateKey,
-            decisionCount: 0,
-            error: null,
-            reviewCount: 0,
-            status: "loading",
-          };
+          const cachedSnapshot = cachedByDate.get(day.dateKey);
+          next[day.dateKey] = cachedSnapshot
+            ? buildDateSnapshot(day.dateKey, cachedSnapshot.feedback)
+            : {
+                actionCounts: { buy: 0, wait: 0, reject: 0, unknown: 0 },
+                dateKey: day.dateKey,
+                decisionCount: 0,
+                error: null,
+                reviewCount: 0,
+                status: "loading",
+              };
         }
         return next;
       });
       const results = await Promise.all(
         monthDays.map(async (day) => {
+          const cachedSnapshot = cachedByDate.get(day.dateKey) ?? null;
           try {
-            const feedback = await getJsonNoCache<AgentFeedbackListResponseDto>(
+            const feedback = await getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
               buildSignalDeciderFeedbackPath({
                 basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
                 limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
                 marketDate: day.dateKey,
               }),
             );
-            return buildDateSnapshot(day.dateKey, feedback);
+            const selectedFeedback = selectSignalDeciderFeedbackResponse({
+              cached: cachedSnapshot,
+              fetched: feedback,
+            });
+            if (selectedFeedback === feedback) {
+              writeSignalDeciderFeedbackCache({
+                feedback,
+                marketDate: day.dateKey,
+                progress: null,
+                source: "calendar",
+              });
+            }
+            return buildDateSnapshot(day.dateKey, selectedFeedback);
           } catch (error) {
+            if (cachedSnapshot) return buildDateSnapshot(day.dateKey, cachedSnapshot.feedback);
             return buildDateSnapshot(day.dateKey, null, error instanceof Error ? error.message : copy.states.unavailableMonth);
           }
         }),
@@ -438,36 +447,59 @@ export default function SignalReviewCalendarPageClient() {
     if (!selectedDate) return;
 
     let active = true;
+    const cachedSnapshot = readSignalDeciderFeedbackCache(selectedDate);
 
     const loadSelectedDate = async () => {
-      setSelectedLoadState("loading");
+      setSelectedLoadState(cachedSnapshot ? "ready" : "loading");
       setSelectedError(null);
-      setProgressUnavailable(false);
-      setSelectedFeedback(null);
-      setSelectedProgress(null);
-      setSelectedDataDate(null);
+      setProgressUnavailable(cachedSnapshot ? cachedSnapshot.progress === null : false);
+      setSelectedFeedback(cachedSnapshot?.feedback ?? null);
+      setSelectedProgress(cachedSnapshot?.progress ?? null);
+      setSelectedDataDate(cachedSnapshot ? selectedDate : null);
       setSelectedItemId(null);
       try {
         const [feedback, progress] = await Promise.all([
-          getJsonNoCache<AgentFeedbackListResponseDto>(
+          getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
             buildSignalDeciderFeedbackPath({
               basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate: selectedDate,
             }),
           ),
-          getJsonNoCache<AgentFeedbackProgressResponseDto>(
+          getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
             `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(selectedDate)}`,
           ).catch(() => null),
         ]);
         if (!active) return;
-        setSelectedFeedback(feedback);
-        setSelectedProgress(progress);
+        const selectedFeedback = selectSignalDeciderFeedbackResponse({
+          cached: cachedSnapshot,
+          fetched: feedback,
+        });
+        const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedSnapshot.progress) : progress;
+        setSelectedFeedback(selectedFeedback);
+        setSelectedProgress(selectedProgress);
         setSelectedDataDate(selectedDate);
-        setProgressUnavailable(progress === null);
+        setProgressUnavailable(selectedProgress === null);
         setSelectedLoadState("ready");
+        if (selectedFeedback === feedback) {
+          writeSignalDeciderFeedbackCache({
+            feedback,
+            marketDate: selectedDate,
+            progress,
+            source: "calendar",
+          });
+        }
       } catch (error) {
         if (!active) return;
+        if (cachedSnapshot) {
+          setSelectedFeedback(cachedSnapshot.feedback);
+          setSelectedProgress(cachedSnapshot.progress);
+          setSelectedDataDate(selectedDate);
+          setProgressUnavailable(cachedSnapshot.progress === null);
+          setSelectedLoadState("ready");
+          setSelectedError(error instanceof Error ? error.message : copy.states.selectedUnavailable);
+          return;
+        }
         setSelectedFeedback(null);
         setSelectedProgress(null);
         setSelectedDataDate(selectedDate);
