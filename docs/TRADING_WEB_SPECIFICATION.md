@@ -286,19 +286,22 @@ Expected behaviors:
 - show account and sync context only when supplied by backend
 - remain read-only
 
-#### D. Operational Integrity hero (D2)
+#### D. Daily process monitor (D2)
 
 Purpose:
 
-- expose the current end-to-end system processing state across non-agent stages, filtering, and agent feedback
+- expose the current end-to-end system processing state across non-agent stages, filtering, scoring, and agent feedback from the toolbar process monitor
 
 This is the most important operational contract in the app.
 
-It should contain three major cards:
+The dashboard body must not embed a duplicate freshness registry. The toolbar process monitor is the canonical access path for these details.
+
+It should contain four major cards:
 
 1. `Daily Data Fetch`
 2. `Filtering`
-3. `Agent Feedback`
+3. `Scoring`
+4. `Agent Feedback`
 
 ##### D1. Daily Data Fetch
 

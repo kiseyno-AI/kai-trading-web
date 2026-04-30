@@ -57,17 +57,8 @@ test.describe("dashboard mobile hero", () => {
     await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
     await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
-    const operationalIntegrity = hero.locator('[data-dashboard-operational-integrity="inline"]');
-    await expect(operationalIntegrity).toBeVisible();
-    await expect(operationalIntegrity.getByText(/EOD Status/i)).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /Filtering/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /^Scoring$/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
-    await expect(
-      operationalIntegrity.getByRole("link", { name: /Open the full Piotroski filter pass list/i }),
-    ).toBeVisible();
+    await expect(hero.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
+    await expect(hero.getByText(/EOD Status/i)).toHaveCount(0);
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();

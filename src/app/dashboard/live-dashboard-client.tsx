@@ -1427,6 +1427,11 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
         aria-labelledby="process-monitor-title"
         onPointerDown={(event) => event.stopPropagation()}
       >
+        <ComponentTag
+          label="dashboard.process-monitor"
+          api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/agent-context/feedback/progress + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
+          placement="inline"
+        />
         <button
           type="button"
           className={styles.processMonitorDrawerCollapseButton}
@@ -2241,56 +2246,6 @@ export function LiveDashboardClient({
               />
             </div>
           </div>
-
-          <section
-            className={`${styles.panel} ${styles.integrityPanel} ${styles.operationalIntegrityPanel}`}
-            data-dashboard-operational-integrity="inline"
-            aria-labelledby="dashboard-operational-integrity-title"
-            aria-hidden={processMonitorDrawerMounted || undefined}
-            hidden={processMonitorDrawerMounted || undefined}
-          >
-            <ComponentTag
-              label="dashboard.operational-integrity"
-              api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/agent-context/feedback/progress + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
-            />
-            <div className={styles.sectionHeaderRow}>
-              <div>
-                <p className={styles.sectionEyebrow}>{copy.operational.eyebrow}</p>
-                <h2 id="dashboard-operational-integrity-title" className={styles.sectionTitle}>
-                  {copy.operational.title}
-                </h2>
-                {processMonitorModel.patchDate ? (
-                  <p className={styles.marketContext}>
-                    {copy.processMonitor.patchDate}: {processMonitorModel.patchDate}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-            <div className={`${styles.integrityGrid} ${styles.inlineOperationalIntegrityGrid}`}>
-              <OperationalIntegrityCards
-                agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
-                agentFeedbackStatusTone={agentFeedbackStatusTone}
-                agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
-                agentProgressDateContext={agentProgressDateContext}
-                agentRoleCards={agentRoleCards}
-                agentRoleStatusLabels={displayedAgentRoleStatusLabels}
-                copy={copy}
-                eodCardIdScope="dashboard-inline"
-                eodStageCards={eodStageCards}
-                filteringCardModel={filteringCardModel}
-                fundamentalsDialogOpen={fundamentalsDialogOpen}
-                fundamentalsFailureDetails={fundamentalsFailureDetails}
-                fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
-                fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
-                isAgentFeedbackRunning={isAgentFeedbackRunning}
-                patchDate={processMonitorModel.patchDate}
-                scoringCardModel={scoringCardModel}
-                onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
-                onOpenFundamentalsDetails={openFundamentalsDetails}
-                onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
-              />
-            </div>
-          </section>
 
           <ExecutionRuntimePanel
             board={executionRuntimeDailyBoard}

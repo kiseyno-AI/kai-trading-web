@@ -171,8 +171,6 @@ const dashboardLiveCopy = {
       },
     },
     operational: {
-      eyebrow: "Market Freshness Registry",
-      title: "Operational Integrity",
       serverTime: "Current time",
       latestCycleDate: "Latest cycle date",
       eodEyebrow: "EOD Status",
@@ -553,8 +551,6 @@ const dashboardLiveCopy = {
       },
     },
     operational: {
-      eyebrow: "마켓 신선도 레지스트리",
-      title: "운영 무결성",
       serverTime: "현재 시간",
       latestCycleDate: "최신 사이클 기준일",
       eodEyebrow: "EOD 상태",

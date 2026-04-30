@@ -122,15 +122,6 @@
   padding-bottom: 0;
 }
 
-.operationalIntegrityPanel {
-  display: grid;
-  gap: 0;
-}
-
-.inlineOperationalIntegrityGrid {
-  scroll-margin-top: 5rem;
-}
-
 .processMonitorBar {
   width: 100%;
   min-width: 0;
