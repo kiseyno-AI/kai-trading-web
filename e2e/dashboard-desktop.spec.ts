@@ -178,7 +178,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
-  test("primary insight cards rebalance the desktop grid without a stacked right rail", async ({ page }) => {
+  test("primary insight cards distribute across a stable desktop grid", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.goto("/dashboard");
 
@@ -196,11 +196,36 @@ test.describe("dashboard desktop", () => {
       getRequiredBox(marketCard, "market card"),
     ]);
 
-    expect(portfolioBox.x).toBeGreaterThan(signalBox.x + signalBox.width - 24);
+    expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
+    expect(portfolioBox.x).toBeGreaterThan(signalBox.x);
+    expect(marketBox.x).toBeGreaterThan(portfolioBox.x);
+    expect(Math.abs(signalBox.width - portfolioBox.width)).toBeLessThan(signalBox.width * 0.25);
+    expect(Math.abs(portfolioBox.width - marketBox.width)).toBeLessThan(portfolioBox.width * 0.25);
+    expect(Math.abs(marketBox.y - signalBox.y)).toBeLessThan(24);
+  });
+
+  test("primary insight cards keep a balanced two-up layout at intermediate desktop widths", async ({ page }) => {
+    await page.setViewportSize({ width: 1120, height: 1100 });
+    await page.goto("/dashboard");
+
+    const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
+    const portfolioCard = getPrimaryInsightCard(page, /Portfolio state/i);
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+
+    await expect(signalCard).toBeVisible();
+    await expect(portfolioCard).toBeVisible();
+    await expect(marketCard).toBeVisible();
+
+    const [signalBox, portfolioBox, marketBox] = await Promise.all([
+      getRequiredBox(signalCard, "signal card"),
+      getRequiredBox(portfolioCard, "portfolio card"),
+      getRequiredBox(marketCard, "market card"),
+    ]);
+
+    expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
+    expect(Math.abs(portfolioBox.width - signalBox.width)).toBeLessThan(signalBox.width * 0.35);
+    expect(marketBox.y).toBeGreaterThan(signalBox.y + signalBox.height - 2);
     expect(Math.abs(marketBox.x - signalBox.x)).toBeLessThan(24);
-    expect(Math.abs(marketBox.width - signalBox.width)).toBeLessThan(24);
-    expect(marketBox.y).toBeGreaterThan(signalBox.y + signalBox.height - 1);
-    expect(marketBox.x).toBeLessThan(portfolioBox.x - 24);
   });
 
   test("market condition card recovers after a temporary snapshot outage", async ({ page }) => {
@@ -431,7 +456,7 @@ test.describe("dashboard desktop", () => {
     expect(drawerBox.width).toBeLessThanOrEqual(freshnessPanelBox.width + 1);
   });
 
-  test("desktop process monitor drawer keeps detailed process cards grouped without a body duplicate", async ({ page }) => {
+  test("desktop process monitor detail cards stay in a balanced two-column grid", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -731,11 +756,28 @@ test.describe("dashboard desktop", () => {
     }
 
     expect(Math.abs(eodBox.y - filteringBox.y)).toBeLessThan(24);
-    expect(Math.abs(scoringBox.x - filteringBox.x)).toBeLessThan(24);
+    expect(Math.abs(eodBox.width - filteringBox.width)).toBeLessThan(eodBox.width * 0.3);
     expect(scoringBox.y).toBeGreaterThan(filteringBox.y + filteringBox.height - 24);
-    expect(Math.abs(agentFeedbackBox.x - eodBox.x)).toBeLessThan(24);
-    expect(agentFeedbackBox.y).toBeGreaterThan(scoringBox.y + scoringBox.height - 24);
-    expect(agentFeedbackBox.width).toBeGreaterThan(filteringBox.width * 1.5);
+    expect(Math.abs(scoringBox.width - filteringBox.width)).toBeLessThan(scoringBox.width * 0.3);
+    expect(Math.abs(agentFeedbackBox.width - scoringBox.width)).toBeLessThan(agentFeedbackBox.width * 0.3);
+
+    const uniqueCoordinates = (values: number[]) => {
+      const ordered = [...values].sort((a, b) => a - b);
+      return ordered.reduce<number[]>((acc, value) => {
+        if (acc.length === 0 || value > acc[acc.length - 1] + 24) {
+          acc.push(value);
+        }
+        return acc;
+      }, []);
+    };
+
+    const compactedXColumns = uniqueCoordinates([eodBox.x, filteringBox.x, scoringBox.x, agentFeedbackBox.x]);
+    const compactedRows = uniqueCoordinates([eodBox.y, filteringBox.y, scoringBox.y, agentFeedbackBox.y]);
+
+    expect(compactedXColumns.length).toBeGreaterThan(1);
+    expect(compactedXColumns.length).toBeLessThanOrEqual(2);
+    expect(compactedRows.length).toBeGreaterThan(1);
+    expect(compactedRows.length).toBeLessThanOrEqual(2);
   });
 
   test("dashboard surfaces running EOD pipeline progress inside the matching stage cards", async ({ page }) => {

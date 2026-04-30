@@ -94,7 +94,7 @@
 
 .primaryInsightGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 0.85rem;
   margin-top: 0;
@@ -108,6 +108,10 @@
 .processMonitorDetailCards {
   padding-top: 0.85rem;
   border-top: 1px solid rgba(134, 162, 194, 0.18);
+}
+
+.processMonitorCardsGrid {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .dashboardWideShell {
@@ -2048,25 +2052,19 @@
   }
 
   .primaryInsightGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
     margin-top: 0;
   }
 
+  .processMonitorCardsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 1rem;
+  }
+
   .processMonitorDetailCards {
     padding-top: 1.2rem;
-  }
-
-  .agentFeedbackCard,
-  .signalDeciderCard {
-    grid-column: 1 / -1;
-  }
-
-  .scoringCard {
-    grid-column: 2;
-  }
-
-  .primaryInsightGrid > .signalDeciderCard {
-    grid-column: auto;
   }
 
   .integrityStat,
@@ -2115,7 +2113,7 @@
 
 @media (min-width: 1280px) {
   .primaryInsightGrid {
-    grid-template-columns: minmax(24rem, 1.12fr) minmax(22rem, 0.88fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

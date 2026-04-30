@@ -1469,7 +1469,7 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
         </div>
 
         {children ? (
-          <div className={`${styles.integrityGrid} ${styles.processMonitorDetailCards}`}>{children}</div>
+          <div className={`${styles.integrityGrid} ${styles.processMonitorDetailCards} ${styles.processMonitorCardsGrid}`}>{children}</div>
         ) : null}
         {patchDate ? (
           <div className={styles.processMonitorPatchDate} aria-label={copy.processMonitor.patchDate}>
