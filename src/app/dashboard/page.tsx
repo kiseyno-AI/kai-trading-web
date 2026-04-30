@@ -5,8 +5,11 @@ import { LiveDashboardClient } from "./live-dashboard-client";
 import type { CoreMarketStatus, CoreTrackedQuotesResponse } from "@/features/dashboard/live-dashboard-types";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
+  getDashboardLatestCompletedPipelineMarketDate,
   getDashboardProcessRequestMarketDate,
   getDashboardProcessResolvedMarketDate,
+  resolveDashboardProcessPipelineStatus,
+  shouldRequestLatestCompletedPipelineStatus,
 } from "@/lib/dashboard-process-market-date";
 import {
   buildDartFundamentalsDailyInspectPath,
@@ -140,10 +143,32 @@ export default async function DashboardPage() {
       freshness?.today?.trade_date,
       market.server_time,
     );
-    pipelineStatus = await fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
+    const currentPipelineStatus = await fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
       buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_UPSTREAM_PATH, pipelineRequestMarketDate),
       requestHeaders,
     ).catch(() => null);
+    const latestCompletedPipelineMarketDate = getDashboardLatestCompletedPipelineMarketDate(
+      freshness,
+      pipelineRequestMarketDate,
+    );
+    const latestCompletedPipelineStatus =
+      latestCompletedPipelineMarketDate &&
+      shouldRequestLatestCompletedPipelineStatus({
+        currentPipelineStatus,
+        freshness,
+        requestMarketDate: pipelineRequestMarketDate,
+      })
+        ? await fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
+            buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_UPSTREAM_PATH, latestCompletedPipelineMarketDate),
+            requestHeaders,
+          ).catch(() => null)
+        : null;
+    pipelineStatus = resolveDashboardProcessPipelineStatus({
+      currentPipelineStatus,
+      freshness,
+      latestCompletedPipelineStatus,
+      requestMarketDate: pipelineRequestMarketDate,
+    });
 
     const resolvedDashboardProcessMarketDate = getDashboardProcessResolvedMarketDate(
       pipelineStatus,

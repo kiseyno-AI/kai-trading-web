@@ -225,6 +225,9 @@ function getLatestStageDetails(freshness: EodFreshnessResponseDto | null) {
   ]) {
     addStageDetail(directKey, latest[directKey]);
   }
+  addStageDetail("price", { price_trade_date: latest.price_trade_date });
+  addStageDetail("technical_analysis", { technical_market_date: latest.technical_market_date });
+  addStageDetail("action_summary", { action_market_date: latest.action_market_date });
 
   return sortStageDetails([...stageDetailsByKey.values()]);
 }

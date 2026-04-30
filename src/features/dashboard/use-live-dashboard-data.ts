@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import {
+  getDashboardLatestCompletedPipelineMarketDate,
   getDashboardProcessRequestMarketDate,
   getDashboardProcessResolvedMarketDate,
+  resolveDashboardProcessPipelineStatus,
+  shouldRequestLatestCompletedPipelineStatus,
 } from "@/lib/dashboard-process-market-date";
 import {
   buildDartFundamentalsDailyInspectPath,
@@ -314,6 +317,17 @@ export function useLiveDashboardData({
   const pipelineStatusPath = useMemo(
     () => buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_CLIENT_PATH, pipelineRequestMarketDate),
     [pipelineRequestMarketDate],
+  );
+  const latestCompletedPipelineMarketDate = getDashboardLatestCompletedPipelineMarketDate(
+    freshness,
+    pipelineRequestMarketDate,
+  );
+  const latestCompletedPipelineStatusPath = useMemo(
+    () =>
+      latestCompletedPipelineMarketDate
+        ? buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_CLIENT_PATH, latestCompletedPipelineMarketDate)
+        : null,
+    [latestCompletedPipelineMarketDate],
   );
   const executionRuntimeMarketDate = pipelineRequestMarketDate;
 
@@ -898,7 +912,22 @@ export function useLiveDashboardData({
 
     async function loadPipelineStatus() {
       try {
-        const data = await getJson<EodPipelineStatusResponseDto>(pipelineStatusPath);
+        const currentPipelineStatus = await getJson<EodPipelineStatusResponseDto>(pipelineStatusPath);
+        const latestCompletedPipelineStatus =
+          latestCompletedPipelineStatusPath &&
+          shouldRequestLatestCompletedPipelineStatus({
+            currentPipelineStatus,
+            freshness,
+            requestMarketDate: pipelineRequestMarketDate,
+          })
+            ? await getJson<EodPipelineStatusResponseDto>(latestCompletedPipelineStatusPath).catch(() => null)
+            : null;
+        const data = resolveDashboardProcessPipelineStatus({
+          currentPipelineStatus,
+          freshness,
+          latestCompletedPipelineStatus,
+          requestMarketDate: pipelineRequestMarketDate,
+        });
         if (!active) return;
         pipelineStatusRequestDateRef.current = pipelineRequestMarketDate;
         pipelineStatusRef.current = data;
@@ -917,7 +946,7 @@ export function useLiveDashboardData({
       active = false;
       clearTimer();
     };
-  }, [pipelineRequestMarketDate, pipelineStatusPath]);
+  }, [freshness, latestCompletedPipelineStatusPath, pipelineRequestMarketDate, pipelineStatusPath]);
 
   useEffect(() => {
     let active = true;

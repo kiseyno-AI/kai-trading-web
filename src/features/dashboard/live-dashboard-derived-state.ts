@@ -2430,6 +2430,7 @@ function getPatchStageFreshnessStatus(
   stageStatus: string | null,
   symbolsTotal: number | null,
   symbolsSucceeded: number | null,
+  hasLatestStageDate: boolean,
 ) {
   const normalizedStatus = stageStatus?.trim().toLowerCase().replace(/[_-]+/g, " ") ?? null;
   if (normalizedStatus === "running") return "running";
@@ -2449,6 +2450,7 @@ function getPatchStageFreshnessStatus(
     return symbolsSucceeded >= symbolsTotal ? "ready" : "running";
   }
   if (hasNumber(symbolsTotal) || hasNumber(symbolsSucceeded)) return "ready";
+  if (hasLatestStageDate) return "ready";
   return null;
 }
 
@@ -2467,7 +2469,12 @@ function getLatestPatchStageFreshnessStage(
     hasNumber(detail.symbolsFailed);
   if (!hasStageEvidence) return null;
 
-  const status = getPatchStageFreshnessStatus(detail.status, detail.symbolsTotal, detail.symbolsSucceeded);
+  const status = getPatchStageFreshnessStatus(
+    detail.status,
+    detail.symbolsTotal,
+    detail.symbolsSucceeded,
+    hasTextValue(detail.tradeDate),
+  );
   return buildStage(status, detail.symbolsTotal, detail.symbolsSucceeded, detail.symbolsFailed);
 }
 
