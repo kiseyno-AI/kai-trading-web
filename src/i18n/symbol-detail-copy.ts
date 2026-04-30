@@ -120,7 +120,7 @@ const symbolDetailCopy = {
       payloadKeys: "Payload keys",
       bias: "Bias",
       signalScore: "Signal score",
-      signalUnavailable: "Action summary unresolved",
+      signalUnavailable: "No current action resolved",
       currentAction: "Current action",
     },
     technical: {
@@ -386,7 +386,7 @@ const symbolDetailCopy = {
       payloadKeys: "페이로드 키",
       bias: "편향",
       signalScore: "시그널 점수",
-      signalUnavailable: "액션 요약 미해결",
+      signalUnavailable: "확정된 현재 액션 없음",
       currentAction: "현재 액션",
     },
     technical: {

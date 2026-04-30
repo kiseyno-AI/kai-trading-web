@@ -58,6 +58,21 @@ test("keeps action-summary fallback labels stable when no summary is available",
   assert.equal(model.meter.state, "unavailable");
   assert.equal(model.meter.valueLabel, copy.action.unavailable);
   assert.equal(model.meter.currentLabel, copy.action.signalUnavailable);
+  assert.match(model.meter.ariaLabel, /No current action resolved/);
+  assert.doesNotMatch(
+    [
+      model.badgeLabel,
+      model.headline,
+      model.body,
+      model.metaCaption,
+      model.meter.ariaLabel,
+      model.meter.currentLabel,
+      model.meter.valueLabel,
+      ...model.metrics.map((metric) => metric.value),
+      ...model.reasonTags,
+    ].join(" "),
+    /\b(?:Sell|Strong Buy)\b/,
+  );
 });
 
 test("presents resolved strong-buy long-bias action summaries as the current meter state", () => {

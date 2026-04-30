@@ -65,6 +65,16 @@ async function mockSystemFreshnessApis(
   const marketDate = "2026-04-10";
   const fundamentalsHistoryEntries = options.fundamentalsHistoryEntries ?? 0;
 
+  await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+    await route.fulfill({
+      json: {
+        tracked_symbols: [],
+        count: 0,
+        last_updated_at: null,
+      },
+    });
+  });
+
   await page.route("**/api/trading/quotes/005930", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -200,6 +210,32 @@ async function mockSystemFreshnessApis(
             },
           },
         ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/action-summaries?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        items: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        summary: {
+          entries: 0,
+          requested_symbol: "005930",
+          matched_symbols: [],
+          missing_symbols: [],
+          passed_count: 0,
+          not_passed_count: 0,
+        },
+        item: null,
       },
     });
   });
@@ -637,6 +673,22 @@ test.describe("symbol detail mobile pages", () => {
     await expect(fundamentalsRow).toContainText("History loaded");
     await expect(fundamentalsRow.locator(".pill.info", { hasText: "History loaded" })).toBeVisible();
     await expect(fundamentalsRow).not.toContainText("No history");
+  });
+
+  test("unavailable action summary hides directional endpoint labels", async ({ page }) => {
+    await mockSystemFreshnessApis(page);
+
+    await page.goto(`/dashboard/symbol/005930/action-summary?${symbolSeed}`);
+
+    const actionSection = page.locator("#action");
+    await expect(actionSection).toBeVisible();
+    await expect(actionSection).toContainText("Unavailable");
+    await expect(actionSection).toContainText("No current action resolved");
+    await expect(actionSection).toContainText("Action summary is not resolved for this symbol-date packet.");
+    await expect(actionSection).not.toContainText(/\bSell\b/);
+    await expect(actionSection).not.toContainText("Strong Buy");
+    await expect(actionSection.getByRole("meter")).toHaveCount(0);
+    await expect(actionSection.locator('[role="status"][aria-label="Signal score: No current action resolved"]')).toBeVisible();
   });
 
   test("disclosure detail requests the same row cap it can render", async ({ page }) => {
