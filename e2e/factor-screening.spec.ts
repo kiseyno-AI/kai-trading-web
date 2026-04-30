@@ -765,4 +765,17 @@ test("factor screening stays usable on mobile viewport", async ({ page }) => {
 
   await page.getByRole("button", { name: /Composite/i }).click();
   await expect(page.getByText(/Composite ranking slot reserved/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /Low risk/i }).click();
+  await page.getByRole("link", { name: /Open SK Hynix/i }).click();
+
+  await expect(page).toHaveURL(
+    /\/dashboard\/symbol\/000660\?name=SK\+Hynix&market=KOSPI&marketDate=2026-04-23/,
+  );
+  await expect(page.getByRole("heading", { name: /SK Hynix/i })).toBeVisible();
+
+  const mySymbolsNavItem = page.getByRole("link", { name: "My Symbols", exact: true });
+  await expect(mySymbolsNavItem).toBeVisible();
+  await expect(mySymbolsNavItem).not.toHaveAttribute("aria-current", "page");
+  await expect(mySymbolsNavItem).not.toHaveClass(/navItemActive/);
 });

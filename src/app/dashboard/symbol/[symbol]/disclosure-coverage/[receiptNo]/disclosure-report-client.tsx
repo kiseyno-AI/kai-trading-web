@@ -8,6 +8,11 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
+import {
+  resolveSymbolDetailActiveNav,
+  resolveSymbolDetailNavContext,
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+} from "../../symbol-detail-state";
 
 import styles from "../../symbol-detail.module.css";
 
@@ -15,7 +20,7 @@ type SearchParamReader = {
   get: (name: string) => string | null;
 };
 
-const SYMBOL_QUERY_KEYS = ["name", "market", "standardCode", "marketDate", "fsDiv"] as const;
+const SYMBOL_QUERY_KEYS = ["name", "market", "standardCode", "marketDate", "fsDiv", SYMBOL_DETAIL_NAV_CONTEXT_PARAM] as const;
 
 function buildPreservedSymbolQuery(searchParams: SearchParamReader) {
   const query = new URLSearchParams();
@@ -84,6 +89,10 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
     return readRouteParam(params.receiptNo);
   }, [params.receiptNo, serverReceiptNo]);
   const preservedQueryString = useMemo(() => buildPreservedSymbolQuery(searchParams), [searchParams]);
+  const symbolDetailActiveNav = useMemo(
+    () => resolveSymbolDetailActiveNav(resolveSymbolDetailNavContext(searchParams.get(SYMBOL_DETAIL_NAV_CONTEXT_PARAM))),
+    [searchParams],
+  );
   const backHref = useMemo(
     () => buildDisclosureCoverageHref(symbol, preservedQueryString),
     [preservedQueryString, symbol],
@@ -98,7 +107,7 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
 
   return (
     <MobileAppChrome
-      activeNav="symbols"
+      activeNav={symbolDetailActiveNav}
       topbar={{
         leading: (
           <Link href={backHref} className={styles.backButton} aria-label="Back to disclosure coverage">

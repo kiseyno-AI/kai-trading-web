@@ -1,7 +1,9 @@
-import type {
-  AggregateContextLoadState,
-  DisclosureSectionState,
-  SymbolDetailMode,
+import {
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+  type AggregateContextLoadState,
+  type DisclosureSectionState,
+  type SymbolDetailMode,
+  type SymbolDetailNavContext,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
@@ -400,6 +402,7 @@ export function buildSymbolRouteQuery(
   meta: SymbolSearchItem | null,
   marketDate: string | null,
   fsDiv: string | null,
+  navContext: SymbolDetailNavContext | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -427,6 +430,10 @@ export function buildSymbolRouteQuery(
 
   if (fsDiv) {
     params.set("fsDiv", fsDiv);
+  }
+
+  if (navContext) {
+    params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, navContext);
   }
 
   return params.toString();

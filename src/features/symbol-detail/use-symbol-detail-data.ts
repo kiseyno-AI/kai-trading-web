@@ -7,9 +7,12 @@ import {
   buildInitialSymbolMeta,
   createSymbolMetaResetToken,
   getSymbolDetailSectionVisibility,
+  resolveSymbolDetailActiveNav,
   resolveSymbolDetailMode,
   resolveSymbolDetailModeFromPathname,
+  resolveSymbolDetailNavContext,
   shouldFetchSymbolMeta,
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   type SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
@@ -80,6 +83,11 @@ export function useSymbolDetailData({
   const symbolReady = normalizedSymbol.length > 0;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const requestedViewMode = useMemo(() => resolveSymbolDetailMode(searchParams.get("view")), [searchParams]);
+  const navContext = useMemo(
+    () => resolveSymbolDetailNavContext(searchParams.get(SYMBOL_DETAIL_NAV_CONTEXT_PARAM)),
+    [searchParams],
+  );
+  const symbolDetailActiveNav = resolveSymbolDetailActiveNav(navContext);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
   const initialMeta = useMemo(() => {
@@ -365,8 +373,8 @@ export function useSymbolDetailData({
   );
   const toolbarMarketOpenState = getMarketOpenState(marketStatus);
   const routeQueryString = useMemo(
-    () => buildSymbolRouteQuery(meta, marketDate, fsDiv),
-    [fsDiv, marketDate, meta],
+    () => buildSymbolRouteQuery(meta, marketDate, fsDiv, navContext),
+    [fsDiv, marketDate, meta, navContext],
   );
   const hasSelectedRangeHistoryLoaded = Boolean(priceHistoryResult.data);
 
@@ -464,6 +472,7 @@ export function useSymbolDetailData({
     setActiveMode,
     setSelectedBar,
     setSelectedRange,
+    symbolDetailActiveNav,
     symbol,
     symbolReady,
     toolbarMarketOpenState,
