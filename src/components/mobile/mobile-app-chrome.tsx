@@ -3,6 +3,7 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import {
@@ -21,6 +22,7 @@ import {
   type AppChromeHrefOverrides,
   type FullPageChromeRouteKey,
 } from "@/lib/app-chrome-routes";
+import { resolveMobileAppChromeMetadata } from "@/lib/mobile-app-chrome-route-metadata";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 
@@ -76,9 +78,11 @@ export function MobileAppChrome({
   chrome,
 }: MobileAppChromeProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { t } = useAppState();
   const { beginNavigation, isNavigatingTo } = useNavigationLoading();
   const activeNav = chrome.activeNav ?? null;
+  const resolvedMetadata = resolveMobileAppChromeMetadata({ pathname, activeNav, t });
   const hrefOverrides = chrome.hrefs ?? EMPTY_HREF_OVERRIDES;
   const navItems = useMemo(
     () => buildAppChromeNavItems(t, FULL_PAGE_CHROME_ROUTE_KEYS, hrefOverrides),
@@ -93,12 +97,14 @@ export function MobileAppChrome({
   const bottomAccessory = chrome.bottomAccessory;
   const bottomMeta = null;
   const desktopRailFooter = <MobileAppChromeDesktopRailFooter />;
+  const toolbarTitle = chrome.title ?? resolvedMetadata?.title;
+  const toolbarAction = chrome.toolbarAction ?? resolvedMetadata?.toolbarAction ?? "none";
   const toolbarStatus = chrome.status ? (
     <DashboardToolbarStatus tone={chrome.status.tone}>{chrome.status.label}</DashboardToolbarStatus>
   ) : null;
   const toolbarActions = (
     <>
-      {chrome.toolbarAction === "dev-mode" ? (
+      {toolbarAction === "dev-mode" ? (
         <span className={styles.toolbarDevAction}>
           <DevModeToggle />
         </span>
@@ -209,7 +215,7 @@ export function MobileAppChrome({
             status={toolbarStatus}
             subtitle={chrome.subtitle}
             subtitleAriaLabel={chrome.subtitleAriaLabel}
-            title={chrome.title}
+            title={toolbarTitle}
           />
         </div>
       </header>
