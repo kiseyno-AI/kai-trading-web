@@ -13,6 +13,7 @@ import {
   buildSignalDeciderFeedbackPath,
   buildCalendarSummaryQuery,
   buildSignalDeciderFeedbackSummary,
+  buildSignalDeciderFeedbackHref,
   buildReviewDateQuery,
   buildSignalDeciderFeedbackListFromReviewDateResponse,
   formatSignalDeciderActionLabel,
@@ -529,6 +530,7 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const { locale, t } = useAppState();
   const copy = t.signalReview;
+  const feedbackListHref = useMemo(() => buildSignalDeciderFeedbackHref(selectedDate), [selectedDate]);
 
   useEffect(() => {
     let active = true;
@@ -987,7 +989,7 @@ export default function SignalReviewCalendarPageClient() {
           </div>
 
           <div className={styles.heroActions}>
-            <Link href="/dashboard/signal-decider-feedback" className={styles.secondaryLink}>
+            <Link href={feedbackListHref} className={styles.secondaryLink}>
               {copy.actions.openFeedback}
             </Link>
             <Link href="/dashboard" className={styles.secondaryLink}>

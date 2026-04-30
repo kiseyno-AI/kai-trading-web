@@ -22,7 +22,6 @@ import type { EodFreshnessResponseDto } from "@/types/trading-api";
 import styles from "./piotroski-filter-page.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
-const PIOTROSKI_MARKET_DATE_TIMEOUT_MS = 15_000;
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -98,24 +97,12 @@ function getPiotroskiEmptyState(data: PiotroskiPassListResult | null, displayedM
 }
 
 async function loadFreshness() {
-  const abortController = new AbortController();
-  const timeout = globalThis.setTimeout(() => {
-    abortController.abort();
-  }, PIOTROSKI_MARKET_DATE_TIMEOUT_MS);
-
   try {
     return await getCachedTradingApiJson<EodFreshnessResponseDto>(
       resolveTradingApiClientPath("/api/trading/eod/freshness"),
-      { signal: abortController.signal },
     );
   } catch (error) {
-    if (abortController.signal.aborted) {
-      const timeoutSeconds = (PIOTROSKI_MARKET_DATE_TIMEOUT_MS / 1_000).toFixed(1);
-      throw new Error(`Piotroski market date request timed out after ${timeoutSeconds}s.`);
-    }
     throw error;
-  } finally {
-    globalThis.clearTimeout(timeout);
   }
 }
 

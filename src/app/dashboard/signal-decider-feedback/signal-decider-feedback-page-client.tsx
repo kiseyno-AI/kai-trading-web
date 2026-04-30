@@ -38,6 +38,7 @@ import styles from "./signal-decider-feedback-page.module.css";
 const UNKNOWN_LABEL = "[확인 필요]";
 const REVIEW_PENDING_LABEL = "Review pending";
 const REVIEW_PENDING_MESSAGE = "Verdict and realized outcome are not present in the stored feedback payload yet.";
+const CARD_LOADING_LABEL = "…";
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type SortMode = "priority" | "symbol" | "confidence" | "captured";
@@ -164,6 +165,52 @@ function formatActionMix(actionCounts: Record<SignalDeciderAction, number>) {
     .map((action) => `${formatSignalDeciderActionLabel(action)} ${actionCounts[action].toLocaleString("en-US")}`);
 
   return labels.length > 0 ? labels.join(" · ") : UNKNOWN_LABEL;
+}
+
+function getSignalDeciderSummaryStatusLabel(loadState: "idle" | "loading" | "ready" | "error", status: SignalDeciderFeedbackStatus) {
+  return loadState === "ready" ? getStatusLabel(status) : "Loading";
+}
+
+function getSignalDeciderSummaryNumericValue(
+  loadState: "idle" | "loading" | "ready" | "error",
+  value: number,
+) {
+  return loadState === "ready" ? value.toLocaleString("en-US") : CARD_LOADING_LABEL;
+}
+
+function getSignalDeciderSummaryActionMix(
+  loadState: "idle" | "loading" | "ready" | "error",
+  actionCounts: Record<SignalDeciderAction, number>,
+) {
+  return loadState === "ready" ? formatActionMix(actionCounts) : CARD_LOADING_LABEL;
+}
+
+function getSignalDeciderNoDataMessage({
+  marketDate,
+  status,
+}: {
+  marketDate: string | null | undefined;
+  status: SignalDeciderFeedbackStatus;
+}) {
+  const dateLabel = hasTextValue(marketDate) ? marketDate : "the selected market date";
+
+  if (status === "running") {
+    return `Signal-decider is still running for ${dateLabel}, so stored rows are not ready yet.`;
+  }
+
+  if (status === "partial") {
+    return `Signal-decider feedback for ${dateLabel} is partially available, but no rows matched the current filters.`;
+  }
+
+  if (status === "needs-review") {
+    return `Signal-decider rows for ${dateLabel} require review-state completion before they can render here.`;
+  }
+
+  if (status === "waiting") {
+    return `No signal-decider feedback rows were returned for ${dateLabel}.`;
+  }
+
+  return `No signal-decider feedback rows were returned for ${dateLabel}.`;
 }
 
 function getTraceSummaryParts(item: SignalDeciderFeedbackItem) {
@@ -521,7 +568,9 @@ export default function SignalDeciderFeedbackPageClient() {
           <div className={styles.summaryGrid}>
             <div className={styles.summaryCard}>
               <span>Status</span>
-              <strong className={getStatusToneClass(summary.status)}>{getStatusLabel(summary.status)}</strong>
+              <strong className={getStatusToneClass(loadState === "ready" ? summary.status : "running")}>
+                {getSignalDeciderSummaryStatusLabel(loadState, summary.status)}
+              </strong>
             </div>
             <div className={styles.summaryCard}>
               <span>Market date</span>
@@ -529,11 +578,11 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
             <div className={styles.summaryCard}>
               <span>Results</span>
-              <strong>{summary.resultCount.toLocaleString("en-US")}</strong>
+              <strong>{getSignalDeciderSummaryNumericValue(loadState, summary.resultCount)}</strong>
             </div>
             <div className={styles.summaryCard}>
               <span>Action mix</span>
-              <strong>{formatActionMix(summary.actionCounts)}</strong>
+              <strong>{getSignalDeciderSummaryActionMix(loadState, summary.actionCounts)}</strong>
             </div>
           </div>
 
@@ -691,9 +740,7 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
           ) : (
             <div className={styles.emptyState}>
-              {displayedMarketDate
-                ? `No signal-decider rows are stored for ${displayedMarketDate}.`
-                : "Signal-decider market date is pending."}
+              {getSignalDeciderNoDataMessage({ marketDate: displayedMarketDate, status: summary.status })}
             </div>
           )}
         </section>
