@@ -27,6 +27,7 @@ import {
 } from "@/lib/execution-runtime";
 import {
   buildSignalDeciderFeedbackPath,
+  buildSignalDeciderLatestFeedbackPath,
   resolveSignalDeciderFeedbackResultLimit,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
 } from "@/lib/signal-decider-feedback";
@@ -119,6 +120,7 @@ export default async function DashboardPage() {
   let marketSnapshot: MarketSnapshotResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
+  let latestSignalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
   let portfolioSummary: PortfolioSummaryDto | null = null;
   let executionRuntimeStatus: ExecutionRuntimeStatusResponseDto | null = null;
   let executionRuntimeMonitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null = null;
@@ -238,16 +240,26 @@ export default async function DashboardPage() {
     ]);
 
     const signalDeciderMarketDate = getAgentFeedbackProgressMarketDate(freshness);
-    signalDeciderFeedback = signalDeciderMarketDate
-      ? await fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
-          buildSignalDeciderFeedbackPath({
-            basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
-            limit: resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgress),
-            marketDate: signalDeciderMarketDate,
-          }),
-          requestHeaders,
-        ).catch(() => null)
-      : null;
+    const signalDeciderResultLimit = resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgress);
+    [signalDeciderFeedback, latestSignalDeciderFeedback] = await Promise.all([
+      signalDeciderMarketDate
+        ? fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
+            buildSignalDeciderFeedbackPath({
+              basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+              limit: signalDeciderResultLimit,
+              marketDate: signalDeciderMarketDate,
+            }),
+            requestHeaders,
+          ).catch(() => null)
+        : Promise.resolve(null),
+      fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
+        buildSignalDeciderLatestFeedbackPath({
+          basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+          limit: signalDeciderResultLimit,
+        }),
+        requestHeaders,
+      ).catch(() => null),
+    ]);
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
     console.error("Dashboard server render failed", error);
@@ -269,6 +281,7 @@ export default async function DashboardPage() {
       initialMarketSnapshot={marketSnapshot}
       initialAgentFeedbackProgress={agentFeedbackProgress}
       initialSignalDeciderFeedback={signalDeciderFeedback}
+      initialLatestSignalDeciderFeedback={latestSignalDeciderFeedback}
       initialPortfolioSummary={portfolioSummary}
       initialExecutionRuntimeStatus={executionRuntimeStatus}
       initialExecutionRuntimeMonitoredSymbols={executionRuntimeMonitoredSymbols}

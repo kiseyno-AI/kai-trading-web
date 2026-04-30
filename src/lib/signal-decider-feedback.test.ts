@@ -10,9 +10,11 @@ import type {
 import {
   buildSignalDeciderFeedbackPath,
   buildSignalDeciderFeedbackSummary,
+  buildSignalDeciderLatestFeedbackPath,
   normalizeSignalDeciderFeedbackItems,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
+  selectSignalDeciderDashboardFeedback,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
   type SignalDeciderAction,
@@ -131,6 +133,38 @@ function buildFeedbackResponse(
     ],
     ...overrides,
   };
+}
+
+function buildFeedbackResponseForMarketDate(
+  marketDate: string,
+  options: {
+    items?: AgentFeedbackStoredItemDto[];
+  } = {},
+): AgentFeedbackListResponseDto {
+  const base = buildFeedbackResponse();
+  const items = (options.items ?? base.items).map((item) => ({
+    ...item,
+    market_date: marketDate,
+    feedback: item.feedback
+      ? {
+          ...item.feedback,
+          market_date: marketDate,
+        }
+      : item.feedback,
+  }));
+
+  return buildFeedbackResponse({
+    request: {
+      market_date: marketDate,
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: {
+      count: items.length,
+    },
+    items,
+  });
 }
 
 function buildStoredFeedbackItem({
@@ -420,6 +454,19 @@ test("builds signal-decider feedback paths with the full result window by defaul
   assert.equal(url.searchParams.get("limit"), String(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT));
 });
 
+test("builds latest signal-decider feedback paths without silently pinning a market date", () => {
+  const path = buildSignalDeciderLatestFeedbackPath({
+    basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+    limit: 50,
+  });
+  const url = new URL(`https://example.test${path}`);
+
+  assert.equal(url.pathname, SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH);
+  assert.equal(url.searchParams.get("agent_name"), "signal-decider");
+  assert.equal(url.searchParams.get("limit"), "50");
+  assert.equal(url.searchParams.has("market_date"), false);
+});
+
 test("sizes signal-decider feedback fetches from progress counts when available", () => {
   assert.equal(
     resolveSignalDeciderFeedbackResultLimit(
@@ -520,6 +567,225 @@ test("keeps signal-decider headline action counts independent from preview trunc
   assert.equal(model.completedCount, 105);
   assert.equal(model.requestedCount, 109);
   assert.equal(model.errorCount, 4);
+});
+
+test("selects latest completed dashboard recommendations while the current signal-decider cycle is running", () => {
+  const currentMarketDate = "2026-04-30";
+  const latestCompletedFeedback = buildFeedbackResponseForMarketDate("2026-04-29");
+  const currentFeedback = buildFeedbackResponseForMarketDate(currentMarketDate, { items: [] });
+  const runningProgress = buildProgress({
+    request: {
+      market_date: currentMarketDate,
+      symbols: null,
+      expected_agents: ["signal-decider"],
+    },
+    summary: {
+      ...buildProgress().summary,
+      run_status: "running",
+      run_table_status: "running",
+      is_live: true,
+      run_completed_at: null,
+      current_role: "signal-decider",
+      completed_roles: [],
+      remaining_roles: ["signal-decider"],
+      progress_percent: 20,
+    },
+    result: {
+      market_date: currentMarketDate,
+      roles: {
+        "signal-decider": {
+          requested_count: 2,
+          completed_count: 0,
+          error_count: 0,
+        },
+      },
+    },
+  });
+
+  const selection = selectSignalDeciderDashboardFeedback({
+    currentFeedback,
+    currentMarketDate,
+    latestCompletedFeedback,
+    progress: runningProgress,
+  });
+  const model = buildSignalDeciderFeedbackSummary({
+    currentMarketDate: selection.currentMarketDate,
+    feedback: selection.feedback,
+    isLatestCompletedFallback: selection.isLatestCompletedFallback,
+    marketDate: selection.feedback?.request.market_date ?? currentMarketDate,
+    progress: runningProgress,
+  });
+
+  assert.equal(selection.isLatestCompletedFallback, true);
+  assert.equal(model.status, "running");
+  assert.equal(model.marketDate, "2026-04-29");
+  assert.equal(model.currentMarketDate, currentMarketDate);
+  assert.equal(model.resultCount, 2);
+  assert.equal(model.requestedCount, null);
+  assert.equal(model.detailHref, "/dashboard/signal-decider-feedback?marketDate=2026-04-29");
+});
+
+test("keeps dashboard fallback rows scoped to the effective completed recommendation date", () => {
+  const currentMarketDate = "2026-04-30";
+  const currentFeedback = buildFeedbackResponseForMarketDate(currentMarketDate, { items: [] });
+  const currentPartialItem = buildFeedbackResponseForMarketDate(currentMarketDate).items[0];
+  const previousCompletedFeedback = buildFeedbackResponseForMarketDate("2026-04-29");
+  const mixedLatestFeedback = buildFeedbackResponse({
+    request: {
+      market_date: currentMarketDate,
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: {
+      count: 3,
+    },
+    items: [currentPartialItem, ...previousCompletedFeedback.items],
+  });
+  const runningProgress = buildProgress({
+    request: {
+      market_date: currentMarketDate,
+      symbols: null,
+      expected_agents: ["signal-decider"],
+    },
+    summary: {
+      ...buildProgress().summary,
+      run_status: "running",
+      run_table_status: "running",
+      is_live: true,
+      run_completed_at: null,
+      current_role: "signal-decider",
+      completed_roles: [],
+      remaining_roles: ["signal-decider"],
+    },
+    result: {
+      market_date: currentMarketDate,
+      roles: {
+        "signal-decider": {
+          requested_count: 3,
+          completed_count: 0,
+          error_count: 0,
+        },
+      },
+    },
+  });
+
+  const selection = selectSignalDeciderDashboardFeedback({
+    currentFeedback,
+    currentMarketDate,
+    latestCompletedFeedback: mixedLatestFeedback,
+    progress: runningProgress,
+  });
+  const model = buildSignalDeciderFeedbackSummary({
+    currentMarketDate: selection.currentMarketDate,
+    feedback: selection.feedback,
+    isLatestCompletedFallback: selection.isLatestCompletedFallback,
+    marketDate: selection.feedback?.request.market_date ?? currentMarketDate,
+    progress: runningProgress,
+  });
+
+  assert.equal(selection.isLatestCompletedFallback, true);
+  assert.equal(selection.feedback?.request.market_date, "2026-04-29");
+  assert.equal(selection.feedback?.items.every((item) => item.market_date === "2026-04-29"), true);
+  assert.equal(model.marketDate, "2026-04-29");
+  assert.equal(model.resultCount, 2);
+});
+
+test("promotes dashboard recommendations to the current date once current signal-decider rows complete", () => {
+  const currentMarketDate = "2026-04-30";
+  const currentFeedback = buildFeedbackResponseForMarketDate(currentMarketDate);
+  const latestCompletedFeedback = buildFeedbackResponseForMarketDate("2026-04-29");
+  const completedProgress = buildProgress({
+    request: {
+      market_date: currentMarketDate,
+      symbols: null,
+      expected_agents: ["signal-decider"],
+    },
+    result: {
+      market_date: currentMarketDate,
+      roles: {
+        "signal-decider": {
+          requested_count: 2,
+          completed_count: 2,
+          error_count: 0,
+        },
+      },
+    },
+  });
+
+  const selection = selectSignalDeciderDashboardFeedback({
+    currentFeedback,
+    currentMarketDate,
+    latestCompletedFeedback,
+    progress: completedProgress,
+  });
+  const model = buildSignalDeciderFeedbackSummary({
+    currentMarketDate: selection.currentMarketDate,
+    feedback: selection.feedback,
+    isLatestCompletedFallback: selection.isLatestCompletedFallback,
+    marketDate: selection.feedback?.request.market_date ?? currentMarketDate,
+    progress: completedProgress,
+  });
+
+  assert.equal(selection.isLatestCompletedFallback, false);
+  assert.equal(model.status, "completed");
+  assert.equal(model.marketDate, currentMarketDate);
+  assert.equal(model.currentMarketDate, currentMarketDate);
+  assert.equal(model.resultCount, 2);
+  assert.equal(model.requestedCount, 2);
+});
+
+test("keeps the current dashboard cycle empty when no completed signal-decider fallback exists", () => {
+  const currentMarketDate = "2026-04-30";
+  const currentFeedback = buildFeedbackResponseForMarketDate(currentMarketDate, { items: [] });
+  const latestCompletedFeedback = buildFeedbackResponseForMarketDate("2026-04-29", { items: [] });
+  const runningProgress = buildProgress({
+    request: {
+      market_date: currentMarketDate,
+      symbols: null,
+      expected_agents: ["signal-decider"],
+    },
+    summary: {
+      ...buildProgress().summary,
+      run_status: "running",
+      run_table_status: "running",
+      is_live: true,
+      run_completed_at: null,
+      current_role: "signal-decider",
+      remaining_roles: ["signal-decider"],
+      progress_percent: 10,
+    },
+    result: {
+      market_date: currentMarketDate,
+      roles: {
+        "signal-decider": {
+          requested_count: 2,
+          completed_count: 0,
+          error_count: 0,
+        },
+      },
+    },
+  });
+
+  const selection = selectSignalDeciderDashboardFeedback({
+    currentFeedback,
+    currentMarketDate,
+    latestCompletedFeedback,
+    progress: runningProgress,
+  });
+  const model = buildSignalDeciderFeedbackSummary({
+    currentMarketDate: selection.currentMarketDate,
+    feedback: selection.feedback,
+    isLatestCompletedFallback: selection.isLatestCompletedFallback,
+    marketDate: selection.feedback?.request.market_date ?? currentMarketDate,
+    progress: runningProgress,
+  });
+
+  assert.equal(selection.isLatestCompletedFallback, false);
+  assert.equal(model.status, "running");
+  assert.equal(model.marketDate, currentMarketDate);
+  assert.equal(model.currentMarketDate, currentMarketDate);
+  assert.equal(model.resultCount, 0);
 });
 
 test("caches same-date dashboard feedback for clicked-through review surfaces", () => {

@@ -69,6 +69,7 @@ export type LiveDashboardClientProps = {
   initialMarketSnapshot: MarketSnapshotResponseDto | null;
   initialAgentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
   initialSignalDeciderFeedback: AgentFeedbackListResponseDto | null;
+  initialLatestSignalDeciderFeedback?: AgentFeedbackListResponseDto | null;
   initialPortfolioSummary: PortfolioSummaryDto | null;
   initialExecutionRuntimeStatus: ExecutionRuntimeStatusResponseDto | null;
   initialExecutionRuntimeMonitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null;
