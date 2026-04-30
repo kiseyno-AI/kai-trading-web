@@ -19,6 +19,7 @@ import {
   buildEodPipelineStatusPath,
   EOD_PIPELINE_STATUS_UPSTREAM_PATH,
 } from "@/lib/eod-pipeline-status";
+import { getLatestActionMarketDate } from "@/lib/eod-freshness-latest";
 import {
   buildExecutionRuntimeMarketDatePath,
   EXECUTION_RUNTIME_DAILY_BOARD_UPSTREAM_PATH,
@@ -29,6 +30,7 @@ import {
   buildSignalDeciderFeedbackPath,
   buildSignalDeciderLatestFeedbackPath,
   resolveSignalDeciderFeedbackResultLimit,
+  resolveSignalDeciderLatestFeedbackMarketDate,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
 } from "@/lib/signal-decider-feedback";
 import { fetchServerTradingApiJson } from "@/lib/trading-upstream";
@@ -241,6 +243,22 @@ export default async function DashboardPage() {
 
     const signalDeciderMarketDate = getAgentFeedbackProgressMarketDate(freshness);
     const signalDeciderResultLimit = resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgress);
+    const latestSignalDeciderCompletedMarketDate =
+      latestCompletedPipelineMarketDate ?? getLatestActionMarketDate(freshness);
+    const latestSignalDeciderFeedbackMarketDate = resolveSignalDeciderLatestFeedbackMarketDate({
+      currentMarketDate: executionRuntimeMarketDate,
+      latestCompletedMarketDate: latestSignalDeciderCompletedMarketDate,
+      progressMarketDate: signalDeciderMarketDate,
+      resolvedProcessMarketDate: resolvedDashboardProcessMarketDate,
+    });
+    const latestSignalDeciderFeedbackPath =
+      latestSignalDeciderFeedbackMarketDate && latestSignalDeciderFeedbackMarketDate !== signalDeciderMarketDate
+        ? buildSignalDeciderLatestFeedbackPath({
+            basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+            limit: signalDeciderResultLimit,
+            marketDate: latestSignalDeciderFeedbackMarketDate,
+          })
+        : null;
     [signalDeciderFeedback, latestSignalDeciderFeedback] = await Promise.all([
       signalDeciderMarketDate
         ? fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
@@ -252,13 +270,12 @@ export default async function DashboardPage() {
             requestHeaders,
           ).catch(() => null)
         : Promise.resolve(null),
-      fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
-        buildSignalDeciderLatestFeedbackPath({
-          basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
-          limit: signalDeciderResultLimit,
-        }),
-        requestHeaders,
-      ).catch(() => null),
+      latestSignalDeciderFeedbackPath
+        ? fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
+            latestSignalDeciderFeedbackPath,
+            requestHeaders,
+          ).catch(() => null)
+        : Promise.resolve(null),
     ]);
   } catch (error) {
     initialError = error instanceof Error ? error.message : "Unknown dashboard load failure";
