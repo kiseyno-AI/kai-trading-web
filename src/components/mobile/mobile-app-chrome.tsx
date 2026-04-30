@@ -98,7 +98,7 @@ export function MobileAppChrome({
   const bottomMeta = null;
   const desktopRailFooter = <MobileAppChromeDesktopRailFooter />;
   const toolbarTitle = chrome.title ?? resolvedMetadata?.title;
-  const toolbarAction = resolvedMetadata?.toolbarAction === "none" ? "none" : (chrome.toolbarAction ?? resolvedMetadata?.toolbarAction);
+  const toolbarAction = chrome.toolbarAction ?? resolvedMetadata?.toolbarAction ?? "none";
   const toolbarStatus = chrome.status ? (
     <DashboardToolbarStatus tone={chrome.status.tone}>{chrome.status.label}</DashboardToolbarStatus>
   ) : null;

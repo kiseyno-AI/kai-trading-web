@@ -5,7 +5,7 @@ import { messages } from "@/i18n/messages";
 
 import { resolveMobileAppChromeMetadata } from "./mobile-app-chrome-route-metadata";
 
-test("non-dashboard full-screen routes inherit no dev-mode control by default", () => {
+test("search route is configured to expose dev-mode controls from shared metadata", () => {
   const metadata = resolveMobileAppChromeMetadata({
     pathname: "/search",
     activeNav: "search",
@@ -13,10 +13,40 @@ test("non-dashboard full-screen routes inherit no dev-mode control by default", 
   });
 
   assert.equal(metadata.title, "Search Workspace");
+  assert.equal(metadata.toolbarAction, "dev-mode");
+});
+
+test("my-symbols route keeps shared dev-mode toolbar controls", () => {
+  const metadata = resolveMobileAppChromeMetadata({
+    pathname: "/my-symbols",
+    activeNav: "symbols",
+    t: messages.en,
+  });
+
+  assert.equal(metadata.toolbarAction, "dev-mode");
+});
+
+test("non-dashboard unmatched routes inherit no dev-mode control by default", () => {
+  const metadata = resolveMobileAppChromeMetadata({
+    pathname: "/portfolio-details",
+    activeNav: null,
+    t: messages.en,
+  });
+
   assert.equal(metadata.toolbarAction, "none");
 });
 
-test("calendar full-screen route title and toolbar action come from shared metadata", () => {
+test("portfolio route keeps shared dev-mode toolbar controls", () => {
+  const metadata = resolveMobileAppChromeMetadata({
+    pathname: "/portfolio",
+    activeNav: "portfolio",
+    t: messages.en,
+  });
+
+  assert.equal(metadata.toolbarAction, "dev-mode");
+});
+
+test("calendar full-screen routes resolve explicit no-dev-mode title and toolbar action", () => {
   const metadata = resolveMobileAppChromeMetadata({
     pathname: "/calendar",
     activeNav: "calendar",

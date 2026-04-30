@@ -13,6 +13,9 @@ type RoutePathMetadata = {
   title: (t: MessageTree) => string;
 };
 
+const DEFAULT_DASHBOARD_TOOLBAR_ACTION: MobileAppChromeRouteMetadata["toolbarAction"] = "dev-mode";
+const DEFAULT_NON_DASHBOARD_TOOLBAR_ACTION: MobileAppChromeRouteMetadata["toolbarAction"] = "none";
+
 function normalizePathname(pathname: string | null) {
   if (!pathname) return "/";
   return pathname.replace(/\/+$/, "") || "/";
@@ -34,6 +37,13 @@ const NAV_BASED_TITLES: Partial<Record<FullPageChromeRouteKey, (t: MessageTree) 
   calendar: (t) => t.routes.calendar.title,
 };
 
+const NAV_BASED_TOOLBAR_ACTIONS: Partial<Record<FullPageChromeRouteKey, MobileAppChromeRouteMetadata["toolbarAction"]>> = {
+  dashboard: "dev-mode",
+  search: "dev-mode",
+  symbols: "dev-mode",
+  portfolio: "dev-mode",
+};
+
 export function resolveMobileAppChromeMetadata({
   pathname,
   activeNav,
@@ -53,14 +63,15 @@ export function resolveMobileAppChromeMetadata({
   }
 
   const titleResolver = activeNav ? NAV_BASED_TITLES[activeNav] : null;
+  const toolbarAction = activeNav ? NAV_BASED_TOOLBAR_ACTIONS[activeNav] : null;
   if (!titleResolver) {
     return {
-      toolbarAction: normalizedPath.startsWith("/dashboard") ? "dev-mode" : "none",
+      toolbarAction: normalizedPath.startsWith("/dashboard") ? DEFAULT_DASHBOARD_TOOLBAR_ACTION : DEFAULT_NON_DASHBOARD_TOOLBAR_ACTION,
     };
   }
 
   return {
     title: titleResolver(t),
-    toolbarAction: normalizedPath.startsWith("/dashboard") ? "dev-mode" : "none",
+    toolbarAction: toolbarAction ?? (normalizedPath.startsWith("/dashboard") ? DEFAULT_DASHBOARD_TOOLBAR_ACTION : DEFAULT_NON_DASHBOARD_TOOLBAR_ACTION),
   };
 }

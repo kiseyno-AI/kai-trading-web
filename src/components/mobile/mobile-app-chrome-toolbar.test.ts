@@ -152,3 +152,10 @@ test("legacy page-local toolbar selectors stay out of route chrome styles", () =
 
   assert.deepEqual(offenders, []);
 });
+
+test("explicit route chrome toolbarAction can override shared metadata defaults", () => {
+  const source = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
+
+  assert.match(source, /chrome\.toolbarAction \?\? resolvedMetadata\?\.toolbarAction \?\? "none"/);
+  assert.doesNotMatch(source, /resolvedMetadata\?\.toolbarAction === "none"/);
+});
