@@ -290,6 +290,10 @@ test("avoids immediate duplicated signal-decider feedback loads on hydrated dash
   );
   assert.match(
     source,
-    /if \(shouldSkipSignalDeciderFeedbackInitialLoad\) {\s*scheduleNextLoad\(false\);/s,
+    /if \(shouldSkipSignalDeciderFeedbackInitialLoad\) {\s*[\s\S]*?scheduleNextLoad\(false\);/s,
+  );
+  assert.match(
+    source,
+    /if \(shouldSkipSignalDeciderFeedbackInitialLoad\) {\s*initialSignalDeciderFeedbackMarketDateRef\.current = null;/s,
   );
 });

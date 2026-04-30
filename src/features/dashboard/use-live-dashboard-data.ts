@@ -1219,6 +1219,7 @@ export function useLiveDashboardData({
     }
 
     if (shouldSkipSignalDeciderFeedbackInitialLoad) {
+      initialSignalDeciderFeedbackMarketDateRef.current = null;
       scheduleNextLoad(false);
       return () => {
         active = false;
