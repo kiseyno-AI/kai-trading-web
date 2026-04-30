@@ -2284,23 +2284,21 @@ export function LiveDashboardClient({
               numberLocale={numberLocale}
             />
 
-            <div className={styles.primaryInsightSideRail}>
-              <PortfolioStateCard
-                copy={copy}
-                error={portfolioSummaryError}
-                loadState={portfolioSummaryLoadState}
-                numberLocale={numberLocale}
-                summary={portfolioSummary}
-              />
+            <PortfolioStateCard
+              copy={copy}
+              error={portfolioSummaryError}
+              loadState={portfolioSummaryLoadState}
+              numberLocale={numberLocale}
+              summary={portfolioSummary}
+            />
 
-              <MarketOverviewCard
-                copy={copy}
-                marketStatus={market}
-                marketSnapshot={marketSnapshot}
-                marketSnapshotError={marketSnapshotError}
-                numberLocale={numberLocale}
-              />
-            </div>
+            <MarketOverviewCard
+              copy={copy}
+              marketStatus={market}
+              marketSnapshot={marketSnapshot}
+              marketSnapshotError={marketSnapshotError}
+              numberLocale={numberLocale}
+            />
           </div>
 
           <ExecutionRuntimePanel

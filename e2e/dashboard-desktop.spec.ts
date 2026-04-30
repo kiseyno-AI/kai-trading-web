@@ -64,6 +64,23 @@ async function openEodStatusCard(page: Page) {
   return eodStatusCard;
 }
 
+function getPrimaryInsightCard(page: Page, headingName: RegExp) {
+  return page.locator("#dashboard-freshness article").filter({
+    has: page.getByRole("heading", { name: headingName }),
+  });
+}
+
+async function getRequiredBox(locator: Locator, label: string) {
+  const box = await locator.boundingBox();
+  expect(box, `Expected ${label} to have a layout box`).not.toBeNull();
+
+  if (!box) {
+    throw new Error(`Expected ${label} to have a layout box.`);
+  }
+
+  return box;
+}
+
 test.describe("dashboard desktop", () => {
   test("dashboard labels match currently wired core data", async ({ page }) => {
     await page.route("**/api/trading/market/snapshot", async (route) => {
@@ -159,6 +176,31 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Top movers/i)).toHaveCount(0);
     await expect(page.getByText(/Connection and timing/i)).toHaveCount(0);
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
+  });
+
+  test("primary insight cards rebalance the desktop grid without a stacked right rail", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.goto("/dashboard");
+
+    const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
+    const portfolioCard = getPrimaryInsightCard(page, /Portfolio state/i);
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+
+    await expect(signalCard).toBeVisible();
+    await expect(portfolioCard).toBeVisible();
+    await expect(marketCard).toBeVisible();
+
+    const [signalBox, portfolioBox, marketBox] = await Promise.all([
+      getRequiredBox(signalCard, "signal card"),
+      getRequiredBox(portfolioCard, "portfolio card"),
+      getRequiredBox(marketCard, "market card"),
+    ]);
+
+    expect(portfolioBox.x).toBeGreaterThan(signalBox.x + signalBox.width - 24);
+    expect(Math.abs(marketBox.x - signalBox.x)).toBeLessThan(24);
+    expect(Math.abs(marketBox.width - signalBox.width)).toBeLessThan(24);
+    expect(marketBox.y).toBeGreaterThan(signalBox.y + signalBox.height - 1);
+    expect(marketBox.x).toBeLessThan(portfolioBox.x - 24);
   });
 
   test("market condition card recovers after a temporary snapshot outage", async ({ page }) => {
