@@ -28,6 +28,7 @@ import {
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
   buildSignalDeciderFeedbackPath,
+  buildSignalDeciderLatestFeedbackPath,
   resolveSignalDeciderFeedbackResultLimit,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
 } from "@/lib/signal-decider-feedback";
@@ -201,6 +202,7 @@ export function useLiveDashboardData({
   initialMarketSnapshot,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
+  initialLatestSignalDeciderFeedback = null,
   initialPortfolioSummary,
   initialExecutionRuntimeStatus,
   initialExecutionRuntimeMonitoredSymbols,
@@ -242,6 +244,8 @@ export function useLiveDashboardData({
   const [signalDeciderFeedback, setSignalDeciderFeedback] = useState<AgentFeedbackListResponseDto | null>(
     initialSignalDeciderFeedback,
   );
+  const [latestSignalDeciderFeedback, setLatestSignalDeciderFeedback] =
+    useState<AgentFeedbackListResponseDto | null>(initialLatestSignalDeciderFeedback);
   const [signalDeciderFeedbackError, setSignalDeciderFeedbackError] = useState<string | null>(null);
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummaryDto | null>(initialPortfolioSummary);
   const [portfolioSummaryError, setPortfolioSummaryError] = useState<string | null>(null);
@@ -1085,6 +1089,32 @@ export function useLiveDashboardData({
     };
   }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
 
+  useEffect(() => {
+    let active = true;
+    const latestFeedbackPath = buildSignalDeciderLatestFeedbackPath({
+      basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+      limit: resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgressRef.current),
+    });
+
+    const loadLatestSignalDeciderFeedback = async () => {
+      try {
+        const data = await getJsonNoCache<AgentFeedbackListResponseDto>(latestFeedbackPath);
+        if (!active) return;
+        setLatestSignalDeciderFeedback(data);
+      } catch (feedbackError) {
+        console.error("Dashboard latest signal decider feedback load failed", feedbackError);
+        if (!active) return;
+        setLatestSignalDeciderFeedback((current) => current);
+      }
+    };
+
+    void loadLatestSignalDeciderFeedback();
+
+    return () => {
+      active = false;
+    };
+  }, [signalDeciderFeedbackRefreshKey]);
+
   return {
     agentFeedbackProgress,
     agentFeedbackProgressError,
@@ -1122,6 +1152,7 @@ export function useLiveDashboardData({
       agentProgressMarketDate && signalDeciderFeedback?.request?.market_date === agentProgressMarketDate
         ? signalDeciderFeedback
         : null,
+    latestSignalDeciderFeedback,
     signalDeciderFeedbackError: agentProgressMarketDate ? signalDeciderFeedbackError : null,
     tracked,
     trackedError,

@@ -55,6 +55,7 @@ Client loading:
 - `GET /api/trading/eod/freshness` when the route is opened without `marketDate`
 - `GET /api/trading/agent-context/feedback?market_date={marketDate}&agent_name=signal-decider&limit=200`
 - `GET /api/trading/agent-context/feedback/progress?market_date={marketDate}` as a best-effort status overlay
+- Dashboard card only: `GET /api/trading/agent-context/feedback?agent_name=signal-decider&limit={progress-sized full-result window}` as the latest-completed recommendation fallback while the active process date is still running or empty
 
 UI surfaces and fields:
 - Dashboard card: result count from stored rows/progress counts, market date, action mix from the full fetched signal-decider result window, compact preview rows, and link to the detail page.
@@ -64,6 +65,7 @@ UI surfaces and fields:
 
 Important behavior:
 - The route uses the generic stored feedback read filtered to `agent_name=signal-decider`; there is no signal-decider-specific read endpoint yet.
+- The dashboard card may show an older latest-completed signal-decider row set while the active process date is still running. In that state the card labels the recommendation market date separately from the current cycle date/status, and its detail link points to the effective recommendation date. Explicit date-selected detail and calendar reads stay pinned to the requested date.
 - Dedicated Core decision list/detail/diagnostics/policy APIs from `kai-trading-core#234` and `#235` are still a dependency for guaranteed realized-result, missed-opportunity, bad-buy, and policy-version coverage. This page displays those fields when they are already stored on feedback rows, but it does not infer them from unrelated market data.
 - If Core omits `result.roles["signal-decider"]`, the UI does not infer completion from payload shape. It shows the available stored rows and falls back to conservative waiting/completed status copy.
 - This is a decision-support inspection surface only and does not create orders.

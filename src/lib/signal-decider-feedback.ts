@@ -100,8 +100,10 @@ export type SignalDeciderFeedbackItem = {
 export type SignalDeciderFeedbackSummaryModel = {
   actionCounts: Record<SignalDeciderAction, number>;
   completedCount: number | null;
+  currentMarketDate: string | null;
   detailHref: string;
   errorCount: number | null;
+  isLatestCompletedFallback: boolean;
   items: SignalDeciderFeedbackItem[];
   marketDate: string | null;
   previewItems: SignalDeciderFeedbackItem[];
@@ -115,6 +117,12 @@ type SignalDeciderRoleSnapshot = {
   requestedCount: number | null;
   completedCount: number | null;
   errorCount: number | null;
+};
+
+export type SignalDeciderDashboardFeedbackSelection = {
+  currentMarketDate: string | null;
+  feedback: AgentFeedbackListResponseDto | null;
+  isLatestCompletedFallback: boolean;
 };
 
 function hasTextValue(value: string | null | undefined): value is string {
@@ -789,6 +797,20 @@ export function buildSignalDeciderFeedbackPath({
   return `${basePath}?${params.toString()}`;
 }
 
+export function buildSignalDeciderLatestFeedbackPath({
+  basePath,
+  limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+}: {
+  basePath: string;
+  limit?: number | null;
+}) {
+  const params = new URLSearchParams({
+    agent_name: SIGNAL_DECIDER_AGENT_NAME,
+    limit: String(limit ?? SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT),
+  });
+  return `${basePath}?${params.toString()}`;
+}
+
 export function buildSignalDeciderFeedbackHref(marketDate: string | null | undefined) {
   if (!hasTextValue(marketDate)) return "/dashboard/signal-decider-feedback";
   const params = new URLSearchParams({ marketDate: marketDate.trim() });
@@ -1080,24 +1102,166 @@ export function resolveSignalDeciderFeedbackStatus({
   return "waiting";
 }
 
-export function buildSignalDeciderFeedbackSummary({
+function getSignalDeciderFeedbackResponseMarketDate(
+  feedback: AgentFeedbackListResponseDto | null | undefined,
+) {
+  return (
+    normalizeMarketDate(feedback?.request?.market_date) ??
+    normalizeMarketDate(feedback?.items?.[0]?.market_date) ??
+    null
+  );
+}
+
+function getSignalDeciderStoredItemMarketDate(item: AgentFeedbackStoredItemDto) {
+  return normalizeMarketDate(item.market_date) ?? normalizeMarketDate(item.feedback?.market_date) ?? null;
+}
+
+function hasSignalDeciderFeedbackRows(feedback: AgentFeedbackListResponseDto | null | undefined) {
+  return normalizeSignalDeciderFeedbackItems(feedback).length > 0;
+}
+
+function cloneSignalDeciderFeedbackForMarketDate(
+  feedback: AgentFeedbackListResponseDto | null | undefined,
+  marketDate: string,
+): AgentFeedbackListResponseDto | null {
+  if (!feedback) return null;
+  const items = (feedback.items ?? []).filter((item) => getSignalDeciderStoredItemMarketDate(item) === marketDate);
+  if (items.length <= 0) return null;
+
+  return {
+    ...feedback,
+    request: {
+      ...feedback.request,
+      market_date: marketDate,
+    },
+    summary: {
+      ...feedback.summary,
+      count: items.length,
+    },
+    items,
+  };
+}
+
+function selectLatestCompletedSignalDeciderFeedback(
+  feedback: AgentFeedbackListResponseDto | null | undefined,
+  currentMarketDate: string | null,
+) {
+  if (!feedback) return null;
+
+  const candidateDates = new Set<string>();
+  const responseMarketDate = getSignalDeciderFeedbackResponseMarketDate(feedback);
+  if (responseMarketDate) candidateDates.add(responseMarketDate);
+  for (const item of feedback.items ?? []) {
+    const itemMarketDate = getSignalDeciderStoredItemMarketDate(item);
+    if (itemMarketDate) candidateDates.add(itemMarketDate);
+  }
+
+  const sortedDates = [...candidateDates].sort((left, right) => right.localeCompare(left));
+  for (const marketDate of sortedDates) {
+    if (marketDate === currentMarketDate) continue;
+    const marketDateFeedback = cloneSignalDeciderFeedbackForMarketDate(feedback, marketDate);
+    if (hasSignalDeciderFeedbackRows(marketDateFeedback)) return marketDateFeedback;
+  }
+
+  return null;
+}
+
+function isCurrentSignalDeciderFeedbackComplete({
+  currentMarketDate,
   feedback,
+  progress,
+}: {
+  currentMarketDate: string | null;
+  feedback: AgentFeedbackListResponseDto | null | undefined;
+  progress: AgentFeedbackProgressResponseDto | null | undefined;
+}) {
+  const feedbackMarketDate = getSignalDeciderFeedbackResponseMarketDate(feedback);
+  if (!currentMarketDate || feedbackMarketDate !== currentMarketDate || !hasSignalDeciderFeedbackRows(feedback)) {
+    return false;
+  }
+
+  const status = resolveSignalDeciderFeedbackStatus({ feedback, progress });
+  return status === "completed" || status === "needs-review";
+}
+
+export function selectSignalDeciderDashboardFeedback({
+  currentFeedback,
+  currentMarketDate,
+  latestCompletedFeedback,
+  progress,
+}: {
+  currentFeedback: AgentFeedbackListResponseDto | null | undefined;
+  currentMarketDate: string | null | undefined;
+  latestCompletedFeedback: AgentFeedbackListResponseDto | null | undefined;
+  progress: AgentFeedbackProgressResponseDto | null | undefined;
+}): SignalDeciderDashboardFeedbackSelection {
+  const normalizedCurrentMarketDate =
+    normalizeMarketDate(currentMarketDate) ?? normalizeMarketDate(progress?.request?.market_date);
+  const currentFeedbackMarketDate = getSignalDeciderFeedbackResponseMarketDate(currentFeedback);
+  const currentDateFeedback =
+    normalizedCurrentMarketDate && currentFeedbackMarketDate === normalizedCurrentMarketDate
+      ? (currentFeedback ?? null)
+      : null;
+
+  if (
+    isCurrentSignalDeciderFeedbackComplete({
+      currentMarketDate: normalizedCurrentMarketDate,
+      feedback: currentDateFeedback,
+      progress,
+    })
+  ) {
+    return {
+      currentMarketDate: normalizedCurrentMarketDate,
+      feedback: currentDateFeedback,
+      isLatestCompletedFallback: false,
+    };
+  }
+
+  const latestCompletedDateFeedback = selectLatestCompletedSignalDeciderFeedback(
+    latestCompletedFeedback,
+    normalizedCurrentMarketDate,
+  );
+  if (latestCompletedDateFeedback) {
+    return {
+      currentMarketDate: normalizedCurrentMarketDate,
+      feedback: latestCompletedDateFeedback,
+      isLatestCompletedFallback: true,
+    };
+  }
+
+  return {
+    currentMarketDate: normalizedCurrentMarketDate,
+    feedback: currentDateFeedback,
+    isLatestCompletedFallback: false,
+  };
+}
+
+export function buildSignalDeciderFeedbackSummary({
+  currentMarketDate,
+  feedback,
+  isLatestCompletedFallback = false,
   marketDate,
   previewLimit = 3,
   progress,
+  statusOverride,
 }: {
+  currentMarketDate?: string | null | undefined;
   feedback: AgentFeedbackListResponseDto | null | undefined;
+  isLatestCompletedFallback?: boolean;
   marketDate: string | null | undefined;
   previewLimit?: number;
   progress: AgentFeedbackProgressResponseDto | null | undefined;
+  statusOverride?: SignalDeciderFeedbackStatus;
 }): SignalDeciderFeedbackSummaryModel {
   const items = normalizeSignalDeciderFeedbackItems(feedback);
-  const roleSnapshot = getSignalDeciderRoleSnapshot(progress);
-  const status = resolveSignalDeciderFeedbackStatus({ feedback, progress });
+  const roleSnapshot = isLatestCompletedFallback ? null : getSignalDeciderRoleSnapshot(progress);
+  const status = statusOverride ?? resolveSignalDeciderFeedbackStatus({ feedback, progress });
   const resolvedMarketDate =
     normalizeMarketDate(feedback?.request?.market_date) ??
     normalizeMarketDate(progress?.request?.market_date) ??
     normalizeMarketDate(marketDate);
+  const resolvedCurrentMarketDate =
+    normalizeMarketDate(currentMarketDate) ?? normalizeMarketDate(progress?.request?.market_date) ?? null;
   const actionCounts = items.reduce<Record<SignalDeciderAction, number>>(
     (counts, item) => {
       counts[item.action] += 1;
@@ -1109,8 +1273,10 @@ export function buildSignalDeciderFeedbackSummary({
   return {
     actionCounts,
     completedCount: roleSnapshot?.completedCount ?? null,
+    currentMarketDate: resolvedCurrentMarketDate,
     detailHref: buildSignalDeciderFeedbackHref(resolvedMarketDate),
     errorCount: roleSnapshot?.errorCount ?? null,
+    isLatestCompletedFallback,
     items,
     marketDate: resolvedMarketDate,
     previewItems: items.slice(0, previewLimit),

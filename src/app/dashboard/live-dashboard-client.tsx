@@ -22,6 +22,7 @@ import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
 import {
   buildSignalDeciderFeedbackSummary,
   formatSignalDeciderActionLabel,
+  selectSignalDeciderDashboardFeedback,
   type SignalDeciderFeedbackStatus,
   type SignalDeciderFeedbackSummaryModel,
 } from "@/lib/signal-decider-feedback";
@@ -833,6 +834,19 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
         </div>
       </div>
 
+      {model.isLatestCompletedFallback ? (
+        <p className={styles.cardContext}>
+          {copy.signalDecider.latestCompleted}: <strong>{model.marketDate ?? UNKNOWN_LABEL}</strong>
+          {model.currentMarketDate ? (
+            <>
+              {" · "}
+              {copy.signalDecider.currentCycle}: <strong>{model.currentMarketDate}</strong>{" "}
+              {copy.signalDecider.currentCycleRole} {statusLabel.toLowerCase()}
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
       {error ? <p className={styles.cardContext}>{copy.signalDecider.unavailable} {error}</p> : null}
 
       {model.previewItems.length > 0 ? (
@@ -1484,6 +1498,7 @@ export function LiveDashboardClient({
   initialMarketSnapshot,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
+  initialLatestSignalDeciderFeedback,
   initialPortfolioSummary,
   initialExecutionRuntimeStatus,
   initialExecutionRuntimeMonitoredSymbols,
@@ -1507,6 +1522,7 @@ export function LiveDashboardClient({
     executionRuntimeStatusError,
     freshness,
     fundamentalsStatus,
+    latestSignalDeciderFeedback,
     market,
     marketSnapshot,
     marketSnapshotError,
@@ -1547,6 +1563,7 @@ export function LiveDashboardClient({
     initialScoringValueFactors,
     initialTracked,
     initialSignalDeciderFeedback,
+    initialLatestSignalDeciderFeedback,
     initialPortfolioSummary,
     initialExecutionRuntimeStatus,
     initialExecutionRuntimeMonitoredSymbols,
@@ -1834,6 +1851,7 @@ export function LiveDashboardClient({
     copy,
   );
   const rawAgentProgressDate = displayedAgentFeedbackProgress?.request?.market_date ?? agentProgressMarketDate;
+  const currentSignalDeciderMarketDate = executionRuntimeMarketDate ?? rawAgentProgressDate;
   const agentProgressDateContext = getExceptionDateLabel(rawAgentProgressDate, primaryLatestCycleDate);
   const baseAgentRoleCards = useMemo(
     () => buildAgentRoleCards(displayedAgentFeedbackProgress, copy, numberLocale),
@@ -1976,25 +1994,63 @@ export function LiveDashboardClient({
           : agentProgressRunStatus === "stalled"
             ? "warning"
             : "neutral";
+  const signalDeciderFeedbackSelection = useMemo(
+    () =>
+      selectSignalDeciderDashboardFeedback({
+        currentFeedback: signalDeciderFeedback,
+        currentMarketDate: currentSignalDeciderMarketDate,
+        latestCompletedFeedback: latestSignalDeciderFeedback,
+        progress: waitForAgentFeedback ? null : displayedAgentFeedbackProgress,
+      }),
+    [
+      currentSignalDeciderMarketDate,
+      displayedAgentFeedbackProgress,
+      latestSignalDeciderFeedback,
+      signalDeciderFeedback,
+      waitForAgentFeedback,
+    ],
+  );
   const signalDeciderFeedbackModel = useMemo(
     () =>
       buildSignalDeciderFeedbackSummary({
-        feedback: waitForAgentFeedback ? null : signalDeciderFeedback,
-        marketDate: rawAgentProgressDate,
+        currentMarketDate: signalDeciderFeedbackSelection.currentMarketDate,
+        feedback: signalDeciderFeedbackSelection.feedback,
+        isLatestCompletedFallback: signalDeciderFeedbackSelection.isLatestCompletedFallback,
+        marketDate:
+          signalDeciderFeedbackSelection.feedback?.request?.market_date ??
+          currentSignalDeciderMarketDate ??
+          rawAgentProgressDate,
         progress: waitForAgentFeedback ? null : displayedAgentFeedbackProgress,
+        statusOverride: waitForAgentFeedback ? "running" : undefined,
       }),
-    [displayedAgentFeedbackProgress, rawAgentProgressDate, signalDeciderFeedback, waitForAgentFeedback],
+    [
+      displayedAgentFeedbackProgress,
+      currentSignalDeciderMarketDate,
+      rawAgentProgressDate,
+      signalDeciderFeedbackSelection,
+      waitForAgentFeedback,
+    ],
   );
   useEffect(() => {
-    if (waitForAgentFeedback || !signalDeciderFeedback || signalDeciderFeedbackModel.resultCount <= 0) return;
+    if (
+      !signalDeciderFeedbackSelection.feedback ||
+      signalDeciderFeedbackModel.resultCount <= 0
+    ) {
+      return;
+    }
 
     writeSignalDeciderFeedbackCache({
-      feedback: signalDeciderFeedback,
+      feedback: signalDeciderFeedbackSelection.feedback,
       marketDate: signalDeciderFeedbackModel.marketDate,
-      progress: displayedAgentFeedbackProgress,
+      progress: signalDeciderFeedbackSelection.isLatestCompletedFallback ? null : displayedAgentFeedbackProgress,
       source: "dashboard",
     });
-  }, [displayedAgentFeedbackProgress, signalDeciderFeedback, signalDeciderFeedbackModel, waitForAgentFeedback]);
+  }, [
+    displayedAgentFeedbackProgress,
+    signalDeciderFeedbackModel,
+    signalDeciderFeedbackSelection.feedback,
+    signalDeciderFeedbackSelection.isLatestCompletedFallback,
+  ]);
   const displayedSignalDeciderFeedbackError = waitForAgentFeedback ? null : signalDeciderFeedbackError;
   const processMonitorModel = useMemo(
     () =>
