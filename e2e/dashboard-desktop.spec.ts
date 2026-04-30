@@ -118,14 +118,8 @@ test.describe("dashboard desktop", () => {
     await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
-    const operationalIntegrity = page.locator('[data-dashboard-operational-integrity="inline"]');
-    await expect(operationalIntegrity).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /Operational Integrity/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /Filtering/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /^Scoring$/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
-    await expect(operationalIntegrity.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
+    await expect(page.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Insight cockpit/i)).toHaveCount(0);
@@ -395,7 +389,7 @@ test.describe("dashboard desktop", () => {
     expect(drawerBox.width).toBeLessThanOrEqual(freshnessPanelBox.width + 1);
   });
 
-  test("desktop process monitor drawer keeps detailed process cards grouped", async ({ page }) => {
+  test("desktop process monitor drawer keeps detailed process cards grouped without a body duplicate", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -658,12 +652,7 @@ test.describe("dashboard desktop", () => {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.goto("/dashboard");
 
-    const freshnessPanel = page.locator("#dashboard-freshness");
-    const inlineOperationalIntegrity = freshnessPanel.locator('[data-dashboard-operational-integrity="inline"]');
-    await expect(inlineOperationalIntegrity.locator("article").filter({ hasText: "Daily Data Fetch" })).toBeVisible();
-    await expect(inlineOperationalIntegrity.locator("article").filter({ hasText: "Filtering" })).toBeVisible();
-    await expect(inlineOperationalIntegrity.locator("article").filter({ hasText: "Scoring" })).toBeVisible();
-    await expect(inlineOperationalIntegrity.locator("article").filter({ hasText: "Agent Feedback" })).toBeVisible();
+    await expect(page.locator("#dashboard-freshness [data-dashboard-operational-integrity=\"inline\"]")).toHaveCount(0);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodCard = processDrawer.locator("article").filter({ hasText: "Daily Data Fetch" });
@@ -1426,14 +1415,15 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const inlineOperationalIntegrity = page.locator('[data-dashboard-operational-integrity="inline"]');
-    const filteringCard = inlineOperationalIntegrity.locator("article").filter({ hasText: "Filtering" });
+    await expect(page.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
     await expectFilteringStageStatusIcon(piotroskiSection, "completed", "Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
-    await expect(inlineOperationalIntegrity).toContainText(/Patch date:\s*2026-04-16/);
+    await expect(processDrawer).toContainText(/Patch date\s*2026-04-16/);
     await expect(piotroskiSection).toContainText(/Filtered\s*4/);
     await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(piotroskiSection).toContainText("Requested 2026-04-16");
