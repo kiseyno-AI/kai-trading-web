@@ -18,6 +18,7 @@ import {
 import {
   buildEodPipelineStatusPath,
   EOD_PIPELINE_STATUS_UPSTREAM_PATH,
+  EOD_PIPELINE_STATUS_REQUEST_TIMEOUT_MS,
 } from "@/lib/eod-pipeline-status";
 import { getLatestActionMarketDate } from "@/lib/eod-freshness-latest";
 import {
@@ -150,6 +151,7 @@ export default async function DashboardPage() {
     const currentPipelineStatus = await fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
       buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_UPSTREAM_PATH, pipelineRequestMarketDate),
       requestHeaders,
+      { timeoutMs: EOD_PIPELINE_STATUS_REQUEST_TIMEOUT_MS },
     ).catch(() => null);
     const latestCompletedPipelineMarketDate = getDashboardLatestCompletedPipelineMarketDate(
       freshness,
@@ -165,6 +167,7 @@ export default async function DashboardPage() {
         ? await fetchServerTradingApiJson<EodPipelineStatusResponseDto>(
             buildEodPipelineStatusPath(EOD_PIPELINE_STATUS_UPSTREAM_PATH, latestCompletedPipelineMarketDate),
             requestHeaders,
+            { timeoutMs: EOD_PIPELINE_STATUS_REQUEST_TIMEOUT_MS },
           ).catch(() => null)
         : null;
     pipelineStatus = resolveDashboardProcessPipelineStatus({
