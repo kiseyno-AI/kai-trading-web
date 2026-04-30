@@ -967,6 +967,9 @@ export function useLiveDashboardData({
     let timer: number | null = null;
     let pipelineStatusTimeoutErrorCount = 0;
     let inFlightRequest: ReturnType<typeof createEodPipelineStatusRequestTimeout> | null = null;
+    let inFlightLatestCompletedRequest:
+      | ReturnType<typeof createEodPipelineStatusRequestTimeout>
+      | null = null;
 
     function clearTimer() {
       if (timer === null) return;
@@ -990,12 +993,12 @@ export function useLiveDashboardData({
     }
 
     async function loadPipelineStatus() {
-      const requestTimeout = createEodPipelineStatusRequestTimeout();
-      inFlightRequest = requestTimeout;
+      const currentRequestTimeout = createEodPipelineStatusRequestTimeout();
+      inFlightRequest = currentRequestTimeout;
 
       try {
         const currentPipelineStatus = await getJsonNoCache<EodPipelineStatusResponseDto>(pipelineStatusPath, {
-          signal: requestTimeout.signal,
+          signal: currentRequestTimeout.signal,
         });
         pipelineStatusTimeoutErrorCount = 0;
         const latestCompletedPipelineStatus =
@@ -1005,9 +1008,24 @@ export function useLiveDashboardData({
             freshness,
             requestMarketDate: pipelineRequestMarketDate,
           })
-            ? await getJsonNoCache<EodPipelineStatusResponseDto>(latestCompletedPipelineStatusPath, {
-                signal: requestTimeout.signal,
-              }).catch(() => null)
+            ? await (async () => {
+                const latestCompletedRequestTimeout = createEodPipelineStatusRequestTimeout();
+                inFlightLatestCompletedRequest = latestCompletedRequestTimeout;
+
+                try {
+                  return await getJsonNoCache<EodPipelineStatusResponseDto>(
+                    latestCompletedPipelineStatusPath,
+                    {
+                      signal: latestCompletedRequestTimeout.signal,
+                    },
+                  ).catch(() => null);
+                } finally {
+                  latestCompletedRequestTimeout.clear();
+                  if (inFlightLatestCompletedRequest === latestCompletedRequestTimeout) {
+                    inFlightLatestCompletedRequest = null;
+                  }
+                }
+              })()
             : null;
         const data = resolveDashboardProcessPipelineStatus({
           currentPipelineStatus,
@@ -1037,8 +1055,8 @@ export function useLiveDashboardData({
         if (!active) return;
         scheduleNextLoad(pipelineStatusRef.current, pipelineStatusTimeoutErrorCount);
       } finally {
-        requestTimeout.clear();
-        if (inFlightRequest === requestTimeout) {
+        currentRequestTimeout.clear();
+        if (inFlightRequest === currentRequestTimeout) {
           inFlightRequest = null;
         }
       }
@@ -1050,6 +1068,7 @@ export function useLiveDashboardData({
       active = false;
       clearTimer();
       inFlightRequest?.abort();
+      inFlightLatestCompletedRequest?.abort();
     };
   }, [freshness, latestCompletedPipelineStatusPath, pipelineRequestMarketDate, pipelineStatusPath]);
 

@@ -240,7 +240,15 @@ test("loads pipeline status with a request timeout signal and quiet transient er
 
   assert.match(
     source,
-    /const currentPipelineStatus = await getJsonNoCache<EodPipelineStatusResponseDto>\(pipelineStatusPath, {\s*signal: requestTimeout\.signal,\s*}\);/,
+    /const currentPipelineStatus = await getJsonNoCache<EodPipelineStatusResponseDto>\(pipelineStatusPath, {\s*signal: currentRequestTimeout\.signal,\s*}\);/,
+  );
+  assert.match(
+    source,
+    /const latestCompletedRequestTimeout = createEodPipelineStatusRequestTimeout\(\);/,
+  );
+  assert.match(
+    source,
+    /signal: latestCompletedRequestTimeout\.signal/,
   );
   assert.match(source, /isEodPipelineStatusTransientError\(pipelineStatusError\)/);
   assert.match(
