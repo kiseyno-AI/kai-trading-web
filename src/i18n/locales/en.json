@@ -57,6 +57,11 @@
       "title": "Signal Review Calendar",
       "eyebrow": "Decision Replay"
     },
+    "signalDeciderFeedback": {
+      "label": "signal-decider-feedback",
+      "title": "Signal Decider Feedback",
+      "eyebrow": "Decision Replay"
+    },
     "markets": {
       "label": "markets",
       "title": "Market Radar",

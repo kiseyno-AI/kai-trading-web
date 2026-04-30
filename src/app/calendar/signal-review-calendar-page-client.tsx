@@ -970,10 +970,8 @@ export default function SignalReviewCalendarPageClient() {
     <MobileAppChrome
       chrome={{
         activeNav: "calendar",
-        title: copy.headerTitle,
         subtitle: getSelectedDateHeader(selectedDate, copy),
         status: { label: formatMonthLabel(monthKey) },
-        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.stack}>

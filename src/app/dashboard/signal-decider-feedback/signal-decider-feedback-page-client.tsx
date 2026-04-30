@@ -499,7 +499,6 @@ export default function SignalDeciderFeedbackPageClient() {
       chrome={{
         activeNav: "dashboard",
         status: { label: displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending" },
-        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.stack}>

@@ -57,6 +57,11 @@
       "title": "시그널 리뷰 캘린더",
       "eyebrow": "의사결정 리플레이"
     },
+    "signalDeciderFeedback": {
+      "label": "signal-decider-feedback",
+      "title": "시그널 디사이더 피드백",
+      "eyebrow": "의사결정 리플레이"
+    },
     "markets": {
       "label": "마켓",
       "title": "마켓 레이더",

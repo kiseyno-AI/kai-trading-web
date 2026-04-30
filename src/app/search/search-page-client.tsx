@@ -921,9 +921,7 @@ export default function SearchPageClient() {
     <MobileAppChrome
       chrome={{
         activeNav: "search",
-        title: copy.brandTitle,
         status: { label: marketBadgeLabel, tone: marketStatus.is_open ? "positive" : "closed" },
-        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.searchTerminal}>
