@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
+import {
+  getDashboardProcessResolvedMarketDate,
+  resolveDashboardProcessPipelineStatus,
+} from "@/lib/dashboard-process-market-date";
 import type {
   AgentFeedbackProgressResponseDto,
   DartFundamentalsDailyRunDto,
+  EodFreshnessResponseDto,
   EodFreshnessStageDto,
   EodMarketRiskFiltersResponseDto,
   EodMomentumFactorsResponseDto,
@@ -831,6 +836,102 @@ test("keeps latest technical and action dates healthy when same-day layer status
     symbols_succeeded: null,
     symbols_failed: null,
   });
+});
+
+test("resolves live pending current-day technical and action stages from latest completed pipeline", () => {
+  const copy = getDashboardLiveCopy("en");
+  const freshness: EodFreshnessResponseDto = {
+    today: {
+      trade_date: "2026-04-30",
+      technical_analysis: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+      action_summary: {
+        status: "missing",
+        symbols_total: 2812,
+        symbols_succeeded: 0,
+        symbols_failed: 0,
+      },
+    },
+    latest: {
+      trade_date: "2026-04-29",
+      technical_market_date: "2026-04-29",
+      action_market_date: "2026-04-29",
+    },
+  };
+  const currentPipelineStatus = buildPipelineStatus({
+    market_date: "2026-04-30",
+    status: "pending",
+    stages: {
+      technical_snapshots: { status: "pending", processed: 0, total: 4455, failed: 0 },
+      action_summaries: { status: "pending", processed: 0, total: 4455, failed: 0 },
+    },
+  });
+  const latestCompletedPipelineStatus = buildPipelineStatus({
+    market_date: "2026-04-29",
+    status: "completed",
+    stages: {
+      technical_snapshots: { status: "completed", processed: 2812, total: 2812, failed: 0 },
+      action_summaries: { status: "completed", processed: 2812, total: 2812, failed: 0 },
+    },
+  });
+  const effectivePipelineStatus = resolveDashboardProcessPipelineStatus({
+    currentPipelineStatus,
+    freshness,
+    latestCompletedPipelineStatus,
+    requestMarketDate: "2026-04-30",
+  });
+  const processMarketDate = getDashboardProcessResolvedMarketDate(effectivePipelineStatus, "2026-04-30");
+  const technicalPipelineStage = effectivePipelineStatus?.stages.technical_snapshots ?? null;
+  const actionPipelineStage = effectivePipelineStatus?.stages.action_summaries ?? null;
+  const technicalStage = mergeRunningPipelineStage(
+    getTechnicalFreshnessStage(freshness, false),
+    technicalPipelineStage,
+    { preferStageCountsOnCompleted: true },
+  );
+  const actionStage = mergeRunningPipelineStage(
+    getActionFreshnessStage(freshness, false),
+    actionPipelineStage,
+    { preferStageCountsOnCompleted: true },
+  );
+  const technicalCard = buildEodStageCard(
+    "technical",
+    copy.stage.technical,
+    technicalStage,
+    processMarketDate,
+    "2026-04-29",
+    getPipelineStageResolvedStatusDate(technicalPipelineStage, processMarketDate, "2026-04-29"),
+    "2026-04-29",
+    false,
+    technicalPipelineStage,
+    copy,
+    "en-US",
+  );
+  const actionCard = buildEodStageCard(
+    "action",
+    copy.stage.action,
+    actionStage,
+    processMarketDate,
+    "2026-04-29",
+    getPipelineStageResolvedStatusDate(actionPipelineStage, processMarketDate, "2026-04-29"),
+    "2026-04-29",
+    false,
+    actionPipelineStage,
+    copy,
+    "en-US",
+  );
+
+  assert.equal(effectivePipelineStatus, latestCompletedPipelineStatus);
+  assert.equal(processMarketDate, "2026-04-29");
+  assert.equal(technicalCard.statusLabel, "synced");
+  assert.equal(actionCard.statusLabel, "synced");
+  assert.equal(technicalCard.details.find((detail) => detail.key === "count")?.value, "2,812 / 2,812");
+  assert.equal(actionCard.details.find((detail) => detail.key === "count")?.value, "2,812 / 2,812");
+  assert.equal(technicalCard.details.find((detail) => detail.key === "latest-date"), undefined);
+  assert.equal(actionCard.details.find((detail) => detail.key === "latest-date"), undefined);
 });
 
 test("keeps pending latest patch stages out of ready state when numeric counts exist", () => {
