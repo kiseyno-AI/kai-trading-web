@@ -8,6 +8,10 @@ import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
+import {
+  SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT,
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+} from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { MessageTree } from "@/i18n/messages";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
@@ -199,6 +203,7 @@ function buildSymbolHref(symbol: string, favoriteItem?: FavoriteSymbolItem | nul
   if (name) params.set("name", name);
   if (market) params.set("market", market);
   if (standardCode) params.set("standardCode", standardCode);
+  params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT);
 
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`;

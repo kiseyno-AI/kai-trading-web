@@ -83,6 +83,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setActiveMode,
     setSelectedBar,
     setSelectedRange,
+    symbolDetailActiveNav,
     showActionSection,
     showChartSection,
     showDisclosureSection,
@@ -143,7 +144,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
   if (!symbolReady) {
     return (
-      <MobileAppChrome activeNav="symbols" topbar={pendingTopbar}>
+      <MobileAppChrome activeNav={symbolDetailActiveNav} topbar={pendingTopbar}>
         <div className={styles.detailPage} data-mode={activeMode}>
           <section className={`${styles.panel} ${styles.chartCard}`} role="status" aria-live="polite" aria-busy="true">
             <SurfaceState className={styles.emptyPanel} title={copy.loadingWorkspace} tone="loading">
@@ -157,7 +158,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
   return (
     <MobileAppChrome
-      activeNav="symbols"
+      activeNav={symbolDetailActiveNav}
       topbar={{
         leading: (
           <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>

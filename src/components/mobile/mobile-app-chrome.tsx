@@ -31,7 +31,7 @@ type MobileAppChromeDesktopRail = {
 };
 
 type MobileAppChromeProps = {
-  activeNav: FullPageChromeRouteKey;
+  activeNav?: FullPageChromeRouteKey | null;
   topbar: DashboardToolbarProps;
   children: ReactNode;
   bottomChrome?: MobileAppChromeBottomChrome;
@@ -124,7 +124,7 @@ export function MobileAppChrome({
     () => buildAppChromeNavItems(t, FULL_PAGE_CHROME_ROUTE_KEYS, hrefOverrides),
     [hrefOverrides, t],
   );
-  const activeHref = resolveAppChromeHref(activeNav, hrefOverrides);
+  const activeHref = activeNav ? resolveAppChromeHref(activeNav, hrefOverrides) : null;
   const prefetchTargets = useMemo(() => {
     const targets = navItems.map((item) => (item.href === activeHref ? null : item.href));
 
@@ -135,6 +135,8 @@ export function MobileAppChrome({
   const desktopRailFooter = desktopRail?.footer === undefined ? <MobileAppChromeDesktopRailFooter /> : desktopRail.footer;
 
   useEffect(() => {
+    if (!activeNav) return;
+
     void warmMobileToolbarViewData(activeNav);
   }, [activeNav]);
 
@@ -157,6 +159,7 @@ export function MobileAppChrome({
         prefetch
         className={`${getItemClass(active)} ${pending ? styles.navItemPending : ""}`.trim()}
         aria-busy={pending || undefined}
+        aria-current={active ? "page" : undefined}
         data-navigation-pending={pending ? "true" : "false"}
         onClick={() => beginNavigation(item.href)}
       >
@@ -179,6 +182,7 @@ export function MobileAppChrome({
         prefetch
         className={`${getDesktopItemClass(active)} ${pending ? styles.desktopNavItemPending : ""}`.trim()}
         aria-busy={pending || undefined}
+        aria-current={active ? "page" : undefined}
         data-navigation-pending={pending ? "true" : "false"}
         onClick={() => beginNavigation(item.href)}
       >

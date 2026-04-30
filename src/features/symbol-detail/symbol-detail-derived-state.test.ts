@@ -13,6 +13,7 @@ import {
   buildHeroFundamentalLatestMetricModel,
   buildLatestPriceLabel,
   buildModuleStatusTone,
+  buildSymbolRouteQuery,
   buildSystemFreshnessSectionModel,
   buildTechnicalFreshnessDate,
   pickSelectedBarTradeDate,
@@ -154,6 +155,24 @@ test("builds disclosure-coverage cards from a stable display model", () => {
   assert.equal(
     model.coverageBody,
     `2 ${copy.disclosures.loadedSuffix} ${copy.disclosures.latestFilingLandedOn} 2026-04-10.`,
+  );
+});
+
+test("preserves My Symbols navigation context in symbol detail subroutes only when supplied", () => {
+  const meta = {
+    symbol: "005930",
+    name_ko: "Samsung Electronics",
+    market: "KOSPI",
+    standard_code: "KR7005930003",
+  };
+
+  assert.equal(
+    buildSymbolRouteQuery(meta, "2026-04-10", null, "my-symbols"),
+    "name=Samsung+Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10&navContext=my-symbols",
+  );
+  assert.equal(
+    buildSymbolRouteQuery(meta, "2026-04-10", null),
+    "name=Samsung+Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10",
   );
 });
 

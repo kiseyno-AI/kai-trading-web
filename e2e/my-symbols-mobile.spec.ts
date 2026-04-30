@@ -134,6 +134,17 @@ test.describe("my symbols mobile flow", () => {
     await expect(page.getByText("SK hynix").first()).toBeVisible();
     await expect(page.getByText("Full tracked list")).toBeVisible();
     await expect(page.getByText("Core favorite").first()).toBeVisible();
+
+    const samsungSymbolLink = page.locator('a[href^="/dashboard/symbol/005930"]').first();
+    await expect(samsungSymbolLink).toHaveAttribute("href", /navContext=my-symbols/);
+    await samsungSymbolLink.click();
+
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?.*navContext=my-symbols/);
+    await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
+
+    const mySymbolsNavItem = page.getByRole("link", { name: "My Symbols", exact: true });
+    await expect(mySymbolsNavItem).toHaveAttribute("aria-current", "page");
+    await expect(mySymbolsNavItem).toHaveClass(/navItemActive/);
   });
 
   test("dashboard navigation keeps loading feedback local to the toolbar and avoids any full-page loader", async ({

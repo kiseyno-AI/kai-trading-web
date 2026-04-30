@@ -36,6 +36,11 @@ export type SymbolDetailSectionVisibility = {
   showFreshnessSection: boolean;
 };
 
+export const SYMBOL_DETAIL_NAV_CONTEXT_PARAM = "navContext";
+export const SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT = "my-symbols";
+
+export type SymbolDetailNavContext = typeof SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT;
+
 export const SYMBOL_DETAIL_MODES: SymbolDetailModeDefinition[] = [
   {
     mode: "overview",
@@ -99,6 +104,14 @@ export function buildInitialSymbolMeta(symbol: string, params: SymbolMetaParams)
 export function resolveSymbolDetailMode(value: string | null | undefined) {
   if (!value) return null;
   return Object.prototype.hasOwnProperty.call(SYMBOL_DETAIL_MODE_BY_ID, value) ? (value as SymbolDetailMode) : null;
+}
+
+export function resolveSymbolDetailNavContext(value: string | null | undefined): SymbolDetailNavContext | null {
+  return value === SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT ? SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT : null;
+}
+
+export function resolveSymbolDetailActiveNav(navContext: SymbolDetailNavContext | null): "symbols" | null {
+  return navContext === SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT ? "symbols" : null;
 }
 
 export function resolveSymbolDetailModeFromPathname(pathname: string | null, symbol: string) {

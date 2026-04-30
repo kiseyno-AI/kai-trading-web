@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   getSymbolDetailSectionVisibility,
+  resolveSymbolDetailActiveNav,
   resolveSymbolDetailMode,
   resolveSymbolDetailModeFromPathname,
+  resolveSymbolDetailNavContext,
   type SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 
@@ -21,6 +23,14 @@ test("resolves detail mode from a deep disclosure route without changing the par
 test("resolves query-string detail modes and rejects unknown ones", () => {
   assert.equal(resolveSymbolDetailMode("technical-analysis"), "technical-analysis");
   assert.equal(resolveSymbolDetailMode("not-a-real-mode"), null);
+});
+
+test("resolves symbol detail navigation context without defaulting to My Symbols", () => {
+  assert.equal(resolveSymbolDetailNavContext("my-symbols"), "my-symbols");
+  assert.equal(resolveSymbolDetailActiveNav(resolveSymbolDetailNavContext("my-symbols")), "symbols");
+  assert.equal(resolveSymbolDetailNavContext("markets"), null);
+  assert.equal(resolveSymbolDetailNavContext(null), null);
+  assert.equal(resolveSymbolDetailActiveNav(null), null);
 });
 
 test("keeps section visibility stable for overview and each detail mode", () => {
