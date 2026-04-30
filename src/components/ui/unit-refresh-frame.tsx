@@ -30,20 +30,18 @@ export function UnitRefreshFrame({
     >
       {children}
 
-      <div
-        className={cn(styles.overlay, busy && styles.overlayVisible, overlayClassName)}
-        aria-hidden="true"
-      >
-        <span className={styles.badge}>
-          <span className={styles.spinner} />
-          <span>{label}</span>
-        </span>
-      </div>
-
       {busy ? (
-        <span id={descriptionId} className={styles.srOnly}>
-          {label}
-        </span>
+        <>
+          <div className={cn(styles.overlay, styles.overlayVisible, overlayClassName)} aria-hidden="true">
+            <span className={styles.badge}>
+              <span className={styles.spinner} />
+              <span>{label}</span>
+            </span>
+          </div>
+          <span id={descriptionId} className={styles.srOnly}>
+            {label}
+          </span>
+        </>
       ) : null}
     </div>
   );
