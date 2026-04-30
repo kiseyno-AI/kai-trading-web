@@ -297,3 +297,23 @@ test("avoids immediate duplicated signal-decider feedback loads on hydrated dash
     /if \(shouldSkipSignalDeciderFeedbackInitialLoad\) {\s*initialSignalDeciderFeedbackMarketDateRef\.current = null;/s,
   );
 });
+
+test("loads portfolio summary client-side and preserves loading state when SSR did not provide summary data", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.match(
+    source,
+    /const \[portfolioSummary, setPortfolioSummary\] = useState<PortfolioSummaryDto \| null>\(initialPortfolioSummary\);/,
+  );
+  assert.match(
+    source,
+    /const \[portfolioSummaryLoadState, setPortfolioSummaryLoadState\] = useState<\"error\" \| \"loading\" \| \"success\">\(\r?\n\s*initialPortfolioSummary \? \"success\" : \"loading\",\s*\);/,
+  );
+  assert.match(
+    source,
+    /const loadPortfolioSummary = async \(\) => \{[\s\S]*?const summary = await getJsonNoCache<PortfolioSummaryDto>\(PORTFOLIO_SUMMARY_PATH\);[\s\S]*?setPortfolioSummary\(summary\);/,
+  );
+  assert.match(source, /void loadPortfolioSummary\(\);/);
+  assert.match(source, /const timer = window\.setInterval\(loadPortfolioSummary, 60_000\);/);
+});
