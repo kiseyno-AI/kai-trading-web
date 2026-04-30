@@ -8,6 +8,7 @@ import {
   type SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
+import type { AgentContextActionSummaryDto } from "@/types/trading-api";
 
 import {
   buildActionSummarySectionModel,
@@ -15,6 +16,29 @@ import {
   buildFundamentalsHistorySectionModel,
   buildSystemFreshnessSectionModel,
 } from "./symbol-detail-derived-state";
+
+function makeActionSummary(overrides: Partial<AgentContextActionSummaryDto> = {}): AgentContextActionSummaryDto {
+  return {
+    symbol: "005930",
+    market_date: "2026-04-10",
+    source: "test",
+    action_label: "strong_buy",
+    bias_direction: "long",
+    signal_score: 94,
+    confidence_tier: "high",
+    risk_tier: "medium",
+    trigger_price: 70100,
+    invalidation_price: 68000,
+    support_price: 69000,
+    resistance_price: 72000,
+    reasons: ["Trend support confirmed", "Volume expansion detected"],
+    summary_payload: {
+      trigger: "breakout",
+    },
+    captured_at: "2026-04-10T16:00:00+09:00",
+    ...overrides,
+  };
+}
 
 test("TC-SYMBOL-001 route and mode resolution preserve every symbol-detail path, including deep disclosure routes", () => {
   const expectedByPath: Record<string, SymbolDetailMode> = {
@@ -121,9 +145,30 @@ test("TC-SYMBOL-003 action-summary fallback labels stay stable when no summary i
   assert.equal(model.metrics[2]?.value, copy.action.noTriggerPrice);
   assert.equal(model.score, 0);
   assert.equal(model.tone, "neutral");
+  assert.equal(model.meter.state, "unavailable");
+  assert.equal(model.meter.label, copy.action.signalScore);
+  assert.equal(model.meter.valueLabel, copy.action.unavailable);
+  assert.equal(model.meter.currentLabel, copy.action.signalUnavailable);
+  assert.match(model.meter.ariaLabel, /Action summary unresolved/);
 });
 
-test("TC-SYMBOL-004 fundamentals-history empty state surfaces aggregate-only latest coverage when stored history is missing", () => {
+test("TC-SYMBOL-004 action-summary resolved meter presents the current strong-buy long bias", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildActionSummarySectionModel(makeActionSummary(), copy);
+
+  assert.equal(model.badgeLabel, "Strong Buy");
+  assert.equal(model.headline, "Strong Buy · Confidence High");
+  assert.equal(model.score, 94);
+  assert.equal(model.tone, "positive");
+  assert.equal(model.meter.state, "resolved");
+  assert.equal(model.meter.label, copy.action.signalScore);
+  assert.equal(model.meter.valueLabel, "94 / 100");
+  assert.equal(model.meter.currentLabel, "Current action: Strong Buy · Bias Long");
+  assert.match(model.meter.ariaLabel, /Signal score: 94 \/ 100/);
+  assert.match(model.meter.ariaLabel, /Current action: Strong Buy · Bias Long/);
+});
+
+test("TC-SYMBOL-005 fundamentals-history empty state surfaces aggregate-only latest coverage when stored history is missing", () => {
   const copy = getSymbolDetailCopy("en");
   const model = buildFundamentalsHistorySectionModel({
     companyHistory: null,
@@ -168,7 +213,7 @@ test("TC-SYMBOL-004 fundamentals-history empty state surfaces aggregate-only lat
   assert.equal(model.highlights[2]?.value, "42");
 });
 
-test("TC-SYMBOL-005 disclosure-coverage unavailable state keeps fallback labels without phantom report cards", () => {
+test("TC-SYMBOL-006 disclosure-coverage unavailable state keeps fallback labels without phantom report cards", () => {
   const copy = getSymbolDetailCopy("en");
   const model = buildDisclosureCoverageSectionModel({
     copy,
@@ -191,7 +236,7 @@ test("TC-SYMBOL-005 disclosure-coverage unavailable state keeps fallback labels 
   assert.deepEqual(model.cards, []);
 });
 
-test("TC-SYMBOL-006 system-freshness fallback rows keep stable labels for unavailable quote, fundamentals, and disclosure coverage", () => {
+test("TC-SYMBOL-007 system-freshness fallback rows keep stable labels for unavailable quote, fundamentals, and disclosure coverage", () => {
   const copy = getSymbolDetailCopy("en");
   const model = buildSystemFreshnessSectionModel({
     actionSummary: null,

@@ -461,20 +461,32 @@
 .signalTrack {
   position: relative;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 0.9rem;
-  padding: 0.55rem 0.7rem;
+  min-height: 0.74rem;
   border-radius: 999px;
   background: rgba(8, 17, 31, 0.84);
 }
 
-.signalSell,
-.signalStrong {
-  position: relative;
-  z-index: 1;
-  color: var(--muted);
+.signalTrack[data-state="unavailable"] {
+  border: 1px dashed rgba(148, 163, 184, 0.36);
+  background: rgba(8, 17, 31, 0.52);
+}
+
+.signalMeter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+}
+
+.signalMeterHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.signalMeterHeader span,
+.signalMeterHeader strong {
   font-family: var(--font-inter), sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
@@ -482,7 +494,11 @@
   text-transform: uppercase;
 }
 
-.signalStrong {
+.signalMeterHeader span {
+  color: var(--muted);
+}
+
+.signalMeterHeader strong {
   color: var(--text-strong);
 }
 
@@ -493,8 +509,13 @@
   border-radius: 999px;
 }
 
-.signalMeter {
-  margin-top: 0.9rem;
+.signalCurrent {
+  margin: 0;
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 .tagGroup {
@@ -1076,14 +1097,18 @@
   }
 
   .signalTrack {
-    border-radius: 0.14rem;
-    min-height: 3.1rem;
+    border-radius: 999px;
+    min-height: 0.9rem;
   }
 
-  .signalSell,
-  .signalStrong {
+  .signalMeterHeader span,
+  .signalMeterHeader strong {
     font-size: 0.72rem;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.14em;
+  }
+
+  .signalCurrent {
+    font-size: 0.8rem;
   }
 
   .insightHeadline,

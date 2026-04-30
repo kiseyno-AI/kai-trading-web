@@ -119,8 +119,9 @@ const symbolDetailCopy = {
       noRationaleRows: "No rationale rows returned",
       payloadKeys: "Payload keys",
       bias: "Bias",
-      sell: "Sell",
-      strongBuy: "Strong Buy",
+      signalScore: "Signal score",
+      signalUnavailable: "Action summary unresolved",
+      currentAction: "Current action",
     },
     technical: {
       eyebrow: "Technical Snapshot",
@@ -384,8 +385,9 @@ const symbolDetailCopy = {
       noRationaleRows: "근거 행 없음",
       payloadKeys: "페이로드 키",
       bias: "편향",
-      sell: "매도",
-      strongBuy: "강한 매수",
+      signalScore: "시그널 점수",
+      signalUnavailable: "액션 요약 미해결",
+      currentAction: "현재 액션",
     },
     technical: {
       eyebrow: "기술 스냅샷",

@@ -407,9 +407,9 @@ async function mockDetailModeSwitchApis(
             symbol: "005930",
             market_date: marketDate,
             source: "test",
-            action_label: "buy",
+            action_label: "strong_buy",
             bias_direction: "long",
-            signal_score: 78,
+            signal_score: 94,
             confidence_tier: "high",
             risk_tier: "medium",
             trigger_price: 70100,
@@ -772,6 +772,11 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page).toHaveURL(initialDetailUrl);
     await expect(page.locator('[data-mode="action-summary"]')).toBeVisible();
     await expect(page.locator("#action")).toBeVisible();
+    await expect(page.locator("#action")).toContainText("Signal score");
+    await expect(page.locator("#action")).toContainText("94 / 100");
+    await expect(page.locator("#action")).toContainText("Current action: Strong Buy · Bias Long");
+    await expect(page.locator("#action")).not.toContainText("Sell");
+    await expect(page.getByRole("meter", { name: /Signal score: 94 \/ 100/i })).toBeVisible();
     await expect(workspaceLoader).toHaveCount(0);
     await expect.poll(() => requestCounts.action).toBe(1);
     expect(requestCounts.technical).toBe(0);

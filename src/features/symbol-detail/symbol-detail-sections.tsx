@@ -269,6 +269,20 @@ export const ActionSummarySection = memo(function ActionSummarySection({
     actionSectionRefreshing ||
     (!resolvedActionSummary &&
       (aggregateContextLoadState === "loading" || actionSummaryResult.isInitialLoading || (!marketDate && symbolReady)));
+  const signalTrackProps =
+    actionSectionModel.meter.state === "resolved"
+      ? {
+          "aria-label": actionSectionModel.meter.ariaLabel,
+          "aria-valuemax": 100,
+          "aria-valuemin": 0,
+          "aria-valuenow": actionSectionModel.score,
+          "aria-valuetext": actionSectionModel.meter.valueLabel,
+          role: "meter" as const,
+        }
+      : {
+          "aria-label": actionSectionModel.meter.ariaLabel,
+          role: "status" as const,
+        };
 
   return (
     <section
@@ -292,11 +306,16 @@ export const ActionSummarySection = memo(function ActionSummarySection({
         </div>
 
         <div className={styles.signalMeter}>
-          <div className={styles.signalTrack}>
-            <span className={styles.signalSell}>{copy.action.sell}</span>
-            <span className={styles.signalStrong}>{copy.action.strongBuy}</span>
-            <div className={styles.signalFill} style={{ width: `${actionSectionModel.score}%` }} />
+          <div className={styles.signalMeterHeader}>
+            <span>{actionSectionModel.meter.label}</span>
+            <strong>{actionSectionModel.meter.valueLabel}</strong>
           </div>
+          <div className={styles.signalTrack} data-state={actionSectionModel.meter.state} {...signalTrackProps}>
+            {actionSectionModel.meter.state === "resolved" ? (
+              <div className={styles.signalFill} style={{ width: `${actionSectionModel.score}%` }} />
+            ) : null}
+          </div>
+          <p className={styles.signalCurrent}>{actionSectionModel.meter.currentLabel}</p>
         </div>
 
         <strong className={`clamp-3 ${styles.insightHeadline}`}>{actionSectionModel.headline}</strong>
