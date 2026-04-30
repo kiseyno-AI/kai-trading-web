@@ -603,6 +603,65 @@ test.describe("symbol detail mobile pages", () => {
     }
   });
 
+  test("detail tabs keep long labels readable at narrow mobile widths", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests);
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto(`/dashboard/symbol/005930/action-summary?${symbolSeed}`);
+
+    const tabNav = page.getByRole("navigation", { name: /Symbol detail pages/i });
+    await expect(tabNav).toBeVisible();
+    await expect(page.getByRole("button", { name: "Fundamentals" })).toBeVisible();
+
+    const clippedTabs = await tabNav.evaluate((nav) => {
+      const navRect = nav.getBoundingClientRect();
+
+      return Array.from(nav.querySelectorAll("button")).flatMap((button) => {
+        const rect = button.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(button);
+        const labelLineCount = new Set(
+          Array.from(range.getClientRects())
+            .filter((lineRect) => lineRect.width > 0 && lineRect.height > 0)
+            .map((lineRect) => Math.round(lineRect.top)),
+        ).size;
+        const clipsInline = button.scrollWidth > button.clientWidth + 1;
+        const clipsBlock = button.scrollHeight > button.clientHeight + 1;
+        const outsideNav = rect.left < navRect.left - 1 || rect.right > navRect.right + 1;
+        const wrapsLabel = labelLineCount > 1;
+
+        if (!clipsInline && !clipsBlock && !outsideNav && !wrapsLabel) return [];
+
+        return [
+          {
+            label: button.textContent?.trim() ?? "",
+            labelLineCount,
+            clientWidth: button.clientWidth,
+            scrollWidth: button.scrollWidth,
+            clientHeight: button.clientHeight,
+            scrollHeight: button.scrollHeight,
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            navLeft: Math.round(navRect.left),
+            navRight: Math.round(navRect.right),
+          },
+        ];
+      });
+    });
+
+    expect(clippedTabs).toEqual([]);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+      .toBeLessThanOrEqual(1);
+  });
+
   test("deep detail routes preserve their active mode and dedicated sections", async ({ page }) => {
     const requestCounts = {
       priceHistory: 0,
