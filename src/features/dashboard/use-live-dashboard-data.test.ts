@@ -173,4 +173,7 @@ test("loads dashboard signal-decider progress and feedback without the generic c
   assert.doesNotMatch(source, /getJson<AgentFeedbackProgressResponseDto>\(progressPath\)/);
   assert.match(source, /getJsonNoCache<AgentFeedbackListResponseDto>\(feedbackPath\)/);
   assert.match(source, /getJsonNoCache<AgentFeedbackListResponseDto>\(latestFeedbackPath\)/);
+  assert.match(source, /getLatestActionMarketDate\(freshness\)/);
+  assert.match(source, /resolveSignalDeciderLatestFeedbackMarketDate\(\{/);
+  assert.match(source, /marketDate: latestSignalDeciderFeedbackMarketDate,/);
 });

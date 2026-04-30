@@ -14,6 +14,7 @@ import {
   normalizeSignalDeciderFeedbackItems,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
+  resolveSignalDeciderLatestFeedbackMarketDate,
   selectSignalDeciderDashboardFeedback,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
@@ -454,17 +455,77 @@ test("builds signal-decider feedback paths with the full result window by defaul
   assert.equal(url.searchParams.get("limit"), String(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT));
 });
 
-test("builds latest signal-decider feedback paths without silently pinning a market date", () => {
+test("builds latest signal-decider feedback paths with a resolved market date", () => {
   const path = buildSignalDeciderLatestFeedbackPath({
     basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
     limit: 50,
+    marketDate: "2026-04-29T15:30:00+09:00",
   });
+  assert.ok(path, "expected a latest feedback request path");
   const url = new URL(`https://example.test${path}`);
 
   assert.equal(url.pathname, SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH);
+  assert.equal(url.searchParams.get("market_date"), "2026-04-29");
   assert.equal(url.searchParams.get("agent_name"), "signal-decider");
   assert.equal(url.searchParams.get("limit"), "50");
-  assert.equal(url.searchParams.has("market_date"), false);
+});
+
+test("does not build a latest signal-decider feedback path without a resolved market date", () => {
+  const path = buildSignalDeciderLatestFeedbackPath({
+    basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+    limit: 50,
+    marketDate: null,
+  });
+
+  assert.equal(path, null);
+});
+
+test("resolves latest dashboard feedback date from already-known process dates", () => {
+  assert.equal(
+    resolveSignalDeciderLatestFeedbackMarketDate({
+      currentMarketDate: "2026-04-30",
+      latestCompletedMarketDate: "2026-04-29",
+      progressMarketDate: "2026-04-30",
+      resolvedProcessMarketDate: "2026-04-30",
+    }),
+    "2026-04-29",
+  );
+  assert.equal(
+    resolveSignalDeciderLatestFeedbackMarketDate({
+      currentMarketDate: "2026-04-30",
+      latestCompletedMarketDate: null,
+      progressMarketDate: "2026-04-30",
+      resolvedProcessMarketDate: "2026-04-29",
+    }),
+    "2026-04-29",
+  );
+  assert.equal(
+    resolveSignalDeciderLatestFeedbackMarketDate({
+      currentMarketDate: "2026-04-30",
+      latestCompletedMarketDate: null,
+      progressMarketDate: "2026-04-29",
+      resolvedProcessMarketDate: "2026-04-30",
+    }),
+    "2026-04-29",
+  );
+  assert.equal(
+    resolveSignalDeciderLatestFeedbackMarketDate({
+      currentMarketDate: "2026-04-30",
+      latestCompletedMarketDate: null,
+      progressMarketDate: null,
+      resolvedProcessMarketDate: null,
+    }),
+    "2026-04-30",
+  );
+  assert.equal(
+    resolveSignalDeciderLatestFeedbackMarketDate({
+      currentMarketDate: null,
+      latestCompletedMarketDate: null,
+      progressMarketDate: null,
+      resolvedProcessMarketDate: null,
+    }),
+    null,
+  );
 });
 
 test("sizes signal-decider feedback fetches from progress counts when available", () => {
