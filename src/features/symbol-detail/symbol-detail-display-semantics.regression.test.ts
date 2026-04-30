@@ -149,7 +149,21 @@ test("TC-SYMBOL-003 action-summary fallback labels stay stable when no summary i
   assert.equal(model.meter.label, copy.action.signalScore);
   assert.equal(model.meter.valueLabel, copy.action.unavailable);
   assert.equal(model.meter.currentLabel, copy.action.signalUnavailable);
-  assert.match(model.meter.ariaLabel, /Action summary unresolved/);
+  assert.match(model.meter.ariaLabel, /No current action resolved/);
+  assert.doesNotMatch(
+    [
+      model.badgeLabel,
+      model.headline,
+      model.body,
+      model.metaCaption,
+      model.meter.ariaLabel,
+      model.meter.currentLabel,
+      model.meter.valueLabel,
+      ...model.metrics.map((metric) => metric.value),
+      ...model.reasonTags,
+    ].join(" "),
+    /\b(?:Sell|Strong Buy)\b/,
+  );
 });
 
 test("TC-SYMBOL-004 action-summary resolved meter presents the current strong-buy long bias", () => {

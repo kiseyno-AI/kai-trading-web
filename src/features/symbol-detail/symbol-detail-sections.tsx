@@ -269,20 +269,14 @@ export const ActionSummarySection = memo(function ActionSummarySection({
     actionSectionRefreshing ||
     (!resolvedActionSummary &&
       (aggregateContextLoadState === "loading" || actionSummaryResult.isInitialLoading || (!marketDate && symbolReady)));
-  const signalTrackProps =
-    actionSectionModel.meter.state === "resolved"
-      ? {
-          "aria-label": actionSectionModel.meter.ariaLabel,
-          "aria-valuemax": 100,
-          "aria-valuemin": 0,
-          "aria-valuenow": actionSectionModel.score,
-          "aria-valuetext": actionSectionModel.meter.valueLabel,
-          role: "meter" as const,
-        }
-      : {
-          "aria-label": actionSectionModel.meter.ariaLabel,
-          role: "status" as const,
-        };
+  const signalTrackProps = {
+    "aria-label": actionSectionModel.meter.ariaLabel,
+    "aria-valuemax": 100,
+    "aria-valuemin": 0,
+    "aria-valuenow": actionSectionModel.score,
+    "aria-valuetext": actionSectionModel.meter.valueLabel,
+    role: "meter" as const,
+  };
 
   return (
     <section
@@ -310,12 +304,18 @@ export const ActionSummarySection = memo(function ActionSummarySection({
             <span>{actionSectionModel.meter.label}</span>
             <strong>{actionSectionModel.meter.valueLabel}</strong>
           </div>
-          <div className={styles.signalTrack} data-state={actionSectionModel.meter.state} {...signalTrackProps}>
-            {actionSectionModel.meter.state === "resolved" ? (
-              <div className={styles.signalFill} style={{ width: `${actionSectionModel.score}%` }} />
-            ) : null}
-          </div>
-          <p className={styles.signalCurrent}>{actionSectionModel.meter.currentLabel}</p>
+          {actionSectionModel.meter.state === "resolved" ? (
+            <>
+              <div className={styles.signalTrack} data-state={actionSectionModel.meter.state} {...signalTrackProps}>
+                <div className={styles.signalFill} style={{ width: `${actionSectionModel.score}%` }} />
+              </div>
+              <p className={styles.signalCurrent}>{actionSectionModel.meter.currentLabel}</p>
+            </>
+          ) : (
+            <p className={styles.signalUnavailable} role="status" aria-label={actionSectionModel.meter.ariaLabel}>
+              {actionSectionModel.meter.currentLabel}
+            </p>
+          )}
         </div>
 
         <strong className={`clamp-3 ${styles.insightHeadline}`}>{actionSectionModel.headline}</strong>
