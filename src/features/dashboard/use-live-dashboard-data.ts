@@ -13,6 +13,7 @@ import {
   DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
 } from "@/lib/dart-fundamentals-daily";
 import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
+import { getLatestActionMarketDate } from "@/lib/eod-freshness-latest";
 import {
   buildExecutionRuntimeMarketDatePath,
   EXECUTION_RUNTIME_DAILY_BOARD_CLIENT_PATH,
@@ -30,6 +31,7 @@ import {
   buildSignalDeciderFeedbackPath,
   buildSignalDeciderLatestFeedbackPath,
   resolveSignalDeciderFeedbackResultLimit,
+  resolveSignalDeciderLatestFeedbackMarketDate,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
 } from "@/lib/signal-decider-feedback";
 import {
@@ -979,6 +981,14 @@ export function useLiveDashboardData({
   }, [fundamentalsInspectPath]);
 
   const agentProgressMarketDate = getAgentFeedbackProgressMarketDate(freshness);
+  const latestSignalDeciderCompletedMarketDate =
+    latestCompletedPipelineMarketDate ?? getLatestActionMarketDate(freshness);
+  const latestSignalDeciderFeedbackMarketDate = resolveSignalDeciderLatestFeedbackMarketDate({
+    currentMarketDate: executionRuntimeMarketDate,
+    latestCompletedMarketDate: latestSignalDeciderCompletedMarketDate,
+    progressMarketDate: agentProgressMarketDate,
+    resolvedProcessMarketDate: dashboardProcessMarketDate,
+  });
 
   useEffect(() => {
     if (!agentProgressMarketDate) return;
@@ -1090,11 +1100,18 @@ export function useLiveDashboardData({
   }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
 
   useEffect(() => {
+    if (!latestSignalDeciderFeedbackMarketDate) {
+      setLatestSignalDeciderFeedback(null);
+      return;
+    }
+
     let active = true;
     const latestFeedbackPath = buildSignalDeciderLatestFeedbackPath({
       basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
       limit: resolveSignalDeciderFeedbackResultLimit(agentFeedbackProgressRef.current),
+      marketDate: latestSignalDeciderFeedbackMarketDate,
     });
+    if (!latestFeedbackPath) return;
 
     const loadLatestSignalDeciderFeedback = async () => {
       try {
@@ -1113,7 +1130,7 @@ export function useLiveDashboardData({
     return () => {
       active = false;
     };
-  }, [signalDeciderFeedbackRefreshKey]);
+  }, [latestSignalDeciderFeedbackMarketDate, signalDeciderFeedbackRefreshKey]);
 
   return {
     agentFeedbackProgress,

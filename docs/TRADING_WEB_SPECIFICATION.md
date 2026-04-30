@@ -217,7 +217,7 @@ Primary bootstrap sources:
 - `/eod/pipeline/status`
 - `/disclosures/dart/fundamentals/daily/inspect`
 - `/agent-context/feedback/progress`
-- `/agent-context/feedback?agent_name=signal-decider`
+- `/agent-context/feedback?market_date={resolved_date}&agent_name=signal-decider`
 - `/portfolio/summary`
 - `/eod/piotroski-filter-results`
 - `/eod/market-risk-filters`
@@ -416,7 +416,7 @@ Purpose:
 
 Sources:
 
-- `/api/trading/agent-context/feedback?agent_name=signal-decider`
+- `/api/trading/agent-context/feedback?market_date={resolved_date}&agent_name=signal-decider`
 - `/api/trading/agent-context/feedback/progress`
 
 Expected displayed data:
@@ -479,7 +479,7 @@ Purpose:
 Sources:
 
 - `/api/trading/eod/freshness`
-- `/api/trading/agent-context/feedback?agent_name=signal-decider&market_date=...`
+- `/api/trading/agent-context/feedback?market_date=...&agent_name=signal-decider`
 - `/api/trading/agent-context/feedback/progress`
 
 Expected behavior:

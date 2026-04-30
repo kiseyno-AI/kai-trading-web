@@ -669,6 +669,17 @@ test("dashboard signal-decider card shows latest completed rows while the curren
     feedbackQueries.push(url.search);
     const marketDate = url.searchParams.get("market_date");
 
+    if (!marketDate) {
+      await route.fulfill({
+        contentType: "application/json",
+        status: 422,
+        body: JSON.stringify({
+          detail: "market_date is required",
+        }),
+      });
+      return;
+    }
+
     if (marketDate === "2026-04-30") {
       await route.fulfill({
         contentType: "application/json",
@@ -746,7 +757,8 @@ test("dashboard signal-decider card shows latest completed rows while the curren
     "href",
     "/dashboard/signal-decider-feedback?marketDate=2026-04-29",
   );
-  await expect.poll(() => feedbackQueries.some((query) => !query.includes("market_date="))).toBe(true);
+  await expect.poll(() => feedbackQueries.some((query) => query.includes("market_date=2026-04-29"))).toBe(true);
+  expect(feedbackQueries.every((query) => query.includes("market_date="))).toBe(true);
 });
 
 test("signal-decider feedback detail stacks content without horizontal scrolling on mobile", async ({ page }) => {

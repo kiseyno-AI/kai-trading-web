@@ -800,15 +800,49 @@ export function buildSignalDeciderFeedbackPath({
 export function buildSignalDeciderLatestFeedbackPath({
   basePath,
   limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  marketDate,
 }: {
   basePath: string;
   limit?: number | null;
+  marketDate: string | null | undefined;
 }) {
-  const params = new URLSearchParams({
-    agent_name: SIGNAL_DECIDER_AGENT_NAME,
-    limit: String(limit ?? SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT),
+  const resolvedMarketDate = normalizeMarketDate(marketDate);
+  if (!resolvedMarketDate) return null;
+
+  return buildSignalDeciderFeedbackPath({
+    basePath,
+    limit,
+    marketDate: resolvedMarketDate,
   });
-  return `${basePath}?${params.toString()}`;
+}
+
+export function resolveSignalDeciderLatestFeedbackMarketDate({
+  currentMarketDate,
+  latestCompletedMarketDate,
+  progressMarketDate,
+  resolvedProcessMarketDate,
+}: {
+  currentMarketDate: string | null | undefined;
+  latestCompletedMarketDate?: string | null | undefined;
+  progressMarketDate: string | null | undefined;
+  resolvedProcessMarketDate: string | null | undefined;
+}) {
+  const normalizedCurrentMarketDate = normalizeMarketDate(currentMarketDate);
+  const resolvedCandidates = [
+    latestCompletedMarketDate,
+    resolvedProcessMarketDate,
+    progressMarketDate,
+  ].map(normalizeMarketDate);
+
+  const fallbackMarketDate = resolvedCandidates.find(
+    (candidate) => candidate && candidate !== normalizedCurrentMarketDate,
+  );
+  if (fallbackMarketDate) return fallbackMarketDate;
+
+  const resolvedMarketDate = resolvedCandidates.find((candidate) => candidate);
+  if (resolvedMarketDate) return resolvedMarketDate;
+
+  return normalizedCurrentMarketDate;
 }
 
 export function buildSignalDeciderFeedbackHref(marketDate: string | null | undefined) {
