@@ -51,9 +51,7 @@ export function DashboardToolbar({
     >
       <div className={styles.brandCluster}>
         {leading ? <div className={styles.leading}>{leading}</div> : null}
-        <div className={styles.brandMark} aria-hidden="true">
-          K
-        </div>
+        <div className={styles.brandMark} aria-hidden="true" />
         <div className={styles.brandCopy}>
           <strong className={styles.brandTitle}>{title ?? dashboardCopy.brandTitle}</strong>
           {resolvedSubtitle ? (

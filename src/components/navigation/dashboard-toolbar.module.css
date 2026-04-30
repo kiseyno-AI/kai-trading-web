@@ -20,19 +20,14 @@
 }
 
 .brandMark {
-  width: 2.25rem;
+  width: 2.5rem;
   height: 2.25rem;
   flex: 0 0 auto;
-  border-radius: var(--radius-lg);
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  color: var(--primary-foreground);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.92rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  box-shadow: 0 8px 18px rgba(0, 82, 255, 0.18);
+  background-image: url("./trading-toolbar-logo.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: drop-shadow(0 8px 14px rgba(5, 10, 18, 0.18));
 }
 
 .brandCopy {
@@ -131,13 +126,12 @@
   }
 
   .brandMark {
-    width: 2.2rem;
+    width: 2.4rem;
     height: 2.2rem;
-    border-radius: var(--radius-md);
   }
 
   .toolbar[data-has-leading="true"] .brandMark {
-    width: 2rem;
+    width: 2.2rem;
     height: 2rem;
   }
 

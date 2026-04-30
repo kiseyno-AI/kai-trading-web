@@ -53,6 +53,18 @@ test("AppShell topbar composes the shared dashboard toolbar", () => {
   assert.match(source, /<DashboardToolbar/);
 });
 
+test("shared dashboard toolbar uses the provided transparent logo asset", () => {
+  const toolbarSource = readFileSync(join(repoRoot, "src/components/navigation/dashboard-toolbar.tsx"), "utf8");
+  const toolbarStyles = readFileSync(join(repoRoot, "src/components/navigation/dashboard-toolbar.module.css"), "utf8");
+  const logo = readFileSync(join(repoRoot, "src/components/navigation/trading-toolbar-logo.png"));
+
+  assert.doesNotMatch(toolbarSource, />\s*K\s*</);
+  assert.match(toolbarSource, /className=\{styles\.brandMark\} aria-hidden="true" \/>/);
+  assert.match(toolbarStyles, /trading-toolbar-logo\.png/);
+  assert.equal(logo.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal(logo[25], 6);
+});
+
 test("AppShell and MobileAppChrome share the central route model", () => {
   const appShellSource = readFileSync(join(repoRoot, "src/components/layout/app-shell.tsx"), "utf8");
   const mobileChromeSource = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
