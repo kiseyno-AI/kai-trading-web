@@ -391,8 +391,11 @@
       "pathUnavailable": "Path unavailable",
       "progressUnavailable": "Role progress is unavailable for this date, so completion state is based on stored rows only.",
       "readyMonth": "Month scan ready",
+      "replayVerdictUnavailable": "Replay verdict is not stored yet. Use the signal rationale separately from pending review fields.",
       "replayUnavailable": "Replay horizon results are not stored for this symbol yet.",
+      "riskContextUnavailable": "No operator-facing risk context is stored for this signal.",
       "selectedUnavailable": "Selected date review is unavailable.",
+      "signalRationaleUnavailable": "Signal rationale is not stored for this decision.",
       "unavailableMonth": "Calendar scan unavailable"
     },
     "summary": {
@@ -425,11 +428,15 @@
     "detail": {
       "actionPlan": "Action plan",
       "conclusion": "Conclusion",
+      "diagnosticRiskTags": "Diagnostic risk tags",
       "eyebrow": "Symbol replay",
       "pathInterpretation": "Target / stop interpretation",
       "replaySummary": "Following sessions",
+      "replayVerdict": "Replay verdict",
+      "riskContext": "Risk context",
       "risks": "Risks",
-      "runContext": "Run context"
+      "runContext": "Run context",
+      "signalRationale": "Signal rationale"
     }
   },
   "markets": {
