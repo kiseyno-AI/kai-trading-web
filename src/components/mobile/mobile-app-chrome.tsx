@@ -183,7 +183,7 @@ export function MobileAppChrome({
 
       <aside className={styles.desktopRail} aria-label={t.mobileChrome.desktopNavigation}>
         <div className={styles.desktopBrand}>
-          <div className={styles.desktopBrandMark}>KAI</div>
+          <div className={styles.desktopBrandMark} aria-hidden="true" />
           <div>
             <strong>{t.mobileChrome.brandTitle}</strong>
             <span>{t.mobileChrome.brandSubtitle}</span>

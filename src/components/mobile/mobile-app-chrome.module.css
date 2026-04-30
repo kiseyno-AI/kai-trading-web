@@ -349,12 +349,10 @@
     display: grid;
     place-items: center;
     border-radius: var(--radius-lg);
-    background: var(--accent);
-    color: var(--primary-foreground);
-    font-family: var(--font-manrope), sans-serif;
-    font-size: 1.08rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+    background-image: url("../navigation/trading-toolbar-logo.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
     box-shadow: 0 8px 18px rgba(0, 82, 255, 0.18);
   }
 
