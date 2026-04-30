@@ -5,9 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import {
   resolveSymbolDetailActiveNav,
   resolveSymbolDetailNavContext,
@@ -107,16 +105,16 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
 
   return (
     <MobileAppChrome
-      activeNav={symbolDetailActiveNav}
-      topbar={{
+      chrome={{
+        activeNav: symbolDetailActiveNav,
         leading: (
           <Link href={backHref} className={styles.backButton} aria-label="Back to disclosure coverage">
             &larr;
           </Link>
         ),
         title: corpName,
-        status: <DashboardToolbarStatus tone="info">S7 Report</DashboardToolbarStatus>,
-        actions: <DevModeToggle />,
+        status: { label: "S7 Report", tone: "info" },
+        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.reportDetailPage}>
