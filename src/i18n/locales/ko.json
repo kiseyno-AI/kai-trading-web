@@ -382,8 +382,6 @@
       "needsReview": "확인 필요"
     },
     "states": {
-      "dependencyGapTitle": "캘린더는 전용 Core 캘린더/리플레이 집계 API를 사용합니다.",
-      "dependencyGapBody": "월간 셀은 /agent-context/feedback/calendar을 사용하고, 선택 날짜는 /agent-context/feedback/review를 사용합니다. 캘린더 요약 API가 실패하면 이번 달은 보이는 날짜별 generic 피드백 조회로 임시 폴백됩니다.",
       "emptySelected": "선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.",
       "loadingMonth": "의사결정 날짜를 불러오는 중",
       "loadingSelected": "선택한 날짜의 결정을 불러오는 중...",

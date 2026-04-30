@@ -998,11 +998,6 @@ export default function SignalReviewCalendarPageClient() {
           </div>
         </section>
 
-        <section className={styles.noticePanel}>
-          <strong>{copy.states.dependencyGapTitle}</strong>
-          <p>{copy.states.dependencyGapBody}</p>
-        </section>
-
         <section className={styles.workspaceGrid}>
           <div className={styles.panel}>
             <header className={styles.panelHeader}>

@@ -14,7 +14,6 @@
 }
 
 .heroPanel,
-.noticePanel,
 .panel {
   position: relative;
   overflow: hidden;
@@ -62,7 +61,6 @@
 }
 
 .pageCopy,
-.noticePanel p,
 .emptyState,
 .inlineNotice,
 .detailSection p,
@@ -100,20 +98,6 @@
   text-decoration: none;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-.noticePanel {
-  padding: 0.95rem 1rem;
-  border-color: rgba(255, 212, 159, 0.24);
-  background: rgba(82, 57, 28, 0.28);
-}
-
-.noticePanel strong {
-  display: block;
-  margin-bottom: 0.32rem;
-  color: var(--warning);
-  font-family: var(--font-manrope), sans-serif;
-  font-size: 0.9rem;
 }
 
 .workspaceGrid {

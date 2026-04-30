@@ -778,7 +778,6 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
 
   await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Calendar" }).first()).toBeVisible();
-  await expect(page.getByText("Calendar uses compact Core calendar/replay summaries.")).toBeVisible();
 
   const selectedDateCell = page.getByRole("button", { name: /2026-04-27/ });
   await expect(selectedDateCell).toContainText("2 decisions");
