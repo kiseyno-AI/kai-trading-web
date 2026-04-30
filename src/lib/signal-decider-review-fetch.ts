@@ -2,6 +2,18 @@ import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 
 export const SIGNAL_DECIDER_REVIEW_REQUEST_TIMEOUT_MS = 8_000;
 
+function getJsonErrorMessage(parsedBody: unknown) {
+  if (!parsedBody || typeof parsedBody !== "object") return null;
+
+  const body = parsedBody as Record<string, unknown>;
+  for (const key of ["detail", "message", "error"]) {
+    const value = body[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  return null;
+}
+
 export async function getSignalDeciderReviewJson<T>(
   path: string,
   {
@@ -33,14 +45,8 @@ export async function getSignalDeciderReviewJson<T>(
     }
 
     if (!response.ok) {
-      if (
-        parsedBody &&
-        typeof parsedBody === "object" &&
-        "detail" in parsedBody &&
-        typeof parsedBody.detail === "string"
-      ) {
-        throw new Error(parsedBody.detail);
-      }
+      const message = getJsonErrorMessage(parsedBody);
+      if (message) throw new Error(message);
 
       throw new Error(`HTTP ${response.status} for ${path}`);
     }

@@ -3,6 +3,7 @@
 This document defines the first practical frontend contract for wiring `trading-web` to the FastAPI backend in `trading-core`.
 
 ## Current shipped dashboard wiring
+- Web-side BFF and browser API reads are expected to resolve into data, empty, unavailable, timeout, or error states. The Next.js BFF applies a bounded timeout to JSON proxy reads and returns HTTP `504` with an explicit timeout message when trading-core hangs or lags past that budget, so operator routes should not remain in indefinite loading states while waiting on upstream reads.
 - `/dashboard` currently renders from these live endpoints where available:
   - `GET /market/status`
   - `GET /market/snapshot`

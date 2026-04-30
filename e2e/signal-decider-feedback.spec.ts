@@ -627,6 +627,27 @@ test("signal-decider detail keeps dashboard stored rows when the direct detail r
   await expect(page.getByText(/No signal-decider rows are stored/)).toHaveCount(0);
 });
 
+test("signal-decider detail resolves feedback gateway timeouts into an explicit error state", async ({ page }) => {
+  await mockDashboardShell(page);
+  await page.unroute("**/api/trading/agent-context/feedback?**");
+  await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
+    await route.fulfill({
+      status: 504,
+      json: {
+        error: "Upstream request timed out",
+        message: "Timed out after 5.0s while loading /agent-context/feedback from trading-core.",
+      },
+    });
+  });
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-29");
+
+  await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  await expect(page.getByRole("main").getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i)).toBeVisible();
+  await expect(page.getByText("Loading signal-decider feedback...")).toHaveCount(0);
+  await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
+});
+
 test("signal-decider detail keeps cached latest rows when fallback freshness fails", async ({ page }) => {
   await seedDashboardSignalDeciderCache(page, "2026-04-27");
   await mockDashboardShell(page, {

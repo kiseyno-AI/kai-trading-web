@@ -163,6 +163,25 @@ test.describe("portfolio mobile route", () => {
     await expect(page.getByText("Trading-core portfolio upstream is unavailable. HTTP 502").first()).toBeVisible();
   });
 
+  test("resolves aggregate summary gateway timeouts into an explicit unavailable state", async ({ page }) => {
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        status: 504,
+        json: {
+          error: "Upstream request timed out",
+          message: "Timed out after 5.0s while loading /portfolio/summary from trading-core.",
+        },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
+    await expect(page.getByText("Trading-core portfolio API unreachable.").first()).toBeVisible();
+    await expect(page.getByText("Trading-core portfolio upstream is unavailable. HTTP 504").first()).toBeVisible();
+    await expect(page.getByText("Loading the aggregate portfolio summary from trading-core...")).toHaveCount(0);
+  });
+
   test("keeps connected empty holdings separate from unavailable summary", async ({ page }) => {
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({
