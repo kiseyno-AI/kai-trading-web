@@ -728,11 +728,12 @@ test.describe("dashboard mobile chrome", () => {
 
     await page.goto("/dashboard");
 
-    const priceStage = page.locator('[aria-label="Price Fetch freshness"]');
-    const technicalStage = page.locator('[aria-label="Technical Analysis freshness"]');
-    const actionStage = page.locator('[aria-label="Action Summary freshness"]');
-    const fundamentalsStage = page.locator('[aria-label="Fundamentals freshness"]');
     const processDrawer = await openProcessMonitorDrawer(page);
+    const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
+    const priceStage = eodStatusCard.locator('[aria-label="Price Fetch freshness"]');
+    const technicalStage = eodStatusCard.locator('[aria-label="Technical Analysis freshness"]');
+    const actionStage = eodStatusCard.locator('[aria-label="Action Summary freshness"]');
+    const fundamentalsStage = eodStatusCard.locator('[aria-label="Fundamentals freshness"]');
     const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');

@@ -208,6 +208,7 @@ type EodStatusCardProps = {
   fundamentalsUpdatedActivity: FundamentalsUpdatedActivityModel | null;
   fundamentalsUpdatesExpanded: boolean;
   fundamentalsFailureDetails: FundamentalsFailureDetails | null;
+  idScope: string;
   onOpenFundamentalsDetails: () => void;
   onToggleFundamentalsUpdatesExpanded: () => void;
 };
@@ -219,9 +220,12 @@ const EodStatusCard = memo(function EodStatusCard({
   fundamentalsUpdatedActivity,
   fundamentalsUpdatesExpanded,
   fundamentalsFailureDetails,
+  idScope,
   onOpenFundamentalsDetails,
   onToggleFundamentalsUpdatesExpanded,
 }: EodStatusCardProps) {
+  const fundamentalsUpdatedCompanyListId = `${idScope}-fundamentals-updated-company-list`;
+
   return (
     <article className={`${styles.integrityStat} ${styles.eodStatusCard}`}>
       <div className={styles.sectionHeaderRow}>
@@ -283,7 +287,7 @@ const EodStatusCard = memo(function EodStatusCard({
                       <div className={styles.fundamentalsUpdatedBlock}>
                         <span className={styles.fundamentalsUpdatedLabel}>{copy.operational.updatedCompanies}</span>
                         <div
-                          id="fundamentals-updated-company-list"
+                          id={fundamentalsUpdatedCompanyListId}
                           className={styles.fundamentalsUpdatedList}
                           role="list"
                           aria-label={copy.operational.updatedCompanies}
@@ -300,7 +304,7 @@ const EodStatusCard = memo(function EodStatusCard({
                             type="button"
                             className={styles.inlineToggleButton}
                             aria-expanded={fundamentalsUpdatesExpanded}
-                            aria-controls="fundamentals-updated-company-list"
+                            aria-controls={fundamentalsUpdatedCompanyListId}
                             aria-label={
                               fundamentalsUpdatesExpanded
                                 ? copy.operational.showFewerUpdatedCompanies
@@ -659,6 +663,92 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
         </div>
       ) : null}
     </article>
+  );
+});
+
+type OperationalIntegrityCardsProps = {
+  agentFeedbackHeaderStatusLabel: string;
+  agentFeedbackStatusTone: "positive" | "neutral" | "warning";
+  agentFeedbackStopDialogOpen: boolean;
+  agentProgressDateContext: string | null;
+  agentRoleCards: AgentRoleCard[];
+  agentRoleStatusLabels: AgentRoleStatusLabels;
+  copy: DashboardLiveCopy;
+  eodCardIdScope: string;
+  eodStageCards: readonly EodStageCard[];
+  filteringCardModel: FilteringCardModel;
+  fundamentalsDialogOpen: boolean;
+  fundamentalsFailureDetails: FundamentalsFailureDetails | null;
+  fundamentalsUpdatedActivity: FundamentalsUpdatedActivityModel | null;
+  fundamentalsUpdatesExpanded: boolean;
+  isAgentFeedbackRunning: boolean;
+  patchDate: string | null;
+  scoringCardModel: ScoringCardModel;
+  onOpenAgentFeedbackStopDialog: () => void;
+  onOpenFundamentalsDetails: () => void;
+  onToggleFundamentalsUpdatesExpanded: () => void;
+};
+
+const OperationalIntegrityCards = memo(function OperationalIntegrityCards({
+  agentFeedbackHeaderStatusLabel,
+  agentFeedbackStatusTone,
+  agentFeedbackStopDialogOpen,
+  agentProgressDateContext,
+  agentRoleCards,
+  agentRoleStatusLabels,
+  copy,
+  eodCardIdScope,
+  eodStageCards,
+  filteringCardModel,
+  fundamentalsDialogOpen,
+  fundamentalsFailureDetails,
+  fundamentalsUpdatedActivity,
+  fundamentalsUpdatesExpanded,
+  isAgentFeedbackRunning,
+  patchDate,
+  scoringCardModel,
+  onOpenAgentFeedbackStopDialog,
+  onOpenFundamentalsDetails,
+  onToggleFundamentalsUpdatesExpanded,
+}: OperationalIntegrityCardsProps) {
+  return (
+    <>
+      <EodStatusCard
+        copy={copy}
+        eodStageCards={eodStageCards}
+        fundamentalsDialogOpen={fundamentalsDialogOpen}
+        fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
+        fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
+        fundamentalsFailureDetails={fundamentalsFailureDetails}
+        idScope={eodCardIdScope}
+        onOpenFundamentalsDetails={onOpenFundamentalsDetails}
+        onToggleFundamentalsUpdatesExpanded={onToggleFundamentalsUpdatesExpanded}
+      />
+
+      <FilteringCard
+        copy={copy}
+        filteringCardModel={filteringCardModel}
+        patchDate={patchDate}
+      />
+
+      <ScoringCard
+        copy={copy}
+        patchDate={patchDate}
+        scoringCardModel={scoringCardModel}
+      />
+
+      <AgentFeedbackCard
+        agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
+        agentFeedbackStatusTone={agentFeedbackStatusTone}
+        agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
+        agentProgressDateContext={agentProgressDateContext}
+        agentRoleCards={agentRoleCards}
+        agentRoleStatusLabels={agentRoleStatusLabels}
+        copy={copy}
+        isAgentFeedbackRunning={isAgentFeedbackRunning}
+        onOpenAgentFeedbackStopDialog={onOpenAgentFeedbackStopDialog}
+      />
+    </>
   );
 });
 
@@ -2052,30 +2142,7 @@ export function LiveDashboardClient({
       state={processMonitorDrawerState}
       onClose={closeProcessMonitorDrawer}
     >
-      <EodStatusCard
-        copy={copy}
-        eodStageCards={eodStageCards}
-        fundamentalsDialogOpen={fundamentalsDialogOpen}
-        fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
-        fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
-        fundamentalsFailureDetails={fundamentalsFailureDetails}
-        onOpenFundamentalsDetails={openFundamentalsDetails}
-        onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
-      />
-
-      <FilteringCard
-        copy={copy}
-        filteringCardModel={filteringCardModel}
-        patchDate={processMonitorModel.patchDate}
-      />
-
-      <ScoringCard
-        copy={copy}
-        patchDate={processMonitorModel.patchDate}
-        scoringCardModel={scoringCardModel}
-      />
-
-      <AgentFeedbackCard
+      <OperationalIntegrityCards
         agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
         agentFeedbackStatusTone={agentFeedbackStatusTone}
         agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
@@ -2083,8 +2150,19 @@ export function LiveDashboardClient({
         agentRoleCards={agentRoleCards}
         agentRoleStatusLabels={displayedAgentRoleStatusLabels}
         copy={copy}
+        eodCardIdScope="process-monitor"
+        eodStageCards={eodStageCards}
+        filteringCardModel={filteringCardModel}
+        fundamentalsDialogOpen={fundamentalsDialogOpen}
+        fundamentalsFailureDetails={fundamentalsFailureDetails}
+        fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
+        fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
         isAgentFeedbackRunning={isAgentFeedbackRunning}
+        patchDate={processMonitorModel.patchDate}
+        scoringCardModel={scoringCardModel}
         onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
+        onOpenFundamentalsDetails={openFundamentalsDetails}
+        onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
       />
     </ProcessMonitorDrawer>
   ) : null;
@@ -2163,6 +2241,56 @@ export function LiveDashboardClient({
               />
             </div>
           </div>
+
+          <section
+            className={`${styles.panel} ${styles.integrityPanel} ${styles.operationalIntegrityPanel}`}
+            data-dashboard-operational-integrity="inline"
+            aria-labelledby="dashboard-operational-integrity-title"
+            aria-hidden={processMonitorDrawerMounted || undefined}
+            hidden={processMonitorDrawerMounted || undefined}
+          >
+            <ComponentTag
+              label="dashboard.operational-integrity"
+              api="/api/trading/eod/freshness + /api/trading/eod/pipeline/status + /api/trading/agent-context/feedback/progress + /api/trading/disclosures/dart/fundamentals/daily/inspect + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters"
+            />
+            <div className={styles.sectionHeaderRow}>
+              <div>
+                <p className={styles.sectionEyebrow}>{copy.operational.eyebrow}</p>
+                <h2 id="dashboard-operational-integrity-title" className={styles.sectionTitle}>
+                  {copy.operational.title}
+                </h2>
+                {processMonitorModel.patchDate ? (
+                  <p className={styles.marketContext}>
+                    {copy.processMonitor.patchDate}: {processMonitorModel.patchDate}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className={`${styles.integrityGrid} ${styles.inlineOperationalIntegrityGrid}`}>
+              <OperationalIntegrityCards
+                agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
+                agentFeedbackStatusTone={agentFeedbackStatusTone}
+                agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
+                agentProgressDateContext={agentProgressDateContext}
+                agentRoleCards={agentRoleCards}
+                agentRoleStatusLabels={displayedAgentRoleStatusLabels}
+                copy={copy}
+                eodCardIdScope="dashboard-inline"
+                eodStageCards={eodStageCards}
+                filteringCardModel={filteringCardModel}
+                fundamentalsDialogOpen={fundamentalsDialogOpen}
+                fundamentalsFailureDetails={fundamentalsFailureDetails}
+                fundamentalsUpdatedActivity={fundamentalsUpdatedActivity}
+                fundamentalsUpdatesExpanded={fundamentalsUpdatesExpanded}
+                isAgentFeedbackRunning={isAgentFeedbackRunning}
+                patchDate={processMonitorModel.patchDate}
+                scoringCardModel={scoringCardModel}
+                onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
+                onOpenFundamentalsDetails={openFundamentalsDetails}
+                onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
+              />
+            </div>
+          </section>
 
           <ExecutionRuntimePanel
             board={executionRuntimeDailyBoard}
