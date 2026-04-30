@@ -5,6 +5,7 @@ const now = "2026-04-27T16:30:00+09:00";
 type MockDashboardShellOptions = {
   eodFreshnessDelayMs?: number;
   failEodFreshness?: boolean;
+  failSignalDeciderFeedback?: boolean;
   failSignalDeciderFeedbackRequestNumber?: number;
 };
 type SignalDeciderFeedbackMode = "normal" | "empty";
@@ -48,6 +49,7 @@ async function expectHorizontalCentersAligned(left: Locator, right: Locator, tol
 
 async function mockDashboardShell(page: Page, options: MockDashboardShellOptions = {}) {
   let signalDeciderFeedbackRequestCount = 0;
+  let shouldFailSignalDeciderFeedback = options.failSignalDeciderFeedback ?? false;
   let signalDeciderFeedbackMode: SignalDeciderFeedbackMode = "normal";
 
   await page.route("**/api/trading/market/status", async (route) => {
@@ -252,7 +254,11 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
       signalDeciderFeedbackRequestCount += 1;
     }
 
-    if (hasMarketDate && signalDeciderFeedbackRequestCount === options.failSignalDeciderFeedbackRequestNumber) {
+    if (
+      hasMarketDate &&
+      (shouldFailSignalDeciderFeedback ||
+        signalDeciderFeedbackRequestCount === options.failSignalDeciderFeedbackRequestNumber)
+    ) {
       await route.fulfill({
         status: 503,
         contentType: "application/json",
@@ -401,6 +407,9 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
 
   return {
     getSignalDeciderFeedbackRequestCount: () => signalDeciderFeedbackRequestCount,
+    setSignalDeciderFeedbackFailure: (shouldFail: boolean) => {
+      shouldFailSignalDeciderFeedback = shouldFail;
+    },
     setSignalDeciderFeedbackMode: (mode: SignalDeciderFeedbackMode) => {
       signalDeciderFeedbackMode = mode;
     },
@@ -954,18 +963,23 @@ test("signal-decider detail keeps cached latest rows when fallback freshness fai
 
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {
   const shell = await mockDashboardShell(page, {
-    failSignalDeciderFeedbackRequestNumber: 2,
+    failSignalDeciderFeedback: true,
   });
 
   await page.goto("/dashboard");
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
-  await expect.poll(shell.getSignalDeciderFeedbackRequestCount, { timeout: 2_500 }).toBe(2);
   await expect(card).toContainText("Signal-decider feedback is unavailable. temporary feedback outage", {
-    timeout: 1_000,
+    timeout: 3_000,
   });
-  await expect.poll(shell.getSignalDeciderFeedbackRequestCount, { timeout: 7_000 }).toBeGreaterThanOrEqual(3);
+
+  const failedRequestCount = shell.getSignalDeciderFeedbackRequestCount();
+  shell.setSignalDeciderFeedbackFailure(false);
+
+  await expect
+    .poll(shell.getSignalDeciderFeedbackRequestCount, { timeout: 7_000 })
+    .toBeGreaterThan(failedRequestCount);
   await expect(card).toContainText("Partial");
   await expect(card).toContainText("Samsung Electronics");
   await expect(card).not.toContainText("Signal-decider feedback is unavailable.");

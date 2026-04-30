@@ -989,6 +989,9 @@ export function useLiveDashboardData({
     progressMarketDate: agentProgressMarketDate,
     resolvedProcessMarketDate: dashboardProcessMarketDate,
   });
+  const shouldLoadLatestSignalDeciderFeedback =
+    latestSignalDeciderFeedbackMarketDate !== null &&
+    latestSignalDeciderFeedbackMarketDate !== normalizeMarketDateKey(agentProgressMarketDate);
 
   useEffect(() => {
     if (!agentProgressMarketDate) return;
@@ -1100,7 +1103,7 @@ export function useLiveDashboardData({
   }, [agentProgressMarketDate, signalDeciderFeedbackRefreshKey]);
 
   useEffect(() => {
-    if (!latestSignalDeciderFeedbackMarketDate) {
+    if (!shouldLoadLatestSignalDeciderFeedback) {
       setLatestSignalDeciderFeedback(null);
       return;
     }
@@ -1130,7 +1133,11 @@ export function useLiveDashboardData({
     return () => {
       active = false;
     };
-  }, [latestSignalDeciderFeedbackMarketDate, signalDeciderFeedbackRefreshKey]);
+  }, [
+    latestSignalDeciderFeedbackMarketDate,
+    shouldLoadLatestSignalDeciderFeedback,
+    signalDeciderFeedbackRefreshKey,
+  ]);
 
   return {
     agentFeedbackProgress,

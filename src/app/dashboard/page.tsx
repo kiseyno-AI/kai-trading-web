@@ -251,11 +251,14 @@ export default async function DashboardPage() {
       progressMarketDate: signalDeciderMarketDate,
       resolvedProcessMarketDate: resolvedDashboardProcessMarketDate,
     });
-    const latestSignalDeciderFeedbackPath = buildSignalDeciderLatestFeedbackPath({
-      basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
-      limit: signalDeciderResultLimit,
-      marketDate: latestSignalDeciderFeedbackMarketDate,
-    });
+    const latestSignalDeciderFeedbackPath =
+      latestSignalDeciderFeedbackMarketDate && latestSignalDeciderFeedbackMarketDate !== signalDeciderMarketDate
+        ? buildSignalDeciderLatestFeedbackPath({
+            basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+            limit: signalDeciderResultLimit,
+            marketDate: latestSignalDeciderFeedbackMarketDate,
+          })
+        : null;
     [signalDeciderFeedback, latestSignalDeciderFeedback] = await Promise.all([
       signalDeciderMarketDate
         ? fetchServerTradingApiJson<AgentFeedbackListResponseDto>(
