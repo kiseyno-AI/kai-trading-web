@@ -11,10 +11,17 @@ import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progres
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
   buildSignalDeciderFeedbackPath,
+  buildCalendarSummaryQuery,
   buildSignalDeciderFeedbackSummary,
+  buildReviewDateQuery,
+  buildSignalDeciderFeedbackListFromReviewDateResponse,
   formatSignalDeciderActionLabel,
+  SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+  SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  type SignalDeciderCalendarSummaryResponse,
+  type SignalDeciderReviewDateResponse,
   type SignalDeciderAction,
   type SignalDeciderFeedbackItem,
   type SignalDeciderFeedbackSummaryModel,
@@ -65,6 +72,8 @@ type CalendarDateSnapshot = {
 type MonthLoadState = "idle" | "loading" | "ready" | "partial" | "unavailable";
 type DetailLoadState = "idle" | "loading" | "ready" | "error";
 
+const EMPTY_ACTION_COUNTS = { buy: 0, wait: 0, reject: 0, unknown: 0 } as const;
+
 const COMPACT_STATUS_LABELS = {
   en: {
     completed: "OK",
@@ -111,6 +120,76 @@ const COMPACT_ACTION_LABELS = {
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function toCalendarInt(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
+  if (typeof value !== "string") return 0;
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+  const parsed = Number.parseInt(trimmed.replace(/,/g, ""), 10);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+}
+
+function normalizeActionKey(value: string | null | undefined): SignalDeciderAction {
+  const normalized = value?.trim().toLowerCase().replace(/\W+/g, " ").trim() ?? "";
+  if (normalized === "buy") return "buy";
+  if (normalized === "wait" || normalized === "watch" || normalized === "watchlist") return "wait";
+  if (normalized === "reject" || normalized === "avoid" || normalized === "skip") return "reject";
+  return "unknown";
+}
+
+type CompactCalendarStatus = "waiting" | "running" | "partial" | "completed" | "needs-review" | "empty" | "reviewed" | "stored";
+
+function normalizeCalendarStatus(value: string | null | undefined): CompactCalendarStatus {
+  const normalized = value?.trim().toLowerCase().replace(/\s+/g, "-") ?? "";
+  if (
+    normalized === "waiting" ||
+    normalized === "running" ||
+    normalized === "partial" ||
+    normalized === "completed" ||
+    normalized === "needs-review" ||
+    normalized === "empty" ||
+    normalized === "reviewed" ||
+    normalized === "stored"
+  ) {
+    return normalized as CompactCalendarStatus;
+  }
+  return "empty";
+}
+
+function mapCalendarStatus({
+  status,
+  decisionCount,
+  reviewCount,
+}: {
+  status: string | null | undefined;
+  decisionCount: number;
+  reviewCount: number;
+}): Exclude<DateSnapshotStatus, "loading" | "future" | "unavailable"> {
+  if (decisionCount <= 0) return "empty";
+  const normalized = normalizeCalendarStatus(status);
+  if (normalized === "reviewed" && reviewCount > 0) {
+    return "reviewed";
+  }
+  if (reviewCount <= 0) {
+    return "stored";
+  }
+  if (reviewCount >= decisionCount) {
+    return "reviewed";
+  }
+  return "partial";
+}
+
+function buildEmptyDateSnapshot(dateKey: string, error: string | null = null): CalendarDateSnapshot {
+  return {
+    actionCounts: { ...EMPTY_ACTION_COUNTS },
+    dateKey,
+    decisionCount: 0,
+    error,
+    reviewCount: 0,
+    status: error ? "unavailable" : "empty",
+  };
 }
 
 function isDateKey(value: string | null | undefined): value is string {
@@ -211,6 +290,54 @@ function buildDateSnapshot(
     reviewCount,
     status,
   };
+}
+
+function buildDateSnapshotFromCalendarSummary({
+  dateKey,
+  summaryItem,
+  fallbackFeedback,
+}: {
+  dateKey: string;
+  summaryItem: SignalDeciderCalendarSummaryResponse["items"][number] | null;
+  fallbackFeedback: AgentFeedbackListResponseDto | null;
+}): CalendarDateSnapshot {
+  if (!summaryItem) return fallbackFeedback ? buildDateSnapshot(dateKey, fallbackFeedback) : buildEmptyDateSnapshot(dateKey);
+
+  const decisionCount = toCalendarInt(summaryItem.decision_count);
+  const reviewCount = Object.values(summaryItem.review_status_counts ?? {}).reduce<number>(
+    (total, value) => total + toCalendarInt(value),
+    0,
+  );
+  const actionCounts = { ...EMPTY_ACTION_COUNTS };
+  for (const [actionKey, countValue] of Object.entries(summaryItem.decision_actions ?? {})) {
+    const action = normalizeActionKey(actionKey);
+    actionCounts[action] += toCalendarInt(countValue);
+  }
+  const status = mapCalendarStatus({
+    decisionCount,
+    reviewCount,
+    status: summaryItem.calendar_status,
+  });
+
+  if (decisionCount <= 0 && status === "empty") {
+    return buildEmptyDateSnapshot(dateKey);
+  }
+
+  return {
+    actionCounts,
+    dateKey,
+    decisionCount,
+    error: null,
+    reviewCount,
+    status,
+  };
+}
+
+function parseCompactDateValue(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+  const trimmed = value.trim();
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(trimmed);
+  return match?.[0] ?? null;
 }
 
 function getActionMixLabel(
@@ -490,6 +617,49 @@ export default function SignalReviewCalendarPageClient() {
         }
         return next;
       });
+      const monthSummaryQuery = buildCalendarSummaryQuery({
+        month: monthKey,
+      });
+      const monthSummaryPath = `${SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH}?${monthSummaryQuery}`;
+
+      try {
+        const calendarSummary = await getSignalDeciderReviewJson<SignalDeciderCalendarSummaryResponse>(
+          monthSummaryPath,
+        );
+        if (!active) return;
+
+        const summaryByDate = new Map<string, SignalDeciderCalendarSummaryResponse["items"][number]>();
+        for (const item of calendarSummary.items ?? []) {
+          const dateKey = parseCompactDateValue(item.market_date);
+          if (dateKey) {
+            summaryByDate.set(dateKey, item);
+          }
+        }
+
+        const nextSnapshots = monthDays.reduce<Record<string, CalendarDateSnapshot>>((snapshots, day) => {
+          const summaryItem = summaryByDate.get(day.dateKey) ?? null;
+          const cachedSnapshot = cachedByDate.get(day.dateKey) ?? null;
+          snapshots[day.dateKey] = buildDateSnapshotFromCalendarSummary({
+            dateKey: day.dateKey,
+            summaryItem,
+            fallbackFeedback: cachedSnapshot?.feedback ?? null,
+          });
+          return snapshots;
+        }, {});
+        const failedCount = Object.values(nextSnapshots).filter((snapshot) => snapshot.status === "unavailable").length;
+        setMonthSnapshots((current) => ({ ...current, ...nextSnapshots }));
+        setMonthLoadState(
+          failedCount === monthDays.length && monthDays.length > 0
+            ? "unavailable"
+            : failedCount > 0
+              ? "partial"
+              : "ready",
+        );
+        return;
+      } catch {
+        if (!active) return;
+      }
+
       const results = await Promise.all(
         monthDays.map(async (day) => {
           const cachedSnapshot = cachedByDate.get(day.dateKey) ?? null;
@@ -516,7 +686,11 @@ export default function SignalReviewCalendarPageClient() {
             return buildDateSnapshot(day.dateKey, selectedFeedback);
           } catch (error) {
             if (cachedSnapshot) return buildDateSnapshot(day.dateKey, cachedSnapshot.feedback);
-            return buildDateSnapshot(day.dateKey, null, error instanceof Error ? error.message : copy.states.unavailableMonth);
+            return buildDateSnapshot(
+              day.dateKey,
+              null,
+              error instanceof Error ? error.message : copy.states.unavailableMonth,
+            );
           }
         }),
       );
@@ -553,54 +727,97 @@ export default function SignalReviewCalendarPageClient() {
       setSelectedProgress(cachedSnapshot?.progress ?? null);
       setSelectedDataDate(cachedSnapshot ? selectedDate : null);
       setSelectedItemId(null);
+
+      const selectedProgressPromise = getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
+        `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(selectedDate)}`,
+      ).catch(() => null);
+      const reviewDatePath = `${SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH}?${buildReviewDateQuery({
+        marketDate: selectedDate,
+      })}`;
+
       try {
-        const [feedback, progress] = await Promise.all([
-          getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
-            buildSignalDeciderFeedbackPath({
-              basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
-              limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
-              marketDate: selectedDate,
-            }),
-          ),
-          getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
-            `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(selectedDate)}`,
-          ).catch(() => null),
+        const [reviewDateResponse] = await Promise.all([
+          getSignalDeciderReviewJson<SignalDeciderReviewDateResponse>(reviewDatePath),
         ]);
+        const feedback = buildSignalDeciderFeedbackListFromReviewDateResponse({
+          response: reviewDateResponse,
+          fallbackMarketDate: selectedDate,
+        });
+        const selectedProgress = await selectedProgressPromise;
         if (!active) return;
         const selectedFeedback = selectSignalDeciderFeedbackResponse({
           cached: cachedSnapshot,
           fetched: feedback,
         });
-        const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedSnapshot.progress) : progress;
+        const selectedProgressFallback = selectedFeedback === cachedSnapshot?.feedback ? (selectedProgress ?? cachedSnapshot.progress) : selectedProgress;
         setSelectedFeedback(selectedFeedback);
-        setSelectedProgress(selectedProgress);
+        setSelectedProgress(selectedProgressFallback);
         setSelectedDataDate(selectedDate);
-        setProgressUnavailable(selectedProgress === null);
+        setProgressUnavailable(selectedProgressFallback === null);
         setSelectedLoadState("ready");
+        setSelectedError(null);
         if (selectedFeedback === feedback) {
           writeSignalDeciderFeedbackCache({
             feedback,
             marketDate: selectedDate,
-            progress,
+            progress: selectedProgress,
             source: "calendar",
           });
         }
       } catch (error) {
-        if (!active) return;
-        if (cachedSnapshot) {
-          setSelectedFeedback(cachedSnapshot.feedback);
-          setSelectedProgress(cachedSnapshot.progress);
+        try {
+          const [feedback] = await Promise.all([
+            getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+              buildSignalDeciderFeedbackPath({
+                basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+                limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+                marketDate: selectedDate,
+              }),
+            ),
+          ]);
+          const progress = await selectedProgressPromise;
+          if (!active) return;
+          const selectedFeedback = selectSignalDeciderFeedbackResponse({
+            cached: cachedSnapshot,
+            fetched: feedback,
+          });
+          const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedSnapshot.progress) : progress;
+          setSelectedFeedback(selectedFeedback);
+          setSelectedProgress(selectedProgress);
           setSelectedDataDate(selectedDate);
-          setProgressUnavailable(cachedSnapshot.progress === null);
+          setProgressUnavailable(selectedProgress === null);
           setSelectedLoadState("ready");
-          setSelectedError(error instanceof Error ? error.message : copy.states.selectedUnavailable);
+          setSelectedError(error instanceof Error ? `Falling back to legacy feedback list for selected date: ${error.message}` : null);
+          if (selectedFeedback === feedback) {
+            writeSignalDeciderFeedbackCache({
+              feedback,
+              marketDate: selectedDate,
+              progress,
+              source: "calendar",
+            });
+          }
           return;
+        } catch (fallbackError) {
+          if (!active) return;
+          if (cachedSnapshot) {
+            setSelectedFeedback(cachedSnapshot.feedback);
+            setSelectedProgress(cachedSnapshot.progress);
+            setSelectedDataDate(selectedDate);
+            setProgressUnavailable(cachedSnapshot.progress === null);
+            setSelectedLoadState("ready");
+            setSelectedError(
+              fallbackError instanceof Error ? fallbackError.message : copy.states.selectedUnavailable,
+            );
+            return;
+          }
+          setSelectedFeedback(null);
+          setSelectedProgress(null);
+          setSelectedDataDate(selectedDate);
+          setSelectedLoadState("error");
+          setSelectedError(
+            fallbackError instanceof Error ? fallbackError.message : copy.states.selectedUnavailable,
+          );
         }
-        setSelectedFeedback(null);
-        setSelectedProgress(null);
-        setSelectedDataDate(selectedDate);
-        setSelectedLoadState("error");
-        setSelectedError(error instanceof Error ? error.message : copy.states.selectedUnavailable);
       }
     };
 
@@ -696,26 +913,50 @@ export default function SignalReviewCalendarPageClient() {
         {snapshot ? (
           <>
             <span className={`${styles.dayStatus} ${getStatusToneClass(snapshot.status)}`} data-calendar-cell-label="status">
-              <span className={styles.dayCellTextFull} data-calendar-label-variant="full">
+              <span
+                className={styles.dayCellTextFull}
+                data-calendar-cell-label="full"
+                data-calendar-label-variant="full"
+              >
                 {statusLabel}
               </span>
-              <span className={styles.dayCellTextCompact} data-calendar-label-variant="compact">
+              <span
+                className={styles.dayCellTextCompact}
+                data-calendar-cell-label="compact"
+                data-calendar-label-variant="compact"
+              >
                 {compactStatusLabel}
               </span>
             </span>
             <strong data-calendar-cell-label="count">
-              <span className={styles.dayCellTextFull} data-calendar-label-variant="full">
+              <span
+                className={styles.dayCellTextFull}
+                data-calendar-cell-label="full"
+                data-calendar-label-variant="full"
+              >
                 {decisionLabel}
               </span>
-              <span className={styles.dayCellTextCompact} data-calendar-label-variant="compact">
+              <span
+                className={styles.dayCellTextCompact}
+                data-calendar-cell-label="compact"
+                data-calendar-label-variant="compact"
+              >
                 {compactDecisionLabel}
               </span>
             </strong>
             <small data-calendar-cell-label="action-mix">
-              <span className={styles.dayCellTextFull} data-calendar-label-variant="full">
+              <span
+                className={styles.dayCellTextFull}
+                data-calendar-cell-label="full"
+                data-calendar-label-variant="full"
+              >
                 {actionMixLabel}
               </span>
-              <span className={styles.dayCellTextCompact} data-calendar-label-variant="compact">
+              <span
+                className={styles.dayCellTextCompact}
+                data-calendar-cell-label="compact"
+                data-calendar-label-variant="compact"
+              >
                 {compactActionMixLabel}
               </span>
             </small>
@@ -740,7 +981,7 @@ export default function SignalReviewCalendarPageClient() {
           <div className={styles.heroCopy}>
             <ComponentTag
               label="calendar.signal-review"
-              api="/api/trading/agent-context/feedback + /api/trading/agent-context/feedback/progress"
+              api="/api/trading/agent-context/feedback + /api/trading/agent-context/feedback/progress + /api/trading/agent-context/feedback/calendar + /api/trading/agent-context/feedback/review"
             />
             <p className={styles.eyebrow}>{copy.eyebrow}</p>
             <h1 className={styles.pageTitle}>{copy.title}</h1>

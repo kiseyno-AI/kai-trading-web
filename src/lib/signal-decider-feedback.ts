@@ -8,9 +8,14 @@ import type {
 export const SIGNAL_DECIDER_AGENT_NAME = "signal-decider";
 export const SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH = "/api/trading/agent-context/feedback";
 export const SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH = "/agent-context/feedback";
+export const SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_UPSTREAM_PATH = "/agent-context/feedback/review";
+export const SIGNAL_DECIDER_CALENDAR_SUMMARY_UPSTREAM_PATH = "/agent-context/feedback/calendar";
 export const SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT = 200;
+export const SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH = "/api/trading/agent-context/feedback/review";
+export const SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH = "/api/trading/agent-context/feedback/calendar";
 
 export type SignalDeciderFeedbackStatus = "waiting" | "running" | "partial" | "completed" | "needs-review";
+export type SignalDeciderCalendarStatus = "waiting" | "running" | "partial" | "completed" | "needs-review";
 
 export type SignalDeciderAction = "buy" | "wait" | "reject" | "unknown";
 
@@ -43,6 +48,63 @@ export type SignalDeciderPathOutcome = {
   label: string;
   tone: SignalDeciderQualityTone;
   detail: string | null;
+};
+
+export type SignalDeciderCalendarSummaryItem = {
+  marketDate: string;
+  decisionCount: number;
+  reviewCount: number;
+  status: SignalDeciderCalendarStatus | "empty";
+  actionCounts: Record<SignalDeciderAction, number>;
+};
+
+export type SignalDeciderCalendarSummaryResponse = {
+  request: {
+    month?: string | null;
+    horizons?: string[];
+    primary_horizon_days?: number | null;
+    evaluation_version?: string | null;
+  };
+  summary: {
+    request?: {
+      month?: string | null;
+      decision_count?: number | null;
+      reviewed_count?: number | null;
+    };
+    decision_count?: number | null;
+    reviewed_count?: number | null;
+  };
+  items: Array<{
+    market_date: string;
+    calendar_status?: string | null;
+    decision_count?: number | null;
+    decision_actions?: Record<string, unknown> | null;
+    review_status_counts?: Record<string, unknown> | null;
+  }>;
+};
+
+export type SignalDeciderReviewDateResponse = {
+  request: {
+    market_date?: string | null;
+    evaluation_version?: string | null;
+    primary_horizon_days?: number | null;
+    horizons?: string[];
+  };
+  summary: {
+    count?: number | null;
+    review_status_counts?: Record<string, unknown> | null;
+  };
+  items: Array<{
+    snapshot_id?: string | number | null;
+    symbol?: string | null;
+    market_date?: string | null;
+    run_id?: string | null;
+    captured_at?: string | null;
+    decision?: Record<string, unknown> | null;
+    review?: Record<string, unknown> | null;
+    summary?: Record<string, unknown> | null;
+    context?: Record<string, unknown> | null;
+  }>;
 };
 
 export type SignalDeciderOutcomeHorizon = {
@@ -193,6 +255,145 @@ function getStringValue(record: Record<string, unknown> | null | undefined, keys
     if (typeof value === "string" && hasTextValue(value)) return value.trim();
   }
   return null;
+}
+
+function toSafeInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/,/g, "");
+  if (!normalized) return null;
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, parsed);
+}
+
+export function buildCalendarSummaryQuery({
+  month,
+  horizons,
+  primaryHorizonDays,
+  evaluationVersion,
+}: {
+  month: string;
+  horizons?: string[];
+  primaryHorizonDays?: number | null;
+  evaluationVersion?: string | null;
+}) {
+  const params = new URLSearchParams({ month });
+
+  for (const horizon of horizons ?? []) {
+    const trimmed = horizon.trim();
+    if (trimmed) params.append("horizons", trimmed);
+  }
+
+  if (typeof primaryHorizonDays === "number" && Number.isFinite(primaryHorizonDays)) {
+    params.set("primary_horizon_days", String(Math.max(1, Math.trunc(primaryHorizonDays))));
+  }
+
+  if (hasTextValue(evaluationVersion)) params.set("evaluation_version", evaluationVersion.trim());
+
+  return params.toString();
+}
+
+export function buildReviewDateQuery({
+  marketDate,
+  horizons,
+  primaryHorizonDays,
+  evaluationVersion,
+}: {
+  marketDate: string;
+  horizons?: string[];
+  primaryHorizonDays?: number | null;
+  evaluationVersion?: string | null;
+}) {
+  const normalizedMarketDate = normalizeMarketDate(marketDate) ?? "";
+  const params = new URLSearchParams({ market_date: normalizedMarketDate });
+
+  for (const horizon of horizons ?? []) {
+    const trimmed = horizon.trim();
+    if (trimmed) params.append("horizons", trimmed);
+  }
+
+  if (typeof primaryHorizonDays === "number" && Number.isFinite(primaryHorizonDays)) {
+    params.set("primary_horizon_days", String(Math.max(1, Math.trunc(primaryHorizonDays))));
+  }
+
+  if (hasTextValue(evaluationVersion)) params.set("evaluation_version", evaluationVersion.trim());
+
+  return params.toString();
+}
+
+function toReviewDatePayload(value: unknown): AgentFeedbackStoredPayloadDto | null {
+  return isRecord(value) ? (value as AgentFeedbackStoredPayloadDto) : null;
+}
+
+function toReviewDateDecisionPayload(item: SignalDeciderReviewDateResponse["items"][number]) {
+  const decision = toReviewDatePayload(item.decision);
+  if (decision) return decision;
+
+  const summary = toReviewDatePayload(item.summary);
+  return summary ? { ...summary, symbol: item.symbol, market_date: item.market_date } : null;
+}
+
+export function buildSignalDeciderFeedbackListFromReviewDateResponse({
+  response,
+  fallbackMarketDate,
+}: {
+  response: SignalDeciderReviewDateResponse;
+  fallbackMarketDate?: string | null;
+}): AgentFeedbackListResponseDto {
+  const fallbackDate = normalizeMarketDate(fallbackMarketDate);
+  const requestMarketDate = normalizeMarketDate(response.request.market_date) ?? fallbackDate;
+  const resolvedMarketDate = requestMarketDate ?? "";
+
+  const items = (response.items ?? []).map((item, index) => {
+    const marketDate = normalizeMarketDate(item.market_date) ?? resolvedMarketDate;
+    const symbol = hasTextValue(item.symbol) ? item.symbol : String(index + 1).padStart(6, "0");
+    const decision = toReviewDateDecisionPayload(item);
+    const summary = toReviewDatePayload(item.summary);
+    const itemContext = isRecord((item as Record<string, unknown>).context)
+      ? ((item as Record<string, unknown>).context as Record<string, unknown>)
+      : null;
+    const context = (itemContext ?? getRecordValue(summary, ["context", "symbol_day_context", "symbolDayContext"])) as
+      | Record<string, unknown>
+      | null;
+
+    return {
+      id: String(item.snapshot_id ?? `${marketDate}-${symbol}-${index}`).replace(/\s+/g, "-"),
+      market_date: marketDate,
+      symbol,
+      agent: {
+        name: SIGNAL_DECIDER_AGENT_NAME,
+        run_id: hasTextValue(item.run_id) ? item.run_id : undefined,
+      },
+      summary: {
+        count: 1,
+      },
+      feedback: decision ?? {
+        role: SIGNAL_DECIDER_AGENT_NAME,
+        symbol,
+        market_date: marketDate,
+      },
+      normalized_feedback: null,
+      details: toReviewDatePayload(item.review),
+      context,
+      received_at: hasTextValue(item.captured_at) ? item.captured_at : null,
+    } satisfies AgentFeedbackStoredItemDto;
+  });
+  const resolvedSummaryCount = toSafeInteger(response.summary.count);
+  const fallbackSummaryCount = response.summary.count === null ? 0 : Math.max(0, items.length);
+
+  return {
+    request: {
+      market_date: resolvedMarketDate,
+      symbols: [],
+      agent_name: SIGNAL_DECIDER_AGENT_NAME,
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: {
+      count: resolvedSummaryCount ?? fallbackSummaryCount,
+    },
+    items,
+  };
 }
 
 function getRecordValue(record: Record<string, unknown> | null | undefined, keys: string[]) {

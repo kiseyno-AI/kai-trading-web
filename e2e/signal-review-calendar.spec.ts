@@ -6,7 +6,321 @@ type SignalReviewCalendarMockOptions = {
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   pendingRationaleDate?: string;
   timeoutFeedbackDates?: string[];
+  timeoutReviewDateDates?: string[];
+  forceCalendarSummaryFailure?: boolean;
 };
+
+type SignalReviewCalendarRequestHits = {
+  calendarSummary: number;
+  feedback: number;
+  progress: number;
+  reviewDate: number;
+};
+
+type SignalReviewCalendarFeedbackItem = {
+  id: string | number;
+  market_date: string;
+  symbol: string;
+  agent: {
+    name: string;
+    run_id: string;
+  };
+  summary: Record<string, unknown>;
+  feedback: Record<string, unknown>;
+  normalized_feedback: null;
+  details: Record<string, unknown> | null;
+  context: Record<string, unknown> | null;
+  received_at: string;
+};
+
+function parseActionPreference(value: unknown) {
+  if (typeof value !== "string") return "unknown";
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "buy" || normalized === "wait" || normalized === "reject") return normalized;
+  if (normalized === "watch" || normalized === "hold" || normalized === "watchlist") return "wait";
+  if (normalized === "avoid" || normalized === "skip") return "reject";
+  return "unknown";
+}
+
+function hasReviewEvidence(item: SignalReviewCalendarFeedbackItem) {
+  const feedback = item.feedback;
+  return (
+    typeof feedback.quality_reason === "string" ||
+    typeof feedback.quality_verdict === "string" ||
+    typeof feedback.review_conclusion === "string" ||
+    typeof feedback.target_stop_result === "string" ||
+    typeof feedback.evaluation?.quality_reason === "string" ||
+    typeof feedback.evaluation?.quality_verdict === "string" ||
+    typeof feedback.evaluation?.review_conclusion === "string"
+  );
+}
+
+function listMonthDates(month: string) {
+  const [yearString, monthString] = month.split("-", 2);
+  const year = Number(yearString);
+  const monthNumber = Number(monthString);
+  if (!Number.isFinite(year) || !Number.isFinite(monthNumber) || monthString.length !== 2 || monthNumber < 1 || monthNumber > 12) {
+    return [];
+  }
+
+  const maxDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  return Array.from({ length: maxDay }, (_, index) => `${yearString}-${monthString}-${String(index + 1).padStart(2, "0")}`);
+}
+
+function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalendarMockOptions) {
+  const denseFeedbackCount = options.denseFeedbackDates?.[date] ?? 0;
+  if (denseFeedbackCount > 0) {
+    return Array.from({ length: denseFeedbackCount }, (_, index) => ({
+      id: `dense-${date}-${index}`,
+      market_date: date,
+      symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
+      agent: {
+        name: "signal-decider",
+        run_id: `feedback-cycle-${date}`,
+      },
+      summary: {},
+      feedback: {
+        role: "signal-decider",
+        symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
+        market_date: date,
+        preferred_action: "buy",
+        next_day_open_action: "buy",
+        confidence_score_10: 8,
+        conviction_score_10: 7,
+        thesis_summary: "Dense mobile calendar regression row.",
+      },
+      normalized_feedback: null,
+      details: null,
+      context: {
+        symbol_day_context: {
+          company: {
+            name_ko: `Dense Regression ${index + 1}`,
+          },
+        },
+      },
+      received_at: `${date}T07:45:00+00:00`,
+    }));
+  }
+
+  if (options.pendingRationaleDate === date) {
+    return [
+      {
+        id: "pending-rationale",
+        market_date: date,
+        symbol: "000850",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "000850",
+          market_date: date,
+          preferred_action: "buy",
+          next_day_open_action: "buy",
+          target_price: 49200,
+          stop_loss_price: 45100,
+          confidence_score_10: 7,
+          conviction_score_10: 6,
+          thesis_summary:
+            "Fresh breakout-style strength is encouraging, but the replay verdict is not available yet.",
+          decision_risks: [
+            "Price action needs confirmation before the replay verdict is trusted.",
+            "fresh_breakout_needs_follow_through",
+            "range_to_trend_transition_risk",
+          ],
+          risk_flags: ["price_move_outpacing_fundamental_change", "missing_signal_features"],
+          policy_version: "decider-policy-2026.04",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "Hwacheon Machinery",
+            },
+          },
+        },
+        received_at: `${date}T07:45:00+00:00`,
+      },
+    ];
+  }
+
+  if (options.emptyFeedbackDates?.includes(date)) return [];
+
+  if (date === "2026-04-27") {
+    return [
+      {
+        id: 1,
+        market_date: date,
+        symbol: "005930",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "005930",
+          market_date: date,
+          preferred_action: "buy",
+          next_day_open_action: "buy",
+          target_price: 82000,
+          stop_loss_price: 73500,
+          confidence_score_10: 8,
+          conviction_score_10: 7,
+          thesis_summary: "Momentum and fundamentals align for a tactical next-day setup.",
+          decision_risks: ["Gap-down open"],
+          policy_version: "decider-policy-2026.04",
+          evaluation: {
+            quality_verdict: "weak_buy",
+            quality_reason: "The buy worked intraday but failed the 3d realized hurdle.",
+            target_stop_result: "target_hit_first",
+            review_conclusion: "Target hit intraday first, but the multi-day hold weakened.",
+            realized_results: {
+              "1d": {
+                return_pct: 0.82,
+                verdict: "neutral",
+                close_price: 82600,
+              },
+              "3d": {
+                realized_return_pct: -1.44,
+                verdict: "weak_buy",
+                close_price: 80800,
+              },
+            },
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "Samsung Electronics",
+            },
+          },
+        },
+        received_at: "2026-04-27T07:45:00+00:00",
+      },
+      {
+        id: 2,
+        market_date: date,
+        symbol: "000660",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "000660",
+          market_date: date,
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 6,
+          conviction_score_10: 5,
+          thesis_summary: "Wait for confirmation after the opening print.",
+          risk_flags: ["Volume confirmation missing"],
+          evaluation: {
+            quality_verdict: "missed_opportunity",
+            missed_opportunity: true,
+            quality_reason: "Price cleared the confirmation band before the 3d horizon.",
+            realized_results: {
+              "3d": {
+                return_pct: 4.18,
+                verdict: "missed_opportunity",
+              },
+            },
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "SK hynix",
+            },
+          },
+        },
+        received_at: "2026-04-27T07:44:00+00:00",
+      },
+    ];
+  }
+
+  return [];
+}
+
+function buildReviewDateResponse(marketDate: string, options: SignalReviewCalendarMockOptions) {
+  const items = buildMockFeedbackItemsForDate(marketDate, options);
+  const reviewedCount = items.filter(hasReviewEvidence).length;
+  return {
+    request: {
+      market_date: marketDate,
+    },
+    summary: {
+      count: items.length,
+      review_status_counts: reviewedCount > 0 ? { reviewed: reviewedCount } : {},
+    },
+    items: items.map((item, index) => ({
+      snapshot_id: `${marketDate}-${String(index + 1).padStart(3, "0")}`,
+      symbol: item.symbol,
+      market_date: item.market_date,
+      run_id: item.agent.run_id,
+      captured_at: item.received_at,
+      decision: item.feedback,
+      review: item.details,
+      context: item.context,
+    })),
+  };
+}
+
+function buildCalendarSummaryResponse(month: string, options: SignalReviewCalendarMockOptions) {
+  const monthDates = listMonthDates(month);
+  const summaryItems = monthDates
+    .map((date) => {
+      const items = buildMockFeedbackItemsForDate(date, options);
+      if (items.length === 0) return null;
+
+      const actionCounts: Record<string, number> = {
+        buy: 0,
+        wait: 0,
+        reject: 0,
+        unknown: 0,
+      };
+
+      for (const item of items) {
+        const action = parseActionPreference(item.feedback.next_day_open_action ?? item.feedback.preferred_action);
+        actionCounts[action] += 1;
+      }
+
+      return {
+        market_date: date,
+        decision_count: items.length,
+        decision_actions: actionCounts,
+        review_status_counts: {
+          reviewed: items.filter(hasReviewEvidence).length,
+        },
+        calendar_status: items.length > 0 ? "completed" : "empty",
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
+  const decisionCount = summaryItems.reduce((sum, item) => sum + Number(item.decision_count), 0);
+  const reviewedCount = summaryItems.reduce((sum, item) => sum + Number(item.review_status_counts.reviewed), 0);
+
+  return {
+    request: {
+      month,
+    },
+    summary: {
+      month,
+      decision_count: decisionCount,
+      reviewed_count: reviewedCount,
+    },
+    items: summaryItems,
+  };
+}
 
 function createDeferred() {
   let resolve!: () => void;
@@ -17,6 +331,13 @@ function createDeferred() {
 }
 
 async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalendarMockOptions = {}) {
+  const requestHits: SignalReviewCalendarRequestHits = {
+    calendarSummary: 0,
+    feedback: 0,
+    progress: 0,
+    reviewDate: 0,
+  };
+
   await page.route("**/api/trading/eod/freshness", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -31,7 +352,53 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     });
   });
 
+  await page.route("**/api/trading/agent-context/feedback/calendar**", async (route) => {
+    requestHits.calendarSummary += 1;
+
+    if (options.forceCalendarSummaryFailure) {
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Core calendar summary unavailable",
+          message: "Fallback needed for compact month query.",
+        }),
+      });
+      return;
+    }
+
+    const url = new URL(route.request().url());
+    const month = url.searchParams.get("month") ?? "2026-04";
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(buildCalendarSummaryResponse(month, options)),
+    });
+  });
+
+  await page.route("**/api/trading/agent-context/feedback/review**", async (route) => {
+    requestHits.reviewDate += 1;
+    const url = new URL(route.request().url());
+    const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
+    await options.feedbackDelays?.[marketDate];
+    if (options.timeoutReviewDateDates?.includes(marketDate)) {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Upstream request timed out",
+          message: "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(buildReviewDateResponse(marketDate, options)),
+    });
+  });
+
   await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+    requestHits.progress += 1;
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
     const storedDecisionCount =
@@ -85,6 +452,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
   });
 
   await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
+    requestHits.feedback += 1;
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
     await options.feedbackDelays?.[marketDate];
@@ -292,6 +660,8 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       }),
     });
   });
+
+  return requestHits;
 }
 
 async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
@@ -408,7 +778,7 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
 
   await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Calendar" }).first()).toBeVisible();
-  await expect(page.getByText("Calendar index is not a dedicated Core contract yet.")).toBeVisible();
+  await expect(page.getByText("Calendar uses compact Core calendar/replay summaries.")).toBeVisible();
 
   const selectedDateCell = page.getByRole("button", { name: /2026-04-27/ });
   await expect(selectedDateCell).toContainText("2 decisions");
@@ -436,6 +806,48 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await page.goBack();
   await expect(page).toHaveURL(/\/calendar\?date=2026-04-27/);
   await expect(samsungRow).toContainText("Target hit intraday first");
+});
+
+test("signal review calendar uses compact calendar summary for month load", async ({ page }) => {
+  const requestHits = await mockSignalReviewCalendar(page);
+
+  await page.goto("/calendar?date=2026-04-27");
+
+  const selectedDateCell = page.getByRole("button", { name: /2026-04-27/ });
+  await expect(selectedDateCell).toContainText("2 decisions");
+  await expect(selectedDateCell).toContainText("Buy 1 · Wait 1");
+
+  await expect
+    .poll(async () => requestHits.calendarSummary)
+    .toBe(1);
+  await expect
+    .poll(async () => requestHits.reviewDate)
+    .toBe(1);
+  await expect
+    .poll(async () => requestHits.feedback)
+    .toBe(0);
+});
+
+test("signal review calendar falls back to per-date feedback calls only when month summary fails", async ({ page }) => {
+  const requestHits = await mockSignalReviewCalendar(page, {
+    forceCalendarSummaryFailure: true,
+  });
+
+  await page.goto("/calendar?date=2026-04-27");
+
+  const selectedDateCell = page.getByRole("button", { name: /2026-04-27/ });
+  await expect(selectedDateCell).toContainText("2 decisions");
+  await expect(selectedDateCell).toContainText("Buy 1 · Wait 1");
+
+  await expect
+    .poll(async () => requestHits.calendarSummary)
+    .toBe(1);
+  await expect
+    .poll(async () => requestHits.feedback)
+    .toBe(listMonthDates("2026-04").length);
+  await expect
+    .poll(async () => requestHits.reviewDate)
+    .toBe(1);
 });
 
 test("signal review calendar separates pending replay state from available rationale and diagnostic risks", async ({
@@ -556,6 +968,7 @@ test("signal review calendar keeps narrow mobile cell and bottom-nav labels cont
 
 test("signal review calendar resolves selected-date gateway timeouts into an explicit error state", async ({ page }) => {
   await mockSignalReviewCalendar(page, {
+    timeoutReviewDateDates: ["2026-04-29"],
     timeoutFeedbackDates: ["2026-04-29"],
   });
 

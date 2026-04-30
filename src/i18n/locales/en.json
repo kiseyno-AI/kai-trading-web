@@ -382,8 +382,8 @@
       "needsReview": "Needs review"
     },
     "states": {
-      "dependencyGapTitle": "Calendar index is not a dedicated Core contract yet.",
-      "dependencyGapBody": "This page uses the real generic signal-decider feedback read for each visible date. Counts, action mix, path results, and conclusions are shown only when stored feedback rows contain those fields; a dedicated calendar/replay endpoint is still a dependency gap.",
+      "dependencyGapTitle": "Calendar uses compact Core calendar/replay summaries.",
+      "dependencyGapBody": "Month cells now load from /agent-context/feedback/calendar, and selected date detail uses /agent-context/feedback/review. If the calendar summary endpoint is unavailable, the page falls back to per-date generic feedback reads for the visible month.",
       "emptySelected": "No signal-decider decisions are stored for the selected date.",
       "loadingMonth": "Loading decision dates",
       "loadingSelected": "Loading selected-date decisions...",
