@@ -22,7 +22,13 @@ import {
   type SignalDeciderQualityTone,
   type SignalDeciderTraceEntry,
 } from "@/lib/signal-decider-feedback";
-import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
+import {
+  readLatestSignalDeciderFeedbackCache,
+  readSignalDeciderFeedbackCache,
+  selectSignalDeciderFeedbackResponse,
+  writeSignalDeciderFeedbackCache,
+} from "@/lib/signal-decider-feedback-cache";
+import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
 import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
@@ -37,36 +43,6 @@ const REVIEW_PENDING_MESSAGE = "Verdict and realized outcome are not present in 
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type SortMode = "priority" | "symbol" | "confidence" | "captured";
-
-async function getJsonNoCache<T>(path: string): Promise<T> {
-  const response = await fetch(resolveTradingApiClientPath(path), {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-  const responseText = await response.text();
-  let parsedBody: unknown = null;
-
-  if (responseText) {
-    parsedBody = JSON.parse(responseText) as T;
-  }
-
-  if (!response.ok) {
-    if (
-      parsedBody &&
-      typeof parsedBody === "object" &&
-      "detail" in parsedBody &&
-      typeof parsedBody.detail === "string"
-    ) {
-      throw new Error(parsedBody.detail);
-    }
-
-    throw new Error(`HTTP ${response.status} for ${path}`);
-  }
-
-  return parsedBody as T;
-}
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -353,12 +329,24 @@ export default function SignalDeciderFeedbackPageClient() {
     if (requestedMarketDate) return;
 
     let active = true;
-    setLoadState("loading");
+    const cachedLatest = readLatestSignalDeciderFeedbackCache();
+    if (cachedLatest) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setMarketDate(cachedLatest.marketDate);
+        setMarketDateDraft(cachedLatest.marketDate);
+        setFeedback(cachedLatest.feedback);
+        setProgress(cachedLatest.progress);
+        setLoadState("ready");
+      });
+    } else {
+      setLoadState("loading");
+    }
     setError(null);
 
     const loadFallbackMarketDate = async () => {
       try {
-        const freshness = await getJsonNoCache<EodFreshnessResponseDto>("/api/trading/eod/freshness");
+        const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
         if (!active) return;
         const resolvedMarketDate = getAgentFeedbackProgressMarketDate(freshness);
         setMarketDate(resolvedMarketDate);
@@ -384,30 +372,63 @@ export default function SignalDeciderFeedbackPageClient() {
     if (!marketDate) return;
 
     let active = true;
-    setLoadState("loading");
+    const cachedSnapshot = readSignalDeciderFeedbackCache(marketDate);
+    if (cachedSnapshot) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setFeedback(cachedSnapshot.feedback);
+        setProgress(cachedSnapshot.progress);
+        setLoadState("ready");
+      });
+    } else {
+      setFeedback(null);
+      setProgress(null);
+      setLoadState("loading");
+    }
     setError(null);
+    setSelectedItemId(null);
 
     const loadData = async () => {
       try {
         const [feedbackData, progressData] = await Promise.all([
-          getJsonNoCache<AgentFeedbackListResponseDto>(
+          getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
             buildSignalDeciderFeedbackPath({
               basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate,
             }),
           ),
-          getJsonNoCache<AgentFeedbackProgressResponseDto>(
+          getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
             `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(marketDate)}`,
           ).catch(() => null),
         ]);
         if (!active) return;
-        setFeedback(feedbackData);
-        setProgress(progressData);
+        const selectedFeedback = selectSignalDeciderFeedbackResponse({
+          cached: cachedSnapshot,
+          fetched: feedbackData,
+        });
+        const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progressData ?? cachedSnapshot.progress) : progressData;
+        setFeedback(selectedFeedback);
+        setProgress(selectedProgress);
         setLoadState("ready");
+        if (selectedFeedback === feedbackData) {
+          writeSignalDeciderFeedbackCache({
+            feedback: feedbackData,
+            marketDate,
+            progress: progressData,
+            source: "detail",
+          });
+        }
       } catch (loadError) {
         console.error("Signal decider feedback page load failed", loadError);
         if (!active) return;
+        if (cachedSnapshot) {
+          setFeedback(cachedSnapshot.feedback);
+          setProgress(cachedSnapshot.progress);
+          setLoadState("ready");
+          setError(loadError instanceof Error ? loadError.message : "Signal-decider feedback is unavailable.");
+          return;
+        }
         setFeedback(null);
         setProgress(null);
         setLoadState("error");

@@ -5,6 +5,7 @@ const now = "2026-04-27T16:30:00+09:00";
 type MockDashboardShellOptions = {
   failSignalDeciderFeedbackRequestNumber?: number;
 };
+type SignalDeciderFeedbackMode = "normal" | "empty";
 
 async function openProcessMonitorDrawer(page: Page) {
   const drawer = page.getByRole("dialog", { name: /Daily process monitor/i });
@@ -41,6 +42,7 @@ async function expectHorizontalCentersAligned(left: Locator, right: Locator, tol
 
 async function mockDashboardShell(page: Page, options: MockDashboardShellOptions = {}) {
   let signalDeciderFeedbackRequestCount = 0;
+  let signalDeciderFeedbackMode: SignalDeciderFeedbackMode = "normal";
 
   await page.route("**/api/trading/market/status", async (route) => {
     await route.fulfill({
@@ -222,6 +224,8 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
   });
   await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
     signalDeciderFeedbackRequestCount += 1;
+    const url = new URL(route.request().url());
+    const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
 
     if (signalDeciderFeedbackRequestCount === options.failSignalDeciderFeedbackRequestNumber) {
       await route.fulfill({
@@ -229,6 +233,25 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
         contentType: "application/json",
         body: JSON.stringify({
           detail: "temporary feedback outage",
+        }),
+      });
+      return;
+    }
+
+    if (signalDeciderFeedbackMode === "empty") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: marketDate,
+            symbols: [],
+            agent_name: "signal-decider",
+            limit: 200,
+          },
+          summary: {
+            count: 0,
+          },
+          items: [],
         }),
       });
       return;
@@ -353,6 +376,9 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
 
   return {
     getSignalDeciderFeedbackRequestCount: () => signalDeciderFeedbackRequestCount,
+    setSignalDeciderFeedbackMode: (mode: SignalDeciderFeedbackMode) => {
+      signalDeciderFeedbackMode = mode;
+    },
   };
 }
 
@@ -488,6 +514,29 @@ test("signal-decider feedback detail stacks content without horizontal scrolling
   for (const overflow of overflowMetrics.cardOverflows) {
     expect(overflow).toBeLessThanOrEqual(1);
   }
+});
+
+test("signal-decider detail keeps dashboard stored rows when the direct detail read is empty", async ({ page }) => {
+  const shell = await mockDashboardShell(page);
+
+  await page.goto("/dashboard");
+
+  const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
+  await expect(card).toContainText("Samsung Electronics");
+  await expect
+    .poll(async () =>
+      page.evaluate(() => window.sessionStorage.getItem("kai.signalDeciderFeedback.v1:2026-04-27") !== null),
+    )
+    .toBe(true);
+
+  shell.setSignalDeciderFeedbackMode("empty");
+  await card.getByRole("link", { name: /Open the signal-decider feedback detail page/i }).click();
+
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
+  await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toBeVisible();
+  await expect(page.getByRole("article", { name: /SK hynix signal-decider feedback/i })).toBeVisible();
+  await expect(page.getByText("Loading signal-decider feedback...")).toHaveCount(0);
+  await expect(page.getByText(/No signal-decider rows are stored/)).toHaveCount(0);
 });
 
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {

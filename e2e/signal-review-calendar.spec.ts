@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type SignalReviewCalendarMockOptions = {
+  emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
 };
 
@@ -82,7 +83,9 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
     await options.feedbackDelays?.[marketDate];
     const items =
-      marketDate === "2026-04-27"
+      options.emptyFeedbackDates?.includes(marketDate)
+        ? []
+        : marketDate === "2026-04-27"
         ? [
             {
               id: 1,
@@ -199,6 +202,73 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
   });
 }
 
+async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
+  await page.addInitScript((date) => {
+    const feedback = {
+      request: {
+        market_date: date,
+        symbols: [],
+        agent_name: "signal-decider",
+        limit: 200,
+      },
+      summary: {
+        count: 1,
+      },
+      items: [
+        {
+          id: "cached-dashboard-row",
+          market_date: date,
+          symbol: "005930",
+          agent: {
+            name: "signal-decider",
+            run_id: `feedback-cycle-${date}`,
+          },
+          summary: {},
+          feedback: {
+            role: "signal-decider",
+            symbol: "005930",
+            market_date: date,
+            preferred_action: "wait",
+            next_day_open_action: "wait",
+            confidence_score_10: 7,
+            conviction_score_10: 6,
+            thesis_summary: "Dashboard already loaded this stored signal-decider row.",
+          },
+          normalized_feedback: null,
+          details: null,
+          context: {
+            symbol_day_context: {
+              company: {
+                name_ko: "Samsung Electronics",
+              },
+            },
+          },
+          received_at: `${date}T07:45:00+00:00`,
+        },
+      ],
+    };
+
+    window.sessionStorage.setItem(
+      `kai.signalDeciderFeedback.v1:${date}`,
+      JSON.stringify({
+        version: 1,
+        marketDate: date,
+        cachedAt: Date.now(),
+        source: "dashboard",
+        feedback,
+        progress: null,
+      }),
+    );
+    window.sessionStorage.setItem(
+      "kai.signalDeciderFeedback.v1:dates",
+      JSON.stringify({
+        version: 1,
+        marketDates: [date],
+      }),
+    );
+  }, marketDate);
+}
+
 test("signal review calendar shows date metadata, selected decisions, and symbol replay detail", async ({ page }) => {
   await mockSignalReviewCalendar(page);
 
@@ -254,4 +324,20 @@ test("signal review calendar hides previous selected-date rows while a new date 
 
   delayedFeedback.resolve();
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.").first()).toBeVisible();
+});
+
+test("signal review calendar keeps dashboard cached rows when the direct selected-date read is empty", async ({ page }) => {
+  await seedDashboardSignalDeciderCache(page, "2026-04-27");
+  await mockSignalReviewCalendar(page, {
+    emptyFeedbackDates: ["2026-04-27"],
+  });
+
+  await page.goto("/calendar?date=2026-04-27");
+
+  const selectedDateCell = page.getByRole("button", { name: /2026-04-27/ });
+  await expect(selectedDateCell).toContainText("1 decisions");
+  await expect(selectedDateCell).toContainText("Wait 1");
+  await expect(page.getByText("Samsung Electronics").first()).toBeVisible();
+  await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
+  await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
 });

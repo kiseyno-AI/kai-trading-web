@@ -17,6 +17,12 @@ import {
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
   type SignalDeciderAction,
 } from "./signal-decider-feedback";
+import {
+  readLatestSignalDeciderFeedbackCache,
+  readSignalDeciderFeedbackCache,
+  selectSignalDeciderFeedbackResponse,
+  writeSignalDeciderFeedbackCache,
+} from "./signal-decider-feedback-cache";
 
 function buildFeedbackResponse(
   overrides: Partial<AgentFeedbackListResponseDto> = {},
@@ -206,6 +212,22 @@ function buildProgress(
       },
     },
     ...overrides,
+  };
+}
+
+function buildMemoryStorage() {
+  const values = new Map<string, string>();
+
+  return {
+    getItem(key: string) {
+      return values.get(key) ?? null;
+    },
+    removeItem(key: string) {
+      values.delete(key);
+    },
+    setItem(key: string, value: string) {
+      values.set(key, value);
+    },
   };
 }
 
@@ -498,4 +520,67 @@ test("keeps signal-decider headline action counts independent from preview trunc
   assert.equal(model.completedCount, 105);
   assert.equal(model.requestedCount, 109);
   assert.equal(model.errorCount, 4);
+});
+
+test("caches same-date dashboard feedback for clicked-through review surfaces", () => {
+  const storage = buildMemoryStorage();
+  const feedback = buildFeedbackResponse();
+  const progress = buildProgress();
+
+  assert.equal(
+    writeSignalDeciderFeedbackCache({
+      feedback,
+      marketDate: "2026-04-27",
+      now: 1000,
+      progress,
+      source: "dashboard",
+      storage,
+    }),
+    true,
+  );
+
+  const cached = readSignalDeciderFeedbackCache("2026-04-27", { now: 2000, storage });
+  assert.equal(cached?.source, "dashboard");
+  assert.equal(cached?.feedback.summary.count, 2);
+  assert.equal(cached?.progress?.summary.run_id, "run-1");
+  assert.equal(readLatestSignalDeciderFeedbackCache({ now: 2000, storage })?.marketDate, "2026-04-27");
+});
+
+test("does not replace cached stored rows with a contradictory empty direct read", () => {
+  const cachedFeedback = buildFeedbackResponse();
+  const emptyFeedback = buildFeedbackResponse({
+    summary: {
+      count: 0,
+    },
+    items: [],
+  });
+
+  const selected = selectSignalDeciderFeedbackResponse({
+    cached: {
+      version: 1,
+      cachedAt: 1000,
+      source: "dashboard",
+      marketDate: "2026-04-27",
+      feedback: cachedFeedback,
+      progress: buildProgress(),
+    },
+    fetched: emptyFeedback,
+  });
+
+  assert.equal(selected, cachedFeedback);
+});
+
+test("expires cached signal-decider feedback instead of serving stale rows", () => {
+  const storage = buildMemoryStorage();
+
+  writeSignalDeciderFeedbackCache({
+    feedback: buildFeedbackResponse(),
+    marketDate: "2026-04-27",
+    now: 1000,
+    progress: buildProgress(),
+    source: "dashboard",
+    storage,
+  });
+
+  assert.equal(readSignalDeciderFeedbackCache("2026-04-27", { now: 31 * 60 * 1000, storage }), null);
 });
