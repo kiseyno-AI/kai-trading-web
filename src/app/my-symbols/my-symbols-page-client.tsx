@@ -4,9 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import {
   SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT,
@@ -316,12 +314,12 @@ export default function MySymbolsPageClient() {
 
   return (
     <MobileAppChrome
-      activeNav="symbols"
-      topbar={{
+      chrome={{
+        activeNav: "symbols",
         title: copy.title,
         subtitle: copy.brandMeta,
-        status: <DashboardToolbarStatus tone={marketStatus.is_open ? "positive" : "warning"}>{marketBadgeLabel}</DashboardToolbarStatus>,
-        actions: <DevModeToggle />,
+        status: { label: marketBadgeLabel, tone: marketStatus.is_open ? "positive" : "warning" },
+        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.page}>

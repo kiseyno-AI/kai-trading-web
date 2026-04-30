@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
-import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
+import { MobileAppChrome, type MobileAppChromeRouteChrome } from "@/components/mobile/mobile-app-chrome";
+import type { DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
@@ -131,20 +130,21 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setActiveMode("system-freshness");
   }, [setActiveMode]);
 
-  const pendingTopbar = {
+  const pendingChrome = {
+    activeNav: symbolDetailActiveNav,
     leading: (
       <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
         ←
       </Link>
     ),
     title: copy.common.pending,
-    status: <DashboardToolbarStatus>{copy.header.marketPending}</DashboardToolbarStatus>,
-    actions: <DevModeToggle />,
-  };
+    status: { label: copy.header.marketPending },
+    toolbarAction: "dev-mode",
+  } satisfies MobileAppChromeRouteChrome;
 
   if (!symbolReady) {
     return (
-      <MobileAppChrome activeNav={symbolDetailActiveNav} topbar={pendingTopbar}>
+      <MobileAppChrome chrome={pendingChrome}>
         <div className={styles.detailPage} data-mode={activeMode}>
           <section className={`${styles.panel} ${styles.chartCard}`} role="status" aria-live="polite" aria-busy="true">
             <SurfaceState className={styles.emptyPanel} title={copy.loadingWorkspace} tone="loading">
@@ -158,16 +158,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
   return (
     <MobileAppChrome
-      activeNav={symbolDetailActiveNav}
-      topbar={{
+      chrome={{
+        activeNav: symbolDetailActiveNav,
         leading: (
           <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
             ←
           </Link>
         ),
         title: introTitle,
-        status: <DashboardToolbarStatus tone={toolbarMarketBadgeTone}>{toolbarMarketBadgeLabel}</DashboardToolbarStatus>,
-        actions: <DevModeToggle />,
+        status: { label: toolbarMarketBadgeLabel, tone: toolbarMarketBadgeTone },
+        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.detailPage} data-mode={activeMode}>

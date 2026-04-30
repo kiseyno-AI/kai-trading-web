@@ -4,11 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus, type DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
+import type { DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { formatDisplayTimestamp } from "@/lib/format";
 import { PORTFOLIO_SUMMARY_PATH } from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
@@ -402,12 +401,12 @@ export default function PortfolioPageClient() {
 
   return (
     <MobileAppChrome
-      activeNav="portfolio"
-      topbar={{
+      chrome={{
+        activeNav: "portfolio",
         title: copy.title,
         subtitle: copy.brandMeta,
-        status: <DashboardToolbarStatus tone={getPortfolioToolbarStatusTone(portfolioState)}>{statusLabel}</DashboardToolbarStatus>,
-        actions: <DevModeToggle />,
+        status: { label: statusLabel, tone: getPortfolioToolbarStatusTone(portfolioState) },
+        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.page}>

@@ -6,9 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
@@ -921,11 +919,11 @@ export default function SearchPageClient() {
 
   return (
     <MobileAppChrome
-      activeNav="search"
-      topbar={{
+      chrome={{
+        activeNav: "search",
         title: copy.brandTitle,
-        status: <DashboardToolbarStatus tone={marketStatus.is_open ? "positive" : "closed"}>{marketBadgeLabel}</DashboardToolbarStatus>,
-        actions: <DevModeToggle />,
+        status: { label: marketBadgeLabel, tone: marketStatus.is_open ? "positive" : "closed" },
+        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.searchTerminal}>

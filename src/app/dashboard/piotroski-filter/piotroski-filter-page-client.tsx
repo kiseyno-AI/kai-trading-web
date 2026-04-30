@@ -5,9 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { formatPrice } from "@/lib/format";
 import {
   buildPiotroskiSymbolHref,
@@ -210,10 +208,10 @@ export default function PiotroskiFilterPageClient() {
 
   return (
     <MobileAppChrome
-      activeNav="dashboard"
-      topbar={{
-        status: <DashboardToolbarStatus>{displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending"}</DashboardToolbarStatus>,
-        actions: <DevModeToggle />,
+      chrome={{
+        activeNav: "dashboard",
+        status: { label: displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending" },
+        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.stack}>

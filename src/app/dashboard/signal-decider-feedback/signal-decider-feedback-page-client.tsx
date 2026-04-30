@@ -5,9 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
@@ -498,10 +496,10 @@ export default function SignalDeciderFeedbackPageClient() {
 
   return (
     <MobileAppChrome
-      activeNav="dashboard"
-      topbar={{
-        status: <DashboardToolbarStatus>{displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending"}</DashboardToolbarStatus>,
-        actions: <DevModeToggle />,
+      chrome={{
+        activeNav: "dashboard",
+        status: { label: displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending" },
+        toolbarAction: "dev-mode",
       }}
     >
       <div className={styles.stack}>

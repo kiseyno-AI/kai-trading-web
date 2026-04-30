@@ -28,22 +28,34 @@ function collectFiles(directory: string, matcher: (path: string) => boolean) {
   return files;
 }
 
-test("routes that use MobileAppChrome provide toolbar slots instead of page-local toolbar markup", () => {
+test("routes that use MobileAppChrome provide chrome metadata instead of page-local shell slots", () => {
   const offenders = collectFiles(appRoot, (path) => path.endsWith(".tsx"))
     .filter((path) => {
       const source = readFileSync(path, "utf8");
-      return source.includes("<MobileAppChrome") && (/<DashboardToolbar[\s>]/.test(source) || source.includes("header={"));
+      return (
+        source.includes("<MobileAppChrome") &&
+        (/<DashboardToolbar[\s>]/.test(source) ||
+          /\btopbar=/.test(source) ||
+          /\bbottomChrome=/.test(source) ||
+          /\bdesktopRail=/.test(source) ||
+          /\bfloatingLayer=/.test(source) ||
+          /\bactiveNav=/.test(source))
+      );
     })
     .map((path) => relative(repoRoot, path));
 
   assert.deepEqual(offenders, []);
 });
 
-test("MobileAppChrome owns the shared dashboard toolbar frame", () => {
+test("MobileAppChrome owns the shared dashboard toolbar frame and standardized actions", () => {
   const source = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
 
   assert.match(source, /from "@\/components\/navigation\/dashboard-toolbar"/);
-  assert.match(source, /<DashboardToolbar \{\.\.\.topbar\} \/>/);
+  assert.match(source, /DashboardToolbarStatus/);
+  assert.match(source, /LanguageSwitchControl/);
+  assert.match(source, /DevModeToggle/);
+  assert.match(source, /<DashboardToolbar/);
+  assert.match(source, /actions=\{toolbarActions\}/);
 });
 
 test("AppShell topbar composes the shared dashboard toolbar", () => {
@@ -73,6 +85,34 @@ test("AppShell and MobileAppChrome share the central route model", () => {
   assert.match(appShellSource, /buildAppChromeSearchSuggestions/);
   assert.match(mobileChromeSource, /FULL_PAGE_CHROME_ROUTE_KEYS/);
   assert.match(mobileChromeSource, /buildAppChromeNavItems/);
+});
+
+test("full-screen routes use the shared chrome metadata model for representative pages", () => {
+  const representativeRoutes = [
+    "src/app/calendar/signal-review-calendar-page-client.tsx",
+    "src/app/my-symbols/my-symbols-page-client.tsx",
+    "src/app/dashboard/piotroski-filter/piotroski-filter-page-client.tsx",
+    "src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx",
+  ];
+
+  for (const route of representativeRoutes) {
+    const source = readFileSync(join(repoRoot, route), "utf8");
+
+    assert.match(source, /<MobileAppChrome\s+chrome=/, route);
+    assert.doesNotMatch(source, /DevModeToggle/, route);
+    assert.doesNotMatch(source, /\bDashboardToolbarStatus\b/, route);
+    assert.doesNotMatch(source, /\btopbar=|\bbottomChrome=|\bdesktopRail=|\bfloatingLayer=/, route);
+  }
+});
+
+test("MobileAppChrome keeps dashboard bottom chrome canonical for full-screen routes", () => {
+  const source = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
+
+  assert.match(source, /const bottomAccessory = chrome\.bottomAccessory;/);
+  assert.match(source, /const bottomMeta = null;/);
+  assert.match(source, /const desktopRailFooter = <MobileAppChromeDesktopRailFooter \/>;/);
+  assert.doesNotMatch(source, /bottomChrome/);
+  assert.doesNotMatch(source, /desktopRail\?/);
 });
 
 test("legacy page-local toolbar selectors stay out of route chrome styles", () => {

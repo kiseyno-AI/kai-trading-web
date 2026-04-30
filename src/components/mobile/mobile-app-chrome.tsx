@@ -4,7 +4,13 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { DashboardToolbar, type DashboardToolbarProps } from "@/components/navigation/dashboard-toolbar";
+import { DevModeToggle } from "@/components/dev/dev-mode-toggle";
+import {
+  DashboardToolbar,
+  DashboardToolbarStatus,
+  type DashboardToolbarStatusTone,
+} from "@/components/navigation/dashboard-toolbar";
+import { LanguageSwitchControl } from "@/components/navigation/language-switch-control";
 import { NavGlyph } from "@/components/navigation/nav-glyph";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
@@ -17,30 +23,32 @@ import {
 } from "@/lib/app-chrome-routes";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
-import type { Locale } from "@/types/trading-api";
 
 import styles from "./mobile-app-chrome.module.css";
 
-type MobileAppChromeBottomChrome = {
-  accessory?: ReactNode;
-  meta?: ReactNode | null;
+type MobileAppChromeStatus = {
+  label: ReactNode;
+  tone?: DashboardToolbarStatusTone;
 };
 
-type MobileAppChromeDesktopRail = {
-  footer?: ReactNode | null;
+export type MobileAppChromeRouteChrome = {
+  activeNav?: FullPageChromeRouteKey | null;
+  bottomAccessory?: ReactNode;
+  floatingLayer?: ReactNode;
+  hrefs?: AppChromeHrefOverrides;
+  leading?: ReactNode;
+  status?: MobileAppChromeStatus | null;
+  subtitle?: ReactNode | null;
+  subtitleAriaLabel?: string;
+  title?: ReactNode;
+  toolbarAction?: "dev-mode" | "none";
 };
 
 type MobileAppChromeProps = {
-  activeNav?: FullPageChromeRouteKey | null;
-  topbar: DashboardToolbarProps;
+  chrome: MobileAppChromeRouteChrome;
   children: ReactNode;
-  bottomChrome?: MobileAppChromeBottomChrome;
-  desktopRail?: MobileAppChromeDesktopRail;
-  floatingLayer?: ReactNode;
-  hrefs?: AppChromeHrefOverrides;
 };
 
-const localeOptions = ["en", "ko"] as const satisfies readonly Locale[];
 const EMPTY_HREF_OVERRIDES: AppChromeHrefOverrides = {};
 
 function getItemClass(active: boolean) {
@@ -51,50 +59,7 @@ function getDesktopItemClass(active: boolean) {
   return `${styles.desktopNavItem} ${active ? styles.desktopNavItemActive : ""}`.trim();
 }
 
-function getLocaleButtonClass(active: boolean) {
-  return `${styles.localeButton} ${active ? styles.localeButtonActive : ""}`.trim();
-}
-
-function LocaleSwitch({ className }: { className: string }) {
-  const { locale, setLocale, t } = useAppState();
-
-  return (
-    <div className={className} role="group" aria-label={t.common.languageSwitcher}>
-      {localeOptions.map((option) => (
-        <button
-          key={option}
-          type="button"
-          className={getLocaleButtonClass(locale === option)}
-          aria-pressed={locale === option}
-          aria-label={option === "en" ? t.common.languageEnglish : t.common.languageKorean}
-          onClick={() => setLocale(option)}
-        >
-          {t.languages[option].short}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function MobileAppChromeMetaRow() {
-  const { t } = useAppState();
-  const releaseDisplayLabel = `${t.mobileChrome.release} ${RELEASE_VERSION_LABEL}`;
-
-  return (
-    <>
-      <div className={styles.mobileReleaseBadge} aria-label={t.mobileChrome.releaseVersion}>
-        {releaseDisplayLabel}
-      </div>
-      <LocaleSwitch className={`${styles.localeSwitch} ${styles.mobileLocaleSwitch}`} />
-    </>
-  );
-}
-
-type MobileAppChromeDesktopRailFooterProps = {
-  variant?: "default" | "release";
-};
-
-export function MobileAppChromeDesktopRailFooter({ variant = "default" }: MobileAppChromeDesktopRailFooterProps) {
+export function MobileAppChromeDesktopRailFooter() {
   const { t } = useAppState();
 
   return (
@@ -102,24 +67,19 @@ export function MobileAppChromeDesktopRailFooter({ variant = "default" }: Mobile
       <span className={styles.releaseKicker}>{t.mobileChrome.release}</span>
       <strong className={styles.releaseValue}>{RELEASE_VERSION_LABEL}</strong>
       <div className={styles.releaseRule} aria-hidden="true" />
-      {variant === "default" ? <LocaleSwitch className={`${styles.localeSwitch} ${styles.desktopLocaleSwitch}`} /> : null}
     </>
   );
 }
 
 export function MobileAppChrome({
-  activeNav,
   children,
-  topbar,
-  bottomChrome,
-  desktopRail,
-  floatingLayer,
-  hrefs,
+  chrome,
 }: MobileAppChromeProps) {
   const router = useRouter();
   const { t } = useAppState();
   const { beginNavigation, isNavigatingTo } = useNavigationLoading();
-  const hrefOverrides = hrefs ?? EMPTY_HREF_OVERRIDES;
+  const activeNav = chrome.activeNav ?? null;
+  const hrefOverrides = chrome.hrefs ?? EMPTY_HREF_OVERRIDES;
   const navItems = useMemo(
     () => buildAppChromeNavItems(t, FULL_PAGE_CHROME_ROUTE_KEYS, hrefOverrides),
     [hrefOverrides, t],
@@ -130,9 +90,22 @@ export function MobileAppChrome({
 
     return [...new Set(targets.filter((target): target is string => typeof target === "string" && target.startsWith("/")))];
   }, [activeHref, navItems]);
-  const bottomAccessory = bottomChrome?.accessory;
-  const bottomMeta = bottomChrome?.meta === undefined ? <MobileAppChromeMetaRow /> : bottomChrome.meta;
-  const desktopRailFooter = desktopRail?.footer === undefined ? <MobileAppChromeDesktopRailFooter /> : desktopRail.footer;
+  const bottomAccessory = chrome.bottomAccessory;
+  const bottomMeta = null;
+  const desktopRailFooter = <MobileAppChromeDesktopRailFooter />;
+  const toolbarStatus = chrome.status ? (
+    <DashboardToolbarStatus tone={chrome.status.tone}>{chrome.status.label}</DashboardToolbarStatus>
+  ) : null;
+  const toolbarActions = (
+    <>
+      {chrome.toolbarAction === "dev-mode" ? (
+        <span className={styles.toolbarDevAction}>
+          <DevModeToggle />
+        </span>
+      ) : null}
+      <LanguageSwitchControl testId="dashboard-header-language-switch" />
+    </>
+  );
 
   useEffect(() => {
     if (!activeNav) return;
@@ -230,7 +203,14 @@ export function MobileAppChrome({
 
       <header className={`${styles.headerFrame} topbar`} data-app-chrome-topbar="fixed">
         <div className={styles.headerInner}>
-          <DashboardToolbar {...topbar} />
+          <DashboardToolbar
+            actions={toolbarActions}
+            leading={chrome.leading}
+            status={toolbarStatus}
+            subtitle={chrome.subtitle}
+            subtitleAriaLabel={chrome.subtitleAriaLabel}
+            title={chrome.title}
+          />
         </div>
       </header>
 
@@ -243,7 +223,7 @@ export function MobileAppChrome({
           {navItems.map(renderNavItem)}
         </nav>
       </div>
-      {floatingLayer}
+      {chrome.floatingLayer}
     </div>
   );
 }

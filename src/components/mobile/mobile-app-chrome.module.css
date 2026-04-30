@@ -71,6 +71,11 @@
   pointer-events: auto;
 }
 
+.toolbarDevAction {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
 .main {
   position: relative;
   z-index: 1;
@@ -265,6 +270,12 @@
   text-transform: uppercase;
   white-space: nowrap;
   word-break: keep-all;
+}
+
+@media (max-width: 520px) {
+  .toolbarDevAction {
+    display: none;
+  }
 }
 
 @media (max-width: 380px) {

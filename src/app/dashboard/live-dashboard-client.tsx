@@ -5,9 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
-import { MobileAppChrome, MobileAppChromeDesktopRailFooter } from "@/components/mobile/mobile-app-chrome";
-import { DashboardToolbarStatus } from "@/components/navigation/dashboard-toolbar";
-import { LanguageSwitchControl } from "@/components/navigation/language-switch-control";
+import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
@@ -2230,11 +2228,9 @@ export function LiveDashboardClient({
 
   return (
     <MobileAppChrome
-      activeNav="dashboard"
-      desktopRail={{ footer: <MobileAppChromeDesktopRailFooter variant="release" /> }}
-      bottomChrome={{
-        meta: null,
-        accessory: (
+      chrome={{
+        activeNav: "dashboard",
+        bottomAccessory: (
           <ProcessMonitorTrigger
             copy={copy}
             model={processMonitorModel}
@@ -2243,11 +2239,8 @@ export function LiveDashboardClient({
             onOpen={openProcessMonitorDrawer}
           />
         ),
-      }}
-      floatingLayer={processMonitorFloatingLayer}
-      topbar={{
-        status: <DashboardToolbarStatus tone={market.is_open ? "positive" : "closed"}>{marketBadgeLabel}</DashboardToolbarStatus>,
-        actions: <LanguageSwitchControl testId="dashboard-header-language-switch" />,
+        floatingLayer: processMonitorFloatingLayer,
+        status: { label: marketBadgeLabel, tone: market.is_open ? "positive" : "closed" },
       }}
     >
       <div className={`${styles.stack} ${styles.dashboardWideShell}`}>
