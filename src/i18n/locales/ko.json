@@ -391,8 +391,11 @@
       "pathUnavailable": "경로 사용 불가",
       "progressUnavailable": "이 날짜의 역할 진행 상태를 사용할 수 없어 저장된 행 기준으로 완료 상태를 표시합니다.",
       "readyMonth": "월간 스캔 준비됨",
+      "replayVerdictUnavailable": "리플레이 판정은 아직 저장되지 않았습니다. 시그널 근거는 대기 중인 리뷰 필드와 분리해 확인하세요.",
       "replayUnavailable": "이 종목의 리플레이 기간 결과가 아직 저장되지 않았습니다.",
+      "riskContextUnavailable": "이 시그널에 저장된 운영자용 리스크 설명이 없습니다.",
       "selectedUnavailable": "선택한 날짜 리뷰를 사용할 수 없습니다.",
+      "signalRationaleUnavailable": "이 결정의 시그널 근거가 저장되지 않았습니다.",
       "unavailableMonth": "캘린더 스캔 사용 불가"
     },
     "summary": {
@@ -425,11 +428,15 @@
     "detail": {
       "actionPlan": "액션 계획",
       "conclusion": "결론",
+      "diagnosticRiskTags": "진단용 리스크 태그",
       "eyebrow": "종목 리플레이",
       "pathInterpretation": "목표 / 손절 해석",
       "replaySummary": "이후 세션",
+      "replayVerdict": "리플레이 판정",
+      "riskContext": "리스크 설명",
       "risks": "리스크",
-      "runContext": "실행 컨텍스트"
+      "runContext": "실행 컨텍스트",
+      "signalRationale": "시그널 근거"
     }
   },
   "markets": {

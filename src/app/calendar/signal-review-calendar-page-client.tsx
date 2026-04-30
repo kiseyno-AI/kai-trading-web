@@ -336,6 +336,37 @@ function getDetailSummary(item: SignalDeciderFeedbackItem) {
   return item.reviewConclusion ?? item.qualityReason ?? item.qualityVerdict ?? UNKNOWN_LABEL;
 }
 
+function isDiagnosticRiskToken(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed === trimmed.toLowerCase() && /^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(trimmed);
+}
+
+function humanizeRiskToken(value: string) {
+  const label = value
+    .trim()
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .join(" ");
+
+  return label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : "";
+}
+
+function splitRiskFlags(riskFlags: string[]) {
+  return riskFlags.reduce(
+    (groups, risk) => {
+      if (isDiagnosticRiskToken(risk)) {
+        const label = humanizeRiskToken(risk);
+        if (label && !groups.diagnosticRiskTags.includes(label)) groups.diagnosticRiskTags.push(label);
+        return groups;
+      }
+
+      if (!groups.operatorRiskContext.includes(risk)) groups.operatorRiskContext.push(risk);
+      return groups;
+    },
+    { diagnosticRiskTags: [] as string[], operatorRiskContext: [] as string[] },
+  );
+}
+
 function buildSymbolHref(item: SignalDeciderFeedbackItem) {
   const params = new URLSearchParams();
   if (hasTextValue(item.companyName)) params.set("name", item.companyName);
@@ -941,6 +972,10 @@ function DetailPanel({
   status: SignalDeciderFeedbackSummaryModel;
 }) {
   const pathOutcome: SignalDeciderPathOutcome | null = item.pathOutcome;
+  const pathOutcomeDetail = pathOutcome?.detail ?? pathOutcome?.label ?? item.intradayPathResult ?? null;
+  const hasReplayVerdict = hasTextValue(item.reviewConclusion) || hasTextValue(item.qualityVerdict);
+  const hasQualityReason = hasTextValue(item.qualityReason) && item.qualityReason !== item.reviewConclusion;
+  const { diagnosticRiskTags, operatorRiskContext } = splitRiskFlags(item.riskFlags);
 
   return (
     <div className={styles.dialogBackdrop} onMouseDown={onClose}>
@@ -1022,14 +1057,33 @@ function DetailPanel({
 
           <div className={styles.detailMain}>
             <section className={styles.detailSection}>
-              <h3>{copy.detail.conclusion}</h3>
-              <p>{getDetailSummary(item)}</p>
-              {item.thesisSummary ? <p>{item.thesisSummary}</p> : null}
+              <h3>{copy.detail.signalRationale}</h3>
+              {item.thesisSummary ? (
+                <p className={styles.primaryDetailText}>{item.thesisSummary}</p>
+              ) : (
+                <p className={styles.pendingDetailText}>{copy.states.signalRationaleUnavailable}</p>
+              )}
+            </section>
+
+            <section className={styles.detailSection}>
+              <h3>{copy.detail.replayVerdict}</h3>
+              {hasReplayVerdict ? (
+                <>
+                  <p className={styles.primaryDetailText}>
+                    {item.reviewConclusion ?? item.qualityVerdict ?? copy.status.pending}
+                  </p>
+                  {hasQualityReason ? <p>{item.qualityReason}</p> : null}
+                </>
+              ) : (
+                <p className={styles.pendingDetailText}>{copy.states.replayVerdictUnavailable}</p>
+              )}
             </section>
 
             <section className={styles.detailSection}>
               <h3>{copy.detail.pathInterpretation}</h3>
-              <p>{pathOutcome?.detail ?? pathOutcome?.label ?? item.intradayPathResult ?? copy.states.pathUnavailable}</p>
+              <p className={pathOutcomeDetail ? undefined : styles.pendingDetailText}>
+                {pathOutcomeDetail ?? copy.states.pathUnavailable}
+              </p>
             </section>
 
             <section className={styles.detailSection}>
@@ -1053,22 +1107,33 @@ function DetailPanel({
                   ))}
                 </div>
               ) : (
-                <p>{copy.states.replayUnavailable}</p>
+                <p className={styles.pendingDetailText}>{copy.states.replayUnavailable}</p>
               )}
             </section>
 
             <section className={styles.detailSection}>
-              <h3>{copy.detail.risks}</h3>
-              {item.riskFlags.length > 0 ? (
+              <h3>{copy.detail.riskContext}</h3>
+              {operatorRiskContext.length > 0 ? (
                 <div className={styles.riskList}>
-                  {item.riskFlags.map((risk) => (
+                  {operatorRiskContext.map((risk) => (
                     <span key={risk}>{risk}</span>
                   ))}
                 </div>
               ) : (
-                <p>{UNKNOWN_LABEL}</p>
+                <p className={styles.pendingDetailText}>{copy.states.riskContextUnavailable}</p>
               )}
             </section>
+
+            {diagnosticRiskTags.length > 0 ? (
+              <section className={`${styles.detailSection} ${styles.diagnosticSection}`}>
+                <h3>{copy.detail.diagnosticRiskTags}</h3>
+                <div className={`${styles.riskList} ${styles.diagnosticRiskList}`}>
+                  {diagnosticRiskTags.map((risk) => (
+                    <span key={risk}>{risk}</span>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         </div>
       </section>

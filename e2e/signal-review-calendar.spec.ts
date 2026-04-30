@@ -4,6 +4,7 @@ type SignalReviewCalendarMockOptions = {
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
+  pendingRationaleDate?: string;
   timeoutFeedbackDates?: string[];
 };
 
@@ -33,6 +34,9 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
   await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
+    const storedDecisionCount =
+      options.pendingRationaleDate === marketDate ? 1 : marketDate === "2026-04-27" ? 2 : 0;
+    const isCompletedReviewDate = marketDate === "2026-04-27";
 
     await route.fulfill({
       contentType: "application/json",
@@ -44,34 +48,34 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
         },
         summary: {
           run_id: `feedback-cycle-${marketDate}`,
-          run_status: marketDate === "2026-04-27" ? "completed" : "pending",
-          run_table_status: marketDate === "2026-04-27" ? "completed" : "pending",
+          run_status: isCompletedReviewDate ? "completed" : "pending",
+          run_table_status: isCompletedReviewDate ? "completed" : "pending",
           is_live: false,
           run_started_at: "2026-04-27T06:50:00+00:00",
           run_completed_at: "2026-04-27T07:45:00+00:00",
           current_role: null,
-          completed_roles: ["signal-decider"],
-          remaining_roles: [],
+          completed_roles: isCompletedReviewDate ? ["signal-decider"] : [],
+          remaining_roles: isCompletedReviewDate ? [] : ["signal-decider"],
           latest_feedback_at: "2026-04-27T07:45:00+00:00",
           seconds_since_last_feedback: 120,
           stalled_threshold_seconds: 300,
-          total_symbols: marketDate === "2026-04-27" ? 2 : 0,
-          processed_symbols: marketDate === "2026-04-27" ? 2 : 0,
-          completed_symbols: marketDate === "2026-04-27" ? 2 : 0,
+          total_symbols: storedDecisionCount,
+          processed_symbols: isCompletedReviewDate ? storedDecisionCount : 0,
+          completed_symbols: isCompletedReviewDate ? storedDecisionCount : 0,
           in_progress_symbols: 0,
-          pending_symbols: 0,
-          progress_ratio: marketDate === "2026-04-27" ? 1 : 0,
-          progress_percent: marketDate === "2026-04-27" ? 100 : 0,
+          pending_symbols: isCompletedReviewDate ? 0 : storedDecisionCount,
+          progress_ratio: isCompletedReviewDate ? 1 : 0,
+          progress_percent: isCompletedReviewDate ? 100 : 0,
           failed_items: 0,
-          completed_feedback_count: marketDate === "2026-04-27" ? 2 : 0,
-          expected_feedback_count: marketDate === "2026-04-27" ? 2 : 0,
+          completed_feedback_count: isCompletedReviewDate ? storedDecisionCount : 0,
+          expected_feedback_count: storedDecisionCount,
         },
         result: {
           market_date: marketDate,
           roles: {
             "signal-decider": {
-              requested_count: marketDate === "2026-04-27" ? 2 : 0,
-              completed_count: marketDate === "2026-04-27" ? 2 : 0,
+              requested_count: storedDecisionCount,
+              completed_count: isCompletedReviewDate ? storedDecisionCount : 0,
               error_count: 0,
             },
           },
@@ -128,6 +132,49 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
             },
             received_at: `${marketDate}T07:45:00+00:00`,
           }))
+        : options.pendingRationaleDate === marketDate
+        ? [
+            {
+              id: "pending-rationale",
+              market_date: marketDate,
+              symbol: "000850",
+              agent: {
+                name: "signal-decider",
+                run_id: `feedback-cycle-${marketDate}`,
+              },
+              summary: {},
+              feedback: {
+                role: "signal-decider",
+                symbol: "000850",
+                market_date: marketDate,
+                preferred_action: "buy",
+                next_day_open_action: "buy",
+                target_price: 49200,
+                stop_loss_price: 45100,
+                confidence_score_10: 7,
+                conviction_score_10: 6,
+                thesis_summary:
+                  "Fresh breakout-style strength is encouraging, but the replay verdict is not available yet.",
+                decision_risks: [
+                  "Price action needs confirmation before the replay verdict is trusted.",
+                  "fresh_breakout_needs_follow_through",
+                  "range_to_trend_transition_risk",
+                ],
+                risk_flags: ["price_move_outpacing_fundamental_change", "missing_signal_features"],
+                policy_version: "decider-policy-2026.04",
+              },
+              normalized_feedback: null,
+              details: null,
+              context: {
+                symbol_day_context: {
+                  company: {
+                    name_ko: "Hwacheon Machinery",
+                  },
+                },
+              },
+              received_at: `${marketDate}T07:45:00+00:00`,
+            },
+          ]
         : options.emptyFeedbackDates?.includes(marketDate)
         ? []
         : marketDate === "2026-04-27"
@@ -389,6 +436,36 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await page.goBack();
   await expect(page).toHaveURL(/\/calendar\?date=2026-04-27/);
   await expect(samsungRow).toContainText("Target hit intraday first");
+});
+
+test("signal review calendar separates pending replay state from available rationale and diagnostic risks", async ({
+  page,
+}) => {
+  await mockSignalReviewCalendar(page, { pendingRationaleDate: "2026-04-28" });
+
+  await page.goto("/calendar?date=2026-04-28");
+
+  const pendingRow = page.locator("tr").filter({ hasText: "Hwacheon Machinery" });
+  await expect(pendingRow).toContainText("Path unavailable");
+  await expect(pendingRow).toContainText("[확인 필요]");
+
+  await pendingRow.getByRole("button", { name: "Review" }).click();
+  const dialog = page.getByRole("dialog", { name: /Hwacheon Machinery/i });
+
+  await expect(dialog.getByRole("heading", { name: "Signal rationale" })).toBeVisible();
+  await expect(dialog.getByText("Fresh breakout-style strength is encouraging")).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Replay verdict" })).toBeVisible();
+  await expect(dialog).toContainText("Replay verdict is not stored yet.");
+  await expect(dialog).toContainText("Path unavailable");
+  await expect(dialog).toContainText("Replay horizon results are not stored for this symbol yet.");
+
+  await expect(dialog.getByRole("heading", { name: "Risk context" })).toBeVisible();
+  await expect(dialog).toContainText("Price action needs confirmation before the replay verdict is trusted.");
+  await expect(dialog.getByRole("heading", { name: "Diagnostic risk tags" })).toBeVisible();
+  await expect(dialog).toContainText("Fresh breakout needs follow through");
+  await expect(dialog).toContainText("Range to trend transition risk");
+  await expect(dialog).not.toContainText("fresh_breakout_needs_follow_through");
+  await expect(dialog).not.toContainText("range_to_trend_transition_risk");
 });
 
 test("signal review calendar hides previous selected-date rows while a new date is loading", async ({ page }) => {
