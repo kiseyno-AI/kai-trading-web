@@ -472,7 +472,11 @@ export async function proxyTradingUpstreamResponse(
 ) {
   try {
     const upstreamTarget = resolveTradingUpstreamTarget();
-    const response = await runWithTradingUpstreamTimeout(path, init, options, async (signal) =>
+    const responseOptions = {
+      ...options,
+      timeoutMs: options.timeoutMs ?? null,
+    };
+    const response = await runWithTradingUpstreamTimeout(path, init, responseOptions, async (signal) =>
       fetchTradingUpstream(path, { ...init, signal }),
     );
     const contentType = response.headers.get("content-type") ?? "application/octet-stream";
