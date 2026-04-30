@@ -10,7 +10,10 @@ import type {
 import {
   buildSignalDeciderFeedbackPath,
   buildSignalDeciderFeedbackSummary,
+  buildCalendarSummaryQuery,
   buildSignalDeciderLatestFeedbackPath,
+  buildReviewDateQuery,
+  buildSignalDeciderFeedbackListFromReviewDateResponse,
   normalizeSignalDeciderFeedbackItems,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
@@ -18,6 +21,7 @@ import {
   selectSignalDeciderDashboardFeedback,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+  type SignalDeciderReviewDateResponse,
   type SignalDeciderAction,
 } from "./signal-decider-feedback";
 import {
@@ -266,6 +270,40 @@ function buildMemoryStorage() {
   };
 }
 
+function buildSignalDeciderReviewDateResponse(
+  marketDate: string,
+  options: {
+    items?: number;
+    decisionAction?: SignalDeciderAction;
+  } = {},
+) {
+  const itemCount = options.items ?? 2;
+  return {
+    request: {
+      market_date: marketDate,
+    },
+    summary: {
+      count: itemCount,
+      review_status_counts: {
+        reviewed: itemCount,
+      },
+    },
+    items: Array.from({ length: itemCount }, (_, index) => ({
+      snapshot_id: `snapshot-${marketDate}-${index + 1}`,
+      symbol: `005930`,
+      market_date: marketDate,
+      run_id: `run-${marketDate}-${index + 1}`,
+      captured_at: `${marketDate}T07:45:00+00:00`,
+      decision: {
+        role: "signal-decider",
+        symbol: `005930`,
+        market_date: marketDate,
+        preferred_action: options.decisionAction ?? "buy",
+      } as const,
+    })),
+  } satisfies SignalDeciderReviewDateResponse;
+}
+
 test("normalizes stored signal-decider rows into operator-facing items", () => {
   const items = normalizeSignalDeciderFeedbackItems(buildFeedbackResponse());
 
@@ -468,6 +506,70 @@ test("builds latest signal-decider feedback paths with a resolved market date", 
   assert.equal(url.searchParams.get("market_date"), "2026-04-29");
   assert.equal(url.searchParams.get("agent_name"), "signal-decider");
   assert.equal(url.searchParams.get("limit"), "50");
+});
+
+test("builds compact calendar summary query strings", () => {
+  const query = buildCalendarSummaryQuery({
+    month: "2026-04",
+    horizons: ["1d", "3d", " 5d "],
+    primaryHorizonDays: 3,
+    evaluationVersion: "v2",
+  });
+  const params = new URLSearchParams(query);
+
+  assert.equal(params.get("month"), "2026-04");
+  assert.deepStrictEqual(params.getAll("horizons"), ["1d", "3d", "5d"]);
+  assert.equal(params.get("primary_horizon_days"), "3");
+  assert.equal(params.get("evaluation_version"), "v2");
+});
+
+test("builds dedicated review-date query strings", () => {
+  const query = buildReviewDateQuery({
+    marketDate: "2026-04-27T15:00:00+09:00",
+    horizons: ["1d", "3d"],
+    primaryHorizonDays: 7,
+    evaluationVersion: "v2",
+  });
+  const params = new URLSearchParams(query);
+
+  assert.equal(params.get("market_date"), "2026-04-27");
+  assert.deepStrictEqual(params.getAll("horizons"), ["1d", "3d"]);
+  assert.equal(params.get("primary_horizon_days"), "7");
+  assert.equal(params.get("evaluation_version"), "v2");
+});
+
+test("builds signal-decider feedback list payloads from dedicated review-date responses", () => {
+  const reviewDateResponse = buildSignalDeciderReviewDateResponse("2026-04-27", { items: 2, decisionAction: "wait" });
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: reviewDateResponse,
+    fallbackMarketDate: "2026-04-26",
+  });
+
+  assert.equal(feedbackResponse.request.market_date, "2026-04-27");
+  assert.equal(feedbackResponse.summary.count, 2);
+  assert.equal(feedbackResponse.items.length, 2);
+  assert.equal(feedbackResponse.items[0]?.feedback?.preferred_action, "wait");
+  assert.equal(feedbackResponse.items[0]?.market_date, "2026-04-27");
+  assert.equal(feedbackResponse.items[0]?.agent.run_id, "run-2026-04-27-1");
+});
+
+test("keeps review-date summary counts when response supplies a larger requested count", () => {
+  const reviewDateResponse = {
+    ...buildSignalDeciderReviewDateResponse("2026-04-27", { items: 1 }),
+    summary: {
+      count: 9,
+      review_status_counts: {
+        reviewed: 1,
+      },
+    },
+  } satisfies SignalDeciderReviewDateResponse;
+
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: reviewDateResponse,
+  });
+
+  assert.equal(feedbackResponse.summary.count, 9);
+  assert.equal(feedbackResponse.items.length, 1);
 });
 
 test("does not build a latest signal-decider feedback path without a resolved market date", () => {
