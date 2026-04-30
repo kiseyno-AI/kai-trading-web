@@ -1,5 +1,4 @@
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
-import { getCachedTradingApiJson } from "@/lib/trading-api-cache";
 import type {
   EodFreshnessResponseDto,
   EodPiotroskiFilterResultItemDto,
@@ -64,8 +63,63 @@ export type PiotroskiPassListResult = {
   items: PiotroskiPassListItem[];
 };
 
-function getJson<T>(path: string): Promise<T> {
-  return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
+const PIOTROSKI_PASS_LIST_TIMEOUT_MS = 15_000;
+const PIOTROSKI_ITEM_ENRICHMENT_TIMEOUT_MS = 4_000;
+
+function getJsonErrorMessage(parsedBody: unknown) {
+  if (!parsedBody || typeof parsedBody !== "object") return null;
+
+  const body = parsedBody as Record<string, unknown>;
+  for (const key of ["detail", "message", "error"]) {
+    const value = body[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  return null;
+}
+
+async function getJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  const response = await fetch(resolveTradingApiClientPath(path), {
+    ...init,
+    cache: "no-store",
+    headers,
+  });
+  const responseText = await response.text();
+  let parsedBody: unknown = null;
+
+  if (responseText) {
+    try {
+      parsedBody = JSON.parse(responseText);
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : `Failed to parse JSON for ${path}`);
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(getJsonErrorMessage(parsedBody) ?? `HTTP ${response.status}`);
+  }
+
+  return parsedBody as T;
+}
+
+async function getJsonWithTimeout<T>(path: string, timeoutMs: number): Promise<T> {
+  const abortController = new AbortController();
+  const timeout = globalThis.setTimeout(() => {
+    abortController.abort();
+  }, timeoutMs);
+
+  try {
+    return await getJson<T>(path, { signal: abortController.signal });
+  } catch (error) {
+    if (abortController.signal.aborted) {
+      throw new Error(`Piotroski request timed out after ${(timeoutMs / 1_000).toFixed(1)}s.`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 function hasTextValue(value: string | null | undefined): value is string {
@@ -118,10 +172,12 @@ function comparePiotroskiRows(
 
 async function loadPiotroskiItemMetadata(
   symbol: string,
+  signal?: AbortSignal,
 ): Promise<PiotroskiSymbolMetadataItem | null> {
   try {
     const data = await getJson<PiotroskiSymbolSearchResponse>(
       `/api/trading/symbols/search?q=${encodeURIComponent(symbol)}&limit=8`,
+      { signal },
     );
     return pickSymbolMetadata(symbol, data);
   } catch (error) {
@@ -130,31 +186,55 @@ async function loadPiotroskiItemMetadata(
   }
 }
 
-async function loadPiotroskiItemQuote(symbol: string): Promise<PiotroskiQuoteResponse | null> {
+async function loadPiotroskiItemQuote(symbol: string, signal?: AbortSignal): Promise<PiotroskiQuoteResponse | null> {
   try {
-    return await getJson<PiotroskiQuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`);
+    return await getJson<PiotroskiQuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`, { signal });
   } catch (error) {
     console.error("Piotroski quote load failed", error);
     return null;
   }
 }
 
-async function enrichPiotroskiItem(
-  item: EodPiotroskiFilterResultItemDto,
+export async function loadPiotroskiPassListItemEnrichment(
+  item: PiotroskiPassListItem,
+  {
+    timeoutMs = PIOTROSKI_ITEM_ENRICHMENT_TIMEOUT_MS,
+  }: {
+    timeoutMs?: number;
+  } = {},
 ): Promise<PiotroskiPassListItem> {
-  const quote = await loadPiotroskiItemQuote(item.symbol);
-  const companyNameFromQuote = getUsableCompanyName(item.symbol, quote?.company_name);
-  const metadata = companyNameFromQuote ? null : await loadPiotroskiItemMetadata(item.symbol);
+  const abortController = new AbortController();
+  const timeout = globalThis.setTimeout(() => {
+    abortController.abort();
+  }, timeoutMs);
 
+  try {
+    const quote = await loadPiotroskiItemQuote(item.symbol, abortController.signal);
+    const companyNameFromQuote = getUsableCompanyName(item.symbol, quote?.company_name);
+    const metadata = companyNameFromQuote ? null : await loadPiotroskiItemMetadata(item.symbol, abortController.signal);
+
+    return {
+      ...item,
+      symbol: item.symbol,
+      companyName:
+        companyNameFromQuote ??
+        getUsableCompanyName(item.symbol, metadata?.name_ko, metadata?.name, metadata?.company_name),
+      metadata,
+      quote,
+    };
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
+function buildPiotroskiPassListItem(item: EodPiotroskiFilterResultItemDto): PiotroskiPassListItem {
   return {
     symbol: item.symbol,
     marketDate: item.market_date,
     piotroskiScore: item.piotroski_score,
-    companyName:
-      companyNameFromQuote ??
-      getUsableCompanyName(item.symbol, metadata?.name_ko, metadata?.name, metadata?.company_name),
-    metadata,
-    quote,
+    companyName: null,
+    metadata: null,
+    quote: null,
   };
 }
 
@@ -182,19 +262,12 @@ export function resolvePiotroskiMarketDateResolution(
   };
 }
 
-export async function loadPiotroskiPassList({
-  marketDate,
-  limit,
-}: {
-  marketDate: string;
-  limit?: number | null;
-}): Promise<PiotroskiPassListResult> {
-  const params = new URLSearchParams({ market_date: marketDate });
-  const data = await getJson<EodPiotroskiFilterResultsResponseDto>(
-    `/api/trading/eod/piotroski-filter-results?${params.toString()}`,
-  );
+export function buildPiotroskiPassListResult(
+  data: EodPiotroskiFilterResultsResponseDto,
+  marketDate: string,
+  limit?: number | null,
+): PiotroskiPassListResult {
   const marketDateResolution = resolvePiotroskiMarketDateResolution(data, marketDate);
-
   const passedItems = [...(data.items ?? [])]
     .filter((item) => item.passed_filter)
     .sort(comparePiotroskiRows);
@@ -206,10 +279,25 @@ export async function loadPiotroskiPassList({
     requestedMarketDate: marketDateResolution.requestedMarketDate,
     resolvedMarketDate: marketDateResolution.resolvedMarketDate,
     isLatestFallback: marketDateResolution.isLatestFallback,
-    totalPassedCount: passedItems.length,
+    totalPassedCount: data.summary.passed_count,
     summary: data.summary,
-    items: await Promise.all(selectedItems.map((item) => enrichPiotroskiItem(item))),
+    items: selectedItems.map(buildPiotroskiPassListItem),
   };
+}
+
+export async function loadPiotroskiPassList({
+  marketDate,
+  limit,
+}: {
+  marketDate: string;
+  limit?: number | null;
+}): Promise<PiotroskiPassListResult> {
+  const params = new URLSearchParams({ market_date: marketDate });
+  const data = await getJsonWithTimeout<EodPiotroskiFilterResultsResponseDto>(
+    `/api/trading/eod/piotroski-filter-results?${params.toString()}`,
+    PIOTROSKI_PASS_LIST_TIMEOUT_MS,
+  );
+  return buildPiotroskiPassListResult(data, marketDate, limit);
 }
 
 export function getPiotroskiMarketDate(

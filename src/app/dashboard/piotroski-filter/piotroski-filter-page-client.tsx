@@ -13,6 +13,8 @@ import {
   buildPiotroskiSymbolHref,
   getPiotroskiMarketDate,
   loadPiotroskiPassList,
+  loadPiotroskiPassListItemEnrichment,
+  type PiotroskiPassListItem,
   type PiotroskiPassListResult,
 } from "@/lib/piotroski-pass-list";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
@@ -22,6 +24,7 @@ import type { EodFreshnessResponseDto } from "@/types/trading-api";
 import styles from "./piotroski-filter-page.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
+const PIOTROSKI_MARKET_DATE_TIMEOUT_MS = 15_000;
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -65,10 +68,57 @@ function getPiotroskiMarketDateNote(
   return null;
 }
 
-async function loadFreshness() {
-  return getCachedTradingApiJson<EodFreshnessResponseDto>(
-    resolveTradingApiClientPath("/api/trading/eod/freshness"),
+function mergeEnrichedPiotroskiItem(
+  currentData: PiotroskiPassListResult | null,
+  enrichedItem: PiotroskiPassListItem,
+) {
+  if (!currentData) return currentData;
+
+  const itemIndex = currentData.items.findIndex(
+    (item) => item.symbol === enrichedItem.symbol && item.marketDate === enrichedItem.marketDate,
   );
+  if (itemIndex < 0) return currentData;
+
+  const nextItems = [...currentData.items];
+  nextItems[itemIndex] = enrichedItem;
+  return {
+    ...currentData,
+    items: nextItems,
+  };
+}
+
+function getPiotroskiEmptyState(data: PiotroskiPassListResult | null, displayedMarketDate: string | null) {
+  if (data && data.totalPassedCount > 0 && data.items.length === 0) {
+    const passedLabel = data.totalPassedCount.toLocaleString("ko-KR");
+    const dateLabel = displayedMarketDate ?? data.marketDate;
+    return `Piotroski summary reports ${passedLabel} passed symbols for ${dateLabel}, but row details were not returned.`;
+  }
+
+  return displayedMarketDate
+    ? `No Piotroski pass symbols were stored for ${displayedMarketDate}.`
+    : "Piotroski market date is pending.";
+}
+
+async function loadFreshness() {
+  const abortController = new AbortController();
+  const timeout = globalThis.setTimeout(() => {
+    abortController.abort();
+  }, PIOTROSKI_MARKET_DATE_TIMEOUT_MS);
+
+  try {
+    return await getCachedTradingApiJson<EodFreshnessResponseDto>(
+      resolveTradingApiClientPath("/api/trading/eod/freshness"),
+      { signal: abortController.signal },
+    );
+  } catch (error) {
+    if (abortController.signal.aborted) {
+      const timeoutSeconds = (PIOTROSKI_MARKET_DATE_TIMEOUT_MS / 1_000).toFixed(1);
+      throw new Error(`Piotroski market date request timed out after ${timeoutSeconds}s.`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 export default function PiotroskiFilterPageClient() {
@@ -130,6 +180,13 @@ export default function PiotroskiFilterPageClient() {
         if (!active) return;
         setData(nextData);
         setLoadState("ready");
+
+        for (const item of nextData.items) {
+          void loadPiotroskiPassListItemEnrichment(item).then((enrichedItem) => {
+            if (!active) return;
+            setData((currentData) => mergeEnrichedPiotroskiItem(currentData, enrichedItem));
+          });
+        }
       } catch (loadError) {
         console.error("Piotroski filter page load failed", loadError);
         if (!active) return;
@@ -246,11 +303,7 @@ export default function PiotroskiFilterPageClient() {
               })}
             </div>
           ) : (
-            <div className={styles.emptyState}>
-              {displayedMarketDate
-                ? `No Piotroski pass symbols were stored for ${displayedMarketDate}.`
-                : "Piotroski market date is pending."}
-            </div>
+            <div className={styles.emptyState}>{getPiotroskiEmptyState(data, displayedMarketDate)}</div>
           )}
         </section>
       </div>
