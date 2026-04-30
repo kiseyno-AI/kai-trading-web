@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { logWebDiagnostic, startWebDiagnosticSpan } from "@/lib/web-diagnostics";
 
 const LOCAL_TRADING_UPSTREAM_FALLBACK = "http://127.0.0.1:8000";
+export const TRADING_UPSTREAM_REQUEST_TIMEOUT_MS = 5_000;
 const PROXIED_SECURITY_RESPONSE_HEADERS = [
   "content-security-policy",
   "content-security-policy-report-only",
@@ -57,12 +58,32 @@ class TradingUpstreamConfigurationError extends Error {
   }
 }
 
+class TradingUpstreamTimeoutError extends Error {
+  readonly path: string;
+  readonly timeoutMs: number;
+
+  constructor(path: string, timeoutMs: number) {
+    super(`Trading upstream request timed out after ${formatTimeoutDuration(timeoutMs)}.`);
+    this.name = "TradingUpstreamTimeoutError";
+    this.path = path;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+type TradingUpstreamRequestOptions = {
+  timeoutMs?: number | null;
+};
+
 function getTradingUpstreamAuthMode(): TradingUpstreamTarget["authMode"] {
   return process.env.TRADING_API_UPSTREAM_BEARER_TOKEN ? "bearer" : "none";
 }
 
 function getRequestMethod(init?: RequestInit) {
   return (init?.method ?? "GET").toUpperCase();
+}
+
+function formatTimeoutDuration(timeoutMs: number) {
+  return timeoutMs < 1_000 ? `${timeoutMs}ms` : `${(timeoutMs / 1_000).toFixed(1)}s`;
 }
 
 function buildTradingUpstreamConfigurationDetails() {
@@ -128,6 +149,49 @@ export function getTradingUpstreamHeaders(init?: HeadersInit) {
   }
 
   return headers;
+}
+
+async function runWithTradingUpstreamTimeout<T>(
+  path: string,
+  init: RequestInit | undefined,
+  { timeoutMs = TRADING_UPSTREAM_REQUEST_TIMEOUT_MS }: TradingUpstreamRequestOptions,
+  load: (signal: AbortSignal | undefined) => Promise<T>,
+) {
+  const hasTimeout = typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0;
+  const initSignal = init?.signal;
+
+  if (!hasTimeout && !initSignal) {
+    return load(undefined);
+  }
+
+  const abortController = new AbortController();
+  let timedOut = false;
+  const abortFromInit = () => abortController.abort(initSignal?.reason);
+  const timeout = hasTimeout
+    ? setTimeout(() => {
+        timedOut = true;
+        abortController.abort();
+      }, timeoutMs)
+    : null;
+
+  if (initSignal?.aborted) {
+    abortFromInit();
+  } else if (initSignal) {
+    initSignal.addEventListener("abort", abortFromInit, { once: true });
+  }
+
+  try {
+    return await load(abortController.signal);
+  } catch (error) {
+    if (timedOut && typeof timeoutMs === "number") {
+      throw new TradingUpstreamTimeoutError(path, timeoutMs);
+    }
+
+    throw error;
+  } finally {
+    if (timeout !== null) clearTimeout(timeout);
+    initSignal?.removeEventListener("abort", abortFromInit);
+  }
 }
 
 export async function fetchTradingUpstream(path: string, init?: RequestInit) {
@@ -203,26 +267,45 @@ export function getServerTradingApiBaseUrl(requestHeaders?: Headers) {
   } satisfies ServerTradingApiTarget;
 }
 
-export async function fetchTradingUpstreamJson<T>(path: string): Promise<T> {
+export async function fetchTradingUpstreamJson<T>(
+  path: string,
+  options: TradingUpstreamRequestOptions = {},
+): Promise<T> {
   const upstreamTarget = resolveTradingUpstreamTarget();
-  let response: Response;
 
   try {
-    response = await fetchTradingUpstream(path);
+    return await runWithTradingUpstreamTimeout(path, undefined, options, async (signal) => {
+      const response = await fetchTradingUpstream(path, { signal });
+      if (!response.ok) {
+        throw new Error(`Failed to load ${path} from ${upstreamTarget.baseUrl}: HTTP ${response.status}`);
+      }
+
+      return parseJsonResponse<T>(response, `${path} from ${upstreamTarget.baseUrl}`);
+    });
   } catch (error) {
+    if (error instanceof TradingUpstreamTimeoutError) {
+      throw new Error(
+        `Timed out after ${formatTimeoutDuration(error.timeoutMs)} while loading ${path} from ${upstreamTarget.baseUrl}.`,
+      );
+    }
+    if (
+      error instanceof Error &&
+      error.message.startsWith(`Failed to load ${path} from ${upstreamTarget.baseUrl}:`)
+    ) {
+      throw error;
+    }
+
     throw new Error(
       `Failed to load ${path} from ${upstreamTarget.baseUrl}: ${formatFetchErrorMessage(error)}`,
     );
   }
-
-  if (!response.ok) {
-    throw new Error(`Failed to load ${path} from ${upstreamTarget.baseUrl}: HTTP ${response.status}`);
-  }
-
-  return parseJsonResponse<T>(response, `${path} from ${upstreamTarget.baseUrl}`);
 }
 
-export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?: Headers): Promise<T> {
+export async function fetchServerTradingApiJson<T>(
+  path: string,
+  requestHeaders?: Headers,
+  options: TradingUpstreamRequestOptions = {},
+): Promise<T> {
   const serverTarget = getServerTradingApiBaseUrl(requestHeaders);
   const requestUrl = `${serverTarget.baseUrl}${path}`;
   const span = startWebDiagnosticSpan("http", "request", {
@@ -232,23 +315,53 @@ export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?
     scope: "server-render",
     upstreamSource: serverTarget.source,
   });
-  let response: Response;
 
   try {
-    response = await fetch(requestUrl, {
-      headers: getTradingUpstreamHeaders(),
-      cache: "no-store",
-    });
-    span.end({
-      authMode: serverTarget.authMode,
-      method: "GET",
-      ok: response.ok,
-      path: requestUrl,
-      scope: "server-render",
-      status: response.status,
-      upstreamSource: serverTarget.source,
+    return await runWithTradingUpstreamTimeout(path, undefined, options, async (signal) => {
+      const response = await fetch(requestUrl, {
+        headers: getTradingUpstreamHeaders(),
+        cache: "no-store",
+        signal,
+      });
+      span.end({
+        authMode: serverTarget.authMode,
+        method: "GET",
+        ok: response.ok,
+        path: requestUrl,
+        scope: "server-render",
+        status: response.status,
+        upstreamSource: serverTarget.source,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load ${path} from ${serverTarget.baseUrl}: HTTP ${response.status}`);
+      }
+
+      return parseJsonResponse<T>(response, `${path} from ${serverTarget.baseUrl}`);
     });
   } catch (error) {
+    if (error instanceof TradingUpstreamTimeoutError) {
+      span.end({
+        authMode: serverTarget.authMode,
+        method: "GET",
+        ok: false,
+        path: requestUrl,
+        scope: "server-render",
+        status: 504,
+        timeoutMs: error.timeoutMs,
+        upstreamSource: serverTarget.source,
+      });
+      throw new Error(
+        `Timed out after ${formatTimeoutDuration(error.timeoutMs)} while loading ${path} from ${serverTarget.baseUrl}.`,
+      );
+    }
+    if (
+      error instanceof Error &&
+      error.message.startsWith(`Failed to load ${path} from ${serverTarget.baseUrl}:`)
+    ) {
+      throw error;
+    }
+
     span.fail(error, {
       authMode: serverTarget.authMode,
       method: "GET",
@@ -258,32 +371,58 @@ export async function fetchServerTradingApiJson<T>(path: string, requestHeaders?
     });
     throw new Error(`Failed to load ${path} from ${serverTarget.baseUrl}: ${formatFetchErrorMessage(error)}`);
   }
-
-  if (!response.ok) {
-    throw new Error(`Failed to load ${path} from ${serverTarget.baseUrl}: HTTP ${response.status}`);
-  }
-
-  return parseJsonResponse<T>(response, `${path} from ${serverTarget.baseUrl}`);
 }
 
-export async function proxyTradingUpstreamJson(path: string, init?: RequestInit) {
+function buildTradingUpstreamTimeoutResponse(error: TradingUpstreamTimeoutError, path: string) {
+  return NextResponse.json(
+    {
+      error: "Upstream request timed out",
+      message: `Timed out after ${formatTimeoutDuration(error.timeoutMs)} while loading ${path} from trading-core.`,
+      path,
+      timeoutMs: error.timeoutMs,
+      details: buildTradingUpstreamConfigurationDetails(),
+    },
+    {
+      status: 504,
+      headers: {
+        "x-kai-trading-upstream-timeout-ms": String(error.timeoutMs),
+      },
+    },
+  );
+}
+
+export async function proxyTradingUpstreamJson(
+  path: string,
+  init?: RequestInit,
+  options: TradingUpstreamRequestOptions = {},
+) {
   try {
     const upstreamTarget = resolveTradingUpstreamTarget();
-    const response = await fetchTradingUpstream(path, init);
-    const body = await response.text();
-    const contentType = response.headers.get("content-type") ?? "application/json";
+    const { body, contentType, status } = await runWithTradingUpstreamTimeout(
+      path,
+      init,
+      options,
+      async (signal) => {
+        const response = await fetchTradingUpstream(path, { ...init, signal });
+        return {
+          body: await response.text(),
+          contentType: response.headers.get("content-type") ?? "application/json",
+          status: response.status,
+        };
+      },
+    );
 
     logWebDiagnostic("http", "proxy-response", {
       contentType,
       method: getRequestMethod(init),
       path,
       scope: "server-bff",
-      status: response.status,
+      status,
       upstreamSource: upstreamTarget.source,
     });
 
     return new NextResponse(body, {
-      status: response.status,
+      status,
       headers: {
         "content-type": contentType,
         "x-kai-trading-auth-mode": upstreamTarget.authMode,
@@ -310,6 +449,10 @@ export async function proxyTradingUpstreamJson(path: string, init?: RequestInit)
       );
     }
 
+    if (error instanceof TradingUpstreamTimeoutError) {
+      return buildTradingUpstreamTimeoutResponse(error, path);
+    }
+
     return NextResponse.json(
       {
         error: "Upstream fetch failed",
@@ -322,10 +465,16 @@ export async function proxyTradingUpstreamJson(path: string, init?: RequestInit)
   }
 }
 
-export async function proxyTradingUpstreamResponse(path: string, init?: RequestInit) {
+export async function proxyTradingUpstreamResponse(
+  path: string,
+  init?: RequestInit,
+  options: TradingUpstreamRequestOptions = {},
+) {
   try {
     const upstreamTarget = resolveTradingUpstreamTarget();
-    const response = await fetchTradingUpstream(path, init);
+    const response = await runWithTradingUpstreamTimeout(path, init, options, async (signal) =>
+      fetchTradingUpstream(path, { ...init, signal }),
+    );
     const contentType = response.headers.get("content-type") ?? "application/octet-stream";
     const contentDisposition = response.headers.get("content-disposition");
     const headers = new Headers({
@@ -370,6 +519,10 @@ export async function proxyTradingUpstreamResponse(path: string, init?: RequestI
         },
         { status: 500 },
       );
+    }
+
+    if (error instanceof TradingUpstreamTimeoutError) {
+      return buildTradingUpstreamTimeoutResponse(error, path);
     }
 
     return NextResponse.json(

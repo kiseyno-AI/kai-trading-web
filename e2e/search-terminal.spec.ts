@@ -296,6 +296,43 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByText(/Selected Terminal Feed/i)).toHaveCount(0);
   });
 
+  test("resolves search gateway timeouts into an unavailable state", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({ json: { count: 0, items: [] } });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({ json: { tracked_symbols: [], count: 0, last_updated_at: null } });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: { item_count: 0 },
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        status: 504,
+        json: {
+          error: "Upstream request timed out",
+          message: "Timed out after 5.0s while loading /symbols/search from trading-core.",
+        },
+      });
+    });
+
+    await page.goto("/search");
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("삼성전자");
+
+    await expect(page.getByText(/Search endpoint unavailable.*HTTP 504/i).first()).toBeVisible();
+    await expect(page.getByText("Searching...")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Results for "삼성전자"/i })).toBeVisible();
+  });
+
   test("Q3 renders core favorites instead of tracked or recent symbols", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem(

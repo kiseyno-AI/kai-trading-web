@@ -92,7 +92,7 @@ The desktop rail and mobile web chrome update from that single source.
 
 Base URL (local dev): `http://localhost:3000`
 
-These routes are implemented under **`src/app/api/trading/`**. They proxy to trading-core paths on the configured upstream (status and body pass through).
+These routes are implemented under **`src/app/api/trading/`**. They proxy to trading-core paths on the configured upstream (status and body pass through). JSON proxy reads are bounded by the web-side upstream timeout (`TRADING_UPSTREAM_REQUEST_TIMEOUT_MS`, currently 5s); if trading-core accepts a request but does not return headers/body in time, the BFF returns HTTP `504` with an explicit timeout JSON body instead of leaving the browser request pending indefinitely.
 
 | Method | Next.js path | Upstream path (trading-core) | Query |
 |--------|----------------|-------------------------------|--------|

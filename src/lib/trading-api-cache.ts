@@ -8,6 +8,7 @@ const SNAPSHOT_CACHE_KEY_PREFIX = "SNAPSHOT ";
 // Daily batch status can move after EOD or DART jobs finish, but it is not quote-level market polling.
 const DAILY_STATUS_CACHE_TTL_MS = 10 * 60 * 1000;
 export const DEFAULT_TRADING_API_SNAPSHOT_TTL_MS = 60_000;
+export const DEFAULT_TRADING_API_REQUEST_TIMEOUT_MS = 6_000;
 
 type TradingApiCacheEntry<T = unknown> = {
   cachedAt: number;
@@ -24,6 +25,10 @@ type TradingApiCachePolicy = {
 export type TradingApiJsonResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string | null; status: number };
+
+type TradingApiRequestOptions = {
+  timeoutMs?: number | null;
+};
 
 const memoryCache = new Map<string, TradingApiCacheEntry>();
 const inFlightRequests = new Map<string, Promise<TradingApiJsonResult<unknown>>>();
@@ -66,6 +71,54 @@ function writeCacheStore(store: TradingApiCacheStore) {
 
 function getRequestMethod(init?: RequestInit) {
   return (init?.method ?? "GET").toUpperCase();
+}
+
+function formatTimeoutDuration(timeoutMs: number) {
+  return timeoutMs < 1_000 ? `${timeoutMs}ms` : `${(timeoutMs / 1_000).toFixed(1)}s`;
+}
+
+function getTimeoutMessage(timeoutMs: number) {
+  return `Trading API request timed out after ${formatTimeoutDuration(timeoutMs)}.`;
+}
+
+function createTimeoutSignal(initSignal: AbortSignal | null | undefined, timeoutMs: number | null | undefined) {
+  const hasTimeout = typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0;
+  if (!hasTimeout && !initSignal) {
+    return {
+      dispose() {},
+      signal: undefined,
+      timedOut: false,
+    };
+  }
+
+  const abortController = new AbortController();
+  let timedOut = false;
+  const abortFromInit = () => abortController.abort(initSignal?.reason);
+  const timeout = hasTimeout
+    ? globalThis.setTimeout(() => {
+        timedOut = true;
+        abortController.abort();
+      }, timeoutMs)
+    : null;
+
+  if (initSignal?.aborted) {
+    abortFromInit();
+  } else if (initSignal) {
+    initSignal.addEventListener("abort", abortFromInit, { once: true });
+  }
+
+  return {
+    dispose() {
+      if (timeout !== null) {
+        globalThis.clearTimeout(timeout);
+      }
+      initSignal?.removeEventListener("abort", abortFromInit);
+    },
+    signal: abortController.signal,
+    get timedOut() {
+      return timedOut;
+    },
+  };
 }
 
 function normalizeTradingApiPath(input: string) {
@@ -222,8 +275,14 @@ export function readTradingApiJsonSnapshot<T>(path: string, init?: RequestInit) 
   return readCacheEntry<T>(getSnapshotCacheKey(path, init))?.data ?? null;
 }
 
-async function fetchTradingApiJsonResult<T>(path: string, init?: RequestInit): Promise<TradingApiJsonResult<T>> {
+async function fetchTradingApiJsonResult<T>(
+  path: string,
+  init?: RequestInit,
+  options: TradingApiRequestOptions = {},
+): Promise<TradingApiJsonResult<T>> {
   const method = getRequestMethod(init);
+  const timeoutMs = options.timeoutMs === undefined ? DEFAULT_TRADING_API_REQUEST_TIMEOUT_MS : options.timeoutMs;
+  const timeout = createTimeoutSignal(init?.signal, timeoutMs);
   const span = startWebDiagnosticSpan("http", "request", {
     method,
     path,
@@ -231,7 +290,7 @@ async function fetchTradingApiJsonResult<T>(path: string, init?: RequestInit): P
   });
 
   try {
-    const response = await fetch(path, { ...init, cache: "no-store" });
+    const response = await fetch(path, { ...init, cache: "no-store", signal: timeout.signal });
     span.end({
       method,
       ok: response.ok,
@@ -248,16 +307,40 @@ async function fetchTradingApiJsonResult<T>(path: string, init?: RequestInit): P
     const data = (await response.json()) as T;
     return { ok: true, data };
   } catch (error) {
+    if (timeout.timedOut && typeof timeoutMs === "number") {
+      const message = getTimeoutMessage(timeoutMs);
+      span.end({
+        method,
+        ok: false,
+        path,
+        scope: "client-cache",
+        status: 504,
+      });
+      logWebDiagnostic("http", "request-timeout", {
+        method,
+        path,
+        scope: "client-cache",
+        timeoutMs,
+      });
+      return { ok: false, message, status: 504 };
+    }
+
     span.fail(error, {
       method,
       path,
       scope: "client-cache",
     });
     throw error;
+  } finally {
+    timeout.dispose();
   }
 }
 
-export async function getTradingApiJsonResult<T>(path: string, init?: RequestInit): Promise<TradingApiJsonResult<T>> {
+export async function getTradingApiJsonResult<T>(
+  path: string,
+  init?: RequestInit,
+  options: TradingApiRequestOptions = {},
+): Promise<TradingApiJsonResult<T>> {
   const method = getRequestMethod(init);
   const policy = getCachePolicy(path, init);
   if (!policy) {
@@ -266,7 +349,7 @@ export async function getTradingApiJsonResult<T>(path: string, init?: RequestIni
       path,
       scope: "client-cache",
     });
-    return fetchTradingApiJsonResult<T>(path, init);
+    return fetchTradingApiJsonResult<T>(path, init, options);
   }
 
   const cacheKey = getCacheKey(path, init);
@@ -298,7 +381,7 @@ export async function getTradingApiJsonResult<T>(path: string, init?: RequestIni
     return inFlight as Promise<TradingApiJsonResult<T>>;
   }
 
-  const request = fetchTradingApiJsonResult<T>(path, init)
+  const request = fetchTradingApiJsonResult<T>(path, init, options)
     .then((result) => {
       if (result.ok) {
         writeCacheEntry(cacheKey, result.data, policy.ttlMs);

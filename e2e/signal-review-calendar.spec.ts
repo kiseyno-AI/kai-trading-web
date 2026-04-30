@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 type SignalReviewCalendarMockOptions = {
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
+  timeoutFeedbackDates?: string[];
 };
 
 function createDeferred() {
@@ -82,6 +83,17 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
     await options.feedbackDelays?.[marketDate];
+    if (options.timeoutFeedbackDates?.includes(marketDate)) {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Upstream request timed out",
+          message: "Timed out after 5.0s while loading /agent-context/feedback from trading-core.",
+        }),
+      });
+      return;
+    }
     const items =
       options.emptyFeedbackDates?.includes(marketDate)
         ? []
@@ -338,6 +350,19 @@ test("signal review calendar keeps dashboard cached rows when the direct selecte
   await expect(selectedDateCell).toContainText("1 decisions");
   await expect(selectedDateCell).toContainText("Wait 1");
   await expect(page.getByText("Samsung Electronics").first()).toBeVisible();
+  await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
+  await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
+});
+
+test("signal review calendar resolves selected-date gateway timeouts into an explicit error state", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    timeoutFeedbackDates: ["2026-04-29"],
+  });
+
+  await page.goto("/calendar?date=2026-04-29");
+
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+  await expect(page.getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i).first()).toBeVisible();
   await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
 });
