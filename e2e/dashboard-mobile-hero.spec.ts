@@ -49,6 +49,8 @@ test.describe("dashboard mobile hero", () => {
     await expect(deciderCard.getByText("Run", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Errors", { exact: true })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
+    const portfolioCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Portfolio state/i }) });
+    await expect(portfolioCard).toBeVisible();
     await expect(hero.getByRole("heading", { name: /Market condition/i })).toBeVisible();
     const marketCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
     await expect(marketCard.getByText("KOSPI", { exact: true })).toBeVisible();
@@ -62,6 +64,25 @@ test.describe("dashboard mobile hero", () => {
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
+
+    const [deciderBox, portfolioBox, marketBox] = await Promise.all([
+      deciderCard.boundingBox(),
+      portfolioCard.boundingBox(),
+      marketCard.boundingBox(),
+    ]);
+
+    expect(deciderBox).not.toBeNull();
+    expect(portfolioBox).not.toBeNull();
+    expect(marketBox).not.toBeNull();
+
+    if (!deciderBox || !portfolioBox || !marketBox) {
+      throw new Error("Expected mobile primary insight cards to have layout boxes.");
+    }
+
+    expect(portfolioBox.y).toBeGreaterThan(deciderBox.y + deciderBox.height - 1);
+    expect(marketBox.y).toBeGreaterThan(portfolioBox.y + portfolioBox.height - 1);
+    expect(Math.abs(portfolioBox.x - deciderBox.x)).toBeLessThan(8);
+    expect(Math.abs(marketBox.x - deciderBox.x)).toBeLessThan(8);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer.locator('[class*="processMonitorDrawerSummary"]')).toHaveCount(0);
