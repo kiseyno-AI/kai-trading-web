@@ -175,8 +175,8 @@
   width: min(100%, 31rem);
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.5rem;
-  padding: 0.6rem;
+  gap: 0.35rem;
+  padding: 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-low);
@@ -194,7 +194,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  padding: 0.55rem 0.35rem;
+  padding: 0.55rem 0.22rem;
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-decoration: none;
@@ -250,15 +250,41 @@
 }
 
 .navLabel {
+  width: 100%;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: normal;
   text-align: center;
+  text-overflow: clip;
   font-family: var(--font-inter), sans-serif;
   font-size: 0.5rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   line-height: 1.05;
   text-transform: uppercase;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+@media (max-width: 380px) {
+  .bottomNavFrame {
+    padding-inline: 0.55rem;
+  }
+
+  .bottomNav {
+    gap: 0.2rem;
+    padding: 0.35rem;
+  }
+
+  .navItem {
+    gap: 0.24rem;
+    padding-inline: 0.12rem;
+  }
+
+  .navLabel {
+    font-size: 0.46rem;
+  }
 }
 
 @media (max-width: 1023.98px) {

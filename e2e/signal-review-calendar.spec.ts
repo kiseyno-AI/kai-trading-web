@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type SignalReviewCalendarMockOptions = {
+  denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   timeoutFeedbackDates?: string[];
@@ -94,8 +95,40 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       });
       return;
     }
+    const denseFeedbackCount = options.denseFeedbackDates?.[marketDate] ?? 0;
     const items =
-      options.emptyFeedbackDates?.includes(marketDate)
+      denseFeedbackCount > 0
+        ? Array.from({ length: denseFeedbackCount }, (_, index) => ({
+            id: `dense-${marketDate}-${index}`,
+            market_date: marketDate,
+            symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
+            agent: {
+              name: "signal-decider",
+              run_id: `feedback-cycle-${marketDate}`,
+            },
+            summary: {},
+            feedback: {
+              role: "signal-decider",
+              symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
+              market_date: marketDate,
+              preferred_action: "buy",
+              next_day_open_action: "buy",
+              confidence_score_10: 8,
+              conviction_score_10: 7,
+              thesis_summary: "Dense mobile calendar regression row.",
+            },
+            normalized_feedback: null,
+            details: null,
+            context: {
+              symbol_day_context: {
+                company: {
+                  name_ko: `Dense Regression ${index + 1}`,
+                },
+              },
+            },
+            received_at: `${marketDate}T07:45:00+00:00`,
+          }))
+        : options.emptyFeedbackDates?.includes(marketDate)
         ? []
         : marketDate === "2026-04-27"
         ? [
@@ -281,6 +314,46 @@ async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
   }, marketDate);
 }
 
+async function expectNarrowMobileLabelsContained(page: Page) {
+  const overflowingLabels = await page.locator("body").evaluate(() => {
+    const labels = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-calendar-cell-label], [data-mobile-nav-label]"),
+    );
+
+    return labels.flatMap((label) => {
+      const style = window.getComputedStyle(label);
+      const rect = label.getBoundingClientRect();
+
+      if (style.display === "none" || style.visibility === "hidden" || rect.width === 0 || rect.height === 0) {
+        return [];
+      }
+
+      const parent = label.closest<HTMLElement>("[data-calendar-cell], [data-mobile-nav-item]");
+      const parentRect = parent?.getBoundingClientRect();
+      const crossesParent =
+        parentRect !== undefined &&
+        (rect.left < parentRect.left - 0.75 ||
+          rect.right > parentRect.right + 0.75 ||
+          rect.top < parentRect.top - 0.75 ||
+          rect.bottom > parentRect.bottom + 0.75);
+      const clipsOwnText = label.scrollWidth > label.clientWidth + 1;
+
+      if (!crossesParent && !clipsOwnText) return [];
+
+      return [
+        {
+          clientWidth: label.clientWidth,
+          parent: parent?.getAttribute("data-calendar-cell") ?? parent?.getAttribute("data-mobile-nav-item") ?? "unknown",
+          scrollWidth: label.scrollWidth,
+          text: label.innerText.trim().replace(/\s+/g, " "),
+        },
+      ];
+    });
+  });
+
+  expect(overflowingLabels).toEqual([]);
+}
+
 test("signal review calendar shows date metadata, selected decisions, and symbol replay detail", async ({ page }) => {
   await mockSignalReviewCalendar(page);
 
@@ -352,6 +425,56 @@ test("signal review calendar keeps dashboard cached rows when the direct selecte
   await expect(page.getByText("Samsung Electronics").first()).toBeVisible();
   await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
+});
+
+test("signal review calendar keeps narrow mobile cell and bottom-nav labels contained in English and Korean", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 760 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-04-27": 105,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-04-27");
+
+  const selectedDateCell = page.locator('[data-calendar-cell="2026-04-27"]');
+  await expect(selectedDateCell).toBeVisible();
+  await expect(selectedDateCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]')).toBeVisible();
+  await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("105");
+  await expect(selectedDateCell.locator('[data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]')).toHaveText("B+");
+
+  const navLabels = page.locator("[data-mobile-nav-label]");
+  await expect(navLabels).toHaveCount(5);
+  await expect
+    .poll(() =>
+      navLabels.evaluateAll((labels) =>
+        labels.map((label) => {
+          const style = window.getComputedStyle(label);
+          const rect = label.getBoundingClientRect();
+          return {
+            lineHeight: Number.parseFloat(style.lineHeight),
+            text: label.textContent?.trim() ?? "",
+            whiteSpace: style.whiteSpace,
+            wraps: rect.height > Number.parseFloat(style.lineHeight) + 1,
+          };
+        }),
+      ),
+    )
+    .toEqual([
+      { lineHeight: expect.any(Number), text: "Dashboard", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Search", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Calendar", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Assets", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "My Symbols", whiteSpace: "nowrap", wraps: false },
+    ]);
+  await expectNarrowMobileLabelsContained(page);
+
+  await page.getByRole("button", { name: "Korean" }).click();
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+  await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("105");
+  await expectNarrowMobileLabelsContained(page);
 });
 
 test("signal review calendar resolves selected-date gateway timeouts into an explicit error state", async ({ page }) => {
