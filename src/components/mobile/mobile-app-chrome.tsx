@@ -158,15 +158,20 @@ export function MobileAppChrome({
         href={item.href}
         prefetch
         className={`${getItemClass(active)} ${pending ? styles.navItemPending : ""}`.trim()}
+        aria-label={item.label}
         aria-busy={pending || undefined}
         aria-current={active ? "page" : undefined}
+        data-mobile-nav-item={item.id}
         data-navigation-pending={pending ? "true" : "false"}
+        title={item.label}
         onClick={() => beginNavigation(item.href)}
       >
         <span className={styles.navIcon} aria-hidden="true">
           <NavGlyph id={item.icon} />
         </span>
-        <span className={styles.navLabel}>{item.label}</span>
+        <span className={styles.navLabel} data-mobile-nav-label>
+          {item.label}
+        </span>
       </Link>
     );
   };

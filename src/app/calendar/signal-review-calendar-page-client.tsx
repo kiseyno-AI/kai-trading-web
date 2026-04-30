@@ -36,6 +36,7 @@ import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
   EodFreshnessResponseDto,
+  Locale,
 } from "@/types/trading-api";
 
 import styles from "./signal-review-calendar-page.module.css";
@@ -65,6 +66,50 @@ type CalendarDateSnapshot = {
 
 type MonthLoadState = "idle" | "loading" | "ready" | "partial" | "unavailable";
 type DetailLoadState = "idle" | "loading" | "ready" | "error";
+
+const COMPACT_STATUS_LABELS = {
+  en: {
+    completed: "OK",
+    empty: "NO",
+    future: "FUT",
+    loading: "RUN",
+    "needs-review": "CHK",
+    partial: "PART",
+    reviewed: "OK",
+    running: "RUN",
+    stored: "SET",
+    unavailable: "ERR",
+    waiting: "WAIT",
+  },
+  ko: {
+    completed: "완료",
+    empty: "없음",
+    future: "미래",
+    loading: "중",
+    "needs-review": "확인",
+    partial: "부분",
+    reviewed: "완료",
+    running: "중",
+    stored: "저장",
+    unavailable: "불가",
+    waiting: "대기",
+  },
+} as const satisfies Record<Locale, Record<DateSnapshotStatus | SignalDeciderFeedbackStatus, string>>;
+
+const COMPACT_ACTION_LABELS = {
+  en: {
+    buy: "B",
+    reject: "R",
+    unknown: "?",
+    wait: "W",
+  },
+  ko: {
+    buy: "매",
+    reject: "제",
+    unknown: "?",
+    wait: "대",
+  },
+} as const satisfies Record<Locale, Record<SignalDeciderAction, string>>;
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -178,6 +223,28 @@ function getActionMixLabel(
     (action) => `${copy.actions[action]} ${actionCounts[action].toLocaleString("en-US")}`,
   );
   return labels.length > 0 ? labels.join(" · ") : copy.status.pending;
+}
+
+function formatCompactCalendarNumber(value: number) {
+  if (value > 999) return "999+";
+  return value.toLocaleString("en-US");
+}
+
+function formatCompactActionCount(value: number) {
+  if (value > 99) return "+";
+  return formatCompactCalendarNumber(value);
+}
+
+function getCompactStatusLabel(status: DateSnapshotStatus | SignalDeciderFeedbackStatus, locale: Locale) {
+  return COMPACT_STATUS_LABELS[locale][status];
+}
+
+function getCompactActionMixLabel(actionCounts: Record<SignalDeciderAction, number>, locale: Locale) {
+  const labels = ACTION_KEYS.filter((action) => actionCounts[action] > 0)
+    .slice(0, 2)
+    .map((action) => `${COMPACT_ACTION_LABELS[locale][action]}${formatCompactActionCount(actionCounts[action])}`);
+
+  return labels.length > 0 ? labels.join("/") : getCompactStatusLabel("waiting", locale);
 }
 
 function getStatusToneClass(status: DateSnapshotStatus | SignalDeciderFeedbackStatus) {
@@ -304,7 +371,7 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const { t } = useAppState();
+  const { locale, t } = useAppState();
   const copy = t.signalReview;
 
   useEffect(() => {
@@ -569,25 +636,60 @@ export default function SignalReviewCalendarPageClient() {
       : null;
     const active = day.dateKey === selectedDate;
     const disabled = !day.inMonth || day.isFuture;
+    const statusLabel = snapshot ? getStatusLabel(snapshot.status, copy) : "";
+    const decisionLabel = snapshot
+      ? snapshot.decisionCount > 0
+        ? `${snapshot.decisionCount} ${copy.labels.decisions}`
+        : copy.status.empty
+      : "";
+    const actionMixLabel = snapshot
+      ? snapshot.decisionCount > 0
+        ? getActionMixLabel(snapshot.actionCounts, copy)
+        : copy.status.pending
+      : "";
+    const compactStatusLabel = snapshot ? getCompactStatusLabel(snapshot.status, locale) : "";
+    const compactDecisionLabel = snapshot ? formatCompactCalendarNumber(snapshot.decisionCount) : "";
+    const compactActionMixLabel = snapshot ? getCompactActionMixLabel(snapshot.actionCounts, locale) : "";
+    const ariaLabel = [day.dateKey, statusLabel, decisionLabel, actionMixLabel].filter(Boolean).join(" ");
 
     return (
       <button
         key={day.dateKey}
         type="button"
         className={`${styles.dayCell} ${!day.inMonth ? styles.outsideMonth : ""} ${active ? styles.selectedDay : ""}`.trim()}
+        data-calendar-cell={day.dateKey}
         disabled={disabled}
         aria-pressed={active || undefined}
-        aria-label={`${day.dateKey} ${snapshot ? getStatusLabel(snapshot.status, copy) : ""}`.trim()}
+        aria-label={ariaLabel}
         onClick={() => handleSelectDate(day.dateKey)}
       >
         <span className={styles.dayNumber}>{day.dayNumber}</span>
         {snapshot ? (
           <>
-            <span className={`${styles.dayStatus} ${getStatusToneClass(snapshot.status)}`}>
-              {getStatusLabel(snapshot.status, copy)}
+            <span className={`${styles.dayStatus} ${getStatusToneClass(snapshot.status)}`} data-calendar-cell-label="status">
+              <span className={styles.dayCellTextFull} data-calendar-label-variant="full">
+                {statusLabel}
+              </span>
+              <span className={styles.dayCellTextCompact} data-calendar-label-variant="compact">
+                {compactStatusLabel}
+              </span>
             </span>
-            <strong>{snapshot.decisionCount > 0 ? `${snapshot.decisionCount} ${copy.labels.decisions}` : copy.status.empty}</strong>
-            <small>{snapshot.decisionCount > 0 ? getActionMixLabel(snapshot.actionCounts, copy) : copy.status.pending}</small>
+            <strong data-calendar-cell-label="count">
+              <span className={styles.dayCellTextFull} data-calendar-label-variant="full">
+                {decisionLabel}
+              </span>
+              <span className={styles.dayCellTextCompact} data-calendar-label-variant="compact">
+                {compactDecisionLabel}
+              </span>
+            </strong>
+            <small data-calendar-cell-label="action-mix">
+              <span className={styles.dayCellTextFull} data-calendar-label-variant="full">
+                {actionMixLabel}
+              </span>
+              <span className={styles.dayCellTextCompact} data-calendar-label-variant="compact">
+                {compactActionMixLabel}
+              </span>
+            </small>
           </>
         ) : null}
       </button>
@@ -669,7 +771,9 @@ export default function SignalReviewCalendarPageClient() {
                 <span key={day}>{copy.weekdays[day]}</span>
               ))}
             </div>
-            <div className={styles.calendarGrid}>{calendarDays.map(renderCalendarCell)}</div>
+            <div className={styles.calendarGrid} data-calendar-grid>
+              {calendarDays.map(renderCalendarCell)}
+            </div>
           </div>
 
           <aside className={styles.panel}>
