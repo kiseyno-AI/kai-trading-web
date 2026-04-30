@@ -50,7 +50,6 @@ import type {
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeStatusResponseDto,
   MarketSnapshotResponseDto,
-  PortfolioSummaryDto,
 } from "@/types/trading-api";
 
 export const dynamic = "force-dynamic";
@@ -125,7 +124,7 @@ export default async function DashboardPage() {
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
   let latestSignalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
-  let portfolioSummary: PortfolioSummaryDto | null = null;
+  const portfolioSummary = null;
   let executionRuntimeStatus: ExecutionRuntimeStatusResponseDto | null = null;
   let executionRuntimeMonitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null = null;
   let executionRuntimeDailyBoard: ExecutionRuntimeDailyBoardResponseDto | null = null;
@@ -133,11 +132,10 @@ export default async function DashboardPage() {
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, freshness, portfolioSummary, marketSnapshot, executionRuntimeStatus] = await Promise.all([
+    [market, tracked, freshness, marketSnapshot, executionRuntimeStatus] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
-      fetchServerTradingApiJson<PortfolioSummaryDto>("/portfolio/summary", requestHeaders).catch(() => null),
       fetchServerTradingApiJson<MarketSnapshotResponseDto>("/market/snapshot", requestHeaders).catch(() => null),
       fetchServerTradingApiJson<ExecutionRuntimeStatusResponseDto>(
         EXECUTION_RUNTIME_STATUS_UPSTREAM_PATH,
