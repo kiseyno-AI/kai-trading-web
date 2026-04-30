@@ -2,11 +2,18 @@ import { expect, test } from "@playwright/test";
 
 import { chromiumIPhone13 } from "./devices";
 
+const configuredBasePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim() ?? "";
+const appBasePath =
+  configuredBasePath && configuredBasePath !== "/"
+    ? `${configuredBasePath.startsWith("/") ? "" : "/"}${configuredBasePath}`.replace(/\/+$/, "")
+    : "";
+const withBasePath = (pathname: `/${string}`) => `${appBasePath}${pathname}`;
+
 test.use(chromiumIPhone13);
 
 test.describe("app icon metadata", () => {
   test("dashboard exposes install metadata for iPhone and Android", async ({ page, request }) => {
-    await page.goto("/dashboard");
+    await page.goto(withBasePath("/dashboard"));
 
     await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", /\/apple-icon\.png\?/);
     await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("sizes", "180x180");
@@ -20,7 +27,7 @@ test.describe("app icon metadata", () => {
     const manifestResponse = await request.get(manifestUrl);
 
     expect(manifestResponse.ok()).toBeTruthy();
-    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/manifest.webmanifest");
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", withBasePath("/manifest.webmanifest"));
 
     const manifest = (await manifestResponse.json()) as {
       icons?: Array<{ src: string; sizes: string; type: string; purpose?: string }>;
@@ -29,13 +36,15 @@ test.describe("app icon metadata", () => {
     const manifest512Icons =
       manifest.icons?.filter(
         (icon) =>
-          icon.src === "/app-icon-512.png" && icon.sizes === "512x512" && icon.type === "image/png",
+          icon.src === withBasePath("/app-icon-512.png") &&
+          icon.sizes === "512x512" &&
+          icon.type === "image/png",
       ) ?? [];
 
     expect(manifest.icons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          src: "/app-icon-192.png",
+          src: withBasePath("/app-icon-192.png"),
           sizes: "192x192",
           type: "image/png",
         }),
