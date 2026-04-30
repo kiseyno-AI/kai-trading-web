@@ -7,6 +7,8 @@ import ts from "typescript";
 import {
   createMarketSnapshotRequestTimeout,
   hasResponseForRequestedMarketDate,
+  isEodPipelineStatusTransientError,
+  getEodPipelineStatusPollDelayMsWithTransientErrors,
 } from "./use-live-dashboard-data";
 
 type TimeoutOptions = NonNullable<Parameters<typeof createMarketSnapshotRequestTimeout>[0]>;
@@ -163,6 +165,100 @@ test("wires the market snapshot poll fetch through the timeout signal", () => {
   assert.match(marketSnapshotFetchCall, /signal: requestTimeout\.signal/);
   assert.match(source, /requestTimeout\.clear\(\);/);
   assert.match(source, /inFlightRequest\?\.abort\(\);/);
+});
+
+test("detects transient EOD pipeline status timeout failures", () => {
+  assert.equal(isEodPipelineStatusTransientError(new Error("HTTP 504 from /api/trading/eod/pipeline/status")), true);
+  assert.equal(isEodPipelineStatusTransientError(new Error("EOD pipeline status request timed out after 1000ms.")), true);
+  assert.equal(isEodPipelineStatusTransientError(new Error("HTTP 502 from /api/trading/eod/pipeline/status")), false);
+  assert.equal(isEodPipelineStatusTransientError(new Error("Unexpected parse error")), false);
+  assert.equal(isEodPipelineStatusTransientError("string-error"), false);
+});
+
+test("uses a longer retry delay only for transient pipeline status errors", () => {
+  const runningStatus = {
+    market_date: "2026-04-30",
+    status: "running",
+    stage_order: ["price_collection"],
+    stages: {
+      price_collection: {
+        status: "running",
+        processed: 1,
+        total: 10,
+        failed: 0,
+      },
+    },
+  } satisfies Parameters<typeof getEodPipelineStatusPollDelayMsWithTransientErrors>[0]["pipelineStatus"];
+
+  const idleStatus = {
+    market_date: "2026-04-30",
+    status: "completed",
+    stage_order: ["price_collection"],
+    stages: {
+      price_collection: {
+        status: "completed",
+        processed: 10,
+        total: 10,
+        failed: 0,
+      },
+    },
+  } satisfies Parameters<typeof getEodPipelineStatusPollDelayMsWithTransientErrors>[0]["pipelineStatus"];
+
+  assert.equal(
+    getEodPipelineStatusPollDelayMsWithTransientErrors({
+      pipelineStatus: runningStatus,
+      timeoutErrorCount: 0,
+    }),
+    1_000,
+  );
+  assert.equal(
+    getEodPipelineStatusPollDelayMsWithTransientErrors({
+      pipelineStatus: runningStatus,
+      timeoutErrorCount: 1,
+    }),
+    2_000,
+  );
+  assert.equal(
+    getEodPipelineStatusPollDelayMsWithTransientErrors({
+      pipelineStatus: runningStatus,
+      timeoutErrorCount: 3,
+    }),
+    10_000,
+  );
+  assert.equal(
+    getEodPipelineStatusPollDelayMsWithTransientErrors({
+      pipelineStatus: idleStatus,
+      timeoutErrorCount: 3,
+    }),
+    30_000,
+  );
+});
+
+test("loads pipeline status with a request timeout signal and quiet transient error handling", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.match(
+    source,
+    /const currentPipelineStatus = await getJsonNoCache<EodPipelineStatusResponseDto>\(pipelineStatusPath, {\s*signal: currentRequestTimeout\.signal,\s*}\);/,
+  );
+  assert.match(
+    source,
+    /const latestCompletedRequestTimeout = createEodPipelineStatusRequestTimeout\(\);/,
+  );
+  assert.match(
+    source,
+    /signal: latestCompletedRequestTimeout\.signal/,
+  );
+  assert.match(source, /isEodPipelineStatusTransientError\(pipelineStatusError\)/);
+  assert.match(
+    source,
+    /console\.warn\(\s*["']Dashboard EOD pipeline status load timed out, continuing to retry["']\s*,/,
+  );
+  assert.match(
+    source,
+    /getEodPipelineStatusPollDelayMsWithTransientErrors\({\s*pipelineStatus: nextPipelineStatus,\s*timeoutErrorCount,\s*}\)/,
+  );
 });
 
 test("loads dashboard signal-decider progress and feedback without the generic cached timeout helper", () => {

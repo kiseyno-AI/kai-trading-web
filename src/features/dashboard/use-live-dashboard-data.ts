@@ -12,7 +12,11 @@ import {
   buildDartFundamentalsDailyInspectPath,
   DART_FUNDAMENTALS_DAILY_INSPECT_CLIENT_PATH,
 } from "@/lib/dart-fundamentals-daily";
-import { buildEodPipelineStatusPath, EOD_PIPELINE_STATUS_CLIENT_PATH } from "@/lib/eod-pipeline-status";
+import {
+  buildEodPipelineStatusPath,
+  EOD_PIPELINE_STATUS_CLIENT_PATH,
+  EOD_PIPELINE_STATUS_REQUEST_TIMEOUT_MS,
+} from "@/lib/eod-pipeline-status";
 import { getLatestActionMarketDate } from "@/lib/eod-freshness-latest";
 import {
   buildExecutionRuntimeMarketDatePath,
@@ -83,6 +87,7 @@ const FILTERING_FALLBACK_REVALIDATE_DELAY_MS = 5_000;
 const EXECUTION_RUNTIME_POLL_MS = 15_000;
 const MARKET_SNAPSHOT_PATH = "/api/trading/market/snapshot";
 const MARKET_SNAPSHOT_REQUEST_TIMEOUT_MS = 20_000;
+const EOD_PIPELINE_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 10_000] as const;
 
 type DashboardTimeoutApi = {
   clearTimeout: typeof globalThis.clearTimeout;
@@ -120,8 +125,65 @@ export function createMarketSnapshotRequestTimeout({
   };
 }
 
+function createEodPipelineStatusRequestTimeout({
+  timeoutApi = globalThis,
+  timeoutMs = EOD_PIPELINE_STATUS_REQUEST_TIMEOUT_MS,
+}: {
+  timeoutApi?: DashboardTimeoutApi;
+  timeoutMs?: number;
+} = {}) {
+  const abortController = new AbortController();
+  let timeoutCleared = false;
+  const timeout = timeoutApi.setTimeout(() => {
+    abortController.abort(new Error(`EOD pipeline status request timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
+
+  function clear() {
+    if (timeoutCleared) return;
+    timeoutCleared = true;
+    timeoutApi.clearTimeout(timeout);
+  }
+
+  return {
+    abort() {
+      clear();
+      if (!abortController.signal.aborted) {
+        abortController.abort();
+      }
+    },
+    clear,
+    signal: abortController.signal,
+  };
+}
+
 function getJson<T>(path: string): Promise<T> {
   return getCachedTradingApiJson<T>(resolveTradingApiClientPath(path));
+}
+
+export function isEodPipelineStatusTransientError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return message.includes("timed out") || message.includes("http 504");
+}
+
+export function getEodPipelineStatusPollDelayMsWithTransientErrors({
+  pipelineStatus,
+  timeoutErrorCount,
+}: {
+  pipelineStatus: EodPipelineStatusResponseDto | null;
+  timeoutErrorCount: number;
+}) {
+  if (timeoutErrorCount <= 0) {
+    return getEodPipelineStatusPollDelayMs(pipelineStatus);
+  }
+
+  const baseDelayMs = getEodPipelineStatusPollDelayMs(pipelineStatus);
+  const retryIndex = Math.min(
+    timeoutErrorCount - 1,
+    EOD_PIPELINE_STATUS_RETRY_DELAYS_MS.length - 1,
+  );
+
+  return Math.max(baseDelayMs, EOD_PIPELINE_STATUS_RETRY_DELAYS_MS[retryIndex]);
 }
 
 async function getJsonNoCache<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
@@ -903,6 +965,11 @@ export function useLiveDashboardData({
   useEffect(() => {
     let active = true;
     let timer: number | null = null;
+    let pipelineStatusTimeoutErrorCount = 0;
+    let inFlightRequest: ReturnType<typeof createEodPipelineStatusRequestTimeout> | null = null;
+    let inFlightLatestCompletedRequest:
+      | ReturnType<typeof createEodPipelineStatusRequestTimeout>
+      | null = null;
 
     function clearTimer() {
       if (timer === null) return;
@@ -910,15 +977,30 @@ export function useLiveDashboardData({
       timer = null;
     }
 
-    function scheduleNextLoad(nextPipelineStatus: EodPipelineStatusResponseDto | null) {
+    function scheduleNextLoad(
+      nextPipelineStatus: EodPipelineStatusResponseDto | null,
+      timeoutErrorCount: number,
+    ) {
       if (!active) return;
       clearTimer();
-      timer = window.setTimeout(loadPipelineStatus, getEodPipelineStatusPollDelayMs(nextPipelineStatus));
+      timer = window.setTimeout(
+        loadPipelineStatus,
+        getEodPipelineStatusPollDelayMsWithTransientErrors({
+          pipelineStatus: nextPipelineStatus,
+          timeoutErrorCount,
+        }),
+      );
     }
 
     async function loadPipelineStatus() {
+      const currentRequestTimeout = createEodPipelineStatusRequestTimeout();
+      inFlightRequest = currentRequestTimeout;
+
       try {
-        const currentPipelineStatus = await getJson<EodPipelineStatusResponseDto>(pipelineStatusPath);
+        const currentPipelineStatus = await getJsonNoCache<EodPipelineStatusResponseDto>(pipelineStatusPath, {
+          signal: currentRequestTimeout.signal,
+        });
+        pipelineStatusTimeoutErrorCount = 0;
         const latestCompletedPipelineStatus =
           latestCompletedPipelineStatusPath &&
           shouldRequestLatestCompletedPipelineStatus({
@@ -926,7 +1008,24 @@ export function useLiveDashboardData({
             freshness,
             requestMarketDate: pipelineRequestMarketDate,
           })
-            ? await getJson<EodPipelineStatusResponseDto>(latestCompletedPipelineStatusPath).catch(() => null)
+            ? await (async () => {
+                const latestCompletedRequestTimeout = createEodPipelineStatusRequestTimeout();
+                inFlightLatestCompletedRequest = latestCompletedRequestTimeout;
+
+                try {
+                  return await getJsonNoCache<EodPipelineStatusResponseDto>(
+                    latestCompletedPipelineStatusPath,
+                    {
+                      signal: latestCompletedRequestTimeout.signal,
+                    },
+                  ).catch(() => null);
+                } finally {
+                  latestCompletedRequestTimeout.clear();
+                  if (inFlightLatestCompletedRequest === latestCompletedRequestTimeout) {
+                    inFlightLatestCompletedRequest = null;
+                  }
+                }
+              })()
             : null;
         const data = resolveDashboardProcessPipelineStatus({
           currentPipelineStatus,
@@ -938,11 +1037,28 @@ export function useLiveDashboardData({
         pipelineStatusRequestDateRef.current = pipelineRequestMarketDate;
         pipelineStatusRef.current = data;
         setPipelineStatus(data);
-        scheduleNextLoad(data);
+        scheduleNextLoad(data, pipelineStatusTimeoutErrorCount);
       } catch (pipelineStatusError) {
-        console.error("Dashboard EOD pipeline status load failed", pipelineStatusError);
+        const isTransientError = isEodPipelineStatusTransientError(pipelineStatusError);
+        if (isTransientError) {
+          pipelineStatusTimeoutErrorCount += 1;
+          if (pipelineStatusTimeoutErrorCount <= 2) {
+            console.warn(
+              "Dashboard EOD pipeline status load timed out, continuing to retry",
+              pipelineStatusError,
+            );
+          }
+        } else {
+          pipelineStatusTimeoutErrorCount = 0;
+          console.error("Dashboard EOD pipeline status load failed", pipelineStatusError);
+        }
         if (!active) return;
-        scheduleNextLoad(pipelineStatusRef.current);
+        scheduleNextLoad(pipelineStatusRef.current, pipelineStatusTimeoutErrorCount);
+      } finally {
+        currentRequestTimeout.clear();
+        if (inFlightRequest === currentRequestTimeout) {
+          inFlightRequest = null;
+        }
       }
     }
 
@@ -951,6 +1067,8 @@ export function useLiveDashboardData({
     return () => {
       active = false;
       clearTimer();
+      inFlightRequest?.abort();
+      inFlightLatestCompletedRequest?.abort();
     };
   }, [freshness, latestCompletedPipelineStatusPath, pipelineRequestMarketDate, pipelineStatusPath]);
 
