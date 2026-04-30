@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const configuredBasePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim() ?? "";
+const normalizedBasePath =
+  configuredBasePath && configuredBasePath !== "/"
+    ? `${configuredBasePath.startsWith("/") ? "" : "/"}${configuredBasePath}`.replace(/\/+$/, "")
+    : "";
+
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: true,
@@ -14,7 +20,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: "npm run dev",
-    url: "http://127.0.0.1:3000",
+    url: `http://127.0.0.1:3000${normalizedBasePath}/manifest.webmanifest`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     stdout: "pipe",
