@@ -164,3 +164,13 @@ test("wires the market snapshot poll fetch through the timeout signal", () => {
   assert.match(source, /requestTimeout\.clear\(\);/);
   assert.match(source, /inFlightRequest\?\.abort\(\);/);
 });
+
+test("loads dashboard signal-decider progress and feedback without the generic cached timeout helper", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.match(source, /const data = await getJsonNoCache<AgentFeedbackProgressResponseDto>\(progressPath\);/);
+  assert.doesNotMatch(source, /getJson<AgentFeedbackProgressResponseDto>\(progressPath\)/);
+  assert.match(source, /getJsonNoCache<AgentFeedbackListResponseDto>\(feedbackPath\)/);
+  assert.match(source, /getJsonNoCache<AgentFeedbackListResponseDto>\(latestFeedbackPath\)/);
+});

@@ -1007,7 +1007,7 @@ export function useLiveDashboardData({
 
     async function loadAgentFeedbackProgress() {
       try {
-        const data = await getJson<AgentFeedbackProgressResponseDto>(progressPath);
+        const data = await getJsonNoCache<AgentFeedbackProgressResponseDto>(progressPath);
         if (!active) return;
         setAgentFeedbackProgress(data);
         setAgentFeedbackProgressError(null);
