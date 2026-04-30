@@ -32,6 +32,12 @@ import {
   getActionFreshnessStage,
   getAgentFeedbackProgressPollDelayMs,
   getEodPipelineStatusPollDelayMs,
+  getMarketSnapshotFlow,
+  getMarketSnapshotFlowAmount,
+  getMarketSnapshotFxRate,
+  getMarketSnapshotFxValue,
+  getMarketSnapshotIndex,
+  getMarketSnapshotIndexLevel,
   getFundamentalsFailureDetails,
   getFundamentalsStageStatusLabel,
   getFundamentalsStatusLabel,
@@ -338,6 +344,52 @@ test("normalizes enveloped market snapshot responses before resolving presentati
   assert.equal(presentation.displaySnapshot?.market_date, "2026-04-21");
   assert.equal(presentation.displaySnapshot?.source, "core");
   assert.deepEqual(presentation.missingFieldLabels, [copy.marketOverview.kosdaq, copy.marketOverview.institutionalFlow]);
+});
+
+test("normalizes live Core markets and top-level usd_krw partial snapshots", () => {
+  const copy = getDashboardLiveCopy("en");
+  const liveCoreSnapshot = {
+    status: "partial",
+    market_date: "2026-04-30",
+    as_of: "2026-04-30T16:15:00+09:00",
+    markets: {
+      kospi: {
+        value: 6598.87,
+        change: 12.41,
+        change_rate: 0.19,
+        foreign_net_value: 248_000_000_000,
+        institution_net_value: -91_000_000_000,
+        unit: "KRW",
+      },
+      kosdaq: {
+        value: 1192.35,
+        change: -3.22,
+        change_rate: -0.27,
+        foreign_net_value: 64_000_000_000,
+        institution_net_value: 11_000_000_000,
+        unit: "KRW",
+      },
+    },
+    usd_krw: {
+      status: "missing",
+      stale_reason: "koreaexim_quota_exhausted",
+    },
+    freshness: {
+      served_from_cache: true,
+    },
+  } as unknown as MarketSnapshotResponseDto;
+  const presentation = buildMarketSnapshotPresentation(copy, liveCoreSnapshot, null);
+  const displaySnapshot = presentation.displaySnapshot;
+
+  assert.equal(presentation.status, "partial");
+  assert.equal(presentation.statusLabel, copy.marketOverview.snapshotPartial);
+  assert.equal(displaySnapshot?.market_date, "2026-04-30");
+  assert.deepEqual(presentation.missingFieldLabels, [copy.marketOverview.usdKrw]);
+  assert.equal(getMarketSnapshotIndexLevel(getMarketSnapshotIndex(displaySnapshot, "kospi")), 6598.87);
+  assert.equal(getMarketSnapshotIndexLevel(getMarketSnapshotIndex(displaySnapshot, "kosdaq")), 1192.35);
+  assert.equal(getMarketSnapshotFxValue(getMarketSnapshotFxRate(displaySnapshot)), null);
+  assert.equal(getMarketSnapshotFlowAmount(getMarketSnapshotFlow(displaySnapshot, "foreign")), 312_000_000_000);
+  assert.equal(getMarketSnapshotFlowAmount(getMarketSnapshotFlow(displaySnapshot, "institutional")), -80_000_000_000);
 });
 
 test("retries market snapshot outages faster than the idle polling cadence until recovery", () => {

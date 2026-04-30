@@ -161,6 +161,21 @@ export function getDashboardLoadErrorMessage(error: unknown) {
 
 export type MarketSnapshotPresentationStatus = "ready" | "partial" | "stale" | "unavailable";
 export type MarketSnapshotPresentationTone = "positive" | "info" | "neutral" | "warning";
+type MarketSnapshotNumberInput = number | string | null | undefined;
+type MarketSnapshotIndexKey = "kospi" | "kosdaq";
+type MarketSnapshotFlowKey = "foreign" | "institutional";
+type MarketSnapshotIndicesRecord = {
+  kospi?: MarketSnapshotIndexDto | null;
+  kosdaq?: MarketSnapshotIndexDto | null;
+};
+type MarketSnapshotFxRecord = {
+  usdkrw?: MarketSnapshotFxRateDto | null;
+  usd_krw?: MarketSnapshotFxRateDto | null;
+};
+type MarketSnapshotFlowsRecord = {
+  foreign?: MarketSnapshotFlowDto | null;
+  institutional?: MarketSnapshotFlowDto | null;
+};
 export type MarketSnapshotFieldId =
   | "indices.kospi"
   | "indices.kosdaq"
@@ -176,6 +191,7 @@ const REQUIRED_MARKET_SNAPSHOT_FIELD_IDS = [
   "flows.foreign",
   "flows.institutional",
 ] as const satisfies readonly MarketSnapshotFieldId[];
+const MARKET_SNAPSHOT_INDEX_KEYS = ["kospi", "kosdaq"] as const satisfies readonly MarketSnapshotIndexKey[];
 
 const MARKET_SNAPSHOT_FIELD_ALIASES = {
   "indices.kospi": ["indices.kospi", "kospi", "kospi_index", "kospi index", "ks11"],
@@ -200,6 +216,23 @@ function asText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function asMarketSnapshotNumberInput(value: unknown): MarketSnapshotNumberInput {
+  return typeof value === "number" || typeof value === "string" || value === null ? value : undefined;
+}
+
+export function readMarketSnapshotNumber(...values: MarketSnapshotNumberInput[]) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value !== "string") continue;
+    const normalized = value.replace(/[,₩$%]/g, "").trim();
+    if (!normalized) continue;
+    const numericValue = Number(normalized);
+    if (Number.isFinite(numericValue)) return numericValue;
+  }
+
+  return null;
+}
+
 export function normalizeMarketSnapshotToken(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "") ?? "";
 }
@@ -219,6 +252,293 @@ function getNestedDataPayload(value: unknown) {
   return isMarketSnapshotRecord(data) ? data : null;
 }
 
+function getLiveCoreMarketRow(
+  root: Record<string, unknown>,
+  key: MarketSnapshotIndexKey,
+): Record<string, unknown> | null {
+  const markets = root.markets;
+  const aliases = MARKET_SNAPSHOT_FIELD_ALIASES[`indices.${key}`];
+
+  if (Array.isArray(markets)) {
+    return (
+      markets.find((market): market is Record<string, unknown> => {
+        if (!isMarketSnapshotRecord(market)) return false;
+        const candidates = [
+          market.id,
+          market.label,
+          market.symbol,
+          market.code,
+          market.market,
+          market.name,
+          market.index,
+          market.index_name,
+        ].map((candidate) => normalizeMarketSnapshotToken(asText(candidate)));
+        return aliases.some((alias) => candidates.includes(normalizeMarketSnapshotToken(alias)));
+      }) ?? null
+    );
+  }
+
+  if (!isMarketSnapshotRecord(markets)) return null;
+  const directValue = getRecordValueByNormalizedKey(markets, aliases);
+  return isMarketSnapshotRecord(directValue) ? directValue : null;
+}
+
+function getLiveCoreMarketRows(root: Record<string, unknown>) {
+  return MARKET_SNAPSHOT_INDEX_KEYS.map((key) => getLiveCoreMarketRow(root, key)).filter(
+    (row): row is Record<string, unknown> => Boolean(row),
+  );
+}
+
+function hasIndexEntry(indices: MarketSnapshotResponseDto["indices"], key: MarketSnapshotIndexKey) {
+  const aliases = MARKET_SNAPSHOT_FIELD_ALIASES[`indices.${key}`];
+
+  if (Array.isArray(indices)) {
+    return indices.some((index) => {
+      const record = index as Record<string, unknown>;
+      const candidates = [
+        index.id,
+        index.label,
+        index.symbol,
+        index.code,
+        index.market,
+        index.name,
+        asText(record.index),
+        asText(record.index_name),
+      ].map(normalizeMarketSnapshotToken);
+      return aliases.some((alias) => candidates.includes(normalizeMarketSnapshotToken(alias)));
+    });
+  }
+
+  return isMarketSnapshotRecord(indices) && isMarketSnapshotRecord(getRecordValueByNormalizedKey(indices, aliases));
+}
+
+function normalizeLiveCoreMarketIndex(
+  root: Record<string, unknown>,
+  row: Record<string, unknown>,
+  key: MarketSnapshotIndexKey,
+): MarketSnapshotIndexDto {
+  return {
+    ...(row as MarketSnapshotIndexDto),
+    as_of: asText(row.as_of) ?? asText(root.as_of) ?? null,
+    id: asText(row.id) ?? key,
+    market: asText(row.market) ?? key.toUpperCase(),
+    market_date: asText(row.market_date) ?? asText(root.market_date) ?? null,
+    source: asText(row.source) ?? asText(root.source) ?? null,
+    symbol: asText(row.symbol) ?? key.toUpperCase(),
+  };
+}
+
+function normalizeLiveCoreMarketIndices(snapshot: MarketSnapshotResponseDto, root: Record<string, unknown>) {
+  const liveRows = MARKET_SNAPSHOT_INDEX_KEYS.map((key) => ({
+    key,
+    row: getLiveCoreMarketRow(root, key),
+  })).filter((entry): entry is { key: MarketSnapshotIndexKey; row: Record<string, unknown> } => Boolean(entry.row));
+
+  if (liveRows.length === 0) return snapshot.indices;
+
+  if (Array.isArray(snapshot.indices)) {
+    let changed = false;
+    const indices = [...snapshot.indices];
+    for (const { key, row } of liveRows) {
+      if (hasIndexEntry(indices, key)) continue;
+      indices.push(normalizeLiveCoreMarketIndex(root, row, key));
+      changed = true;
+    }
+    return changed ? indices : snapshot.indices;
+  }
+
+  const indices: MarketSnapshotIndicesRecord = isMarketSnapshotRecord(snapshot.indices)
+    ? { ...(snapshot.indices as MarketSnapshotIndicesRecord) }
+    : {};
+  let changed = false;
+  for (const { key, row } of liveRows) {
+    if (hasIndexEntry(indices, key)) continue;
+    indices[key] = normalizeLiveCoreMarketIndex(root, row, key);
+    changed = true;
+  }
+
+  return changed ? indices : snapshot.indices;
+}
+
+function normalizeLiveCoreUsdKrwRate(root: Record<string, unknown>): MarketSnapshotFxRateDto | null {
+  const directValue = getRecordValueByNormalizedKey(root, MARKET_SNAPSHOT_FIELD_ALIASES["fx.usdkrw"]);
+
+  if (isMarketSnapshotRecord(directValue)) {
+    return {
+      ...(directValue as MarketSnapshotFxRateDto),
+      pair: asText(directValue.pair) ?? "USD/KRW",
+    };
+  }
+
+  const numericValue = readMarketSnapshotNumber(asMarketSnapshotNumberInput(directValue));
+  if (numericValue === null) return null;
+
+  return {
+    pair: "USD/KRW",
+    value: numericValue,
+  };
+}
+
+function hasUsdKrwRateEntry(fx: MarketSnapshotResponseDto["fx"]) {
+  const aliases = MARKET_SNAPSHOT_FIELD_ALIASES["fx.usdkrw"];
+
+  if (Array.isArray(fx)) {
+    return fx.some((rate) => {
+      const record = rate as Record<string, unknown>;
+      const candidates = [
+        rate.id,
+        rate.label,
+        rate.code,
+        rate.name,
+        rate.pair,
+        rate.base && rate.quote ? `${rate.base}${rate.quote}` : null,
+        rate.base && rate.quote ? `${rate.base}/${rate.quote}` : null,
+        asText(record.symbol),
+      ].map(normalizeMarketSnapshotToken);
+      return aliases.some((alias) => candidates.includes(normalizeMarketSnapshotToken(alias)));
+    });
+  }
+
+  return isMarketSnapshotRecord(fx) && isMarketSnapshotRecord(getRecordValueByNormalizedKey(fx, aliases));
+}
+
+function normalizeLiveCoreFx(snapshot: MarketSnapshotResponseDto, root: Record<string, unknown>) {
+  const usdKrwRate = normalizeLiveCoreUsdKrwRate(root);
+  if (!usdKrwRate || hasUsdKrwRateEntry(snapshot.fx)) return snapshot.fx;
+
+  if (Array.isArray(snapshot.fx)) return [...snapshot.fx, usdKrwRate];
+
+  const fx: MarketSnapshotFxRecord = {
+    ...(isMarketSnapshotRecord(snapshot.fx) ? (snapshot.fx as MarketSnapshotFxRecord) : {}),
+    usdkrw: usdKrwRate,
+  };
+  return fx;
+}
+
+function getLiveCoreMarketRowFlowAmount(row: Record<string, unknown>, key: MarketSnapshotFlowKey) {
+  const fieldNames =
+    key === "foreign"
+      ? [
+          "foreign_net_value",
+          "foreign_net_amount",
+          "foreign_net_buy_amount",
+          "foreign_net_buy",
+          "foreign_net",
+          "foreign_value",
+          "foreign_amount",
+        ]
+      : [
+          "institution_net_value",
+          "institution_net_amount",
+          "institution_net_buy_amount",
+          "institution_net_buy",
+          "institution_net",
+          "institution_value",
+          "institution_amount",
+          "institutional_net_value",
+          "institutional_net_amount",
+          "institutional_net_buy_amount",
+          "institutional_net_buy",
+          "institutional_net",
+          "institutional_value",
+          "institutional_amount",
+        ];
+
+  return readMarketSnapshotNumber(...fieldNames.map((fieldName) => asMarketSnapshotNumberInput(row[fieldName])));
+}
+
+function buildLiveCoreFlowFromMarkets(
+  root: Record<string, unknown>,
+  key: MarketSnapshotFlowKey,
+): MarketSnapshotFlowDto | null {
+  const rowsWithAmounts = getLiveCoreMarketRows(root)
+    .map((row) => ({
+      amount: getLiveCoreMarketRowFlowAmount(row, key),
+      row,
+    }))
+    .filter((entry): entry is { amount: number; row: Record<string, unknown> } => entry.amount !== null);
+
+  if (rowsWithAmounts.length === 0) return null;
+
+  const firstRow = rowsWithAmounts[0]?.row;
+  return {
+    as_of: asText(firstRow?.as_of) ?? asText(root.as_of) ?? null,
+    investor_type: key,
+    source: asText(firstRow?.source) ?? asText(root.source) ?? null,
+    type: key,
+    unit: asText(firstRow?.unit) ?? asText(firstRow?.currency) ?? "KRW",
+    value: rowsWithAmounts.reduce((total, entry) => total + entry.amount, 0),
+  };
+}
+
+function hasFlowEntry(flows: MarketSnapshotResponseDto["flows"], key: MarketSnapshotFlowKey) {
+  const aliases = MARKET_SNAPSHOT_FIELD_ALIASES[`flows.${key}`];
+
+  if (Array.isArray(flows)) {
+    return flows.some((flow) => {
+      const candidates = [
+        flow.id,
+        flow.name,
+        flow.label,
+        flow.market,
+        flow.investor_type,
+        flow.type,
+      ].map(normalizeMarketSnapshotToken);
+      return aliases.some((alias) => candidates.includes(normalizeMarketSnapshotToken(alias)));
+    });
+  }
+
+  return isMarketSnapshotRecord(flows) && isMarketSnapshotRecord(getRecordValueByNormalizedKey(flows, aliases));
+}
+
+function normalizeLiveCoreFlows(snapshot: MarketSnapshotResponseDto, root: Record<string, unknown>) {
+  const liveFlows = (["foreign", "institutional"] as const).map((key) => ({
+    key,
+    flow: buildLiveCoreFlowFromMarkets(root, key),
+  })).filter((entry): entry is { key: MarketSnapshotFlowKey; flow: MarketSnapshotFlowDto } => Boolean(entry.flow));
+
+  if (liveFlows.length === 0) return snapshot.flows;
+
+  if (Array.isArray(snapshot.flows)) {
+    let changed = false;
+    const flows = [...snapshot.flows];
+    for (const { key, flow } of liveFlows) {
+      if (hasFlowEntry(flows, key)) continue;
+      flows.push(flow);
+      changed = true;
+    }
+    return changed ? flows : snapshot.flows;
+  }
+
+  const flows: MarketSnapshotFlowsRecord = isMarketSnapshotRecord(snapshot.flows)
+    ? { ...(snapshot.flows as MarketSnapshotFlowsRecord) }
+    : {};
+  let changed = false;
+  for (const { key, flow } of liveFlows) {
+    if (hasFlowEntry(flows, key)) continue;
+    flows[key] = flow;
+    changed = true;
+  }
+
+  return changed ? flows : snapshot.flows;
+}
+
+function normalizeLiveCoreMarketSnapshotShape(snapshot: MarketSnapshotResponseDto): MarketSnapshotResponseDto {
+  const root = snapshot as Record<string, unknown>;
+  const indices = normalizeLiveCoreMarketIndices(snapshot, root);
+  const fx = normalizeLiveCoreFx(snapshot, root);
+  const flows = normalizeLiveCoreFlows(snapshot, root);
+
+  if (indices === snapshot.indices && fx === snapshot.fx && flows === snapshot.flows) return snapshot;
+
+  return {
+    ...snapshot,
+    flows,
+    fx,
+    indices,
+  };
+}
+
 export function normalizeMarketSnapshotResponse(
   marketSnapshot: MarketSnapshotResponseDto | null,
 ): MarketSnapshotResponseDto | null {
@@ -226,13 +546,13 @@ export function normalizeMarketSnapshotResponse(
 
   const root = marketSnapshot as Record<string, unknown>;
   const data = getNestedDataPayload(root);
-  if (!data) return marketSnapshot;
+  if (!data) return normalizeLiveCoreMarketSnapshotShape(marketSnapshot);
 
   const normalizedData = normalizeMarketSnapshotResponse(data as MarketSnapshotResponseDto);
   if (!normalizedData) return null;
   const meta = isMarketSnapshotRecord(root.meta) ? root.meta : null;
 
-  return {
+  return normalizeLiveCoreMarketSnapshotShape({
     ...normalizedData,
     as_of: normalizedData.as_of ?? asText(root.as_of) ?? asText(meta?.generatedAt) ?? null,
     market_date: normalizedData.market_date ?? asText(root.market_date) ?? null,
@@ -242,20 +562,7 @@ export function normalizeMarketSnapshotResponse(
     source: normalizedData.source ?? asText(root.source) ?? asText(meta?.source) ?? null,
     stale_reason: normalizedData.stale_reason ?? asText(root.stale_reason) ?? null,
     status: normalizedData.status ?? asText(root.status) ?? null,
-  };
-}
-
-export function readMarketSnapshotNumber(...values: Array<number | string | null | undefined>) {
-  for (const value of values) {
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value !== "string") continue;
-    const normalized = value.replace(/[,₩$%]/g, "").trim();
-    if (!normalized) continue;
-    const numericValue = Number(normalized);
-    if (Number.isFinite(numericValue)) return numericValue;
-  }
-
-  return null;
+  });
 }
 
 export function getMarketSnapshotIndex(snapshot: MarketSnapshotResponseDto | null, key: "kospi" | "kosdaq") {

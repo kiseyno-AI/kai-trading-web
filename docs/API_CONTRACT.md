@@ -8,6 +8,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /market/status`
   - `GET /market/snapshot`
     - The market-condition card is driven by this compact market snapshot surface when Core exposes it. Expected card fields are `status`, `indices.kospi`, `indices.kosdaq`, `fx.usdkrw`, `flows.foreign`, `flows.institutional`, optional `summary.market_bias` / breadth text, optional `missing_fields`, and optional `stale_reason`.
+    - The frontend also normalizes the live Core partial-cache shape where index values are exposed as `markets.kospi` / `markets.kosdaq`, USD/KRW is exposed as top-level `usd_krw`, and investor flow values are embedded in each market row as fields such as `foreign_net_value` and `institution_net_value`.
     - `status` should be one of `ready`, `partial`, `stale`, or `unavailable`. The frontend also derives `partial` when a payload has usable data but is missing one of the required market fields, and derives `stale` when the last usable snapshot remains visible after a refresh error.
     - The frontend accepts both the direct snapshot object and an enveloped `{ "data": { ... }, "meta": { ... } }` response for deployment compatibility. It displays available field values individually, labels partial/stale/unavailable states explicitly, and does not collapse partial-but-usable snapshots to `[확인 필요]`.
     - The card does not derive substitute KOSPI/KOSDAQ, FX, or investor-flow values from filtering/status endpoints. `GET /market/status` is used only for compact session/trading-day context.

@@ -924,6 +924,20 @@ export type MarketSnapshotIndexDto = {
   market_date?: string | null;
   as_of?: string | null;
   source?: string | null;
+  foreign_net_value?: MarketSnapshotNumericValue;
+  foreign_net_amount?: MarketSnapshotNumericValue;
+  foreign_net_buy?: MarketSnapshotNumericValue;
+  foreign_net_buy_amount?: MarketSnapshotNumericValue;
+  institution_net_value?: MarketSnapshotNumericValue;
+  institution_net_amount?: MarketSnapshotNumericValue;
+  institution_net_buy?: MarketSnapshotNumericValue;
+  institution_net_buy_amount?: MarketSnapshotNumericValue;
+  institutional_net_value?: MarketSnapshotNumericValue;
+  institutional_net_amount?: MarketSnapshotNumericValue;
+  institutional_net_buy?: MarketSnapshotNumericValue;
+  institutional_net_buy_amount?: MarketSnapshotNumericValue;
+  currency?: string | null;
+  unit?: string | null;
 };
 
 export type MarketSnapshotFxRateDto = {
@@ -951,6 +965,9 @@ export type MarketSnapshotFxRateDto = {
   rate_change?: MarketSnapshotNumericValue;
   as_of?: string | null;
   source?: string | null;
+  status?: MarketSnapshotStatusDto | null;
+  stale_reason?: string | null;
+  missing_reason?: string | null;
 };
 
 export type MarketSnapshotFlowDto = {
@@ -993,10 +1010,15 @@ export type MarketSnapshotResponseDto = {
     kospi?: MarketSnapshotIndexDto | null;
     kosdaq?: MarketSnapshotIndexDto | null;
   } | MarketSnapshotIndexDto[] | null;
+  markets?: {
+    kospi?: MarketSnapshotIndexDto | null;
+    kosdaq?: MarketSnapshotIndexDto | null;
+  } | MarketSnapshotIndexDto[] | null;
   fx?: {
     usdkrw?: MarketSnapshotFxRateDto | null;
     usd_krw?: MarketSnapshotFxRateDto | null;
   } | MarketSnapshotFxRateDto[] | null;
+  usd_krw?: MarketSnapshotFxRateDto | MarketSnapshotNumericValue;
   flows?: {
     foreign?: MarketSnapshotFlowDto | null;
     institutional?: MarketSnapshotFlowDto | null;
@@ -1004,6 +1026,10 @@ export type MarketSnapshotResponseDto = {
   summary?: MarketSnapshotSummaryDto | string | null;
   missing_fields?: string[] | null;
   stale_reason?: string | null;
+  freshness?: {
+    served_from_cache?: boolean | null;
+    [key: string]: unknown;
+  } | null;
   data?: MarketSnapshotResponseDto | null;
 };
 
