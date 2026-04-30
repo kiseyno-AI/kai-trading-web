@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
+import type { AgentContextActionSummaryDto } from "@/types/trading-api";
 
 import {
   buildActionSummarySectionModel,
@@ -17,6 +18,29 @@ import {
   pickSelectedBarTradeDate,
 } from "./symbol-detail-derived-state";
 
+function makeActionSummary(overrides: Partial<AgentContextActionSummaryDto> = {}): AgentContextActionSummaryDto {
+  return {
+    symbol: "005930",
+    market_date: "2026-04-10",
+    source: "test",
+    action_label: "strong_buy",
+    bias_direction: "long",
+    signal_score: 94,
+    confidence_tier: "high",
+    risk_tier: "medium",
+    trigger_price: 70100,
+    invalidation_price: 68000,
+    support_price: 69000,
+    resistance_price: 72000,
+    reasons: ["Trend support confirmed", "Volume expansion detected"],
+    summary_payload: {
+      trigger: "breakout",
+    },
+    captured_at: "2026-04-10T16:00:00+09:00",
+    ...overrides,
+  };
+}
+
 test("keeps action-summary fallback labels stable when no summary is available", () => {
   const copy = getSymbolDetailCopy("en");
   const model = buildActionSummarySectionModel(null, copy);
@@ -31,6 +55,22 @@ test("keeps action-summary fallback labels stable when no summary is available",
   assert.equal(model.metrics[2]?.value, copy.action.noTriggerPrice);
   assert.equal(model.score, 0);
   assert.equal(model.tone, "neutral");
+  assert.equal(model.meter.state, "unavailable");
+  assert.equal(model.meter.valueLabel, copy.action.unavailable);
+  assert.equal(model.meter.currentLabel, copy.action.signalUnavailable);
+});
+
+test("presents resolved strong-buy long-bias action summaries as the current meter state", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildActionSummarySectionModel(makeActionSummary(), copy);
+
+  assert.equal(model.badgeLabel, "Strong Buy");
+  assert.equal(model.headline, "Strong Buy · Confidence High");
+  assert.equal(model.score, 94);
+  assert.equal(model.meter.state, "resolved");
+  assert.equal(model.meter.valueLabel, "94 / 100");
+  assert.equal(model.meter.currentLabel, "Current action: Strong Buy · Bias Long");
+  assert.match(model.meter.ariaLabel, /Signal score: 94 \/ 100/);
 });
 
 test("keeps fundamentals-history empty-state outputs stable when no history is available", () => {

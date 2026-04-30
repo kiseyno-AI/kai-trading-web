@@ -70,11 +70,20 @@ export type SectionMetricModel = {
   value: string;
 };
 
+export type ActionSummarySignalMeterModel = {
+  ariaLabel: string;
+  currentLabel: string;
+  label: string;
+  state: "resolved" | "unavailable";
+  valueLabel: string;
+};
+
 export type ActionSummarySectionModel = {
   badgeLabel: string;
   body: string;
   headline: string;
   metaCaption: string;
+  meter: ActionSummarySignalMeterModel;
   metrics: SectionMetricModel[];
   reasonTags: string[];
   score: number;
@@ -578,18 +587,58 @@ export function buildActionFreshnessDate(
   return resolvePresenterDate(actionSummary?.market_date, freshness?.latest?.action_market_date);
 }
 
+function clampSignalScore(score: number | null | undefined) {
+  return Number.isFinite(score) ? Math.max(0, Math.min(score ?? 0, 100)) : 0;
+}
+
+function formatSignalScore(score: number) {
+  const roundedScore = Math.round(score * 10) / 10;
+  return Number.isInteger(roundedScore) ? String(roundedScore) : roundedScore.toFixed(1);
+}
+
+function buildActionSummarySignalMeterModel(
+  actionSummary: AgentContextActionSummaryDto | null,
+  score: number,
+  copy: SymbolDetailCopy,
+): ActionSummarySignalMeterModel {
+  if (!actionSummary) {
+    return {
+      ariaLabel: `${copy.action.signalScore}: ${copy.action.signalUnavailable}`,
+      currentLabel: copy.action.signalUnavailable,
+      label: copy.action.signalScore,
+      state: "unavailable",
+      valueLabel: copy.action.unavailable,
+    };
+  }
+
+  const actionLabel = humanizeToken(actionSummary.action_label);
+  const biasLabel = humanizeToken(actionSummary.bias_direction);
+  const currentLabel = `${copy.action.currentAction}: ${actionLabel} · ${copy.action.bias} ${biasLabel}`;
+  const valueLabel = `${formatSignalScore(score)} / 100`;
+
+  return {
+    ariaLabel: `${copy.action.signalScore}: ${valueLabel}. ${currentLabel}`,
+    currentLabel,
+    label: copy.action.signalScore,
+    state: "resolved",
+    valueLabel,
+  };
+}
+
 export function buildActionSummarySectionModel(
   actionSummary: AgentContextActionSummaryDto | null,
   copy: SymbolDetailCopy,
 ): ActionSummarySectionModel {
   const reasons = actionSummary?.reasons.slice(0, 4) ?? [];
   const payloadTags = buildInsightTags(actionSummary?.summary_payload);
+  const score = clampSignalScore(actionSummary?.signal_score);
 
   return {
     badgeLabel: actionSummary ? humanizeToken(actionSummary.action_label) : copy.action.unavailable,
     body: reasons.length > 0 ? reasons.join(" ") : copy.action.emptyBody,
     headline: buildActionHeadline(actionSummary, copy),
     metaCaption: `${copy.action.payloadKeys}: ${payloadTags.join(" · ")}`,
+    meter: buildActionSummarySignalMeterModel(actionSummary, score, copy),
     metrics: [
       {
         key: "confidence",
@@ -610,7 +659,7 @@ export function buildActionSummarySectionModel(
       },
     ],
     reasonTags: reasons.length > 0 ? reasons : [copy.action.noRationaleRows],
-    score: Math.max(0, Math.min(actionSummary?.signal_score ?? 0, 100)),
+    score,
     tone: buildActionTone(actionSummary),
   };
 }
