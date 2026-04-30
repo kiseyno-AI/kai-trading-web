@@ -684,6 +684,44 @@ test("builds a compact summary with preview, action counts, and detail href", ()
   assert.equal(model.detailHref, "/dashboard/signal-decider-feedback?marketDate=2026-04-27");
 });
 
+test("keeps signal-decider feedback status transparent when progress is running but no rows are stored yet", () => {
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback: buildFeedbackResponse({
+      summary: {
+        count: 0,
+      },
+      items: [],
+    }),
+    marketDate: "2026-04-30",
+    progress: buildProgress({
+      summary: {
+        ...buildProgress().summary,
+        run_status: "running",
+        run_table_status: "running",
+        is_live: true,
+        current_role: "signal-decider",
+        remaining_roles: ["signal-decider"],
+        progress_percent: 10,
+      },
+      result: {
+        market_date: "2026-04-30",
+        roles: {
+          "signal-decider": {
+            requested_count: 4,
+            completed_count: 0,
+            error_count: 0,
+          },
+        },
+      },
+    }),
+    previewLimit: 5,
+  });
+
+  assert.equal(model.resultCount, 0);
+  assert.equal(model.status, "running");
+  assert.deepEqual(model.actionCounts, { buy: 0, wait: 0, reject: 0, unknown: 0 });
+});
+
 test("keeps signal-decider headline action counts independent from preview truncation", () => {
   const items = Array.from({ length: 105 }, (_, index) =>
     buildStoredFeedbackItem({

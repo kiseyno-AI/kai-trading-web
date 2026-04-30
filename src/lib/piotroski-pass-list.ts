@@ -63,7 +63,6 @@ export type PiotroskiPassListResult = {
   items: PiotroskiPassListItem[];
 };
 
-const PIOTROSKI_PASS_LIST_TIMEOUT_MS = 15_000;
 const PIOTROSKI_ITEM_ENRICHMENT_TIMEOUT_MS = 4_000;
 
 function getJsonErrorMessage(parsedBody: unknown) {
@@ -102,24 +101,6 @@ async function getJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return parsedBody as T;
-}
-
-async function getJsonWithTimeout<T>(path: string, timeoutMs: number): Promise<T> {
-  const abortController = new AbortController();
-  const timeout = globalThis.setTimeout(() => {
-    abortController.abort();
-  }, timeoutMs);
-
-  try {
-    return await getJson<T>(path, { signal: abortController.signal });
-  } catch (error) {
-    if (abortController.signal.aborted) {
-      throw new Error(`Piotroski request timed out after ${(timeoutMs / 1_000).toFixed(1)}s.`);
-    }
-    throw error;
-  } finally {
-    globalThis.clearTimeout(timeout);
-  }
 }
 
 function hasTextValue(value: string | null | undefined): value is string {
@@ -293,9 +274,8 @@ export async function loadPiotroskiPassList({
   limit?: number | null;
 }): Promise<PiotroskiPassListResult> {
   const params = new URLSearchParams({ market_date: marketDate });
-  const data = await getJsonWithTimeout<EodPiotroskiFilterResultsResponseDto>(
+  const data = await getJson<EodPiotroskiFilterResultsResponseDto>(
     `/api/trading/eod/piotroski-filter-results?${params.toString()}`,
-    PIOTROSKI_PASS_LIST_TIMEOUT_MS,
   );
   return buildPiotroskiPassListResult(data, marketDate, limit);
 }

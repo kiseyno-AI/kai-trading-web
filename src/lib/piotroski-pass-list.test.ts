@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPiotroskiPassListResult, resolvePiotroskiMarketDateResolution } from "./piotroski-pass-list";
+import { buildPiotroskiListHref, buildPiotroskiPassListResult, resolvePiotroskiMarketDateResolution } from "./piotroski-pass-list";
 
 test("prefers the returned effective market date while preserving requested and resolved metadata", () => {
   const resolution = resolvePiotroskiMarketDateResolution(
@@ -118,6 +118,11 @@ test("builds the pass-list rows from core Piotroski results before quote enrichm
       { companyName: null, piotroskiScore: 8, quote: null },
     ],
   );
+});
+
+test("builds Piotroski drill-down URL with market-date context", () => {
+  assert.equal(buildPiotroskiListHref("2026-04-30"), "/dashboard/piotroski-filter?marketDate=2026-04-30");
+  assert.equal(buildPiotroskiListHref(null), "/dashboard/piotroski-filter");
 });
 
 test("preserves the dashboard summary count when the API omits row details", () => {
