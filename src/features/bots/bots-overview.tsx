@@ -2,11 +2,20 @@
 
 import { useAppState } from "@/components/providers/app-state-provider";
 import { PageIntro } from "@/components/ui/page-intro";
-import { useBotsOverview } from "@/lib/use-bots-overview";
 
 export function BotsOverview() {
   const { t } = useAppState();
-  const overview = useBotsOverview();
+  const scaffoldRows = [
+    { label: t.bots.dataSource, value: t.bots.dataSourceUnavailable },
+    { label: t.bots.rosterState, value: t.bots.rosterUnavailable },
+    { label: t.bots.executionControls, value: t.bots.controlsUnavailable },
+    { label: t.bots.capitalAllocation, value: t.bots.capitalUnavailable },
+  ];
+  const plannedSurfaces = [
+    { title: t.bots.apiBackedRoster, copy: t.bots.apiBackedRosterCopy },
+    { title: t.bots.auditTrail, copy: t.bots.auditTrailCopy },
+    { title: t.bots.safetyAnnotations, copy: t.bots.safetyAnnotationsCopy },
+  ];
 
   return (
     <div className="page-stack">
@@ -19,23 +28,26 @@ export function BotsOverview() {
 
       <section className="hero-strip">
         <div className="glass hero-card">
-          <p className="eyebrow">{t.bots.automationFleet}</p>
-          <h2>{t.bots.roster}</h2>
+          <p className="eyebrow">{t.bots.scaffoldEyebrow}</p>
+          <h2>{t.bots.scaffoldTitle}</h2>
           <p className="hero-copy">{t.bots.heroCopy}</p>
           <div className="hero-badges">
-            <span className="pill neutral">{t.common.maintainableSplit}</span>
-            <span className="pill positive">{t.bots.commandReady}</span>
-            <span className="pill neutral">{t.bots.riskAware}</span>
+            <span className="pill neutral">{t.common.placeholderRoute}</span>
+            <span className="pill neutral">{t.bots.readOnlyScaffold}</span>
+            <span className="pill neutral">{t.bots.noLiveBotState}</span>
           </div>
         </div>
 
         <div className="glass hero-card surface-muted">
-          <p className="eyebrow">{t.bots.opsSnapshot}</p>
-          <h2>{t.bots.fleetStatus}</h2>
+          <p className="eyebrow">{t.bots.sourceStatus}</p>
+          <h2>{t.bots.noRuntimeSnapshot}</h2>
           <div className="detail-list">
-            <div className="detail-row"><span>{t.bots.registeredBots}</span><strong>{overview?.bots.length ?? 0}</strong></div>
-            <div className="detail-row"><span>{t.bots.executionMode}</span><strong>{t.bots.supervised}</strong></div>
-            <div className="detail-row"><span>{t.bots.riskLock}</span><strong>{t.bots.available}</strong></div>
+            {scaffoldRows.map((row) => (
+              <div className="detail-row" key={row.label}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -44,20 +56,16 @@ export function BotsOverview() {
         <div className="glass section-card">
           <div className="panel-head compact">
             <div>
-              <p className="eyebrow">{t.bots.playbooks}</p>
-              <h2>{t.bots.roster}</h2>
+              <p className="eyebrow">{t.bots.plannedSurfaces}</p>
+              <h2>{t.bots.scaffoldSections}</h2>
             </div>
             <span className="pill neutral">{t.common.maintainableSplit}</span>
           </div>
           <div className="stack-list market-grid">
-            {overview?.bots.map((bot) => (
-              <article key={bot.id} className="glass-inner list-card">
-                <strong>{bot.name}</strong>
-                <p>{bot.mode}</p>
-                <div className="list-meta">
-                  <span>{t.bots.risk} {bot.risk}</span>
-                  <span>{bot.allocation} {t.bots.capital}</span>
-                </div>
+            {plannedSurfaces.map((surface) => (
+              <article key={surface.title} className="glass-inner list-card">
+                <strong>{surface.title}</strong>
+                <p>{surface.copy}</p>
               </article>
             ))}
           </div>

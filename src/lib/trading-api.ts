@@ -1,10 +1,7 @@
-import { botPlaybooks, botStatusMap, dashboardData, marketSpotlight } from "@/data/trading-dashboard";
+import { dashboardData, marketSpotlight } from "@/data/trading-dashboard";
 import { startWebDiagnosticSpan } from "@/lib/web-diagnostics";
 import type {
   ApiEnvelope,
-  BotCommandRequestDto,
-  BotCommandResponseDto,
-  BotStatus,
   BotsOverviewDto,
   DashboardSnapshotDto,
   MarketsOverviewDto,
@@ -30,13 +27,6 @@ function trimTrailingSlash(value: string) {
 function isLocalHostname(hostname: string) {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
-
-const commandToStatus: Record<BotCommandRequestDto["command"], BotStatus> = {
-  start: "running",
-  pause: "paused",
-  hedge: "hedged",
-  stop: "stopped",
-};
 
 type CoreMarketStatus = {
   state: string;
@@ -86,14 +76,9 @@ const baseNav: NavItemDto[] = [
 ];
 
 const baseBotControls = {
-  title: "Bot Controls",
-  idleLabel: "Bot idle · Awaiting command",
-  actions: [
-    { id: "start" as const, label: "Start Bot" },
-    { id: "pause" as const, label: "Pause" },
-    { id: "hedge" as const, label: "Hedge" },
-    { id: "stop" as const, label: "Stop" },
-  ],
+  title: "Bot controls unavailable",
+  idleLabel: "No bot command API connected",
+  actions: [],
 };
 
 const buildSearchSuggestions = (symbols: string[]): SearchSuggestionDto[] =>
@@ -358,30 +343,14 @@ const mockTradingApi: TradingApiAdapter = {
 
   async getBotsOverview() {
     const overview: BotsOverviewDto = {
-      bots: botPlaybooks.map((bot, index) => ({
-        id: `bot-${index + 1}`,
-        name: bot.name,
-        mode: bot.mode,
-        risk: bot.risk,
-        allocation: bot.allocation,
-        status: bot.mode === "Armed" ? "running" : bot.mode === "Standby" ? "idle" : "paused",
-      })),
+      bots: [],
     };
 
     return envelope(overview);
   },
 
-  async sendBotCommand(botId, request) {
-    const status = commandToStatus[request.command];
-    const response: BotCommandResponseDto = {
-      botId,
-      command: request.command,
-      status,
-      statusLabel: botStatusMap[request.command],
-      acceptedAt: new Date().toISOString(),
-    };
-
-    return envelope(response);
+  async sendBotCommand() {
+    throw new Error("Bot command API is not connected; placeholder UI must not issue bot commands.");
   },
 };
 
