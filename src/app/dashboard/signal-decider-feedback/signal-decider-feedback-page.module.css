@@ -209,7 +209,8 @@
 }
 
 .resultDecisionSection,
-.resultReviewSection {
+.resultReviewSection,
+.resultSupportSection {
   min-width: 0;
   display: grid;
   gap: 0.72rem;
@@ -226,6 +227,10 @@
   background: rgba(3, 7, 13, 0.38);
 }
 
+.resultSupportSection {
+  background: rgba(8, 17, 31, 0.46);
+}
+
 .resultSectionHeader {
   min-width: 0;
   display: flex;
@@ -235,8 +240,7 @@
   justify-content: space-between;
 }
 
-.resultSectionHeader span,
-.resultMetaRow span {
+.resultSectionHeader span {
   color: var(--muted-soft);
   font-size: 0.68rem;
   font-weight: 800;
@@ -340,16 +344,6 @@
   line-height: 1.55;
 }
 
-.resultMetaRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.48rem;
-}
-
-.resultMetaRow span {
-  overflow-wrap: anywhere;
-}
-
 .resultFooter {
   min-width: 0;
   display: grid;
@@ -358,27 +352,6 @@
 
 .resultFooter .reviewButton {
   width: 100%;
-}
-
-.traceSummary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.36rem;
-}
-
-.traceSummary span {
-  display: inline-flex;
-  min-height: 1.45rem;
-  align-items: center;
-  padding: 0.16rem 0.42rem;
-  border: 1px solid rgba(134, 162, 194, 0.16);
-  border-radius: 999px;
-  background: rgba(8, 17, 31, 0.72);
-  color: var(--muted);
-  font-size: 0.72rem;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-  white-space: normal;
 }
 
 .symbolLink {
