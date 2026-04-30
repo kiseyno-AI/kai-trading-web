@@ -217,10 +217,10 @@ function hasReviewData(item: SignalDeciderFeedbackItem) {
   return hasQualityVerdict(item) || hasOutcomeReview(item);
 }
 
-function getReviewRows(item: SignalDeciderFeedbackItem) {
+function getReviewStateRows(item: SignalDeciderFeedbackItem) {
   return [
-    ...(hasQualityVerdict(item) ? [{ label: "Verdict", value: getDecisionQualityDisplayLabel(item) }] : []),
-    ...(hasOutcomeReview(item) ? [{ label: "Outcome", value: formatOutcomeSummary(item) }] : []),
+    { label: "Verdict", value: hasQualityVerdict(item) ? getDecisionQualityDisplayLabel(item) : REVIEW_PENDING_LABEL },
+    { label: "Outcome", value: hasOutcomeReview(item) ? formatOutcomeSummary(item) : REVIEW_PENDING_LABEL },
   ];
 }
 
@@ -228,6 +228,20 @@ function getReviewNotes(item: SignalDeciderFeedbackItem) {
   return [item.reviewConclusion, item.qualityReason].filter(
     (note, index, notes): note is string => hasTextValue(note) && notes.indexOf(note) === index,
   );
+}
+
+function getTraceContextValue(item: SignalDeciderFeedbackItem) {
+  const traceSummaryParts = getTraceSummaryParts(item);
+  return traceSummaryParts.length > 0 ? traceSummaryParts.join(" · ") : UNKNOWN_LABEL;
+}
+
+function getSupportContextRows(item: SignalDeciderFeedbackItem) {
+  return [
+    { label: "Captured", value: formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL) },
+    { label: "Policy", value: item.policyVersion ?? UNKNOWN_LABEL },
+    { label: "Trace evidence", value: getTraceContextValue(item) },
+    { label: "Run", value: item.runId ?? UNKNOWN_LABEL },
+  ];
 }
 
 function buildSymbolHref(item: SignalDeciderFeedbackItem) {
@@ -545,9 +559,9 @@ export default function SignalDeciderFeedbackPageClient() {
           ) : visibleItems.length > 0 ? (
             <div className={styles.resultsList} aria-label="Signal-decider feedback results">
               {visibleItems.map((item) => {
-                const traceSummaryParts = getTraceSummaryParts(item);
-                const reviewRows = getReviewRows(item);
+                const reviewStateRows = getReviewStateRows(item);
                 const reviewNotes = getReviewNotes(item);
+                const supportContextRows = getSupportContextRows(item);
 
                 return (
                   <article
@@ -602,21 +616,19 @@ export default function SignalDeciderFeedbackPageClient() {
 
                     <section className={styles.resultReviewSection}>
                       <div className={styles.resultSectionHeader}>
-                        <span>Review</span>
-                        <strong>{hasReviewData(item) ? "Result evidence" : REVIEW_PENDING_LABEL}</strong>
+                        <span>Review state</span>
+                        <strong>{hasReviewData(item) ? "Verdict / outcome" : REVIEW_PENDING_LABEL}</strong>
+                      </div>
+                      <div className={styles.resultMetricGrid} data-testid="signal-decider-review-state">
+                        {reviewStateRows.map((row) => (
+                          <div key={row.label} className={styles.resultMetric}>
+                            <span>{row.label}</span>
+                            <strong>{row.value}</strong>
+                          </div>
+                        ))}
                       </div>
                       {hasReviewData(item) ? (
                         <>
-                          {reviewRows.length > 0 ? (
-                            <div className={styles.resultMetricGrid}>
-                              {reviewRows.map((row) => (
-                                <div key={row.label} className={styles.resultMetric}>
-                                  <span>{row.label}</span>
-                                  <strong>{row.value}</strong>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
                           {reviewNotes.map((note) => (
                             <p key={note} className={styles.reviewNote}>
                               {note}
@@ -629,18 +641,24 @@ export default function SignalDeciderFeedbackPageClient() {
                           <p>{REVIEW_PENDING_MESSAGE}</p>
                         </div>
                       )}
-                      <div className={styles.resultMetaRow}>
-                        <span>Captured {formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL)}</span>
-                        {item.policyVersion ? <span>Policy {item.policyVersion}</span> : null}
+                    </section>
+
+                    <section className={styles.resultSupportSection}>
+                      <div className={styles.resultSectionHeader}>
+                        <span>Support context</span>
+                        <strong>Trace / policy</strong>
+                      </div>
+                      <div className={styles.resultMetricGrid} data-testid="signal-decider-support-context">
+                        {supportContextRows.map((row) => (
+                          <div key={row.label} className={styles.resultMetric}>
+                            <span>{row.label}</span>
+                            <strong>{row.value}</strong>
+                          </div>
+                        ))}
                       </div>
                     </section>
 
                     <footer className={styles.resultFooter}>
-                      <div className={styles.traceSummary} aria-label="Trace summary">
-                        {traceSummaryParts.length > 0
-                          ? traceSummaryParts.map((part) => <span key={part}>{part}</span>)
-                          : UNKNOWN_LABEL}
-                      </div>
                       <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
                         Review
                       </button>

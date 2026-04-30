@@ -330,7 +330,6 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               conviction_score_10: 5,
               thesis_summary: "Wait for confirmation after the opening print.",
               risk_flags: ["Volume confirmation missing"],
-              policy_version: "decider-policy-2026.04",
               evaluation: {
                 quality_reason: "Narrative-only review text is not result evidence.",
                 review_conclusion: "No verdict or realized outcome is stored yet.",
@@ -423,12 +422,14 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(hynixCard).toContainText(/Target\s*₩124,000/);
   await expect(hynixCard).toContainText(/Stop-loss\s*₩116,500/);
   await expect(hynixCard).toContainText("Review pending");
+  await expect(hynixCard).toContainText(/Verdict\s*Review pending/);
+  await expect(hynixCard).toContainText(/Outcome\s*Review pending/);
+  await expect(hynixCard).toContainText(/Policy\s*\[확인 필요\]/);
   await expect(hynixCard.getByTestId("signal-decider-review-pending")).toContainText(
     "Verdict and realized outcome are not present",
   );
   await expect(hynixCard).not.toContainText("Narrative-only review text is not result evidence.");
   await expect(hynixCard).not.toContainText("No verdict or realized outcome is stored yet.");
-  await expect(hynixCard).not.toContainText("[확인 필요]");
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
 
   await actionFilter.selectOption("buy");
@@ -459,9 +460,21 @@ test("signal-decider feedback detail stacks content without horizontal scrolling
   await expect(samsungCard).toContainText(/Confidence\s*8\/10/);
   await expect(samsungCard).toContainText(/Target\s*₩82,000/);
   await expect(samsungCard).toContainText(/Stop-loss\s*₩73,500/);
+  await expect(samsungCard).toContainText(/Verdict\s*Weak buy/);
   await expect(samsungCard).toContainText(/Outcome\s*1d \+0\.82%/);
+  await expect(samsungCard).toContainText(/Trace evidence\s*2 risks · 2 factors · 1 gates · 1 evidence/);
   await expect(samsungCard).toContainText(/Policy\s*decider-policy-2026\.04/);
   await expect(samsungCard).toContainText("Captured");
+  await expect(samsungCard.getByRole("button", { name: "Review" })).toBeVisible();
+
+  const hynixCard = page.getByRole("article", { name: /SK hynix signal-decider feedback/i });
+  await expect(hynixCard).toBeVisible();
+  await expect(hynixCard).toContainText(/Verdict\s*Review pending/);
+  await expect(hynixCard).toContainText(/Outcome\s*Review pending/);
+  await expect(hynixCard).toContainText(/Policy\s*\[확인 필요\]/);
+  await expect(hynixCard).toContainText(/Trace evidence\s*1 risks/);
+  await expect(hynixCard).toContainText("Captured");
+  await expect(hynixCard.getByRole("button", { name: "Review" })).toBeVisible();
 
   const overflowMetrics = await page.evaluate(() => ({
     documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
