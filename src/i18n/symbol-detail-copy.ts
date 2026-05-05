@@ -79,6 +79,7 @@ const symbolDetailCopy = {
       overviewTitle: "Swipe-aware candlestick chart",
       technicalEyebrow: "Momentum Intelligence Score",
       technicalTitle: "Candlestick view",
+      latestPriceUpdate: "Latest update",
       focusDate: "Focus date",
       open: "Open",
       close: "Close",
@@ -104,6 +105,7 @@ const symbolDetailCopy = {
       hydratingPrefix: "Hydrating",
       historySuffix: "history",
       returnPendingSuffix: "return pending",
+      returnUnavailable: "return unavailable",
     },
     action: {
       eyebrow: "Action Summary",
@@ -345,6 +347,7 @@ const symbolDetailCopy = {
       overviewTitle: "스와이프형 캔들 차트",
       technicalEyebrow: "모멘텀 인텔리전스 점수",
       technicalTitle: "캔들 보기",
+      latestPriceUpdate: "최신 업데이트",
       focusDate: "집중 날짜",
       open: "시가",
       close: "종가",
@@ -370,6 +373,7 @@ const symbolDetailCopy = {
       hydratingPrefix: "이력 확장 중",
       historySuffix: "",
       returnPendingSuffix: "수익률 대기 중",
+      returnUnavailable: "수익률 계산 불가",
     },
     action: {
       eyebrow: "액션 요약",

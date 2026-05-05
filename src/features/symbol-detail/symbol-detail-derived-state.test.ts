@@ -3,16 +3,20 @@ import test from "node:test";
 
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import type { AgentContextActionSummaryDto } from "@/types/trading-api";
+import type { QuoteResponse } from "./symbol-detail-types";
 
 import {
   buildActionSummarySectionModel,
   buildActionFreshnessDate,
   buildDisclosureCoverageSectionModel,
+  buildPercentChange,
   buildFreshnessTone,
   buildFundamentalsHistorySectionModel,
   buildHeroFundamentalLatestMetricModel,
   buildLatestPriceLabel,
   buildModuleStatusTone,
+  buildPriceHistoryRangeMetrics,
+  buildQuoteSourceLabel,
   buildSymbolRouteQuery,
   buildSystemFreshnessSectionModel,
   buildTechnicalFreshnessDate,
@@ -298,6 +302,100 @@ test("keeps the selected price-bar trade date stable across refreshed history ar
       "2026-04-01",
     ),
     "2026-04-18",
+  );
+});
+
+test("guards denominator-based percent change calculations against impossible price inputs", () => {
+  assert.equal(buildPercentChange(110, 100), 10);
+  assert.equal(buildPercentChange(110, 0), null);
+  assert.equal(buildPercentChange(110, -100), null);
+  assert.equal(buildPercentChange(110, Number.NaN), null);
+  assert.equal(buildPercentChange(Number.POSITIVE_INFINITY, 100), null);
+});
+
+test("builds price-history return metrics only when denominator and history inputs are valid", () => {
+  assert.equal(
+    buildPriceHistoryRangeMetrics({
+      symbol: "005930",
+      count: 1,
+      end_date: "2026-04-30",
+      items: [
+        {
+          trade_date: "2026-04-30",
+          open_price: 0,
+          high_price: 220500,
+          low_price: 220500,
+          close_price: 220500,
+          volume: 100,
+          turnover: 1000000,
+          source: "stored",
+          captured_at: "2026-04-30T00:00:00+09:00",
+        },
+      ],
+      requested_start_date: null,
+      requested_end_date: null,
+      start_date: "2026-04-30",
+    }),
+    null,
+  );
+
+  assert.equal(
+    buildPriceHistoryRangeMetrics({
+      symbol: "005930",
+      count: 2,
+      end_date: "2026-04-30",
+      items: [
+        {
+          trade_date: "2026-04-29",
+          open_price: 100,
+          high_price: 110,
+          low_price: 95,
+          close_price: 105,
+          volume: 10,
+          turnover: 1000,
+          source: "stored",
+          captured_at: "2026-04-29T00:00:00+09:00",
+        },
+        {
+          trade_date: "2026-04-30",
+          open_price: 102,
+          high_price: 112,
+          low_price: 99,
+          close_price: 110,
+          volume: 20,
+          turnover: 2000,
+          source: "stored",
+          captured_at: "2026-04-30T00:00:00+09:00",
+        },
+      ],
+      requested_start_date: "2026-04-29",
+      requested_end_date: "2026-04-30",
+      start_date: "2026-04-29",
+    })?.returnPercent,
+    10,
+  );
+});
+
+test("marks partial chart basis in quote-source labels for daily price-bar fallback history anomalies", () => {
+  const copy = getSymbolDetailCopy("en");
+  const quote: QuoteResponse = {
+    symbol: "005930",
+    price: 220500,
+    change: null,
+    change_pct: null,
+    volume: null,
+    turnover: null,
+    market_state: "CLOSED",
+    source: "daily_price_bar",
+    fallback: true,
+    is_live: false,
+    available: true,
+    trade_date: "2026-04-30",
+  };
+
+  assert.equal(
+    buildQuoteSourceLabel(quote, copy, { isPriceHistoryBasisInvalid: true }),
+    `${copy.chart.latestPriceUpdate} : 2026-04-30 · ${copy.chart.returnUnavailable}`,
   );
 });
 

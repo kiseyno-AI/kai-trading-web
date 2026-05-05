@@ -26,6 +26,7 @@ import type {
   EodPiotroskiFilterResultItemDto,
   Locale,
   SymbolPriceBarDto,
+  SymbolPriceBarsResponseDto,
 } from "@/types/trading-api";
 
 import type {
@@ -54,6 +55,19 @@ export type FocusCandleRow = {
   value: string;
   valueClassName?: string;
 };
+
+export type SymbolPriceBarRangeMetric = {
+  end: number;
+  high: number;
+  low: number;
+  points: number;
+  returnPercent: number;
+  start: number;
+  endDate: string;
+  startDate: string;
+};
+
+export type PricePercentChangeResult = number | null;
 
 export type HeroFundamentalLatestMetricModel = {
   value: string;
@@ -192,6 +206,56 @@ export function formatSignedPercent(value: number | null | undefined, fallback =
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
+export function buildPercentChange(nextValue: number, previousValue: number): PricePercentChangeResult {
+  if (!Number.isFinite(nextValue) || !Number.isFinite(previousValue) || previousValue <= 0) {
+    return null;
+  }
+
+  return ((nextValue - previousValue) / previousValue) * 100;
+}
+
+function isValidBarPrice(value: number): value is number {
+  return Number.isFinite(value);
+}
+
+export function buildPriceHistoryRangeMetrics(
+  priceHistory: SymbolPriceBarsResponseDto | null,
+): SymbolPriceBarRangeMetric | null {
+  if (!priceHistory || priceHistory.items.length < 2) {
+    return null;
+  }
+
+  const first = priceHistory.items[0];
+  const last = priceHistory.items[priceHistory.items.length - 1];
+  const returnPercent = buildPercentChange(last.close_price, first.open_price);
+
+  if (returnPercent === null || !isValidBarPrice(last.close_price) || !isValidBarPrice(first.open_price)) {
+    return null;
+  }
+
+  let low = first.low_price;
+  let high = first.high_price;
+
+  for (const bar of priceHistory.items) {
+    if (!isValidBarPrice(bar.low_price) || !isValidBarPrice(bar.high_price)) {
+      return null;
+    }
+    if (bar.low_price < low) low = bar.low_price;
+    if (bar.high_price > high) high = bar.high_price;
+  }
+
+  return {
+    end: last.close_price,
+    high,
+    low,
+    points: priceHistory.items.length,
+    returnPercent,
+    start: first.open_price,
+    endDate: last.trade_date,
+    startDate: first.trade_date,
+  };
+}
+
 export function formatSignedNumber(
   value: number | null | undefined,
   fallback = "Unavailable",
@@ -322,7 +386,11 @@ export function formatIsoDateLabel(value: string | null | undefined, fallback = 
   return `${year}.${month}.${day}`;
 }
 
-export function buildQuoteSourceLabel(quote: QuoteResponse | null, copy: SymbolDetailCopy) {
+export function buildQuoteSourceLabel(
+  quote: QuoteResponse | null,
+  copy: SymbolDetailCopy,
+  options?: { isPriceHistoryBasisInvalid?: boolean },
+) {
   if (!quote) return copy.hero.quotePending;
   if (!quote.available) {
     const unavailableLabel = copy.freshness.quoteCoverageUnavailable.replace(/\.$/, "");
@@ -332,6 +400,13 @@ export function buildQuoteSourceLabel(quote: QuoteResponse | null, copy: SymbolD
   }
   if (quote.is_live) return copy.freshness.live;
   if (quote.source === "daily_price_bar") {
+    if (options?.isPriceHistoryBasisInvalid) {
+      const fallbackBasisLabel = copy.chart.returnUnavailable;
+      return quote.trade_date
+        ? `${copy.chart.latestPriceUpdate} : ${quote.trade_date} · ${fallbackBasisLabel}`
+        : fallbackBasisLabel;
+    }
+
     return quote.trade_date
       ? `최신 업데이트 : ${quote.trade_date}`
       : copy.freshness.dailyPriceBarFallbackPath;

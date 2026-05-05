@@ -411,11 +411,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
               <div className={styles.chartFooter}>
                 <span>
-                  {hasSelectedRangeHistoryLoaded && chartMetrics
-                    ? `${selectedRange} ${copy.chart.returnLabel} ${formatSignedPercent(((chartMetrics.end - chartMetrics.start) / Math.max(chartMetrics.start, 1)) * 100)}`
+                  {chartMetrics
+                    ? `${selectedRange} ${copy.chart.returnLabel} ${formatSignedPercent(chartMetrics.returnPercent, copy.chart.returnUnavailable)}`
                     : historyHydrating
                       ? `${copy.chart.hydratingPrefix} ${selectedRange} ${copy.chart.historySuffix}`.trim()
-                      : `${selectedRange} ${copy.chart.returnPendingSuffix}`}
+                      : hasSelectedRangeHistoryLoaded
+                        ? `${selectedRange} ${copy.chart.returnLabel} ${copy.chart.returnUnavailable}`
+                        : `${selectedRange} ${copy.chart.returnPendingSuffix}`}
                 </span>
                 <span>{marketDate ? `${copy.chart.requestedMarketDate} ${formatIsoDateLabel(marketDate, copy.common.datePending)}` : copy.chart.marketDatePending}</span>
                 <span>{historyHydrating ? copy.chart.loadingTitle : copy.chart.swipeHint}</span>
