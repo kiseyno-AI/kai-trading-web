@@ -1805,7 +1805,7 @@ test("uses latest-valid factor results when same-day scoring stages are absent",
   );
 });
 
-test("treats successful quality snapshots with entries but no scorable rows as completed", () => {
+test("keeps quality pending when inspect data has no scorable rows", () => {
   const copy = getDashboardLiveCopy("en");
   const scoringValueFactors = {
     market_date: "2026-04-27",
@@ -1847,9 +1847,9 @@ test("treats successful quality snapshots with entries but no scorable rows as c
   });
   const qualityStage = model.stages.find((stage) => stage.key === "quality");
 
-  assert.equal(qualityStage?.status, "completed");
+  assert.equal(qualityStage?.status, "pending");
   assert.equal(qualityStage?.progressLabel, "0 / 2");
-  assert.equal(qualityStage?.note, copy.scoring.notes.completed);
+  assert.equal(qualityStage?.note, copy.scoring.notes.pending);
   assert.deepEqual(qualityStage?.metrics, [
     {
       key: "progress",
@@ -1862,6 +1862,100 @@ test("treats successful quality snapshots with entries but no scorable rows as c
       value: "2",
     },
   ]);
+});
+
+test("uses latest-completed scoring stages and keeps empty factor rows pending", () => {
+  const copy = getDashboardLiveCopy("en");
+  const pipelineStatus = buildPipelineStatus({
+    market_date: "2026-05-04",
+    status: "completed",
+    stage_order: [
+      "price_collection",
+      "technical_snapshots",
+      "action_summaries",
+      "unified_value_factors",
+      "quality_factors",
+      "momentum_factors",
+    ],
+    stages: {
+      unified_value_factors: {
+        status: "completed",
+        processed: 2_811,
+        total: 2_811,
+        failed: 0,
+      },
+      quality_factors: {
+        status: "pending",
+        processed: 0,
+        total: 2_811,
+        failed: 0,
+      },
+      momentum_factors: {
+        status: "pending",
+        processed: 0,
+        total: 2_811,
+        failed: 0,
+      },
+      technical_snapshots: {
+        status: "completed",
+        processed: 2_811,
+        total: 2_811,
+        failed: 0,
+      },
+      action_summaries: {
+        status: "completed",
+        processed: 2_811,
+        total: 2_811,
+        failed: 0,
+      },
+    },
+  });
+
+  const model = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-05-05",
+    scoringMomentumFactors: {
+      market_date: "2026-05-04",
+      requested_market_date: "2026-05-05",
+      resolved_market_date: "2026-05-04",
+      is_latest_fallback: true,
+      summary: {
+        entries: 2_811,
+        requested_symbols: [],
+        matched_symbols: [],
+        missing_symbols: [],
+        ranked_symbols: 0,
+        eligible_symbols: 0,
+      },
+      items: [],
+    } as EodMomentumFactorsResponseDto,
+    scoringMomentumFactorsLoadState: "ready",
+    scoringValueFactors: {
+      market_date: "2026-05-04",
+      requested_market_date: "2026-05-05",
+      resolved_market_date: "2026-05-04",
+      is_latest_fallback: true,
+      summary: {
+        entries: 2_811,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        scored_count: 0,
+        invalid_per_count: 0,
+        missing_metric_count: 0,
+      },
+      items: [],
+    } as EodValueFactorsResponseDto,
+    scoringValueFactorsLoadState: "ready",
+  });
+
+  assert.deepEqual(model.stages.map((stage) => stage.status), ["completed", "pending", "pending"]);
+  assert.deepEqual(model.stages.map((stage) => stage.displayMarketDate), ["2026-05-04", "2026-05-04", "2026-05-04"]);
+  assert.equal(model.stages[0]?.progressLabel, "2,811 / 2,811");
+  assert.equal(model.stages[1]?.progressLabel, "0 / 2,811");
+  assert.equal(model.stages[2]?.progressLabel, "0 / 2,811");
 });
 
 test("forces filtering, scoring, and feedback cards to waiting while EOD is checking", () => {
@@ -2488,11 +2582,19 @@ test("keeps the full daily process monitor completed from latest available data 
         requested_symbol: null,
         matched_symbols: [],
         missing_symbols: [],
-        scored_count: 2812,
+        scored_count: 1,
         invalid_per_count: 0,
-        missing_metric_count: 0,
+        missing_metric_count: 2811,
       },
-      items: [],
+      items: [
+        {
+          symbol: "005930",
+          market_date: "2026-04-29",
+          quality_score: 0.87,
+          quality_status: "scored_complete",
+          is_quality_score_complete: true,
+        },
+      ],
     } as EodValueFactorsResponseDto,
     scoringValueFactorsLoadState: "ready",
   });
