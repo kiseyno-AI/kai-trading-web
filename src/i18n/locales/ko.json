@@ -442,6 +442,124 @@
       "signalRationale": "시그널 근거"
     }
   },
+  "signalDeciderFeedback": {
+    "heroEyebrow": "에이전트 피드백",
+    "heroTitle": "시그널 디사이더 피드백",
+    "heroCopy": "저장된 시그널 디사이더 피드백 행으로부터 의사결정 지원 결과를 조회합니다. 이 화면에서 주문은 생성되지 않습니다.",
+    "chrome": {
+      "marketDatePending": "MD 대기"
+    },
+    "status": {
+      "completed": "완료",
+      "running": "실행 중",
+      "partial": "부분",
+      "needsReview": "확인 필요",
+      "waiting": "대기",
+      "loading": "로딩 중"
+    },
+    "labels": {
+      "status": "상태",
+      "marketDate": "시장일자",
+      "results": "결과",
+      "actionMix": "액션 믹스",
+      "search": "검색",
+      "action": "액션",
+      "sort": "정렬",
+      "filters": "시그널 디사이더 피드백 필터",
+      "decision": "결정",
+      "storedSignal": "저장 신호",
+      "conviction": "확신도",
+      "confidence": "신뢰도",
+      "thesis": "근거",
+      "reviewState": "리뷰 상태",
+      "supportContext": "지원 컨텍스트",
+      "tracePolicy": "추적 / 정책",
+      "symbol": "종목",
+      "policy": "정책",
+      "run": "실행",
+      "agentVersion": "에이전트 버전",
+      "captured": "수집",
+      "traceEvidence": "추적 근거",
+      "decisionContext": "컨텍스트",
+      "runMetadata": "실행 메타데이터",
+      "decisionThesis": "결정 근거",
+      "result": "결정 / 결과",
+      "risks": "리스크",
+      "factors": "요인",
+      "gates": "게이트",
+      "upstreamEvidence": "상위 근거",
+      "traceability": "추적 가능성",
+      "marketDatePending": "시장일자 대기",
+      "review": "리뷰"
+    },
+    "actions": {
+      "all": "모든 액션",
+      "buy": "매수",
+      "wait": "대기",
+      "reject": "제외",
+      "unknown": "알 수 없음",
+      "nextDay": "익일 액션",
+      "preferred": "우선 액션",
+      "target": "목표",
+      "stopLoss": "손절",
+      "expectedReturn": "예상 수익률",
+      "entryBasis": "진입 기준",
+      "holdingPeriod": "보유 기간"
+    },
+    "sortOptions": {
+      "priority": "액션 우선순위",
+      "confidence": "확신도",
+      "symbol": "종목",
+      "captured": "수집 시간"
+    },
+    "filters": {
+      "searchPlaceholder": "종목, 근거, 리스크",
+      "load": "불러오기"
+    },
+    "review": {
+      "verdict": "판정",
+      "outcome": "결과",
+      "pending": "확인 필요",
+      "pendingMessage": "판정 및 실현 수익 정보가 저장된 피드백 페이로드에 아직 없습니다.",
+      "resultEmpty": "추가 메모 없이 실현 결과가 기록되어 있습니다.",
+      "noRealizedOutcome": "이 행에는 실현 결과가 아직 없습니다."
+    },
+    "counts": {
+      "risks": "리스크",
+      "factors": "요인",
+      "gates": "게이트",
+      "evidence": "근거"
+    },
+    "summary": {
+      "loading": "시그널 디사이더 피드백을 불러오는 중...",
+      "error": "시그널 디사이더 피드백을 사용할 수 없습니다.",
+      "pendingMarketDate": "대기",
+      "noDataDateLabel": "선택한 시장일자",
+      "noDataMarketDateUnavailable": "선택한 시장일자의 시그널 디사이더 행이 없습니다.",
+      "stateRunning": "선택한 {dateLabel}에 대한 시그널 디사이더가 아직 실행 중이어서 저장된 행을 바로 표시할 수 없습니다.",
+      "statePartial": "선택한 {dateLabel}의 시그널 디사이더 피드백은 부분적으로만 제공되고 있으며 현재 필터와 일치하는 항목이 없습니다.",
+      "stateNeedsReview": "선택한 {dateLabel}의 시그널 디사이더 행은 리뷰 완료 후 표시됩니다.",
+      "stateWaiting": "선택한 {dateLabel}에는 시그널 디사이더 피드백 행이 반환되지 않았습니다."
+    },
+    "detail": {
+      "hero": "결정 리뷰",
+      "close": "닫기",
+      "actionPlan": "액션 플랜",
+      "context": "컨텍스트",
+      "expectedReturn": "예상 수익률",
+      "decisionThesis": "결정 근거",
+      "reviewResult": "리뷰 / 결과",
+      "risks": "리스크",
+      "factorsTitle": "요인",
+      "gatesTitle": "게이트",
+      "upstreamEvidenceTitle": "상위 근거",
+      "traceabilityTitle": "추적 가능성"
+    },
+    "errors": {
+      "marketDateUnavailable": "시그널 디사이더 시장일자를 사용할 수 없습니다.",
+      "feedbackUnavailable": "시그널 디사이더 피드백을 사용할 수 없습니다."
+    }
+  },
   "markets": {
     "title": "마켓",
     "eyebrow": "마켓 서피스",
