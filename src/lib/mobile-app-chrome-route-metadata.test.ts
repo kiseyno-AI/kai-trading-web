@@ -2,18 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { messages } from "@/i18n/messages";
+import { getSearchPageCopy } from "@/i18n/search-page-copy";
 
 import { resolveMobileAppChromeMetadata } from "./mobile-app-chrome-route-metadata";
 
-test("search route is configured to expose dev-mode controls from shared metadata", () => {
-  const metadata = resolveMobileAppChromeMetadata({
-    pathname: "/search",
-    activeNav: "search",
-    t: messages.en,
-  });
+test("search route title is derived from locale-specific search-page copy", () => {
+  const locales = ["en", "ko"] as const;
 
-  assert.equal(metadata.title, "Search Workspace");
-  assert.equal(metadata.toolbarAction, "dev-mode");
+  for (const locale of locales) {
+    const metadata = resolveMobileAppChromeMetadata({
+      pathname: "/search",
+      activeNav: "search",
+      t: messages[locale],
+      locale,
+    });
+
+    assert.equal(metadata.title, getSearchPageCopy(locale).hero.title);
+    assert.equal(metadata.toolbarAction, "dev-mode");
+  }
 });
 
 test("my-symbols route keeps shared dev-mode toolbar controls", () => {
