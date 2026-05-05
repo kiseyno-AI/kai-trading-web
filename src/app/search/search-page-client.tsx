@@ -971,7 +971,16 @@ export default function SearchPageClient() {
                       className={`${styles.searchSuggestion} ${isSelected ? styles.searchSuggestionActive : ""}`.trim()}
                       onClick={() => handleSelect(item)}
                     >
-                      {searchSuggestionBadge ? <span className={styles.symbolAvatar}>{searchSuggestionBadge}</span> : null}
+                      <span
+                        aria-hidden="true"
+                        className={
+                          searchSuggestionBadge
+                            ? styles.symbolAvatar
+                            : `${styles.symbolAvatar} ${styles.symbolAvatarPlaceholder}`
+                        }
+                      >
+                        {searchSuggestionBadge ?? ""}
+                      </span>
                       <span className={styles.resultIdentity}>
                         <strong className="clamp-3">{item.symbol}</strong>
                         <span className="clamp-3">{item.name_ko}</span>

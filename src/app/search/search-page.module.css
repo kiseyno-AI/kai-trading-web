@@ -282,6 +282,10 @@
   letter-spacing: 0.02em;
 }
 
+.symbolAvatarPlaceholder {
+  visibility: hidden;
+}
+
 .resultIdentity {
   display: grid;
   min-width: 0;
