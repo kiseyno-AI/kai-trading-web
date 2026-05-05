@@ -123,6 +123,33 @@ function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function isDependencyGapWarning(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return (
+    value.includes("전용 Core 계약") ||
+    value.includes("캘린더 인덱스") ||
+    normalized.includes("dependency gap") ||
+    normalized.includes("dedicated core contract") ||
+    normalized.includes("dedicated calendar/replay endpoint") ||
+    normalized.includes("real generic signal-decider feedback")
+  );
+}
+
+function getUserFacingSelectedError({
+  errorMessage,
+  selectedUnavailable,
+  devMode,
+}: {
+  errorMessage: string;
+  selectedUnavailable: string;
+  devMode: boolean;
+}) {
+  const normalizedError = errorMessage.trim();
+  if (!normalizedError) return selectedUnavailable;
+  if (!devMode && isDependencyGapWarning(normalizedError)) return selectedUnavailable;
+  return normalizedError;
+}
+
 function toCalendarInt(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
   if (typeof value !== "string") return 0;
@@ -528,8 +555,9 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const { locale, t } = useAppState();
+  const { devMode, locale, t } = useAppState();
   const copy = t.signalReview;
+  const selectedUnavailable = copy.states.selectedUnavailable;
   const feedbackListHref = useMemo(() => buildSignalDeciderFeedbackHref(selectedDate), [selectedDate]);
 
   useEffect(() => {
@@ -789,7 +817,15 @@ export default function SignalReviewCalendarPageClient() {
           setSelectedDataDate(selectedDate);
           setProgressUnavailable(selectedProgress === null);
           setSelectedLoadState("ready");
-          setSelectedError(error instanceof Error ? `Falling back to legacy feedback list for selected date: ${error.message}` : null);
+          setSelectedError(
+            error instanceof Error
+              ? getUserFacingSelectedError({
+                  errorMessage: error.message,
+                  selectedUnavailable,
+                  devMode,
+                })
+              : selectedUnavailable,
+          );
           if (selectedFeedback === feedback) {
             writeSignalDeciderFeedbackCache({
               feedback,
@@ -808,7 +844,13 @@ export default function SignalReviewCalendarPageClient() {
             setProgressUnavailable(cachedSnapshot.progress === null);
             setSelectedLoadState("ready");
             setSelectedError(
-              fallbackError instanceof Error ? fallbackError.message : copy.states.selectedUnavailable,
+              fallbackError instanceof Error
+                ? getUserFacingSelectedError({
+                    errorMessage: fallbackError.message,
+                    selectedUnavailable,
+                    devMode,
+                  })
+                : selectedUnavailable,
             );
             return;
           }
@@ -817,7 +859,13 @@ export default function SignalReviewCalendarPageClient() {
           setSelectedDataDate(selectedDate);
           setSelectedLoadState("error");
           setSelectedError(
-            fallbackError instanceof Error ? fallbackError.message : copy.states.selectedUnavailable,
+            fallbackError instanceof Error
+              ? getUserFacingSelectedError({
+                  errorMessage: fallbackError.message,
+                  selectedUnavailable,
+                  devMode,
+                })
+              : selectedUnavailable,
           );
         }
       }
@@ -828,7 +876,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [copy.states.selectedUnavailable, selectedDate]);
+  }, [selectedUnavailable, devMode, selectedDate]);
 
   const calendarDays = useMemo(() => buildCalendarDays(monthKey, todayKey), [monthKey, todayKey]);
   const selectedDataMatchesDate = selectedDate !== null && selectedDataDate === selectedDate;

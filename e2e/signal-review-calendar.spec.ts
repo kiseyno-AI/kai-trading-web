@@ -5,6 +5,7 @@ type SignalReviewCalendarMockOptions = {
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   pendingRationaleDate?: string;
+  reviewDateErrorMessages?: Partial<Record<string, string>>;
   timeoutFeedbackDates?: string[];
   timeoutReviewDateDates?: string[];
   forceCalendarSummaryFailure?: boolean;
@@ -379,6 +380,18 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     requestHits.reviewDate += 1;
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
+    const reviewDateErrorMessage = options.reviewDateErrorMessages?.[marketDate];
+    if (reviewDateErrorMessage) {
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Core feedback review unavailable",
+          message: reviewDateErrorMessage,
+        }),
+      });
+      return;
+    }
     await options.feedbackDelays?.[marketDate];
     if (options.timeoutReviewDateDates?.includes(marketDate)) {
       await route.fulfill({
@@ -977,4 +990,36 @@ test("signal review calendar resolves selected-date gateway timeouts into an exp
   await expect(page.getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i).first()).toBeVisible();
   await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
+});
+
+test("signal review calendar does not expose dependency-gap warning text in English", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    reviewDateErrorMessages: {
+      "2026-04-27":
+        "Calendar index is not a dedicated Core contract yet. This page uses the real generic signal-decider feedback read for each visible date, while a dedicated calendar/replay endpoint is still a dependency gap.",
+    },
+  });
+
+  await page.goto("/calendar?date=2026-04-27");
+
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+  await expect(page.getByText("Samsung Electronics").first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Calendar index is not a dedicated Core contract yet.");
+  await expect(page.locator("body")).not.toContainText("dependency gap");
+});
+
+test("시그널 리뷰 캘린더는 한국어 화면에서 내부 의존성 경고 문구를 노출하지 않는다", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    reviewDateErrorMessages: {
+      "2026-04-27": "캘린더 인덱스는 아직 전용 Core 계약이 아닙니다.",
+    },
+  });
+
+  await page.goto("/calendar?date=2026-04-27");
+  await page.getByRole("button", { name: "Korean" }).click();
+
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+  await expect(page.getByText("Samsung Electronics").first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("캘린더 인덱스는 아직 전용 Core 계약이 아닙니다.");
+  await expect(page.locator("body")).not.toContainText("dedicated Core contract");
 });
