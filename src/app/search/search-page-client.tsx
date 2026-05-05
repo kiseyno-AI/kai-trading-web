@@ -27,6 +27,7 @@ import {
   getForwardableSymbolMetaSeedValue,
   normalizeSymbolMetaSeedValue,
 } from "@/lib/symbol-meta";
+import { getSearchSuggestionBadge } from "@/lib/search-suggestion-badge";
 import {
   getTradingApiJsonResult,
   invalidateTradingApiCacheByPathPrefix,
@@ -226,11 +227,6 @@ function hasNumber(value: number | null | undefined): value is number {
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<JsonResult<T>> {
   return getTradingApiJsonResult<T>(resolveTradingApiClientPath(path), init);
-}
-
-function getInitials(item: SymbolSearchItem) {
-  const letters = item.symbol.replace(/[^A-Z0-9]/gi, "").slice(0, 2).toUpperCase();
-  return letters || "SR";
 }
 
 function buildSymbolHref(item: SymbolSearchItem) {
@@ -967,6 +963,7 @@ export default function SearchPageClient() {
                 {searchError ? <PanelUnavailable message={searchError} label={copy.status.unavailable} /> : null}
                 {searchSuggestions.map((item) => {
                   const isSelected = selected?.symbol === item.symbol;
+                  const searchSuggestionBadge = getSearchSuggestionBadge({ symbol: item.symbol, market: item.market });
                   return (
                     <Link
                       key={item.symbol}
@@ -974,7 +971,7 @@ export default function SearchPageClient() {
                       className={`${styles.searchSuggestion} ${isSelected ? styles.searchSuggestionActive : ""}`.trim()}
                       onClick={() => handleSelect(item)}
                     >
-                      <span className={styles.symbolAvatar}>{getInitials(item)}</span>
+                      {searchSuggestionBadge ? <span className={styles.symbolAvatar}>{searchSuggestionBadge}</span> : null}
                       <span className={styles.resultIdentity}>
                         <strong className="clamp-3">{item.symbol}</strong>
                         <span className="clamp-3">{item.name_ko}</span>
