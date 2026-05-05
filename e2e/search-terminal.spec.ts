@@ -90,6 +90,66 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
   });
 
+  test("preserves suggestion avatar column when badge is hidden for KRX symbols", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({ json: { count: 0, items: [] } });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+
+      await route.fulfill({
+        json: {
+          query,
+          count: query === "000660" ? 1 : 0,
+          items:
+            query === "000660"
+              ? [
+                  {
+                    symbol: "000660",
+                    standard_code: "KR7000660001",
+                    name_ko: "SK hynix",
+                    market: "KRX",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: {
+            item_count: 0,
+          },
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("000660");
+
+    const suggestion = page.getByRole("link", { name: /000660.*SK hynix/i });
+    await expect(suggestion).toBeVisible();
+    await expect(suggestion.locator("> *")).toHaveCount(3);
+    await expect(suggestion.locator("> *").first()).toHaveAttribute("aria-hidden", "true");
+    await expect(suggestion.locator("> *").first()).toHaveText("");
+  });
+
   test("does not request blank search and reuses session cache after reload", async ({ page }) => {
     const requestCounts = {
       favorites: 0,
