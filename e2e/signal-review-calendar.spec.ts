@@ -857,6 +857,32 @@ test("calendar opens the feedback table in Korean locale", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText("Signal-decider feedback");
 });
 
+test("feedback table link keeps the selected calendar date in navigation", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-05-05": 2,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-05-05");
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+  await page.getByRole("button", { name: /Korean/i }).click();
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+
+  const feedbackLink = page.getByRole("link", { name: /피드백 표 열기/i });
+  await expect(feedbackLink).toHaveAttribute("href", /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-05/);
+
+  await feedbackLink.click();
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-05/);
+  await expect(page.getByText("MD 2026-05-05")).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-05-05/);
+
+  await page.getByRole("button", { name: /2026-05-04/ }).click();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-05-04/);
+  await expect(feedbackLink).toHaveAttribute("href", /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-04/);
+});
+
 test("signal review calendar falls back to per-date feedback calls only when month summary fails", async ({ page }) => {
   const requestHits = await mockSignalReviewCalendar(page, {
     forceCalendarSummaryFailure: true,

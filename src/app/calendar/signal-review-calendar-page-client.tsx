@@ -220,10 +220,6 @@ function buildEmptyDateSnapshot(dateKey: string, error: string | null = null): C
   };
 }
 
-function isDateKey(value: string | null | undefined): value is string {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -541,7 +537,7 @@ export default function SignalReviewCalendarPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
-  const requestedDateKey = isDateKey(requestedDate) ? requestedDate : null;
+  const requestedDateKey = parseCompactDateValue(requestedDate);
   const todayKey = useMemo(() => getTodayDateKey(), []);
   const initialDate = requestedDateKey;
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
@@ -558,7 +554,8 @@ export default function SignalReviewCalendarPageClient() {
   const { devMode, locale, t } = useAppState();
   const copy = t.signalReview;
   const selectedUnavailable = copy.states.selectedUnavailable;
-  const feedbackListHref = useMemo(() => buildSignalDeciderFeedbackHref(selectedDate), [selectedDate]);
+  const feedbackDate = useMemo(() => parseCompactDateValue(selectedDate), [selectedDate]);
+  const feedbackListHref = useMemo(() => buildSignalDeciderFeedbackHref(feedbackDate), [feedbackDate]);
 
   useEffect(() => {
     let active = true;
