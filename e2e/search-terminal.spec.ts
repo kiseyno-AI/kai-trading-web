@@ -1014,6 +1014,224 @@ test.describe("search terminal desktop", () => {
 
     const resultRow = page.getByRole("row", { name: /000000/i });
     await expect(resultRow).toBeVisible();
-    await expect(resultRow.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/dashboard/symbol/000000");
+    await expect(resultRow.getByRole("link", { name: "Open" })).toHaveAttribute(
+      "href",
+      /\/dashboard\/symbol\/000000\?.*(navContext=search.*q=MISSING|q=MISSING.*navContext=search)/,
+    );
+  });
+
+  test("keeps symbol detail context when returning from search results", async ({ page }) => {
+    const encodedSearchQuery = encodeURIComponent("삼성");
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: {
+            item_count: 0,
+          },
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q");
+
+      await route.fulfill({
+        json: {
+          query: query ?? "",
+          count: query === "삼성" ? 1 : 0,
+          items:
+            query === "삼성"
+              ? [
+                  {
+                    symbol: "005930",
+                    standard_code: "KR7005930003",
+                    name_ko: "삼성전자",
+                    market: "KOSPI",
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+    await page.route("**/api/trading/quotes/005930", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "005930",
+          company_name: "삼성전자",
+          price: 71500,
+          change: 700,
+          change_pct: 0.99,
+          volume: 120000,
+          turnover: 8580000000,
+          market_state: "OPEN",
+          source: "kis",
+          fallback: false,
+          is_live: true,
+          available: true,
+          trade_date: "2026-04-14",
+          cached_at: "2026-04-14T09:00:00+09:00",
+        }),
+      });
+    });
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          server_time: "2026-04-14T09:00:00+09:00",
+        }),
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-14",
+          summary: {
+            entries: 0,
+            requested_symbol: "005930",
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 0,
+            not_passed_count: 0,
+          },
+          item: null,
+        }),
+      });
+    });
+    await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: "2026-04-14",
+            symbols: ["005930"],
+            fs_div: null,
+            fs_label: null,
+            disclosures_limit: 4,
+          },
+          summary: {
+            requested_symbol_count: 1,
+            matched_symbol_count: 1,
+            technical_snapshot_count: 0,
+            action_summary_count: 0,
+            fundamentals_count: 0,
+            recent_disclosure_symbol_count: 0,
+            missing_symbols: [],
+          },
+          items: [
+            {
+              symbol: "005930",
+              market_date: "2026-04-14",
+              company: {
+                symbol: "005930",
+                name_ko: "삼성전자",
+                market: "KOSPI",
+                instrument_type: "stock",
+                standard_code: "KR7005930003",
+                source: "test",
+                is_active: true,
+                last_refreshed_at: null,
+                dart: {
+                  corp_code: "00126380",
+                  corp_name: "삼성전자",
+                },
+              },
+              technical_snapshot: null,
+              action_summary: null,
+              fundamentals: {
+                latest_snapshot: null,
+                history_summary: {
+                  entries: 0,
+                  latest_receipt_date: null,
+                  latest_period_end_date: null,
+                  available_business_years: [],
+                  recent_periods: [],
+                },
+              },
+              recent_disclosures: {
+                count: 0,
+                items: [],
+              },
+              availability: {
+                company: true,
+                technical_snapshot: false,
+                action_summary: false,
+                fundamentals: false,
+                recent_disclosures: false,
+              },
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "005930",
+          count: 1,
+          start_date: "2026-04-14",
+          end_date: "2026-04-14",
+          requested_start_date: "2026-01-13",
+          requested_end_date: "2026-04-14",
+          items: [
+            {
+              trade_date: "2026-04-14",
+              open_price: 70500,
+              high_price: 71900,
+              low_price: 70300,
+              close_price: 71500,
+              volume: 120000,
+              turnover: 8580000000,
+              source: "kis",
+              captured_at: "2026-04-14T16:00:00+09:00",
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/search");
+    await page.getByLabel(/Search markets, symbols, or analysis/i).fill("삼성");
+    const suggestion = page.getByRole("link", { name: /005930.*삼성전자/i });
+
+    await expect(suggestion).toBeVisible();
+    await expect(suggestion).toHaveAttribute(
+      "href",
+      new RegExp(`\\/dashboard\\/symbol\\/005930\\?.*navContext=search.*q=${encodedSearchQuery}`),
+    );
+    await suggestion.click();
+
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930/);
+    await expect(page).toHaveURL(/navContext=search/);
+    await expect(page.getByRole("link", { name: /Back to search/i })).toBeVisible();
+    await page.getByRole("link", { name: /Back to search/i }).click();
+    await expect(page).toHaveURL(`/search?q=${encodedSearchQuery}`);
   });
 });

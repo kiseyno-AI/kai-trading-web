@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -35,6 +35,10 @@ import {
   readTradingApiJsonSnapshot,
   seedTradingApiJsonSnapshot,
 } from "@/lib/trading-api-cache";
+import {
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
+} from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 
 import styles from "./search-page.module.css";
 
@@ -229,16 +233,22 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<JsonResult<
   return getTradingApiJsonResult<T>(resolveTradingApiClientPath(path), init);
 }
 
-function buildSymbolHref(item: SymbolSearchItem) {
+function buildSymbolHref(item: SymbolSearchItem, query: string) {
   const params = new URLSearchParams();
   const name = getForwardableSymbolMetaSeedValue(item.name_ko);
   const market = getForwardableSymbolMetaSeedValue(item.market);
   const standardCode = getForwardableSymbolMetaSeedValue(item.standard_code);
+  const normalizedQuery = query.trim();
+
   if (name) params.set("name", name);
   if (market) params.set("market", market);
   if (standardCode) params.set("standardCode", standardCode);
-  const query = params.toString();
-  return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
+  params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, SYMBOL_DETAIL_SEARCH_NAV_CONTEXT);
+  if (normalizedQuery) {
+    params.set("q", normalizedQuery);
+  }
+  const queryString = params.toString();
+  return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${queryString ? `?${queryString}` : ""}`;
 }
 
 function getChangeClass(value: number | null | undefined) {
@@ -430,10 +440,12 @@ function mapStoredTrendingItems(
 export default function SearchPageClient() {
   const router = useRouter();
   const { beginNavigation } = useNavigationLoading();
+  const searchParams = useSearchParams();
   const { locale } = useAppState();
   const copy = getSearchPageCopy(locale);
   const numberLocale = getNumberLocale(locale);
-  const [query, setQuery] = useState("");
+  const querySeed = useMemo(() => searchParams.get("q")?.trim() ?? "", [searchParams]);
+  const [query, setQuery] = useState(querySeed);
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -445,6 +457,10 @@ export default function SearchPageClient() {
   const [favoriteSearchItems, setFavoriteSearchItems] = useState<SymbolSearchItem[]>([]);
   const [favoriteSearchLoading, setFavoriteSearchLoading] = useState(false);
   const [favoriteSearchError, setFavoriteSearchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setQuery(querySeed);
+  }, [querySeed]);
   const [favoriteSavingSymbol, setFavoriteSavingSymbol] = useState<string | null>(null);
   const [favoriteStatus, setFavoriteStatus] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -812,7 +828,7 @@ export default function SearchPageClient() {
     setQuote(null);
     setSelected(item);
     if (options?.navigate) {
-      const href = buildSymbolHref(item);
+      const href = buildSymbolHref(item, query);
       beginNavigation(href);
       router.push(href);
     }
@@ -967,7 +983,7 @@ export default function SearchPageClient() {
                   return (
                     <Link
                       key={item.symbol}
-                      href={buildSymbolHref(item)}
+                      href={buildSymbolHref(item, query)}
                       className={`${styles.searchSuggestion} ${isSelected ? styles.searchSuggestionActive : ""}`.trim()}
                       onClick={() => handleSelect(item)}
                     >
@@ -1291,7 +1307,7 @@ export default function SearchPageClient() {
                         </span>
                       </td>
                       <td>
-                        <Link href={buildSymbolHref(item)}>{copy.results.open}</Link>
+                        <Link href={buildSymbolHref(item, query)}>{copy.results.open}</Link>
                       </td>
                     </tr>
                   );

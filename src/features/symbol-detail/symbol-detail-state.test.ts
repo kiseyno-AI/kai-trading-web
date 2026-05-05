@@ -7,6 +7,7 @@ import {
   resolveSymbolDetailMode,
   resolveSymbolDetailModeFromPathname,
   resolveSymbolDetailNavContext,
+  SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
   type SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 
@@ -28,6 +29,8 @@ test("resolves query-string detail modes and rejects unknown ones", () => {
 test("resolves symbol detail navigation context without defaulting to My Symbols", () => {
   assert.equal(resolveSymbolDetailNavContext("my-symbols"), "my-symbols");
   assert.equal(resolveSymbolDetailActiveNav(resolveSymbolDetailNavContext("my-symbols")), "symbols");
+  assert.equal(resolveSymbolDetailNavContext(SYMBOL_DETAIL_SEARCH_NAV_CONTEXT), SYMBOL_DETAIL_SEARCH_NAV_CONTEXT);
+  assert.equal(resolveSymbolDetailActiveNav(resolveSymbolDetailNavContext(SYMBOL_DETAIL_SEARCH_NAV_CONTEXT)), null);
   assert.equal(resolveSymbolDetailNavContext("markets"), null);
   assert.equal(resolveSymbolDetailNavContext(null), null);
   assert.equal(resolveSymbolDetailActiveNav(null), null);

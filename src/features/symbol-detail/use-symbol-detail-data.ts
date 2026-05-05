@@ -89,6 +89,7 @@ export function useSymbolDetailData({
     () => resolveSymbolDetailNavContext(searchParams.get(SYMBOL_DETAIL_NAV_CONTEXT_PARAM)),
     [searchParams],
   );
+  const searchContextQuery = useMemo(() => searchParams.get("q"), [searchParams]);
   const symbolDetailActiveNav = resolveSymbolDetailActiveNav(navContext);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
@@ -374,8 +375,8 @@ export function useSymbolDetailData({
   );
   const toolbarMarketOpenState = getMarketOpenState(marketStatus);
   const routeQueryString = useMemo(
-    () => buildSymbolRouteQuery(meta, marketDate, fsDiv, navContext),
-    [fsDiv, marketDate, meta, navContext],
+    () => buildSymbolRouteQuery(meta, marketDate, fsDiv, navContext, searchContextQuery),
+    [fsDiv, marketDate, meta, navContext, searchContextQuery],
   );
   const hasSelectedRangeHistoryLoaded = Boolean(priceHistoryResult.data);
 
@@ -449,7 +450,9 @@ export function useSymbolDetailData({
     quote,
     quotePollingStopped,
     quoteSourceCopy,
+    navContext,
     routeQueryString,
+    searchContextQuery,
     selectedBar,
     selectedRange,
     setActiveMode,

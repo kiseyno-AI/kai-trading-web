@@ -18,7 +18,15 @@ type SearchParamReader = {
   get: (name: string) => string | null;
 };
 
-const SYMBOL_QUERY_KEYS = ["name", "market", "standardCode", "marketDate", "fsDiv", SYMBOL_DETAIL_NAV_CONTEXT_PARAM] as const;
+const SYMBOL_QUERY_KEYS = [
+  "name",
+  "market",
+  "standardCode",
+  "marketDate",
+  "fsDiv",
+  "q",
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+] as const;
 
 function buildPreservedSymbolQuery(searchParams: SearchParamReader) {
   const query = new URLSearchParams();

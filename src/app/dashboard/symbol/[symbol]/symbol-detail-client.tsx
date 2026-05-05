@@ -34,7 +34,7 @@ import { formatPrice, formatTurnover } from "@/lib/format";
 import { FactorSnapshotSection } from "./factor-snapshot-section";
 import { SymbolHistoryChart } from "./symbol-history-chart";
 import styles from "./symbol-detail.module.css";
-import { SYMBOL_DETAIL_MODES, type SymbolDetailMode } from "./symbol-detail-state";
+import { SYMBOL_DETAIL_MODES, SYMBOL_DETAIL_SEARCH_NAV_CONTEXT, type SymbolDetailMode } from "./symbol-detail-state";
 
 type SymbolDetailClientProps = {
   mode?: SymbolDetailMode;
@@ -76,7 +76,9 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     quote,
     quotePollingStopped,
     quoteSourceCopy,
+    navContext,
     routeQueryString,
+    searchContextQuery,
     selectedBar,
     selectedRange,
     setActiveMode,
@@ -113,6 +115,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         : copy.header.marketClosed;
   const toolbarMarketBadgeTone: DashboardToolbarStatusTone =
     toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : "closed";
+  const isSearchContext = navContext === SYMBOL_DETAIL_SEARCH_NAV_CONTEXT;
+  const backHref = isSearchContext
+    ? `/search${searchContextQuery ? `?q=${encodeURIComponent(searchContextQuery)}` : ""}`
+    : "/dashboard";
+  const backLabel = isSearchContext ? copy.header.backToSearch : copy.header.backToDashboard;
+  const leadingLink = (
+    <Link href={backHref} className={styles.backButton} aria-label={backLabel} title={backLabel}>
+      ←
+    </Link>
+  );
 
   const handleDetailModeNavigation = (
     event: ReactMouseEvent<HTMLButtonElement>,
@@ -132,11 +144,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
   const pendingChrome = {
     activeNav: symbolDetailActiveNav,
-    leading: (
-      <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
-        ←
-      </Link>
-    ),
+    leading: leadingLink,
     title: copy.common.pending,
     status: { label: copy.header.marketPending },
     toolbarAction: "dev-mode",
@@ -160,11 +168,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     <MobileAppChrome
       chrome={{
         activeNav: symbolDetailActiveNav,
-        leading: (
-          <Link href="/dashboard" className={styles.backButton} aria-label={copy.header.backToDashboard}>
-            ←
-          </Link>
-        ),
+        leading: leadingLink,
         title: introTitle,
         status: { label: toolbarMarketBadgeLabel, tone: toolbarMarketBadgeTone },
         toolbarAction: "dev-mode",

@@ -1,5 +1,6 @@
 import {
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
   type AggregateContextLoadState,
   type DisclosureSectionState,
   type SymbolDetailMode,
@@ -478,6 +479,7 @@ export function buildSymbolRouteQuery(
   marketDate: string | null,
   fsDiv: string | null,
   navContext: SymbolDetailNavContext | null = null,
+  searchQuery: string | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -509,6 +511,10 @@ export function buildSymbolRouteQuery(
 
   if (navContext) {
     params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, navContext);
+  }
+
+  if (searchQuery) {
+    params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, searchQuery);
   }
 
   return params.toString();

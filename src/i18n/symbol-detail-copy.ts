@@ -15,6 +15,7 @@ const symbolDetailCopy = {
     loadingWorkspace: "Loading symbol workspace",
     header: {
       backToDashboard: "Back to dashboard",
+      backToSearch: "Back to search",
       marketPending: "Market Pending",
       marketOpen: "Market Open",
       marketClosed: "Market Closed",
@@ -283,6 +284,7 @@ const symbolDetailCopy = {
     loadingWorkspace: "종목 작업공간을 불러오는 중",
     header: {
       backToDashboard: "대시보드로 돌아가기",
+      backToSearch: "검색으로 돌아가기",
       marketPending: "마켓 대기 중",
       marketOpen: "마켓 열림",
       marketClosed: "마켓 닫힘",

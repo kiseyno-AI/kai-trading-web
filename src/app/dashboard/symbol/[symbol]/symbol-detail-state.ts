@@ -38,8 +38,12 @@ export type SymbolDetailSectionVisibility = {
 
 export const SYMBOL_DETAIL_NAV_CONTEXT_PARAM = "navContext";
 export const SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT = "my-symbols";
+export const SYMBOL_DETAIL_SEARCH_NAV_CONTEXT = "search";
+export const SYMBOL_DETAIL_SEARCH_QUERY_PARAM = "q";
 
-export type SymbolDetailNavContext = typeof SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT;
+export type SymbolDetailNavContext =
+  | typeof SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT
+  | typeof SYMBOL_DETAIL_SEARCH_NAV_CONTEXT;
 
 export const SYMBOL_DETAIL_MODES: SymbolDetailModeDefinition[] = [
   {
@@ -107,7 +111,9 @@ export function resolveSymbolDetailMode(value: string | null | undefined) {
 }
 
 export function resolveSymbolDetailNavContext(value: string | null | undefined): SymbolDetailNavContext | null {
-  return value === SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT ? SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT : null;
+  return value === SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT || value === SYMBOL_DETAIL_SEARCH_NAV_CONTEXT
+    ? value
+    : null;
 }
 
 export function resolveSymbolDetailActiveNav(navContext: SymbolDetailNavContext | null): "symbols" | null {
