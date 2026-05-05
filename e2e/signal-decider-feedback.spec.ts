@@ -588,7 +588,7 @@ test("signal-decider feedback detail localizes into Korean and keeps English def
     page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i }).getByRole("button", { name: "Review" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: /Korean/i }).click();
+  await page.getByRole("button", { name: /Korean/i }).click({ force: true });
 
   await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
   await expect(page.getByText("액션 믹스")).toBeVisible();
@@ -608,6 +608,28 @@ test("signal-decider feedback detail localizes into Korean and keeps English def
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("결정 리뷰");
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("액션 플랜");
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("닫기");
+});
+
+test("locale switch does not refetch feedback data or close the detail dialog", async ({ page }) => {
+  const shell = await mockDashboardShell(page);
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+  const samsungCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
+  await expect(samsungCard.getByRole("button", { name: "Review" })).toBeVisible();
+  await samsungCard.getByRole("button", { name: /Review|리뷰/ }).click();
+  const dialog = page.getByRole("dialog", { name: /Samsung Electronics/i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("The buy worked intraday");
+
+  const requestCountBeforeLocale = shell.getSignalDeciderFeedbackRequestCount();
+  await expect.poll(() => shell.getSignalDeciderFeedbackRequestCount()).toBe(requestCountBeforeLocale);
+
+  await page.getByRole("button", { name: /Korean/i }).dispatchEvent("click");
+
+  await expect(dialog).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(dialog).toContainText("결정 리뷰");
+  await expect.poll(() => shell.getSignalDeciderFeedbackRequestCount()).toBe(requestCountBeforeLocale);
 });
 
 test("dashboard signal-decider card shows latest completed rows while the current cycle is running", async ({ page }) => {

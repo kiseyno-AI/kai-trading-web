@@ -40,6 +40,7 @@ const CARD_LOADING_LABEL = "…";
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type SortMode = "priority" | "symbol" | "confidence" | "captured";
+type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | { message: string };
 
 type SignalDeciderFeedbackCopy = ReturnType<typeof useAppState>["t"]["signalDeciderFeedback"];
 type SignalDeciderStatusCopy = SignalDeciderFeedbackCopy["status"];
@@ -378,7 +379,7 @@ export default function SignalDeciderFeedbackPageClient() {
   const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
   const [feedback, setFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [progress, setProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FeedbackError | null>(null);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(
     requestedMarketDate ? "loading" : "idle",
   );
@@ -428,7 +429,7 @@ export default function SignalDeciderFeedbackPageClient() {
           if (cachedLatest) return;
           setMarketDate(null);
           setLoadState("error");
-          setError(copy.errors.marketDateUnavailable);
+          setError("marketDateUnavailable");
           return;
         }
         setMarketDate(resolvedMarketDate);
@@ -436,7 +437,7 @@ export default function SignalDeciderFeedbackPageClient() {
         if (!active) return;
         if (cachedLatest) return;
         setLoadState("error");
-        setError(freshnessError instanceof Error ? freshnessError.message : copy.errors.marketDateUnavailable);
+        setError(freshnessError instanceof Error ? { message: freshnessError.message } : "marketDateUnavailable");
       }
     };
 
@@ -505,13 +506,13 @@ export default function SignalDeciderFeedbackPageClient() {
           setFeedback(cachedSnapshot.feedback);
           setProgress(cachedSnapshot.progress);
           setLoadState("ready");
-          setError(loadError instanceof Error ? loadError.message : copy.errors.feedbackUnavailable);
+          setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
           return;
         }
         setFeedback(null);
         setProgress(null);
         setLoadState("error");
-        setError(loadError instanceof Error ? loadError.message : copy.errors.feedbackUnavailable);
+        setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
       }
     };
 
@@ -520,7 +521,7 @@ export default function SignalDeciderFeedbackPageClient() {
     return () => {
       active = false;
     };
-  }, [marketDate, copy.errors.feedbackUnavailable]);
+  }, [marketDate]);
 
   const summary = useMemo(
     () => buildSignalDeciderFeedbackSummary({ feedback, marketDate, progress, previewLimit: 5 }),
@@ -568,6 +569,13 @@ export default function SignalDeciderFeedbackPageClient() {
       document.body.style.overflow = previousOverflow;
     };
   }, [selectedItem]);
+
+  const displayError = useMemo(() => {
+    if (error === null) return null;
+    if (error === "feedbackUnavailable") return copy.errors.feedbackUnavailable;
+    if (error === "marketDateUnavailable") return copy.errors.marketDateUnavailable;
+    return error.message;
+  }, [copy.errors.feedbackUnavailable, copy.errors.marketDateUnavailable, error]);
 
   function handleMarketDateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -670,7 +678,7 @@ export default function SignalDeciderFeedbackPageClient() {
           {loadState === "loading" ? (
             <div className={styles.emptyState}>{summaryCopy.loading}</div>
           ) : loadState === "error" ? (
-            <div className={styles.emptyState}>{error ?? summaryCopy.error}</div>
+            <div className={styles.emptyState}>{displayError ?? summaryCopy.error}</div>
           ) : visibleItems.length > 0 ? (
             <div className={styles.resultsList} aria-label={copy.labels.results}>
               {visibleItems.map((item) => {
