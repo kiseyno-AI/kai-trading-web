@@ -93,8 +93,10 @@ function isCompletedLatestPipelineStatus(
   if (!pipelineStatus || !expectedMarketDate) return false;
   const pipelineMarketDate = normalizeDartFundamentalsMarketDate(pipelineStatus.market_date);
   if (pipelineMarketDate !== expectedMarketDate) return false;
-  if (isProblemPipelineStatus(pipelineStatus.status) || hasProblemPipelineStage(pipelineStatus)) return false;
 
+  // A latest EOD cycle can be top-level partial while later/non-dashboard stages are still
+  // pending or failed. For dashboard EOD cards, the completed price/technical/action stages
+  // are still authoritative and should be used on no-new-EOD days.
   return isCompletedPipelineStatus(pipelineStatus.status) || hasCompletedRequiredLatestPipelineStages(pipelineStatus);
 }
 

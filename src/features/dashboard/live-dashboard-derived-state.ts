@@ -2855,9 +2855,12 @@ export function getTechnicalFreshnessStage(
   const todayStage = freshness?.today?.technical_analysis ?? null;
   if (isRunningFreshnessStage(todayStage)) return todayStage;
   if (useTodayStage && todayStage) return todayStage;
+
+  const latestStage = getLatestTechnicalFreshnessStage(freshness);
+  if (latestStage) return latestStage;
   if (isProblemFreshnessStage(todayStage)) return todayStage;
 
-  return getLatestTechnicalFreshnessStage(freshness) ?? todayStage;
+  return todayStage;
 }
 
 function getLatestActionFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
@@ -2881,9 +2884,12 @@ export function getActionFreshnessStage(
   const todayStage = freshness?.today?.action_summary ?? null;
   if (isRunningFreshnessStage(todayStage)) return todayStage;
   if (useTodayStage && todayStage) return todayStage;
+
+  const latestStage = getLatestActionFreshnessStage(freshness);
+  if (latestStage) return latestStage;
   if (isProblemFreshnessStage(todayStage)) return todayStage;
 
-  return getLatestActionFreshnessStage(freshness) ?? todayStage;
+  return todayStage;
 }
 
 export function getFundamentalsFreshnessStage(
