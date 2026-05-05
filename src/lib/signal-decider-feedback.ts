@@ -1516,6 +1516,19 @@ export function selectSignalDeciderDashboardFeedback({
     };
   }
 
+  const currentFeedbackDate = getSignalDeciderFeedbackResponseMarketDate(currentFeedback);
+  if (
+    currentFeedbackDate &&
+    currentFeedbackDate !== normalizedCurrentMarketDate &&
+    hasSignalDeciderFeedbackRows(currentFeedback)
+  ) {
+    return {
+      currentMarketDate: normalizedCurrentMarketDate,
+      feedback: currentFeedback ?? null,
+      isLatestCompletedFallback: true,
+    };
+  }
+
   const latestCompletedDateFeedback = selectLatestCompletedSignalDeciderFeedback(
     latestCompletedFeedback,
     normalizedCurrentMarketDate,

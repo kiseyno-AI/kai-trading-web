@@ -861,6 +861,51 @@ test("selects latest completed dashboard recommendations while the current signa
   assert.equal(model.detailHref, "/dashboard/signal-decider-feedback?marketDate=2026-04-29");
 });
 
+test("uses loaded previous-date signal-decider rows as the dashboard fallback on no-new-EOD days", () => {
+  const currentMarketDate = "2026-05-05";
+  const previousCompletedFeedback = buildFeedbackResponseForMarketDate("2026-05-04");
+  const completedProgress = buildProgress({
+    request: {
+      market_date: "2026-05-04",
+      symbols: null,
+      expected_agents: ["signal-decider"],
+    },
+    result: {
+      market_date: "2026-05-04",
+      roles: {
+        "signal-decider": {
+          requested_count: 2,
+          completed_count: 2,
+          error_count: 0,
+        },
+      },
+    },
+  });
+
+  const selection = selectSignalDeciderDashboardFeedback({
+    currentFeedback: previousCompletedFeedback,
+    currentMarketDate,
+    latestCompletedFeedback: null,
+    progress: completedProgress,
+  });
+  const model = buildSignalDeciderFeedbackSummary({
+    currentMarketDate: selection.currentMarketDate,
+    feedback: selection.feedback,
+    isLatestCompletedFallback: selection.isLatestCompletedFallback,
+    marketDate: selection.feedback?.request.market_date ?? currentMarketDate,
+    progress: completedProgress,
+  });
+
+  assert.equal(selection.isLatestCompletedFallback, true);
+  assert.equal(model.marketDate, "2026-05-04");
+  assert.equal(model.currentMarketDate, currentMarketDate);
+  assert.equal(model.resultCount, 2);
+  assert.equal(model.actionCounts.buy, 1);
+  assert.equal(model.actionCounts.wait, 1);
+  assert.equal(model.previewItems.length, 2);
+  assert.equal(model.requestedCount, null);
+});
+
 test("keeps dashboard fallback rows scoped to the effective completed recommendation date", () => {
   const currentMarketDate = "2026-04-30";
   const currentFeedback = buildFeedbackResponseForMarketDate(currentMarketDate, { items: [] });
