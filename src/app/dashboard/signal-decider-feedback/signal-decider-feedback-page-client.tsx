@@ -6,12 +6,12 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useAppState } from "@/components/providers/app-state-provider";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
   buildSignalDeciderFeedbackSummary,
   buildSignalDeciderFeedbackPath,
-  formatSignalDeciderActionLabel,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   type SignalDeciderAction,
@@ -36,29 +36,36 @@ import type {
 import styles from "./signal-decider-feedback-page.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
-const REVIEW_PENDING_LABEL = "Review pending";
-const REVIEW_PENDING_MESSAGE = "Verdict and realized outcome are not present in the stored feedback payload yet.";
 const CARD_LOADING_LABEL = "…";
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type SortMode = "priority" | "symbol" | "confidence" | "captured";
+type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | { message: string };
+
+type SignalDeciderFeedbackCopy = ReturnType<typeof useAppState>["t"]["signalDeciderFeedback"];
+type SignalDeciderStatusCopy = SignalDeciderFeedbackCopy["status"];
+type SignalDeciderLabelCopy = SignalDeciderFeedbackCopy["labels"];
+type SignalDeciderActionCopy = SignalDeciderFeedbackCopy["actions"];
+type SignalDeciderReviewCopy = SignalDeciderFeedbackCopy["review"];
+type SignalDeciderSummaryCopy = SignalDeciderFeedbackCopy["summary"];
+type SignalDeciderCountCopy = SignalDeciderFeedbackCopy["counts"];
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function getStatusLabel(status: SignalDeciderFeedbackStatus) {
+function getStatusLabel(status: SignalDeciderFeedbackStatus, statusCopy: SignalDeciderStatusCopy) {
   switch (status) {
     case "completed":
-      return "Completed";
+      return statusCopy.completed;
     case "running":
-      return "Running";
+      return statusCopy.running;
     case "partial":
-      return "Partial";
+      return statusCopy.partial;
     case "needs-review":
-      return "Needs review";
+      return statusCopy.needsReview;
     case "waiting":
-      return "Waiting";
+      return statusCopy.waiting;
   }
 }
 
@@ -95,13 +102,13 @@ function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
   return item.qualityTag?.label ?? item.qualityVerdict ?? null;
 }
 
-function getDecisionQualityDisplayLabel(item: SignalDeciderFeedbackItem) {
-  return getDecisionQualityLabel(item) ?? REVIEW_PENDING_LABEL;
+function getDecisionQualityDisplayLabel(item: SignalDeciderFeedbackItem, reviewCopy: SignalDeciderReviewCopy) {
+  return getDecisionQualityLabel(item) ?? reviewCopy.pending;
 }
 
 function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
   if (item.outcomeHorizons.length === 0) {
-    return item.pathOutcome?.label ?? item.intradayPathResult ?? REVIEW_PENDING_LABEL;
+    return item.pathOutcome?.label ?? item.intradayPathResult ?? UNKNOWN_LABEL;
   }
 
   return item.outcomeHorizons
@@ -122,53 +129,69 @@ function formatExpectedReturnValue(value: number | null) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function getDecisionPlanRows(item: SignalDeciderFeedbackItem) {
+function getDecisionPlanRows(item: SignalDeciderFeedbackItem, actionCopy: SignalDeciderActionCopy) {
+  const planAction = item.nextDayOpenAction !== "unknown" ? item.nextDayOpenAction : item.preferredAction;
   const actionRows = [
     {
-      label: item.nextDayOpenAction !== "unknown" ? "Next-day action" : "Preferred action",
-      value: item.actionLabel,
+      label:
+        item.nextDayOpenAction !== "unknown"
+          ? actionCopy.nextDay
+          : actionCopy.preferred,
+      value: getLocalizedActionLabel(planAction, actionCopy),
     },
   ];
 
   if (item.preferredAction !== "unknown" && item.preferredAction !== item.action) {
     actionRows.push({
-      label: "Preferred action",
-      value: item.preferredActionLabel,
+      label: actionCopy.preferred,
+      value: getLocalizedActionLabel(item.preferredAction, actionCopy),
     });
   }
 
   return [
     ...actionRows,
-    { label: "Target", value: formatCurrencyValue(item.targetPrice) },
-    { label: "Stop-loss", value: formatCurrencyValue(item.stopLossPrice) },
+    { label: actionCopy.target, value: formatCurrencyValue(item.targetPrice) },
+    { label: actionCopy.stopLoss, value: formatCurrencyValue(item.stopLossPrice) },
     ...(item.expectedReturnPct !== null
-      ? [{ label: "Expected return", value: formatExpectedReturnValue(item.expectedReturnPct) }]
+      ? [{ label: actionCopy.expectedReturn, value: formatExpectedReturnValue(item.expectedReturnPct) }]
       : []),
-    ...(item.entryPriceBasis ? [{ label: "Entry basis", value: item.entryPriceBasis }] : []),
-    ...(item.suggestedHoldingPeriod ? [{ label: "Holding period", value: item.suggestedHoldingPeriod }] : []),
+    ...(item.entryPriceBasis ? [{ label: actionCopy.entryBasis, value: item.entryPriceBasis }] : []),
+    ...(item.suggestedHoldingPeriod ? [{ label: actionCopy.holdingPeriod, value: item.suggestedHoldingPeriod }] : []),
   ];
 }
 
-function getRunContextRows(item: SignalDeciderFeedbackItem) {
+function getRunContextRows(item: SignalDeciderFeedbackItem, labelsCopy: SignalDeciderLabelCopy) {
   return [
-    { label: "Symbol", value: item.symbol },
-    { label: "Market date", value: item.marketDate || UNKNOWN_LABEL },
-    { label: "Policy", value: item.policyVersion ?? UNKNOWN_LABEL },
-    { label: "Run", value: item.runId ?? UNKNOWN_LABEL },
-    { label: "Agent version", value: item.agentVersion ?? UNKNOWN_LABEL },
+    { label: labelsCopy.symbol, value: item.symbol },
+    { label: labelsCopy.marketDate, value: item.marketDate || UNKNOWN_LABEL },
+    { label: labelsCopy.policy, value: item.policyVersion ?? UNKNOWN_LABEL },
+    { label: labelsCopy.run, value: item.runId ?? UNKNOWN_LABEL },
+    { label: labelsCopy.agentVersion, value: item.agentVersion ?? UNKNOWN_LABEL },
   ];
 }
 
-function formatActionMix(actionCounts: Record<SignalDeciderAction, number>) {
+function getLocalizedActionLabel(action: SignalDeciderAction, copy: SignalDeciderActionCopy) {
+  if (action === "buy") return copy.buy;
+  if (action === "wait") return copy.wait;
+  if (action === "reject") return copy.reject;
+  return copy.unknown;
+}
+
+function formatActionMix(actionCounts: Record<SignalDeciderAction, number>, actionCopy: SignalDeciderActionCopy) {
   const labels = (["buy", "wait", "reject", "unknown"] as const)
     .filter((action) => actionCounts[action] > 0)
-    .map((action) => `${formatSignalDeciderActionLabel(action)} ${actionCounts[action].toLocaleString("en-US")}`);
+    .map((action) => `${getLocalizedActionLabel(action, actionCopy)} ${actionCounts[action].toLocaleString("en-US")}`);
 
   return labels.length > 0 ? labels.join(" · ") : UNKNOWN_LABEL;
 }
 
-function getSignalDeciderSummaryStatusLabel(loadState: "idle" | "loading" | "ready" | "error", status: SignalDeciderFeedbackStatus) {
-  return loadState === "ready" ? getStatusLabel(status) : "Loading";
+function getSignalDeciderSummaryStatusLabel(
+  loadState: "idle" | "loading" | "ready" | "error",
+  status: SignalDeciderFeedbackStatus,
+  statusCopy: SignalDeciderStatusCopy,
+  summaryCopy: SignalDeciderSummaryCopy,
+) {
+  return loadState === "ready" ? getStatusLabel(status, statusCopy) : summaryCopy.loading;
 }
 
 function getSignalDeciderSummaryNumericValue(
@@ -181,44 +204,47 @@ function getSignalDeciderSummaryNumericValue(
 function getSignalDeciderSummaryActionMix(
   loadState: "idle" | "loading" | "ready" | "error",
   actionCounts: Record<SignalDeciderAction, number>,
+  actionCopy: SignalDeciderActionCopy,
 ) {
-  return loadState === "ready" ? formatActionMix(actionCounts) : CARD_LOADING_LABEL;
+  return loadState === "ready" ? formatActionMix(actionCounts, actionCopy) : CARD_LOADING_LABEL;
 }
 
 function getSignalDeciderNoDataMessage({
   marketDate,
   status,
+  summaryCopy,
 }: {
   marketDate: string | null | undefined;
   status: SignalDeciderFeedbackStatus;
+  summaryCopy: SignalDeciderSummaryCopy;
 }) {
-  const dateLabel = hasTextValue(marketDate) ? marketDate : "the selected market date";
+  const dateLabel = hasTextValue(marketDate) ? marketDate : summaryCopy.noDataDateLabel;
 
   if (status === "running") {
-    return `Signal-decider is still running for ${dateLabel}, so stored rows are not ready yet.`;
+    return summaryCopy.stateRunning.replaceAll("{dateLabel}", dateLabel);
   }
 
   if (status === "partial") {
-    return `Signal-decider feedback for ${dateLabel} is partially available, but no rows matched the current filters.`;
+    return summaryCopy.statePartial.replaceAll("{dateLabel}", dateLabel);
   }
 
   if (status === "needs-review") {
-    return `Signal-decider rows for ${dateLabel} require review-state completion before they can render here.`;
+    return summaryCopy.stateNeedsReview.replaceAll("{dateLabel}", dateLabel);
   }
 
   if (status === "waiting") {
-    return `No signal-decider feedback rows were returned for ${dateLabel}.`;
+    return summaryCopy.stateWaiting.replaceAll("{dateLabel}", dateLabel);
   }
 
-  return `No signal-decider feedback rows were returned for ${dateLabel}.`;
+  return summaryCopy.stateWaiting.replaceAll("{dateLabel}", dateLabel);
 }
 
-function getTraceSummaryParts(item: SignalDeciderFeedbackItem) {
+function getTraceSummaryParts(item: SignalDeciderFeedbackItem, countCopy: SignalDeciderCountCopy) {
   return [
-    item.riskFlags.length > 0 ? `${item.riskFlags.length} risks` : null,
-    item.factorAttributions.length > 0 ? `${item.factorAttributions.length} factors` : null,
-    item.gateResults.length > 0 ? `${item.gateResults.length} gates` : null,
-    item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} evidence` : null,
+    item.riskFlags.length > 0 ? `${item.riskFlags.length} ${countCopy.risks}` : null,
+    item.factorAttributions.length > 0 ? `${item.factorAttributions.length} ${countCopy.factors}` : null,
+    item.gateResults.length > 0 ? `${item.gateResults.length} ${countCopy.gates}` : null,
+    item.upstreamEvidence.length > 0 ? `${item.upstreamEvidence.length} ${countCopy.evidence}` : null,
   ].filter((part): part is string => part !== null);
 }
 
@@ -238,10 +264,13 @@ function hasReviewData(item: SignalDeciderFeedbackItem) {
   return hasQualityVerdict(item) || hasOutcomeReview(item);
 }
 
-function getReviewStateRows(item: SignalDeciderFeedbackItem) {
+function getReviewStateRows(item: SignalDeciderFeedbackItem, copy: SignalDeciderReviewCopy) {
   return [
-    { label: "Verdict", value: hasQualityVerdict(item) ? getDecisionQualityDisplayLabel(item) : REVIEW_PENDING_LABEL },
-    { label: "Outcome", value: hasOutcomeReview(item) ? formatOutcomeSummary(item) : REVIEW_PENDING_LABEL },
+    {
+      label: copy.verdict,
+      value: hasQualityVerdict(item) ? getDecisionQualityDisplayLabel(item, copy) : copy.pending,
+    },
+    { label: copy.outcome, value: hasOutcomeReview(item) ? formatOutcomeSummary(item) : copy.pending },
   ];
 }
 
@@ -251,17 +280,17 @@ function getReviewNotes(item: SignalDeciderFeedbackItem) {
   );
 }
 
-function getTraceContextValue(item: SignalDeciderFeedbackItem) {
-  const traceSummaryParts = getTraceSummaryParts(item);
+function getTraceContextValue(item: SignalDeciderFeedbackItem, countCopy: SignalDeciderCountCopy) {
+  const traceSummaryParts = getTraceSummaryParts(item, countCopy);
   return traceSummaryParts.length > 0 ? traceSummaryParts.join(" · ") : UNKNOWN_LABEL;
 }
 
-function getSupportContextRows(item: SignalDeciderFeedbackItem) {
+function getSupportContextRows(item: SignalDeciderFeedbackItem, countLabels: SignalDeciderLabelCopy, countCopy: SignalDeciderCountCopy) {
   return [
-    { label: "Captured", value: formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL) },
-    { label: "Policy", value: item.policyVersion ?? UNKNOWN_LABEL },
-    { label: "Trace evidence", value: getTraceContextValue(item) },
-    { label: "Run", value: item.runId ?? UNKNOWN_LABEL },
+    { label: countLabels.captured, value: formatDisplayTimestamp(item.capturedAt ?? item.receivedAt, UNKNOWN_LABEL) },
+    { label: countLabels.policy, value: item.policyVersion ?? UNKNOWN_LABEL },
+    { label: countLabels.traceEvidence, value: getTraceContextValue(item, countCopy) },
+    { label: countLabels.run, value: item.runId ?? UNKNOWN_LABEL },
   ];
 }
 
@@ -343,12 +372,14 @@ function TraceEntryList({ entries, title }: { entries: SignalDeciderTraceEntry[]
 export default function SignalDeciderFeedbackPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useAppState();
+  const copy = t.signalDeciderFeedback;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
   const [feedback, setFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [progress, setProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FeedbackError | null>(null);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(
     requestedMarketDate ? "loading" : "idle",
   );
@@ -398,7 +429,7 @@ export default function SignalDeciderFeedbackPageClient() {
           if (cachedLatest) return;
           setMarketDate(null);
           setLoadState("error");
-          setError("Signal-decider market date is unavailable.");
+          setError("marketDateUnavailable");
           return;
         }
         setMarketDate(resolvedMarketDate);
@@ -406,7 +437,7 @@ export default function SignalDeciderFeedbackPageClient() {
         if (!active) return;
         if (cachedLatest) return;
         setLoadState("error");
-        setError(freshnessError instanceof Error ? freshnessError.message : "Signal-decider market date is unavailable.");
+        setError(freshnessError instanceof Error ? { message: freshnessError.message } : "marketDateUnavailable");
       }
     };
 
@@ -415,7 +446,7 @@ export default function SignalDeciderFeedbackPageClient() {
     return () => {
       active = false;
     };
-  }, [requestedMarketDate]);
+  }, [requestedMarketDate, copy.errors.marketDateUnavailable]);
 
   useEffect(() => {
     if (!marketDate) return;
@@ -475,13 +506,13 @@ export default function SignalDeciderFeedbackPageClient() {
           setFeedback(cachedSnapshot.feedback);
           setProgress(cachedSnapshot.progress);
           setLoadState("ready");
-          setError(loadError instanceof Error ? loadError.message : "Signal-decider feedback is unavailable.");
+          setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
           return;
         }
         setFeedback(null);
         setProgress(null);
         setLoadState("error");
-        setError(loadError instanceof Error ? loadError.message : "Signal-decider feedback is unavailable.");
+        setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
       }
     };
 
@@ -512,6 +543,16 @@ export default function SignalDeciderFeedbackPageClient() {
   );
   const displayedMarketDate = summary.marketDate ?? marketDate;
 
+  const summaryCopy = copy.summary;
+  const labelsCopy = copy.labels;
+  const actionCopy = copy.actions;
+  const statusCopy = copy.status;
+  const sortCopy = copy.sortOptions;
+  const filtersCopy = copy.filters;
+  const detailCopy = copy.detail;
+  const reviewCopy = copy.review;
+  const countCopy = copy.counts;
+
   useEffect(() => {
     if (!selectedItem) return;
 
@@ -529,6 +570,13 @@ export default function SignalDeciderFeedbackPageClient() {
     };
   }, [selectedItem]);
 
+  const displayError = useMemo(() => {
+    if (error === null) return null;
+    if (error === "feedbackUnavailable") return copy.errors.feedbackUnavailable;
+    if (error === "marketDateUnavailable") return copy.errors.marketDateUnavailable;
+    return error.message;
+  }, [copy.errors.feedbackUnavailable, copy.errors.marketDateUnavailable, error]);
+
   function handleMarketDateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextMarketDate = marketDateDraft.trim();
@@ -545,7 +593,9 @@ export default function SignalDeciderFeedbackPageClient() {
     <MobileAppChrome
       chrome={{
         activeNav: "dashboard",
-        status: { label: displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending" },
+        status: {
+          label: displayedMarketDate ? `MD ${displayedMarketDate}` : copy.chrome.marketDatePending,
+        },
       }}
     >
       <div className={styles.stack}>
@@ -555,11 +605,9 @@ export default function SignalDeciderFeedbackPageClient() {
               label="dashboard.signal-decider-feedback"
               api="/api/trading/agent-context/feedback + /api/trading/agent-context/feedback/progress"
             />
-            <p className={styles.eyebrow}>Agent feedback</p>
-            <h1 className={styles.pageTitle}>Signal-decider feedback</h1>
-            <p className={styles.pageCopy}>
-              Decision-support results from the stored signal-decider feedback rows. This view does not create orders.
-            </p>
+            <p className={styles.eyebrow}>{copy.heroEyebrow}</p>
+            <h1 className={styles.pageTitle}>{copy.heroTitle}</h1>
+            <p className={styles.pageCopy}>{copy.heroCopy}</p>
           </div>
 
         </section>
@@ -567,90 +615,96 @@ export default function SignalDeciderFeedbackPageClient() {
         <section className={styles.panel}>
           <div className={styles.summaryGrid}>
             <div className={styles.summaryCard}>
-              <span>Status</span>
+              <span>{labelsCopy.status}</span>
               <strong className={getStatusToneClass(loadState === "ready" ? summary.status : "running")}>
-                {getSignalDeciderSummaryStatusLabel(loadState, summary.status)}
+                {getSignalDeciderSummaryStatusLabel(loadState, summary.status, statusCopy, summaryCopy)}
               </strong>
             </div>
             <div className={styles.summaryCard}>
-              <span>Market date</span>
-              <strong>{displayedMarketDate ?? "Pending"}</strong>
+              <span>{labelsCopy.marketDate}</span>
+              <strong>{displayedMarketDate ?? summaryCopy.pendingMarketDate}</strong>
             </div>
             <div className={styles.summaryCard}>
-              <span>Results</span>
+              <span>{labelsCopy.results}</span>
               <strong>{getSignalDeciderSummaryNumericValue(loadState, summary.resultCount)}</strong>
             </div>
             <div className={styles.summaryCard}>
-              <span>Action mix</span>
-              <strong>{getSignalDeciderSummaryActionMix(loadState, summary.actionCounts)}</strong>
+              <span>{labelsCopy.actionMix}</span>
+              <strong>{getSignalDeciderSummaryActionMix(loadState, summary.actionCounts, actionCopy)}</strong>
             </div>
           </div>
 
-          <form className={styles.controls} aria-label="Signal-decider feedback filters" onSubmit={handleMarketDateSubmit}>
+          <form className={styles.controls} aria-label={labelsCopy.filters} onSubmit={handleMarketDateSubmit}>
             <label>
-              <span>Search</span>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Symbol, thesis, risk" />
+              <span>{labelsCopy.search}</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={filtersCopy.searchPlaceholder}
+              />
             </label>
             <label>
-              <span>Market date</span>
+              <span>{labelsCopy.marketDate}</span>
               <div className={styles.inlineControl}>
                 <input
                   type="date"
                   value={marketDateDraft}
                   onChange={(event) => setMarketDateDraft(event.target.value)}
                 />
-                <button type="submit">Load</button>
+                <button type="submit">{filtersCopy.load}</button>
               </div>
             </label>
             <label>
-              <span>Action</span>
+              <span>{labelsCopy.action}</span>
               <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value as ActionFilter)}>
                 {ACTION_FILTERS.map((action) => (
                   <option key={action} value={action}>
-                    {action === "all" ? "All actions" : formatSignalDeciderActionLabel(action)}
+                    {action === "all" ? actionCopy.all : getLocalizedActionLabel(action, actionCopy)}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              <span>Sort</span>
+              <span>{labelsCopy.sort}</span>
               <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
-                <option value="priority">Action priority</option>
-                <option value="confidence">Conviction</option>
-                <option value="symbol">Symbol</option>
-                <option value="captured">Captured time</option>
+                <option value="priority">{sortCopy.priority}</option>
+                <option value="confidence">{sortCopy.confidence}</option>
+                <option value="symbol">{sortCopy.symbol}</option>
+                <option value="captured">{sortCopy.captured}</option>
               </select>
             </label>
           </form>
 
           {loadState === "loading" ? (
-            <div className={styles.emptyState}>Loading signal-decider feedback...</div>
+            <div className={styles.emptyState}>{summaryCopy.loading}</div>
           ) : loadState === "error" ? (
-            <div className={styles.emptyState}>{error ?? "Signal-decider feedback is unavailable."}</div>
+            <div className={styles.emptyState}>{displayError ?? summaryCopy.error}</div>
           ) : visibleItems.length > 0 ? (
-            <div className={styles.resultsList} aria-label="Signal-decider feedback results">
+            <div className={styles.resultsList} aria-label={copy.labels.results}>
               {visibleItems.map((item) => {
-                const reviewStateRows = getReviewStateRows(item);
+                const reviewStateRows = getReviewStateRows(item, reviewCopy);
                 const reviewNotes = getReviewNotes(item);
-                const supportContextRows = getSupportContextRows(item);
+                const supportContextRows = getSupportContextRows(item, labelsCopy, countCopy);
 
                 return (
-                  <article
-                    key={item.id}
-                    className={styles.resultCard}
-                    aria-label={`${item.companyName ?? item.symbol} signal-decider feedback`}
-                    data-testid="signal-decider-result-card"
-                  >
+                    <article
+                      key={item.id}
+                      className={styles.resultCard}
+                      aria-label={`${item.companyName ?? item.symbol} ${copy.heroTitle}`}
+                      data-testid="signal-decider-result-card"
+                    >
                     <header className={styles.resultHeader}>
                       <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
                         <strong>{item.companyName ?? item.symbol}</strong>
                         <span>{item.symbol}</span>
                       </Link>
                       <div className={styles.resultBadges}>
-                        <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
+                        <span className={`pill ${getActionToneClass(item.action)}`}>
+                          {getLocalizedActionLabel(item.action, actionCopy)}
+                        </span>
                         {getDecisionQualityLabel(item) ? (
                           <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
-                            {getDecisionQualityDisplayLabel(item)}
+                            {getDecisionQualityDisplayLabel(item, reviewCopy)}
                           </span>
                         ) : null}
                       </div>
@@ -658,21 +712,21 @@ export default function SignalDeciderFeedbackPageClient() {
 
                     <section className={styles.resultDecisionSection}>
                       <div className={styles.resultSectionHeader}>
-                        <span>Decision</span>
-                        <strong>Stored signal</strong>
+                        <span>{labelsCopy.decision}</span>
+                        <strong>{labelsCopy.storedSignal}</strong>
                       </div>
                       <div className={styles.resultMetricGrid}>
                         <div className={styles.scoreStack} data-testid="signal-decider-score-area">
                           <span>
-                            <span>Conviction</span>
+                            <span>{labelsCopy.conviction}</span>
                             <strong>{formatScore(item.convictionScore)}</strong>
                           </span>
                           <span>
-                            <span>Confidence</span>
+                            <span>{labelsCopy.confidence}</span>
                             <strong>{formatScore(item.confidenceScore)}</strong>
                           </span>
                         </div>
-                        {getDecisionPlanRows(item).map((row) => (
+                        {getDecisionPlanRows(item, actionCopy).map((row) => (
                           <div key={row.label} className={styles.resultMetric}>
                             <span>{row.label}</span>
                             <strong>{row.value}</strong>
@@ -680,15 +734,15 @@ export default function SignalDeciderFeedbackPageClient() {
                         ))}
                       </div>
                       <section className={styles.resultThesis}>
-                        <span>Thesis</span>
+                        <span>{labelsCopy.thesis}</span>
                         <p>{item.thesisSummary ?? UNKNOWN_LABEL}</p>
                       </section>
                     </section>
 
                     <section className={styles.resultReviewSection}>
                       <div className={styles.resultSectionHeader}>
-                        <span>Review state</span>
-                        <strong>{hasReviewData(item) ? "Verdict / outcome" : REVIEW_PENDING_LABEL}</strong>
+                        <span>{labelsCopy.reviewState}</span>
+                        <strong>{hasReviewData(item) ? labelsCopy.result : reviewCopy.pending}</strong>
                       </div>
                       <div className={styles.resultMetricGrid} data-testid="signal-decider-review-state">
                         {reviewStateRows.map((row) => (
@@ -708,16 +762,16 @@ export default function SignalDeciderFeedbackPageClient() {
                         </>
                       ) : (
                         <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
-                          <strong>{REVIEW_PENDING_LABEL}</strong>
-                          <p>{REVIEW_PENDING_MESSAGE}</p>
+                          <strong>{reviewCopy.pending}</strong>
+                          <p>{reviewCopy.pendingMessage}</p>
                         </div>
                       )}
                     </section>
 
                     <section className={styles.resultSupportSection}>
                       <div className={styles.resultSectionHeader}>
-                        <span>Support context</span>
-                        <strong>Trace / policy</strong>
+                        <span>{labelsCopy.supportContext}</span>
+                        <strong>{labelsCopy.tracePolicy}</strong>
                       </div>
                       <div className={styles.resultMetricGrid} data-testid="signal-decider-support-context">
                         {supportContextRows.map((row) => (
@@ -731,7 +785,7 @@ export default function SignalDeciderFeedbackPageClient() {
 
                     <footer className={styles.resultFooter}>
                       <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
-                        Review
+                        {copy.labels.review}
                       </button>
                     </footer>
                   </article>
@@ -740,7 +794,7 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
           ) : (
             <div className={styles.emptyState}>
-              {getSignalDeciderNoDataMessage({ marketDate: displayedMarketDate, status: summary.status })}
+              {getSignalDeciderNoDataMessage({ marketDate: displayedMarketDate, status: summary.status, summaryCopy })}
             </div>
           )}
         </section>
@@ -756,51 +810,60 @@ export default function SignalDeciderFeedbackPageClient() {
             >
               <header className={styles.detailHeader}>
                 <div className={styles.detailTitleBlock}>
-                  <p className={styles.eyebrow}>Decision review</p>
+                  <p className={styles.eyebrow}>{detailCopy.hero}</p>
                   <h2 id="signal-decider-detail-title">
                     {selectedItem.companyName ?? selectedItem.symbol}
                   </h2>
                   <p className={styles.detailSubtitle}>
-                    {selectedItem.symbol} · {selectedItem.marketDate || "Market date pending"}
+                    {selectedItem.symbol} · {selectedItem.marketDate || labelsCopy.marketDatePending}
                   </p>
                   <div className={styles.detailBadges}>
                     <span className={`pill ${getActionToneClass(selectedItem.action)}`}>
-                      {selectedItem.actionLabel}
+                      {getLocalizedActionLabel(selectedItem.action, actionCopy)}
                     </span>
                     <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
-                      {getDecisionQualityDisplayLabel(selectedItem)}
+                      {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
                     </span>
                   </div>
                 </div>
                 <button type="button" className={styles.closeButton} onClick={() => setSelectedItemId(null)}>
-                  Close
+                  {detailCopy.close}
                 </button>
               </header>
 
               <div className={styles.detailBody}>
-                <aside className={styles.detailSidebar} aria-label="Decision summary">
+                <aside className={styles.detailSidebar} aria-label={labelsCopy.decisionContext}>
                   <section className={styles.detailGroup}>
                     <div className={styles.detailGroupHeader}>
-                      <span>Decision</span>
-                      <h3>Action plan</h3>
+                      <span>{labelsCopy.decision}</span>
+                      <h3>{detailCopy.actionPlan}</h3>
                     </div>
                     <div className={styles.decisionHero}>
-                      <strong>{selectedItem.actionLabel}</strong>
-                      <span>{selectedItem.nextDayOpenAction !== "unknown" ? "Next-day action" : "Preferred action"}</span>
+                      <strong>
+                        {getLocalizedActionLabel(
+                          selectedItem.nextDayOpenAction !== "unknown" ? selectedItem.nextDayOpenAction : selectedItem.preferredAction,
+                          actionCopy,
+                        )}
+                      </strong>
+                      <span>
+                        {selectedItem.nextDayOpenAction !== "unknown" ? actionCopy.nextDay : actionCopy.preferred}
+                      </span>
                       {selectedItem.expectedReturnPct !== null ? (
-                        <p>Expected return {formatExpectedReturnValue(selectedItem.expectedReturnPct)}</p>
+                        <p>
+                          {detailCopy.expectedReturn} {formatExpectedReturnValue(selectedItem.expectedReturnPct)}
+                        </p>
                       ) : null}
                     </div>
                     <dl className={styles.metricList}>
                       <div>
-                        <dt>Conviction</dt>
+                        <dt>{labelsCopy.conviction}</dt>
                         <dd>{formatScore(selectedItem.convictionScore)}</dd>
                       </div>
                       <div>
-                        <dt>Confidence</dt>
+                        <dt>{labelsCopy.confidence}</dt>
                         <dd>{formatScore(selectedItem.confidenceScore)}</dd>
                       </div>
-                      {getDecisionPlanRows(selectedItem).map((row) => (
+                      {getDecisionPlanRows(selectedItem, actionCopy).map((row) => (
                         <div key={row.label}>
                           <dt>{row.label}</dt>
                           <dd>{row.value}</dd>
@@ -811,11 +874,11 @@ export default function SignalDeciderFeedbackPageClient() {
 
                   <section className={styles.detailGroup}>
                     <div className={styles.detailGroupHeader}>
-                      <span>Context</span>
-                      <h3>Run metadata</h3>
+                      <span>{labelsCopy.decisionContext}</span>
+                      <h3>{detailCopy.context}</h3>
                     </div>
                     <dl className={styles.contextList}>
-                      {getRunContextRows(selectedItem).map((row) => (
+                      {getRunContextRows(selectedItem, labelsCopy).map((row) => (
                         <div key={row.label}>
                           <dt>{row.label}</dt>
                           <dd>{row.value}</dd>
@@ -827,26 +890,26 @@ export default function SignalDeciderFeedbackPageClient() {
 
                 <div className={styles.detailMain}>
                   <section className={`${styles.detailSection} ${styles.thesisSection}`}>
-                    <h3>Decision thesis</h3>
+                    <h3>{detailCopy.decisionThesis}</h3>
                     <p>{selectedItem.thesisSummary ?? UNKNOWN_LABEL}</p>
                   </section>
 
                   <section className={`${styles.detailSection} ${styles.reviewDetailSection}`}>
-                    <h3>Review / result</h3>
+                    <h3>{detailCopy.reviewResult}</h3>
                     {hasReviewData(selectedItem) ? (
                       <>
                         {hasQualityVerdict(selectedItem) || hasReviewNarrative(selectedItem) ? (
                           <div className={styles.reviewVerdictBlock}>
-                            {hasQualityVerdict(selectedItem) ? (
-                              <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
-                                {getDecisionQualityDisplayLabel(selectedItem)}
-                              </span>
-                            ) : null}
-                            <p>
-                              {selectedItem.reviewConclusion ??
-                                selectedItem.qualityReason ??
-                                getDecisionQualityDisplayLabel(selectedItem)}
-                            </p>
+                              {hasQualityVerdict(selectedItem) ? (
+                                <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
+                                  {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
+                                </span>
+                              ) : null}
+                              <p>
+                                {selectedItem.reviewConclusion ??
+                                  selectedItem.qualityReason ??
+                                  getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
+                              </p>
                             {selectedItem.qualityReason && selectedItem.qualityReason !== selectedItem.reviewConclusion ? (
                               <p>{selectedItem.qualityReason}</p>
                             ) : null}
@@ -857,7 +920,9 @@ export default function SignalDeciderFeedbackPageClient() {
                             {selectedItem.outcomeHorizons.map((outcome) => (
                               <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
                                 <span>{outcome.horizon}</span>
-                                <strong>{formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? "Recorded"}</strong>
+                                <strong>
+                                  {formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? reviewCopy.resultEmpty}
+                                </strong>
                                 <p>
                                   {[
                                     outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
@@ -865,7 +930,7 @@ export default function SignalDeciderFeedbackPageClient() {
                                     outcome.notes,
                                   ]
                                     .filter((part): part is string => hasTextValue(part))
-                                    .join(" · ") || "Outcome details recorded without additional notes."}
+                                    .join(" · ") || reviewCopy.resultEmpty}
                                 </p>
                               </div>
                             ))}
@@ -877,24 +942,24 @@ export default function SignalDeciderFeedbackPageClient() {
                               selectedItem.intradayPathResult}
                           </p>
                         ) : (
-                          <p className={styles.detailEmpty}>Realized outcome is not present in this row yet.</p>
+                          <p className={styles.detailEmpty}>{reviewCopy.noRealizedOutcome}</p>
                         )}
                       </>
                     ) : (
                       <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
-                        <strong>{REVIEW_PENDING_LABEL}</strong>
-                        <p>{REVIEW_PENDING_MESSAGE}</p>
+                        <strong>{reviewCopy.pending}</strong>
+                        <p>{reviewCopy.pendingMessage}</p>
                       </div>
                     )}
                   </section>
 
                   <section className={styles.detailSection}>
-                    <h3>Risks</h3>
+                    <h3>{detailCopy.risks}</h3>
                     {selectedItem.riskFlags.length > 0 ? (
                       <div className={styles.traceList}>
                         {selectedItem.riskFlags.map((risk) => (
                           <div key={risk} className={styles.traceRow}>
-                            <span className="pill warning">Risk</span>
+                            <span className="pill warning">{labelsCopy.risks}</span>
                             <p>{risk}</p>
                           </div>
                         ))}
@@ -905,10 +970,10 @@ export default function SignalDeciderFeedbackPageClient() {
                   </section>
 
                   <div className={styles.evidenceGrid}>
-                    <TraceEntryList title="Factors" entries={selectedItem.factorAttributions} />
-                    <TraceEntryList title="Gates" entries={selectedItem.gateResults} />
-                    <TraceEntryList title="Upstream evidence" entries={selectedItem.upstreamEvidence} />
-                    <TraceEntryList title="Traceability" entries={selectedItem.traceability} />
+                    <TraceEntryList title={labelsCopy.factors} entries={selectedItem.factorAttributions} />
+                    <TraceEntryList title={labelsCopy.gates} entries={selectedItem.gateResults} />
+                    <TraceEntryList title={labelsCopy.upstreamEvidence} entries={selectedItem.upstreamEvidence} />
+                    <TraceEntryList title={labelsCopy.traceability} entries={selectedItem.traceability} />
                   </div>
                 </div>
               </div>

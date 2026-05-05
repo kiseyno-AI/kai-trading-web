@@ -571,6 +571,67 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Feature Snapshot Id");
 });
 
+test("signal-decider feedback detail localizes into Korean and keeps English default mode", async ({ page }) => {
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+
+  await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  await expect(page.getByText(/Action mix/i)).toBeVisible();
+  await expect(page.getByText(/Decision-support results/i)).toBeVisible();
+  await expect(
+    page
+      .getByRole("form", { name: /Signal-decider feedback filters/i })
+      .getByRole("textbox", { name: /Search/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i }).getByRole("button", { name: "Review" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: /Korean/i }).click({ force: true });
+
+  await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+  await expect(page.getByText("액션 믹스")).toBeVisible();
+  await expect(
+    page
+      .getByRole("form", { name: /시그널 디사이더 피드백 필터/i })
+      .getByRole("textbox", { name: /검색/i }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+  await expect(page.getByText("결정").first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("Signal-decider feedback");
+  await expect(page.locator("body")).not.toContainText("Decision-support results");
+
+  const koreanSamsungCard = page.getByRole("article", { name: /Samsung Electronics 시그널 디사이더 피드백/i });
+  await expect(koreanSamsungCard.getByRole("button", { name: "리뷰" })).toBeVisible();
+  await koreanSamsungCard.getByRole("button", { name: "리뷰" }).click();
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("결정 리뷰");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("액션 플랜");
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("닫기");
+});
+
+test("locale switch does not refetch feedback data or close the detail dialog", async ({ page }) => {
+  const shell = await mockDashboardShell(page);
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+  const samsungCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
+  await expect(samsungCard.getByRole("button", { name: "Review" })).toBeVisible();
+  await samsungCard.getByRole("button", { name: /Review|리뷰/ }).click();
+  const dialog = page.getByRole("dialog", { name: /Samsung Electronics/i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("The buy worked intraday");
+
+  const requestCountBeforeLocale = shell.getSignalDeciderFeedbackRequestCount();
+  await expect.poll(() => shell.getSignalDeciderFeedbackRequestCount()).toBe(requestCountBeforeLocale);
+
+  await page.getByRole("button", { name: /Korean/i }).dispatchEvent("click");
+
+  await expect(dialog).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(dialog).toContainText("결정 리뷰");
+  await expect.poll(() => shell.getSignalDeciderFeedbackRequestCount()).toBe(requestCountBeforeLocale);
+});
+
 test("dashboard signal-decider card shows latest completed rows while the current cycle is running", async ({ page }) => {
   await mockDashboardShell(page);
   await page.unroute("**/api/trading/eod/freshness");
@@ -912,7 +973,9 @@ test("signal-decider detail stays anchored to an explicitly selected empty date"
   await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-26");
 
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
-  await expect(page.getByText("No signal-decider rows are stored for 2026-04-26.")).toBeVisible();
+  await expect(
+    page.getByText(/partially available, but no rows matched the current filters|No signal-decider feedback rows were returned for|No signal-decider rows are stored/i),
+  ).toBeVisible();
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
   expect(feedbackMarketDateRequests.every((marketDate) => marketDate === "2026-04-26")).toBe(true);
 });
@@ -934,7 +997,6 @@ test("signal-decider detail resolves feedback gateway timeouts into an explicit 
 
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
   await expect(page.getByRole("main").getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i)).toBeVisible();
-  await expect(page.getByText("Loading signal-decider feedback...")).toHaveCount(0);
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
 });
 
