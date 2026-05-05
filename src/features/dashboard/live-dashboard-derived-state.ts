@@ -94,23 +94,30 @@ const MARKET_SNAPSHOT_IDLE_POLL_MS = 60_000;
 const MARKET_SNAPSHOT_ERROR_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 const FUNDAMENTALS_UPDATED_ENTRIES_PREVIEW_LIMIT = 3;
 const FUNDAMENTALS_UPDATED_SYMBOL_SAMPLE_LIMIT = 4;
+
+type ScoringStagePipelineDefinition = {
+  key: ScoringStageKey;
+  pipelineKey: EodPipelineStageKey;
+  fallbackPipelineKeys: readonly EodPipelineStageKey[];
+};
+
 const SCORING_STAGE_DEFINITIONS = [
   {
     key: "unified-value",
-    pipelineKey: "unified_value_scoring",
+    pipelineKey: "unified_value_factors",
+    fallbackPipelineKeys: ["unified_value_scoring"],
   },
   {
     key: "quality",
-    pipelineKey: "quality_scoring",
+    pipelineKey: "quality_factors",
+    fallbackPipelineKeys: ["quality_scoring"],
   },
   {
     key: "momentum",
-    pipelineKey: "momentum_scoring",
+    pipelineKey: "momentum_factors",
+    fallbackPipelineKeys: ["momentum_scoring"],
   },
-] as const satisfies readonly {
-  key: ScoringStageKey;
-  pipelineKey: EodPipelineStageKey;
-}[];
+] as const satisfies readonly ScoringStagePipelineDefinition[];
 const DEFAULT_AGENT_ROLE_ORDER = [
   "eod-summarizer",
   "technical-summarizer",
@@ -119,6 +126,20 @@ const DEFAULT_AGENT_ROLE_ORDER = [
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
+}
+
+function hasCompletedScoringResult({
+  loadState,
+  processedCount,
+  totalCount,
+}: {
+  loadState: FilteringStageLoadState;
+  processedCount: number | null;
+  totalCount: number | null;
+}) {
+  if (loadState !== "ready") return false;
+  if (hasNumber(processedCount)) return processedCount > 0;
+  return hasNumber(totalCount) ? totalCount === 0 : false;
 }
 
 export function getAgentProgressStatusLabels(copy: DashboardLiveCopy) {
@@ -1324,7 +1345,11 @@ function buildBaseScoringResultSummary({
   return {
     displayMarketDate,
     error,
-    hasResult: loadState === "ready" && (hasNumber(processedCount) || hasNumber(totalCount)),
+    hasResult: hasCompletedScoringResult({
+      loadState,
+      processedCount,
+      totalCount,
+    }),
     isLatestFallback,
     loadState,
     metrics,
@@ -1426,7 +1451,6 @@ function buildQualityScoringResultSummary({
   const totalCount = response?.summary.entries ?? (items.length > 0 ? items.length : null);
   const scoredCount = response ? qualitySummary.scoredCount : null;
   const missingCount = hasNumber(totalCount) ? Math.max(totalCount - qualitySummary.scoredCount, 0) : null;
-  const hasCompletedQualitySnapshot = responseLoadState === "ready" && hasNumber(totalCount) && totalCount > 0;
   const metrics = [
     buildScoringMetric(
       "progress",
@@ -1456,7 +1480,6 @@ function buildQualityScoringResultSummary({
       requestedMarketDate: resolution.requestedMarketDate,
       totalCount,
     }),
-    hasResult: hasCompletedQualitySnapshot,
   };
 }
 
@@ -1825,13 +1848,26 @@ export function buildScoringCardModel({
         copy,
         forceWaiting,
         numberLocale,
-        pipelineStage: getPipelineStage(pipelineStatus, stage.pipelineKey),
+        pipelineStage: getScoringPipelineStage(pipelineStatus, stage),
         requestedMarketDate,
         resultSummary: getScoringStageResultSummary(stage.key, resultSummaries),
         stageKey: stage.key,
       }),
     ),
   };
+}
+
+function getScoringPipelineStage(
+  pipelineStatus: EodPipelineStatusResponseDto | null,
+  stage: ScoringStagePipelineDefinition,
+) {
+  return (
+    getPipelineStage(pipelineStatus, stage.pipelineKey) ??
+    stage.fallbackPipelineKeys
+      .map((pipelineKey) => getPipelineStage(pipelineStatus, pipelineKey))
+      .find((pipelineStage): pipelineStage is EodPipelineStageDto => pipelineStage !== null) ??
+    null
+  );
 }
 
 export function isScoringCardChecking(model: ScoringCardModel) {

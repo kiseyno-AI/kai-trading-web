@@ -1040,6 +1040,9 @@ export type EodPipelineStageKey =
   | "trending_ranks"
   | "signal_features"
   | "fundamentals_daily_refresh"
+  | "unified_value_factors"
+  | "quality_factors"
+  | "momentum_factors"
   | "unified_value_scoring"
   | "quality_scoring"
   | "momentum_scoring";
