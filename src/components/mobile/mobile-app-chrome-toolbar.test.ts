@@ -4,6 +4,10 @@ import { dirname, join, relative } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { getSearchPageCopy } from "@/i18n/search-page-copy";
+import { messages } from "@/i18n/messages";
+import { resolveMobileAppChromeMetadata } from "@/lib/mobile-app-chrome-route-metadata";
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const appRoot = join(repoRoot, "src/app");
 
@@ -103,8 +107,10 @@ test("full-screen routes use the shared chrome metadata model for representative
   const representativeRoutes = [
     "src/app/calendar/signal-review-calendar-page-client.tsx",
     "src/app/my-symbols/my-symbols-page-client.tsx",
+    "src/app/portfolio/portfolio-page-client.tsx",
     "src/app/dashboard/piotroski-filter/piotroski-filter-page-client.tsx",
     "src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx",
+    "src/app/search/search-page-client.tsx",
   ];
 
   for (const route of representativeRoutes) {
@@ -115,6 +121,37 @@ test("full-screen routes use the shared chrome metadata model for representative
     assert.doesNotMatch(source, /\bDashboardToolbarStatus\b/, route);
     assert.doesNotMatch(source, /\btopbar=|\bbottomChrome=|\bdesktopRail=|\bfloatingLayer=/, route);
   }
+});
+
+test("search route resolves shared chrome title from Search page copy in locale-aware manner", () => {
+  const enMetadata = resolveMobileAppChromeMetadata({
+    pathname: "/search",
+    activeNav: "search",
+    t: messages.en,
+    locale: "en",
+  });
+
+  const koMetadata = resolveMobileAppChromeMetadata({
+    pathname: "/trading-web/search",
+    activeNav: "search",
+    t: messages.ko,
+    locale: "ko",
+  });
+
+  assert.equal(enMetadata.title, getSearchPageCopy("en").hero.title);
+  assert.equal(koMetadata.title, getSearchPageCopy("ko").hero.title);
+  assert.equal(enMetadata.toolbarAction, "dev-mode");
+  assert.equal(koMetadata.toolbarAction, "dev-mode");
+});
+
+test("search metadata falls back to path-based locale-aware title when activeNav is omitted", () => {
+  const koMetadata = resolveMobileAppChromeMetadata({
+    pathname: "/trading-web/search",
+    t: messages.ko,
+    locale: "ko",
+  });
+
+  assert.equal(koMetadata.title, getSearchPageCopy("ko").hero.title);
 });
 
 test("MobileAppChrome keeps dashboard bottom chrome canonical for full-screen routes", () => {

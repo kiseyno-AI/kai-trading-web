@@ -79,10 +79,10 @@ export function MobileAppChrome({
 }: MobileAppChromeProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { t } = useAppState();
+  const { t, locale } = useAppState();
   const { beginNavigation, isNavigatingTo } = useNavigationLoading();
   const activeNav = chrome.activeNav ?? null;
-  const resolvedMetadata = resolveMobileAppChromeMetadata({ pathname, activeNav, t });
+  const resolvedMetadata = resolveMobileAppChromeMetadata({ pathname, activeNav, t, locale });
   const hrefOverrides = chrome.hrefs ?? EMPTY_HREF_OVERRIDES;
   const navItems = useMemo(
     () => buildAppChromeNavItems(t, FULL_PAGE_CHROME_ROUTE_KEYS, hrefOverrides),
