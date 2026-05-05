@@ -42,6 +42,8 @@ import {
   pickSelectedBarTradeDate,
   readRouteParam,
   resolveMarketStateValue,
+  buildPercentChange,
+  buildPriceHistoryRangeMetrics,
 } from "./symbol-detail-derived-state";
 import type {
   MarketStatusResponse,
@@ -292,7 +294,6 @@ export function useSymbolDetailData({
   const marketLabel =
     metaMarket ??
     (quote?.market_state ? resolveMarketStateValue(quote.market_state, copy) : copy.header.marketPending);
-  const quoteSourceCopy = quote?.is_live ? null : buildQuoteSourceLabel(quote, copy);
   const detailErrors = [quoteError, metaError, historyError].filter(
     (value): value is string => Boolean(value),
   );
@@ -379,28 +380,13 @@ export function useSymbolDetailData({
   const hasSelectedRangeHistoryLoaded = Boolean(priceHistoryResult.data);
 
   const chartMetrics = useMemo(() => {
-    if (!priceHistory || priceHistory.items.length === 0) return null;
-
-    const first = priceHistory.items[0];
-    const last = priceHistory.items[priceHistory.items.length - 1];
-    let low = first.low_price;
-    let high = first.high_price;
-
-    for (const bar of priceHistory.items) {
-      if (bar.low_price < low) low = bar.low_price;
-      if (bar.high_price > high) high = bar.high_price;
-    }
-
-    return {
-      low,
-      high,
-      start: first.open_price,
-      end: last.close_price,
-      points: priceHistory.items.length,
-      startDate: first.trade_date,
-      endDate: last.trade_date,
-    };
+    return buildPriceHistoryRangeMetrics(priceHistory);
   }, [priceHistory]);
+
+  const isPriceHistoryReturnBasisInvalid = chartMetrics === null && hasSelectedRangeHistoryLoaded && Boolean(priceHistory?.items.length);
+  const quoteSourceCopy = quote?.is_live ? null : buildQuoteSourceLabel(quote, copy, {
+    isPriceHistoryBasisInvalid: isPriceHistoryReturnBasisInvalid && quote?.source === "daily_price_bar",
+  });
 
   const focusBar = selectedBar ?? priceHistory?.items[priceHistory.items.length - 1] ?? null;
   const focusBarIndex =
@@ -409,10 +395,7 @@ export function useSymbolDetailData({
       : -1;
   const previousFocusBar =
     focusBarIndex > 0 && priceHistory ? priceHistory.items[focusBarIndex - 1] ?? null : null;
-  const focusMovePct =
-    focusBar && previousFocusBar && previousFocusBar.close_price > 0
-      ? ((focusBar.close_price - previousFocusBar.close_price) / previousFocusBar.close_price) * 100
-      : null;
+  const focusMovePct = focusBar && previousFocusBar ? buildPercentChange(focusBar.close_price, previousFocusBar.close_price) : null;
   const focusCandleRows = buildFocusCandleRows(focusBar, copy, numberLocale);
   const focusCandleValue =
     focusCandleRows.length > 0
