@@ -169,11 +169,22 @@ test("preserves My Symbols navigation context in symbol detail subroutes only wh
     market: "KOSPI",
     standard_code: "KR7005930003",
   };
+  const searchQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-04-10", null, "search", "삼성"));
+  const mySymbolsQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-04-10", null, "my-symbols"));
 
   assert.equal(
-    buildSymbolRouteQuery(meta, "2026-04-10", null, "my-symbols"),
+    mySymbolsQuery.toString(),
     "name=Samsung+Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10&navContext=my-symbols",
   );
+  assert.equal(
+    searchQuery.get("name"),
+    "Samsung Electronics",
+  );
+  assert.equal(searchQuery.get("market"), "KOSPI");
+  assert.equal(searchQuery.get("standardCode"), "KR7005930003");
+  assert.equal(searchQuery.get("marketDate"), "2026-04-10");
+  assert.equal(searchQuery.get("q"), "삼성");
+  assert.equal(searchQuery.get("navContext"), "search");
   assert.equal(
     buildSymbolRouteQuery(meta, "2026-04-10", null),
     "name=Samsung+Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10",
