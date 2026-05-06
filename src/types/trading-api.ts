@@ -629,6 +629,17 @@ export type AgentFeedbackStoredPayloadDto = Record<string, unknown> & {
   risk_flags?: unknown;
   specialist_disagreement?: unknown;
   traceability?: Record<string, unknown> | null;
+  evaluation?: Record<string, unknown> | null;
+  five_day_evaluation?: Record<string, unknown> | null;
+  five_day_outcome?: string | null;
+  five_day_evaluation_status?: string | null;
+  target_hit_within_5d?: boolean | string | number | null;
+  stop_hit_within_5d?: boolean | string | number | null;
+  max_favorable_excursion_pct?: number | string | null;
+  max_adverse_excursion_pct?: number | string | null;
+  evaluation_window_start?: string | null;
+  evaluation_window_end?: string | null;
+  data_quality_warnings?: unknown;
   details?: Record<string, unknown> | null;
   summary?: string | null;
 };

@@ -50,6 +50,26 @@ export type SignalDeciderPathOutcome = {
   detail: string | null;
 };
 
+export type DeciderFiveDayEvaluationState = "computed" | "not-computed" | "pending" | "insufficient";
+
+export type DeciderFiveDayEvaluation = {
+  status: string | null;
+  label: string;
+  tone: SignalDeciderQualityTone;
+  state: DeciderFiveDayEvaluationState;
+  targetHitWithin5d: boolean | null;
+  stopHitWithin5d: boolean | null;
+  firstHit: string | null;
+  firstHitLabel: string;
+  ambiguousSameDay: boolean;
+  maxFavorableExcursionPct: number | null;
+  maxAdverseExcursionPct: number | null;
+  windowStart: string | null;
+  windowEnd: string | null;
+  windowLabel: string | null;
+  dataQualityWarnings: string[];
+};
+
 export type SignalDeciderCalendarSummaryItem = {
   marketDate: string;
   decisionCount: number;
@@ -150,6 +170,7 @@ export type SignalDeciderFeedbackItem = {
   reviewConclusion: string | null;
   pathOutcome: SignalDeciderPathOutcome | null;
   intradayPathResult: string | null;
+  fiveDayEvaluation: DeciderFiveDayEvaluation;
   outcomeHorizons: SignalDeciderOutcomeHorizon[];
   factorAttributions: SignalDeciderTraceEntry[];
   gateResults: SignalDeciderTraceEntry[];
@@ -868,6 +889,441 @@ function normalizePathOutcome(sources: Array<Record<string, unknown> | null | un
   return rawResult ? buildPathOutcome("ambiguous", detail) : null;
 }
 
+const FIVE_DAY_EVALUATION_RECORD_KEYS = [
+  "five_day_evaluation",
+  "five_day_decider_evaluation",
+  "five_trading_day_evaluation",
+  "five_trading_days_evaluation",
+  "evaluation_5d",
+  "evaluation_5_day",
+  "evaluation_5_trading_days",
+  "decider_evaluation_5d",
+  "decider_feedback_evaluation",
+  "target_stop_evaluation",
+  "target_stop_5d",
+  "target_stop_outcome_5d",
+  "short_term_evaluation",
+  "short_term_decider_evaluation",
+];
+
+const FIVE_DAY_STATUS_LABELS: Record<string, string> = {
+  target_hit_before_stop: "Target before stop",
+  stop_hit_before_target: "Stop before target",
+  target_and_stop_same_day_ambiguous: "Target/stop same-day ambiguous",
+  neither_hit_within_5d: "Neither hit within 5d",
+  invalid_missing_price_data: "Insufficient price data",
+  invalid_no_price_levels: "Missing target/stop levels",
+  not_applicable_wait_or_reject: "Not applicable",
+  not_computed_yet: "Not computed yet",
+  pending_evaluation_window: "Pending evaluation window",
+  insufficient_data: "Insufficient data",
+  trigger_not_confirmed: "Trigger not confirmed",
+  trigger_confirmed_then_target_hit: "Trigger confirmed, target hit",
+  trigger_confirmed_then_stop_hit: "Trigger confirmed, stop hit",
+  avoid_chase_validated: "Avoid-chase validated",
+  avoid_chase_missed_upside: "Avoid-chase missed upside",
+};
+
+function normalizeFiveDayStatus(rawStatus: string | null) {
+  const normalized = normalizeToken(rawStatus);
+  if (!normalized) return null;
+
+  if (
+    normalized === "target_hit_first" ||
+    normalized === "target_first" ||
+    normalized === "hit_target_first" ||
+    normalized === "target_before_stop" ||
+    normalized === "target_hit_before_stop_loss" ||
+    normalized === "take_profit_before_stop"
+  ) {
+    return "target_hit_before_stop";
+  }
+
+  if (
+    normalized === "stop_hit_first" ||
+    normalized === "stop_first" ||
+    normalized === "hit_stop_first" ||
+    normalized === "stop_before_target" ||
+    normalized === "stop_loss_before_target"
+  ) {
+    return "stop_hit_before_target";
+  }
+
+  if (
+    normalized === "ambiguous" ||
+    normalized === "same_day_ambiguous" ||
+    normalized === "target_stop_same_day_ambiguous" ||
+    normalized === "target_and_stop_ambiguous"
+  ) {
+    return "target_and_stop_same_day_ambiguous";
+  }
+
+  if (
+    normalized === "neither" ||
+    normalized === "no_hit" ||
+    normalized === "not_hit" ||
+    normalized === "neither_hit" ||
+    normalized === "unresolved" ||
+    normalized === "no_target_or_stop_hit"
+  ) {
+    return "neither_hit_within_5d";
+  }
+
+  if (normalized === "missing_price_data" || normalized === "invalid_price_data") return "invalid_missing_price_data";
+  if (normalized === "missing_price_levels" || normalized === "no_price_levels") return "invalid_no_price_levels";
+  if (normalized === "pending" || normalized === "wait_for_window" || normalized === "evaluation_window_pending") {
+    return "pending_evaluation_window";
+  }
+  if (normalized === "not_computed" || normalized === "missing_evaluation") return "not_computed_yet";
+  if (normalized === "insufficient" || normalized === "incomplete_data") return "insufficient_data";
+
+  return normalized;
+}
+
+function getFiveDayEvaluationTone(status: string | null): SignalDeciderQualityTone {
+  if (
+    status === "target_hit_before_stop" ||
+    status === "trigger_confirmed_then_target_hit" ||
+    status === "avoid_chase_validated"
+  ) {
+    return "positive";
+  }
+
+  if (
+    status === "stop_hit_before_target" ||
+    status === "trigger_confirmed_then_stop_hit" ||
+    status === "avoid_chase_missed_upside"
+  ) {
+    return "negative";
+  }
+
+  if (
+    status === "target_and_stop_same_day_ambiguous" ||
+    status === "invalid_missing_price_data" ||
+    status === "invalid_no_price_levels" ||
+    status === "insufficient_data"
+  ) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function getFiveDayEvaluationState(status: string | null): DeciderFiveDayEvaluationState {
+  if (status === "not_computed_yet") return "not-computed";
+  if (status === "pending_evaluation_window") return "pending";
+  if (
+    status === "insufficient_data" ||
+    status === "invalid_missing_price_data" ||
+    status === "invalid_no_price_levels"
+  ) {
+    return "insufficient";
+  }
+  return "computed";
+}
+
+function getFiveDayEvaluationLabel(status: string | null, rawLabel: string | null) {
+  if (rawLabel) return rawLabel;
+  if (!status) return FIVE_DAY_STATUS_LABELS.not_computed_yet;
+  return FIVE_DAY_STATUS_LABELS[status] ?? humanizeToken(status);
+}
+
+function hasFiveDayEvaluationEvidence(record: Record<string, unknown> | null | undefined) {
+  if (!record) return false;
+  const status = getStringValue(record, [
+    "five_day_status",
+    "five_day_outcome",
+    "five_day_evaluation_status",
+    "five_day_evaluation_outcome",
+    "evaluation_status",
+    "evaluation_outcome",
+    "outcome_status",
+    "outcome",
+    "status",
+    "result",
+    "target_stop_result",
+    "target_stop_outcome",
+  ]);
+  const normalizedStatus = normalizeFiveDayStatus(status);
+  if (normalizedStatus && FIVE_DAY_STATUS_LABELS[normalizedStatus]) return true;
+
+  return [
+    "target_hit_within_5d",
+    "target_hit_within_5_trading_days",
+    "stop_hit_within_5d",
+    "stop_loss_hit_within_5d",
+    "first_hit",
+    "which_happened_first",
+    "ambiguous_same_day",
+    "target_and_stop_same_day",
+    "max_favorable_excursion_pct",
+    "mfe_pct",
+    "max_adverse_excursion_pct",
+    "mae_pct",
+    "evaluation_window_start",
+    "evaluation_window_end",
+    "evaluation_window",
+    "window_start",
+    "window_end",
+    "data_quality_warnings",
+    "data_warnings",
+  ].some((key) => key in record);
+}
+
+function getFiveDayEvaluationRecord(sources: Array<Record<string, unknown> | null | undefined>) {
+  for (const source of sources) {
+    for (const key of FIVE_DAY_EVALUATION_RECORD_KEYS) {
+      const value = getRecordValue(source, [key]);
+      if (hasFiveDayEvaluationEvidence(value)) return value;
+    }
+  }
+
+  return sources.find(hasFiveDayEvaluationEvidence) ?? null;
+}
+
+function normalizeEvaluationDate(value: unknown) {
+  if (typeof value !== "string" || !hasTextValue(value)) return null;
+  const trimmed = value.trim();
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed);
+  return match?.[1] ?? trimmed;
+}
+
+function getEvaluationWindow(record: Record<string, unknown> | null | undefined) {
+  const windowRecord = getRecordValue(record, [
+    "evaluation_window",
+    "window",
+    "window_dates",
+    "five_day_window",
+    "evaluation_dates",
+  ]);
+  const windowArray = Array.isArray(record?.evaluation_window)
+    ? record?.evaluation_window
+    : Array.isArray(record?.window)
+      ? record?.window
+      : null;
+  const windowText =
+    typeof record?.evaluation_window === "string"
+      ? record.evaluation_window
+      : typeof record?.window === "string"
+        ? record.window
+        : null;
+  const start =
+    normalizeEvaluationDate(
+      record?.evaluation_window_start ??
+        record?.window_start ??
+        record?.start_date ??
+        record?.from_date ??
+        record?.first_evaluation_date,
+    ) ??
+    normalizeEvaluationDate(
+      windowRecord?.start ??
+        windowRecord?.start_date ??
+        windowRecord?.from ??
+        windowRecord?.first_date ??
+        windowRecord?.market_date_start,
+    ) ??
+    (windowArray ? normalizeEvaluationDate(windowArray[0]) : null);
+  const end =
+    normalizeEvaluationDate(
+      record?.evaluation_window_end ??
+        record?.window_end ??
+        record?.end_date ??
+        record?.to_date ??
+        record?.through_date ??
+        record?.last_evaluation_date,
+    ) ??
+    normalizeEvaluationDate(
+      windowRecord?.end ??
+        windowRecord?.end_date ??
+        windowRecord?.to ??
+        windowRecord?.last_date ??
+        windowRecord?.market_date_end,
+    ) ??
+    (windowArray ? normalizeEvaluationDate(windowArray[1]) : null);
+  const label = start && end ? `${start} -> ${end}` : start ?? end ?? (hasTextValue(windowText) ? windowText.trim() : null);
+
+  return { start, end, label };
+}
+
+function normalizeFirstHitLabel(status: string | null, rawFirstHit: string | null) {
+  const normalizedFirstHit = normalizeToken(rawFirstHit);
+  if (
+    status === "target_hit_before_stop" ||
+    normalizedFirstHit === "target" ||
+    normalizedFirstHit === "target_first" ||
+    normalizedFirstHit === "take_profit"
+  ) {
+    return { firstHit: "target", firstHitLabel: "Target first" };
+  }
+  if (
+    status === "stop_hit_before_target" ||
+    normalizedFirstHit === "stop" ||
+    normalizedFirstHit === "stop_first" ||
+    normalizedFirstHit === "stop_loss"
+  ) {
+    return { firstHit: "stop", firstHitLabel: "Stop first" };
+  }
+  if (status === "target_and_stop_same_day_ambiguous" || normalizedFirstHit.includes("ambiguous")) {
+    return { firstHit: "same-day-ambiguous", firstHitLabel: "Same-day ambiguous" };
+  }
+  if (status === "neither_hit_within_5d" || normalizedFirstHit === "neither" || normalizedFirstHit === "none") {
+    return { firstHit: "neither", firstHitLabel: "Neither" };
+  }
+  if (status === "trigger_not_confirmed") {
+    return { firstHit: "trigger-not-confirmed", firstHitLabel: "Trigger not confirmed" };
+  }
+  if (status === "trigger_confirmed_then_target_hit") {
+    return { firstHit: "target", firstHitLabel: "Trigger then target" };
+  }
+  if (status === "trigger_confirmed_then_stop_hit") {
+    return { firstHit: "stop", firstHitLabel: "Trigger then stop" };
+  }
+  if (rawFirstHit) return { firstHit: normalizedFirstHit || rawFirstHit, firstHitLabel: humanizeToken(rawFirstHit) };
+  return { firstHit: null, firstHitLabel: "[확인 필요]" };
+}
+
+function getWarningsFromEvaluationRecord(record: Record<string, unknown> | null | undefined, ambiguousSameDay: boolean) {
+  const warnings = [
+    ...flattenStringList(record?.data_quality_warnings),
+    ...flattenStringList(record?.data_warnings),
+    ...flattenStringList(record?.quality_warnings),
+    ...flattenStringList(record?.warnings),
+    ...flattenStringList(record?.issues),
+    ...flattenStringList(record?.missing_price_dates),
+    ...flattenStringList(record?.missing_dates),
+    ...flattenStringList(record?.invalid_reason),
+    ...flattenStringList(record?.stale_reason),
+  ].filter((warning, index, all) => all.indexOf(warning) === index);
+
+  if (
+    ambiguousSameDay &&
+    !warnings.some((warning) => normalizeToken(warning).includes("sequence") || normalizeToken(warning).includes("ambiguous"))
+  ) {
+    warnings.unshift("Target and stop were inside the same daily candle; intraday sequence cannot be proven.");
+  }
+
+  return warnings;
+}
+
+function normalizeFiveDayEvaluation({
+  sources,
+}: {
+  sources: Array<Record<string, unknown> | null | undefined>;
+}): DeciderFiveDayEvaluation {
+  const record = getFiveDayEvaluationRecord(sources);
+  if (!record) {
+    return {
+      status: "not_computed_yet",
+      label: FIVE_DAY_STATUS_LABELS.not_computed_yet,
+      tone: "neutral",
+      state: "not-computed",
+      targetHitWithin5d: null,
+      stopHitWithin5d: null,
+      firstHit: null,
+      firstHitLabel: "[확인 필요]",
+      ambiguousSameDay: false,
+      maxFavorableExcursionPct: null,
+      maxAdverseExcursionPct: null,
+      windowStart: null,
+      windowEnd: null,
+      windowLabel: null,
+      dataQualityWarnings: [],
+    };
+  }
+
+  const rawStatus =
+    getStringValue(record, [
+      "five_day_status",
+      "five_day_outcome",
+      "five_day_evaluation_status",
+      "five_day_evaluation_outcome",
+      "evaluation_status",
+      "evaluation_outcome",
+      "outcome_status",
+      "outcome",
+      "status",
+      "result",
+      "target_stop_result",
+      "target_stop_outcome",
+      "short_term_outcome",
+    ]);
+  const status =
+    normalizeFiveDayStatus(rawStatus) ??
+    (getBooleanFromSources([record], ["window_complete", "is_complete", "complete"]) === false
+      ? "pending_evaluation_window"
+      : "insufficient_data");
+  const targetHitWithin5d = getBooleanFromSources([record], [
+    "target_hit_within_5d",
+    "target_hit_within_5_trading_days",
+    "target_hit_5d",
+    "target_hit",
+    "hit_target",
+    "take_profit_hit",
+  ]);
+  const stopHitWithin5d = getBooleanFromSources([record], [
+    "stop_hit_within_5d",
+    "stop_loss_hit_within_5d",
+    "stop_hit_5d",
+    "stop_hit",
+    "hit_stop",
+    "stop_loss_hit",
+  ]);
+  const rawFirstHit = getStringValue(record, [
+    "first_hit",
+    "first_event",
+    "first_trigger",
+    "which_happened_first",
+    "hit_first",
+    "hit_order",
+    "target_stop_sequence",
+    "sequence",
+  ]);
+  const firstHit = normalizeFirstHitLabel(status, rawFirstHit);
+  const ambiguousSameDay =
+    status === "target_and_stop_same_day_ambiguous" ||
+    getBooleanFromSources([record], [
+      "ambiguous_same_day",
+      "same_day_ambiguous",
+      "target_and_stop_same_day",
+      "target_and_stop_inside_same_daily_candle",
+      "same_candle_ambiguous",
+      "ambiguous_intraday_sequence",
+      "cannot_prove_sequence",
+    ]) === true;
+  const window = getEvaluationWindow(record);
+  const rawLabel = getStringValue(record, ["label", "outcome_label", "status_label", "display_label"]);
+
+  return {
+    status,
+    label: getFiveDayEvaluationLabel(status, rawLabel),
+    tone: getFiveDayEvaluationTone(status),
+    state: getFiveDayEvaluationState(status),
+    targetHitWithin5d,
+    stopHitWithin5d,
+    firstHit: firstHit.firstHit,
+    firstHitLabel: firstHit.firstHitLabel,
+    ambiguousSameDay,
+    maxFavorableExcursionPct: toFiniteNumber(
+      record.max_favorable_excursion_pct ??
+        record.mfe_pct ??
+        record.max_favorable_pct ??
+        record.max_upside_pct ??
+        record.max_gain_pct,
+    ),
+    maxAdverseExcursionPct: toFiniteNumber(
+      record.max_adverse_excursion_pct ??
+        record.mae_pct ??
+        record.max_adverse_pct ??
+        record.max_downside_pct ??
+        record.max_drawdown_pct,
+    ),
+    windowStart: window.start,
+    windowEnd: window.end,
+    windowLabel: window.label,
+    dataQualityWarnings: getWarningsFromEvaluationRecord(record, ambiguousSameDay),
+  };
+}
+
 function resolveReviewConclusion({
   action,
   outcomeHorizons,
@@ -1084,6 +1540,9 @@ export function normalizeSignalDeciderFeedbackItems(
       const policyRecord = getFirstRecordFromSources(rootSources, ["policy", "decision_policy", "ruleset"]);
       const qualitySources = [...rootSources, evaluationRecord, outcomeRecord];
       const quality = normalizeQualityTag({ action, sources: qualitySources });
+      const fiveDayEvaluation = normalizeFiveDayEvaluation({
+        sources: [...rootSources, evaluationRecord, outcomeRecord],
+      });
       const outcomeHorizons = getValuesFromSources([...rootSources, evaluationRecord, outcomeRecord], [
         "realized_results",
         "realized_outcomes",
@@ -1189,6 +1648,7 @@ export function normalizeSignalDeciderFeedbackItems(
         reviewConclusion,
         pathOutcome,
         intradayPathResult,
+        fiveDayEvaluation,
         outcomeHorizons,
         factorAttributions,
         gateResults,
@@ -1239,6 +1699,7 @@ export function compactSignalDeciderFeedbackForDashboard(
         policy_version: item.policyVersion,
         quality_verdict: item.qualityVerdict,
         quality_reason: item.qualityReason,
+        five_day_evaluation: item.fiveDayEvaluation,
       },
       normalized_feedback: null,
       details: null,

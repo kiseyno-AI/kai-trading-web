@@ -524,6 +524,23 @@
       "resultEmpty": "추가 메모 없이 실현 결과가 기록되어 있습니다.",
       "noRealizedOutcome": "이 행에는 실현 결과가 아직 없습니다."
     },
+    "evaluation": {
+      "title": "5일 평가",
+      "status": "평가 상태",
+      "targetHit": "5일 내 목표 도달",
+      "stopHit": "5일 내 손절 도달",
+      "firstHit": "선행 이벤트",
+      "maxFavorableExcursion": "최대 유리 변동",
+      "maxAdverseExcursion": "최대 불리 변동",
+      "window": "평가 기간",
+      "windowPending": "기간 미저장",
+      "warnings": "데이터 품질 경고",
+      "yes": "예",
+      "no": "아니오",
+      "notComputedMessage": "이 결정에 대해 저장된 5일 평가 행이 아직 없습니다.",
+      "pendingWindowMessage": "저장된 평가가 5거래일 평가 기간이 아직 진행 중이라고 보고했습니다.",
+      "insufficientDataMessage": "저장된 평가가 가격 데이터 또는 목표/손절 가격 부족으로 불완전합니다."
+    },
     "counts": {
       "risks": "리스크",
       "factors": "요인",

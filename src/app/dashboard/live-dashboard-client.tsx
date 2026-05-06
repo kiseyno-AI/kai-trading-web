@@ -877,6 +877,11 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
                       : UNKNOWN_LABEL}
                 </span>
               </div>
+              <div className={styles.signalDeciderPreviewEvaluation}>
+                <span className={`pill ${getSignalDeciderQualityTone(item.fiveDayEvaluation.tone)}`}>
+                  {item.fiveDayEvaluation.label}
+                </span>
+              </div>
               {item.thesisSummary ? <p className="clamp-3">{item.thesisSummary}</p> : null}
             </div>
           ))}
