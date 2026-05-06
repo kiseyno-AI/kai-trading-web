@@ -434,9 +434,7 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
     );
     assert.deepEqual(
       filterFactorScreeningRows(workspace.families.advancedValue.rows, {
-        eligibleOnly: true,
-        includeAudit: true,
-        includeCaution: true,
+        mode: "eligible",
         query: "",
       }).map((row) => row.symbol),
       ["005930"],
@@ -553,9 +551,7 @@ test("market-date helpers and row filters preserve ranking intent without hiding
 
   assert.equal(
     filterFactorScreeningRows(rows, {
-      eligibleOnly: true,
-      includeAudit: true,
-      includeCaution: true,
+      mode: "eligible",
       query: "",
     }).length,
     1,
@@ -563,9 +559,7 @@ test("market-date helpers and row filters preserve ranking intent without hiding
 
   assert.deepEqual(
     filterFactorScreeningRows(rows, {
-      eligibleOnly: false,
-      includeAudit: false,
-      includeCaution: true,
+      mode: "review",
       query: "naver",
     }).map((row) => row.symbol),
     ["035420"],
@@ -573,11 +567,25 @@ test("market-date helpers and row filters preserve ranking intent without hiding
 
   assert.deepEqual(
     filterFactorScreeningRows(rows, {
-      eligibleOnly: false,
-      includeAudit: true,
-      includeCaution: false,
+      mode: "all",
       query: "",
     }).map((row) => row.symbol),
-    ["005930", "000660"],
+    ["005930", "035420", "000660"],
+  );
+
+  assert.deepEqual(
+    filterFactorScreeningRows(rows, {
+      mode: "caution",
+      query: "",
+    }).map((row) => row.symbol),
+    ["035420"],
+  );
+
+  assert.deepEqual(
+    filterFactorScreeningRows(rows, {
+      mode: "audit",
+      query: "",
+    }).map((row) => row.symbol),
+    ["000660"],
   );
 });

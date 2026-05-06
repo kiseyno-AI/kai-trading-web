@@ -348,6 +348,21 @@ const emptyFactorPayloads = {
   },
 } satisfies FactorPayloadFixtures;
 
+const eligibleMomentumOnlyPayloads = {
+  ...factorPayloads,
+  momentum: {
+    ...factorPayloads.momentum,
+    summary: {
+      ...factorPayloads.momentum.summary,
+      entries: 1,
+      eligible_symbols: 1,
+      matched_symbols: ["005930"],
+      ranked_symbols: 1,
+    },
+    items: [factorPayloads.momentum.items[0]],
+  },
+} satisfies FactorPayloadFixtures;
+
 const symbolMeta = {
   "005930": {
     market: "KOSPI",
@@ -686,17 +701,39 @@ test("factor screening supports switching, eligibility filtering, composite plac
 
   await page.goto("/markets/factors");
 
+  const activeFilterValue = page.getByTestId("factor-active-filter-value");
+
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
   await expect(page.locator('.side-nav a[href="/markets"]')).toHaveClass(/active/);
   await expect(page.getByText("2026.04.23").first()).toBeVisible();
+  await expect(activeFilterValue).toHaveText("Review set");
   await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open NAVER/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toHaveCount(0);
 
-  await page.getByLabel(/Eligible only/i).check();
+  await page.getByRole("radio", { name: /Eligible/i }).click();
+  await expect(activeFilterValue).toHaveText("Eligible");
   await expect(page.getByRole("link", { name: /Open NAVER/i })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toHaveCount(0);
 
-  await page.getByLabel(/Eligible only/i).uncheck();
+  await page.getByRole("radio", { name: /Caution/i }).click();
+  await expect(activeFilterValue).toHaveText("Caution");
+  await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Open NAVER/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toHaveCount(0);
+
+  await page.getByRole("radio", { name: /Audit/i }).click();
+  await expect(activeFilterValue).toHaveText("Audit");
+  await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Open NAVER/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toBeVisible();
+
+  await page.getByRole("radio", { name: /All/i }).click();
+  await expect(activeFilterValue).toHaveText("All");
+  await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open NAVER/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toBeVisible();
+
   await page.getByRole("button", { name: /Low risk/i }).click();
   await expect(page.getByText("Low-risk score").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toBeVisible();
@@ -721,6 +758,24 @@ test("factor screening supports switching, eligibility filtering, composite plac
     /\/dashboard\/symbol\/000660\?name=SK\+Hynix&market=KOSPI&marketDate=2026-04-23/,
   );
   await expect(page.getByRole("heading", { name: /SK Hynix/i })).toBeVisible();
+});
+
+test("factor screening active filter does not report caution for eligible-only momentum results", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 750 });
+  await stubFactorScreeningApis(page, eligibleMomentumOnlyPayloads);
+
+  await page.goto("/markets/factors");
+  await page.getByRole("button", { name: /Korean/i }).first().click();
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(page.getByRole("heading", { name: /팩터 순위 워크스페이스/i })).toBeVisible();
+  await expect(page.getByText("적격: 1").first()).toBeVisible();
+  await expect(page.getByText("주의: 0").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Samsung Electronics \(005930\) 상세 열기/i })).toBeVisible();
+  await expect(page.getByTestId("factor-active-filter-value")).toHaveText("검토 세트");
+  await expect(page.getByTestId("factor-active-filter-value")).not.toHaveText("주의");
 });
 
 test("factor screening removes loading copy after empty family results resolve", async ({ page }) => {

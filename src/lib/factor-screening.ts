@@ -110,11 +110,13 @@ export type FactorScreeningWorkspace = {
   families: Record<FactorScreeningFamilyId, FactorScreeningDataset>;
 };
 
+export const FACTOR_SCREENING_FILTER_MODES = ["review", "all", "eligible", "caution", "audit"] as const;
+
+export type FactorScreeningFilterMode = (typeof FACTOR_SCREENING_FILTER_MODES)[number];
+
 export type FactorScreeningFilterOptions = {
   query: string;
-  eligibleOnly: boolean;
-  includeCaution: boolean;
-  includeAudit: boolean;
+  mode: FactorScreeningFilterMode;
 };
 
 const COMPOSITE_FAMILY_META = {
@@ -1028,6 +1030,24 @@ export function getFactorScreeningMarketDateNote(
   return `Requested ${requestedDate}. Showing stored rows for ${effectiveDate}.`;
 }
 
+export function doesFactorScreeningRowMatchFilterMode(
+  row: FactorScreeningRow,
+  mode: FactorScreeningFilterMode,
+) {
+  switch (mode) {
+    case "all":
+      return true;
+    case "eligible":
+      return row.statusBucket === "eligible";
+    case "caution":
+      return row.statusBucket === "caution";
+    case "audit":
+      return row.statusBucket === "audit";
+    case "review":
+      return row.statusBucket === "eligible" || row.statusBucket === "caution";
+  }
+}
+
 export function filterFactorScreeningRows(rows: FactorScreeningRow[], filters: FactorScreeningFilterOptions) {
   const normalizedQuery = normalizeText(filters.query);
 
@@ -1036,19 +1056,7 @@ export function filterFactorScreeningRows(rows: FactorScreeningRow[], filters: F
       return false;
     }
 
-    if (filters.eligibleOnly) {
-      return row.isEligible;
-    }
-
-    if (row.statusBucket === "eligible") {
-      return true;
-    }
-
-    if (row.statusBucket === "caution") {
-      return filters.includeCaution;
-    }
-
-    return filters.includeAudit;
+    return doesFactorScreeningRowMatchFilterMode(row, filters.mode);
   });
 }
 
