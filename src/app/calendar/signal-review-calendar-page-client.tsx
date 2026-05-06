@@ -516,8 +516,30 @@ function getHorizonSummary(item: SignalDeciderFeedbackItem, day: number) {
     : outcome.verdict ?? outcome.notes ?? UNKNOWN_LABEL;
 }
 
-function getDetailSummary(item: SignalDeciderFeedbackItem) {
-  return item.reviewConclusion ?? item.qualityReason ?? item.qualityVerdict ?? UNKNOWN_LABEL;
+function getStoredReviewSummary(item: SignalDeciderFeedbackItem) {
+  return item.reviewConclusion ?? item.qualityReason ?? item.qualityVerdict ?? null;
+}
+
+function isPlainWaitPendingRow(item: SignalDeciderFeedbackItem) {
+  return item.action === "wait" && item.pathOutcome === null && getStoredReviewSummary(item) === null;
+}
+
+function getDecisionRowDetailSummary(item: SignalDeciderFeedbackItem, status: SignalDeciderFeedbackStatus) {
+  const summary = getStoredReviewSummary(item);
+  if (summary) return summary;
+  if (isPlainWaitPendingRow(item) && status !== "needs-review") return null;
+  return UNKNOWN_LABEL;
+}
+
+function getTableInsightSummary(
+  item: SignalDeciderFeedbackItem,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+  status: SignalDeciderFeedbackStatus,
+) {
+  const summary = getStoredReviewSummary(item);
+  if (summary) return summary;
+  if (isPlainWaitPendingRow(item) && status !== "needs-review") return copy.status.pending;
+  return UNKNOWN_LABEL;
 }
 
 function isDiagnosticRiskToken(value: string) {
@@ -1166,22 +1188,27 @@ export default function SignalReviewCalendarPageClient() {
               <div className={styles.emptyState}>{copy.states.emptySelected}</div>
             ) : (
               <div className={styles.decisionList}>
-                {selectedSummary.items.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`${styles.decisionRow} ${selectedItemId === item.id ? styles.selectedDecision : ""}`.trim()}
-                    onClick={() => setSelectedItemId(item.id)}
-                  >
-                    <span className={styles.symbolBlock}>
-                      <strong>{item.companyName ?? item.symbol}</strong>
-                      <small>{item.symbol}</small>
-                    </span>
-                    <span className={`pill ${getActionToneClass(item.action)}`}>{formatSignalDeciderActionLabel(item.action)}</span>
-                    <span>{item.pathOutcome?.label ?? item.qualityVerdict ?? copy.status.pending}</span>
-                    <span>{getDetailSummary(item)}</span>
-                  </button>
-                ))}
+                {selectedSummary.items.map((item) => {
+                  const decisionRowDetail = getDecisionRowDetailSummary(item, selectedSummary.status);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`${styles.decisionRow} ${selectedItemId === item.id ? styles.selectedDecision : ""}`.trim()}
+                      onClick={() => setSelectedItemId(item.id)}
+                    >
+                      <span className={styles.symbolBlock}>
+                        <strong>{item.companyName ?? item.symbol}</strong>
+                        <small>{item.symbol}</small>
+                      </span>
+                      <span className={`pill ${getActionToneClass(item.action)}`}>
+                        {formatSignalDeciderActionLabel(item.action)}
+                      </span>
+                      <span>{item.pathOutcome?.label ?? item.qualityVerdict ?? copy.status.pending}</span>
+                      {decisionRowDetail ? <span>{decisionRowDetail}</span> : null}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </aside>
@@ -1243,7 +1270,7 @@ export default function SignalReviewCalendarPageClient() {
                           copy.states.pathUnavailable
                         )}
                       </td>
-                      <td>{getDetailSummary(item)}</td>
+                      <td>{getTableInsightSummary(item, copy, selectedSummary.status)}</td>
                       <td>
                         <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
                           {copy.actions.review}
