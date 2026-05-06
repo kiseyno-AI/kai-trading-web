@@ -9,6 +9,7 @@ import { useAppState } from "@/components/providers/app-state-provider";
 import { PageIntro } from "@/components/ui/page-intro";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
 import {
+  FACTOR_SCREENING_FILTER_MODES,
   FACTOR_SCREENING_FAMILY_ORDER,
   filterFactorScreeningRows,
   getFactorScreeningMarketDateNote,
@@ -16,6 +17,7 @@ import {
   resolveFactorScreeningFamily,
   resolveFactorScreeningMarketDate,
   type FactorScreeningDataset,
+  type FactorScreeningFilterMode,
   type FactorScreeningFamilyId,
   type FactorScreeningWorkspace,
 } from "@/lib/factor-screening";
@@ -50,8 +52,13 @@ const copyByLocale = {
     futureSlotBody:
       "Composite is intentionally wired as a reserved slot now. When the composite endpoint lands, it can fill this screen without redesigning the family selector or ranked-row layout.",
     futureSlotTitle: "Composite ranking slot reserved",
-    includeAudit: "Include audit / invalid rows",
-    includeCaution: "Include caution / watchlist",
+    filterModes: {
+      all: "All",
+      audit: "Audit",
+      caution: "Caution",
+      eligible: "Eligible",
+      review: "Review set",
+    },
     introDescription:
       "A market-date aware ranking surface built on the live factor inspect APIs. Switch factor families, keep eligibility explicit, and drill straight into symbol detail without inventing client-side factor math.",
     introEyebrow: "Factor Screening",
@@ -74,7 +81,6 @@ const copyByLocale = {
     rowsReturned: "Rows returned",
     searchStatus: "Search status",
     selectedFamily: "Selected family",
-    showOnlyEligible: "Eligible only",
     showingFirst: (visible: number, total: number) =>
       `Showing the first ${visible.toLocaleString("en-US")} rows out of ${total.toLocaleString("en-US")} matching rows.`,
     sortBasis: "Sort basis",
@@ -113,8 +119,13 @@ const copyByLocale = {
     futureSlotBody:
       "합성은 지금부터 예약 슬롯으로 배치했습니다. 합성 엔드포인트가 추가되면 패밀리 선택기나 순위 행 레이아웃을 다시 설계하지 않고 이 화면에 바로 연결할 수 있습니다.",
     futureSlotTitle: "합성 순위 슬롯 예약됨",
-    includeAudit: "감사 / 무효 행 포함",
-    includeCaution: "주의 / 워치리스트 포함",
+    filterModes: {
+      all: "전체",
+      audit: "감사",
+      caution: "주의",
+      eligible: "적격",
+      review: "검토 세트",
+    },
     introDescription:
       "실제 팩터 inspect API 위에 구축한 시장 날짜 인지형 순위 화면입니다. 팩터 패밀리를 전환하고, 적격성을 명확히 유지하고, 클라이언트에서 팩터 수학을 재구성하지 않고 종목 상세로 바로 내려갈 수 있습니다.",
     introEyebrow: "팩터 스크리닝",
@@ -137,7 +148,6 @@ const copyByLocale = {
     rowsReturned: "반환 행",
     searchStatus: "검색 상태",
     selectedFamily: "선택 패밀리",
-    showOnlyEligible: "적격만",
     showingFirst: (visible: number, total: number) =>
       `일치한 ${total.toLocaleString("ko-KR")}개 중 처음 ${visible.toLocaleString("ko-KR")}개를 표시합니다.`,
     sortBasis: "정렬 기준",
@@ -176,8 +186,7 @@ const copyByLocale = {
     filterEyebrow: string;
     futureSlotBody: string;
     futureSlotTitle: string;
-    includeAudit: string;
-    includeCaution: string;
+    filterModes: Record<FactorScreeningFilterMode, string>;
     introDescription: string;
     introEyebrow: string;
     introTitle: string;
@@ -199,7 +208,6 @@ const copyByLocale = {
     rowsReturned: string;
     searchStatus: string;
     selectedFamily: string;
-    showOnlyEligible: string;
     showingFirst: (visible: number, total: number) => string;
     sortBasis: string;
     state: Record<FactorScreeningDataset["state"], string>;
@@ -252,6 +260,23 @@ function getFamilyFallbackLabel(family: FactorScreeningFamilyId) {
   }
 }
 
+function getFilterModeCount(dataset: FactorScreeningDataset | null, mode: FactorScreeningFilterMode) {
+  if (!dataset) return 0;
+
+  switch (mode) {
+    case "all":
+      return dataset.totalRows;
+    case "eligible":
+      return dataset.eligibleCount;
+    case "caution":
+      return dataset.cautionCount;
+    case "audit":
+      return dataset.auditCount;
+    case "review":
+      return dataset.eligibleCount + dataset.cautionCount;
+  }
+}
+
 export function FactorScreening() {
   const router = useRouter();
   const pathname = usePathname();
@@ -266,9 +291,7 @@ export function FactorScreening() {
   );
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const [eligibleOnly, setEligibleOnly] = useState(false);
-  const [includeCaution, setIncludeCaution] = useState(true);
-  const [includeAudit, setIncludeAudit] = useState(false);
+  const [filterMode, setFilterMode] = useState<FactorScreeningFilterMode>("review");
   const [visibleRows, setVisibleRows] = useState<number>(50);
 
   const updateSearch = (updater: (nextParams: URLSearchParams) => void) => {
@@ -328,13 +351,11 @@ export function FactorScreening() {
     () =>
       selectedDataset?.rows
         ? filterFactorScreeningRows(selectedDataset.rows, {
-            eligibleOnly,
-            includeAudit,
-            includeCaution,
+            mode: filterMode,
             query: deferredQuery,
           })
         : [],
-    [deferredQuery, eligibleOnly, includeAudit, includeCaution, selectedDataset?.rows],
+    [deferredQuery, filterMode, selectedDataset],
   );
   const visibleRowItems = filteredRows.slice(0, visibleRows);
   const hiddenRowsCount = Math.max(0, filteredRows.length - visibleRowItems.length);
@@ -498,33 +519,24 @@ export function FactorScreening() {
               </select>
             </label>
 
-            <div className={styles.toggleGrid} aria-label={copy.filterEyebrow}>
-              <label className={styles.toggle}>
-                <input
-                  type="checkbox"
-                  checked={eligibleOnly}
-                  onChange={(event) => setEligibleOnly(event.target.checked)}
-                />
-                <span>{copy.showOnlyEligible}</span>
-              </label>
-              <label className={styles.toggle}>
-                <input
-                  type="checkbox"
-                  checked={includeCaution}
-                  onChange={(event) => setIncludeCaution(event.target.checked)}
-                  disabled={eligibleOnly}
-                />
-                <span>{copy.includeCaution}</span>
-              </label>
-              <label className={styles.toggle}>
-                <input
-                  type="checkbox"
-                  checked={includeAudit}
-                  onChange={(event) => setIncludeAudit(event.target.checked)}
-                  disabled={eligibleOnly}
-                />
-                <span>{copy.includeAudit}</span>
-              </label>
+            <div className={styles.filterModeGrid} role="radiogroup" aria-label={copy.filterEyebrow}>
+              {FACTOR_SCREENING_FILTER_MODES.map((mode) => {
+                const isActive = mode === filterMode;
+
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    className={`${styles.filterModeButton} ${isActive ? styles.filterModeButtonActive : ""}`.trim()}
+                    onClick={() => setFilterMode(mode)}
+                  >
+                    <span>{copy.filterModes[mode]}</span>
+                    <strong>{getFilterModeCount(selectedDataset, mode).toLocaleString(numberLocale)}</strong>
+                  </button>
+                );
+              })}
             </div>
           </form>
         </div>
@@ -652,12 +664,8 @@ export function FactorScreening() {
                   </div>
                   <div className={styles.summaryBadge}>
                     <span>{copy.activeFilters}</span>
-                    <strong>
-                      {eligibleOnly
-                        ? copy.showOnlyEligible
-                        : [includeCaution ? copy.statusCaution : null, includeAudit ? copy.statusAudit : null]
-                            .filter(Boolean)
-                            .join(" + ") || copy.statusEligible}
+                    <strong data-testid="factor-active-filter-value">
+                      {copy.filterModes[filterMode]}
                     </strong>
                   </div>
                   <div className={styles.summaryBadge}>
