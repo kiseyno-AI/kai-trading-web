@@ -986,10 +986,16 @@ function getFilterMarketDateNote(
 function getFilteringStageStatus(
   loadState: FilteringStageLoadState,
   requestedMarketDate: string | null,
+  isDailyProcessRunning: boolean,
 ): FilteringStageStatus {
   if (loadState === "ready") return "completed";
   if (loadState === "error") return "needs-review";
+  if (isDailyProcessRunning && requestedMarketDate) return "waiting";
   return requestedMarketDate ? "pending" : "waiting";
+}
+
+function isDailyPipelineRunning(pipelineStatus: EodPipelineStatusResponseDto | null | undefined) {
+  return normalizePipelineStatus(pipelineStatus?.status) === "running";
 }
 
 function getFilteringStageStatusLabel(status: FilteringStageStatus, copy: DashboardLiveCopy) {
@@ -1016,6 +1022,7 @@ function buildFilteringStageStatusModel({
   stageMarketDatePendingMessage,
   stageError,
   isLatestFallback,
+  isDailyProcessRunning,
 }: {
   copy: DashboardLiveCopy;
   displayMarketDate: string | null;
@@ -1026,8 +1033,9 @@ function buildFilteringStageStatusModel({
   stageMarketDatePendingMessage: string;
   stageError: string | null;
   isLatestFallback: boolean;
+  isDailyProcessRunning: boolean;
 }) {
-  const status = getFilteringStageStatus(loadState, requestedMarketDate);
+  const status = getFilteringStageStatus(loadState, requestedMarketDate, isDailyProcessRunning);
   const statusLabel = getFilteringStageStatusLabel(status, copy);
   const statusTone = getFilteringStageStatusTone(status);
   const note =
@@ -1075,6 +1083,7 @@ function buildPiotroskiFilteringStageModel({
   piotroskiStatusError,
   piotroskiStatusLoadState,
   piotroskiMarketDate,
+  isDailyProcessRunning,
 }: {
   copy: DashboardLiveCopy;
   numberLocale: string;
@@ -1082,6 +1091,7 @@ function buildPiotroskiFilteringStageModel({
   piotroskiStatusError: string | null;
   piotroskiStatusLoadState: FilteringStageLoadState;
   piotroskiMarketDate: string | null;
+  isDailyProcessRunning: boolean;
 }): FilteringStageModel {
   const marketDateResolution = resolvePiotroskiMarketDateResolution(piotroskiStatus, piotroskiMarketDate);
   const displayMarketDate = marketDateResolution.effectiveMarketDate;
@@ -1095,8 +1105,15 @@ function buildPiotroskiFilteringStageModel({
     stageMarketDatePendingMessage: copy.piotroski.marketDatePending,
     stageError: piotroskiStatusError,
     isLatestFallback: marketDateResolution.isLatestFallback,
+    isDailyProcessRunning,
   });
-  const filteredCountLabel = formatEodSymbolCount(piotroskiStatus?.summary.passed_count ?? null, numberLocale);
+  const rawFilteredCountLabel = formatEodSymbolCount(piotroskiStatus?.summary.passed_count ?? null, numberLocale);
+  const isWaitingFromRunning = (
+    isDailyProcessRunning &&
+    statusModel.status === "waiting" &&
+    marketDateResolution.requestedMarketDate !== null
+  );
+  const filteredCountLabel = isWaitingFromRunning ? copy.piotroski.waiting : rawFilteredCountLabel;
 
   return {
     key: "piotroski",
@@ -1122,6 +1139,7 @@ function buildMarketRiskFilteringStageModel({
   marketRiskStatusLoadState,
   numberLocale,
   requestedMarketDate,
+  isDailyProcessRunning,
 }: {
   copy: DashboardLiveCopy;
   marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
@@ -1129,6 +1147,7 @@ function buildMarketRiskFilteringStageModel({
   marketRiskStatusLoadState: FilteringStageLoadState;
   numberLocale: string;
   requestedMarketDate: string | null;
+  isDailyProcessRunning: boolean;
 }): FilteringStageModel {
   const marketDateResolution = resolvePiotroskiMarketDateResolution(marketRiskStatus, requestedMarketDate);
   const displayMarketDate = marketDateResolution.effectiveMarketDate;
@@ -1142,8 +1161,15 @@ function buildMarketRiskFilteringStageModel({
     stageMarketDatePendingMessage: copy.marketRisk.marketDatePending,
     stageError: marketRiskStatusError,
     isLatestFallback: marketDateResolution.isLatestFallback,
+    isDailyProcessRunning,
   });
-  const filteredCountLabel = formatEodSymbolCount(marketRiskStatus?.summary.passed_count ?? null, numberLocale);
+  const rawFilteredCountLabel = formatEodSymbolCount(marketRiskStatus?.summary.passed_count ?? null, numberLocale);
+  const isWaitingFromRunning = (
+    isDailyProcessRunning &&
+    statusModel.status === "waiting" &&
+    marketDateResolution.requestedMarketDate !== null
+  );
+  const filteredCountLabel = isWaitingFromRunning ? copy.piotroski.waiting : rawFilteredCountLabel;
 
   return {
     key: "kis-risk",
@@ -1168,6 +1194,7 @@ export function buildFilteringCardModel({
   marketRiskStatus,
   marketRiskStatusError,
   marketRiskStatusLoadState,
+  pipelineStatus,
   numberLocale,
   piotroskiMarketDate,
   piotroskiStatus,
@@ -1179,6 +1206,7 @@ export function buildFilteringCardModel({
   marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
   marketRiskStatusError: string | null;
   marketRiskStatusLoadState: FilteringStageLoadState;
+  pipelineStatus?: EodPipelineStatusResponseDto | null;
   numberLocale: string;
   piotroskiMarketDate: string | null;
   piotroskiStatus: EodPiotroskiFilterResultsResponseDto | null;
@@ -1192,6 +1220,7 @@ export function buildFilteringCardModel({
     piotroskiStatusError,
     piotroskiStatusLoadState,
     piotroskiMarketDate,
+    isDailyProcessRunning: isDailyPipelineRunning(pipelineStatus),
   });
   const marketRiskStage = buildMarketRiskFilteringStageModel({
     copy,
@@ -1199,6 +1228,7 @@ export function buildFilteringCardModel({
     marketRiskStatusError,
     marketRiskStatusLoadState,
     numberLocale,
+    isDailyProcessRunning: isDailyPipelineRunning(pipelineStatus),
     requestedMarketDate: piotroskiMarketDate,
   });
   const finalFilteredCountLabel = formatEodSymbolCount(
@@ -1221,10 +1251,10 @@ function buildWaitingFilteringStageModel(
     ...stage,
     displayMarketDate: null,
     displayMarketDateLabel: UNKNOWN_LABEL,
-    filteredCountLabel: UNKNOWN_LABEL,
+    filteredCountLabel: copy.piotroski.waiting,
     metrics: stage.metrics.map((metric) => ({
       ...metric,
-      value: UNKNOWN_LABEL,
+      value: copy.piotroski.waiting,
     })),
     note: copy.piotroski.waiting,
     status: "waiting",
@@ -1238,7 +1268,7 @@ export function maskFilteringCardModelAsWaiting(
   copy: DashboardLiveCopy,
 ): FilteringCardModel {
   return {
-    finalFilteredCountLabel: UNKNOWN_LABEL,
+    finalFilteredCountLabel: copy.piotroski.waiting,
     piotroskiDisplayMarketDate: null,
     stages: [
       buildWaitingFilteringStageModel(model.stages[0], copy),
@@ -1772,6 +1802,7 @@ function buildScoringStageModel({
   requestedMarketDate,
   resultSummary,
   stageKey,
+  isDailyProcessRunning,
 }: {
   copy: DashboardLiveCopy;
   forceWaiting: boolean;
@@ -1780,14 +1811,20 @@ function buildScoringStageModel({
   requestedMarketDate: string | null;
   resultSummary: ScoringStageResultSummary;
   stageKey: ScoringStageKey;
+  isDailyProcessRunning: boolean;
 }): ScoringStageModel {
-  const displayMarketDate = forceWaiting
+  const baseStatus = getScoringStageStatus(pipelineStage, requestedMarketDate, resultSummary);
+  const isWaitingFromRunning = isDailyProcessRunning && requestedMarketDate !== null && baseStatus === "pending";
+  const shouldForceWaiting = forceWaiting || isWaitingFromRunning;
+  const displayMarketDate = shouldForceWaiting
     ? null
     : getScoringStageDisplayMarketDate(pipelineStage, requestedMarketDate, resultSummary);
-  const status = forceWaiting ? "waiting" : getScoringStageStatus(pipelineStage, requestedMarketDate, resultSummary);
-  const progressLabel = forceWaiting ? UNKNOWN_LABEL : getScoringProgressLabel(pipelineStage, numberLocale, resultSummary);
-  const metrics = forceWaiting
-    ? [buildScoringMetric("progress", copy.processMonitor.progress, UNKNOWN_LABEL)]
+  const status = shouldForceWaiting ? "waiting" : baseStatus;
+  const progressLabel = shouldForceWaiting
+    ? copy.scoring.statuses.waiting
+    : getScoringProgressLabel(pipelineStage, numberLocale, resultSummary);
+  const metrics = shouldForceWaiting
+    ? [buildScoringMetric("progress", copy.processMonitor.progress, copy.scoring.statuses.waiting)]
     : getScoringStageMetrics(pipelineStage, progressLabel, resultSummary, copy, numberLocale);
 
   return {
@@ -1796,7 +1833,7 @@ function buildScoringStageModel({
     displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
     label: getScoringStageLabel(stageKey, copy),
     metrics,
-    note: forceWaiting ? copy.scoring.notes.waiting : getScoringStageNote(status, pipelineStage, copy, resultSummary),
+    note: shouldForceWaiting ? copy.scoring.notes.waiting : getScoringStageNote(status, pipelineStage, copy, resultSummary),
     progressLabel,
     status,
     statusLabel: getScoringStageStatusLabel(status, copy),
@@ -1852,6 +1889,7 @@ export function buildScoringCardModel({
         requestedMarketDate,
         resultSummary: getScoringStageResultSummary(stage.key, resultSummaries),
         stageKey: stage.key,
+        isDailyProcessRunning: normalizePipelineStatus(pipelineStatus?.status) === "running",
       }),
     ),
   };

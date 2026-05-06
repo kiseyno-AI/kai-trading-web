@@ -20,7 +20,6 @@ import type {
 } from "@/types/trading-api";
 
 import {
-  UNKNOWN_LABEL,
   buildAgentRoleCards,
   getDailyProcessDependencyWaitState,
   buildEodStageCard,
@@ -1660,9 +1659,9 @@ test("builds a scoring card from non-agent pipeline scoring stages", () => {
   assert.equal(model.stages[0]?.progressLabel, "3,583 / 3,583");
   assert.equal(model.stages[0]?.note, copy.scoring.notes.completed);
   assert.equal(model.stages[1]?.label, copy.scoring.stages.quality);
-  assert.equal(model.stages[1]?.status, "pending");
-  assert.equal(model.stages[1]?.progressLabel, UNKNOWN_LABEL);
-  assert.equal(model.stages[1]?.note, copy.scoring.notes.pending);
+  assert.equal(model.stages[1]?.status, "waiting");
+  assert.equal(model.stages[1]?.progressLabel, copy.scoring.statuses.waiting);
+  assert.equal(model.stages[1]?.note, copy.scoring.notes.waiting);
   assert.equal(model.stages[2]?.status, "loading");
   assert.deepEqual(model.stages[2]?.metrics, [
     {
@@ -2039,12 +2038,12 @@ test("forces filtering, scoring, and feedback cards to waiting while EOD is chec
     waitForScoring: true,
   });
   assert.deepEqual(filteringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting"]);
-  assert.equal(filteringCardModel.finalFilteredCountLabel, UNKNOWN_LABEL);
+  assert.equal(filteringCardModel.finalFilteredCountLabel, copy.piotroski.waiting);
   assert.deepEqual(scoringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting", "waiting"]);
   assert.deepEqual(scoringCardModel.stages.map((stage) => stage.progressLabel), [
-    UNKNOWN_LABEL,
-    UNKNOWN_LABEL,
-    UNKNOWN_LABEL,
+    copy.scoring.statuses.waiting,
+    copy.scoring.statuses.waiting,
+    copy.scoring.statuses.waiting,
   ]);
   assert.equal(agentRoleCards.length > 0, true);
   assert.equal(agentRoleCards.every((role) => role.status === "pending"), true);
@@ -2111,6 +2110,66 @@ test("keeps refreshed EOD data visible and does not treat delayed filtering fetc
     waitForScoring: false,
   });
   assert.deepEqual(rawFilteringCardModel.stages.map((stage) => stage.status), ["pending", "pending"]);
+});
+
+test("maps pending filtering stages to waiting when daily process is running", () => {
+  const copy = getDashboardLiveCopy("en");
+  const filteringCardModel = buildFilteringCardModel({
+    agentFeedbackProgress: buildAgentFeedbackProgress({
+      marketDate: "2026-04-27",
+      symbols: ["005930", "000660", "035420"],
+      totalSymbols: 3,
+    }),
+    copy,
+    pipelineStatus: buildPipelineStatus({
+      status: "running",
+      stages: {
+        price_collection: { status: "running", processed: 100, total: 100, failed: 0 },
+      },
+    }),
+    marketRiskStatus: {
+      market_date: "2026-04-27",
+      summary: {
+        entries: 100,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 10,
+        watchlist_count: 2,
+        failed_count: 2,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "loading",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-27",
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "loading",
+  });
+
+  assert.deepEqual(filteringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting"]);
+  assert.equal(filteringCardModel.stages[0]?.filteredCountLabel, copy.piotroski.waiting);
+  assert.equal(filteringCardModel.stages[1]?.filteredCountLabel, copy.piotroski.waiting);
+});
+
+test("maps pending scoring stages to waiting while daily process is running", () => {
+  const copy = getDashboardLiveCopy("en");
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: buildPipelineStatus({ status: "running", stages: {} }),
+    scoringMarketDate: "2026-04-27",
+  });
+
+  assert.deepEqual(scoringCardModel.stages.map((stage) => stage.status), ["waiting", "waiting", "waiting"]);
+  assert.deepEqual(scoringCardModel.stages.map((stage) => stage.progressLabel), [
+    copy.scoring.statuses.waiting,
+    copy.scoring.statuses.waiting,
+    copy.scoring.statuses.waiting,
+  ]);
+  assert.equal(scoringCardModel.stages[0]?.note, copy.scoring.notes.waiting);
 });
 
 test("keeps EOD and filtering visible while scoring is checking and makes feedback wait", () => {
@@ -2183,7 +2242,7 @@ test("keeps EOD and filtering visible while scoring is checking and makes feedba
 
   assert.equal(eodStageCards[0]?.statusLabel, "synced");
   assert.equal(rawFilteringCardModel.stages[1]?.status, "completed");
-  assert.deepEqual(rawScoringCardModel.stages.map((stage) => stage.status), ["loading", "pending", "pending"]);
+  assert.deepEqual(rawScoringCardModel.stages.map((stage) => stage.status), ["loading", "waiting", "waiting"]);
   assert.deepEqual(waitState, {
     filteringChecking: false,
     scoringChecking: true,
