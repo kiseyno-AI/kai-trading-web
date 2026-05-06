@@ -1,3 +1,4 @@
+import { chromiumIPhone13 } from "./devices";
 import { expect, test } from "@playwright/test";
 
 test.describe("Piotroski pass-list route", () => {
@@ -66,5 +67,66 @@ test.describe("Piotroski pass-list route", () => {
     await expect(rows.nth(1)).toContainText("Quote unavailable");
     await expect(rows.nth(1)).toContainText("8");
     await expect.poll(() => quoteRequests.length).toBeGreaterThan(0);
+  });
+});
+
+test.describe("Piotroski pass-list route on mobile", () => {
+  test.use(chromiumIPhone13);
+
+  test("maps quote unavailable reason tokens to compact change copy", async ({ page }) => {
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          requested_market_date: "2026-04-29",
+          resolved_market_date: "2026-04-29",
+          is_latest_fallback: false,
+          market_date: "2026-04-29",
+          summary: {
+            entries: 2_811,
+            requested_symbol: null,
+            matched_symbols: ["000660"],
+            missing_symbols: [],
+            passed_count: 1,
+            not_passed_count: 0,
+          },
+          items: [
+            {
+              symbol: "000660",
+              market_date: "2026-04-29",
+              passed_filter: true,
+              piotroski_score: 9,
+              passes_piotroski_score: true,
+              captured_at: "2026-04-29T16:10:00+09:00",
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/000660", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol: "000660",
+          price: null,
+          change: null,
+          change_pct: null,
+          volume: null,
+          turnover: null,
+          market_state: "closed",
+          source: "api",
+          fallback: false,
+          is_live: false,
+          available: false,
+          unavailable_reason: "no_live_quote_or_fresh_fallback",
+        }),
+      });
+    });
+
+    await page.goto("/dashboard/piotroski-filter?marketDate=2026-04-29");
+
+    const row = page.locator('a[href*="/dashboard/symbol/000660"]');
+    await expect(row).toContainText("변동 미제공");
+    await expect(row).not.toContainText("no_live_quote_or_fresh_fallback");
   });
 });

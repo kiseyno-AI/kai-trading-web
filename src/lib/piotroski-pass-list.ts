@@ -63,6 +63,25 @@ export type PiotroskiPassListResult = {
   items: PiotroskiPassListItem[];
 };
 
+export const PIOTROSKI_UNAVAILABLE_CHANGE_LABEL = "변동 미제공";
+export const PIOTROSKI_UNAVAILABLE_CHANGE_FALLBACK_LABEL = "[확인 필요]";
+
+const PIOTROSKI_UNAVAILABLE_CHANGE_REASON_LABELS: Record<string, string> = {
+  no_live_quote_or_fresh_fallback: PIOTROSKI_UNAVAILABLE_CHANGE_LABEL,
+};
+
+export function getPiotroskiUnavailableChangeLabel(
+  unavailableReason: string | null | undefined,
+  fallbackLabel: string = PIOTROSKI_UNAVAILABLE_CHANGE_LABEL,
+) {
+  if (!hasTextValue(unavailableReason)) return fallbackLabel;
+
+  const normalizedReason = unavailableReason.trim();
+  if (!normalizedReason) return fallbackLabel;
+
+  return PIOTROSKI_UNAVAILABLE_CHANGE_REASON_LABELS[normalizedReason] ?? PIOTROSKI_UNAVAILABLE_CHANGE_FALLBACK_LABEL;
+}
+
 const PIOTROSKI_ITEM_ENRICHMENT_TIMEOUT_MS = 4_000;
 
 function getJsonErrorMessage(parsedBody: unknown) {

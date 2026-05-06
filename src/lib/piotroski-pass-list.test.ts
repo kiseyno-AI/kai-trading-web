@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPiotroskiListHref, buildPiotroskiPassListResult, resolvePiotroskiMarketDateResolution } from "./piotroski-pass-list";
+import {
+  buildPiotroskiListHref,
+  buildPiotroskiPassListResult,
+  getPiotroskiUnavailableChangeLabel,
+  resolvePiotroskiMarketDateResolution,
+} from "./piotroski-pass-list";
 
 test("prefers the returned effective market date while preserving requested and resolved metadata", () => {
   const resolution = resolvePiotroskiMarketDateResolution(
@@ -145,4 +150,10 @@ test("preserves the dashboard summary count when the API omits row details", () 
   assert.equal(result.marketDate, "2026-04-29");
   assert.equal(result.totalPassedCount, 106);
   assert.deepEqual(result.items, []);
+});
+
+test("maps unavailable quote-change reasons to compact, user-facing copy", () => {
+  assert.equal(getPiotroskiUnavailableChangeLabel("no_live_quote_or_fresh_fallback"), "변동 미제공");
+  assert.equal(getPiotroskiUnavailableChangeLabel("other_unstable_quote_state"), "[확인 필요]");
+  assert.equal(getPiotroskiUnavailableChangeLabel(undefined), "변동 미제공");
 });

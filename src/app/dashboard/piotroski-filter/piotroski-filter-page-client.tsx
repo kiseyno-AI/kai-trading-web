@@ -12,6 +12,7 @@ import {
   getPiotroskiMarketDate,
   loadPiotroskiPassList,
   loadPiotroskiPassListItemEnrichment,
+  getPiotroskiUnavailableChangeLabel,
   type PiotroskiPassListItem,
   type PiotroskiPassListResult,
 } from "@/lib/piotroski-pass-list";
@@ -252,7 +253,9 @@ export default function PiotroskiFilterPageClient() {
                     : "Quote unavailable";
                 const changeLabel = item.quote?.available
                   ? formatSignedPercent(item.quote.change_pct)
-                  : item.quote?.unavailable_reason ?? "Unavailable";
+                  : item.quote
+                    ? getPiotroskiUnavailableChangeLabel(item.quote.unavailable_reason)
+                    : "Unavailable";
 
                 return (
                   <Link
