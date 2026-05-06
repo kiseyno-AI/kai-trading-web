@@ -905,6 +905,35 @@ test("signal review calendar falls back to per-date feedback calls only when mon
     .toBe(1);
 });
 
+test("signal review calendar clears global loading once stored month data is available during partial fallback", async ({ page }) => {
+  const delayedDateFetch = createDeferred();
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-05-04": 85,
+    },
+    forceCalendarSummaryFailure: true,
+    feedbackDelays: {
+      "2026-05-05": delayedDateFetch.promise,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-05-04");
+
+  const selectedDateCell = page.getByRole("button", { name: /2026-05-04/ });
+  await expect(selectedDateCell).toContainText("85 decisions");
+  await expect(selectedDateCell).toContainText("Stored");
+  await expect(page.getByText("Loading decision dates")).toHaveCount(0);
+
+  const emptyNeighborCell = page.getByRole("button", { name: /2026-05-01/ });
+  await expect(emptyNeighborCell).toContainText("No rows");
+  await expect(
+    emptyNeighborCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("NO");
+
+  delayedDateFetch.resolve();
+  await expect(emptyNeighborCell).toContainText("No rows");
+});
+
 test("signal review calendar separates pending replay state from available rationale and diagnostic risks", async ({
   page,
 }) => {
