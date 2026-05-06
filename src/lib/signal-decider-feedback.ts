@@ -1522,8 +1522,14 @@ export function normalizeSignalDeciderFeedbackItems(
       const details = isRecord(payload.details) ? payload.details : null;
       const itemDetails = isRecord(item.details) ? item.details : null;
       const decisionSupport = getRecordValue(details, ["decision_support", "decisionSupport"]);
+      const rawFeedback = isRecord(item.feedback) ? item.feedback : null;
+      const rawFeedbackDetails =
+        rawFeedback && rawFeedback !== payload && isRecord(rawFeedback.details) ? rawFeedback.details : null;
+      const rawFeedbackDecisionSupport = getRecordValue(rawFeedbackDetails, ["decision_support", "decisionSupport"]);
       const payloadTraceability = isRecord(payload.traceability) ? payload.traceability : null;
       const rootSources = [payload, details, decisionSupport, itemDetails];
+      const rawFeedbackSources =
+        rawFeedback && rawFeedback !== payload ? [rawFeedback, rawFeedbackDetails, rawFeedbackDecisionSupport] : [];
       const evaluationRecord = getFirstRecordFromSources(rootSources, [
         "evaluation",
         "evaluation_summary",
@@ -1537,11 +1543,31 @@ export function normalizeSignalDeciderFeedbackItems(
         "realized_outcome",
         "realized_result",
       ]);
+      const rawFeedbackEvaluationRecord = getFirstRecordFromSources(rawFeedbackSources, [
+        "evaluation",
+        "evaluation_summary",
+        "decision_evaluation",
+        "decision_quality",
+        "quality",
+      ]);
+      const rawFeedbackOutcomeRecord = getFirstRecordFromSources(rawFeedbackSources, [
+        "outcome",
+        "outcome_summary",
+        "realized_outcome",
+        "realized_result",
+      ]);
       const policyRecord = getFirstRecordFromSources(rootSources, ["policy", "decision_policy", "ruleset"]);
       const qualitySources = [...rootSources, evaluationRecord, outcomeRecord];
       const quality = normalizeQualityTag({ action, sources: qualitySources });
       const fiveDayEvaluation = normalizeFiveDayEvaluation({
-        sources: [...rootSources, evaluationRecord, outcomeRecord],
+        sources: [
+          ...rootSources,
+          evaluationRecord,
+          outcomeRecord,
+          ...rawFeedbackSources,
+          rawFeedbackEvaluationRecord,
+          rawFeedbackOutcomeRecord,
+        ],
       });
       const outcomeHorizons = getValuesFromSources([...rootSources, evaluationRecord, outcomeRecord], [
         "realized_results",

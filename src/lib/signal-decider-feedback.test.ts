@@ -403,6 +403,64 @@ test("preserves decision fields when review verdict and outcome are absent", () 
   assert.deepEqual(item.outcomeHorizons, []);
 });
 
+test("uses raw persisted five-day evaluation when normalized feedback omits it", () => {
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        id: "normalized-with-raw-evaluation",
+        market_date: "2026-04-29",
+        symbol: "123456",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-04-29",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "123456",
+          market_date: "2026-04-29",
+          preferred_action: "buy",
+          five_day_evaluation: {
+            evaluation_status: "target_hit_before_stop",
+            target_hit_within_5d: true,
+            stop_hit_within_5d: false,
+            first_hit: "target",
+            max_favorable_excursion_pct: 6.4,
+            max_adverse_excursion_pct: -0.8,
+            evaluation_window_start: "2026-04-30",
+            evaluation_window_end: "2026-05-08",
+          },
+        },
+        normalized_feedback: {
+          role: "signal-decider",
+          symbol: "123456",
+          market_date: "2026-04-29",
+          preferred_action: "wait",
+          thesis_summary: "Normalized feedback remains the primary decision payload.",
+        },
+        details: null,
+        context: null,
+        received_at: "2026-04-29T07:45:00+00:00",
+      },
+    ],
+    summary: { count: 1 },
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+
+  assert.ok(item);
+  assert.equal(item.action, "wait");
+  assert.equal(item.thesisSummary, "Normalized feedback remains the primary decision payload.");
+  assert.equal(item.fiveDayEvaluation.status, "target_hit_before_stop");
+  assert.equal(item.fiveDayEvaluation.label, "Target before stop");
+  assert.equal(item.fiveDayEvaluation.targetHitWithin5d, true);
+  assert.equal(item.fiveDayEvaluation.stopHitWithin5d, false);
+  assert.equal(item.fiveDayEvaluation.firstHitLabel, "Target first");
+  assert.equal(item.fiveDayEvaluation.maxFavorableExcursionPct, 6.4);
+  assert.equal(item.fiveDayEvaluation.maxAdverseExcursionPct, -0.8);
+  assert.equal(item.fiveDayEvaluation.windowLabel, "2026-04-30 -> 2026-05-08");
+});
+
 test("normalizes persisted ambiguous 5-day target-stop evaluation warnings", () => {
   const response = buildFeedbackResponse({
     items: [
