@@ -1860,6 +1860,7 @@ export function LiveDashboardClient({
       buildFilteringCardModel({
         agentFeedbackProgress: displayedAgentFeedbackProgress,
         copy,
+        pipelineStatus,
         marketRiskStatus,
         marketRiskStatusError,
         marketRiskStatusLoadState,
@@ -1871,6 +1872,7 @@ export function LiveDashboardClient({
       }),
     [
       copy,
+      pipelineStatus,
       displayedAgentFeedbackProgress,
       marketRiskStatus,
       marketRiskStatusError,
