@@ -3573,6 +3573,9 @@ function getAgentRoleLabel(role: string, copy: DashboardLiveCopy) {
   if (normalizedRole === "fundamental-summarizer") {
     return copy.agentFeedback.roles.fundamental;
   }
+  if (normalizedRole === "short-term-decider") {
+    return copy.agentFeedback.roles.shortTermDecider;
+  }
 
   return humanizeToken(role, role);
 }
@@ -3581,8 +3584,16 @@ function isSignalDeciderRole(role: string) {
   return normalizeAgentRole(role) === "signal-decider";
 }
 
+function isShortTermDeciderRole(role: string) {
+  return normalizeAgentRole(role) === "short-term-decider";
+}
+
+function isDeciderRole(role: string) {
+  return isSignalDeciderRole(role) || isShortTermDeciderRole(role);
+}
+
 function isAgentRoleMetricCapable(role: string) {
-  return isSummarizerRole(role) || isSignalDeciderRole(role);
+  return isSummarizerRole(role) || isDeciderRole(role);
 }
 
 function getOrderedAgentRoles(progress: AgentFeedbackProgressResponseDto | null) {
@@ -3913,7 +3924,7 @@ export function isSummarizerRole(role: string) {
 export function shouldShowAgentRoleProgress(role: AgentRoleCard) {
   return (
     isSummarizerRole(role.role) ||
-    isSignalDeciderRole(role.role) ||
+    isDeciderRole(role.role) ||
     role.metrics.some((metric) => metric.key === "progress")
   );
 }
