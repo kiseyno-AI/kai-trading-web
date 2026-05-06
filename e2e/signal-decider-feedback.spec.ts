@@ -323,6 +323,17 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               thesis_summary: "Momentum and fundamentals align for a tactical next-day setup.",
               decision_risks: ["Gap-down open", "Liquidity fade"],
               policy_version: "decider-policy-2026.04",
+              five_day_evaluation: {
+                evaluation_status: "target_hit_before_stop",
+                target_hit_within_5d: true,
+                stop_hit_within_5d: false,
+                first_hit: "target",
+                max_favorable_excursion_pct: 4.25,
+                max_adverse_excursion_pct: -1.2,
+                evaluation_window_start: "2026-04-28",
+                evaluation_window_end: "2026-05-06",
+                data_quality_warnings: ["One daily bar was adjusted after the replay."],
+              },
               evaluation: {
                 quality_verdict: "weak_buy",
                 quality_reason: "The buy worked intraday but failed the 3d realized hurdle.",
@@ -495,6 +506,7 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(card).toContainText("Buy 1 · Wait 1");
   await expect(card).toContainText("Samsung Electronics");
   await expect(card).toContainText("Momentum and fundamentals align");
+  await expect(card).toContainText("Target before stop");
 
   const samsungPreviewRow = page.getByRole("listitem", { name: /Samsung Electronics signal-decider feedback/i });
   await expectVerticalCentersAligned(
@@ -534,6 +546,15 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(samsungCard).toContainText(/Target\s*₩82,000/);
   await expect(samsungCard).toContainText(/Stop-loss\s*₩73,500/);
   await expect(samsungCard).toContainText("1d +0.82%");
+  await expect(samsungCard).toContainText("5-day evaluation");
+  await expect(samsungCard).toContainText(/Evaluation status\s*Target before stop/);
+  await expect(samsungCard).toContainText(/Target hit within 5d\s*Yes/);
+  await expect(samsungCard).toContainText(/Stop hit within 5d\s*No/);
+  await expect(samsungCard).toContainText(/First event\s*Target first/);
+  await expect(samsungCard).toContainText(/Max favorable excursion\s*\+4\.25%/);
+  await expect(samsungCard).toContainText(/Max adverse excursion\s*-1\.20%/);
+  await expect(samsungCard).toContainText(/Evaluation window\s*2026-04-28 -> 2026-05-06/);
+  await expect(samsungCard).toContainText("One daily bar was adjusted after the replay.");
   await expect(samsungCard).toContainText("decider-policy-2026.04");
   await expect(samsungCard.getByTestId("signal-decider-score-area")).toContainText(/Confidence\s*8\/10/);
 
@@ -551,6 +572,7 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(hynixCard).toContainText("Review pending");
   await expect(hynixCard).toContainText(/Verdict\s*Review pending/);
   await expect(hynixCard).toContainText(/Outcome\s*Review pending/);
+  await expect(hynixCard).toContainText("Not computed yet");
   await expect(hynixCard).toContainText(/Policy\s*\[확인 필요\]/);
   await expect(hynixCard.getByTestId("signal-decider-review-pending")).toContainText(
     "Verdict and realized outcome are not present",

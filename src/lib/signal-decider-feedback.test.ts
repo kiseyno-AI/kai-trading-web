@@ -69,6 +69,17 @@ function buildFeedbackResponse(
           thesis_summary: "Momentum and fundamentals align.",
           decision_risks: ["Gap-down open"],
           policy_version: "decider-policy-2026.04",
+          five_day_evaluation: {
+            evaluation_status: "target_hit_before_stop",
+            target_hit_within_5d: true,
+            stop_hit_within_5d: false,
+            first_hit: "target",
+            max_favorable_excursion_pct: 4.25,
+            max_adverse_excursion_pct: -1.2,
+            evaluation_window_start: "2026-04-28",
+            evaluation_window_end: "2026-05-06",
+            data_quality_warnings: ["Adjusted price bar in evaluation window"],
+          },
           evaluation: {
             quality_verdict: "weak_buy",
             quality_reason: "Positive but underperformed the 3d hurdle.",
@@ -323,6 +334,15 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.qualityTag?.kind, "weak-buy");
   assert.equal(items[0]?.qualityVerdict, "Weak Buy");
   assert.equal(items[0]?.qualityReason, "Positive but underperformed the 3d hurdle.");
+  assert.equal(items[0]?.fiveDayEvaluation.status, "target_hit_before_stop");
+  assert.equal(items[0]?.fiveDayEvaluation.label, "Target before stop");
+  assert.equal(items[0]?.fiveDayEvaluation.targetHitWithin5d, true);
+  assert.equal(items[0]?.fiveDayEvaluation.stopHitWithin5d, false);
+  assert.equal(items[0]?.fiveDayEvaluation.firstHitLabel, "Target first");
+  assert.equal(items[0]?.fiveDayEvaluation.maxFavorableExcursionPct, 4.25);
+  assert.equal(items[0]?.fiveDayEvaluation.maxAdverseExcursionPct, -1.2);
+  assert.equal(items[0]?.fiveDayEvaluation.windowLabel, "2026-04-28 -> 2026-05-06");
+  assert.deepEqual(items[0]?.fiveDayEvaluation.dataQualityWarnings, ["Adjusted price bar in evaluation window"]);
   assert.equal(items[0]?.pathOutcome?.kind, "target-first");
   assert.equal(items[0]?.reviewConclusion, "Target hit intraday first, but the multi-day hold weakened.");
   assert.equal(items[0]?.outcomeHorizons.length, 2);
@@ -378,7 +398,179 @@ test("preserves decision fields when review verdict and outcome are absent", () 
   assert.equal(item.qualityTag, null);
   assert.equal(item.reviewConclusion, null);
   assert.equal(item.pathOutcome, null);
+  assert.equal(item.fiveDayEvaluation.status, "not_computed_yet");
+  assert.equal(item.fiveDayEvaluation.label, "Not computed yet");
   assert.deepEqual(item.outcomeHorizons, []);
+});
+
+test("uses raw persisted five-day evaluation when normalized feedback omits it", () => {
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        id: "normalized-with-raw-evaluation",
+        market_date: "2026-04-29",
+        symbol: "123456",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-04-29",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "123456",
+          market_date: "2026-04-29",
+          preferred_action: "buy",
+          five_day_evaluation: {
+            evaluation_status: "target_hit_before_stop",
+            target_hit_within_5d: true,
+            stop_hit_within_5d: false,
+            first_hit: "target",
+            max_favorable_excursion_pct: 6.4,
+            max_adverse_excursion_pct: -0.8,
+            evaluation_window_start: "2026-04-30",
+            evaluation_window_end: "2026-05-08",
+          },
+        },
+        normalized_feedback: {
+          role: "signal-decider",
+          symbol: "123456",
+          market_date: "2026-04-29",
+          preferred_action: "wait",
+          thesis_summary: "Normalized feedback remains the primary decision payload.",
+        },
+        details: null,
+        context: null,
+        received_at: "2026-04-29T07:45:00+00:00",
+      },
+    ],
+    summary: { count: 1 },
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+
+  assert.ok(item);
+  assert.equal(item.action, "wait");
+  assert.equal(item.thesisSummary, "Normalized feedback remains the primary decision payload.");
+  assert.equal(item.fiveDayEvaluation.status, "target_hit_before_stop");
+  assert.equal(item.fiveDayEvaluation.label, "Target before stop");
+  assert.equal(item.fiveDayEvaluation.targetHitWithin5d, true);
+  assert.equal(item.fiveDayEvaluation.stopHitWithin5d, false);
+  assert.equal(item.fiveDayEvaluation.firstHitLabel, "Target first");
+  assert.equal(item.fiveDayEvaluation.maxFavorableExcursionPct, 6.4);
+  assert.equal(item.fiveDayEvaluation.maxAdverseExcursionPct, -0.8);
+  assert.equal(item.fiveDayEvaluation.windowLabel, "2026-04-30 -> 2026-05-08");
+});
+
+test("normalizes persisted ambiguous 5-day target-stop evaluation warnings", () => {
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        id: "ambiguous-evaluation",
+        market_date: "2026-04-29",
+        symbol: "123456",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-04-29",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "123456",
+          market_date: "2026-04-29",
+          preferred_action: "buy",
+          target_price: null,
+          stop_loss_price: null,
+          five_day_evaluation: {
+            outcome: "target_and_stop_same_day_ambiguous",
+            target_hit_within_5d: true,
+            stop_hit_within_5d: true,
+            ambiguous_same_day: true,
+            mfe_pct: "7.5",
+            mae_pct: "-3.25",
+            evaluation_window: {
+              start: "2026-04-30",
+              end: "2026-05-08",
+            },
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-04-29T07:45:00+00:00",
+      },
+    ],
+    summary: { count: 1 },
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+
+  assert.ok(item);
+  assert.equal(item.targetPrice, null);
+  assert.equal(item.stopLossPrice, null);
+  assert.equal(item.fiveDayEvaluation.status, "target_and_stop_same_day_ambiguous");
+  assert.equal(item.fiveDayEvaluation.tone, "warning");
+  assert.equal(item.fiveDayEvaluation.targetHitWithin5d, true);
+  assert.equal(item.fiveDayEvaluation.stopHitWithin5d, true);
+  assert.equal(item.fiveDayEvaluation.firstHitLabel, "Same-day ambiguous");
+  assert.equal(item.fiveDayEvaluation.maxFavorableExcursionPct, 7.5);
+  assert.equal(item.fiveDayEvaluation.maxAdverseExcursionPct, -3.25);
+  assert.equal(item.fiveDayEvaluation.windowLabel, "2026-04-30 -> 2026-05-08");
+  assert.deepEqual(item.fiveDayEvaluation.dataQualityWarnings, [
+    "Target and stop were inside the same daily candle; intraday sequence cannot be proven.",
+  ]);
+});
+
+test("supports short-term-decider 5-day outcome statuses embedded in stored rows", () => {
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-04-29",
+      symbols: [],
+      agent_name: "short-term-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    items: [
+      {
+        id: "short-term-evaluation",
+        market_date: "2026-04-29",
+        symbol: "654321",
+        agent: {
+          name: "short-term-decider",
+          run_id: "short-term-run",
+        },
+        summary: {},
+        feedback: {
+          role: "short-term-decider",
+          symbol: "654321",
+          market_date: "2026-04-29",
+          preferred_action: "wait",
+          short_term_decider_evaluation: {
+            status: "avoid_chase_missed_upside",
+            target_hit_within_5d: true,
+            stop_hit_within_5d: false,
+            first_hit: "target",
+            max_favorable_excursion_pct: 5.4,
+            max_adverse_excursion_pct: -0.7,
+            window_start: "2026-04-30",
+            window_end: "2026-05-08",
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-04-29T07:45:00+00:00",
+      },
+    ],
+    summary: { count: 1 },
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+
+  assert.ok(item);
+  assert.equal(item.fiveDayEvaluation.status, "avoid_chase_missed_upside");
+  assert.equal(item.fiveDayEvaluation.label, "Avoid-chase missed upside");
+  assert.equal(item.fiveDayEvaluation.tone, "negative");
+  assert.equal(item.fiveDayEvaluation.targetHitWithin5d, true);
+  assert.equal(item.fiveDayEvaluation.stopHitWithin5d, false);
 });
 
 test("preserves nested outcome horizons when a horizon map also includes direct metadata", () => {

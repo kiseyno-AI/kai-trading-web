@@ -524,6 +524,23 @@
       "resultEmpty": "Outcome details recorded without additional notes.",
       "noRealizedOutcome": "Realized outcome is not present in this row yet."
     },
+    "evaluation": {
+      "title": "5-day evaluation",
+      "status": "Evaluation status",
+      "targetHit": "Target hit within 5d",
+      "stopHit": "Stop hit within 5d",
+      "firstHit": "First event",
+      "maxFavorableExcursion": "Max favorable excursion",
+      "maxAdverseExcursion": "Max adverse excursion",
+      "window": "Evaluation window",
+      "windowPending": "Window not stored",
+      "warnings": "Data quality warnings",
+      "yes": "Yes",
+      "no": "No",
+      "notComputedMessage": "No persisted 5-day evaluation row is stored for this decision yet.",
+      "pendingWindowMessage": "The persisted evaluation says the 5-trading-day window is still pending.",
+      "insufficientDataMessage": "The persisted evaluation is incomplete because price data or price levels are insufficient."
+    },
     "counts": {
       "risks": "risks",
       "factors": "factors",

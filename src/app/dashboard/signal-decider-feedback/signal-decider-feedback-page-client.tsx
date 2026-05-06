@@ -15,6 +15,7 @@ import {
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   type SignalDeciderAction,
+  type DeciderFiveDayEvaluation,
   type SignalDeciderFeedbackItem,
   type SignalDeciderFeedbackStatus,
   type SignalDeciderQualityTone,
@@ -47,6 +48,7 @@ type SignalDeciderStatusCopy = SignalDeciderFeedbackCopy["status"];
 type SignalDeciderLabelCopy = SignalDeciderFeedbackCopy["labels"];
 type SignalDeciderActionCopy = SignalDeciderFeedbackCopy["actions"];
 type SignalDeciderReviewCopy = SignalDeciderFeedbackCopy["review"];
+type SignalDeciderEvaluationCopy = SignalDeciderFeedbackCopy["evaluation"];
 type SignalDeciderSummaryCopy = SignalDeciderFeedbackCopy["summary"];
 type SignalDeciderCountCopy = SignalDeciderFeedbackCopy["counts"];
 
@@ -96,6 +98,12 @@ function formatScore(value: number | null) {
 function formatSignedPercent(value: number | null) {
   if (value === null) return null;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatKnownBoolean(value: boolean | null, copy: SignalDeciderEvaluationCopy) {
+  if (value === true) return copy.yes;
+  if (value === false) return copy.no;
+  return UNKNOWN_LABEL;
 }
 
 function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
@@ -262,6 +270,70 @@ function hasOutcomeReview(item: SignalDeciderFeedbackItem) {
 
 function hasReviewData(item: SignalDeciderFeedbackItem) {
   return hasQualityVerdict(item) || hasOutcomeReview(item);
+}
+
+function getFiveDayEvaluationRows(
+  evaluation: DeciderFiveDayEvaluation,
+  copy: SignalDeciderEvaluationCopy,
+) {
+  return [
+    { label: copy.targetHit, value: formatKnownBoolean(evaluation.targetHitWithin5d, copy) },
+    { label: copy.stopHit, value: formatKnownBoolean(evaluation.stopHitWithin5d, copy) },
+    { label: copy.firstHit, value: evaluation.firstHitLabel },
+    { label: copy.maxFavorableExcursion, value: formatSignedPercent(evaluation.maxFavorableExcursionPct) ?? UNKNOWN_LABEL },
+    { label: copy.maxAdverseExcursion, value: formatSignedPercent(evaluation.maxAdverseExcursionPct) ?? UNKNOWN_LABEL },
+    { label: copy.window, value: evaluation.windowLabel ?? copy.windowPending },
+  ];
+}
+
+function FiveDayEvaluationBlock({
+  copy,
+  evaluation,
+  variant = "card",
+}: {
+  copy: SignalDeciderEvaluationCopy;
+  evaluation: DeciderFiveDayEvaluation;
+  variant?: "card" | "detail";
+}) {
+  const rows = getFiveDayEvaluationRows(evaluation, copy);
+
+  return (
+    <section
+      className={variant === "detail" ? styles.evaluationDetailBlock : styles.evaluationBlock}
+      data-testid="signal-decider-five-day-evaluation"
+    >
+      <div className={styles.evaluationHeader}>
+        <span>{copy.title}</span>
+        <strong className={`pill ${getPillToneClass(evaluation.tone)}`}>{evaluation.label}</strong>
+      </div>
+      <div className={styles.resultMetricGrid}>
+        <div className={styles.resultMetric}>
+          <span>{copy.status}</span>
+          <strong>{evaluation.label}</strong>
+        </div>
+        {rows.map((row) => (
+          <div key={row.label} className={styles.resultMetric}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </div>
+        ))}
+      </div>
+      {evaluation.dataQualityWarnings.length > 0 ? (
+        <div className={styles.evaluationWarnings}>
+          <strong>{copy.warnings}</strong>
+          {evaluation.dataQualityWarnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : evaluation.state === "not-computed" ? (
+        <p className={styles.evaluationStateNote}>{copy.notComputedMessage}</p>
+      ) : evaluation.state === "pending" ? (
+        <p className={styles.evaluationStateNote}>{copy.pendingWindowMessage}</p>
+      ) : evaluation.state === "insufficient" ? (
+        <p className={styles.evaluationStateNote}>{copy.insufficientDataMessage}</p>
+      ) : null}
+    </section>
+  );
 }
 
 function getReviewStateRows(item: SignalDeciderFeedbackItem, copy: SignalDeciderReviewCopy) {
@@ -551,6 +623,7 @@ export default function SignalDeciderFeedbackPageClient() {
   const filtersCopy = copy.filters;
   const detailCopy = copy.detail;
   const reviewCopy = copy.review;
+  const evaluationCopy = copy.evaluation;
   const countCopy = copy.counts;
 
   useEffect(() => {
@@ -707,6 +780,9 @@ export default function SignalDeciderFeedbackPageClient() {
                             {getDecisionQualityDisplayLabel(item, reviewCopy)}
                           </span>
                         ) : null}
+                        <span className={`pill ${getPillToneClass(item.fiveDayEvaluation.tone)}`}>
+                          {item.fiveDayEvaluation.label}
+                        </span>
                       </div>
                     </header>
 
@@ -752,6 +828,7 @@ export default function SignalDeciderFeedbackPageClient() {
                           </div>
                         ))}
                       </div>
+                      <FiveDayEvaluationBlock copy={evaluationCopy} evaluation={item.fiveDayEvaluation} />
                       {hasReviewData(item) ? (
                         <>
                           {reviewNotes.map((note) => (
@@ -823,6 +900,9 @@ export default function SignalDeciderFeedbackPageClient() {
                     </span>
                     <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
                       {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
+                    </span>
+                    <span className={`pill ${getPillToneClass(selectedItem.fiveDayEvaluation.tone)}`}>
+                      {selectedItem.fiveDayEvaluation.label}
                     </span>
                   </div>
                 </div>
@@ -896,6 +976,11 @@ export default function SignalDeciderFeedbackPageClient() {
 
                   <section className={`${styles.detailSection} ${styles.reviewDetailSection}`}>
                     <h3>{detailCopy.reviewResult}</h3>
+                    <FiveDayEvaluationBlock
+                      copy={evaluationCopy}
+                      evaluation={selectedItem.fiveDayEvaluation}
+                      variant="detail"
+                    />
                     {hasReviewData(selectedItem) ? (
                       <>
                         {hasQualityVerdict(selectedItem) || hasReviewNarrative(selectedItem) ? (
