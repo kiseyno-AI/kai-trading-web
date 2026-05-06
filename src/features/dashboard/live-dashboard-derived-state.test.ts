@@ -3366,6 +3366,96 @@ test("keeps signal-decider eligible for row progress bars after running metrics 
   assert.equal(shouldShowAgentRoleProgress(preflightRole), false);
 });
 
+test("shows short-term decider agent role progress alongside signal-decider result metrics", () => {
+  const copy = getDashboardLiveCopy("en");
+  const progress = {
+    request: {
+      market_date: "2026-04-27",
+      symbols: null,
+      expected_agents: ["signal-decider", "short-term-decider"],
+    },
+    summary: {
+      run_id: "feedback-cycle-2026-04-27-deciders",
+      run_status: "completed",
+      run_table_status: "completed",
+      cycle_status: "completed",
+      is_live: false,
+      run_started_at: "2026-04-27T17:00:00+09:00",
+      run_completed_at: "2026-04-27T17:30:00+09:00",
+      current_role: null,
+      completed_roles: ["signal-decider", "short-term-decider"],
+      remaining_roles: [],
+      parallel_per_role: 1,
+      latest_feedback_at: "2026-04-27T17:30:00+09:00",
+      seconds_since_last_feedback: 120,
+      stalled_threshold_seconds: 60,
+      total_symbols: 6,
+      processed_symbols: 6,
+      completed_symbols: 6,
+      in_progress_symbols: 0,
+      pending_symbols: 0,
+      progress_ratio: 1,
+      progress_percent: 100,
+      failed_items: 1,
+      completed_feedback_count: 10,
+      expected_feedback_count: 12,
+    },
+    result: {
+      market_date: "2026-04-27",
+      roles: {
+        "signal-decider": {
+          requested_count: 6,
+          completed_count: 6,
+          error_count: 0,
+        },
+        "short-term-decider": {
+          requested_count: 6,
+          completed_count: 5,
+          error_count: 1,
+        },
+      },
+    },
+  };
+
+  const roleCards = buildAgentRoleCards(progress, copy, "en-US");
+  assert.deepEqual(
+    roleCards.map((role) => role.role),
+    ["signal-decider", "short-term-decider"],
+  );
+
+  const signalDeciderRole = roleCards.find((role) => role.role === "signal-decider");
+  const shortTermDeciderRole = roleCards.find((role) => role.role === "short-term-decider");
+
+  assert.ok(signalDeciderRole);
+  assert.ok(shortTermDeciderRole);
+  assert.equal(shortTermDeciderRole.label, copy.agentFeedback.roles.shortTermDecider);
+  assert.deepEqual(signalDeciderRole.metrics, [
+    {
+      key: "completed",
+      label: copy.agentFeedback.metrics.completed,
+      value: "6",
+    },
+    {
+      key: "errors",
+      label: copy.agentFeedback.metrics.errors,
+      value: "0",
+    },
+  ]);
+  assert.deepEqual(shortTermDeciderRole.metrics, [
+    {
+      key: "completed",
+      label: copy.agentFeedback.metrics.completed,
+      value: "5",
+    },
+    {
+      key: "errors",
+      label: copy.agentFeedback.metrics.errors,
+      value: "1",
+    },
+  ]);
+  assert.equal(shouldShowAgentRoleProgress(shortTermDeciderRole), true);
+});
+
 test("does not treat a stale latest_feedback_at timestamp as active progress when the top-level summary is pending", () => {
   const progress = {
     request: {

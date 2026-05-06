@@ -295,6 +295,7 @@ const dashboardLiveCopy = {
         eod: "EOD summarizer",
         technical: "Technical summarizer",
         fundamental: "Fundamental summarizer",
+        shortTermDecider: "Short-term decider",
       },
       roleStatuses: {
         completed: "Completed",
@@ -678,6 +679,7 @@ const dashboardLiveCopy = {
         eod: "EOD 요약",
         technical: "기술 요약",
         fundamental: "펀더멘털 요약",
+        shortTermDecider: "단기 디사이더",
       },
       roleStatuses: {
         completed: "완료",
