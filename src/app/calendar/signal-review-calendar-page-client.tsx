@@ -209,6 +209,17 @@ function mapCalendarStatus({
   return "partial";
 }
 
+function buildLoadingDateSnapshot(dateKey: string): CalendarDateSnapshot {
+  return {
+    actionCounts: { ...EMPTY_ACTION_COUNTS },
+    dateKey,
+    decisionCount: 0,
+    error: null,
+    reviewCount: 0,
+    status: "loading",
+  };
+}
+
 function buildEmptyDateSnapshot(dateKey: string, error: string | null = null): CalendarDateSnapshot {
   return {
     actionCounts: { ...EMPTY_ACTION_COUNTS },
@@ -218,6 +229,28 @@ function buildEmptyDateSnapshot(dateKey: string, error: string | null = null): C
     reviewCount: 0,
     status: error ? "unavailable" : "empty",
   };
+}
+
+function getMonthLoadStateFromSnapshots({
+  monthDays,
+  snapshots,
+}: {
+  monthDays: CalendarDay[];
+  snapshots: Record<string, CalendarDateSnapshot>;
+}): MonthLoadState {
+  if (monthDays.length === 0) return "ready";
+
+  const statuses = monthDays.map((day) => snapshots[day.dateKey]?.status ?? "loading");
+  const loadingCount = statuses.filter((status) => status === "loading").length;
+  const unavailableCount = statuses.filter((status) => status === "unavailable").length;
+
+  if (loadingCount > 0) {
+    return loadingCount === statuses.length ? "loading" : "partial";
+  }
+
+  if (unavailableCount === statuses.length) return "unavailable";
+  if (unavailableCount > 0) return "partial";
+  return "ready";
 }
 
 function formatDateKey(date: Date) {
@@ -626,21 +659,18 @@ export default function SignalReviewCalendarPageClient() {
       const monthDays = buildCalendarDays(monthKey, todayKey).filter((day) => day.inMonth && !day.isFuture);
       const cachedEntries = readSignalDeciderFeedbackCacheForMonth(monthKey);
       const cachedByDate = new Map(cachedEntries.map((entry) => [entry.marketDate, entry]));
+      const loadingSnapshots = monthDays.reduce<Record<string, CalendarDateSnapshot>>((snapshots, day) => {
+        const cachedSnapshot = cachedByDate.get(day.dateKey);
+        snapshots[day.dateKey] = cachedSnapshot
+          ? buildDateSnapshot(day.dateKey, cachedSnapshot.feedback)
+          : buildLoadingDateSnapshot(day.dateKey);
+        return snapshots;
+      }, {});
       setMonthLoadState("loading");
       setMonthSnapshots((current) => {
         const next = { ...current };
         for (const day of monthDays) {
-          const cachedSnapshot = cachedByDate.get(day.dateKey);
-          next[day.dateKey] = cachedSnapshot
-            ? buildDateSnapshot(day.dateKey, cachedSnapshot.feedback)
-            : {
-                actionCounts: { buy: 0, wait: 0, reject: 0, unknown: 0 },
-                dateKey: day.dateKey,
-                decisionCount: 0,
-                error: null,
-                reviewCount: 0,
-                status: "loading",
-              };
+          next[day.dateKey] = loadingSnapshots[day.dateKey];
         }
         return next;
       });
@@ -673,64 +703,65 @@ export default function SignalReviewCalendarPageClient() {
           });
           return snapshots;
         }, {});
-        const failedCount = Object.values(nextSnapshots).filter((snapshot) => snapshot.status === "unavailable").length;
         setMonthSnapshots((current) => ({ ...current, ...nextSnapshots }));
         setMonthLoadState(
-          failedCount === monthDays.length && monthDays.length > 0
-            ? "unavailable"
-            : failedCount > 0
-              ? "partial"
-              : "ready",
+          getMonthLoadStateFromSnapshots({
+            monthDays,
+            snapshots: { ...loadingSnapshots, ...nextSnapshots },
+          }),
         );
         return;
       } catch {
         if (!active) return;
       }
 
-      const results = await Promise.all(
-        monthDays.map(async (day) => {
-          const cachedSnapshot = cachedByDate.get(day.dateKey) ?? null;
-          try {
-            const feedback = await getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
-              buildSignalDeciderFeedbackPath({
-                basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
-                limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
-                marketDate: day.dateKey,
-              }),
-            );
-            const selectedFeedback = selectSignalDeciderFeedbackResponse({
-              cached: cachedSnapshot,
-              fetched: feedback,
+      const nextSnapshots = { ...loadingSnapshots };
+      const fallbackSnapshots = monthDays.map(async (day) => {
+        const cachedSnapshot = cachedByDate.get(day.dateKey) ?? null;
+        try {
+          const feedback = await getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+            buildSignalDeciderFeedbackPath({
+              basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+              limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+              marketDate: day.dateKey,
+            }),
+          );
+          const selectedFeedback = selectSignalDeciderFeedbackResponse({
+            cached: cachedSnapshot,
+            fetched: feedback,
+          });
+          if (selectedFeedback === feedback) {
+            writeSignalDeciderFeedbackCache({
+              feedback,
+              marketDate: day.dateKey,
+              progress: null,
+              source: "calendar",
             });
-            if (selectedFeedback === feedback) {
-              writeSignalDeciderFeedbackCache({
-                feedback,
-                marketDate: day.dateKey,
-                progress: null,
-                source: "calendar",
-              });
-            }
-            return buildDateSnapshot(day.dateKey, selectedFeedback);
-          } catch (error) {
-            if (cachedSnapshot) return buildDateSnapshot(day.dateKey, cachedSnapshot.feedback);
-            return buildDateSnapshot(
-              day.dateKey,
-              null,
-              error instanceof Error ? error.message : copy.states.unavailableMonth,
-            );
           }
-        }),
+          return buildDateSnapshot(day.dateKey, selectedFeedback);
+        } catch (error) {
+          if (cachedSnapshot) return buildDateSnapshot(day.dateKey, cachedSnapshot.feedback);
+          return buildDateSnapshot(
+            day.dateKey,
+            null,
+            error instanceof Error ? error.message : copy.states.unavailableMonth,
+          );
+        }
+      });
+
+      await Promise.all(
+        fallbackSnapshots.map((snapshotPromise) =>
+          snapshotPromise.then((snapshot) => {
+            if (!active) return;
+            nextSnapshots[snapshot.dateKey] = snapshot;
+            setMonthSnapshots((current) => ({ ...current, [snapshot.dateKey]: snapshot }));
+            setMonthLoadState(getMonthLoadStateFromSnapshots({ monthDays, snapshots: nextSnapshots }));
+          }),
+        ),
       );
       if (!active) return;
-      const nextSnapshots = results.reduce<Record<string, CalendarDateSnapshot>>((snapshots, snapshot) => {
-        snapshots[snapshot.dateKey] = snapshot;
-        return snapshots;
-      }, {});
-      const failedCount = results.filter((snapshot) => snapshot.status === "unavailable").length;
       setMonthSnapshots((current) => ({ ...current, ...nextSnapshots }));
-      setMonthLoadState(
-        failedCount === results.length && results.length > 0 ? "unavailable" : failedCount > 0 ? "partial" : "ready",
-      );
+      setMonthLoadState(getMonthLoadStateFromSnapshots({ monthDays, snapshots: nextSnapshots }));
     };
 
     void loadMonth();
