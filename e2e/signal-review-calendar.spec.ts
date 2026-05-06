@@ -5,6 +5,7 @@ type SignalReviewCalendarMockOptions = {
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   pendingRationaleDate?: string;
+  pendingWaitDate?: string;
   reviewDateErrorMessages?: Partial<Record<string, string>>;
   timeoutFeedbackDates?: string[];
   timeoutReviewDateDates?: string[];
@@ -140,6 +141,42 @@ function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalend
           symbol_day_context: {
             company: {
               name_ko: "Hwacheon Machinery",
+            },
+          },
+        },
+        received_at: `${date}T07:45:00+00:00`,
+      },
+    ];
+  }
+
+  if (options.pendingWaitDate === date) {
+    return [
+      {
+        id: "pending-wait",
+        market_date: date,
+        symbol: "003480",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "003480",
+          market_date: date,
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 5,
+          conviction_score_10: 4,
+          thesis_summary: "Waiting for confirmation before any operator action is needed.",
+          policy_version: "decider-policy-2026.05",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "한진중공업홀딩스",
             },
           },
         },
@@ -415,7 +452,11 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
     const storedDecisionCount =
-      options.pendingRationaleDate === marketDate ? 1 : marketDate === "2026-04-27" ? 2 : 0;
+      options.pendingRationaleDate === marketDate || options.pendingWaitDate === marketDate
+        ? 1
+        : marketDate === "2026-04-27"
+          ? 2
+          : 0;
     const isCompletedReviewDate = marketDate === "2026-04-27";
 
     await route.fulfill({
@@ -550,6 +591,40 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
                 symbol_day_context: {
                   company: {
                     name_ko: "Hwacheon Machinery",
+                  },
+                },
+              },
+              received_at: `${marketDate}T07:45:00+00:00`,
+            },
+          ]
+        : options.pendingWaitDate === marketDate
+        ? [
+            {
+              id: "pending-wait",
+              market_date: marketDate,
+              symbol: "003480",
+              agent: {
+                name: "signal-decider",
+                run_id: `feedback-cycle-${marketDate}`,
+              },
+              summary: {},
+              feedback: {
+                role: "signal-decider",
+                symbol: "003480",
+                market_date: marketDate,
+                preferred_action: "wait",
+                next_day_open_action: "wait",
+                confidence_score_10: 5,
+                conviction_score_10: 4,
+                thesis_summary: "Waiting for confirmation before any operator action is needed.",
+                policy_version: "decider-policy-2026.05",
+              },
+              normalized_feedback: null,
+              details: null,
+              context: {
+                symbol_day_context: {
+                  company: {
+                    name_ko: "한진중공업홀딩스",
                   },
                 },
               },
@@ -962,6 +1037,26 @@ test("signal review calendar separates pending replay state from available ratio
   await expect(dialog).toContainText("Range to trend transition risk");
   await expect(dialog).not.toContainText("fresh_breakout_needs_follow_through");
   await expect(dialog).not.toContainText("range_to_trend_transition_risk");
+});
+
+test("signal review calendar leaves normal wait pending rows as pending instead of check-needed", async ({ page }) => {
+  await mockSignalReviewCalendar(page, { pendingWaitDate: "2026-05-06" });
+
+  await page.goto("/calendar?date=2026-05-06");
+
+  const waitRow = page.getByRole("button", { name: /한진중공업홀딩스/ });
+  await expect(waitRow).toContainText("Wait");
+  await expect(waitRow).toContainText("Pending");
+  await expect(waitRow).not.toContainText("[확인 필요]");
+
+  const waitTableRow = page.locator("tr").filter({ hasText: "한진중공업홀딩스" });
+  await expect(waitTableRow).toContainText("Pending");
+
+  await page.getByRole("button", { name: /Korean/i }).click();
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+  const localizedWaitRow = page.getByRole("button", { name: /한진중공업홀딩스/ });
+  await expect(localizedWaitRow).toContainText("대기");
+  await expect(localizedWaitRow).not.toContainText("[확인 필요]");
 });
 
 test("signal review calendar hides previous selected-date rows while a new date is loading", async ({ page }) => {
