@@ -1,4 +1,6 @@
 import {
+  SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
   type AggregateContextLoadState,
@@ -480,6 +482,8 @@ export function buildSymbolRouteQuery(
   fsDiv: string | null,
   navContext: SymbolDetailNavContext | null = null,
   searchQuery: string | null = null,
+  feedbackActionFilter: string | null = null,
+  feedbackSortMode: string | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -515,6 +519,14 @@ export function buildSymbolRouteQuery(
 
   if (searchQuery) {
     params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, searchQuery);
+  }
+
+  if (feedbackActionFilter) {
+    params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, feedbackActionFilter);
+  }
+
+  if (feedbackSortMode) {
+    params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, feedbackSortMode);
   }
 
   return params.toString();
@@ -799,9 +811,9 @@ export function buildFundamentalsDate(
   return (
     companyHistory?.entries[0]?.filing.receipt_date ??
     latestFundamentals?.filing.receipt_date ??
-    aggregateContext?.fundamentals.history_summary.latest_receipt_date ??
+    aggregateContext?.fundamentals.history_summary?.latest_receipt_date ??
     latestFundamentals?.period.period_end_date ??
-    aggregateContext?.fundamentals.history_summary.latest_period_end_date ??
+    aggregateContext?.fundamentals.history_summary?.latest_period_end_date ??
     null
   );
 }

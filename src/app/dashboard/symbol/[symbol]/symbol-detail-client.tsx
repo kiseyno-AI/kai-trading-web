@@ -34,7 +34,16 @@ import { formatPrice, formatTurnover } from "@/lib/format";
 import { FactorSnapshotSection } from "./factor-snapshot-section";
 import { SymbolHistoryChart } from "./symbol-history-chart";
 import styles from "./symbol-detail.module.css";
-import { SYMBOL_DETAIL_MODES, SYMBOL_DETAIL_SEARCH_NAV_CONTEXT, type SymbolDetailMode } from "./symbol-detail-state";
+import {
+  SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT,
+  SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
+  SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
+  SYMBOL_DETAIL_MODES,
+  SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
+  SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
+  type SymbolDetailMode,
+} from "./symbol-detail-state";
 
 type SymbolDetailClientProps = {
   mode?: SymbolDetailMode;
@@ -77,6 +86,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     quotePollingStopped,
     quoteSourceCopy,
     navContext,
+    feedbackActionFilter,
+    feedbackSortMode,
     routeQueryString,
     searchContextQuery,
     selectedBar,
@@ -116,10 +127,35 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const toolbarMarketBadgeTone: DashboardToolbarStatusTone =
     toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : "closed";
   const isSearchContext = navContext === SYMBOL_DETAIL_SEARCH_NAV_CONTEXT;
-  const backHref = isSearchContext
-    ? `/search${searchContextQuery ? `?q=${encodeURIComponent(searchContextQuery)}` : ""}`
-    : "/dashboard";
-  const backLabel = isSearchContext ? copy.header.backToSearch : copy.header.backToDashboard;
+  const backHref = (() => {
+    if (isSearchContext) {
+      return `/search${searchContextQuery ? `?${SYMBOL_DETAIL_SEARCH_QUERY_PARAM}=${encodeURIComponent(searchContextQuery)}` : ""}`;
+    }
+
+    if (navContext === SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT) {
+      const params = new URLSearchParams();
+      if (marketDate) params.set("marketDate", marketDate);
+      if (searchContextQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, searchContextQuery);
+      if (feedbackActionFilter) params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, feedbackActionFilter);
+      if (feedbackSortMode) params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, feedbackSortMode);
+      const queryString = params.toString();
+      return `/dashboard/signal-decider-feedback${queryString ? `?${queryString}` : ""}`;
+    }
+
+    if (navContext === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT && marketDate) {
+      return `/calendar?date=${encodeURIComponent(marketDate)}`;
+    }
+
+    return "/dashboard";
+  })();
+  const backLabel =
+    navContext === SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT
+      ? copy.header.backToFeedback
+      : navContext === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT
+        ? copy.header.backToCalendar
+        : isSearchContext
+          ? copy.header.backToSearch
+          : copy.header.backToDashboard;
   const leadingLink = (
     <Link href={backHref} className={styles.backButton} aria-label={backLabel} title={backLabel}>
       ←

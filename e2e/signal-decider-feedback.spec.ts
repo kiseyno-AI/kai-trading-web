@@ -960,6 +960,21 @@ test("signal-decider feedback detail stacks content without horizontal scrolling
   }
 });
 
+test("signal-decider symbol links preserve feedback filters for the return path", async ({ page }) => {
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27&q=SK&feedbackAction=wait&feedbackSort=symbol");
+
+  await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  const hynixCard = page.getByRole("article", { name: /SK hynix signal-decider feedback/i });
+  await expect(hynixCard).toBeVisible();
+  await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
+  await expect(hynixCard.getByRole("link", { name: /SK hynix.*000660/i })).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/000660\?.*marketDate=2026-04-27.*navContext=signal-decider-feedback.*q=SK.*feedbackAction=wait.*feedbackSort=symbol/,
+  );
+});
+
 test("signal-decider feedback detail treats insufficient-data wait rows as pending instead of check-needed", async ({
   page,
 }) => {
@@ -970,6 +985,10 @@ test("signal-decider feedback detail treats insufficient-data wait rows as pendi
 
   const waitCard = page.getByRole("article", { name: /한진중공업홀딩스 signal-decider feedback/i });
   await expect(waitCard).toBeVisible();
+  await expect(waitCard.getByRole("link", { name: /한진중공업홀딩스.*003480/i })).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/003480\?.*marketDate=2026-05-06.*navContext=signal-decider-feedback/,
+  );
   await expect(waitCard).toContainText("Wait");
   await expect(waitCard).toContainText(/Evaluation status\s*Insufficient data/);
   await expect(waitCard).toContainText(/Verdict\s*Review pending/);

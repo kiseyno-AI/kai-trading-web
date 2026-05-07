@@ -802,7 +802,7 @@ test.describe("search terminal mobile", () => {
     await expect(resultCard).toBeVisible();
     await expect(resultCard).toHaveAttribute(
       "href",
-      "/dashboard/symbol/005930?name=Samsung+Electronics&market=KOSPI&standardCode=KR7005930003",
+      /\/dashboard\/symbol\/005930\?.*navContext=search.*q=005930/,
     );
 
     await expect(resultCard).not.toContainText("₩71,500");
