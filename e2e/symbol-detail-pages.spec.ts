@@ -662,6 +662,97 @@ test.describe("symbol detail mobile pages", () => {
       .toBeLessThanOrEqual(1);
   });
 
+  test("chart header keeps Korean title and range controls readable at 390px", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+
+    const chart = page.locator("#chart");
+    await expect(chart.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
+    await page.getByRole("button", { name: /Korean/i }).click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    const chartTitle = chart.getByRole("heading", { name: "스와이프형 캔들 차트" });
+    await expect(chartTitle).toBeVisible();
+    for (const range of ["3M", "1Y", "5Y", "MAX"]) {
+      await expect(chart.getByRole("button", { name: range })).toBeVisible();
+    }
+
+    const headerLayout = await chart.evaluate((section) => {
+      const title = Array.from(section.querySelectorAll("h2")).find(
+        (node) => node.textContent?.trim() === "스와이프형 캔들 차트",
+      );
+      const buttons = Array.from(section.querySelectorAll("button")).filter((button) =>
+        /^(3M|1Y|5Y|MAX)$/.test(button.textContent?.trim() ?? ""),
+      );
+
+      if (!(title instanceof HTMLElement) || buttons.length !== 4) {
+        return {
+          missing: true,
+          titleLineCount: 0,
+          controlsStartBelowTitle: false,
+          overflow: ["chart header controls"],
+          buttonOverflow: [],
+          documentOverflow: Number.POSITIVE_INFINITY,
+        };
+      }
+
+      const chartRect = section.getBoundingClientRect();
+      const titleRange = document.createRange();
+      titleRange.selectNodeContents(title);
+      const titleLineTops = new Set(
+        Array.from(titleRange.getClientRects())
+          .filter((rect) => rect.width > 0 && rect.height > 0)
+          .map((rect) => Math.round(rect.top)),
+      );
+      titleRange.detach();
+
+      const titleRect = title.getBoundingClientRect();
+      const buttonRects = buttons.map((button) => button.getBoundingClientRect());
+      const controlsTop = Math.min(...buttonRects.map((rect) => rect.top));
+      const measuredNodes = [title, ...buttons] as HTMLElement[];
+      const overflow = measuredNodes.flatMap((node) => {
+        const rect = node.getBoundingClientRect();
+        const overflowsInline = rect.left < chartRect.left - 1 || rect.right > chartRect.right + 1;
+        if (!overflowsInline) return [];
+        return [node.textContent?.trim() || node.nodeName];
+      });
+      const buttonOverflow = buttons.flatMap((button) => {
+        const clipsInline = button.scrollWidth > button.clientWidth + 1;
+        const clipsBlock = button.scrollHeight > button.clientHeight + 1;
+        if (!clipsInline && !clipsBlock) return [];
+        return [button.textContent?.trim() || "range button"];
+      });
+
+      return {
+        missing: false,
+        titleLineCount: titleLineTops.size,
+        controlsStartBelowTitle: controlsTop >= titleRect.bottom - 1,
+        overflow,
+        buttonOverflow,
+        documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+
+    expect(headerLayout).toEqual({
+      missing: false,
+      titleLineCount: 1,
+      controlsStartBelowTitle: true,
+      overflow: [],
+      buttonOverflow: [],
+      documentOverflow: expect.any(Number),
+    });
+    expect(headerLayout.documentOverflow).toBeLessThanOrEqual(1);
+  });
+
   test("deep detail routes preserve their active mode and dedicated sections", async ({ page }) => {
     const requestCounts = {
       priceHistory: 0,
