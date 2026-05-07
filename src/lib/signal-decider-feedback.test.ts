@@ -400,7 +400,64 @@ test("preserves decision fields when review verdict and outcome are absent", () 
   assert.equal(item.pathOutcome, null);
   assert.equal(item.fiveDayEvaluation.status, "not_computed_yet");
   assert.equal(item.fiveDayEvaluation.label, "Not computed yet");
+  assert.equal(item.fiveDayEvaluation.firstHitLabel, null);
   assert.deepEqual(item.outcomeHorizons, []);
+});
+
+test("normalizes insufficient 5-day evaluations without check-needed placeholders", () => {
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        id: "insufficient-wait-row",
+        market_date: "2026-05-06",
+        symbol: "003480",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-05-06",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "003480",
+          market_date: "2026-05-06",
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 5,
+          conviction_score_10: 4,
+          thesis_summary: "Normal wait row while the 5-day replay lacks enough data.",
+          five_day_evaluation: {
+            evaluation_status: "insufficient_data",
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-06T07:45:00+00:00",
+      },
+    ],
+    request: {
+      market_date: "2026-05-06",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+
+  assert.ok(item);
+  assert.equal(item.action, "wait");
+  assert.equal(item.qualityVerdict, null);
+  assert.equal(item.reviewConclusion, null);
+  assert.equal(item.fiveDayEvaluation.status, "insufficient_data");
+  assert.equal(item.fiveDayEvaluation.label, "Insufficient data");
+  assert.equal(item.fiveDayEvaluation.state, "insufficient");
+  assert.equal(item.fiveDayEvaluation.targetHitWithin5d, null);
+  assert.equal(item.fiveDayEvaluation.stopHitWithin5d, null);
+  assert.equal(item.fiveDayEvaluation.firstHitLabel, null);
+  assert.equal(item.fiveDayEvaluation.maxFavorableExcursionPct, null);
+  assert.equal(item.fiveDayEvaluation.maxAdverseExcursionPct, null);
 });
 
 test("uses raw persisted five-day evaluation when normalized feedback omits it", () => {

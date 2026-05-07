@@ -60,7 +60,7 @@ export type DeciderFiveDayEvaluation = {
   targetHitWithin5d: boolean | null;
   stopHitWithin5d: boolean | null;
   firstHit: string | null;
-  firstHitLabel: string;
+  firstHitLabel: string | null;
   ambiguousSameDay: boolean;
   maxFavorableExcursionPct: number | null;
   maxAdverseExcursionPct: number | null;
@@ -1179,7 +1179,7 @@ function normalizeFirstHitLabel(status: string | null, rawFirstHit: string | nul
     return { firstHit: "stop", firstHitLabel: "Trigger then stop" };
   }
   if (rawFirstHit) return { firstHit: normalizedFirstHit || rawFirstHit, firstHitLabel: humanizeToken(rawFirstHit) };
-  return { firstHit: null, firstHitLabel: "[확인 필요]" };
+  return { firstHit: null, firstHitLabel: null };
 }
 
 function getWarningsFromEvaluationRecord(record: Record<string, unknown> | null | undefined, ambiguousSameDay: boolean) {
@@ -1220,7 +1220,7 @@ function normalizeFiveDayEvaluation({
       targetHitWithin5d: null,
       stopHitWithin5d: null,
       firstHit: null,
-      firstHitLabel: "[확인 필요]",
+      firstHitLabel: null,
       ambiguousSameDay: false,
       maxFavorableExcursionPct: null,
       maxAdverseExcursionPct: null,
