@@ -739,7 +739,7 @@ export const SystemFreshnessSection = memo(function SystemFreshnessSection({
   const technicalSnapshot = aggregateContext?.technical_snapshot ?? null;
   const actionSummary = aggregateContext?.action_summary ?? null;
   const latestFundamentals = aggregateContext?.fundamentals.latest_snapshot ?? null;
-  const hasFundamentalsHistory = (aggregateContext?.fundamentals.history_summary.entries ?? 0) > 0;
+  const hasFundamentalsHistory = (aggregateContext?.fundamentals.history_summary?.entries ?? 0) > 0;
   const latestDisclosure = buildLatestDisclosure(aggregateContext?.recent_disclosures.items ?? []);
   const disclosureSectionState = getDisclosureSectionState(
     aggregateContextLoadState,

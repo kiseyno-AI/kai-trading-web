@@ -16,6 +16,8 @@ const symbolDetailCopy = {
     header: {
       backToDashboard: "Back to dashboard",
       backToSearch: "Back to search",
+      backToFeedback: "Back to feedback",
+      backToCalendar: "Back to calendar",
       marketPending: "Market Pending",
       marketOpen: "Market Open",
       marketClosed: "Market Closed",
@@ -285,6 +287,8 @@ const symbolDetailCopy = {
     header: {
       backToDashboard: "대시보드로 돌아가기",
       backToSearch: "검색으로 돌아가기",
+      backToFeedback: "피드백으로 돌아가기",
+      backToCalendar: "캘린더로 돌아가기",
       marketPending: "마켓 대기 중",
       marketOpen: "마켓 열림",
       marketClosed: "마켓 닫힘",

@@ -819,6 +819,139 @@ async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
   }, marketDate);
 }
 
+async function mockSymbolDetailApis(
+  page: Page,
+  {
+    companyName,
+    marketDate,
+    symbol,
+  }: {
+    companyName: string;
+    marketDate: string;
+    symbol: string;
+  },
+) {
+  await page.route(`**/api/trading/quotes/${symbol}`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        symbol,
+        company_name: companyName,
+        price: 4100,
+        change: 0,
+        change_pct: 0,
+        volume: 120000,
+        turnover: 492000000,
+        market_state: "CLOSED",
+        source: "test",
+        fallback: false,
+        is_live: false,
+        available: true,
+        cached_at: `${marketDate}T16:00:00+09:00`,
+        trade_date: marketDate,
+      }),
+    });
+  });
+
+  await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+    await route.fulfill({
+      json: {
+        tracked_symbols: [],
+        count: 0,
+        last_updated_at: null,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/symbols/search?**", async (route) => {
+    await route.fulfill({
+      json: {
+        query: symbol,
+        count: 1,
+        items: [
+          {
+            symbol,
+            standard_code: `KR7${symbol}00000`,
+            name_ko: companyName,
+            market: "KOSPI",
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route(`**/api/trading/symbols/${symbol}/price-bars?**`, async (route) => {
+    await route.fulfill({
+      json: {
+        symbol,
+        count: 1,
+        start_date: marketDate,
+        end_date: marketDate,
+        requested_start_date: marketDate,
+        requested_end_date: marketDate,
+        items: [
+          {
+            trade_date: marketDate,
+            open_price: 4100,
+            high_price: 4140,
+            low_price: 4050,
+            close_price: 4100,
+            volume: 120000,
+            turnover: 492000000,
+            source: "test",
+            captured_at: `${marketDate}T16:00:00+09:00`,
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        summary: {
+          entries: 0,
+          requested_symbol: symbol,
+          matched_symbols: [],
+          missing_symbols: [symbol],
+          passed_count: 0,
+          not_passed_count: 0,
+        },
+        item: null,
+        items: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+    await route.fulfill({
+      json: {
+        request: {
+          market_date: marketDate,
+          symbols: [symbol],
+        },
+        items: [
+          {
+            symbol,
+            company: {
+              name_ko: companyName,
+            },
+            action_summary: null,
+            technical_snapshot: null,
+            fundamentals: {
+              latest_snapshot: null,
+            },
+            recent_disclosures: {
+              items: [],
+            },
+          },
+        ],
+      },
+    });
+  });
+}
+
 async function expectNarrowMobileLabelsContained(page: Page) {
   const overflowingLabels = await page.locator("body").evaluate(() => {
     const labels = Array.from(
@@ -956,6 +1089,44 @@ test("feedback table link keeps the selected calendar date in navigation", async
   await page.getByRole("button", { name: /2026-05-04/ }).click();
   await expect(page).toHaveURL(/\/calendar\?date=2026-05-04/);
   await expect(feedbackLink).toHaveAttribute("href", /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-04/);
+});
+
+test("calendar-sourced feedback symbol detail returns to the selected feedback date", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    pendingWaitDate: "2026-05-06",
+  });
+  await mockSymbolDetailApis(page, {
+    companyName: "한진중공업홀딩스",
+    marketDate: "2026-05-06",
+    symbol: "003480",
+  });
+
+  await page.goto("/calendar?date=2026-05-06");
+  await page.getByRole("button", { name: /Korean/i }).click();
+  await page.getByRole("link", { name: /피드백 표 열기/i }).click();
+
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-06/);
+  const waitCard = page.getByRole("article", { name: /한진중공업홀딩스 시그널 디사이더 피드백/i });
+  await expect(waitCard).toBeVisible();
+  const symbolLink = waitCard.getByRole("link", { name: /한진중공업홀딩스.*003480/ });
+  await expect(symbolLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/003480\?.*marketDate=2026-05-06.*navContext=signal-decider-feedback/,
+  );
+
+  await symbolLink.click();
+  await expect(page).toHaveURL(/\/dashboard\/symbol\/003480\?.*navContext=signal-decider-feedback/);
+  const feedbackReturnLink = page.getByRole("link", { name: /피드백으로 돌아가기/i });
+  await expect(feedbackReturnLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-06/,
+  );
+  await expect(page.getByRole("link", { name: /대시보드로 돌아가기/i })).toHaveCount(0);
+
+  await feedbackReturnLink.click();
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-06/);
+  await expect(page.getByText("MD 2026-05-06")).toBeVisible();
+  await expect(page.getByRole("article", { name: /한진중공업홀딩스 시그널 디사이더 피드백/i })).toBeVisible();
 });
 
 test("signal review calendar falls back to per-date feedback calls only when month summary fails", async ({ page }) => {

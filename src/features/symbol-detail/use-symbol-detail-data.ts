@@ -12,7 +12,10 @@ import {
   resolveSymbolDetailModeFromPathname,
   resolveSymbolDetailNavContext,
   shouldFetchSymbolMeta,
+  SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
   type SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
@@ -89,7 +92,9 @@ export function useSymbolDetailData({
     () => resolveSymbolDetailNavContext(searchParams.get(SYMBOL_DETAIL_NAV_CONTEXT_PARAM)),
     [searchParams],
   );
-  const searchContextQuery = useMemo(() => searchParams.get("q"), [searchParams]);
+  const searchContextQuery = useMemo(() => searchParams.get(SYMBOL_DETAIL_SEARCH_QUERY_PARAM), [searchParams]);
+  const feedbackActionFilter = useMemo(() => searchParams.get(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM), [searchParams]);
+  const feedbackSortMode = useMemo(() => searchParams.get(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM), [searchParams]);
   const symbolDetailActiveNav = resolveSymbolDetailActiveNav(navContext);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
@@ -375,8 +380,17 @@ export function useSymbolDetailData({
   );
   const toolbarMarketOpenState = getMarketOpenState(marketStatus);
   const routeQueryString = useMemo(
-    () => buildSymbolRouteQuery(meta, marketDate, fsDiv, navContext, searchContextQuery),
-    [fsDiv, marketDate, meta, navContext, searchContextQuery],
+    () =>
+      buildSymbolRouteQuery(
+        meta,
+        marketDate,
+        fsDiv,
+        navContext,
+        searchContextQuery,
+        feedbackActionFilter,
+        feedbackSortMode,
+      ),
+    [feedbackActionFilter, feedbackSortMode, fsDiv, marketDate, meta, navContext, searchContextQuery],
   );
   const hasSelectedRangeHistoryLoaded = Boolean(priceHistoryResult.data);
 
@@ -451,6 +465,8 @@ export function useSymbolDetailData({
     quotePollingStopped,
     quoteSourceCopy,
     navContext,
+    feedbackActionFilter,
+    feedbackSortMode,
     routeQueryString,
     searchContextQuery,
     selectedBar,

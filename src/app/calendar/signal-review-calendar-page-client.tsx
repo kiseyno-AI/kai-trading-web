@@ -7,6 +7,10 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
+import {
+  SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT,
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+} from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
@@ -577,6 +581,7 @@ function buildSymbolHref(item: SignalDeciderFeedbackItem) {
   const params = new URLSearchParams();
   if (hasTextValue(item.companyName)) params.set("name", item.companyName);
   if (hasTextValue(item.marketDate)) params.set("marketDate", item.marketDate);
+  params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT);
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }

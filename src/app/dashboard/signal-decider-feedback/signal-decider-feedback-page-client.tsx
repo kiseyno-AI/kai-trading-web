@@ -7,6 +7,13 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
+import {
+  SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
+  SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
+} from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
@@ -39,8 +46,9 @@ import styles from "./signal-decider-feedback-page.module.css";
 const UNKNOWN_LABEL = "[확인 필요]";
 const CARD_LOADING_LABEL = "…";
 const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
+const SORT_MODES = ["priority", "symbol", "confidence", "captured"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
-type SortMode = "priority" | "symbol" | "confidence" | "captured";
+type SortMode = (typeof SORT_MODES)[number];
 type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | { message: string };
 
 type SignalDeciderFeedbackCopy = ReturnType<typeof useAppState>["t"]["signalDeciderFeedback"];
@@ -54,6 +62,14 @@ type SignalDeciderCountCopy = SignalDeciderFeedbackCopy["counts"];
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function resolveActionFilterParam(value: string | null): ActionFilter {
+  return ACTION_FILTERS.includes(value as ActionFilter) ? (value as ActionFilter) : "all";
+}
+
+function resolveSortModeParam(value: string | null): SortMode {
+  return SORT_MODES.includes(value as SortMode) ? (value as SortMode) : "priority";
 }
 
 function getStatusLabel(status: SignalDeciderFeedbackStatus, statusCopy: SignalDeciderStatusCopy) {
@@ -378,10 +394,22 @@ function getSupportContextRows(item: SignalDeciderFeedbackItem, countLabels: Sig
   ];
 }
 
-function buildSymbolHref(item: SignalDeciderFeedbackItem) {
+function buildSymbolHref(
+  item: SignalDeciderFeedbackItem,
+  context: {
+    actionFilter: ActionFilter;
+    query: string;
+    sortMode: SortMode;
+  },
+) {
   const params = new URLSearchParams();
   if (hasTextValue(item.companyName)) params.set("name", item.companyName);
   if (hasTextValue(item.marketDate)) params.set("marketDate", item.marketDate);
+  params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT);
+  const normalizedQuery = context.query.trim();
+  if (normalizedQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, normalizedQuery);
+  if (context.actionFilter !== "all") params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, context.actionFilter);
+  if (context.sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, context.sortMode);
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
@@ -459,6 +487,15 @@ export default function SignalDeciderFeedbackPageClient() {
   const { t } = useAppState();
   const copy = t.signalDeciderFeedback;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
+  const requestedFeedbackQuery = useMemo(() => searchParams.get(SYMBOL_DETAIL_SEARCH_QUERY_PARAM) ?? "", [searchParams]);
+  const requestedActionFilter = useMemo(
+    () => resolveActionFilterParam(searchParams.get(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM)),
+    [searchParams],
+  );
+  const requestedSortMode = useMemo(
+    () => resolveSortModeParam(searchParams.get(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM)),
+    [searchParams],
+  );
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
   const [feedback, setFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
@@ -467,14 +504,26 @@ export default function SignalDeciderFeedbackPageClient() {
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(
     requestedMarketDate ? "loading" : "idle",
   );
-  const [query, setQuery] = useState("");
-  const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
-  const [sortMode, setSortMode] = useState<SortMode>("priority");
+  const [query, setQuery] = useState(requestedFeedbackQuery);
+  const [actionFilter, setActionFilter] = useState<ActionFilter>(requestedActionFilter);
+  const [sortMode, setSortMode] = useState<SortMode>(requestedSortMode);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     setMarketDate(requestedMarketDate);
   }, [requestedMarketDate]);
+
+  useEffect(() => {
+    setQuery(requestedFeedbackQuery);
+  }, [requestedFeedbackQuery]);
+
+  useEffect(() => {
+    setActionFilter(requestedActionFilter);
+  }, [requestedActionFilter]);
+
+  useEffect(() => {
+    setSortMode(requestedSortMode);
+  }, [requestedSortMode]);
 
   useEffect(() => {
     if (requestedMarketDate) {
@@ -671,6 +720,10 @@ export default function SignalDeciderFeedbackPageClient() {
     }
 
     const params = new URLSearchParams({ marketDate: nextMarketDate });
+    const normalizedQuery = query.trim();
+    if (normalizedQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, normalizedQuery);
+    if (actionFilter !== "all") params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, actionFilter);
+    if (sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, sortMode);
     router.push(`/dashboard/signal-decider-feedback?${params.toString()}`);
   }
 
@@ -779,7 +832,7 @@ export default function SignalDeciderFeedbackPageClient() {
                       data-testid="signal-decider-result-card"
                     >
                     <header className={styles.resultHeader}>
-                      <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
+                      <Link href={buildSymbolHref(item, { actionFilter, query, sortMode })} className={styles.symbolLink}>
                         <strong>{item.companyName ?? item.symbol}</strong>
                         <span>{item.symbol}</span>
                       </Link>
