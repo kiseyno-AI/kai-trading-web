@@ -100,10 +100,10 @@ function formatSignedPercent(value: number | null) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatKnownBoolean(value: boolean | null, copy: SignalDeciderEvaluationCopy) {
+function formatKnownBoolean(value: boolean | null, copy: SignalDeciderEvaluationCopy, unknownLabel = UNKNOWN_LABEL) {
   if (value === true) return copy.yes;
   if (value === false) return copy.no;
-  return UNKNOWN_LABEL;
+  return unknownLabel;
 }
 
 function getDecisionQualityLabel(item: SignalDeciderFeedbackItem) {
@@ -276,14 +276,26 @@ function getFiveDayEvaluationRows(
   evaluation: DeciderFiveDayEvaluation,
   copy: SignalDeciderEvaluationCopy,
 ) {
+  const missingValue = getFiveDayEvaluationMissingValue(evaluation, copy);
+
   return [
-    { label: copy.targetHit, value: formatKnownBoolean(evaluation.targetHitWithin5d, copy) },
-    { label: copy.stopHit, value: formatKnownBoolean(evaluation.stopHitWithin5d, copy) },
-    { label: copy.firstHit, value: evaluation.firstHitLabel },
-    { label: copy.maxFavorableExcursion, value: formatSignedPercent(evaluation.maxFavorableExcursionPct) ?? UNKNOWN_LABEL },
-    { label: copy.maxAdverseExcursion, value: formatSignedPercent(evaluation.maxAdverseExcursionPct) ?? UNKNOWN_LABEL },
+    { label: copy.targetHit, value: formatKnownBoolean(evaluation.targetHitWithin5d, copy, missingValue) },
+    { label: copy.stopHit, value: formatKnownBoolean(evaluation.stopHitWithin5d, copy, missingValue) },
+    { label: copy.firstHit, value: evaluation.firstHitLabel ?? missingValue },
+    { label: copy.maxFavorableExcursion, value: formatSignedPercent(evaluation.maxFavorableExcursionPct) ?? missingValue },
+    { label: copy.maxAdverseExcursion, value: formatSignedPercent(evaluation.maxAdverseExcursionPct) ?? missingValue },
     { label: copy.window, value: evaluation.windowLabel ?? copy.windowPending },
   ];
+}
+
+function getFiveDayEvaluationMissingValue(
+  evaluation: DeciderFiveDayEvaluation,
+  copy: SignalDeciderEvaluationCopy,
+) {
+  if (evaluation.state === "insufficient") return copy.insufficientValue;
+  if (evaluation.state === "pending") return copy.pendingValue;
+  if (evaluation.state === "not-computed") return copy.notComputedValue;
+  return UNKNOWN_LABEL;
 }
 
 function FiveDayEvaluationBlock({
