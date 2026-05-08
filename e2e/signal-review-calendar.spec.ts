@@ -1446,7 +1446,7 @@ test("signal review calendar keeps narrow mobile cell and bottom-nav labels cont
   await expect(selectedDateCell.locator('[data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]')).toHaveText("B+");
 
   const navLabels = page.locator("[data-mobile-nav-label]");
-  await expect(navLabels).toHaveCount(5);
+  await expect(navLabels).toHaveCount(6);
   await expect
     .poll(() =>
       navLabels.evaluateAll((labels) =>
@@ -1467,6 +1467,7 @@ test("signal review calendar keeps narrow mobile cell and bottom-nav labels cont
       { lineHeight: expect.any(Number), text: "Search", whiteSpace: "nowrap", wraps: false },
       { lineHeight: expect.any(Number), text: "Calendar", whiteSpace: "nowrap", wraps: false },
       { lineHeight: expect.any(Number), text: "Assets", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Markets", whiteSpace: "nowrap", wraps: false },
       { lineHeight: expect.any(Number), text: "My Symbols", whiteSpace: "nowrap", wraps: false },
     ]);
   await expectNarrowMobileLabelsContained(page);

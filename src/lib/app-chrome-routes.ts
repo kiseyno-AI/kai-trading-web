@@ -2,7 +2,7 @@ import type { MessageTree } from "@/i18n/messages";
 import type { NavItemDto, SearchSuggestionDto } from "@/types/trading-api";
 
 export const APP_SHELL_ROUTE_KEYS = ["dashboard", "search", "portfolio", "calendar", "markets", "bots"] as const;
-export const FULL_PAGE_CHROME_ROUTE_KEYS = ["dashboard", "search", "calendar", "portfolio", "symbols"] as const;
+export const FULL_PAGE_CHROME_ROUTE_KEYS = ["dashboard", "search", "calendar", "portfolio", "markets", "symbols"] as const;
 
 export type AppChromeRouteKey = (typeof APP_SHELL_ROUTE_KEYS)[number] | "symbols";
 export type FullPageChromeRouteKey = (typeof FULL_PAGE_CHROME_ROUTE_KEYS)[number];
@@ -13,7 +13,7 @@ type NavigationItemKey = keyof MessageTree["navigation"]["items"];
 type SearchSuggestionKey = keyof MessageTree["navigation"]["searchSuggestions"];
 type MobileChromeLabelKey = keyof Pick<
   MessageTree["mobileChrome"],
-  "assets" | "calendar" | "dashboard" | "mySymbols" | "search"
+  "assets" | "calendar" | "dashboard" | "markets" | "mySymbols" | "search"
 >;
 
 type AppChromeRouteDescriptor = {
@@ -68,7 +68,7 @@ export const APP_CHROME_ROUTE_BY_KEY: Record<AppChromeRouteKey, AppChromeRouteDe
     key: "markets",
     defaultHref: "/markets",
     iconId: "markets",
-    mobileChromeLabelKey: "dashboard",
+    mobileChromeLabelKey: "markets",
     navigationItemKey: "markets",
     searchSuggestionKey: "markets",
   },

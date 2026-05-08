@@ -49,6 +49,7 @@ const NAV_BASED_TITLES: Partial<Record<FullPageChromeRouteKey, (t: MessageTree, 
   symbols: (t) => t.mySymbols.title,
   portfolio: (t) => t.portfolio.title,
   calendar: (t) => t.routes.calendar.title,
+  markets: (t) => t.markets.title,
 };
 
 const NAV_BASED_TOOLBAR_ACTIONS: Partial<Record<FullPageChromeRouteKey, MobileAppChromeRouteMetadata["toolbarAction"]>> = {

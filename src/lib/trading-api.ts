@@ -1,4 +1,4 @@
-import { dashboardData, marketSpotlight } from "@/data/trading-dashboard";
+import { dashboardData } from "@/data/trading-dashboard";
 import { startWebDiagnosticSpan } from "@/lib/web-diagnostics";
 import type {
   ApiEnvelope,
@@ -335,7 +335,7 @@ const mockTradingApi: TradingApiAdapter = {
 
   async getMarketsOverview() {
     const overview: MarketsOverviewDto = {
-      spotlight: marketSpotlight,
+      spotlight: [],
     };
 
     return envelope(overview);

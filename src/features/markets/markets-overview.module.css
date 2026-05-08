@@ -1,0 +1,236 @@
+.page {
+  display: grid;
+  gap: 1rem;
+}
+
+.panel {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  padding: 1.1rem;
+}
+
+.heroPanel {
+  background:
+    linear-gradient(135deg, rgba(0, 82, 255, 0.13), transparent 42%),
+    var(--surface);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.heroPanel h1,
+.sectionHead h2 {
+  margin: 0;
+  color: var(--text-strong);
+  letter-spacing: 0;
+}
+
+.heroPanel h1 {
+  font-size: 2.35rem;
+  line-height: 0.95;
+}
+
+.sectionHead h2 {
+  margin-top: 0.28rem;
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.heroCopy,
+.panelCopy,
+.notice,
+.actionCard p,
+.previewCard p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.heroCopy {
+  max-width: 60rem;
+  font-size: 0.98rem;
+}
+
+.stateTitle {
+  color: var(--text-strong);
+  font-size: 1.1rem;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.statusGrid,
+.actionGrid,
+.previewGrid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+}
+
+.statusGrid > div,
+.actionCard,
+.previewCard {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-low);
+  padding: 0.9rem;
+}
+
+.statusGrid span,
+.statusGrid small,
+.actionCard span,
+.previewCard span {
+  color: var(--muted-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.statusGrid strong,
+.actionCard strong,
+.previewCard strong {
+  display: block;
+  color: var(--text-strong);
+  letter-spacing: 0;
+}
+
+.statusGrid strong {
+  margin-top: 0.35rem;
+  font-size: 1.1rem;
+}
+
+.statusGrid small {
+  display: block;
+  margin-top: 0.32rem;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.primaryLink,
+.secondaryLink {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--outline-strong);
+  border-radius: var(--radius-md);
+  padding: 0 1rem;
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+
+.primaryLink {
+  background: var(--accent);
+  color: var(--primary-foreground);
+}
+
+.secondaryLink {
+  background: var(--control-surface);
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.actionCard {
+  display: grid;
+  gap: 0.55rem;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.actionCard:hover {
+  border-color: var(--outline-strong);
+  background: var(--control-surface-hover);
+  transform: translateY(-1px);
+}
+
+.actionCard span {
+  color: var(--accent);
+}
+
+.previewGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+
+.previewCard {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.previewCard div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.notice {
+  border: 1px solid rgba(255, 176, 32, 0.25);
+  border-radius: var(--radius-md);
+  background: rgba(255, 176, 32, 0.08);
+  padding: 0.8rem;
+}
+
+@media (max-width: 520px) {
+  .panel {
+    border-radius: var(--radius-md);
+    padding: 0.95rem;
+  }
+
+  .heroPanel h1 {
+    font-size: 2.1rem;
+  }
+
+  .primaryLink,
+  .secondaryLink {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .heroPanel h1 {
+    font-size: 3.4rem;
+  }
+
+  .sectionHead h2 {
+    font-size: 1.9rem;
+  }
+
+  .panel,
+  .statusGrid > div,
+  .actionCard,
+  .previewCard,
+  .notice {
+    border-radius: 0.22rem;
+  }
+}

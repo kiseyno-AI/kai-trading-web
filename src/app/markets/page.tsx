@@ -1,10 +1,11 @@
-import { AppShell } from "@/components/layout/app-shell";
 import { MarketsOverview } from "@/features/markets/markets-overview";
+
+import { MarketsRouteChrome } from "./markets-route-chrome";
 
 export default function MarketsPage() {
   return (
-    <AppShell currentPath="/markets">
+    <MarketsRouteChrome>
       <MarketsOverview />
-    </AppShell>
+    </MarketsRouteChrome>
   );
 }

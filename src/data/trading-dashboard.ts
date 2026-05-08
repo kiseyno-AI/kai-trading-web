@@ -130,9 +130,3 @@ export const dashboardData: DashboardData = {
     ],
   },
 };
-
-export const marketSpotlight = [
-  { symbol: "BTC/USDT", trend: "Leading the tape", volume: "$12.4B", change: "+1.82%" },
-  { symbol: "ETH/USDT", trend: "Retesting value area", volume: "$7.6B", change: "-0.44%" },
-  { symbol: "SOL/USDT", trend: "Breakout continuation", volume: "$3.1B", change: "+3.15%" },
-];
