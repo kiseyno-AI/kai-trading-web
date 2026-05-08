@@ -169,7 +169,7 @@ export const SIGNAL_DECIDER_REVIEW_HORIZON_DAYS = [1, 3, 5] as const;
 
 export type SignalDeciderReviewHorizonDay = (typeof SIGNAL_DECIDER_REVIEW_HORIZON_DAYS)[number];
 export type SignalDeciderHorizonEvaluationState = DeciderFiveDayEvaluationState;
-export type SignalDeciderHorizonOutcomeKind = "target" | "stop" | "ambiguous" | "unresolved" | "computed";
+export type SignalDeciderHorizonOutcomeKind = "target_hit" | "stop_hit" | "ambiguous" | "sideways";
 
 export type SignalDeciderHorizonEvaluation = {
   day: SignalDeciderReviewHorizonDay;
@@ -1404,6 +1404,20 @@ function getHorizonOutcomeKind({
     return "ambiguous";
   }
   if (
+    (targetHit === false && stopHit === false) ||
+    tokenIncludesAny(normalizedStatus, [
+      "neither",
+      "neither_hit",
+      "neither_hit_within",
+      "no_hit",
+      "not_hit",
+      "unresolved",
+      "no_target_or_stop_hit",
+    ])
+  ) {
+    return "sideways";
+  }
+  if (
     targetHit === true ||
     tokenIncludesAny(normalizedStatus, [
       "target_hit_before_stop",
@@ -1417,7 +1431,7 @@ function getHorizonOutcomeKind({
       "trigger_confirmed_then_target_hit",
     ])
   ) {
-    return "target";
+    return "target_hit";
   }
   if (
     stopHit === true ||
@@ -1432,24 +1446,10 @@ function getHorizonOutcomeKind({
       "trigger_confirmed_then_stop_hit",
     ])
   ) {
-    return "stop";
-  }
-  if (
-    (targetHit === false && stopHit === false) ||
-    tokenIncludesAny(normalizedStatus, [
-      "neither",
-      "neither_hit",
-      "neither_hit_within",
-      "no_hit",
-      "not_hit",
-      "unresolved",
-      "no_target_or_stop_hit",
-    ])
-  ) {
-    return "unresolved";
+    return "stop_hit";
   }
 
-  return "computed";
+  return "sideways";
 }
 
 function getHorizonEvaluationTone(
@@ -1458,10 +1458,9 @@ function getHorizonEvaluationTone(
 ): SignalDeciderQualityTone {
   if (state === "insufficient") return "warning";
   if (state !== "computed") return "neutral";
-  if (outcome === "target") return "positive";
-  if (outcome === "stop") return "negative";
+  if (outcome === "target_hit") return "positive";
+  if (outcome === "stop_hit") return "negative";
   if (outcome === "ambiguous") return "warning";
-  if (outcome === "computed") return "info";
   return "neutral";
 }
 
@@ -1473,11 +1472,10 @@ function getHorizonStatusLabel(
   if (state === "insufficient") return "Insufficient price data";
   if (state === "not-computed") return "Not computed";
   if (state === "unknown") return "Unknown";
-  if (outcome === "target") return "Target";
-  if (outcome === "stop") return "Stop";
-  if (outcome === "ambiguous") return "Ambiguous";
-  if (outcome === "unresolved") return "Unresolved";
-  return "Computed";
+  if (outcome === "target_hit") return "Target hit";
+  if (outcome === "stop_hit") return "Stop hit";
+  if (outcome === "ambiguous") return "Target/stop same day";
+  return "Sideways";
 }
 
 function getHorizonTargetHit(record: Record<string, unknown>) {
@@ -1647,13 +1645,6 @@ function buildFiveDayHorizonEvaluation(
     stopHit: evaluation.stopHitWithin5d,
     targetHit: evaluation.targetHitWithin5d,
   });
-  const statusLabel =
-    evaluation.state === "computed" && outcome !== "computed"
-      ? getHorizonStatusLabel(evaluation.state, outcome)
-      : evaluation.state === "computed"
-        ? evaluation.label
-        : getHorizonStatusLabel(evaluation.state, outcome);
-
   return {
     day: 5,
     horizon: "5d",
@@ -1661,7 +1652,7 @@ function buildFiveDayHorizonEvaluation(
     state: evaluation.state,
     outcome,
     status: evaluation.status,
-    statusLabel,
+    statusLabel: getHorizonStatusLabel(evaluation.state, outcome),
     tone: getHorizonEvaluationTone(evaluation.state, outcome),
     returnPct: null,
     realizedPrice: null,

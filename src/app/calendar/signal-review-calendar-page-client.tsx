@@ -516,11 +516,11 @@ function getPrimaryHorizonCounts(items: SignalDeciderFeedbackItem[]) {
         counts.notComputed += 1;
         return counts;
       }
-      if (primaryHorizon.outcome === "target") {
+      if (primaryHorizon.outcome === "target_hit") {
         counts.target += 1;
         return counts;
       }
-      if (primaryHorizon.outcome === "stop") {
+      if (primaryHorizon.outcome === "stop_hit") {
         counts.stop += 1;
         return counts;
       }
@@ -528,7 +528,7 @@ function getPrimaryHorizonCounts(items: SignalDeciderFeedbackItem[]) {
         counts.ambiguous += 1;
         return counts;
       }
-      if (primaryHorizon.outcome === "unresolved") {
+      if (primaryHorizon.outcome === "sideways") {
         counts.unresolved += 1;
         return counts;
       }
@@ -571,7 +571,7 @@ function getHorizonStateLabel(
   if (horizon.state === "insufficient") return copy.horizons.insufficientData;
   if (horizon.state === "not-computed") return copy.horizons.notComputed;
   if (horizon.state === "unknown") return copy.horizons.unknown;
-  return copy.horizons.computed;
+  return copy.horizons.evaluated;
 }
 
 function getHorizonChipLabel(
@@ -579,11 +579,20 @@ function getHorizonChipLabel(
   copy: ReturnType<typeof useAppState>["t"]["signalReview"],
 ) {
   if (horizon.state !== "computed") return getHorizonStateLabel(horizon, copy);
-  if (horizon.outcome === "target") return copy.outcomes.target;
-  if (horizon.outcome === "stop") return copy.outcomes.stop;
+  if (horizon.outcome === "target_hit") return copy.outcomes.target;
+  if (horizon.outcome === "stop_hit") return copy.outcomes.stop;
   if (horizon.outcome === "ambiguous") return copy.outcomes.ambiguous;
-  if (horizon.outcome === "unresolved") return copy.outcomes.unresolved;
-  return copy.horizons.computed;
+  return copy.outcomes.unresolved;
+}
+
+function getHorizonOutcomeIcon(horizon: SignalDeciderHorizonEvaluation) {
+  if (horizon.state === "pending") return "⏳";
+  if (horizon.state === "insufficient") return "⚠️";
+  if (horizon.outcome === "target_hit") return "🎯";
+  if (horizon.outcome === "stop_hit") return "🛑";
+  if (horizon.outcome === "ambiguous") return "⚠️";
+  if (horizon.outcome === "sideways") return "↔️";
+  return null;
 }
 
 function getHorizonDetailLabel(
@@ -610,7 +619,7 @@ function getHorizonProgressSummary(
   return ([1, 3, 5] as const)
     .map((day) => {
       const horizon = getHorizonEvaluation(item, day);
-      return `${horizon.label} ${getHorizonStateLabel(horizon, copy)}`;
+      return `${horizon.label} ${getHorizonChipLabel(horizon, copy)}`;
     })
     .join(" · ");
 }
@@ -625,10 +634,11 @@ function HorizonChip({
   showDetail?: boolean;
 }) {
   const detail = showDetail ? getHorizonDetailLabel(horizon, copy) : null;
+  const icon = getHorizonOutcomeIcon(horizon);
   return (
     <span className={styles.horizonChip}>
       <span className={`pill ${getPillToneClass(horizon.tone)}`}>{horizon.label}</span>
-      <span>{getHorizonChipLabel(horizon, copy)}</span>
+      <span>{icon ? `${icon} ` : ""}{getHorizonChipLabel(horizon, copy)}</span>
       {detail ? <small>{detail}</small> : null}
     </span>
   );

@@ -416,18 +416,18 @@
       "total": "Total decisions"
     },
     "outcomes": {
-      "ambiguous": "Ambiguous",
-      "stop": "Stop",
-      "target": "Target",
-      "unresolved": "Unresolved"
+      "ambiguous": "Target/stop same day",
+      "stop": "Stop hit",
+      "target": "Target hit",
+      "unresolved": "Sideways"
     },
     "horizons": {
-      "computed": "computed",
       "daysRemaining": "{days} trading days remaining",
+      "evaluated": "evaluated",
       "insufficientData": "insufficient price data",
       "notComputed": "not computed",
       "pendingMaturity": "pending maturity",
-      "shorterComputed": "1D/3D computed {count}",
+      "shorterComputed": "1D/3D outcomes {count}",
       "unknown": "unknown"
     },
     "table": {
@@ -670,9 +670,13 @@
       "windowNotComputed": "No evaluation window",
       "windowUnavailable": "Evaluation window unavailable",
       "windowUnknown": "Evaluation window unknown",
+      "ambiguousBadge": "Target/stop same day",
       "pendingBadge": "Pending 5D window",
       "insufficientBadge": "Insufficient price data",
       "notComputedBadge": "Evaluation not computed",
+      "sidewaysBadge": "Sideways",
+      "stopHitBadge": "Stop hit",
+      "targetHitBadge": "Target hit",
       "unknownBadge": "Evaluation status unknown",
       "notComputedValue": "Not computed",
       "pendingValue": "Pending",

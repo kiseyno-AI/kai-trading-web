@@ -432,6 +432,25 @@
   background: rgba(3, 7, 13, 0.38);
 }
 
+.horizonOutcomeStrip {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.horizonOutcomeChip {
+  min-width: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.32rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .resultSupportSection {
   background: rgba(8, 17, 31, 0.46);
 }

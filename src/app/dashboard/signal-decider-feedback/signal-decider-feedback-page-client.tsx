@@ -44,6 +44,8 @@ import {
   type DeciderFiveDayEvaluation,
   type SignalDeciderFeedbackItem,
   type SignalDeciderFeedbackStatus,
+  type SignalDeciderHorizonEvaluation,
+  type SignalDeciderReviewHorizonDay,
   type SignalDeciderQualityTone,
   type SignalDeciderTraceEntry,
 } from "@/lib/signal-decider-feedback";
@@ -375,6 +377,68 @@ function getFiveDayEvaluationDisplayLabel(
   if (evaluation.state === "not-computed") return copy.notComputedBadge;
   if (evaluation.state === "unknown") return copy.unknownBadge;
   return evaluation.label;
+}
+
+function getHorizonEvaluation(item: SignalDeciderFeedbackItem, day: SignalDeciderReviewHorizonDay) {
+  return item.horizonEvaluations.find((candidate) => candidate.day === day) ?? {
+    day,
+    horizon: `${day}d`,
+    label: `${day}D`,
+    state: "not-computed",
+    outcome: null,
+    status: "not_computed_yet",
+    statusLabel: "Not computed",
+    tone: "neutral",
+    returnPct: null,
+    realizedPrice: null,
+    verdict: null,
+    notes: null,
+    tradingDaysRemaining: null,
+  } satisfies SignalDeciderHorizonEvaluation;
+}
+
+function getHorizonOutcomeIcon(horizon: SignalDeciderHorizonEvaluation) {
+  if (horizon.state === "pending") return "⏳";
+  if (horizon.state === "insufficient") return "⚠️";
+  if (horizon.outcome === "target_hit") return "🎯";
+  if (horizon.outcome === "stop_hit") return "🛑";
+  if (horizon.outcome === "ambiguous") return "⚠️";
+  if (horizon.outcome === "sideways") return "↔️";
+  return null;
+}
+
+function getHorizonOutcomeLabel(horizon: SignalDeciderHorizonEvaluation, copy: SignalDeciderEvaluationCopy) {
+  if (horizon.state === "pending") return copy.pendingValue;
+  if (horizon.state === "insufficient") return copy.insufficientBadge;
+  if (horizon.state === "not-computed") return copy.notComputedValue;
+  if (horizon.state === "unknown") return copy.unknownValue;
+  if (horizon.outcome === "target_hit") return copy.targetHitBadge;
+  if (horizon.outcome === "stop_hit") return copy.stopHitBadge;
+  if (horizon.outcome === "ambiguous") return copy.ambiguousBadge;
+  return copy.sidewaysBadge;
+}
+
+function HorizonOutcomeStrip({
+  copy,
+  item,
+}: {
+  copy: SignalDeciderEvaluationCopy;
+  item: SignalDeciderFeedbackItem;
+}) {
+  return (
+    <div className={styles.horizonOutcomeStrip} data-testid="signal-decider-horizon-outcomes">
+      {([1, 3, 5] as const).map((day) => {
+        const horizon = getHorizonEvaluation(item, day);
+        const icon = getHorizonOutcomeIcon(horizon);
+        return (
+          <span key={day} className={styles.horizonOutcomeChip}>
+            <span className={`pill ${getPillToneClass(horizon.tone)}`}>{horizon.label}</span>
+            <span>{icon ? `${icon} ` : ""}{getHorizonOutcomeLabel(horizon, copy)}</span>
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 function getFiveDayEvaluationWindowFallback(
@@ -1512,6 +1576,7 @@ export default function SignalDeciderFeedbackPageClient() {
                         <span>{labelsCopy.reviewState}</span>
                         <strong>{hasReviewData(item) ? labelsCopy.result : reviewCopy.pending}</strong>
                       </div>
+                      <HorizonOutcomeStrip copy={evaluationCopy} item={item} />
                       <div className={styles.resultMetricGrid} data-testid="signal-decider-review-state">
                         {reviewStateRows.map((row) => (
                           <div key={row.label} className={styles.resultMetric}>
@@ -1702,6 +1767,7 @@ export default function SignalDeciderFeedbackPageClient() {
                       evaluation={selectedItem.fiveDayEvaluation}
                       variant="detail"
                     />
+                    <HorizonOutcomeStrip copy={evaluationCopy} item={selectedItem} />
                     {hasReviewData(selectedItem) ? (
                       <>
                         {hasQualityVerdict(selectedItem) || hasReviewNarrative(selectedItem) ? (
