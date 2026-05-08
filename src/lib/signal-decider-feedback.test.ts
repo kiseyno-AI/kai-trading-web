@@ -233,6 +233,26 @@ function buildStoredFeedbackItem({
   };
 }
 
+function buildStoredRawActionFeedbackItem({
+  action,
+  id,
+}: {
+  action: string;
+  id: number;
+}): AgentFeedbackStoredItemDto {
+  const item = buildStoredFeedbackItem({ action: "reject", id });
+
+  return {
+    ...item,
+    feedback: {
+      ...(item.feedback ?? {}),
+      preferred_action: action,
+      next_day_open_action: null,
+      thesis_summary: `${action} decision ${id}`,
+    },
+  };
+}
+
 function buildProgress(
   overrides: Partial<AgentFeedbackProgressResponseDto> = {},
 ): AgentFeedbackProgressResponseDto {
@@ -366,6 +386,49 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.gateResults[0]?.label, "Liquidity");
   assert.equal(items[0]?.upstreamEvidence[0]?.label, "Technical Snapshot");
   assert.equal(items[0]?.traceability[0]?.label, "Run Id");
+});
+
+test("keeps legacy reject aliases separate from explicit no-chase actions", () => {
+  const cases: Array<{ rawAction: string; expectedAction: SignalDeciderAction }> = [
+    { rawAction: "avoid", expectedAction: "reject" },
+    { rawAction: "skip", expectedAction: "reject" },
+    { rawAction: "avoid_chase", expectedAction: "avoid_chase" },
+    { rawAction: "avoid_chasing", expectedAction: "avoid_chase" },
+    { rawAction: "do_not_chase", expectedAction: "avoid_chase" },
+    { rawAction: "no_chase", expectedAction: "avoid_chase" },
+  ];
+  const feedback = buildFeedbackResponse({
+    request: {
+      market_date: "2026-04-28",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: cases.length },
+    items: cases.map(({ rawAction }, index) =>
+      buildStoredRawActionFeedbackItem({
+        action: rawAction,
+        id: index + 1,
+      }),
+    ),
+  });
+
+  const items = normalizeSignalDeciderFeedbackItems(feedback);
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback,
+    marketDate: "2026-04-28",
+    progress: null,
+  });
+
+  const actionsByRawAction = new Map(
+    items.map((item) => [item.thesisSummary?.replace(/ decision \d+$/, ""), item.action] as const),
+  );
+  assert.deepEqual(
+    cases.map(({ rawAction }) => actionsByRawAction.get(rawAction)),
+    cases.map(({ expectedAction }) => expectedAction),
+  );
+  assert.equal(model.actionCounts.reject, 2);
+  assert.equal(model.actionCounts.avoid_chase, 4);
 });
 
 test("preserves decision fields when review verdict and outcome are absent", () => {

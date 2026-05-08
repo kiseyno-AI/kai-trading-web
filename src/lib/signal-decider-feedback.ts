@@ -279,8 +279,7 @@ function normalizeAction(value: unknown): SignalDeciderAction {
     normalized === "buy" ||
     normalized === "wait" ||
     normalized === "reject" ||
-    normalized === "watch_for_trigger" ||
-    normalized === "avoid_chase"
+    normalized === "watch_for_trigger"
   ) {
     return normalized;
   }
@@ -304,7 +303,12 @@ function normalizeAction(value: unknown): SignalDeciderAction {
   }
   if (
     normalized === "avoid" ||
-    normalized === "skip" ||
+    normalized === "skip"
+  ) {
+    return "reject";
+  }
+  if (
+    normalized === "avoid_chase" ||
     normalized === "avoid_chasing" ||
     normalized === "do_not_chase" ||
     normalized === "no_chase"
