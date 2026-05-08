@@ -405,6 +405,53 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.traceability[0]?.label, "Run Id");
 });
 
+test("normalizes symbol-like signal-decider company names as unavailable", () => {
+  const baseResponse = buildFeedbackResponse();
+  const firstItem = baseResponse.items[0]!;
+  const secondItem = baseResponse.items[1]!;
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        ...firstItem,
+        symbol: "004150",
+        feedback: {
+          ...firstItem.feedback,
+          symbol: "004150",
+          company_name: "004150",
+        },
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "004150",
+            },
+          },
+        },
+      },
+      {
+        ...secondItem,
+        symbol: "043260",
+        feedback: {
+          ...secondItem.feedback,
+          symbol: "043260",
+          company_name: "043260",
+        },
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "Seongho Electronics",
+            },
+          },
+        },
+      },
+    ],
+  });
+
+  const items = normalizeSignalDeciderFeedbackItems(response);
+
+  assert.equal(items.find((item) => item.symbol === "004150")?.companyName, null);
+  assert.equal(items.find((item) => item.symbol === "043260")?.companyName, "Seongho Electronics");
+});
+
 test("keeps legacy reject aliases separate from explicit no-chase actions", () => {
   const cases: Array<{ rawAction: string; expectedAction: SignalDeciderAction }> = [
     { rawAction: "avoid", expectedAction: "reject" },

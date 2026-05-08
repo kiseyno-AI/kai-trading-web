@@ -133,6 +133,45 @@ function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeIdentityText(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function isSymbolLikeName(symbol: string, value: string) {
+  const normalizedSymbol = normalizeIdentityText(symbol).toUpperCase();
+  const normalizedValue = normalizeIdentityText(value).toUpperCase();
+  const escapedSymbol = escapeRegExp(normalizedSymbol);
+  return (
+    normalizedValue === normalizedSymbol ||
+    new RegExp(`^${escapedSymbol}\\s*\\(${escapedSymbol}\\)$`, "i").test(normalizedValue)
+  );
+}
+
+function getDistinctCompanyName(symbol: string, companyName: string | null | undefined) {
+  const trimmed = companyName?.trim();
+  return trimmed && !isSymbolLikeName(symbol, trimmed) ? trimmed : null;
+}
+
+function getDecisionIdentity(
+  item: SignalDeciderFeedbackItem,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  const companyName = getDistinctCompanyName(item.symbol, item.companyName);
+  return companyName
+    ? {
+        subtitle: item.symbol,
+        title: companyName,
+      }
+    : {
+        subtitle: copy.labels.nameUnavailable,
+        title: item.symbol,
+      };
+}
+
 function isDependencyGapWarning(value: string): boolean {
   const normalized = value.toLowerCase();
   return (
@@ -704,7 +743,8 @@ function splitRiskFlags(riskFlags: string[]) {
 
 function buildSymbolHref(item: SignalDeciderFeedbackItem) {
   const params = new URLSearchParams();
-  if (hasTextValue(item.companyName)) params.set("name", item.companyName);
+  const companyName = getDistinctCompanyName(item.symbol, item.companyName);
+  if (hasTextValue(companyName)) params.set("name", companyName);
   if (hasTextValue(item.marketDate)) params.set("marketDate", item.marketDate);
   params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT);
   const query = params.toString();
@@ -1340,6 +1380,7 @@ export default function SignalReviewCalendarPageClient() {
               <div className={styles.decisionList}>
                 {selectedSummary.items.map((item) => {
                   const decisionRowDetail = getDecisionRowDetailSummary(item, selectedSummary.status);
+                  const identity = getDecisionIdentity(item, copy);
                   return (
                     <button
                       key={item.id}
@@ -1348,8 +1389,8 @@ export default function SignalReviewCalendarPageClient() {
                       onClick={() => setSelectedItemId(item.id)}
                     >
                       <span className={styles.symbolBlock}>
-                        <strong>{item.companyName ?? item.symbol}</strong>
-                        <small>{item.symbol}</small>
+                        <strong>{identity.title}</strong>
+                        <small>{identity.subtitle}</small>
                       </span>
                       <span className={`pill ${getActionToneClass(item.action)}`}>
                         {formatSignalDeciderActionLabel(item.action)}
@@ -1398,47 +1439,50 @@ export default function SignalReviewCalendarPageClient() {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedSummary.items.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
-                          <strong>{item.companyName ?? item.symbol}</strong>
-                          <span>{item.symbol}</span>
-                        </Link>
-                      </td>
-                      <td>
-                        <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
-                      </td>
-                      <td>
-                        <div className={styles.targetStopStack}>
-                          <span>{copy.table.target}: {formatCurrencyValue(item.targetPrice)}</span>
-                          <span>{copy.table.stop}: {formatCurrencyValue(item.stopLossPrice)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 1)} showDetail />
-                      </td>
-                      <td>
-                        <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 3)} showDetail />
-                      </td>
-                      <td>
-                        <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 5)} showDetail />
-                      </td>
-                      <td>
-                        {item.pathOutcome ? (
-                          <span className={`pill ${getPillToneClass(item.pathOutcome.tone)}`}>{item.pathOutcome.label}</span>
-                        ) : (
-                          copy.states.pathUnavailable
-                        )}
-                      </td>
-                      <td>{getTableInsightSummary(item, copy, selectedSummary.status)}</td>
-                      <td>
-                        <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
-                          {copy.actions.review}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {selectedSummary.items.map((item) => {
+                    const identity = getDecisionIdentity(item, copy);
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
+                            <strong>{identity.title}</strong>
+                            <span>{identity.subtitle}</span>
+                          </Link>
+                        </td>
+                        <td>
+                          <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
+                        </td>
+                        <td>
+                          <div className={styles.targetStopStack}>
+                            <span>{copy.table.target}: {formatCurrencyValue(item.targetPrice)}</span>
+                            <span>{copy.table.stop}: {formatCurrencyValue(item.stopLossPrice)}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 1)} showDetail />
+                        </td>
+                        <td>
+                          <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 3)} showDetail />
+                        </td>
+                        <td>
+                          <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 5)} showDetail />
+                        </td>
+                        <td>
+                          {item.pathOutcome ? (
+                            <span className={`pill ${getPillToneClass(item.pathOutcome.tone)}`}>{item.pathOutcome.label}</span>
+                          ) : (
+                            copy.states.pathUnavailable
+                          )}
+                        </td>
+                        <td>{getTableInsightSummary(item, copy, selectedSummary.status)}</td>
+                        <td>
+                          <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
+                            {copy.actions.review}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1476,6 +1520,7 @@ function DetailPanel({
   const hasReplayVerdict = hasTextValue(item.reviewConclusion) || hasTextValue(item.qualityVerdict);
   const hasQualityReason = hasTextValue(item.qualityReason) && item.qualityReason !== item.reviewConclusion;
   const { diagnosticRiskTags, operatorRiskContext } = splitRiskFlags(item.riskFlags);
+  const identity = getDecisionIdentity(item, copy);
 
   return (
     <div className={styles.dialogBackdrop} onMouseDown={onClose}>
@@ -1489,9 +1534,9 @@ function DetailPanel({
         <header className={styles.detailHeader}>
           <div>
             <p className={styles.eyebrow}>{copy.detail.eyebrow}</p>
-            <h2 id="signal-review-detail-title">{item.companyName ?? item.symbol}</h2>
+            <h2 id="signal-review-detail-title">{identity.title}</h2>
             <p>
-              {item.symbol} · {item.marketDate || status.marketDate || copy.status.pending}
+              {identity.subtitle} · {item.marketDate || status.marketDate || copy.status.pending}
             </p>
             <div className={styles.detailBadges}>
               <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>

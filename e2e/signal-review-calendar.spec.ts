@@ -4,6 +4,7 @@ type SignalReviewCalendarMockOptions = {
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
+  identityFallbackDate?: string;
   mixedHorizonDate?: string;
   pendingRationaleDate?: string;
   pendingWaitDate?: string;
@@ -306,6 +307,91 @@ function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalend
     ];
   }
 
+  if (options.identityFallbackDate === date) {
+    return [
+      {
+        id: "identity-distinct-name",
+        market_date: date,
+        symbol: "005930",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "005930",
+          market_date: date,
+          preferred_action: "buy",
+          next_day_open_action: "buy",
+          confidence_score_10: 8,
+          conviction_score_10: 7,
+          thesis_summary: "Distinct company metadata should render as name plus symbol.",
+          company_name: "Samsung Electronics",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: `${date}T07:45:00+00:00`,
+      },
+      {
+        id: "identity-missing-name",
+        market_date: date,
+        symbol: "004150",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "004150",
+          market_date: date,
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 6,
+          conviction_score_10: 5,
+          thesis_summary: "Missing company metadata should not duplicate the symbol.",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: `${date}T07:46:00+00:00`,
+      },
+      {
+        id: "identity-symbol-name",
+        market_date: date,
+        symbol: "010170",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "010170",
+          market_date: date,
+          preferred_action: "reject",
+          next_day_open_action: "reject",
+          confidence_score_10: 5,
+          conviction_score_10: 4,
+          thesis_summary: "Symbol-like company metadata should be treated as unavailable.",
+          company_name: "010170",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "010170",
+            },
+          },
+        },
+        received_at: `${date}T07:47:00+00:00`,
+      },
+    ];
+  }
+
   if (options.emptyFeedbackDates?.includes(date)) return [];
 
   if (date === "2026-04-27") {
@@ -577,10 +663,13 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       options.pendingWaitDate === marketDate ||
       options.mixedHorizonDate === marketDate
         ? 1
+        : options.identityFallbackDate === marketDate
+          ? 3
         : marketDate === "2026-04-27"
           ? 2
           : 0;
-    const isCompletedReviewDate = marketDate === "2026-04-27" || options.mixedHorizonDate === marketDate;
+    const isCompletedReviewDate =
+      marketDate === "2026-04-27" || options.mixedHorizonDate === marketDate || options.identityFallbackDate === marketDate;
 
     await route.fulfill({
       contentType: "application/json",
@@ -1150,6 +1239,32 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await page.goBack();
   await expect(page).toHaveURL(/\/calendar\?date=2026-04-27/);
   await expect(samsungRow).toContainText("Target hit intraday first");
+});
+
+test("signal review calendar does not repeat symbols when company names are unavailable", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    identityFallbackDate: "2026-05-07",
+  });
+
+  await page.goto("/calendar?date=2026-05-07");
+
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Samsung Electronics\s+005930\s+Buy/i })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Samsung Electronics\s+005930\s+Buy/i })).toBeVisible();
+
+  await expect(page.getByRole("button", { name: /004150\s+Name unavailable\s+Wait/i })).toBeVisible();
+  await expect(page.getByRole("row", { name: /004150\s+Name unavailable\s+Wait/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /004150\s+004150\s+Wait/i })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /004150\s+004150\s+Wait/i })).toHaveCount(0);
+
+  await expect(page.getByRole("button", { name: /010170\s+Name unavailable\s+Reject/i })).toBeVisible();
+  await expect(page.getByRole("row", { name: /010170\s+Name unavailable\s+Reject/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /010170\s+010170\s+Reject/i })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /010170\s+010170\s+Reject/i })).toHaveCount(0);
+
+  const symbolOnlyLink = page.getByRole("link", { name: /004150\s+Name unavailable/i });
+  await expect(symbolOnlyLink).toHaveAttribute("href", /\/dashboard\/symbol\/004150\?marketDate=2026-05-07&navContext=calendar$/);
+  await expect(symbolOnlyLink).not.toHaveAttribute("href", /name=/);
 });
 
 test("signal review calendar uses compact calendar summary for month load", async ({ page }) => {
