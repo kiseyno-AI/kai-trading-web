@@ -867,7 +867,6 @@ export default function SignalDeciderFeedbackPageClient() {
           basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
           limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
           marketDate,
-          compact: true,
         }),
       ).catch(() => null);
 
@@ -880,7 +879,6 @@ export default function SignalDeciderFeedbackPageClient() {
                 basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
                 limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
                 marketDate: previousMarketDate,
-                compact: true,
               }),
             ).catch(() => null)
           : Promise.resolve(null);
@@ -900,7 +898,6 @@ export default function SignalDeciderFeedbackPageClient() {
               basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate,
-              compact: true,
             }),
           ),
           getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(

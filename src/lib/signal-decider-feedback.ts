@@ -2572,22 +2572,17 @@ export function buildDeciderFeedbackPath({
   basePath,
   limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   marketDate,
-  compact = false,
 }: {
   agentName?: string | null;
   basePath: string;
   limit?: number | null;
   marketDate: string;
-  compact?: boolean;
 }) {
   const params = new URLSearchParams({
     market_date: marketDate,
     agent_name: resolveDeciderAgentName(agentName),
     limit: String(limit ?? SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT),
   });
-  if (compact) {
-    params.set("compact", "true");
-  }
   return `${basePath}?${params.toString()}`;
 }
 
