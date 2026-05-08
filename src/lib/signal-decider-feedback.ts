@@ -337,6 +337,33 @@ function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeIdentityText(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function isSymbolLikeName(symbol: string, value: string) {
+  const normalizedSymbol = normalizeIdentityText(symbol).toUpperCase();
+  const normalizedValue = normalizeIdentityText(value).toUpperCase();
+  const escapedSymbol = escapeRegExp(normalizedSymbol);
+  return (
+    normalizedValue === normalizedSymbol ||
+    new RegExp(`^${escapedSymbol}\\s*\\(${escapedSymbol}\\)$`, "i").test(normalizedValue)
+  );
+}
+
+function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed && !isSymbolLikeName(symbol, trimmed)) return trimmed;
+  }
+
+  return null;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -2307,16 +2334,12 @@ function getPayload(item: AgentFeedbackStoredItemDto): AgentFeedbackStoredPayloa
 function getContextCompanyName(symbol: string, context: Record<string, unknown> | null | undefined) {
   const symbolDayContext = getRecordValue(context, ["symbol_day_context", "symbolDayContext"]);
   const company = getRecordValue(symbolDayContext, ["company"]);
-  const normalizedSymbol = symbol.trim().toUpperCase();
 
-  for (const value of [
+  return getUsableCompanyName(
+    symbol,
     getStringValue(company, ["name_ko", "name", "company_name", "corp_name"]),
     getStringValue(symbolDayContext, ["company_name", "companyName", "name_ko", "name"]),
-  ]) {
-    if (value && value.toUpperCase() !== normalizedSymbol) return value;
-  }
-
-  return null;
+  );
 }
 
 function getRiskFlags(payload: AgentFeedbackStoredPayloadDto): string[] {
@@ -2879,9 +2902,11 @@ export function normalizeDeciderFeedbackItems(
         id: String(item.id),
         agentName: itemAgentName,
         symbol,
-        companyName:
-          getStringValue(payload, ["company_name", "companyName", "name_ko", "name"]) ??
+        companyName: getUsableCompanyName(
+          symbol,
+          getStringValue(payload, ["company_name", "companyName", "name_ko", "name"]),
           getContextCompanyName(symbol, context),
+        ),
         marketDate,
         runId: item.agent.run_id ?? null,
         agentVersion: item.agent.version ?? null,
