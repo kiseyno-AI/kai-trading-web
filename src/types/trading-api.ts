@@ -1214,9 +1214,17 @@ export type EodFactorInspectResponseDto<TItem, TSummary> = {
   items?: TItem[] | null;
 };
 
-export type EodMomentumFactorItemDto = {
-  symbol: string;
+export type EodFactorInstrumentIdentityFieldsDto = {
   name_ko?: string | null;
+  company_name?: string | null;
+  display_name?: string | null;
+  name?: string | null;
+  name_en?: string | null;
+  corp_name?: string | null;
+};
+
+export type EodMomentumFactorItemDto = EodFactorInstrumentIdentityFieldsDto & {
+  symbol: string;
   market?: string | null;
   market_date: string;
   source?: string | null;
@@ -1260,9 +1268,8 @@ export type EodMomentumFactorsResponseDto = EodFactorInspectResponseDto<
   EodMomentumFactorSummaryDto
 >;
 
-export type EodLowRiskFactorItemDto = {
+export type EodLowRiskFactorItemDto = EodFactorInstrumentIdentityFieldsDto & {
   symbol: string;
-  name_ko?: string | null;
   market?: string | null;
   market_date: string;
   source?: string | null;
@@ -1303,9 +1310,8 @@ export type EodLowRiskFactorsResponseDto = EodFactorInspectResponseDto<
   EodLowRiskFactorSummaryDto
 >;
 
-export type EodBetaFactorItemDto = {
+export type EodBetaFactorItemDto = EodFactorInstrumentIdentityFieldsDto & {
   symbol: string;
-  name_ko?: string | null;
   market?: string | null;
   market_date: string;
   source?: string | null;
@@ -1341,9 +1347,8 @@ export type EodBetaFactorsResponseDto = EodFactorInspectResponseDto<
   EodBetaFactorSummaryDto
 >;
 
-export type EodValueFactorItemDto = {
+export type EodValueFactorItemDto = EodFactorInstrumentIdentityFieldsDto & {
   symbol: string;
-  name_ko?: string | null;
   market?: string | null;
   market_date: string;
   source?: string | null;
@@ -1408,9 +1413,8 @@ export type EodValueFactorsResponseDto = EodFactorInspectResponseDto<
   EodValueFactorSummaryDto
 >;
 
-export type EodAdvancedValueFactorItemDto = {
+export type EodAdvancedValueFactorItemDto = EodFactorInstrumentIdentityFieldsDto & {
   symbol: string;
-  name_ko?: string | null;
   market?: string | null;
   market_date: string;
   source?: string | null;

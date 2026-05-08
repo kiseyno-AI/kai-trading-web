@@ -122,6 +122,7 @@ This document defines the first practical frontend contract for wiring `trading-
   - `GET /eod/value-factors?market_date=YYYY-MM-DD`
   - `GET /eod/advanced-value-factors?market_date=YYYY-MM-DD`
   - The route renders one reusable factor-screening pattern with family switching, market-date aware ranking, eligibility/caution/audit filtering, natural row navigation into `/dashboard/symbol/[symbol]`, and a reserved composite slot so a later composite endpoint can land without redesigning the page. The value family treats optional `unified_value_*` fields as primary when present and falls back to the legacy value score when they are absent. A subordinate quality-score block sits below the value metrics and reads the optional quality contract fields (`quality_score`, rank / percentile, status, possible / used component counts, completion boolean, and per-component status maps) when Core provides them.
+  - Factor row identity prefers distinct optional name fields (`company_name`, `name_ko`, `display_name`, `name`, `name_en`, `corp_name`) over the symbol. If Core returns only the symbol as the name, the row keeps the symbol as the primary identifier and shows an explicit name-unavailable state instead of rendering duplicated `symbol (symbol)` copy.
 - The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.
 
 ## Goals

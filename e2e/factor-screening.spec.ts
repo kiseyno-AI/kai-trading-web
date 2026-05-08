@@ -7,11 +7,11 @@ const factorPayloads = {
     market_date: marketDate,
     feature_version: "momentum_v2",
     summary: {
-      entries: 3,
+      entries: 5,
       requested_symbols: [],
-      matched_symbols: ["005930", "035420", "000660"],
+      matched_symbols: ["005930", "035420", "000660", "043260", "010170"],
       missing_symbols: [],
-      ranked_symbols: 3,
+      ranked_symbols: 5,
       eligible_symbols: 1,
     },
     items: [
@@ -71,6 +71,47 @@ const factorPayloads = {
         is_recent_overheated: false,
         momentum_rank: null,
         momentum_percentile: null,
+        is_momentum_eligible: false,
+        factor_payload: null,
+        captured_at: null,
+      },
+      {
+        symbol: "043260",
+        name_ko: "043260",
+        company_name: "Seongho Electronics",
+        market: "KOSDAQ",
+        market_date: marketDate,
+        close_price: 2250,
+        ma_60: 2200,
+        ma_120: 2150,
+        momentum_12_1: 0.12,
+        return_5d: 0.01,
+        has_sufficient_history: true,
+        is_price_above_ma120: true,
+        is_ma60_above_ma120: false,
+        is_recent_overheated: false,
+        momentum_rank: 21,
+        momentum_percentile: 0.66,
+        is_momentum_eligible: false,
+        factor_payload: null,
+        captured_at: null,
+      },
+      {
+        symbol: "010170",
+        name_ko: "010170",
+        market: "KOSPI",
+        market_date: marketDate,
+        close_price: 11500,
+        ma_60: 11300,
+        ma_120: 11000,
+        momentum_12_1: 0.09,
+        return_5d: 0.02,
+        has_sufficient_history: true,
+        is_price_above_ma120: true,
+        is_ma60_above_ma120: false,
+        is_recent_overheated: false,
+        momentum_rank: 22,
+        momentum_percentile: 0.64,
         is_momentum_eligible: false,
         factor_payload: null,
         captured_at: null,
@@ -378,6 +419,16 @@ const symbolMeta = {
     market: "KOSPI",
     name: "SK Hynix",
     standardCode: "KR7000660001",
+  },
+  "043260": {
+    market: "KOSDAQ",
+    name: "Seongho Electronics",
+    standardCode: "KR7043260000",
+  },
+  "010170": {
+    market: "KOSPI",
+    name: "대한광통신",
+    standardCode: "KR7010170008",
   },
 } as const;
 
@@ -709,7 +760,13 @@ test("factor screening supports switching, eligibility filtering, composite plac
   await expect(activeFilterValue).toHaveText("Review set");
   await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toBeVisible();
   await expect(page.getByRole("link", { name: /Open NAVER/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open Seongho Electronics \(043260\)/i })).toBeVisible();
+  const symbolOnlyRow = page.getByRole("link", { name: /Open 010170 \(name unavailable\)/i });
+  await expect(symbolOnlyRow).toBeVisible();
+  await expect(symbolOnlyRow).toContainText("Name unavailable");
   await expect(page.getByRole("link", { name: /Open SK Hynix/i })).toHaveCount(0);
+  await expect(page.getByText("043260 (043260)")).toHaveCount(0);
+  await expect(page.getByText("010170 (010170)")).toHaveCount(0);
 
   await page.getByRole("radio", { name: /Eligible/i }).click();
   await expect(activeFilterValue).toHaveText("Eligible");

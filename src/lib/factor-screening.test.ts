@@ -47,11 +47,11 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
         market_date: marketDate,
         feature_version: "momentum_v2",
         summary: {
-          entries: 2,
+          entries: 4,
           requested_symbols: [],
-          matched_symbols: ["005930", "000660"],
+          matched_symbols: ["005930", "000660", "043260", "010170"],
           missing_symbols: [],
-          ranked_symbols: 2,
+          ranked_symbols: 4,
           eligible_symbols: 1,
         },
         items: [
@@ -91,6 +91,47 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
             is_recent_overheated: false,
             momentum_rank: null,
             momentum_percentile: null,
+            is_momentum_eligible: false,
+            factor_payload: null,
+            captured_at: null,
+          },
+          {
+            symbol: "043260",
+            name_ko: "043260",
+            company_name: "Seongho Electronics",
+            market: "KOSDAQ",
+            market_date: marketDate,
+            close_price: 2250,
+            ma_60: 2200,
+            ma_120: 2150,
+            momentum_12_1: 0.12,
+            return_5d: 0.01,
+            has_sufficient_history: true,
+            is_price_above_ma120: true,
+            is_ma60_above_ma120: false,
+            is_recent_overheated: false,
+            momentum_rank: 21,
+            momentum_percentile: 0.66,
+            is_momentum_eligible: false,
+            factor_payload: null,
+            captured_at: null,
+          },
+          {
+            symbol: "010170",
+            name_ko: "010170",
+            market: "KOSPI",
+            market_date: marketDate,
+            close_price: 11500,
+            ma_60: 11300,
+            ma_120: 11000,
+            momentum_12_1: 0.09,
+            return_5d: 0.02,
+            has_sufficient_history: true,
+            is_price_above_ma120: true,
+            is_ma60_above_ma120: false,
+            is_recent_overheated: false,
+            momentum_rank: 22,
+            momentum_percentile: 0.64,
             is_momentum_eligible: false,
             factor_payload: null,
             captured_at: null,
@@ -389,6 +430,23 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
     assert.equal(workspace.requestedMarketDate, marketDate);
     assert.equal(workspace.families.momentum.eligibleCount, 1);
     assert.equal(workspace.families.momentum.auditCount, 1);
+    const companyNameFromAlternateField = workspace.families.momentum.rows.find((row) => row.symbol === "043260");
+    assert.equal(companyNameFromAlternateField?.companyName, "Seongho Electronics");
+    assert.match(
+      companyNameFromAlternateField?.href ?? "",
+      /\/dashboard\/symbol\/043260\?name=Seongho\+Electronics&market=KOSDAQ&marketDate=2026-04-23$/,
+    );
+    const symbolOnlyIdentityRow = workspace.families.momentum.rows.find((row) => row.symbol === "010170");
+    assert.equal(symbolOnlyIdentityRow?.companyName, null);
+    assert.match(symbolOnlyIdentityRow?.href ?? "", /\/dashboard\/symbol\/010170\?market=KOSPI&marketDate=2026-04-23$/);
+    assert.equal(symbolOnlyIdentityRow?.href.includes("name="), false);
+    assert.deepEqual(
+      filterFactorScreeningRows(workspace.families.momentum.rows, {
+        mode: "review",
+        query: "010170",
+      }).map((row) => row.symbol),
+      ["010170"],
+    );
     assert.equal(workspace.families.lowRisk.cautionCount, 1);
     assert.equal(workspace.families.beta.rows[0]?.statusLabel, "Eligible");
     assert.equal(workspace.families.value.rows[0]?.displayRankLabel, "#7");

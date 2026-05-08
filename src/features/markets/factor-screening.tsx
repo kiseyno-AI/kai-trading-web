@@ -69,8 +69,10 @@ const copyByLocale = {
     marketDate: "Market date",
     marketDatePending: "Factor market date pending.",
     matchingRows: "Matching rows",
+    nameUnavailable: "Name unavailable",
     note: "Note",
-    openSymbol: (companyName: string, symbol: string) => `Open ${companyName} (${symbol})`,
+    openSymbol: (companyName: string | null, symbol: string) =>
+      companyName ? `Open ${companyName} (${symbol})` : `Open ${symbol} (name unavailable)`,
     queryLabel: "Quick filter",
     queryPlaceholder: "005930 or Samsung",
     refresh: "Refresh",
@@ -136,8 +138,10 @@ const copyByLocale = {
     marketDate: "시장 날짜",
     marketDatePending: "팩터 시장 날짜 대기 중입니다.",
     matchingRows: "일치 행",
+    nameUnavailable: "종목명 미제공",
     note: "메모",
-    openSymbol: (companyName: string, symbol: string) => `${companyName} (${symbol}) 상세 열기`,
+    openSymbol: (companyName: string | null, symbol: string) =>
+      companyName ? `${companyName} (${symbol}) 상세 열기` : `${symbol} (종목명 미제공) 상세 열기`,
     queryLabel: "빠른 필터",
     queryPlaceholder: "005930 또는 Samsung",
     refresh: "새로고침",
@@ -196,8 +200,9 @@ const copyByLocale = {
     marketDate: string;
     marketDatePending: string;
     matchingRows: string;
+    nameUnavailable: string;
     note: string;
-    openSymbol: (companyName: string, symbol: string) => string;
+    openSymbol: (companyName: string | null, symbol: string) => string;
     queryLabel: string;
     queryPlaceholder: string;
     refresh: string;
@@ -694,9 +699,9 @@ export function FactorScreening() {
                         <div className={styles.rowIdentity}>
                           <div className={styles.rankBadge}>{row.displayRankLabel}</div>
                           <div>
-                            <strong>{row.companyName}</strong>
+                            <strong>{row.companyName ?? row.symbol}</strong>
                             <p>
-                              {row.symbol}
+                              {row.companyName ? row.symbol : copy.nameUnavailable}
                               {row.market ? ` · ${row.market}` : ""}
                             </p>
                           </div>
