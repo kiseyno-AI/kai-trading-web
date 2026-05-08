@@ -433,11 +433,15 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
                 stop_loss_price: 3700,
                 confidence_score_10: 5,
                 conviction_score_10: 4,
-                thesis_summary: "Wait while the replay lacks enough follow-up bars.",
+                thesis_summary: "Wait while the forward replay window matures.",
                 policy_version: "decider-policy-2026.05",
-                risk_flags: ["Follow-up price data is still incomplete"],
+                risk_flags: ["Follow-up price data is still maturing"],
                 five_day_evaluation: {
                   evaluation_status: "insufficient_data",
+                  evaluation_status_reason: "not_mature",
+                  trading_days_remaining: 3,
+                  expected_evaluation_window_start: "2026-05-07",
+                  expected_evaluation_window_end: "2026-05-13",
                 },
               },
               normalized_feedback: null,
@@ -450,6 +454,68 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
                 },
               },
               received_at: "2026-05-06T07:45:00+00:00",
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
+    if (marketDate === "2026-05-07") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: marketDate,
+            symbols: [],
+            agent_name: "signal-decider",
+            limit: 200,
+          },
+          summary: {
+            count: 1,
+          },
+          items: [
+            {
+              id: "insufficient-price-row",
+              market_date: marketDate,
+              symbol: "003480",
+              agent: {
+                name: "signal-decider",
+                run_id: "feedback-cycle-2026-05-07",
+                version: "agent-2026.05",
+              },
+              summary: {},
+              feedback: {
+                role: "signal-decider",
+                symbol: "003480",
+                market_date: marketDate,
+                preferred_action: "wait",
+                next_day_open_action: "wait",
+                target_price: 4100,
+                stop_loss_price: 3700,
+                confidence_score_10: 5,
+                conviction_score_10: 4,
+                thesis_summary: "Wait row with a mature replay window but missing price bars.",
+                policy_version: "decider-policy-2026.05",
+                risk_flags: ["Follow-up price data is incomplete"],
+                five_day_evaluation: {
+                  evaluation_status: "insufficient_data",
+                  window_mature: true,
+                  evaluation_window_start: "2026-05-08",
+                  evaluation_window_end: "2026-05-14",
+                  missing_price_dates: ["2026-05-11", "2026-05-12"],
+                },
+              },
+              normalized_feedback: null,
+              details: null,
+              context: {
+                symbol_day_context: {
+                  company: {
+                    name_ko: "한진중공업홀딩스",
+                  },
+                },
+              },
+              received_at: "2026-05-07T07:45:00+00:00",
             },
           ],
         }),
@@ -793,7 +859,7 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(hynixCard).toContainText("Review pending");
   await expect(hynixCard).toContainText(/Verdict\s*Review pending/);
   await expect(hynixCard).toContainText(/Outcome\s*Review pending/);
-  await expect(hynixCard).toContainText("Not computed yet");
+  await expect(hynixCard).toContainText("Evaluation not computed");
   await expect(hynixCard).toContainText(/Policy\s*\[확인 필요\]/);
   await expect(hynixCard.getByTestId("signal-decider-review-pending")).toContainText(
     "Verdict and realized outcome are not present",
@@ -1135,7 +1201,7 @@ test("signal-decider symbol links preserve feedback filters for the return path"
   );
 });
 
-test("signal-decider feedback detail treats insufficient-data wait rows as pending instead of check-needed", async ({
+test("signal-decider feedback detail shows pending maturity copy instead of insufficient data", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1150,27 +1216,62 @@ test("signal-decider feedback detail treats insufficient-data wait rows as pendi
     /\/dashboard\/symbol\/003480\?.*marketDate=2026-05-06.*navContext=signal-decider-feedback/,
   );
   await expect(waitCard).toContainText("Wait");
-  await expect(waitCard).toContainText(/Evaluation status\s*Insufficient data/);
+  await expect(waitCard).toContainText(/Evaluation status\s*Pending 5D window/);
+  await expect(waitCard).toContainText(/Evaluation window\s*2026-05-07 -> 2026-05-13/);
+  await expect(waitCard).toContainText("Needs 3 more trading days before 5-day outcome can be computed.");
   await expect(waitCard).toContainText(/Verdict\s*Review pending/);
   await expect(waitCard).toContainText(/Outcome\s*Review pending/);
-  await expect(waitCard).toContainText(/Target hit within 5d\s*Insufficient data/);
-  await expect(waitCard).toContainText(/Stop hit within 5d\s*Insufficient data/);
-  await expect(waitCard).toContainText(/First event\s*Insufficient data/);
-  await expect(waitCard).toContainText(/Max favorable excursion\s*Insufficient data/);
+  await expect(waitCard).toContainText(/Target hit within 5d\s*Pending/);
+  await expect(waitCard).toContainText(/Stop hit within 5d\s*Pending/);
+  await expect(waitCard).toContainText(/First event\s*Pending/);
+  await expect(waitCard).toContainText(/Max favorable excursion\s*Pending/);
+  await expect(waitCard).not.toContainText("Insufficient data");
   await expect(waitCard).not.toContainText("[확인 필요]");
 
   await page.getByRole("button", { name: /Korean/i }).click({ force: true });
 
   const localizedWaitCard = page.getByRole("article", { name: /한진중공업홀딩스 시그널 디사이더 피드백/i });
   await expect(localizedWaitCard).toContainText("대기");
-  await expect(localizedWaitCard).toContainText(/평가 상태\s*Insufficient data/);
+  await expect(localizedWaitCard).toContainText(/평가 상태\s*5D 기간 대기/);
+  await expect(localizedWaitCard).toContainText("5일 결과를 계산하려면 거래일 3일이 더 필요합니다.");
   await expect(localizedWaitCard).toContainText(/판정\s*리뷰 대기/);
   await expect(localizedWaitCard).toContainText(/결과\s*리뷰 대기/);
-  await expect(localizedWaitCard).toContainText(/5일 내 목표 도달\s*데이터 부족/);
-  await expect(localizedWaitCard).toContainText(/5일 내 손절 도달\s*데이터 부족/);
-  await expect(localizedWaitCard).toContainText(/선행 이벤트\s*데이터 부족/);
-  await expect(localizedWaitCard).toContainText(/최대 유리 변동\s*데이터 부족/);
+  await expect(localizedWaitCard).toContainText(/5일 내 목표 도달\s*대기/);
+  await expect(localizedWaitCard).toContainText(/5일 내 손절 도달\s*대기/);
+  await expect(localizedWaitCard).toContainText(/선행 이벤트\s*대기/);
+  await expect(localizedWaitCard).toContainText(/최대 유리 변동\s*대기/);
   await expect(localizedWaitCard).not.toContainText("[확인 필요]");
+});
+
+test("signal-decider feedback detail distinguishes true insufficient price bars", async ({ page }) => {
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-05-07");
+
+  const waitCard = page.getByRole("article", { name: /한진중공업홀딩스 signal-decider feedback/i });
+  await expect(waitCard).toBeVisible();
+  await expect(waitCard).toContainText(/Evaluation status\s*Insufficient price data/);
+  await expect(waitCard).toContainText(/Target hit within 5d\s*Missing price data/);
+  await expect(waitCard).toContainText(/Evaluation window\s*2026-05-08 -> 2026-05-14/);
+  await expect(waitCard).toContainText("Price bars required for the 5-day window are missing.");
+  await expect(waitCard).toContainText("2026-05-11");
+  await expect(waitCard).toContainText("2026-05-12");
+  await expect(waitCard).not.toContainText("Pending 5D window");
+  await expect(waitCard).not.toContainText("Window not stored");
+});
+
+test("shared decider feedback route uses the pending 5D copy for signal rows", async ({ page }) => {
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/decider-feedback?agent=signal-decider&marketDate=2026-05-06");
+
+  await expect(page.getByRole("heading", { name: "Decider Feedback" })).toBeVisible();
+  const waitCard = page.getByRole("article", { name: /한진중공업홀딩스 Decider Feedback/i });
+  await expect(waitCard).toBeVisible();
+  await expect(waitCard).toContainText(/Evaluation status\s*Pending 5D window/);
+  await expect(waitCard).toContainText("Needs 3 more trading days before 5-day outcome can be computed.");
+  await expect(waitCard).not.toContainText("Insufficient data");
+  await expect(waitCard).not.toContainText("Window not stored");
 });
 
 test("signal-decider detail keeps dashboard stored rows when the direct detail read is empty", async ({ page }) => {

@@ -479,12 +479,115 @@ test("preserves decision fields when review verdict and outcome are absent", () 
   assert.equal(item.reviewConclusion, null);
   assert.equal(item.pathOutcome, null);
   assert.equal(item.fiveDayEvaluation.status, "not_computed_yet");
-  assert.equal(item.fiveDayEvaluation.label, "Not computed yet");
+  assert.equal(item.fiveDayEvaluation.label, "Evaluation not computed");
   assert.equal(item.fiveDayEvaluation.firstHitLabel, null);
   assert.deepEqual(item.outcomeHorizons, []);
 });
 
-test("normalizes insufficient 5-day evaluations without check-needed placeholders", () => {
+test("normalizes not-mature 5-day metadata as a pending evaluation window", () => {
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        id: "pending-window-row",
+        market_date: "2026-05-06",
+        symbol: "003480",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-05-06",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "003480",
+          market_date: "2026-05-06",
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 5,
+          conviction_score_10: 4,
+          thesis_summary: "Normal wait row while the 5-day replay is still maturing.",
+          five_day_evaluation: {
+            evaluation_status: "insufficient_data",
+            evaluation_status_reason: "not_mature",
+            trading_days_remaining: 3,
+            expected_evaluation_window_start: "2026-05-07",
+            expected_evaluation_window_end: "2026-05-13",
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-06T07:45:00+00:00",
+      },
+    ],
+    request: {
+      market_date: "2026-05-06",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response, { evaluationReferenceDate: "2026-05-08" })[0];
+
+  assert.ok(item);
+  assert.equal(item.fiveDayEvaluation.status, "pending_evaluation_window");
+  assert.equal(item.fiveDayEvaluation.reason, "not_mature");
+  assert.equal(item.fiveDayEvaluation.label, "Pending 5D window");
+  assert.equal(item.fiveDayEvaluation.state, "pending");
+  assert.equal(item.fiveDayEvaluation.tradingDaysRemaining, 3);
+  assert.equal(item.fiveDayEvaluation.windowLabel, "2026-05-07 -> 2026-05-13");
+  assert.equal(item.fiveDayEvaluation.targetHitWithin5d, null);
+  assert.equal(item.fiveDayEvaluation.stopHitWithin5d, null);
+});
+
+test("derives pending 5-day windows for latest rows without persisted evaluation rows", () => {
+  const response = buildFeedbackResponse({
+    items: [
+      {
+        id: "latest-decision-only",
+        market_date: "2026-05-06",
+        symbol: "003480",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-05-06",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "003480",
+          market_date: "2026-05-06",
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 5,
+          conviction_score_10: 4,
+          thesis_summary: "Decision exists before the forward replay has five trading days.",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-06T07:45:00+00:00",
+      },
+    ],
+    request: {
+      market_date: "2026-05-06",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response, { evaluationReferenceDate: "2026-05-08" })[0];
+
+  assert.ok(item);
+  assert.equal(item.fiveDayEvaluation.status, "pending_evaluation_window");
+  assert.equal(item.fiveDayEvaluation.label, "Pending 5D window");
+  assert.equal(item.fiveDayEvaluation.state, "pending");
+  assert.equal(item.fiveDayEvaluation.tradingDaysRemaining, 3);
+});
+
+test("normalizes true insufficient price data without check-needed placeholders", () => {
   const response = buildFeedbackResponse({
     items: [
       {
@@ -507,6 +610,8 @@ test("normalizes insufficient 5-day evaluations without check-needed placeholder
           thesis_summary: "Normal wait row while the 5-day replay lacks enough data.",
           five_day_evaluation: {
             evaluation_status: "insufficient_data",
+            window_mature: true,
+            missing_price_dates: ["2026-05-08", "2026-05-11"],
           },
         },
         normalized_feedback: null,
@@ -524,20 +629,22 @@ test("normalizes insufficient 5-day evaluations without check-needed placeholder
     summary: { count: 1 },
   });
 
-  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+  const item = normalizeSignalDeciderFeedbackItems(response, { evaluationReferenceDate: "2026-05-15" })[0];
 
   assert.ok(item);
   assert.equal(item.action, "wait");
   assert.equal(item.qualityVerdict, null);
   assert.equal(item.reviewConclusion, null);
   assert.equal(item.fiveDayEvaluation.status, "insufficient_data");
-  assert.equal(item.fiveDayEvaluation.label, "Insufficient data");
+  assert.equal(item.fiveDayEvaluation.reason, "insufficient_price_data");
+  assert.equal(item.fiveDayEvaluation.label, "Insufficient price data");
   assert.equal(item.fiveDayEvaluation.state, "insufficient");
   assert.equal(item.fiveDayEvaluation.targetHitWithin5d, null);
   assert.equal(item.fiveDayEvaluation.stopHitWithin5d, null);
   assert.equal(item.fiveDayEvaluation.firstHitLabel, null);
   assert.equal(item.fiveDayEvaluation.maxFavorableExcursionPct, null);
   assert.equal(item.fiveDayEvaluation.maxAdverseExcursionPct, null);
+  assert.deepEqual(item.fiveDayEvaluation.dataQualityWarnings, ["2026-05-08", "2026-05-11"]);
 });
 
 test("uses raw persisted five-day evaluation when normalized feedback omits it", () => {
