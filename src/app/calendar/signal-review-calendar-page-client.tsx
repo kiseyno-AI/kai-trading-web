@@ -30,6 +30,8 @@ import {
   type SignalDeciderAction,
   type SignalDeciderFeedbackItem,
   type SignalDeciderFeedbackSummaryModel,
+  type SignalDeciderHorizonEvaluation,
+  type SignalDeciderReviewHorizonDay,
   type SignalDeciderFeedbackStatus,
   type SignalDeciderPathOutcome,
   type SignalDeciderQualityTone,
@@ -318,7 +320,8 @@ function getReviewEvidenceCount(items: SignalDeciderFeedbackItem[]) {
       hasTextValue(item.qualityReason) ||
       hasTextValue(item.reviewConclusion) ||
       item.pathOutcome !== null ||
-      item.outcomeHorizons.length > 0,
+      item.outcomeHorizons.length > 0 ||
+      item.horizonEvaluations.some((horizon) => horizon.state === "computed"),
   ).length;
 }
 
@@ -497,37 +500,138 @@ function getFeedbackStatusLabel(
   return copy.status[status];
 }
 
-function getPathOutcomeCounts(items: SignalDeciderFeedbackItem[]) {
+function getPrimaryHorizonCounts(items: SignalDeciderFeedbackItem[]) {
   return items.reduce(
     (counts, item) => {
-      if (item.pathOutcome?.kind === "target-first" || item.pathOutcome?.kind === "target-hit") {
+      const primaryHorizon = getHorizonEvaluation(item, 5);
+      if (primaryHorizon.state === "pending") {
+        counts.pending += 1;
+        return counts;
+      }
+      if (primaryHorizon.state === "insufficient") {
+        counts.insufficient += 1;
+        return counts;
+      }
+      if (primaryHorizon.state === "not-computed" || primaryHorizon.state === "unknown") {
+        counts.notComputed += 1;
+        return counts;
+      }
+      if (primaryHorizon.outcome === "target") {
         counts.target += 1;
         return counts;
       }
-      if (item.pathOutcome?.kind === "stop-first" || item.pathOutcome?.kind === "stop-hit") {
+      if (primaryHorizon.outcome === "stop") {
         counts.stop += 1;
         return counts;
       }
-      if (item.pathOutcome?.kind === "ambiguous") {
+      if (primaryHorizon.outcome === "ambiguous") {
         counts.ambiguous += 1;
         return counts;
       }
-      counts.unresolved += 1;
+      if (primaryHorizon.outcome === "unresolved") {
+        counts.unresolved += 1;
+        return counts;
+      }
+      counts.computed += 1;
       return counts;
     },
-    { ambiguous: 0, stop: 0, target: 0, unresolved: 0 },
+    { ambiguous: 0, computed: 0, insufficient: 0, notComputed: 0, pending: 0, stop: 0, target: 0, unresolved: 0 },
   );
 }
 
-function getHorizonSummary(item: SignalDeciderFeedbackItem, day: number) {
-  const outcome = item.outcomeHorizons.find((candidate) => {
-    const normalized = candidate.horizon.toLowerCase().replace(/\s+/g, "");
-    return normalized === `${day}d` || normalized === `d+${day}` || normalized === `${day}day`;
-  });
-  if (!outcome) return UNKNOWN_LABEL;
-  return formatSignedPercent(outcome.returnPct) !== UNKNOWN_LABEL
-    ? formatSignedPercent(outcome.returnPct)
-    : outcome.verdict ?? outcome.notes ?? UNKNOWN_LABEL;
+function getShorterHorizonComputedCount(items: SignalDeciderFeedbackItem[]) {
+  return items.filter((item) =>
+    item.horizonEvaluations.some((horizon) => (horizon.day === 1 || horizon.day === 3) && horizon.state === "computed"),
+  ).length;
+}
+
+function getHorizonEvaluation(item: SignalDeciderFeedbackItem, day: SignalDeciderReviewHorizonDay) {
+  return item.horizonEvaluations.find((candidate) => candidate.day === day) ?? {
+    day,
+    horizon: `${day}d`,
+    label: `${day}D`,
+    state: "not-computed",
+    outcome: null,
+    status: "not_computed_yet",
+    statusLabel: "Not computed",
+    tone: "neutral",
+    returnPct: null,
+    realizedPrice: null,
+    verdict: null,
+    notes: null,
+    tradingDaysRemaining: null,
+  } satisfies SignalDeciderHorizonEvaluation;
+}
+
+function getHorizonStateLabel(
+  horizon: SignalDeciderHorizonEvaluation,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  if (horizon.state === "pending") return copy.horizons.pendingMaturity;
+  if (horizon.state === "insufficient") return copy.horizons.insufficientData;
+  if (horizon.state === "not-computed") return copy.horizons.notComputed;
+  if (horizon.state === "unknown") return copy.horizons.unknown;
+  return copy.horizons.computed;
+}
+
+function getHorizonChipLabel(
+  horizon: SignalDeciderHorizonEvaluation,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  if (horizon.state !== "computed") return getHorizonStateLabel(horizon, copy);
+  if (horizon.outcome === "target") return copy.outcomes.target;
+  if (horizon.outcome === "stop") return copy.outcomes.stop;
+  if (horizon.outcome === "ambiguous") return copy.outcomes.ambiguous;
+  if (horizon.outcome === "unresolved") return copy.outcomes.unresolved;
+  return copy.horizons.computed;
+}
+
+function getHorizonDetailLabel(
+  horizon: SignalDeciderHorizonEvaluation,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  const realizedReturn = horizon.returnPct !== null ? formatSignedPercent(horizon.returnPct) : null;
+  if (horizon.state === "computed") {
+    return realizedReturn !== UNKNOWN_LABEL ? realizedReturn : horizon.verdict ?? horizon.notes ?? null;
+  }
+  if (horizon.state === "pending" && horizon.tradingDaysRemaining !== null) {
+    return copy.horizons.daysRemaining.replaceAll(
+      "{days}",
+      horizon.tradingDaysRemaining.toLocaleString("en-US"),
+    );
+  }
+  return horizon.notes;
+}
+
+function getHorizonProgressSummary(
+  item: SignalDeciderFeedbackItem,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  return ([1, 3, 5] as const)
+    .map((day) => {
+      const horizon = getHorizonEvaluation(item, day);
+      return `${horizon.label} ${getHorizonStateLabel(horizon, copy)}`;
+    })
+    .join(" · ");
+}
+
+function HorizonChip({
+  copy,
+  horizon,
+  showDetail = false,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  horizon: SignalDeciderHorizonEvaluation;
+  showDetail?: boolean;
+}) {
+  const detail = showDetail ? getHorizonDetailLabel(horizon, copy) : null;
+  return (
+    <span className={styles.horizonChip}>
+      <span className={`pill ${getPillToneClass(horizon.tone)}`}>{horizon.label}</span>
+      <span>{getHorizonChipLabel(horizon, copy)}</span>
+      {detail ? <small>{detail}</small> : null}
+    </span>
+  );
 }
 
 function getStoredReviewSummary(item: SignalDeciderFeedbackItem) {
@@ -965,7 +1069,11 @@ export default function SignalReviewCalendarPageClient() {
     [selectedDisplayLoadState, selectedItemId, selectedSummary.items],
   );
   const reviewCount = useMemo(() => getReviewEvidenceCount(selectedSummary.items), [selectedSummary.items]);
-  const pathCounts = useMemo(() => getPathOutcomeCounts(selectedSummary.items), [selectedSummary.items]);
+  const primaryHorizonCounts = useMemo(() => getPrimaryHorizonCounts(selectedSummary.items), [selectedSummary.items]);
+  const shorterHorizonComputedCount = useMemo(
+    () => getShorterHorizonComputedCount(selectedSummary.items),
+    [selectedSummary.items],
+  );
   const monthDecisionCount = useMemo(
     () =>
       Object.values(monthSnapshots)
@@ -1183,10 +1291,26 @@ export default function SignalReviewCalendarPageClient() {
                 <strong>{reviewCount.toLocaleString("en-US")}</strong>
               </div>
               <div className={styles.summaryCard}>
-                <span>{copy.summary.path}</span>
+                <span>{copy.summary.primary5d}</span>
                 <strong>
-                  {copy.outcomes.target} {pathCounts.target} · {copy.outcomes.stop} {pathCounts.stop} ·{" "}
-                  {copy.outcomes.unresolved} {pathCounts.unresolved}
+                  {copy.outcomes.target} {primaryHorizonCounts.target} · {copy.outcomes.stop} {primaryHorizonCounts.stop} ·{" "}
+                  {copy.outcomes.unresolved} {primaryHorizonCounts.unresolved}
+                </strong>
+              </div>
+              <div className={styles.summaryCard}>
+                <span>{copy.summary.pendingMaturity}</span>
+                <strong>
+                  {copy.horizons.pendingMaturity} {primaryHorizonCounts.pending} · {copy.horizons.insufficientData}{" "}
+                  {primaryHorizonCounts.insufficient} · {copy.horizons.notComputed} {primaryHorizonCounts.notComputed}
+                </strong>
+              </div>
+              <div className={styles.summaryCard}>
+                <span>{copy.summary.shorterHorizons}</span>
+                <strong>
+                  {copy.horizons.shorterComputed.replaceAll(
+                    "{count}",
+                    shorterHorizonComputedCount.toLocaleString("en-US"),
+                  )}
                 </strong>
               </div>
             </div>
@@ -1219,8 +1343,13 @@ export default function SignalReviewCalendarPageClient() {
                       <span className={`pill ${getActionToneClass(item.action)}`}>
                         {formatSignalDeciderActionLabel(item.action)}
                       </span>
-                      <span>{item.pathOutcome?.label ?? item.qualityVerdict ?? copy.status.pending}</span>
-                      {decisionRowDetail ? <span>{decisionRowDetail}</span> : null}
+                      <span className={styles.horizonChipRow}>
+                        {([1, 3, 5] as const).map((day) => (
+                          <HorizonChip key={day} copy={copy} horizon={getHorizonEvaluation(item, day)} />
+                        ))}
+                      </span>
+                      <span className={styles.horizonProgressSummary}>{getHorizonProgressSummary(item, copy)}</span>
+                      {decisionRowDetail ? <span className={styles.decisionDetail}>{decisionRowDetail}</span> : null}
                     </button>
                   );
                 })}
@@ -1275,9 +1404,15 @@ export default function SignalReviewCalendarPageClient() {
                           <span>{copy.table.stop}: {formatCurrencyValue(item.stopLossPrice)}</span>
                         </div>
                       </td>
-                      <td>{getHorizonSummary(item, 1)}</td>
-                      <td>{getHorizonSummary(item, 3)}</td>
-                      <td>{getHorizonSummary(item, 5)}</td>
+                      <td>
+                        <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 1)} showDetail />
+                      </td>
+                      <td>
+                        <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 3)} showDetail />
+                      </td>
+                      <td>
+                        <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 5)} showDetail />
+                      </td>
                       <td>
                         {item.pathOutcome ? (
                           <span className={`pill ${getPillToneClass(item.pathOutcome.tone)}`}>{item.pathOutcome.label}</span>
@@ -1442,20 +1577,22 @@ function DetailPanel({
 
             <section className={styles.detailSection}>
               <h3>{copy.detail.replaySummary}</h3>
-              {item.outcomeHorizons.length > 0 ? (
+              {item.horizonEvaluations.length > 0 ? (
                 <div className={styles.outcomeGrid}>
-                  {item.outcomeHorizons.map((outcome) => (
-                    <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
-                      <span>{outcome.horizon}</span>
-                      <strong>{formatSignedPercent(outcome.returnPct)}</strong>
+                  {item.horizonEvaluations.map((horizon) => (
+                    <div key={horizon.horizon} className={styles.outcomeCard}>
+                      <span>{horizon.label}</span>
+                      <strong>{getHorizonChipLabel(horizon, copy)}</strong>
                       <p>
                         {[
-                          outcome.realizedPrice !== null ? `₩${formatPrice(outcome.realizedPrice)}` : null,
-                          outcome.verdict,
-                          outcome.notes,
+                          getHorizonDetailLabel(horizon, copy),
+                          horizon.realizedPrice !== null ? `₩${formatPrice(horizon.realizedPrice)}` : null,
+                          horizon.verdict,
+                          horizon.notes,
                         ]
                           .filter((part): part is string => hasTextValue(part))
-                          .join(" · ") || UNKNOWN_LABEL}
+                          .filter((part, index, all) => all.indexOf(part) === index)
+                          .join(" · ") || getHorizonStateLabel(horizon, copy)}
                       </p>
                     </div>
                   ))}

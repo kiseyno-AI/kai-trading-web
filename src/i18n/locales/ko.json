@@ -408,8 +408,11 @@
     },
     "summary": {
       "actionMix": "액션 믹스",
+      "pendingMaturity": "5D 대기 상태",
       "path": "목표 / 손절 경로",
       "reviewed": "리뷰된 행",
+      "primary5d": "5D 목표 / 손절",
+      "shorterHorizons": "단기 기간",
       "total": "총 결정"
     },
     "outcomes": {
@@ -417,6 +420,15 @@
       "stop": "손절",
       "target": "목표",
       "unresolved": "미해결"
+    },
+    "horizons": {
+      "computed": "계산됨",
+      "daysRemaining": "거래일 {days}일 남음",
+      "insufficientData": "가격 데이터 부족",
+      "notComputed": "미계산",
+      "pendingMaturity": "성숙 대기",
+      "shorterComputed": "1D/3D 계산됨 {count}",
+      "unknown": "불명"
     },
     "table": {
       "d1": "D+1",

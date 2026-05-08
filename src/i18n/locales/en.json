@@ -408,8 +408,11 @@
     },
     "summary": {
       "actionMix": "Action mix",
+      "pendingMaturity": "5D pending state",
       "path": "Target / stop path",
       "reviewed": "Reviewed rows",
+      "primary5d": "5D target / stop",
+      "shorterHorizons": "Shorter horizons",
       "total": "Total decisions"
     },
     "outcomes": {
@@ -417,6 +420,15 @@
       "stop": "Stop",
       "target": "Target",
       "unresolved": "Unresolved"
+    },
+    "horizons": {
+      "computed": "computed",
+      "daysRemaining": "{days} trading days remaining",
+      "insufficientData": "insufficient price data",
+      "notComputed": "not computed",
+      "pendingMaturity": "pending maturity",
+      "shorterComputed": "1D/3D computed {count}",
+      "unknown": "unknown"
     },
     "table": {
       "d1": "D+1",
