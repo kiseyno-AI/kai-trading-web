@@ -860,27 +860,51 @@ export default function SignalDeciderFeedbackPageClient() {
     setError(null);
     setSelectedItemId(null);
 
+    const loadAdditionalFeedback = async (selectedFeedback: AgentFeedbackListResponseDto) => {
+      const comparisonData = getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+        buildDeciderFeedbackPath({
+          agentName: comparisonAgent,
+          basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+          limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+          marketDate,
+          compact: true,
+        }),
+      ).catch(() => null);
+
+      const previousMarketDate = getPreviousBusinessMarketDate(marketDate);
+      const previousFeedbackData =
+        previousMarketDate && (selectedFeedback.items ?? []).length > 0
+          ? getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+              buildDeciderFeedbackPath({
+                agentName: activeAgent,
+                basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+                limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+                marketDate: previousMarketDate,
+                compact: true,
+              }),
+            ).catch(() => null)
+          : Promise.resolve(null);
+
+      const [loadedComparisonData, loadedPreviousFeedbackData] = await Promise.all([comparisonData, previousFeedbackData]);
+      if (!active) return;
+      setComparisonFeedback(loadedComparisonData);
+      setPreviousFeedback(loadedPreviousFeedbackData);
+    };
+
     const loadData = async () => {
       try {
-        const [feedbackData, progressData, comparisonData] = await Promise.all([
+        const [feedbackData, progressData] = await Promise.all([
           getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
             buildDeciderFeedbackPath({
               agentName: activeAgent,
               basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate,
+              compact: true,
             }),
           ),
           getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
             `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(marketDate)}`,
-          ).catch(() => null),
-          getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
-            buildDeciderFeedbackPath({
-              agentName: comparisonAgent,
-              basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
-              limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
-              marketDate,
-            }),
           ).catch(() => null),
         ]);
         if (!active) return;
@@ -889,22 +913,10 @@ export default function SignalDeciderFeedbackPageClient() {
           fetched: feedbackData,
         });
         const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progressData ?? cachedSnapshot.progress) : progressData;
-        const previousMarketDate = getPreviousBusinessMarketDate(marketDate);
-        const previousFeedbackData =
-          previousMarketDate && (selectedFeedback.items ?? []).length > 0
-            ? await getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
-                buildDeciderFeedbackPath({
-                  agentName: activeAgent,
-                  basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
-                  limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
-                  marketDate: previousMarketDate,
-                }),
-              ).catch(() => null)
-            : null;
         if (!active) return;
         setFeedback(selectedFeedback);
-        setComparisonFeedback(comparisonData);
-        setPreviousFeedback(previousFeedbackData);
+        setComparisonFeedback(null);
+        setPreviousFeedback(null);
         setProgress(selectedProgress);
         setLoadState("ready");
         if (activeAgent === SIGNAL_DECIDER_AGENT_NAME && selectedFeedback === feedbackData) {
@@ -915,6 +927,8 @@ export default function SignalDeciderFeedbackPageClient() {
             source: "detail",
           });
         }
+
+        void loadAdditionalFeedback(selectedFeedback);
       } catch (loadError) {
         console.error("Signal decider feedback page load failed", loadError);
         if (!active) return;

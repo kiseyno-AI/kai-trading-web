@@ -971,6 +971,21 @@ test("builds shared decider feedback paths with agent-specific API params and ro
   );
 });
 
+test("builds shared decider feedback paths with compact payload mode", () => {
+  const path = buildDeciderFeedbackPath({
+    agentName: SHORT_TERM_DECIDER_AGENT_NAME,
+    basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+    limit: 40,
+    marketDate: "2026-04-28",
+    compact: true,
+  });
+  const url = new URL(`https://example.test${path}`);
+
+  assert.equal(url.searchParams.get("compact"), "true");
+  assert.equal(url.searchParams.get("agent_name"), "short-term-decider");
+  assert.equal(url.searchParams.get("limit"), "40");
+});
+
 test("normalizes short-term decider tactical fields and data gaps", () => {
   const response = buildFeedbackResponse({
     request: {
