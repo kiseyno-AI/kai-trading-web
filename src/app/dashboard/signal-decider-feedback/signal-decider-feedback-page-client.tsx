@@ -351,7 +351,7 @@ function getFiveDayEvaluationRows(
     { label: copy.firstHit, value: evaluation.firstHitLabel ?? missingValue },
     { label: copy.maxFavorableExcursion, value: formatSignedPercent(evaluation.maxFavorableExcursionPct) ?? missingValue },
     { label: copy.maxAdverseExcursion, value: formatSignedPercent(evaluation.maxAdverseExcursionPct) ?? missingValue },
-    { label: copy.window, value: evaluation.windowLabel ?? copy.windowPending },
+    { label: copy.window, value: evaluation.windowLabel ?? getFiveDayEvaluationWindowFallback(evaluation, copy) },
   ];
 }
 
@@ -362,7 +362,49 @@ function getFiveDayEvaluationMissingValue(
   if (evaluation.state === "insufficient") return copy.insufficientValue;
   if (evaluation.state === "pending") return copy.pendingValue;
   if (evaluation.state === "not-computed") return copy.notComputedValue;
+  if (evaluation.state === "unknown") return copy.unknownValue;
   return UNKNOWN_LABEL;
+}
+
+function getFiveDayEvaluationDisplayLabel(
+  evaluation: DeciderFiveDayEvaluation,
+  copy: SignalDeciderEvaluationCopy,
+) {
+  if (evaluation.state === "pending") return copy.pendingBadge;
+  if (evaluation.state === "insufficient") return copy.insufficientBadge;
+  if (evaluation.state === "not-computed") return copy.notComputedBadge;
+  if (evaluation.state === "unknown") return copy.unknownBadge;
+  return evaluation.label;
+}
+
+function getFiveDayEvaluationWindowFallback(
+  evaluation: DeciderFiveDayEvaluation,
+  copy: SignalDeciderEvaluationCopy,
+) {
+  if (evaluation.state === "pending") return copy.windowPending;
+  if (evaluation.state === "insufficient") return copy.windowInsufficient;
+  if (evaluation.state === "not-computed") return copy.windowNotComputed;
+  if (evaluation.state === "unknown") return copy.windowUnknown;
+  return copy.windowUnavailable;
+}
+
+function getFiveDayEvaluationStateNote(
+  evaluation: DeciderFiveDayEvaluation,
+  copy: SignalDeciderEvaluationCopy,
+) {
+  if (evaluation.state === "not-computed") return copy.notComputedMessage;
+  if (evaluation.state === "pending") {
+    if (evaluation.tradingDaysRemaining !== null) {
+      return copy.pendingWindowMessage.replaceAll(
+        "{days}",
+        evaluation.tradingDaysRemaining.toLocaleString("en-US"),
+      );
+    }
+    return copy.pendingWindowMessageUnknown;
+  }
+  if (evaluation.state === "insufficient") return copy.insufficientDataMessage;
+  if (evaluation.state === "unknown") return copy.unknownMessage;
+  return null;
 }
 
 function FiveDayEvaluationBlock({
@@ -375,6 +417,8 @@ function FiveDayEvaluationBlock({
   variant?: "card" | "detail";
 }) {
   const rows = getFiveDayEvaluationRows(evaluation, copy);
+  const statusLabel = getFiveDayEvaluationDisplayLabel(evaluation, copy);
+  const stateNote = getFiveDayEvaluationStateNote(evaluation, copy);
 
   return (
     <section
@@ -383,12 +427,12 @@ function FiveDayEvaluationBlock({
     >
       <div className={styles.evaluationHeader}>
         <span>{copy.title}</span>
-        <strong className={`pill ${getPillToneClass(evaluation.tone)}`}>{evaluation.label}</strong>
+        <strong className={`pill ${getPillToneClass(evaluation.tone)}`}>{statusLabel}</strong>
       </div>
       <div className={styles.resultMetricGrid}>
         <div className={styles.resultMetric}>
           <span>{copy.status}</span>
-          <strong>{evaluation.label}</strong>
+          <strong>{statusLabel}</strong>
         </div>
         {rows.map((row) => (
           <div key={row.label} className={styles.resultMetric}>
@@ -397,6 +441,7 @@ function FiveDayEvaluationBlock({
           </div>
         ))}
       </div>
+      {stateNote ? <p className={styles.evaluationStateNote}>{stateNote}</p> : null}
       {evaluation.dataQualityWarnings.length > 0 ? (
         <div className={styles.evaluationWarnings}>
           <strong>{copy.warnings}</strong>
@@ -404,12 +449,6 @@ function FiveDayEvaluationBlock({
             <p key={warning}>{warning}</p>
           ))}
         </div>
-      ) : evaluation.state === "not-computed" ? (
-        <p className={styles.evaluationStateNote}>{copy.notComputedMessage}</p>
-      ) : evaluation.state === "pending" ? (
-        <p className={styles.evaluationStateNote}>{copy.pendingWindowMessage}</p>
-      ) : evaluation.state === "insufficient" ? (
-        <p className={styles.evaluationStateNote}>{copy.insufficientDataMessage}</p>
       ) : null}
     </section>
   );
@@ -1384,7 +1423,7 @@ export default function SignalDeciderFeedbackPageClient() {
                           </span>
                         ) : null}
                         <span className={`pill ${getPillToneClass(item.fiveDayEvaluation.tone)}`}>
-                          {item.fiveDayEvaluation.label}
+                          {getFiveDayEvaluationDisplayLabel(item.fiveDayEvaluation, evaluationCopy)}
                         </span>
                       </div>
                     </header>
@@ -1573,7 +1612,7 @@ export default function SignalDeciderFeedbackPageClient() {
                       {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
                     </span>
                     <span className={`pill ${getPillToneClass(selectedItem.fiveDayEvaluation.tone)}`}>
-                      {selectedItem.fiveDayEvaluation.label}
+                      {getFiveDayEvaluationDisplayLabel(selectedItem.fiveDayEvaluation, evaluationCopy)}
                     </span>
                   </div>
                 </div>

@@ -70,13 +70,23 @@ export type SignalDeciderPathOutcome = {
   detail: string | null;
 };
 
-export type DeciderFiveDayEvaluationState = "computed" | "not-computed" | "pending" | "insufficient";
+export type DeciderFiveDayEvaluationState = "computed" | "not-computed" | "pending" | "insufficient" | "unknown";
+export type DeciderFiveDayEvaluationReason =
+  | "computed"
+  | "not_mature"
+  | "insufficient_price_data"
+  | "missing_price_levels"
+  | "not_computed"
+  | "missing_evaluation"
+  | "unknown";
 
 export type DeciderFiveDayEvaluation = {
   status: string | null;
+  reason: DeciderFiveDayEvaluationReason;
   label: string;
   tone: SignalDeciderQualityTone;
   state: DeciderFiveDayEvaluationState;
+  tradingDaysRemaining: number | null;
   targetHitWithin5d: boolean | null;
   stopHitWithin5d: boolean | null;
   firstHit: string | null;
@@ -1078,9 +1088,9 @@ const FIVE_DAY_STATUS_LABELS: Record<string, string> = {
   invalid_missing_price_data: "Insufficient price data",
   invalid_no_price_levels: "Missing target/stop levels",
   not_applicable_wait_or_reject: "Not applicable",
-  not_computed_yet: "Not computed yet",
-  pending_evaluation_window: "Pending evaluation window",
-  insufficient_data: "Insufficient data",
+  not_computed_yet: "Evaluation not computed",
+  pending_evaluation_window: "Pending 5D window",
+  insufficient_data: "Insufficient price data",
   trigger_not_confirmed: "Trigger not confirmed",
   trigger_confirmed_then_target_hit: "Trigger confirmed, target hit",
   trigger_confirmed_then_stop_hit: "Trigger confirmed, stop hit",
@@ -1088,9 +1098,61 @@ const FIVE_DAY_STATUS_LABELS: Record<string, string> = {
   avoid_chase_missed_upside: "Avoid-chase missed upside",
 };
 
-function normalizeFiveDayStatus(rawStatus: string | null) {
+const FIVE_DAY_EVALUATION_WINDOW_DAYS = 5;
+
+function tokenIncludesAny(token: string, values: string[]) {
+  return values.some((value) => token === value || token.includes(value));
+}
+
+function tokenIndicatesPendingFiveDayWindow(token: string) {
+  return tokenIncludesAny(token, [
+    "pending_evaluation_window",
+    "evaluation_window_pending",
+    "pending_5d_window",
+    "pending_five_day_window",
+    "window_pending",
+    "wait_for_window",
+    "not_mature",
+    "immature",
+    "unmatured",
+    "pending_maturity",
+    "window_not_complete",
+    "window_incomplete",
+    "not_enough_elapsed_trading_days",
+    "needs_more_trading_days",
+    "forward_window_open",
+    "forward_window_pending",
+  ]);
+}
+
+function tokenIndicatesMissingPriceData(token: string) {
+  return tokenIncludesAny(token, [
+    "invalid_missing_price_data",
+    "invalid_price_data",
+    "missing_price_data",
+    "price_data_missing",
+    "missing_price_bar",
+    "missing_price_bars",
+    "missing_daily_bar",
+    "missing_daily_bars",
+    "missing_ohlcv",
+    "insufficient_price_data",
+    "price_bars_missing",
+  ]);
+}
+
+function normalizeFiveDayStatus(rawStatus: string | null, rawReason: string | null = null) {
   const normalized = normalizeToken(rawStatus);
-  if (!normalized) return null;
+  const normalizedReason = normalizeToken(rawReason);
+  if (!normalized) {
+    if (tokenIndicatesPendingFiveDayWindow(normalizedReason)) return "pending_evaluation_window";
+    if (tokenIndicatesMissingPriceData(normalizedReason)) return "invalid_missing_price_data";
+    if (normalizedReason === "missing_price_levels" || normalizedReason === "no_price_levels") {
+      return "invalid_no_price_levels";
+    }
+    if (normalizedReason === "not_computed" || normalizedReason === "missing_evaluation") return "not_computed_yet";
+    return null;
+  }
 
   if (
     normalized === "target_hit_first" ||
@@ -1133,13 +1195,21 @@ function normalizeFiveDayStatus(rawStatus: string | null) {
     return "neither_hit_within_5d";
   }
 
-  if (normalized === "missing_price_data" || normalized === "invalid_price_data") return "invalid_missing_price_data";
-  if (normalized === "missing_price_levels" || normalized === "no_price_levels") return "invalid_no_price_levels";
-  if (normalized === "pending" || normalized === "wait_for_window" || normalized === "evaluation_window_pending") {
+  if (
+    normalized === "pending" ||
+    tokenIndicatesPendingFiveDayWindow(normalized) ||
+    tokenIndicatesPendingFiveDayWindow(normalizedReason)
+  ) {
     return "pending_evaluation_window";
   }
-  if (normalized === "not_computed" || normalized === "missing_evaluation") return "not_computed_yet";
+
+  if (tokenIndicatesMissingPriceData(normalized) || tokenIndicatesMissingPriceData(normalizedReason)) {
+    return "invalid_missing_price_data";
+  }
+  if (normalized === "missing_price_levels" || normalized === "no_price_levels") return "invalid_no_price_levels";
   if (normalized === "insufficient" || normalized === "incomplete_data") return "insufficient_data";
+  if (normalized === "not_computed" || normalized === "missing_evaluation") return "not_computed_yet";
+  if (normalizedReason === "not_computed" || normalizedReason === "missing_evaluation") return "not_computed_yet";
 
   return normalized;
 }
@@ -1183,13 +1253,150 @@ function getFiveDayEvaluationState(status: string | null): DeciderFiveDayEvaluat
   ) {
     return "insufficient";
   }
+  if (!status) return "unknown";
+  return "computed";
+}
+
+function getFiveDayEvaluationReason(status: string | null): DeciderFiveDayEvaluationReason {
+  if (status === "pending_evaluation_window") return "not_mature";
+  if (status === "invalid_no_price_levels") return "missing_price_levels";
+  if (status === "insufficient_data" || status === "invalid_missing_price_data") return "insufficient_price_data";
+  if (status === "not_computed_yet") return "not_computed";
+  if (!status) return "unknown";
   return "computed";
 }
 
 function getFiveDayEvaluationLabel(status: string | null, rawLabel: string | null) {
+  if (
+    status === "pending_evaluation_window" ||
+    status === "not_computed_yet" ||
+    status === "insufficient_data" ||
+    status === "invalid_missing_price_data"
+  ) {
+    return FIVE_DAY_STATUS_LABELS[status];
+  }
   if (rawLabel) return rawLabel;
   if (!status) return FIVE_DAY_STATUS_LABELS.not_computed_yet;
   return FIVE_DAY_STATUS_LABELS[status] ?? humanizeToken(status);
+}
+
+function formatLocalDateOnly(date = new Date()) {
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseUtcDateOnly(value: string | null | undefined) {
+  const normalized = normalizeMarketDate(value);
+  if (!normalized || !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+  const [year, month, day] = normalized.split("-").map((part) => Number.parseInt(part, 10));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function countLikelyTradingDaysAfterMarketDate(marketDate: string | null, referenceDate: string | null) {
+  const start = parseUtcDateOnly(marketDate);
+  const end = parseUtcDateOnly(referenceDate);
+  if (!start || !end || end.getTime() <= start.getTime()) return 0;
+
+  const cursor = new Date(start.getTime());
+  let count = 0;
+  while (cursor.getTime() < end.getTime()) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) count += 1;
+  }
+  return count;
+}
+
+function getIntegerFromRecord(record: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = toSafeInteger(record[key]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function getFiveDayTradingDaysRemaining({
+  evaluationReferenceDate,
+  marketDate,
+  record,
+}: {
+  evaluationReferenceDate?: string | null;
+  marketDate?: string | null;
+  record: Record<string, unknown> | null | undefined;
+}) {
+  const directRemaining = getIntegerFromRecord(record, [
+    "trading_days_remaining",
+    "remaining_trading_days",
+    "evaluation_days_remaining",
+    "days_remaining",
+    "bars_remaining",
+    "forward_bars_remaining",
+  ]);
+  if (directRemaining !== null) return directRemaining;
+
+  const requiredTradingDays =
+    getIntegerFromRecord(record, [
+      "required_trading_days",
+      "required_forward_trading_days",
+      "evaluation_trading_days",
+      "window_trading_days",
+      "horizon_trading_days",
+    ]) ?? FIVE_DAY_EVALUATION_WINDOW_DAYS;
+  const availableTradingDays = getIntegerFromRecord(record, [
+    "available_trading_days",
+    "available_forward_trading_days",
+    "observed_trading_days",
+    "elapsed_trading_days",
+    "completed_trading_days",
+    "available_forward_bars",
+    "observed_forward_bars",
+    "price_bars_available",
+  ]);
+  if (availableTradingDays !== null) return Math.max(0, requiredTradingDays - availableTradingDays);
+
+  const referenceDate = normalizeMarketDate(evaluationReferenceDate) ?? formatLocalDateOnly();
+  const normalizedMarketDate = normalizeMarketDate(marketDate);
+  if (!normalizedMarketDate || !referenceDate) return null;
+  const elapsedTradingDays = countLikelyTradingDaysAfterMarketDate(normalizedMarketDate, referenceDate);
+  return Math.max(0, requiredTradingDays - elapsedTradingDays);
+}
+
+function isFiveDayEvaluationWindowPending({
+  evaluationReferenceDate,
+  marketDate,
+  record,
+}: {
+  evaluationReferenceDate?: string | null;
+  marketDate?: string | null;
+  record: Record<string, unknown> | null | undefined;
+}) {
+  const maturityFlag = getBooleanFromSources([record], [
+    "window_mature",
+    "is_mature",
+    "mature",
+    "evaluation_mature",
+    "is_evaluation_mature",
+  ]);
+  if (maturityFlag === false) return true;
+  if (maturityFlag === true) return false;
+
+  const completeFlag = getBooleanFromSources([record], [
+    "window_complete",
+    "is_complete",
+    "complete",
+    "evaluation_window_complete",
+    "is_window_complete",
+  ]);
+  if (completeFlag === false) return true;
+  if (completeFlag === true) return false;
+
+  const remaining = getFiveDayTradingDaysRemaining({ evaluationReferenceDate, marketDate, record });
+  return remaining !== null && remaining > 0;
 }
 
 function hasFiveDayEvaluationEvidence(record: Record<string, unknown> | null | undefined) {
@@ -1226,11 +1433,24 @@ function hasFiveDayEvaluationEvidence(record: Record<string, unknown> | null | u
     "mae_pct",
     "evaluation_window_start",
     "evaluation_window_end",
+    "expected_evaluation_window_start",
+    "expected_evaluation_window_end",
     "evaluation_window",
+    "expected_evaluation_window",
     "window_start",
     "window_end",
     "data_quality_warnings",
     "data_warnings",
+    "evaluation_status_reason",
+    "five_day_evaluation_status_reason",
+    "status_reason",
+    "reason_code",
+    "trading_days_remaining",
+    "remaining_trading_days",
+    "available_trading_days",
+    "available_forward_bars",
+    "window_complete",
+    "window_mature",
   ].some((key) => key in record);
 }
 
@@ -1255,25 +1475,33 @@ function normalizeEvaluationDate(value: unknown) {
 function getEvaluationWindow(record: Record<string, unknown> | null | undefined) {
   const windowRecord = getRecordValue(record, [
     "evaluation_window",
+    "expected_evaluation_window",
     "window",
     "window_dates",
     "five_day_window",
+    "expected_five_day_window",
     "evaluation_dates",
   ]);
   const windowArray = Array.isArray(record?.evaluation_window)
     ? record?.evaluation_window
+    : Array.isArray(record?.expected_evaluation_window)
+      ? record?.expected_evaluation_window
     : Array.isArray(record?.window)
       ? record?.window
       : null;
   const windowText =
     typeof record?.evaluation_window === "string"
       ? record.evaluation_window
+      : typeof record?.expected_evaluation_window === "string"
+        ? record.expected_evaluation_window
       : typeof record?.window === "string"
         ? record.window
         : null;
   const start =
     normalizeEvaluationDate(
       record?.evaluation_window_start ??
+        record?.expected_evaluation_window_start ??
+        record?.expected_window_start ??
         record?.window_start ??
         record?.start_date ??
         record?.from_date ??
@@ -1290,6 +1518,8 @@ function getEvaluationWindow(record: Record<string, unknown> | null | undefined)
   const end =
     normalizeEvaluationDate(
       record?.evaluation_window_end ??
+        record?.expected_evaluation_window_end ??
+        record?.expected_window_end ??
         record?.window_end ??
         record?.end_date ??
         record?.to_date ??
@@ -1354,6 +1584,11 @@ function getWarningsFromEvaluationRecord(record: Record<string, unknown> | null 
     ...flattenStringList(record?.warnings),
     ...flattenStringList(record?.issues),
     ...flattenStringList(record?.missing_price_dates),
+    ...flattenStringList(record?.missing_price_bar_dates),
+    ...flattenStringList(record?.missing_price_bars),
+    ...flattenStringList(record?.missing_bar_dates),
+    ...flattenStringList(record?.missing_daily_bars),
+    ...flattenStringList(record?.missing_ohlcv_dates),
     ...flattenStringList(record?.missing_dates),
     ...flattenStringList(record?.invalid_reason),
     ...flattenStringList(record?.stale_reason),
@@ -1370,17 +1605,33 @@ function getWarningsFromEvaluationRecord(record: Record<string, unknown> | null 
 }
 
 function normalizeFiveDayEvaluation({
+  evaluationReferenceDate,
+  marketDate,
   sources,
 }: {
+  evaluationReferenceDate?: string | null;
+  marketDate?: string | null;
   sources: Array<Record<string, unknown> | null | undefined>;
 }): DeciderFiveDayEvaluation {
   const record = getFiveDayEvaluationRecord(sources);
   if (!record) {
+    const tradingDaysRemaining = getFiveDayTradingDaysRemaining({
+      evaluationReferenceDate,
+      marketDate,
+      record: null,
+    });
+    const status =
+      tradingDaysRemaining !== null && tradingDaysRemaining > 0
+        ? "pending_evaluation_window"
+        : "not_computed_yet";
+
     return {
-      status: "not_computed_yet",
-      label: FIVE_DAY_STATUS_LABELS.not_computed_yet,
-      tone: "neutral",
-      state: "not-computed",
+      status,
+      reason: getFiveDayEvaluationReason(status),
+      label: getFiveDayEvaluationLabel(status, null),
+      tone: getFiveDayEvaluationTone(status),
+      state: getFiveDayEvaluationState(status),
+      tradingDaysRemaining,
       targetHitWithin5d: null,
       stopHitWithin5d: null,
       firstHit: null,
@@ -1411,11 +1662,38 @@ function normalizeFiveDayEvaluation({
       "target_stop_outcome",
       "short_term_outcome",
     ]);
+  const rawReason = getStringValue(record, [
+    "five_day_evaluation_status_reason",
+    "evaluation_status_reason",
+    "status_reason",
+    "reason_code",
+    "evaluation_reason_code",
+    "not_computed_reason",
+    "failure_reason",
+    "invalid_reason",
+    "missing_reason",
+    "reason",
+  ]);
+  const normalizedStatus = normalizeFiveDayStatus(rawStatus, rawReason);
+  const tradingDaysRemaining = getFiveDayTradingDaysRemaining({
+    evaluationReferenceDate,
+    marketDate,
+    record,
+  });
+  const isPendingWindow = isFiveDayEvaluationWindowPending({
+    evaluationReferenceDate,
+    marketDate,
+    record,
+  });
   const status =
-    normalizeFiveDayStatus(rawStatus) ??
-    (getBooleanFromSources([record], ["window_complete", "is_complete", "complete"]) === false
+    isPendingWindow &&
+    (!normalizedStatus ||
+      normalizedStatus === "insufficient_data" ||
+      normalizedStatus === "invalid_missing_price_data" ||
+      normalizedStatus === "not_computed_yet")
       ? "pending_evaluation_window"
-      : "insufficient_data");
+      : normalizedStatus ??
+        (getWarningsFromEvaluationRecord(record, false).length > 0 ? "insufficient_data" : "not_computed_yet");
   const targetHitWithin5d = getBooleanFromSources([record], [
     "target_hit_within_5d",
     "target_hit_within_5_trading_days",
@@ -1459,9 +1737,11 @@ function normalizeFiveDayEvaluation({
 
   return {
     status,
+    reason: getFiveDayEvaluationReason(status),
     label: getFiveDayEvaluationLabel(status, rawLabel),
     tone: getFiveDayEvaluationTone(status),
     state: getFiveDayEvaluationState(status),
+    tradingDaysRemaining,
     targetHitWithin5d,
     stopHitWithin5d,
     firstHit: firstHit.firstHit,
@@ -1956,8 +2236,10 @@ export function normalizeDeciderFeedbackItems(
   response: AgentFeedbackListResponseDto | null | undefined,
   {
     agentName,
+    evaluationReferenceDate,
   }: {
     agentName?: string | null;
+    evaluationReferenceDate?: string | null;
   } = {},
 ): SignalDeciderFeedbackItem[] {
   const items = response?.items ?? [];
@@ -2016,9 +2298,16 @@ export function normalizeDeciderFeedbackItems(
         "trade_plan",
       ]);
       const policyRecord = getFirstRecordFromSources(rootSources, ["policy", "decision_policy", "ruleset"]);
+      const marketDate =
+        normalizeMarketDate(getStringValue(payload, ["market_date"])) ??
+        normalizeMarketDate(item.market_date) ??
+        response?.request?.market_date ??
+        "";
       const qualitySources = [...rootSources, shortTermRecord, evaluationRecord, outcomeRecord];
       const quality = normalizeQualityTag({ action, sources: qualitySources });
       const fiveDayEvaluation = normalizeFiveDayEvaluation({
+        evaluationReferenceDate,
+        marketDate,
         sources: [
           ...rootSources,
           shortTermRecord,
@@ -2092,12 +2381,6 @@ export function normalizeDeciderFeedbackItems(
         "lineage",
       ]).flatMap(normalizeTraceEntries);
       const planSources = [payload, shortTermRecord, details, decisionSupport, itemDetails];
-      const marketDate =
-        normalizeMarketDate(getStringValue(payload, ["market_date"])) ??
-        normalizeMarketDate(item.market_date) ??
-        response?.request?.market_date ??
-        "";
-
       return {
         id: String(item.id),
         agentName: itemAgentName,
@@ -2224,8 +2507,14 @@ export function normalizeDeciderFeedbackItems(
 
 export function normalizeSignalDeciderFeedbackItems(
   response: AgentFeedbackListResponseDto | null | undefined,
+  options: {
+    evaluationReferenceDate?: string | null;
+  } = {},
 ): SignalDeciderFeedbackItem[] {
-  return normalizeDeciderFeedbackItems(response, { agentName: SIGNAL_DECIDER_AGENT_NAME });
+  return normalizeDeciderFeedbackItems(response, {
+    agentName: SIGNAL_DECIDER_AGENT_NAME,
+    evaluationReferenceDate: options.evaluationReferenceDate,
+  });
 }
 
 export function compactSignalDeciderFeedbackForDashboard(
@@ -2968,7 +3257,11 @@ export function buildDeciderFeedbackSummary({
   statusOverride?: SignalDeciderFeedbackStatus;
 }): SignalDeciderFeedbackSummaryModel {
   const resolvedAgentName = resolveDeciderAgentName(agentName);
-  const items = normalizeDeciderFeedbackItems(feedback, { agentName: resolvedAgentName });
+  const evaluationReferenceDate = normalizeMarketDate(currentMarketDate);
+  const items = normalizeDeciderFeedbackItems(feedback, {
+    agentName: resolvedAgentName,
+    evaluationReferenceDate,
+  });
   const roleSnapshot = isLatestCompletedFallback ? null : getDeciderRoleSnapshot(progress, resolvedAgentName);
   const status = statusOverride ?? resolveDeciderFeedbackStatus({ agentName: resolvedAgentName, feedback, progress });
   const resolvedMarketDate =
