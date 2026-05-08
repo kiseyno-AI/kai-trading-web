@@ -10,6 +10,11 @@ import { formatDisplayTimestamp } from "@/lib/format";
 import { buildFactorQualitySummary } from "@/lib/factor-quality";
 import { resolvePiotroskiMarketDateResolution } from "@/lib/piotroski-pass-list";
 import {
+  buildDeciderFeedbackHref,
+  SHORT_TERM_DECIDER_AGENT_NAME,
+  SIGNAL_DECIDER_AGENT_NAME,
+} from "@/lib/signal-decider-feedback";
+import {
   getPresenterStageDisplayLabel,
   getPresenterStageTone,
   resolveNormalizedPresenterDate,
@@ -3935,6 +3940,19 @@ function shouldShowAgentRoleMetrics(role: string, status: AgentRoleStatus, fallb
   return fallbackRole !== null && normalizeAgentRole(role) === fallbackRole;
 }
 
+function buildAgentRoleDetailHref(
+  progress: AgentFeedbackProgressResponseDto | null,
+  role: string,
+) {
+  const normalizedRole = normalizeAgentRole(role);
+  if (normalizedRole !== SIGNAL_DECIDER_AGENT_NAME && normalizedRole !== SHORT_TERM_DECIDER_AGENT_NAME) return null;
+
+  return buildDeciderFeedbackHref({
+    agentName: normalizedRole,
+    marketDate: progress?.request?.market_date ?? progress?.result?.market_date ?? null,
+  });
+}
+
 function getRunningAgentRoleStatus(
   role: string,
   orderedRoles: string[],
@@ -4066,6 +4084,7 @@ function buildAgentRoleCard(
     progressPercent,
     progressLabel: formatAgentProgressPercentValueLabel(progressPercent, numberLocale),
     metrics,
+    detailHref: buildAgentRoleDetailHref(progress, role),
   };
 }
 

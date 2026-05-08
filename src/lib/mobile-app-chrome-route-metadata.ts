@@ -30,6 +30,11 @@ const PATH_BASED_TITLES: RoutePathMetadata[] = [
     title: (t) => t.routes["signalDeciderFeedback"].title,
   },
   {
+    match: (pathname) =>
+      pathname === "/dashboard/decider-feedback" || pathname.startsWith("/dashboard/decider-feedback/"),
+    title: (t) => t.routes["deciderFeedback"].title,
+  },
+  {
     match: (pathname) => {
       const normalized = pathname.replace(/\/+$/, "");
       return normalized === "/search" || normalized.endsWith("/search");

@@ -484,6 +484,8 @@ export function buildSymbolRouteQuery(
   searchQuery: string | null = null,
   feedbackActionFilter: string | null = null,
   feedbackSortMode: string | null = null,
+  feedbackAgent: string | null = null,
+  feedbackStatusFilter: string | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -523,6 +525,14 @@ export function buildSymbolRouteQuery(
 
   if (feedbackActionFilter) {
     params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, feedbackActionFilter);
+  }
+
+  if (feedbackAgent) {
+    params.set("agent", feedbackAgent);
+  }
+
+  if (feedbackStatusFilter) {
+    params.set("feedbackStatus", feedbackStatusFilter);
   }
 
   if (feedbackSortMode) {

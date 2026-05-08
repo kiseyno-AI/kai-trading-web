@@ -77,7 +77,7 @@ type CalendarDateSnapshot = {
 type MonthLoadState = "idle" | "loading" | "ready" | "partial" | "unavailable";
 type DetailLoadState = "idle" | "loading" | "ready" | "error";
 
-const EMPTY_ACTION_COUNTS = { buy: 0, wait: 0, reject: 0, unknown: 0 } as const;
+const EMPTY_ACTION_COUNTS = { buy: 0, wait: 0, reject: 0, watch_for_trigger: 0, avoid_chase: 0, unknown: 0 } as const;
 
 const COMPACT_STATUS_LABELS = {
   en: {
@@ -111,13 +111,17 @@ const COMPACT_STATUS_LABELS = {
 const COMPACT_ACTION_LABELS = {
   en: {
     buy: "B",
+    avoid_chase: "AC",
     reject: "R",
+    watch_for_trigger: "WT",
     unknown: "?",
     wait: "W",
   },
   ko: {
     buy: "매",
+    avoid_chase: "추",
     reject: "제",
+    watch_for_trigger: "트",
     unknown: "?",
     wait: "대",
   },
@@ -167,6 +171,12 @@ function normalizeActionKey(value: string | null | undefined): SignalDeciderActi
   const normalized = value?.trim().toLowerCase().replace(/\W+/g, " ").trim() ?? "";
   if (normalized === "buy") return "buy";
   if (normalized === "wait" || normalized === "watch" || normalized === "watchlist") return "wait";
+  if (normalized === "watch for trigger" || normalized === "wait for trigger" || normalized === "trigger watch") {
+    return "watch_for_trigger";
+  }
+  if (normalized === "avoid chase" || normalized === "avoid chasing" || normalized === "do not chase") {
+    return "avoid_chase";
+  }
   if (normalized === "reject" || normalized === "avoid" || normalized === "skip") return "reject";
   return "unknown";
 }
@@ -319,7 +329,7 @@ function buildDateSnapshot(
 ): CalendarDateSnapshot {
   if (error) {
     return {
-      actionCounts: { buy: 0, wait: 0, reject: 0, unknown: 0 },
+      actionCounts: { ...EMPTY_ACTION_COUNTS },
       dateKey,
       decisionCount: 0,
       error,

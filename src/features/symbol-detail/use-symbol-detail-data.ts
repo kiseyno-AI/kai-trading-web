@@ -95,6 +95,8 @@ export function useSymbolDetailData({
   const searchContextQuery = useMemo(() => searchParams.get(SYMBOL_DETAIL_SEARCH_QUERY_PARAM), [searchParams]);
   const feedbackActionFilter = useMemo(() => searchParams.get(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM), [searchParams]);
   const feedbackSortMode = useMemo(() => searchParams.get(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM), [searchParams]);
+  const feedbackAgent = useMemo(() => searchParams.get("agent"), [searchParams]);
+  const feedbackStatusFilter = useMemo(() => searchParams.get("feedbackStatus"), [searchParams]);
   const symbolDetailActiveNav = resolveSymbolDetailActiveNav(navContext);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
@@ -389,8 +391,20 @@ export function useSymbolDetailData({
         searchContextQuery,
         feedbackActionFilter,
         feedbackSortMode,
+        feedbackAgent,
+        feedbackStatusFilter,
       ),
-    [feedbackActionFilter, feedbackSortMode, fsDiv, marketDate, meta, navContext, searchContextQuery],
+    [
+      feedbackActionFilter,
+      feedbackAgent,
+      feedbackSortMode,
+      feedbackStatusFilter,
+      fsDiv,
+      marketDate,
+      meta,
+      navContext,
+      searchContextQuery,
+    ],
   );
   const hasSelectedRangeHistoryLoaded = Boolean(priceHistoryResult.data);
 
@@ -466,7 +480,9 @@ export function useSymbolDetailData({
     quoteSourceCopy,
     navContext,
     feedbackActionFilter,
+    feedbackAgent,
     feedbackSortMode,
+    feedbackStatusFilter,
     routeQueryString,
     searchContextQuery,
     selectedBar,

@@ -140,6 +140,7 @@ export type AgentRoleCard = {
   progressPercent: number;
   progressLabel: string;
   metrics: AgentRoleMetric[];
+  detailHref: string | null;
 };
 
 export type FilteringStageMetric = {

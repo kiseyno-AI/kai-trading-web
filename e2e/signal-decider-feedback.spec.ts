@@ -252,13 +252,16 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
     const url = new URL(route.request().url());
     const hasMarketDate = url.searchParams.has("market_date");
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
+    const agentName = url.searchParams.get("agent_name") ?? "signal-decider";
+    const isSignalDeciderRead = agentName === "signal-decider";
 
-    if (hasMarketDate) {
+    if (hasMarketDate && isSignalDeciderRead) {
       signalDeciderFeedbackRequestCount += 1;
     }
 
     if (
       hasMarketDate &&
+      isSignalDeciderRead &&
       (shouldFailSignalDeciderFeedback ||
         signalDeciderFeedbackRequestCount === options.failSignalDeciderFeedbackRequestNumber)
     ) {
@@ -279,13 +282,118 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
           request: {
             market_date: marketDate,
             symbols: [],
-            agent_name: "signal-decider",
+            agent_name: agentName,
             limit: 200,
           },
           summary: {
             count: 0,
           },
           items: [],
+        }),
+      });
+      return;
+    }
+
+    if (agentName === "short-term-decider") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: marketDate,
+            symbols: [],
+            agent_name: "short-term-decider",
+            limit: 200,
+          },
+          summary: {
+            count: 2,
+          },
+          items: [
+            {
+              id: "short-005930",
+              market_date: marketDate,
+              symbol: "005930",
+              agent: {
+                name: "short-term-decider",
+                run_id: "short-term-cycle-2026-04-27",
+              },
+              summary: {},
+              feedback: {
+                role: "short-term-decider",
+                symbol: "005930",
+                market_date: marketDate,
+                short_term_label: "watch_for_trigger",
+                confidence_score_10: 8,
+                conviction_score_10: 6,
+                thesis_summary: "Trigger only if Samsung clears the opening range with foreign flow confirmation.",
+                trigger_condition: "Break above 82,000 with turnover expansion",
+                entry_condition: "Enter after trigger confirmation",
+                target_price: 85000,
+                stop_loss_price: 79000,
+                invalidation_condition: "Avoid if it gaps above target before entry",
+                suggested_holding_period: "1-3 sessions",
+                supporting_evidence: ["Opening range held", { label: "Flow", summary: "Foreign flow positive" }],
+                risk_flags: ["Avoid chase after gap-up open"],
+                missing_factor_score: true,
+                turnover_liquidity_anomaly: "Turnover spike versus 20d average",
+                recent_external_news_count: 2,
+                dart_events_count: 1,
+                investor_flow_context: "Foreign net buy improved",
+                sector_context: "Semiconductor tape firm",
+              },
+              normalized_feedback: null,
+              details: null,
+              context: {
+                symbol_day_context: {
+                  company: {
+                    name_ko: "Samsung Electronics",
+                  },
+                },
+              },
+              received_at: "2026-04-27T07:47:00+00:00",
+            },
+            {
+              id: "short-000660",
+              market_date: marketDate,
+              symbol: "000660",
+              agent: {
+                name: "short-term-decider",
+                run_id: "short-term-cycle-2026-04-27",
+              },
+              summary: {},
+              feedback: {
+                role: "short-term-decider",
+                symbol: "000660",
+                market_date: marketDate,
+                short_term_label: "avoid_chase",
+                confidence_score_10: 7,
+                conviction_score_10: 6,
+                thesis_summary: "Avoid chasing SK hynix until a clean pullback appears.",
+                trigger_condition: "Wait for pullback near support",
+                entry_condition: "No entry unless liquidity normalizes",
+                target_price: 128000,
+                stop_loss_price: 118000,
+                invalidation_condition: "Reject if spread widens into the open",
+                suggested_holding_period: "Intraday to 2 sessions",
+                supporting_evidence: ["Liquidity spike is unstable"],
+                risk_flags: ["Liquidity anomaly"],
+                signal_feature_absence: true,
+                incomplete_intraday_context: true,
+                recent_external_news_count: 0,
+                dart_events_count: 0,
+                sector_context: "Memory names mixed",
+              },
+              normalized_feedback: null,
+              details: null,
+              context: {
+                symbol_day_context: {
+                  company: {
+                    name_ko: "SK hynix",
+                  },
+                },
+              },
+              received_at: "2026-04-27T07:46:00+00:00",
+            },
+          ],
         }),
       });
       return;
@@ -619,7 +727,7 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(samsungCard).toContainText("decider-policy-2026.04");
   await expect(samsungCard.getByTestId("signal-decider-score-area")).toContainText(/Confidence\s*8\/10/);
 
-  const filters = page.getByLabel("Signal-decider feedback filters");
+  const filters = page.getByLabel("Decider feedback filters");
   await expect(filters.getByLabel("Verdict")).toHaveCount(0);
   await expect(filters.getByLabel("Policy")).toHaveCount(0);
 
@@ -664,7 +772,7 @@ test("signal-decider feedback detail localizes into Korean and keeps English def
   await expect(page.getByText(/Decision-support results/i)).toBeVisible();
   await expect(
     page
-      .getByRole("form", { name: /Signal-decider feedback filters/i })
+      .getByRole("form", { name: /Decider feedback filters/i })
       .getByRole("textbox", { name: /Search/i }),
   ).toBeVisible();
   await expect(
@@ -677,7 +785,7 @@ test("signal-decider feedback detail localizes into Korean and keeps English def
   await expect(page.getByText("액션 믹스")).toBeVisible();
   await expect(
     page
-      .getByRole("form", { name: /시그널 디사이더 피드백 필터/i })
+      .getByRole("form", { name: /디사이더 피드백 필터/i })
       .getByRole("textbox", { name: /검색/i }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
@@ -1181,4 +1289,120 @@ test("dashboard signal-decider card retries after a transient completed-run feed
   await expect(card).toContainText("Partial");
   await expect(card).toContainText("Samsung Electronics");
   await expect(card).not.toContainText("Signal-decider feedback is unavailable.");
+});
+
+test("shared decider feedback route loads short-term decider rows and comparison", async ({ page }) => {
+  const requestedAgents: string[] = [];
+  await mockDashboardShell(page);
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (!url.pathname.endsWith("/api/trading/agent-context/feedback")) return;
+    const agentName = url.searchParams.get("agent_name");
+    if (agentName) requestedAgents.push(agentName);
+  });
+
+  await page.goto("/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-27&q=Samsung&feedbackAction=watch_for_trigger&feedbackSort=confidence");
+
+  await expect(page.getByRole("heading", { name: "Decider Feedback" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Signal Decider" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Short-term Decider" })).toHaveAttribute("aria-current", "page");
+  await expect.poll(() => requestedAgents).toContain("short-term-decider");
+
+  const samsungCard = page.getByRole("article", { name: /Samsung Electronics Decider Feedback/i });
+  await expect(samsungCard).toBeVisible();
+  await expect(samsungCard).toContainText("Watch for trigger");
+  await expect(samsungCard).toContainText("Tactical Decision");
+  await expect(samsungCard).toContainText("Trigger Plan");
+  await expect(samsungCard).toContainText("Short-term Thesis");
+  await expect(samsungCard).toContainText("Break above 82,000 with turnover expansion");
+  await expect(samsungCard).toContainText("Avoid if it gaps above target before entry");
+  await expect(samsungCard).toContainText("Risk & Data Gaps");
+  await expect(samsungCard).toContainText("Missing factor score");
+  await expect(samsungCard).toContainText("Context badges");
+  await expect(samsungCard).toContainText("External news · 2 recent");
+  await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Cross-decider comparison");
+  await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Signal action");
+});
+
+test("decider tabs preserve market date and filter context", async ({ page }) => {
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-27&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence");
+
+  await page.getByRole("link", { name: "Signal Decider" }).click();
+  await expect(page).toHaveURL(
+    /\/dashboard\/decider-feedback\?agent=signal-decider&marketDate=2026-04-27&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence/,
+  );
+  await page.getByRole("link", { name: "Short-term Decider" }).click();
+  await expect(page).toHaveURL(
+    /\/dashboard\/decider-feedback\?agent=short-term-decider&marketDate=2026-04-27&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence/,
+  );
+});
+
+test("dashboard short-term decider progress row links to shared short-term feedback tab", async ({ page }) => {
+  await mockDashboardShell(page);
+  await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        request: {
+          market_date: "2026-04-27",
+          symbols: null,
+          expected_agents: ["signal-decider", "short-term-decider"],
+        },
+        summary: {
+          run_id: "feedback-cycle-2026-04-27-deciders",
+          run_status: "completed",
+          run_table_status: "completed",
+          cycle_status: "completed",
+          is_live: false,
+          run_started_at: "2026-04-27T06:50:00+00:00",
+          run_completed_at: "2026-04-27T07:45:00+00:00",
+          current_role: null,
+          completed_roles: ["signal-decider", "short-term-decider"],
+          remaining_roles: [],
+          latest_feedback_at: "2026-04-27T07:45:00+00:00",
+          seconds_since_last_feedback: 120,
+          stalled_threshold_seconds: 300,
+          total_symbols: 3,
+          processed_symbols: 3,
+          completed_symbols: 3,
+          in_progress_symbols: 0,
+          pending_symbols: 0,
+          progress_ratio: 1,
+          progress_percent: 100,
+          failed_items: 0,
+          completed_feedback_count: 4,
+          expected_feedback_count: 4,
+        },
+        result: {
+          market_date: "2026-04-27",
+          roles: {
+            "signal-decider": {
+              requested_count: 2,
+              completed_count: 2,
+              error_count: 0,
+            },
+            "short-term-decider": {
+              requested_count: 2,
+              completed_count: 2,
+              error_count: 0,
+            },
+          },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/dashboard");
+  const processDrawer = await openProcessMonitorDrawer(page);
+  const shortTermLink = processDrawer.getByRole("link", { name: /Short-term Decider/i });
+  await expect(shortTermLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/decider-feedback\?agent=short-term-decider&marketDate=2026-04-27/,
+  );
+
+  await shortTermLink.click();
+  await expect(page).toHaveURL(/\/dashboard\/decider-feedback\?agent=short-term-decider&marketDate=2026-04-27/);
+  await expect(page.getByRole("heading", { name: "Decider Feedback" })).toBeVisible();
 });

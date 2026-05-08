@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -17,10 +17,22 @@ import {
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
-  buildSignalDeciderFeedbackSummary,
-  buildSignalDeciderFeedbackPath,
+  buildDeciderFeedbackComparisons,
+  buildDeciderFeedbackHref,
+  buildDeciderFeedbackPath,
+  buildDeciderFeedbackSummary,
+  DECIDER_FEEDBACK_DASHBOARD_PATH,
+  getDeciderFeedbackComparisonKey,
+  getDeciderAgentLabel,
+  getOppositeDeciderAgentName,
+  resolveDeciderAgentName,
+  SHORT_TERM_DECIDER_AGENT_NAME,
+  SIGNAL_DECIDER_AGENT_NAME,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+  SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  type DeciderAgentName,
+  type DeciderFeedbackComparison,
   type SignalDeciderAction,
   type DeciderFiveDayEvaluation,
   type SignalDeciderFeedbackItem,
@@ -45,9 +57,11 @@ import styles from "./signal-decider-feedback-page.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
 const CARD_LOADING_LABEL = "…";
-const ACTION_FILTERS = ["all", "buy", "wait", "reject", "unknown"] as const;
+const ACTION_FILTERS = ["all", "buy", "watch_for_trigger", "avoid_chase", "wait", "reject", "unknown"] as const;
+const STATUS_FILTERS = ["all", "with-review", "review-pending", "with-risk"] as const;
 const SORT_MODES = ["priority", "symbol", "confidence", "captured"] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 type SortMode = (typeof SORT_MODES)[number];
 type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | { message: string };
 
@@ -66,6 +80,10 @@ function hasTextValue(value: string | null | undefined): value is string {
 
 function resolveActionFilterParam(value: string | null): ActionFilter {
   return ACTION_FILTERS.includes(value as ActionFilter) ? (value as ActionFilter) : "all";
+}
+
+function resolveStatusFilterParam(value: string | null): StatusFilter {
+  return STATUS_FILTERS.includes(value as StatusFilter) ? (value as StatusFilter) : "all";
 }
 
 function resolveSortModeParam(value: string | null): SortMode {
@@ -103,7 +121,8 @@ function getPillToneClass(tone: SignalDeciderQualityTone | null | undefined) {
 
 function getActionToneClass(action: SignalDeciderAction) {
   if (action === "buy") return "positive";
-  if (action === "reject") return "warning";
+  if (action === "reject" || action === "avoid_chase") return "warning";
+  if (action === "watch_for_trigger") return "info";
   return "neutral";
 }
 
@@ -176,6 +195,9 @@ function getDecisionPlanRows(item: SignalDeciderFeedbackItem, actionCopy: Signal
     ...actionRows,
     { label: actionCopy.target, value: formatCurrencyValue(item.targetPrice) },
     { label: actionCopy.stopLoss, value: formatCurrencyValue(item.stopLossPrice) },
+    ...(item.triggerCondition ? [{ label: actionCopy.trigger, value: item.triggerCondition }] : []),
+    ...(item.entryCondition ? [{ label: actionCopy.entryCondition, value: item.entryCondition }] : []),
+    ...(item.invalidationCondition ? [{ label: actionCopy.invalidation, value: item.invalidationCondition }] : []),
     ...(item.expectedReturnPct !== null
       ? [{ label: actionCopy.expectedReturn, value: formatExpectedReturnValue(item.expectedReturnPct) }]
       : []),
@@ -198,11 +220,13 @@ function getLocalizedActionLabel(action: SignalDeciderAction, copy: SignalDecide
   if (action === "buy") return copy.buy;
   if (action === "wait") return copy.wait;
   if (action === "reject") return copy.reject;
+  if (action === "watch_for_trigger") return copy.watchForTrigger;
+  if (action === "avoid_chase") return copy.avoidChase;
   return copy.unknown;
 }
 
 function formatActionMix(actionCounts: Record<SignalDeciderAction, number>, actionCopy: SignalDeciderActionCopy) {
-  const labels = (["buy", "wait", "reject", "unknown"] as const)
+  const labels = (["buy", "watch_for_trigger", "avoid_chase", "wait", "reject", "unknown"] as const)
     .filter((action) => actionCounts[action] > 0)
     .map((action) => `${getLocalizedActionLabel(action, actionCopy)} ${actionCounts[action].toLocaleString("en-US")}`);
 
@@ -397,9 +421,11 @@ function getSupportContextRows(item: SignalDeciderFeedbackItem, countLabels: Sig
 function buildSymbolHref(
   item: SignalDeciderFeedbackItem,
   context: {
+    agentName: DeciderAgentName;
     actionFilter: ActionFilter;
     query: string;
     sortMode: SortMode;
+    statusFilter: StatusFilter;
   },
 ) {
   const params = new URLSearchParams();
@@ -409,6 +435,8 @@ function buildSymbolHref(
   const normalizedQuery = context.query.trim();
   if (normalizedQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, normalizedQuery);
   if (context.actionFilter !== "all") params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, context.actionFilter);
+  if (context.statusFilter !== "all") params.set("feedbackStatus", context.statusFilter);
+  params.set("agent", context.agentName);
   if (context.sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, context.sortMode);
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
@@ -419,16 +447,24 @@ function filterAndSortItems({
   items,
   query,
   sortMode,
+  statusFilter,
 }: {
   actionFilter: ActionFilter;
   items: SignalDeciderFeedbackItem[];
   query: string;
   sortMode: SortMode;
+  statusFilter: StatusFilter;
 }) {
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = items.filter((item) => {
     const matchesAction = actionFilter === "all" || item.action === actionFilter;
     if (!matchesAction) return false;
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "with-review" && hasReviewData(item)) ||
+      (statusFilter === "review-pending" && !hasReviewData(item)) ||
+      (statusFilter === "with-risk" && (item.riskFlags.length > 0 || item.dataGapFlags.length > 0));
+    if (!matchesStatus) return false;
     if (!normalizedQuery) return true;
 
     return [
@@ -438,7 +474,13 @@ function filterAndSortItems({
       item.policyVersion,
       item.qualityVerdict,
       item.qualityReason,
+      item.triggerCondition,
+      item.entryCondition,
+      item.invalidationCondition,
       ...item.riskFlags,
+      ...item.dataGapFlags,
+      ...item.supportingEvidence.map((entry) => `${entry.label} ${entry.value ?? ""}`),
+      ...item.contextBadges.map((entry) => `${entry.label} ${entry.value ?? ""}`),
       ...item.factorAttributions.map((entry) => `${entry.label} ${entry.value ?? ""}`),
       ...item.gateResults.map((entry) => `${entry.label} ${entry.value ?? ""}`),
       ...item.upstreamEvidence.map((entry) => `${entry.label} ${entry.value ?? ""}`),
@@ -481,15 +523,88 @@ function TraceEntryList({ entries, title }: { entries: SignalDeciderTraceEntry[]
   );
 }
 
+function getStatusFilterLabel(statusFilter: StatusFilter, copy: SignalDeciderFeedbackCopy["statusFilters"]) {
+  if (statusFilter === "with-review") return copy.withReview;
+  if (statusFilter === "review-pending") return copy.reviewPending;
+  if (statusFilter === "with-risk") return copy.withRisk;
+  return copy.all;
+}
+
+function formatConfidenceDelta(value: number | null) {
+  if (value === null) return UNKNOWN_LABEL;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}`;
+}
+
+function getComparisonBadgeTone(comparison: DeciderFeedbackComparison) {
+  if (comparison.agreement === "agreement") return "positive";
+  if (comparison.agreement === "disagreement") return "warning";
+  return "neutral";
+}
+
+function getComparisonAgreementLabel(comparison: DeciderFeedbackComparison, copy: SignalDeciderFeedbackCopy["comparison"]) {
+  if (comparison.agreement === "agreement") return copy.agreement;
+  if (comparison.agreement === "disagreement") return copy.disagreement;
+  return copy.unknown;
+}
+
+function ComparisonRow({
+  actionCopy,
+  comparison,
+  copy,
+}: {
+  actionCopy: SignalDeciderActionCopy;
+  comparison: DeciderFeedbackComparison;
+  copy: SignalDeciderFeedbackCopy["comparison"];
+}) {
+  return (
+    <section className={styles.comparisonRow} data-testid="decider-comparison-row">
+      <div className={styles.resultSectionHeader}>
+        <span>{copy.title}</span>
+        <strong className={`pill ${getComparisonBadgeTone(comparison)}`}>
+          {getComparisonAgreementLabel(comparison, copy)}
+        </strong>
+      </div>
+      <div className={styles.comparisonGrid}>
+        <div className={styles.resultMetric}>
+          <span>{copy.shortTermAction}</span>
+          <strong>{getLocalizedActionLabel(comparison.shortTermAction, actionCopy)}</strong>
+        </div>
+        <div className={styles.resultMetric}>
+          <span>{copy.signalAction}</span>
+          <strong>{getLocalizedActionLabel(comparison.signalAction, actionCopy)}</strong>
+        </div>
+        <div className={styles.resultMetric}>
+          <span>{copy.confidenceDelta}</span>
+          <strong>{formatConfidenceDelta(comparison.confidenceDelta)}</strong>
+        </div>
+      </div>
+      {comparison.reasonContrast ? <p>{comparison.reasonContrast}</p> : null}
+      {comparison.riskContrast ? <p>{comparison.riskContrast}</p> : null}
+    </section>
+  );
+}
+
 export default function SignalDeciderFeedbackPageClient() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { t } = useAppState();
   const copy = t.signalDeciderFeedback;
+  const isSharedRoute = pathname === DECIDER_FEEDBACK_DASHBOARD_PATH;
+  const activeAgent = useMemo<DeciderAgentName>(
+    () => (isSharedRoute ? resolveDeciderAgentName(searchParams.get("agent")) : SIGNAL_DECIDER_AGENT_NAME),
+    [isSharedRoute, searchParams],
+  );
+  const comparisonAgent = useMemo(() => getOppositeDeciderAgentName(activeAgent), [activeAgent]);
+  const isShortTermAgent = activeAgent === SHORT_TERM_DECIDER_AGENT_NAME;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const requestedFeedbackQuery = useMemo(() => searchParams.get(SYMBOL_DETAIL_SEARCH_QUERY_PARAM) ?? "", [searchParams]);
   const requestedActionFilter = useMemo(
     () => resolveActionFilterParam(searchParams.get(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM)),
+    [searchParams],
+  );
+  const requestedStatusFilter = useMemo(
+    () => resolveStatusFilterParam(searchParams.get("feedbackStatus")),
     [searchParams],
   );
   const requestedSortMode = useMemo(
@@ -499,6 +614,7 @@ export default function SignalDeciderFeedbackPageClient() {
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
   const [feedback, setFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
+  const [comparisonFeedback, setComparisonFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [progress, setProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [error, setError] = useState<FeedbackError | null>(null);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(
@@ -506,6 +622,7 @@ export default function SignalDeciderFeedbackPageClient() {
   );
   const [query, setQuery] = useState(requestedFeedbackQuery);
   const [actionFilter, setActionFilter] = useState<ActionFilter>(requestedActionFilter);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(requestedStatusFilter);
   const [sortMode, setSortMode] = useState<SortMode>(requestedSortMode);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
@@ -520,6 +637,10 @@ export default function SignalDeciderFeedbackPageClient() {
   useEffect(() => {
     setActionFilter(requestedActionFilter);
   }, [requestedActionFilter]);
+
+  useEffect(() => {
+    setStatusFilter(requestedStatusFilter);
+  }, [requestedStatusFilter]);
 
   useEffect(() => {
     setSortMode(requestedSortMode);
@@ -538,7 +659,7 @@ export default function SignalDeciderFeedbackPageClient() {
     if (requestedMarketDate) return;
 
     let active = true;
-    const cachedLatest = readLatestSignalDeciderFeedbackCache();
+    const cachedLatest = activeAgent === SIGNAL_DECIDER_AGENT_NAME ? readLatestSignalDeciderFeedbackCache() : null;
     if (cachedLatest) {
       queueMicrotask(() => {
         if (!active) return;
@@ -579,22 +700,24 @@ export default function SignalDeciderFeedbackPageClient() {
     return () => {
       active = false;
     };
-  }, [requestedMarketDate, copy.errors.marketDateUnavailable]);
+  }, [activeAgent, requestedMarketDate, copy.errors.marketDateUnavailable]);
 
   useEffect(() => {
     if (!marketDate) return;
 
     let active = true;
-    const cachedSnapshot = readSignalDeciderFeedbackCache(marketDate);
+    const cachedSnapshot = activeAgent === SIGNAL_DECIDER_AGENT_NAME ? readSignalDeciderFeedbackCache(marketDate) : null;
     if (cachedSnapshot) {
       queueMicrotask(() => {
         if (!active) return;
         setFeedback(cachedSnapshot.feedback);
+        setComparisonFeedback(null);
         setProgress(cachedSnapshot.progress);
         setLoadState("ready");
       });
     } else {
       setFeedback(null);
+      setComparisonFeedback(null);
       setProgress(null);
       setLoadState("loading");
     }
@@ -603,9 +726,10 @@ export default function SignalDeciderFeedbackPageClient() {
 
     const loadData = async () => {
       try {
-        const [feedbackData, progressData] = await Promise.all([
+        const [feedbackData, progressData, comparisonData] = await Promise.all([
           getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
-            buildSignalDeciderFeedbackPath({
+            buildDeciderFeedbackPath({
+              agentName: activeAgent,
               basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate,
@@ -613,6 +737,14 @@ export default function SignalDeciderFeedbackPageClient() {
           ),
           getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
             `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(marketDate)}`,
+          ).catch(() => null),
+          getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+            buildDeciderFeedbackPath({
+              agentName: comparisonAgent,
+              basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+              limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+              marketDate,
+            }),
           ).catch(() => null),
         ]);
         if (!active) return;
@@ -622,9 +754,10 @@ export default function SignalDeciderFeedbackPageClient() {
         });
         const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progressData ?? cachedSnapshot.progress) : progressData;
         setFeedback(selectedFeedback);
+        setComparisonFeedback(comparisonData);
         setProgress(selectedProgress);
         setLoadState("ready");
-        if (selectedFeedback === feedbackData) {
+        if (activeAgent === SIGNAL_DECIDER_AGENT_NAME && selectedFeedback === feedbackData) {
           writeSignalDeciderFeedbackCache({
             feedback: feedbackData,
             marketDate,
@@ -637,12 +770,14 @@ export default function SignalDeciderFeedbackPageClient() {
         if (!active) return;
         if (cachedSnapshot) {
           setFeedback(cachedSnapshot.feedback);
+          setComparisonFeedback(null);
           setProgress(cachedSnapshot.progress);
           setLoadState("ready");
           setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
           return;
         }
         setFeedback(null);
+        setComparisonFeedback(null);
         setProgress(null);
         setLoadState("error");
         setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
@@ -654,12 +789,60 @@ export default function SignalDeciderFeedbackPageClient() {
     return () => {
       active = false;
     };
-  }, [marketDate]);
+  }, [activeAgent, comparisonAgent, marketDate]);
 
   const summary = useMemo(
-    () => buildSignalDeciderFeedbackSummary({ feedback, marketDate, progress, previewLimit: 5 }),
-    [feedback, marketDate, progress],
+    () => buildDeciderFeedbackSummary({ agentName: activeAgent, feedback, marketDate, progress, previewLimit: 5 }),
+    [activeAgent, feedback, marketDate, progress],
   );
+  const displayedMarketDate = summary.marketDate ?? marketDate;
+  const comparisonSummary = useMemo(
+    () =>
+      buildDeciderFeedbackSummary({
+        agentName: comparisonAgent,
+        feedback: comparisonFeedback,
+        marketDate,
+        progress: null,
+        previewLimit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+      }),
+    [comparisonAgent, comparisonFeedback, marketDate],
+  );
+  const comparisonByKey = useMemo(() => {
+    const signalItems = activeAgent === SIGNAL_DECIDER_AGENT_NAME ? summary.items : comparisonSummary.items;
+    const shortTermItems = activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? summary.items : comparisonSummary.items;
+    return new Map(
+      buildDeciderFeedbackComparisons({ shortTermItems, signalItems }).map((comparison) => [
+        `${comparison.marketDate}:${comparison.symbol}`,
+        comparison,
+      ]),
+    );
+  }, [activeAgent, comparisonSummary.items, summary.items]);
+  const comparisonCount = comparisonByKey.size;
+  const activeAgentLabel = getDeciderAgentLabel(activeAgent);
+  const pageTitle = isSharedRoute ? copy.heroTitle : copy.legacyHeroTitle;
+  const pageCopy = isShortTermAgent ? copy.shortTermHeroCopy : copy.heroCopy;
+  const componentTagLabel = isSharedRoute ? "dashboard.decider-feedback" : "dashboard.signal-decider-feedback";
+  const componentTagApi =
+    activeAgent === SHORT_TERM_DECIDER_AGENT_NAME
+      ? "/api/trading/agent-context/feedback?agent_name=short-term-decider + /api/trading/agent-context/feedback/progress"
+      : "/api/trading/agent-context/feedback?agent_name=signal-decider + /api/trading/agent-context/feedback/progress";
+  const selectedTabLabel =
+    activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? copy.tabs.shortTermDecider : copy.tabs.signalDecider;
+  const preservedTabState = {
+    actionFilter,
+    marketDate: displayedMarketDate,
+    query,
+    sortMode,
+    statusFilter,
+  };
+  const signalTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SIGNAL_DECIDER_AGENT_NAME });
+  const shortTermTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SHORT_TERM_DECIDER_AGENT_NAME });
+  const activeAgentEmptyLabel =
+    activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? copy.summary.shortTermAgentName : copy.summary.signalAgentName;
+  const noComparisonMessage =
+    comparisonFeedback === null
+      ? copy.comparison.unavailable
+      : copy.comparison.empty.replaceAll("{agentLabel}", activeAgentLabel);
   const visibleItems = useMemo(
     () =>
       filterAndSortItems({
@@ -667,14 +850,14 @@ export default function SignalDeciderFeedbackPageClient() {
         items: summary.items,
         query,
         sortMode,
+        statusFilter,
       }),
-    [actionFilter, query, sortMode, summary.items],
+    [actionFilter, query, sortMode, statusFilter, summary.items],
   );
   const selectedItem = useMemo(
     () => summary.items.find((item) => item.id === selectedItemId) ?? null,
     [selectedItemId, summary.items],
   );
-  const displayedMarketDate = summary.marketDate ?? marketDate;
 
   const summaryCopy = copy.summary;
   const labelsCopy = copy.labels;
@@ -715,16 +898,22 @@ export default function SignalDeciderFeedbackPageClient() {
     event.preventDefault();
     const nextMarketDate = marketDateDraft.trim();
     if (!nextMarketDate) {
-      router.push("/dashboard/signal-decider-feedback");
+      router.push(
+        isSharedRoute
+          ? buildDeciderFeedbackHref({ agentName: activeAgent })
+          : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH,
+      );
       return;
     }
 
     const params = new URLSearchParams({ marketDate: nextMarketDate });
+    if (isSharedRoute) params.set("agent", activeAgent);
     const normalizedQuery = query.trim();
     if (normalizedQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, normalizedQuery);
     if (actionFilter !== "all") params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, actionFilter);
+    if (statusFilter !== "all") params.set("feedbackStatus", statusFilter);
     if (sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, sortMode);
-    router.push(`/dashboard/signal-decider-feedback?${params.toString()}`);
+    router.push(`${isSharedRoute ? DECIDER_FEEDBACK_DASHBOARD_PATH : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`);
   }
 
   return (
@@ -740,17 +929,34 @@ export default function SignalDeciderFeedbackPageClient() {
         <section className={styles.heroPanel}>
           <div className={styles.heroCopy}>
             <ComponentTag
-              label="dashboard.signal-decider-feedback"
-              api="/api/trading/agent-context/feedback + /api/trading/agent-context/feedback/progress"
+              label={componentTagLabel}
+              api={componentTagApi}
             />
             <p className={styles.eyebrow}>{copy.heroEyebrow}</p>
-            <h1 className={styles.pageTitle}>{copy.heroTitle}</h1>
-            <p className={styles.pageCopy}>{copy.heroCopy}</p>
+            <h1 className={styles.pageTitle}>{pageTitle}</h1>
+            <p className={styles.pageCopy}>{pageCopy}</p>
           </div>
 
         </section>
 
         <section className={styles.panel}>
+          <nav className={styles.agentTabs} aria-label={copy.tabs.label}>
+            <Link
+              href={signalTabHref}
+              className={activeAgent === SIGNAL_DECIDER_AGENT_NAME ? styles.activeAgentTab : styles.agentTab}
+              aria-current={activeAgent === SIGNAL_DECIDER_AGENT_NAME ? "page" : undefined}
+            >
+              {copy.tabs.signalDecider}
+            </Link>
+            <Link
+              href={shortTermTabHref}
+              className={activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? styles.activeAgentTab : styles.agentTab}
+              aria-current={activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? "page" : undefined}
+            >
+              {copy.tabs.shortTermDecider}
+            </Link>
+          </nav>
+
           <div className={styles.summaryGrid}>
             <div className={styles.summaryCard}>
               <span>{labelsCopy.status}</span>
@@ -769,6 +975,10 @@ export default function SignalDeciderFeedbackPageClient() {
             <div className={styles.summaryCard}>
               <span>{labelsCopy.actionMix}</span>
               <strong>{getSignalDeciderSummaryActionMix(loadState, summary.actionCounts, actionCopy)}</strong>
+            </div>
+            <div className={styles.summaryCard}>
+              <span>{labelsCopy.comparisons}</span>
+              <strong>{loadState === "ready" ? comparisonCount.toLocaleString("en-US") : CARD_LOADING_LABEL}</strong>
             </div>
           </div>
 
@@ -803,6 +1013,16 @@ export default function SignalDeciderFeedbackPageClient() {
               </select>
             </label>
             <label>
+              <span>{labelsCopy.statusFilter}</span>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
+                {STATUS_FILTERS.map((status) => (
+                  <option key={status} value={status}>
+                    {getStatusFilterLabel(status, copy.statusFilters)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               <span>{labelsCopy.sort}</span>
               <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
                 <option value="priority">{sortCopy.priority}</option>
@@ -823,16 +1043,22 @@ export default function SignalDeciderFeedbackPageClient() {
                 const reviewStateRows = getReviewStateRows(item, reviewCopy);
                 const reviewNotes = getReviewNotes(item);
                 const supportContextRows = getSupportContextRows(item, labelsCopy, countCopy);
+                const comparison = comparisonByKey.get(getDeciderFeedbackComparisonKey(item));
+                const riskAndGapFlags = [...item.riskFlags, ...item.dataGapFlags];
 
                 return (
                     <article
                       key={item.id}
                       className={styles.resultCard}
-                      aria-label={`${item.companyName ?? item.symbol} ${copy.heroTitle}`}
+                      aria-label={`${item.companyName ?? item.symbol} ${pageTitle}`}
                       data-testid="signal-decider-result-card"
+                      data-agent-name={activeAgent}
                     >
                     <header className={styles.resultHeader}>
-                      <Link href={buildSymbolHref(item, { actionFilter, query, sortMode })} className={styles.symbolLink}>
+                      <Link
+                        href={buildSymbolHref(item, { actionFilter, agentName: activeAgent, query, sortMode, statusFilter })}
+                        className={styles.symbolLink}
+                      >
                         <strong>{item.companyName ?? item.symbol}</strong>
                         <span>{item.symbol}</span>
                       </Link>
@@ -851,10 +1077,22 @@ export default function SignalDeciderFeedbackPageClient() {
                       </div>
                     </header>
 
+                    {comparison ? (
+                      <ComparisonRow actionCopy={actionCopy} comparison={comparison} copy={copy.comparison} />
+                    ) : (
+                      <section className={styles.comparisonRow} data-testid="decider-comparison-empty">
+                        <div className={styles.resultSectionHeader}>
+                          <span>{copy.comparison.title}</span>
+                          <strong className="pill neutral">{copy.comparison.noPair}</strong>
+                        </div>
+                        <p>{noComparisonMessage}</p>
+                      </section>
+                    )}
+
                     <section className={styles.resultDecisionSection}>
                       <div className={styles.resultSectionHeader}>
-                        <span>{labelsCopy.decision}</span>
-                        <strong>{labelsCopy.storedSignal}</strong>
+                        <span>{isShortTermAgent ? labelsCopy.tacticalDecision : labelsCopy.decision}</span>
+                        <strong>{isShortTermAgent ? selectedTabLabel : labelsCopy.storedSignal}</strong>
                       </div>
                       <div className={styles.resultMetricGrid}>
                         <div className={styles.scoreStack} data-testid="signal-decider-score-area">
@@ -875,10 +1113,37 @@ export default function SignalDeciderFeedbackPageClient() {
                         ))}
                       </div>
                       <section className={styles.resultThesis}>
-                        <span>{labelsCopy.thesis}</span>
+                        <span>{isShortTermAgent ? labelsCopy.shortTermThesis : labelsCopy.thesis}</span>
                         <p>{item.thesisSummary ?? UNKNOWN_LABEL}</p>
                       </section>
+                      {isShortTermAgent && item.supportingEvidence.length > 0 ? (
+                        <TraceEntryList title={labelsCopy.supportingEvidence} entries={item.supportingEvidence.slice(0, 3)} />
+                      ) : null}
                     </section>
+
+                    {isShortTermAgent ? (
+                      <section className={styles.resultDecisionSection} data-testid="short-term-trigger-plan">
+                        <div className={styles.resultSectionHeader}>
+                          <span>{labelsCopy.triggerPlan}</span>
+                          <strong>{actionCopy.holdingPeriod}</strong>
+                        </div>
+                        <div className={styles.resultMetricGrid}>
+                          {[
+                            { label: actionCopy.trigger, value: item.triggerCondition ?? UNKNOWN_LABEL },
+                            { label: actionCopy.entryCondition, value: item.entryCondition ?? item.entryPriceBasis ?? UNKNOWN_LABEL },
+                            { label: actionCopy.target, value: formatCurrencyValue(item.targetPrice) },
+                            { label: actionCopy.stopLoss, value: formatCurrencyValue(item.stopLossPrice) },
+                            { label: actionCopy.invalidation, value: item.invalidationCondition ?? UNKNOWN_LABEL },
+                            { label: actionCopy.holdingPeriod, value: item.suggestedHoldingPeriod ?? UNKNOWN_LABEL },
+                          ].map((row) => (
+                            <div key={row.label} className={styles.resultMetric}>
+                              <span>{row.label}</span>
+                              <strong>{row.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
 
                     <section className={styles.resultReviewSection}>
                       <div className={styles.resultSectionHeader}>
@@ -912,17 +1177,43 @@ export default function SignalDeciderFeedbackPageClient() {
 
                     <section className={styles.resultSupportSection}>
                       <div className={styles.resultSectionHeader}>
-                        <span>{labelsCopy.supportContext}</span>
-                        <strong>{labelsCopy.tracePolicy}</strong>
+                        <span>{isShortTermAgent ? labelsCopy.riskAndDataGaps : labelsCopy.supportContext}</span>
+                        <strong>{isShortTermAgent ? labelsCopy.contextBadges : labelsCopy.tracePolicy}</strong>
                       </div>
-                      <div className={styles.resultMetricGrid} data-testid="signal-decider-support-context">
-                        {supportContextRows.map((row) => (
-                          <div key={row.label} className={styles.resultMetric}>
-                            <span>{row.label}</span>
-                            <strong>{row.value}</strong>
-                          </div>
-                        ))}
-                      </div>
+                      {isShortTermAgent ? (
+                        <>
+                          {riskAndGapFlags.length > 0 ? (
+                            <div className={styles.traceList} data-testid="short-term-risk-data-gaps">
+                              {riskAndGapFlags.map((risk) => (
+                                <div key={risk} className={styles.traceRow}>
+                                  <span className="pill warning">{labelsCopy.risks}</span>
+                                  <p>{risk}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+                          )}
+                          {item.contextBadges.length > 0 ? (
+                            <div className={styles.resultBadges} data-testid="short-term-context-badges">
+                              {item.contextBadges.map((badge) => (
+                                <span key={`${badge.label}-${badge.value ?? ""}`} className={`pill ${getPillToneClass(badge.tone)}`}>
+                                  {badge.label}{badge.value ? ` · ${badge.value}` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <div className={styles.resultMetricGrid} data-testid="signal-decider-support-context">
+                          {supportContextRows.map((row) => (
+                            <div key={row.label} className={styles.resultMetric}>
+                              <span>{row.label}</span>
+                              <strong>{row.value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </section>
 
                     <footer className={styles.resultFooter}>
@@ -936,7 +1227,10 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
           ) : (
             <div className={styles.emptyState}>
-              {getSignalDeciderNoDataMessage({ marketDate: displayedMarketDate, status: summary.status, summaryCopy })}
+              {getSignalDeciderNoDataMessage({ marketDate: displayedMarketDate, status: summary.status, summaryCopy }).replaceAll(
+                "Signal-decider",
+                activeAgentEmptyLabel,
+              ).replaceAll("signal-decider", activeAgentEmptyLabel.toLowerCase())}
             </div>
           )}
         </section>
@@ -1104,10 +1398,10 @@ export default function SignalDeciderFeedbackPageClient() {
                   </section>
 
                   <section className={styles.detailSection}>
-                    <h3>{detailCopy.risks}</h3>
-                    {selectedItem.riskFlags.length > 0 ? (
+                    <h3>{isShortTermAgent ? labelsCopy.riskAndDataGaps : detailCopy.risks}</h3>
+                    {[...selectedItem.riskFlags, ...selectedItem.dataGapFlags].length > 0 ? (
                       <div className={styles.traceList}>
-                        {selectedItem.riskFlags.map((risk) => (
+                        {[...selectedItem.riskFlags, ...selectedItem.dataGapFlags].map((risk) => (
                           <div key={risk} className={styles.traceRow}>
                             <span className="pill warning">{labelsCopy.risks}</span>
                             <p>{risk}</p>
@@ -1120,6 +1414,12 @@ export default function SignalDeciderFeedbackPageClient() {
                   </section>
 
                   <div className={styles.evidenceGrid}>
+                    {isShortTermAgent ? (
+                      <>
+                        <TraceEntryList title={labelsCopy.supportingEvidence} entries={selectedItem.supportingEvidence} />
+                        <TraceEntryList title={labelsCopy.contextBadges} entries={selectedItem.contextBadges} />
+                      </>
+                    ) : null}
                     <TraceEntryList title={labelsCopy.factors} entries={selectedItem.factorAttributions} />
                     <TraceEntryList title={labelsCopy.gates} entries={selectedItem.gateResults} />
                     <TraceEntryList title={labelsCopy.upstreamEvidence} entries={selectedItem.upstreamEvidence} />

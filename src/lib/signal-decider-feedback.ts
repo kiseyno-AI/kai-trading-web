@@ -6,6 +6,10 @@ import type {
 } from "@/types/trading-api";
 
 export const SIGNAL_DECIDER_AGENT_NAME = "signal-decider";
+export const SHORT_TERM_DECIDER_AGENT_NAME = "short-term-decider";
+export const DECIDER_AGENT_NAMES = [SIGNAL_DECIDER_AGENT_NAME, SHORT_TERM_DECIDER_AGENT_NAME] as const;
+export const DECIDER_FEEDBACK_DASHBOARD_PATH = "/dashboard/decider-feedback";
+export const SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH = "/dashboard/signal-decider-feedback";
 export const SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH = "/api/trading/agent-context/feedback";
 export const SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH = "/agent-context/feedback";
 export const SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_UPSTREAM_PATH = "/agent-context/feedback/review";
@@ -14,10 +18,12 @@ export const SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT = 200;
 export const SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH = "/api/trading/agent-context/feedback/review";
 export const SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH = "/api/trading/agent-context/feedback/calendar";
 
+export type DeciderAgentName = (typeof DECIDER_AGENT_NAMES)[number];
+
 export type SignalDeciderFeedbackStatus = "waiting" | "running" | "partial" | "completed" | "needs-review";
 export type SignalDeciderCalendarStatus = "waiting" | "running" | "partial" | "completed" | "needs-review";
 
-export type SignalDeciderAction = "buy" | "wait" | "reject" | "unknown";
+export type SignalDeciderAction = "buy" | "wait" | "reject" | "watch_for_trigger" | "avoid_chase" | "unknown";
 
 export type SignalDeciderQualityTone = "positive" | "warning" | "negative" | "neutral" | "info";
 
@@ -141,8 +147,24 @@ export type SignalDeciderTraceEntry = {
   tone: SignalDeciderQualityTone | null;
 };
 
+export type DeciderFeedbackAgreement = "agreement" | "disagreement" | "unknown";
+
+export type DeciderFeedbackComparison = {
+  symbol: string;
+  marketDate: string;
+  shortTermAction: SignalDeciderAction;
+  shortTermActionLabel: string;
+  signalAction: SignalDeciderAction;
+  signalActionLabel: string;
+  agreement: DeciderFeedbackAgreement;
+  confidenceDelta: number | null;
+  reasonContrast: string | null;
+  riskContrast: string | null;
+};
+
 export type SignalDeciderFeedbackItem = {
   id: string;
+  agentName: string;
   symbol: string;
   companyName: string | null;
   marketDate: string;
@@ -157,12 +179,18 @@ export type SignalDeciderFeedbackItem = {
   confidenceScore: number | null;
   convictionScore: number | null;
   thesisSummary: string | null;
+  supportingEvidence: SignalDeciderTraceEntry[];
   riskFlags: string[];
+  dataGapFlags: string[];
   targetPrice: number | null;
   stopLossPrice: number | null;
   expectedReturnPct: number | null;
   entryPriceBasis: string | null;
+  triggerCondition: string | null;
+  entryCondition: string | null;
+  invalidationCondition: string | null;
   suggestedHoldingPeriod: string | null;
+  contextBadges: SignalDeciderTraceEntry[];
   policyVersion: string | null;
   qualityVerdict: string | null;
   qualityReason: string | null;
@@ -220,6 +248,23 @@ function normalizeRole(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? null;
 }
 
+export function resolveDeciderAgentName(value: string | null | undefined): DeciderAgentName {
+  const normalized = normalizeRole(value);
+  return normalized === SHORT_TERM_DECIDER_AGENT_NAME ? SHORT_TERM_DECIDER_AGENT_NAME : SIGNAL_DECIDER_AGENT_NAME;
+}
+
+export function getDeciderAgentLabel(agentName: string | null | undefined) {
+  return resolveDeciderAgentName(agentName) === SHORT_TERM_DECIDER_AGENT_NAME
+    ? "Short-term Decider"
+    : "Signal Decider";
+}
+
+export function getOppositeDeciderAgentName(agentName: string | null | undefined): DeciderAgentName {
+  return resolveDeciderAgentName(agentName) === SHORT_TERM_DECIDER_AGENT_NAME
+    ? SIGNAL_DECIDER_AGENT_NAME
+    : SHORT_TERM_DECIDER_AGENT_NAME;
+}
+
 function normalizeMarketDate(value: string | null | undefined) {
   if (!hasTextValue(value)) return null;
   const trimmed = value.trim();
@@ -230,15 +275,70 @@ function normalizeMarketDate(value: string | null | undefined) {
 function normalizeAction(value: unknown): SignalDeciderAction {
   if (typeof value !== "string") return "unknown";
   const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (normalized === "buy" || normalized === "wait" || normalized === "reject") return normalized;
-  if (normalized === "hold" || normalized === "watch" || normalized === "watchlist") return "wait";
-  if (normalized === "avoid" || normalized === "skip") return "reject";
+  if (
+    normalized === "buy" ||
+    normalized === "wait" ||
+    normalized === "reject" ||
+    normalized === "watch_for_trigger"
+  ) {
+    return normalized;
+  }
+  if (
+    normalized === "hold" ||
+    normalized === "watch" ||
+    normalized === "watchlist" ||
+    normalized === "observe" ||
+    normalized === "standby"
+  ) {
+    return "wait";
+  }
+  if (
+    normalized === "trigger_watch" ||
+    normalized === "watch_trigger" ||
+    normalized === "wait_for_trigger" ||
+    normalized === "conditional_buy" ||
+    normalized === "buy_on_trigger"
+  ) {
+    return "watch_for_trigger";
+  }
+  if (
+    normalized === "avoid" ||
+    normalized === "skip"
+  ) {
+    return "reject";
+  }
+  if (
+    normalized === "avoid_chase" ||
+    normalized === "avoid_chasing" ||
+    normalized === "do_not_chase" ||
+    normalized === "no_chase"
+  ) {
+    return "avoid_chase";
+  }
   return "unknown";
 }
 
 function resolveDecisionActions(payload: AgentFeedbackStoredPayloadDto) {
-  const preferredAction = normalizeAction(payload.preferred_action);
-  const nextDayOpenAction = normalizeAction(payload.next_day_open_action);
+  const preferredAction = normalizeAction(
+    payload.preferred_action ??
+      payload.short_term_action ??
+      payload.tactical_action ??
+      payload.tactical_decision ??
+      payload.decision_action ??
+      payload.recommended_action ??
+      payload.recommendation ??
+      payload.action ??
+      payload.decision ??
+      payload.short_term_label ??
+      payload.tactical_label,
+  );
+  const nextDayOpenAction = normalizeAction(
+    payload.next_day_open_action ??
+      payload.next_open_action ??
+      payload.next_open_preferred_action ??
+      payload.next_session_action ??
+      payload.open_action,
+  );
   const action = nextDayOpenAction !== "unknown" ? nextDayOpenAction : preferredAction;
 
   return {
@@ -250,7 +350,7 @@ function resolveDecisionActions(payload: AgentFeedbackStoredPayloadDto) {
 
 export function formatSignalDeciderActionLabel(action: SignalDeciderAction) {
   if (action === "unknown") return "Unknown";
-  return `${action.slice(0, 1).toUpperCase()}${action.slice(1)}`;
+  return humanizeToken(action);
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -1419,12 +1519,169 @@ function getRiskFlags(payload: AgentFeedbackStoredPayloadDto): string[] {
   ].filter((item, index, all) => all.indexOf(item) === index);
 }
 
+function getStringListFromSources(
+  sources: Array<Record<string, unknown> | null | undefined>,
+  keys: string[],
+) {
+  return sources
+    .flatMap((source) => keys.flatMap((key) => flattenStringList(source?.[key])))
+    .filter((item, index, all) => all.indexOf(item) === index);
+}
+
+function getFlagTextFromValue(label: string, value: unknown) {
+  if (value === true) return label;
+  if (value === false || value === null || value === undefined) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value !== 0 ? `${label}: ${value}` : null;
+  if (typeof value === "string" && hasTextValue(value)) {
+    const normalized = normalizeToken(value);
+    if (["false", "no", "n", "0", "none", "ok", "pass"].includes(normalized)) return null;
+    if (["true", "yes", "y", "1", "missing", "stale", "incomplete", "absent"].includes(normalized)) return label;
+    return `${label}: ${value.trim()}`;
+  }
+  return null;
+}
+
+function getBooleanishFlagEntries(
+  sources: Array<Record<string, unknown> | null | undefined>,
+  definitions: Array<{ label: string; keys: string[] }>,
+) {
+  return definitions
+    .flatMap(({ label, keys }) =>
+      sources.flatMap((source) =>
+        keys.map((key) => getFlagTextFromValue(label, getUnknownValue(source, [key]))),
+      ),
+    )
+    .filter((item, index, all): item is string => hasTextValue(item) && all.indexOf(item) === index);
+}
+
+function getDataGapFlags(sources: Array<Record<string, unknown> | null | undefined>) {
+  return [
+    ...getStringListFromSources(sources, [
+      "data_gaps",
+      "data_gap_flags",
+      "missing_context",
+      "missing_context_flags",
+      "missing_features",
+      "missing_fields",
+      "quality_warnings",
+      "data_quality_warnings",
+    ]),
+    ...getBooleanishFlagEntries(sources, [
+      {
+        label: "Missing factor score",
+        keys: ["missing_factor_score", "factor_score_missing", "has_missing_factor_score"],
+      },
+      {
+        label: "Turnover/liquidity anomaly",
+        keys: [
+          "turnover_liquidity_anomaly",
+          "liquidity_anomaly",
+          "turnover_anomaly",
+          "has_turnover_liquidity_anomaly",
+        ],
+      },
+      {
+        label: "Signal feature absence",
+        keys: ["signal_feature_absence", "missing_signal_features", "signal_features_absent"],
+      },
+      {
+        label: "Stale intraday context",
+        keys: ["stale_intraday_context", "intraday_context_stale", "stale_context"],
+      },
+      {
+        label: "Incomplete intraday context",
+        keys: ["incomplete_intraday_context", "intraday_context_incomplete", "incomplete_context"],
+      },
+    ]),
+  ].filter((item, index, all) => all.indexOf(item) === index);
+}
+
+function normalizeContextBadgeEntries(sources: Array<Record<string, unknown> | null | undefined>) {
+  const entries: SignalDeciderTraceEntry[] = [];
+
+  const pushCount = (label: string, value: unknown) => {
+    const numericValue = toFiniteNumber(value);
+    if (numericValue === null) return;
+    entries.push({
+      label,
+      value: `${numericValue.toLocaleString("en-US")} recent`,
+      tone: numericValue > 0 ? "info" : "neutral",
+    });
+  };
+
+  const pushText = (label: string, value: string | null) => {
+    if (!value) return;
+    entries.push({
+      label,
+      value,
+      tone: resolveTraceTone(value) ?? "info",
+    });
+  };
+
+  for (const source of sources) {
+    const contextBadgeSource = getRecordValue(source, [
+      "context_badges",
+      "contextBadges",
+      "context",
+      "market_context",
+      "marketContext",
+      "recent_events",
+      "recentEvents",
+    ]);
+    const expandedSources = contextBadgeSource ? [source, contextBadgeSource] : [source];
+
+    for (const expandedSource of expandedSources) {
+      pushCount(
+        "External news",
+        getUnknownValue(expandedSource, [
+          "recent_external_news_count",
+          "external_news_count",
+          "news_count",
+          "recent_news_count",
+        ]),
+      );
+      pushText(
+        "External news",
+        getStringValue(expandedSource, ["recent_external_news_status", "external_news_status", "news_status"]),
+      );
+      pushCount(
+        "DART events",
+        getUnknownValue(expandedSource, [
+          "recent_dart_events_count",
+          "dart_events_count",
+          "dart_event_count",
+          "recent_disclosure_count",
+        ]),
+      );
+      pushText(
+        "DART events",
+        getStringValue(expandedSource, ["recent_dart_events_status", "dart_events_status", "dart_status", "disclosure_status"]),
+      );
+      pushText(
+        "Investor flow",
+        getStringValue(expandedSource, ["investor_flow_context", "investor_flow", "flow_context", "investor_context"]),
+      );
+      pushText(
+        "Sector context",
+        getStringValue(expandedSource, ["sector_context", "sector_flow_context", "industry_context", "sector_summary"]),
+      );
+    }
+  }
+
+  return entries.filter(
+    (entry, index, all) =>
+      all.findIndex((candidate) => candidate.label === entry.label && candidate.value === entry.value) === index,
+  );
+}
+
 function compareSignalDeciderItems(left: SignalDeciderFeedbackItem, right: SignalDeciderFeedbackItem) {
   const priority: Record<SignalDeciderAction, number> = {
     buy: 0,
-    reject: 1,
-    wait: 2,
-    unknown: 3,
+    watch_for_trigger: 1,
+    avoid_chase: 2,
+    reject: 3,
+    wait: 4,
+    unknown: 5,
   };
   const leftPriority = priority[left.action];
   const rightPriority = priority[right.action];
@@ -1446,9 +1703,28 @@ export function buildSignalDeciderFeedbackPath({
   limit?: number | null;
   marketDate: string;
 }) {
+  return buildDeciderFeedbackPath({
+    agentName: SIGNAL_DECIDER_AGENT_NAME,
+    basePath,
+    limit,
+    marketDate,
+  });
+}
+
+export function buildDeciderFeedbackPath({
+  agentName = SIGNAL_DECIDER_AGENT_NAME,
+  basePath,
+  limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  marketDate,
+}: {
+  agentName?: string | null;
+  basePath: string;
+  limit?: number | null;
+  marketDate: string;
+}) {
   const params = new URLSearchParams({
     market_date: marketDate,
-    agent_name: SIGNAL_DECIDER_AGENT_NAME,
+    agent_name: resolveDeciderAgentName(agentName),
     limit: String(limit ?? SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT),
   });
   return `${basePath}?${params.toString()}`;
@@ -1463,10 +1739,30 @@ export function buildSignalDeciderLatestFeedbackPath({
   limit?: number | null;
   marketDate: string | null | undefined;
 }) {
+  return buildDeciderLatestFeedbackPath({
+    agentName: SIGNAL_DECIDER_AGENT_NAME,
+    basePath,
+    limit,
+    marketDate,
+  });
+}
+
+export function buildDeciderLatestFeedbackPath({
+  agentName = SIGNAL_DECIDER_AGENT_NAME,
+  basePath,
+  limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  marketDate,
+}: {
+  agentName?: string | null;
+  basePath: string;
+  limit?: number | null;
+  marketDate: string | null | undefined;
+}) {
   const resolvedMarketDate = normalizeMarketDate(marketDate);
   if (!resolvedMarketDate) return null;
 
-  return buildSignalDeciderFeedbackPath({
+  return buildDeciderFeedbackPath({
+    agentName,
     basePath,
     limit,
     marketDate: resolvedMarketDate,
@@ -1503,20 +1799,51 @@ export function resolveSignalDeciderLatestFeedbackMarketDate({
 }
 
 export function buildSignalDeciderFeedbackHref(marketDate: string | null | undefined) {
-  if (!hasTextValue(marketDate)) return "/dashboard/signal-decider-feedback";
+  if (!hasTextValue(marketDate)) return SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH;
   const params = new URLSearchParams({ marketDate: marketDate.trim() });
-  return `/dashboard/signal-decider-feedback?${params.toString()}`;
+  return `${SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
 }
 
-export function normalizeSignalDeciderFeedbackItems(
+export function buildDeciderFeedbackHref({
+  agentName = SIGNAL_DECIDER_AGENT_NAME,
+  marketDate,
+  query,
+  actionFilter,
+  statusFilter,
+  sortMode,
+}: {
+  agentName?: string | null;
+  marketDate?: string | null;
+  query?: string | null;
+  actionFilter?: string | null;
+  statusFilter?: string | null;
+  sortMode?: string | null;
+} = {}) {
+  const params = new URLSearchParams({ agent: resolveDeciderAgentName(agentName) });
+  if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
+  if (hasTextValue(query)) params.set("q", query.trim());
+  if (hasTextValue(actionFilter) && actionFilter !== "all") params.set("feedbackAction", actionFilter.trim());
+  if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
+  if (hasTextValue(sortMode) && sortMode !== "priority") params.set("feedbackSort", sortMode.trim());
+  return `${DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
+}
+
+export function normalizeDeciderFeedbackItems(
   response: AgentFeedbackListResponseDto | null | undefined,
+  {
+    agentName,
+  }: {
+    agentName?: string | null;
+  } = {},
 ): SignalDeciderFeedbackItem[] {
   const items = response?.items ?? [];
+  const resolvedAgentName = resolveDeciderAgentName(agentName ?? response?.request?.agent_name);
 
   return items
     .map((item) => {
       const payload = getPayload(item);
       const symbol = getStringValue(payload, ["symbol"]) ?? item.symbol;
+      const itemAgentName = resolveDeciderAgentName(item.agent.name ?? payload.agent_name ?? payload.role ?? resolvedAgentName);
       const { action, nextDayOpenAction, preferredAction } = resolveDecisionActions(payload);
       const context = isRecord(item.context) ? item.context : null;
       const details = isRecord(payload.details) ? payload.details : null;
@@ -1556,12 +1883,21 @@ export function normalizeSignalDeciderFeedbackItems(
         "realized_outcome",
         "realized_result",
       ]);
+      const shortTermRecord = getFirstRecordFromSources(rootSources, [
+        "short_term",
+        "short_term_decision",
+        "tactical_decision",
+        "tactical",
+        "trigger_plan",
+        "trade_plan",
+      ]);
       const policyRecord = getFirstRecordFromSources(rootSources, ["policy", "decision_policy", "ruleset"]);
-      const qualitySources = [...rootSources, evaluationRecord, outcomeRecord];
+      const qualitySources = [...rootSources, shortTermRecord, evaluationRecord, outcomeRecord];
       const quality = normalizeQualityTag({ action, sources: qualitySources });
       const fiveDayEvaluation = normalizeFiveDayEvaluation({
         sources: [
           ...rootSources,
+          shortTermRecord,
           evaluationRecord,
           outcomeRecord,
           ...rawFeedbackSources,
@@ -1569,7 +1905,7 @@ export function normalizeSignalDeciderFeedbackItems(
           rawFeedbackOutcomeRecord,
         ],
       });
-      const outcomeHorizons = getValuesFromSources([...rootSources, evaluationRecord, outcomeRecord], [
+      const outcomeHorizons = getValuesFromSources([...rootSources, shortTermRecord, evaluationRecord, outcomeRecord], [
         "realized_results",
         "realized_outcomes",
         "outcome_horizons",
@@ -1579,8 +1915,8 @@ export function normalizeSignalDeciderFeedbackItems(
         "horizons",
         "results",
       ]).flatMap(normalizeOutcomeHorizons);
-      const pathOutcome = normalizePathOutcome([...rootSources, evaluationRecord, outcomeRecord]);
-      const intradayPathResult = getStringFromSources([...rootSources, evaluationRecord, outcomeRecord], [
+      const pathOutcome = normalizePathOutcome([...rootSources, shortTermRecord, evaluationRecord, outcomeRecord]);
+      const intradayPathResult = getStringFromSources([...rootSources, shortTermRecord, evaluationRecord, outcomeRecord], [
         "intraday_path_result",
         "intraday_result",
         "intraday_path_summary",
@@ -1593,9 +1929,9 @@ export function normalizeSignalDeciderFeedbackItems(
         outcomeHorizons,
         pathOutcome,
         qualityTag: quality.qualityTag,
-        sources: [...rootSources, evaluationRecord, outcomeRecord],
+        sources: [...rootSources, shortTermRecord, evaluationRecord, outcomeRecord],
       });
-      const factorAttributions = getValuesFromSources([...rootSources, evaluationRecord], [
+      const factorAttributions = getValuesFromSources([...rootSources, shortTermRecord, evaluationRecord], [
         "factors",
         "factor_attribution",
         "factor_attributions",
@@ -1603,13 +1939,20 @@ export function normalizeSignalDeciderFeedbackItems(
         "factor_contributions",
         "attribution",
       ]).flatMap(normalizeTraceEntries);
-      const gateResults = getValuesFromSources([...rootSources, evaluationRecord], [
+      const gateResults = getValuesFromSources([...rootSources, shortTermRecord, evaluationRecord], [
         "gates",
         "gate_results",
         "gate_checks",
         "decision_gates",
         "failed_gates",
         "passed_gates",
+      ]).flatMap(normalizeTraceEntries);
+      const supportingEvidence = getValuesFromSources([...rootSources, shortTermRecord], [
+        "supporting_evidence_snippets",
+        "evidence_snippets",
+        "thesis_evidence",
+        "supporting_evidence",
+        "evidence",
       ]).flatMap(normalizeTraceEntries);
       const upstreamEvidence = getValuesFromSources(rootSources, [
         "upstream_evidence",
@@ -1618,12 +1961,13 @@ export function normalizeSignalDeciderFeedbackItems(
         "references",
         "source_evidence",
       ]).flatMap(normalizeTraceEntries);
-      const traceability = getValuesFromSources([...rootSources, payloadTraceability], [
+      const traceability = getValuesFromSources([...rootSources, shortTermRecord, payloadTraceability], [
         "traceability",
         "trace",
         "decision_trace",
         "lineage",
       ]).flatMap(normalizeTraceEntries);
+      const planSources = [payload, shortTermRecord, details, decisionSupport, itemDetails];
       const marketDate =
         normalizeMarketDate(getStringValue(payload, ["market_date"])) ??
         normalizeMarketDate(item.market_date) ??
@@ -1632,6 +1976,7 @@ export function normalizeSignalDeciderFeedbackItems(
 
       return {
         id: String(item.id),
+        agentName: itemAgentName,
         symbol,
         companyName:
           getStringValue(payload, ["company_name", "companyName", "name_ko", "name"]) ??
@@ -1648,16 +1993,74 @@ export function normalizeSignalDeciderFeedbackItems(
         confidenceScore: normalizeScore10(payload.confidence_score_10 ?? payload.confidence),
         convictionScore: normalizeScore10(payload.conviction_score_10),
         thesisSummary:
-          getStringValue(payload, ["thesis_summary", "summary"]) ??
-          getStringValue(decisionSupport, ["thesis_summary", "summary"]),
+          getStringFromSources(planSources, [
+            "thesis_summary",
+            "short_term_thesis",
+            "short_term_thesis_summary",
+            "tactical_thesis",
+            "summary",
+          ]),
+        supportingEvidence,
         riskFlags: getRiskFlags(payload),
-        targetPrice: toFiniteNumber(payload.target_price ?? decisionSupport?.target_price),
-        stopLossPrice: toFiniteNumber(payload.stop_loss_price ?? decisionSupport?.stop_loss_price),
+        dataGapFlags: getDataGapFlags([...planSources, evaluationRecord, outcomeRecord]),
+        targetPrice: toFiniteNumber(
+          payload.target_price ??
+            payload.target ??
+            shortTermRecord?.target_price ??
+            shortTermRecord?.target ??
+            decisionSupport?.target_price,
+        ),
+        stopLossPrice: toFiniteNumber(
+          payload.stop_loss_price ??
+            payload.stop_price ??
+            payload.stop ??
+            shortTermRecord?.stop_loss_price ??
+            shortTermRecord?.stop_price ??
+            shortTermRecord?.stop ??
+            decisionSupport?.stop_loss_price,
+        ),
         expectedReturnPct: toFiniteNumber(payload.expected_return_pct ?? decisionSupport?.expected_return_pct),
-        entryPriceBasis: getStringValue(payload, ["entry_price_basis"]) ?? getStringValue(decisionSupport, ["entry_price_basis"]),
+        entryPriceBasis:
+          getStringFromSources(planSources, [
+            "entry_price_basis",
+            "entry_basis",
+            "price_basis",
+            "entry_price",
+            "entry_level",
+          ]),
+        triggerCondition:
+          getStringFromSources(planSources, [
+            "trigger_condition",
+            "trigger",
+            "entry_trigger",
+            "buy_trigger",
+            "trigger_plan",
+            "activation_condition",
+          ]),
+        entryCondition:
+          getStringFromSources(planSources, [
+            "entry_condition",
+            "entry_plan",
+            "entry_criteria",
+            "entry_rule",
+            "next_open_entry_condition",
+          ]),
+        invalidationCondition:
+          getStringFromSources(planSources, [
+            "invalidation_condition",
+            "invalidation",
+            "invalidated_if",
+            "exit_invalidation",
+            "thesis_invalidation",
+          ]),
         suggestedHoldingPeriod:
-          getStringValue(payload, ["suggested_holding_period"]) ??
-          getStringValue(decisionSupport, ["suggested_holding_period"]),
+          getStringFromSources(planSources, [
+            "suggested_holding_period",
+            "holding_period",
+            "expected_holding_period",
+            "time_horizon",
+          ]),
+        contextBadges: normalizeContextBadgeEntries([...planSources, context ? getRecordValue(context, ["symbol_day_context", "symbolDayContext"]) : null]),
         policyVersion:
           getStringFromSources(rootSources, [
             "policy_version",
@@ -1687,6 +2090,12 @@ export function normalizeSignalDeciderFeedbackItems(
       };
     })
     .sort(compareSignalDeciderItems);
+}
+
+export function normalizeSignalDeciderFeedbackItems(
+  response: AgentFeedbackListResponseDto | null | undefined,
+): SignalDeciderFeedbackItem[] {
+  return normalizeDeciderFeedbackItems(response, { agentName: SIGNAL_DECIDER_AGENT_NAME });
 }
 
 export function compactSignalDeciderFeedbackForDashboard(
@@ -1754,11 +2163,13 @@ export function compactSignalDeciderFeedbackForDashboard(
   };
 }
 
-function getSignalDeciderRoleSnapshot(
+function getDeciderRoleSnapshot(
   progress: AgentFeedbackProgressResponseDto | null | undefined,
+  agentName: string | null | undefined = SIGNAL_DECIDER_AGENT_NAME,
 ): SignalDeciderRoleSnapshot | null {
   const roles = progress?.result?.roles;
   if (!roles) return null;
+  const resolvedAgentName = resolveDeciderAgentName(agentName);
 
   const readSnapshot = (value: unknown): SignalDeciderRoleSnapshot | null => {
     if (!isRecord(value)) return null;
@@ -1773,29 +2184,40 @@ function getSignalDeciderRoleSnapshot(
     for (const item of roles) {
       if (!isRecord(item)) continue;
       const role = getStringValue(item, ["role", "agent", "name", "label"]);
-      if (normalizeRole(role) === SIGNAL_DECIDER_AGENT_NAME) return readSnapshot(item);
+      if (normalizeRole(role) === resolvedAgentName) return readSnapshot(item);
     }
     return null;
   }
 
   if (!isRecord(roles)) return null;
-  return readSnapshot(roles[SIGNAL_DECIDER_AGENT_NAME]);
+  return readSnapshot(roles[resolvedAgentName]);
 }
 
 export function resolveSignalDeciderFeedbackResultLimit(
   progress: AgentFeedbackProgressResponseDto | null | undefined,
 ) {
-  const roleSnapshot = getSignalDeciderRoleSnapshot(progress);
+  return resolveDeciderFeedbackResultLimit(progress, SIGNAL_DECIDER_AGENT_NAME);
+}
+
+export function resolveDeciderFeedbackResultLimit(
+  progress: AgentFeedbackProgressResponseDto | null | undefined,
+  agentName: string | null | undefined = SIGNAL_DECIDER_AGENT_NAME,
+) {
+  const roleSnapshot = getDeciderRoleSnapshot(progress, agentName);
   const requestedLimit = Math.max(roleSnapshot?.completedCount ?? 0, roleSnapshot?.requestedCount ?? 0);
   if (requestedLimit <= 0) return SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
   return Math.min(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT, Math.ceil(requestedLimit));
 }
 
-function getSignalDeciderRoleProgressStatus(progress: AgentFeedbackProgressResponseDto | null | undefined) {
+function getDeciderRoleProgressStatus(
+  progress: AgentFeedbackProgressResponseDto | null | undefined,
+  agentName: string | null | undefined = SIGNAL_DECIDER_AGENT_NAME,
+) {
   const progressRecord = isRecord(progress) ? (progress as Record<string, unknown>) : null;
   const summaryRecord = isRecord(progressRecord?.summary)
     ? (progressRecord.summary as Record<string, unknown>)
     : null;
+  const resolvedAgentName = resolveDeciderAgentName(agentName);
   const sources = [
     progressRecord?.role_progress,
     progressRecord?.roles,
@@ -1806,9 +2228,9 @@ function getSignalDeciderRoleProgressStatus(progress: AgentFeedbackProgressRespo
 
   for (const source of sources) {
     const candidate = Array.isArray(source)
-      ? source.find((item) => isRecord(item) && normalizeRole(getStringValue(item, ["role", "agent", "name", "label"])) === SIGNAL_DECIDER_AGENT_NAME)
+      ? source.find((item) => isRecord(item) && normalizeRole(getStringValue(item, ["role", "agent", "name", "label"])) === resolvedAgentName)
       : isRecord(source)
-        ? source[SIGNAL_DECIDER_AGENT_NAME]
+        ? source[resolvedAgentName]
         : null;
 
     if (!isRecord(candidate)) continue;
@@ -1830,10 +2252,23 @@ export function resolveSignalDeciderFeedbackStatus({
   feedback: AgentFeedbackListResponseDto | null | undefined;
   progress: AgentFeedbackProgressResponseDto | null | undefined;
 }): SignalDeciderFeedbackStatus {
-  const items = normalizeSignalDeciderFeedbackItems(feedback);
+  return resolveDeciderFeedbackStatus({ agentName: SIGNAL_DECIDER_AGENT_NAME, feedback, progress });
+}
+
+export function resolveDeciderFeedbackStatus({
+  agentName = SIGNAL_DECIDER_AGENT_NAME,
+  feedback,
+  progress,
+}: {
+  agentName?: string | null;
+  feedback: AgentFeedbackListResponseDto | null | undefined;
+  progress: AgentFeedbackProgressResponseDto | null | undefined;
+}): SignalDeciderFeedbackStatus {
+  const resolvedAgentName = resolveDeciderAgentName(agentName);
+  const items = normalizeDeciderFeedbackItems(feedback, { agentName: resolvedAgentName });
   const rowCount = items.length;
-  const roleSnapshot = getSignalDeciderRoleSnapshot(progress);
-  const roleProgressStatus = getSignalDeciderRoleProgressStatus(progress);
+  const roleSnapshot = getDeciderRoleSnapshot(progress, resolvedAgentName);
+  const roleProgressStatus = getDeciderRoleProgressStatus(progress, resolvedAgentName);
   const runStatus = normalizeRunStatus(progress?.summary?.run_status);
   const runTableStatus = normalizeRunStatus(progress?.summary?.run_table_status);
   const cycleStatus = normalizeRunStatus(progress?.summary?.cycle_status);
@@ -1850,8 +2285,8 @@ export function resolveSignalDeciderFeedbackStatus({
     runTableStatus === "running" ||
     cycleStatus === "running";
   const isSignalRoleActive =
-    currentRole === SIGNAL_DECIDER_AGENT_NAME ||
-    remainingRoles.includes(SIGNAL_DECIDER_AGENT_NAME) ||
+    currentRole === resolvedAgentName ||
+    remainingRoles.includes(resolvedAgentName) ||
     roleProgressStatus === "running" ||
     roleProgressStatus === "in_progress" ||
     roleProgressStatus === "processing";
@@ -2035,6 +2470,76 @@ export function selectSignalDeciderDashboardFeedback({
   };
 }
 
+function getComparableActionGroup(action: SignalDeciderAction) {
+  if (action === "buy") return "buy";
+  if (action === "reject" || action === "avoid_chase") return "reject";
+  if (action === "wait" || action === "watch_for_trigger") return "wait";
+  return "unknown";
+}
+
+function getComparisonScore(item: SignalDeciderFeedbackItem) {
+  return item.convictionScore ?? item.confidenceScore;
+}
+
+function getContrastSnippet(item: SignalDeciderFeedbackItem) {
+  return item.thesisSummary ?? item.supportingEvidence[0]?.value ?? item.supportingEvidence[0]?.label ?? null;
+}
+
+function getRiskContrastSnippet(item: SignalDeciderFeedbackItem) {
+  return item.riskFlags[0] ?? item.dataGapFlags[0] ?? null;
+}
+
+export function getDeciderFeedbackComparisonKey(item: Pick<SignalDeciderFeedbackItem, "marketDate" | "symbol">) {
+  return `${item.marketDate}:${item.symbol}`;
+}
+
+export function buildDeciderFeedbackComparisons({
+  shortTermItems,
+  signalItems,
+}: {
+  shortTermItems: SignalDeciderFeedbackItem[];
+  signalItems: SignalDeciderFeedbackItem[];
+}): DeciderFeedbackComparison[] {
+  const signalByKey = new Map(signalItems.map((item) => [getDeciderFeedbackComparisonKey(item), item] as const));
+
+  return shortTermItems
+    .map((shortTermItem) => {
+      const signalItem = signalByKey.get(getDeciderFeedbackComparisonKey(shortTermItem));
+      if (!signalItem) return null;
+
+      const shortTermScore = getComparisonScore(shortTermItem);
+      const signalScore = getComparisonScore(signalItem);
+      const shortTermGroup = getComparableActionGroup(shortTermItem.action);
+      const signalGroup = getComparableActionGroup(signalItem.action);
+      const agreement =
+        shortTermGroup === "unknown" || signalGroup === "unknown"
+          ? "unknown"
+          : shortTermGroup === signalGroup
+            ? "agreement"
+            : "disagreement";
+      const shortReason = getContrastSnippet(shortTermItem);
+      const signalReason = getContrastSnippet(signalItem);
+      const shortRisk = getRiskContrastSnippet(shortTermItem);
+      const signalRisk = getRiskContrastSnippet(signalItem);
+
+      return {
+        symbol: shortTermItem.symbol,
+        marketDate: shortTermItem.marketDate,
+        shortTermAction: shortTermItem.action,
+        shortTermActionLabel: shortTermItem.actionLabel,
+        signalAction: signalItem.action,
+        signalActionLabel: signalItem.actionLabel,
+        agreement,
+        confidenceDelta: shortTermScore !== null && signalScore !== null ? shortTermScore - signalScore : null,
+        reasonContrast:
+          shortReason || signalReason ? `Short-term: ${shortReason ?? "n/a"} · Signal: ${signalReason ?? "n/a"}` : null,
+        riskContrast:
+          shortRisk || signalRisk ? `Short-term risk: ${shortRisk ?? "n/a"} · Signal risk: ${signalRisk ?? "n/a"}` : null,
+      } satisfies DeciderFeedbackComparison;
+    })
+    .filter((item): item is DeciderFeedbackComparison => item !== null);
+}
+
 export function buildSignalDeciderFeedbackSummary({
   currentMarketDate,
   feedback,
@@ -2052,9 +2557,41 @@ export function buildSignalDeciderFeedbackSummary({
   progress: AgentFeedbackProgressResponseDto | null | undefined;
   statusOverride?: SignalDeciderFeedbackStatus;
 }): SignalDeciderFeedbackSummaryModel {
-  const items = normalizeSignalDeciderFeedbackItems(feedback);
-  const roleSnapshot = isLatestCompletedFallback ? null : getSignalDeciderRoleSnapshot(progress);
-  const status = statusOverride ?? resolveSignalDeciderFeedbackStatus({ feedback, progress });
+  return buildDeciderFeedbackSummary({
+    agentName: SIGNAL_DECIDER_AGENT_NAME,
+    currentMarketDate,
+    feedback,
+    isLatestCompletedFallback,
+    marketDate,
+    previewLimit,
+    progress,
+    statusOverride,
+  });
+}
+
+export function buildDeciderFeedbackSummary({
+  agentName = SIGNAL_DECIDER_AGENT_NAME,
+  currentMarketDate,
+  feedback,
+  isLatestCompletedFallback = false,
+  marketDate,
+  previewLimit = 3,
+  progress,
+  statusOverride,
+}: {
+  agentName?: string | null;
+  currentMarketDate?: string | null | undefined;
+  feedback: AgentFeedbackListResponseDto | null | undefined;
+  isLatestCompletedFallback?: boolean;
+  marketDate: string | null | undefined;
+  previewLimit?: number;
+  progress: AgentFeedbackProgressResponseDto | null | undefined;
+  statusOverride?: SignalDeciderFeedbackStatus;
+}): SignalDeciderFeedbackSummaryModel {
+  const resolvedAgentName = resolveDeciderAgentName(agentName);
+  const items = normalizeDeciderFeedbackItems(feedback, { agentName: resolvedAgentName });
+  const roleSnapshot = isLatestCompletedFallback ? null : getDeciderRoleSnapshot(progress, resolvedAgentName);
+  const status = statusOverride ?? resolveDeciderFeedbackStatus({ agentName: resolvedAgentName, feedback, progress });
   const resolvedMarketDate =
     normalizeMarketDate(feedback?.request?.market_date) ??
     normalizeMarketDate(progress?.request?.market_date) ??
@@ -2066,14 +2603,17 @@ export function buildSignalDeciderFeedbackSummary({
       counts[item.action] += 1;
       return counts;
     },
-    { buy: 0, wait: 0, reject: 0, unknown: 0 },
+    { buy: 0, wait: 0, reject: 0, watch_for_trigger: 0, avoid_chase: 0, unknown: 0 },
   );
 
   return {
     actionCounts,
     completedCount: roleSnapshot?.completedCount ?? null,
     currentMarketDate: resolvedCurrentMarketDate,
-    detailHref: buildSignalDeciderFeedbackHref(resolvedMarketDate),
+    detailHref:
+      resolvedAgentName === SIGNAL_DECIDER_AGENT_NAME
+        ? buildSignalDeciderFeedbackHref(resolvedMarketDate)
+        : buildDeciderFeedbackHref({ agentName: resolvedAgentName, marketDate: resolvedMarketDate }),
     errorCount: roleSnapshot?.errorCount ?? null,
     isLatestCompletedFallback,
     items,

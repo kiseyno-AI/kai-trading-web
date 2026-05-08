@@ -8,6 +8,9 @@ import type {
 } from "@/types/trading-api";
 
 import {
+  buildDeciderFeedbackComparisons,
+  buildDeciderFeedbackHref,
+  buildDeciderFeedbackPath,
   buildSignalDeciderFeedbackPath,
   buildSignalDeciderFeedbackSummary,
   buildCalendarSummaryQuery,
@@ -15,6 +18,7 @@ import {
   buildReviewDateQuery,
   buildSignalDeciderFeedbackListFromReviewDateResponse,
   compactSignalDeciderFeedbackForDashboard,
+  normalizeDeciderFeedbackItems,
   normalizeSignalDeciderFeedbackItems,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
@@ -22,6 +26,7 @@ import {
   selectSignalDeciderDashboardFeedback,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+  SHORT_TERM_DECIDER_AGENT_NAME,
   type SignalDeciderReviewDateResponse,
   type SignalDeciderAction,
 } from "./signal-decider-feedback";
@@ -31,6 +36,15 @@ import {
   selectSignalDeciderFeedbackResponse,
   writeSignalDeciderFeedbackCache,
 } from "./signal-decider-feedback-cache";
+
+const EMPTY_DECIDER_ACTION_COUNTS = {
+  buy: 0,
+  wait: 0,
+  reject: 0,
+  watch_for_trigger: 0,
+  avoid_chase: 0,
+  unknown: 0,
+} as const;
 
 function buildFeedbackResponse(
   overrides: Partial<AgentFeedbackListResponseDto> = {},
@@ -219,6 +233,26 @@ function buildStoredFeedbackItem({
   };
 }
 
+function buildStoredRawActionFeedbackItem({
+  action,
+  id,
+}: {
+  action: string;
+  id: number;
+}): AgentFeedbackStoredItemDto {
+  const item = buildStoredFeedbackItem({ action: "reject", id });
+
+  return {
+    ...item,
+    feedback: {
+      ...(item.feedback ?? {}),
+      preferred_action: action,
+      next_day_open_action: null,
+      thesis_summary: `${action} decision ${id}`,
+    },
+  };
+}
+
 function buildProgress(
   overrides: Partial<AgentFeedbackProgressResponseDto> = {},
 ): AgentFeedbackProgressResponseDto {
@@ -352,6 +386,49 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.gateResults[0]?.label, "Liquidity");
   assert.equal(items[0]?.upstreamEvidence[0]?.label, "Technical Snapshot");
   assert.equal(items[0]?.traceability[0]?.label, "Run Id");
+});
+
+test("keeps legacy reject aliases separate from explicit no-chase actions", () => {
+  const cases: Array<{ rawAction: string; expectedAction: SignalDeciderAction }> = [
+    { rawAction: "avoid", expectedAction: "reject" },
+    { rawAction: "skip", expectedAction: "reject" },
+    { rawAction: "avoid_chase", expectedAction: "avoid_chase" },
+    { rawAction: "avoid_chasing", expectedAction: "avoid_chase" },
+    { rawAction: "do_not_chase", expectedAction: "avoid_chase" },
+    { rawAction: "no_chase", expectedAction: "avoid_chase" },
+  ];
+  const feedback = buildFeedbackResponse({
+    request: {
+      market_date: "2026-04-28",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: cases.length },
+    items: cases.map(({ rawAction }, index) =>
+      buildStoredRawActionFeedbackItem({
+        action: rawAction,
+        id: index + 1,
+      }),
+    ),
+  });
+
+  const items = normalizeSignalDeciderFeedbackItems(feedback);
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback,
+    marketDate: "2026-04-28",
+    progress: null,
+  });
+
+  const actionsByRawAction = new Map(
+    items.map((item) => [item.thesisSummary?.replace(/ decision \d+$/, ""), item.action] as const),
+  );
+  assert.deepEqual(
+    cases.map(({ rawAction }) => actionsByRawAction.get(rawAction)),
+    cases.map(({ expectedAction }) => expectedAction),
+  );
+  assert.equal(model.actionCounts.reject, 2);
+  assert.equal(model.actionCounts.avoid_chase, 4);
 });
 
 test("preserves decision fields when review verdict and outcome are absent", () => {
@@ -758,6 +835,148 @@ test("builds latest signal-decider feedback paths with a resolved market date", 
   assert.equal(url.searchParams.get("limit"), "50");
 });
 
+test("builds shared decider feedback paths with agent-specific API params and route hrefs", () => {
+  const path = buildDeciderFeedbackPath({
+    agentName: SHORT_TERM_DECIDER_AGENT_NAME,
+    basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+    limit: 25,
+    marketDate: "2026-04-28",
+  });
+  const url = new URL(`https://example.test${path}`);
+
+  assert.equal(url.pathname, SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH);
+  assert.equal(url.searchParams.get("agent_name"), "short-term-decider");
+  assert.equal(url.searchParams.get("market_date"), "2026-04-28");
+  assert.equal(url.searchParams.get("limit"), "25");
+  assert.equal(
+    buildDeciderFeedbackHref({
+      agentName: SHORT_TERM_DECIDER_AGENT_NAME,
+      actionFilter: "watch_for_trigger",
+      marketDate: "2026-04-28",
+      query: "Samsung",
+      sortMode: "confidence",
+      statusFilter: "with-risk",
+    }),
+    "/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-28&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence",
+  );
+});
+
+test("normalizes short-term decider tactical fields and data gaps", () => {
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-04-28",
+      symbols: [],
+      agent_name: "short-term-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+    items: [
+      {
+        id: "short-005930",
+        market_date: "2026-04-28",
+        symbol: "005930",
+        agent: {
+          name: "short-term-decider",
+          run_id: "short-run-1",
+        },
+        summary: {},
+        feedback: {
+          role: "short-term-decider",
+          symbol: "005930",
+          market_date: "2026-04-28",
+          short_term_label: "watch_for_trigger",
+          confidence_score_10: 0.82,
+          conviction_score_10: 7,
+          thesis_summary: "Breakout is useful only above the opening trigger.",
+          trigger_condition: "Trigger above 82,000 with volume expansion",
+          entry_condition: "Enter on trigger confirmation",
+          target_price: 85000,
+          stop_loss_price: 79000,
+          invalidation_condition: "Reject if it gaps above target",
+          suggested_holding_period: "1-3 sessions",
+          supporting_evidence: ["Turnover acceleration", { label: "Sector", summary: "Semis led the close" }],
+          risk_flags: ["Avoid chase after gap-up open"],
+          missing_factor_score: true,
+          turnover_liquidity_anomaly: "turnover spike versus 20d average",
+          context_badges: {
+            external_news_count: 2,
+            dart_events_count: 1,
+            investor_flow: "Foreign flow positive",
+            sector_context: "Semiconductor strength",
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-04-28T07:45:00+00:00",
+      },
+    ],
+  });
+
+  const [item] = normalizeDeciderFeedbackItems(response, { agentName: SHORT_TERM_DECIDER_AGENT_NAME });
+
+  assert.ok(item);
+  assert.equal(item.agentName, "short-term-decider");
+  assert.equal(item.action, "watch_for_trigger");
+  assert.equal(item.actionLabel, "Watch For Trigger");
+  assert.equal(item.confidenceScore, 8.2);
+  assert.equal(item.convictionScore, 7);
+  assert.equal(item.triggerCondition, "Trigger above 82,000 with volume expansion");
+  assert.equal(item.entryCondition, "Enter on trigger confirmation");
+  assert.equal(item.invalidationCondition, "Reject if it gaps above target");
+  assert.equal(item.suggestedHoldingPeriod, "1-3 sessions");
+  assert.equal(item.dataGapFlags.some((flag) => flag.includes("Missing factor score")), true);
+  assert.equal(item.dataGapFlags.some((flag) => flag.includes("Turnover/liquidity anomaly")), true);
+  assert.equal(item.supportingEvidence.length, 2);
+  assert.equal(item.contextBadges.some((badge) => badge.label === "External news" && badge.value === "2 recent"), true);
+  assert.equal(item.contextBadges.some((badge) => badge.label === "DART events" && badge.value === "1 recent"), true);
+  assert.equal(item.contextBadges.some((badge) => badge.label === "Investor flow" && badge.value === "Foreign flow positive"), true);
+  assert.equal(item.contextBadges.some((badge) => badge.label === "Sector context" && badge.value === "Semiconductor strength"), true);
+});
+
+test("builds cross-decider comparison rows for matching symbol dates", () => {
+  const signalItems = normalizeSignalDeciderFeedbackItems(buildFeedbackResponse());
+  const shortTermItems = normalizeDeciderFeedbackItems(
+    buildFeedbackResponse({
+      request: {
+        market_date: "2026-04-27",
+        symbols: [],
+        agent_name: "short-term-decider",
+        limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+      },
+      items: [
+        {
+          ...buildFeedbackResponse().items[0],
+          id: "short-005930",
+          agent: { name: "short-term-decider", run_id: "short-run-1" },
+          feedback: {
+            role: "short-term-decider",
+            symbol: "005930",
+            market_date: "2026-04-27",
+            short_term_label: "buy",
+            confidence_score_10: 9,
+            conviction_score_10: 8,
+            thesis_summary: "Short-term trigger already confirmed.",
+            risk_flags: ["Tight stop required"],
+          },
+        },
+      ],
+    }),
+    { agentName: SHORT_TERM_DECIDER_AGENT_NAME },
+  );
+
+  const [comparison] = buildDeciderFeedbackComparisons({ shortTermItems, signalItems });
+
+  assert.ok(comparison);
+  assert.equal(comparison.symbol, "005930");
+  assert.equal(comparison.agreement, "agreement");
+  assert.equal(comparison.shortTermAction, "buy");
+  assert.equal(comparison.signalAction, "buy");
+  assert.equal(comparison.confidenceDelta, 1);
+  assert.match(comparison.reasonContrast ?? "", /Short-term trigger already confirmed/);
+  assert.match(comparison.riskContrast ?? "", /Tight stop required/);
+});
+
 test("builds compact calendar summary query strings", () => {
   const query = buildCalendarSummaryQuery({
     month: "2026-04",
@@ -968,7 +1187,7 @@ test("keeps signal-decider feedback status transparent when progress is running 
 
   assert.equal(model.resultCount, 0);
   assert.equal(model.status, "running");
-  assert.deepEqual(model.actionCounts, { buy: 0, wait: 0, reject: 0, unknown: 0 });
+  assert.deepEqual(model.actionCounts, EMPTY_DECIDER_ACTION_COUNTS);
 });
 
 test("keeps signal-decider headline action counts independent from preview truncation", () => {

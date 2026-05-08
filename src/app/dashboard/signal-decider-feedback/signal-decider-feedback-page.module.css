@@ -64,6 +64,41 @@
   gap: 0.75rem;
 }
 
+.agentTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0.32rem;
+  border: 1px solid rgba(134, 162, 194, 0.16);
+  border-radius: 0.5rem;
+  background: rgba(3, 7, 13, 0.45);
+}
+
+.agentTab,
+.activeAgentTab {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.35rem;
+  padding: 0 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  color: var(--muted);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+}
+
+.activeAgentTab {
+  border-color: rgba(88, 139, 255, 0.34);
+  background: rgba(0, 82, 255, 0.2);
+  color: var(--text-strong);
+}
+
 .summaryCard {
   min-width: 0;
   padding: 0.9rem 0.95rem;
@@ -229,6 +264,29 @@
 
 .resultSupportSection {
   background: rgba(8, 17, 31, 0.46);
+}
+
+.comparisonRow {
+  min-width: 0;
+  display: grid;
+  gap: 0.62rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(134, 162, 194, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(3, 7, 13, 0.36);
+}
+
+.comparisonRow p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.comparisonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 0.58rem;
 }
 
 .resultSectionHeader {
@@ -466,6 +524,7 @@
 }
 
 .symbolLink:hover,
+.agentTab:hover,
 .reviewButton:hover,
 .closeButton:hover,
 .controls button:hover {
@@ -475,6 +534,8 @@
 }
 
 .symbolLink:focus-visible,
+.agentTab:focus-visible,
+.activeAgentTab:focus-visible,
 .controls input:focus-visible,
 .controls select:focus-visible,
 .controls button:focus-visible,
