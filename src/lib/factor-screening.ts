@@ -64,7 +64,7 @@ export type FactorScreeningQuality = {
 export type FactorScreeningRow = {
   family: FactorFamilyId;
   symbol: string;
-  companyName: string;
+  companyName: string | null;
   market: string | null;
   marketDate: string;
   href: string;
@@ -276,6 +276,68 @@ function getString(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isSymbolLikeName(symbol: string, value: string) {
+  const normalizedSymbol = normalizeSymbol(symbol);
+  const normalizedValue = value.trim().replace(/\s+/g, " ").toUpperCase();
+  const escapedSymbol = escapeRegExp(normalizedSymbol);
+  return (
+    normalizedValue === normalizedSymbol ||
+    new RegExp(`^${escapedSymbol}\\s*\\(${escapedSymbol}\\)$`, "i").test(normalizedValue)
+  );
+}
+
+function getUsableCompanyName(symbol: string, ...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed && !isSymbolLikeName(symbol, trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+function getNestedRecord(source: Record<string, unknown> | null, key: string) {
+  return getRecord(source?.[key]);
+}
+
+function resolveFactorScreeningCompanyName(item: { symbol: string; factor_payload?: Record<string, unknown> | null }) {
+  const itemRecord = getRecord(item);
+  const payload = getRecord(item.factor_payload);
+  const payloadCompany = getNestedRecord(payload, "company");
+  const payloadMetadata = getNestedRecord(payload, "metadata") ?? getNestedRecord(payload, "symbol_metadata");
+
+  return getUsableCompanyName(
+    item.symbol,
+    getString(itemRecord?.company_name),
+    getString(itemRecord?.name_ko),
+    getString(itemRecord?.display_name),
+    getString(itemRecord?.name),
+    getString(itemRecord?.name_en),
+    getString(itemRecord?.corp_name),
+    getString(payload?.company_name),
+    getString(payload?.name_ko),
+    getString(payload?.display_name),
+    getString(payload?.name),
+    getString(payload?.name_en),
+    getString(payload?.corp_name),
+    getString(payloadCompany?.company_name),
+    getString(payloadCompany?.name_ko),
+    getString(payloadCompany?.display_name),
+    getString(payloadCompany?.name),
+    getString(payloadCompany?.corp_name),
+    getString(payloadMetadata?.company_name),
+    getString(payloadMetadata?.name_ko),
+    getString(payloadMetadata?.display_name),
+    getString(payloadMetadata?.name),
+    getString(payloadMetadata?.corp_name),
+  );
+}
+
 function readPayloadStatus(payload: Record<string, unknown> | null, key: string) {
   const statusSources = [
     getRecord(payload?.unified_value_component_statuses),
@@ -356,7 +418,7 @@ function formatValueComponentHints(item: EodValueFactorItemDto | EodAdvancedValu
 }
 
 function buildSymbolHref(options: {
-  companyName: string;
+  companyName: string | null;
   market: string | null;
   marketDate: string;
   symbol: string;
@@ -557,7 +619,7 @@ function buildAdvancedValueNote(status: FactorStatusDescriptor) {
 function buildMomentumRows(response: EodMomentumFactorsResponseDto): FactorScreeningRow[] {
   return extractFactorInspectItems<EodMomentumFactorItemDto>(response).map((item) => {
     const status = getMomentumFactorStatusDescriptor(item);
-    const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
+    const companyName = resolveFactorScreeningCompanyName(item);
 
     return {
       companyName,
@@ -582,7 +644,9 @@ function buildMomentumRows(response: EodMomentumFactorsResponseDto): FactorScree
       quality: null,
       note: buildMomentumNote(status),
       searchText: normalizeText(
-        [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code)].filter(Boolean).join(" "),
+        [companyName ?? "", item.market ?? "", item.symbol, getFactorStatusLabel(status.code)]
+          .filter(Boolean)
+          .join(" "),
       ),
       sortRank: item.momentum_rank ?? null,
       sortScore: item.momentum_percentile ?? item.momentum_12_1 ?? null,
@@ -600,7 +664,7 @@ function buildLowRiskRows(
 ): FactorScreeningRow[] {
   return extractFactorInspectItems<EodLowRiskFactorItemDto>(response).map((item) => {
     const status = getLowRiskFactorStatusDescriptor(item);
-    const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
+    const companyName = resolveFactorScreeningCompanyName(item);
 
     return {
       companyName,
@@ -625,7 +689,9 @@ function buildLowRiskRows(
       quality: null,
       note: buildLowRiskNote(status),
       searchText: normalizeText(
-        [companyName, item.market ?? "", item.symbol, getFactorStatusLabel(status.code)].filter(Boolean).join(" "),
+        [companyName ?? "", item.market ?? "", item.symbol, getFactorStatusLabel(status.code)]
+          .filter(Boolean)
+          .join(" "),
       ),
       sortRank: null,
       sortScore: item.low_risk_score ?? item.liquidity_percentile ?? null,
@@ -640,7 +706,7 @@ function buildLowRiskRows(
 function buildBetaRows(response: EodBetaFactorsResponseDto): FactorScreeningRow[] {
   return extractFactorInspectItems<EodBetaFactorItemDto>(response).map((item) => {
     const status = getBetaFactorStatusDescriptor(item);
-    const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
+    const companyName = resolveFactorScreeningCompanyName(item);
 
     return {
       companyName,
@@ -665,7 +731,7 @@ function buildBetaRows(response: EodBetaFactorsResponseDto): FactorScreeningRow[
       quality: null,
       note: buildBetaNote(status),
       searchText: normalizeText(
-        [companyName, item.market ?? "", item.symbol, item.benchmark_id ?? "", getFactorStatusLabel(status.code)]
+        [companyName ?? "", item.market ?? "", item.symbol, item.benchmark_id ?? "", getFactorStatusLabel(status.code)]
           .filter(Boolean)
           .join(" "),
       ),
@@ -687,7 +753,7 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
       : getValueFactorStatusDescriptor(item);
     const componentHints = formatValueComponentHints(item);
     const quality = buildScreeningQuality(item, { force: true });
-    const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
+    const companyName = resolveFactorScreeningCompanyName(item);
 
     return {
       companyName,
@@ -721,7 +787,7 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
       note: usesUnifiedValue ? buildUnifiedValueNote(status, componentHints) : buildValueNote(status),
       searchText: normalizeText(
         [
-          companyName,
+          companyName ?? "",
           item.market ?? "",
           item.symbol,
           getFactorStatusLabel(status.code),
@@ -751,7 +817,7 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
     const status = getAdvancedValueFactorStatusDescriptor(item);
     const componentHints = formatValueComponentHints(item);
     const quality = usesUnifiedValue ? buildScreeningQuality(item) : null;
-    const companyName = item.name_ko?.trim() || normalizeSymbol(item.symbol);
+    const companyName = resolveFactorScreeningCompanyName(item);
     const advancedMetrics = [
       buildMetric("Advanced component score", formatPercentScore(item.advanced_value_score)),
       buildMetric("Component pct", formatPercentScore(item.advanced_value_percentile)),
@@ -788,7 +854,7 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
       note: `${buildAdvancedValueNote(status)}${buildAdvancedValueUnifiedContextNote(item, componentHints)}`,
       searchText: normalizeText(
         [
-          companyName,
+          companyName ?? "",
           item.market ?? "",
           item.symbol,
           getFactorStatusLabel(status.code),
