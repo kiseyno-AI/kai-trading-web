@@ -674,6 +674,7 @@
       "pendingBadge": "5D 기간 대기",
       "insufficientBadge": "가격 데이터 부족",
       "notComputedBadge": "평가 미계산",
+      "evaluatedBadge": "평가됨",
       "sidewaysBadge": "횡보",
       "stopHitBadge": "손절 도달",
       "targetHitBadge": "목표 도달",

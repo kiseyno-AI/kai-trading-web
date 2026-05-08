@@ -415,6 +415,7 @@ function getHorizonOutcomeLabel(horizon: SignalDeciderHorizonEvaluation, copy: S
   if (horizon.outcome === "target_hit") return copy.targetHitBadge;
   if (horizon.outcome === "stop_hit") return copy.stopHitBadge;
   if (horizon.outcome === "ambiguous") return copy.ambiguousBadge;
+  if (horizon.outcome === null) return copy.evaluatedBadge;
   return copy.sidewaysBadge;
 }
 

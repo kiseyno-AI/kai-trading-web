@@ -582,6 +582,7 @@ function getHorizonChipLabel(
   if (horizon.outcome === "target_hit") return copy.outcomes.target;
   if (horizon.outcome === "stop_hit") return copy.outcomes.stop;
   if (horizon.outcome === "ambiguous") return copy.outcomes.ambiguous;
+  if (horizon.outcome === null) return getHorizonStateLabel(horizon, copy);
   return copy.outcomes.unresolved;
 }
 

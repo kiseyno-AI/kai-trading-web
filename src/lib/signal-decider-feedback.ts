@@ -1134,6 +1134,27 @@ function tokenIncludesAny(token: string, values: string[]) {
   return values.some((value) => token === value || token.includes(value));
 }
 
+function tokenIndicatesNoTargetOrStopHit(token: string) {
+  if (!token) return false;
+  return (
+    token === "neither" ||
+    token === "no_hit" ||
+    token === "not_hit" ||
+    token === "unresolved" ||
+    token === "neither_hit" ||
+    token === "neither_hit_within" ||
+    token === "no_target_or_stop_hit" ||
+    token.includes("no_target_or_stop") ||
+    token.includes("neither_target_nor_stop") ||
+    token.includes("neither_hit") ||
+    token.includes("no_hit_within") ||
+    token.includes("not_hit_within") ||
+    token.includes("target_stop_unresolved") ||
+    token.includes("target_or_stop_unresolved") ||
+    token.includes("outcome_unresolved")
+  );
+}
+
 function tokenIndicatesPendingFiveDayWindow(token: string) {
   return tokenIncludesAny(token, [
     "pending_evaluation_window",
@@ -1377,11 +1398,13 @@ function getHorizonEvaluationState({
 }
 
 function getHorizonOutcomeKind({
+  rawReason,
   rawStatus,
   state,
   stopHit,
   targetHit,
 }: {
+  rawReason: string | null;
   rawStatus: string | null;
   state: SignalDeciderHorizonEvaluationState;
   stopHit: boolean | null;
@@ -1389,6 +1412,7 @@ function getHorizonOutcomeKind({
 }): SignalDeciderHorizonOutcomeKind | null {
   if (state !== "computed") return null;
 
+  const normalizedReason = normalizeToken(rawReason);
   const normalizedStatus = normalizeToken(rawStatus);
   if (
     targetHit === true &&
@@ -1403,22 +1427,16 @@ function getHorizonOutcomeKind({
   ) {
     return "ambiguous";
   }
+  if (targetHit === true) return "target_hit";
+  if (stopHit === true) return "stop_hit";
   if (
     (targetHit === false && stopHit === false) ||
-    tokenIncludesAny(normalizedStatus, [
-      "neither",
-      "neither_hit",
-      "neither_hit_within",
-      "no_hit",
-      "not_hit",
-      "unresolved",
-      "no_target_or_stop_hit",
-    ])
+    tokenIndicatesNoTargetOrStopHit(normalizedStatus) ||
+    tokenIndicatesNoTargetOrStopHit(normalizedReason)
   ) {
     return "sideways";
   }
   if (
-    targetHit === true ||
     tokenIncludesAny(normalizedStatus, [
       "target_hit_before_stop",
       "target_before_stop",
@@ -1434,7 +1452,6 @@ function getHorizonOutcomeKind({
     return "target_hit";
   }
   if (
-    stopHit === true ||
     tokenIncludesAny(normalizedStatus, [
       "stop_hit_before_target",
       "stop_before_target",
@@ -1449,7 +1466,7 @@ function getHorizonOutcomeKind({
     return "stop_hit";
   }
 
-  return "sideways";
+  return null;
 }
 
 function getHorizonEvaluationTone(
@@ -1475,6 +1492,8 @@ function getHorizonStatusLabel(
   if (outcome === "target_hit") return "Target hit";
   if (outcome === "stop_hit") return "Stop hit";
   if (outcome === "ambiguous") return "Target/stop same day";
+  if (outcome === "sideways") return "Sideways";
+  if (state === "computed") return "Evaluated";
   return "Sideways";
 }
 
@@ -1568,7 +1587,7 @@ function buildHorizonEvaluationFromRecord(
     rawState,
     rawStatus,
   });
-  const outcome = getHorizonOutcomeKind({ rawStatus, state, stopHit, targetHit });
+  const outcome = getHorizonOutcomeKind({ rawReason, rawStatus, state, stopHit, targetHit });
   const statusLabel = getHorizonStatusLabel(state, outcome);
 
   return {
@@ -1640,6 +1659,7 @@ function buildFiveDayHorizonEvaluation(
           ? "neither_hit"
           : null);
   const outcome = getHorizonOutcomeKind({
+    rawReason: null,
     rawStatus: statusForOutcome,
     state: evaluation.state,
     stopHit: evaluation.stopHitWithin5d,

@@ -833,8 +833,8 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(samsungCard).toContainText(/Target\s*₩82,000/);
   await expect(samsungCard).toContainText(/Stop-loss\s*₩73,500/);
   await expect(samsungCard).toContainText("1d +0.82%");
-  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/1D.*Sideways/);
-  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/3D.*Sideways/);
+  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/1D.*Evaluated/);
+  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/3D.*Evaluated/);
   await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/5D.*Target hit/);
   await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).not.toContainText(/1D computed|3D computed|5D computed/i);
   await expect(samsungCard).toContainText("5-day evaluation");

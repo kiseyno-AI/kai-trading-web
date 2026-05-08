@@ -674,6 +674,7 @@
       "pendingBadge": "Pending 5D window",
       "insufficientBadge": "Insufficient price data",
       "notComputedBadge": "Evaluation not computed",
+      "evaluatedBadge": "Evaluated",
       "sidewaysBadge": "Sideways",
       "stopHitBadge": "Stop hit",
       "targetHitBadge": "Target hit",
