@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildPiotroskiListHref,
   buildPiotroskiPassListResult,
+  buildPiotroskiSymbolHref,
   getPiotroskiUnavailableChangeLabel,
   resolvePiotroskiMarketDateResolution,
 } from "./piotroski-pass-list";
@@ -128,6 +129,14 @@ test("builds the pass-list rows from core Piotroski results before quote enrichm
 test("builds Piotroski drill-down URL with market-date context", () => {
   assert.equal(buildPiotroskiListHref("2026-04-30"), "/dashboard/piotroski-filter?marketDate=2026-04-30");
   assert.equal(buildPiotroskiListHref(null), "/dashboard/piotroski-filter");
+  assert.equal(
+    buildPiotroskiSymbolHref({
+      symbol: "004150",
+      companyName: "한솔홀딩스",
+      marketDate: "2026-05-08",
+    }),
+    "/dashboard/symbol/004150?name=%ED%95%9C%EC%86%94%ED%99%80%EB%94%A9%EC%8A%A4&marketDate=2026-05-08&navContext=piotroski",
+  );
 });
 
 test("preserves the dashboard summary count when the API omits row details", () => {

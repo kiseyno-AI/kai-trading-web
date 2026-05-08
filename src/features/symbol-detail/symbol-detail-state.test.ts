@@ -7,6 +7,7 @@ import {
   resolveSymbolDetailMode,
   resolveSymbolDetailModeFromPathname,
   resolveSymbolDetailNavContext,
+  SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
   type SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
@@ -31,6 +32,11 @@ test("resolves symbol detail navigation context without defaulting to My Symbols
   assert.equal(resolveSymbolDetailActiveNav(resolveSymbolDetailNavContext("my-symbols")), "symbols");
   assert.equal(resolveSymbolDetailNavContext(SYMBOL_DETAIL_SEARCH_NAV_CONTEXT), SYMBOL_DETAIL_SEARCH_NAV_CONTEXT);
   assert.equal(resolveSymbolDetailActiveNav(resolveSymbolDetailNavContext(SYMBOL_DETAIL_SEARCH_NAV_CONTEXT)), null);
+  assert.equal(
+    resolveSymbolDetailNavContext(SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT),
+    SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
+  );
+  assert.equal(resolveSymbolDetailActiveNav(resolveSymbolDetailNavContext(SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT)), "dashboard");
   assert.equal(resolveSymbolDetailNavContext("markets"), null);
   assert.equal(resolveSymbolDetailNavContext(null), null);
   assert.equal(resolveSymbolDetailActiveNav(null), null);
