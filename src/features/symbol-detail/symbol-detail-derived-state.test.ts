@@ -174,6 +174,7 @@ test("preserves My Symbols navigation context in symbol detail subroutes only wh
     buildSymbolRouteQuery(meta, "2026-05-06", null, "signal-decider-feedback", "한진", "wait", "captured"),
   );
   const mySymbolsQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-04-10", null, "my-symbols"));
+  const piotroskiQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-05-08", null, "piotroski"));
 
   assert.equal(
     mySymbolsQuery.toString(),
@@ -193,6 +194,8 @@ test("preserves My Symbols navigation context in symbol detail subroutes only wh
   assert.equal(feedbackQuery.get("q"), "한진");
   assert.equal(feedbackQuery.get("feedbackAction"), "wait");
   assert.equal(feedbackQuery.get("feedbackSort"), "captured");
+  assert.equal(piotroskiQuery.get("marketDate"), "2026-05-08");
+  assert.equal(piotroskiQuery.get("navContext"), "piotroski");
   assert.equal(
     buildSymbolRouteQuery(meta, "2026-04-10", null),
     "name=Samsung+Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10",

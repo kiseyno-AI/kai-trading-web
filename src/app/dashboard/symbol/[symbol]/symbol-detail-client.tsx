@@ -28,8 +28,9 @@ import {
 import { PRICE_HISTORY_RANGES } from "@/features/symbol-detail/symbol-detail-types";
 import { useSymbolDetailData } from "@/features/symbol-detail/use-symbol-detail-data";
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
-import { getNumberLocale } from "@/lib/locale";
 import { formatPrice, formatTurnover } from "@/lib/format";
+import { getNumberLocale } from "@/lib/locale";
+import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
 
 import { FactorSnapshotSection } from "./factor-snapshot-section";
 import { SymbolHistoryChart } from "./symbol-history-chart";
@@ -40,6 +41,7 @@ import {
   SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_MODES,
+  SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
   type SymbolDetailMode,
@@ -150,6 +152,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       return `/calendar?date=${encodeURIComponent(marketDate)}`;
     }
 
+    if (navContext === SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT) {
+      return buildPiotroskiListHref(marketDate);
+    }
+
     return "/dashboard";
   })();
   const backLabel =
@@ -157,9 +163,11 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       ? copy.header.backToFeedback
       : navContext === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT
         ? copy.header.backToCalendar
-        : isSearchContext
-          ? copy.header.backToSearch
-          : copy.header.backToDashboard;
+        : navContext === SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT
+          ? copy.header.backToPiotroskiList
+          : isSearchContext
+            ? copy.header.backToSearch
+            : copy.header.backToDashboard;
   const leadingLink = (
     <Link href={backHref} className={styles.backButton} aria-label={backLabel} title={backLabel}>
       ←

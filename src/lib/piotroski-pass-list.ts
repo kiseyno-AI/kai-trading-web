@@ -1,3 +1,7 @@
+import {
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
+} from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import type {
   EodFreshnessResponseDto,
@@ -337,6 +341,8 @@ export function buildPiotroskiSymbolHref({
   if (hasTextValue(marketDate)) {
     params.set("marketDate", marketDate);
   }
+
+  params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT);
 
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`;
