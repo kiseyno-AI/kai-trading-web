@@ -567,6 +567,83 @@
       "empty": "No matching opposite-decider output is stored for this symbol/date while viewing {agentLabel}.",
       "unavailable": "Comparison is unavailable because the opposite-decider feedback read failed or has not returned."
     },
+    "dataGaps": {
+      "eyebrow": "Missing context report",
+      "title": "Decider Data Gaps",
+      "description": "Aggregates recurring missing-context complaints from stored decider feedback rows for the selected market date and agent.",
+      "summary": {
+        "totalRows": "Total feedback rows",
+        "rowsWithGaps": "Rows with data-gap flags",
+        "topCategories": "Top gap categories",
+        "trend": "Trend",
+        "noneDetected": "None detected",
+        "trendUnavailable": "Previous date unavailable",
+        "trendFlat": "Flat vs {date}",
+        "trendUp": "+{count} rows vs {date}",
+        "trendDown": "-{count} rows vs {date}"
+      },
+      "filters": {
+        "label": "Decider data-gap filters",
+        "category": "Gap category",
+        "symbol": "Symbol",
+        "allCategories": "All categories",
+        "allSymbols": "All symbols"
+      },
+      "table": {
+        "category": "Category",
+        "affectedSymbols": "Affected symbols",
+        "affectedAgents": "Affected agents",
+        "example": "Example flag/reason",
+        "owner": "Suggested owner/source"
+      },
+      "symbolDrilldown": {
+        "eyebrow": "Symbol drilldown",
+        "allSymbols": "Top affected symbols"
+      },
+      "empty": {
+        "noFeedback": "No feedback rows are available for this date and agent, so data-gap aggregation cannot run.",
+        "noDataGaps": "Feedback rows are available, but no data-gap flags or missing-context reasons were detected.",
+        "noFilteredGaps": "No data gaps match the selected category and symbol filters."
+      },
+      "categories": {
+        "factor_scores": {
+          "label": "Factor scores",
+          "owner": "Factor scoring pipeline"
+        },
+        "turnover_liquidity": {
+          "label": "Turnover / liquidity",
+          "owner": "Price and liquidity features"
+        },
+        "signal_features": {
+          "label": "Signal features",
+          "owner": "Signal feature store"
+        },
+        "intraday_orderbook": {
+          "label": "Intraday / orderbook",
+          "owner": "Intraday, orderbook, VWAP source"
+        },
+        "fundamental_ratios": {
+          "label": "Fundamental ratios",
+          "owner": "Fundamentals and valuation pipeline"
+        },
+        "dart_disclosures": {
+          "label": "DART disclosures",
+          "owner": "DART disclosure collector"
+        },
+        "external_news": {
+          "label": "External news",
+          "owner": "External news context"
+        },
+        "price_quality": {
+          "label": "Price quality",
+          "owner": "Daily/intraday price quality"
+        },
+        "other": {
+          "label": "Other",
+          "owner": "Agent feedback triage"
+        }
+      }
+    },
     "evaluation": {
       "title": "5-day evaluation",
       "status": "Evaluation status",

@@ -20,6 +20,20 @@ export const SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH = "/api/trading/agent-c
 
 export type DeciderAgentName = (typeof DECIDER_AGENT_NAMES)[number];
 
+export const DECIDER_DATA_GAP_CATEGORIES = [
+  "factor_scores",
+  "turnover_liquidity",
+  "signal_features",
+  "intraday_orderbook",
+  "fundamental_ratios",
+  "dart_disclosures",
+  "external_news",
+  "price_quality",
+  "other",
+] as const;
+
+export type DeciderDataGapCategory = (typeof DECIDER_DATA_GAP_CATEGORIES)[number];
+
 export type SignalDeciderFeedbackStatus = "waiting" | "running" | "partial" | "completed" | "needs-review";
 export type SignalDeciderCalendarStatus = "waiting" | "running" | "partial" | "completed" | "needs-review";
 
@@ -161,6 +175,56 @@ export type DeciderFeedbackComparison = {
   reasonContrast: string | null;
   riskContrast: string | null;
 };
+
+export type DeciderDataGapRecord = {
+  agentName: string;
+  category: DeciderDataGapCategory;
+  companyName: string | null;
+  example: string;
+  itemId: string;
+  marketDate: string;
+  symbol: string;
+};
+
+export type DeciderDataGapCategorySummary = {
+  affectedAgentCount: number;
+  affectedAgents: string[];
+  affectedSymbolCount: number;
+  affectedSymbols: string[];
+  category: DeciderDataGapCategory;
+  examples: string[];
+  rowCount: number;
+};
+
+export type DeciderDataGapSymbolSummary = {
+  affectedAgentCount: number;
+  affectedAgents: string[];
+  categories: DeciderDataGapCategory[];
+  companyName: string | null;
+  examples: string[];
+  repeatedGapCount: number;
+  symbol: string;
+};
+
+export type DeciderDataGapTrend = {
+  currentRowsWithDataGaps: number;
+  deltaRowsWithDataGaps: number;
+  previousMarketDate: string;
+  previousRowsWithDataGaps: number;
+};
+
+export type DeciderDataGapReport = {
+  categorySummaries: DeciderDataGapCategorySummary[];
+  gapRowRatio: number;
+  records: DeciderDataGapRecord[];
+  rowsWithDataGaps: number;
+  symbolSummaries: DeciderDataGapSymbolSummary[];
+  topCategories: DeciderDataGapCategorySummary[];
+  totalFeedbackRows: number;
+  trend: DeciderDataGapTrend | null;
+};
+
+export type DeciderDataGapDisplayState = "has-data-gaps" | "no-feedback" | "no-data-gaps" | "no-filtered-gaps";
 
 export type SignalDeciderFeedbackItem = {
   id: string;
@@ -1559,17 +1623,31 @@ function getDataGapFlags(sources: Array<Record<string, unknown> | null | undefin
     ...getStringListFromSources(sources, [
       "data_gaps",
       "data_gap_flags",
+      "data_gap_reasons",
+      "data_gap_reason",
       "missing_context",
       "missing_context_flags",
+      "missing_context_reasons",
       "missing_features",
       "missing_fields",
+      "missing_source_fields",
+      "missing_inputs",
+      "missing_input_fields",
       "quality_warnings",
       "data_quality_warnings",
+      "price_quality_warnings",
+      "context_quality_warnings",
     ]),
     ...getBooleanishFlagEntries(sources, [
       {
         label: "Missing factor score",
-        keys: ["missing_factor_score", "factor_score_missing", "has_missing_factor_score"],
+        keys: [
+          "missing_factor_score",
+          "missing_factor_scores",
+          "factor_score_missing",
+          "factor_scores_missing",
+          "has_missing_factor_score",
+        ],
       },
       {
         label: "Turnover/liquidity anomaly",
@@ -1577,20 +1655,60 @@ function getDataGapFlags(sources: Array<Record<string, unknown> | null | undefin
           "turnover_liquidity_anomaly",
           "liquidity_anomaly",
           "turnover_anomaly",
+          "volume_anomaly",
+          "turnover_missing",
+          "liquidity_missing",
+          "volume_missing",
           "has_turnover_liquidity_anomaly",
         ],
       },
       {
         label: "Signal feature absence",
-        keys: ["signal_feature_absence", "missing_signal_features", "signal_features_absent"],
+        keys: [
+          "signal_feature_absence",
+          "missing_signal_features",
+          "signal_features_absent",
+          "signal_features_missing",
+          "feature_snapshot_missing",
+        ],
       },
       {
         label: "Stale intraday context",
-        keys: ["stale_intraday_context", "intraday_context_stale", "stale_context"],
+        keys: [
+          "stale_intraday_context",
+          "intraday_context_stale",
+          "stale_context",
+          "intraday_context_unavailable",
+          "intraday_unavailable",
+          "orderbook_unavailable",
+          "order_book_unavailable",
+          "vwap_unavailable",
+        ],
       },
       {
         label: "Incomplete intraday context",
         keys: ["incomplete_intraday_context", "intraday_context_incomplete", "incomplete_context"],
+      },
+      {
+        label: "Missing fundamental ratios",
+        keys: [
+          "missing_fundamental_ratios",
+          "fundamental_ratios_missing",
+          "valuation_missing",
+          "valuation_ratios_missing",
+        ],
+      },
+      {
+        label: "Missing DART disclosures",
+        keys: ["missing_dart_disclosures", "dart_disclosures_missing", "disclosures_missing"],
+      },
+      {
+        label: "Missing external news",
+        keys: ["missing_external_news", "external_news_missing", "news_missing"],
+      },
+      {
+        label: "Price quality issue",
+        keys: ["price_quality_issue", "price_quality_warning", "missing_price_data", "stale_price_data"],
       },
     ]),
   ].filter((item, index, all) => all.indexOf(item) === index);
@@ -1809,6 +1927,8 @@ export function buildDeciderFeedbackHref({
   marketDate,
   query,
   actionFilter,
+  gapCategory,
+  gapSymbol,
   statusFilter,
   sortMode,
 }: {
@@ -1816,6 +1936,8 @@ export function buildDeciderFeedbackHref({
   marketDate?: string | null;
   query?: string | null;
   actionFilter?: string | null;
+  gapCategory?: string | null;
+  gapSymbol?: string | null;
   statusFilter?: string | null;
   sortMode?: string | null;
 } = {}) {
@@ -1823,6 +1945,8 @@ export function buildDeciderFeedbackHref({
   if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
   if (hasTextValue(query)) params.set("q", query.trim());
   if (hasTextValue(actionFilter) && actionFilter !== "all") params.set("feedbackAction", actionFilter.trim());
+  if (hasTextValue(gapCategory) && gapCategory !== "all") params.set("gapCategory", gapCategory.trim());
+  if (hasTextValue(gapSymbol) && gapSymbol !== "all") params.set("gapSymbol", gapSymbol.trim());
   if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
   if (hasTextValue(sortMode) && sortMode !== "priority") params.set("feedbackSort", sortMode.trim());
   return `${DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
@@ -2002,7 +2126,13 @@ export function normalizeDeciderFeedbackItems(
           ]),
         supportingEvidence,
         riskFlags: getRiskFlags(payload),
-        dataGapFlags: getDataGapFlags([...planSources, evaluationRecord, outcomeRecord]),
+        dataGapFlags: getDataGapFlags([
+          ...planSources,
+          evaluationRecord,
+          outcomeRecord,
+          context,
+          context ? getRecordValue(context, ["symbol_day_context", "symbolDayContext"]) : null,
+        ]),
         targetPrice: toFiniteNumber(
           payload.target_price ??
             payload.target ??
@@ -2538,6 +2668,255 @@ export function buildDeciderFeedbackComparisons({
       } satisfies DeciderFeedbackComparison;
     })
     .filter((item): item is DeciderFeedbackComparison => item !== null);
+}
+
+const DATA_GAP_HINT_PATTERN =
+  /\b(absent|anomalous|anomaly|cannot|can't|gap|incomplete|insufficient|invalid|lack|lacks|missing|not available|not present|stale|unavailable|unknown|without)\b|누락|부재|부족|없음|없고|없는|미제공|불가|불충분|이상|품질/;
+
+const DECIDER_DATA_GAP_CATEGORY_PATTERNS: Record<Exclude<DeciderDataGapCategory, "other">, RegExp[]> = {
+  factor_scores: [
+    /factor[\s_-]*(score|scores|rank|ranking|scoring|attribution|attributions)/,
+    /(score|scores)[\s_-]*factor/,
+    /팩터|요인\s*점수/,
+  ],
+  turnover_liquidity: [
+    /turnover|liquidity|volume|trade[\s_-]*value|거래대금|거래량|유동성|수급/,
+  ],
+  signal_features: [
+    /signal[\s_-]*features?|feature[\s_-]*snapshot|features?[\s_-]*snapshot|시그널\s*특징/,
+  ],
+  intraday_orderbook: [
+    /intraday|intra[\s_-]*day|order[\s_-]*book|orderbook|vwap|bid[\s_-]*ask|opening[\s_-]*range|호가|장중/,
+  ],
+  fundamental_ratios: [
+    /fundamental[\s_-]*(ratio|ratios|metric|metrics)|valuation|per\b|pbr\b|roe\b|eps\b|bps\b|ebitda|밸류에이션|재무\s*비율/,
+  ],
+  dart_disclosures: [
+    /\bdart\b|disclosure|disclosures|filing|filings|공시/,
+  ],
+  external_news: [
+    /external[\s_-]*news|\bnews\b|뉴스|기사/,
+  ],
+  price_quality: [
+    /price|quote|ohlc|candle|bar|daily[\s_-]*bar|follow[\s_-]*up[\s_-]*bars?|adjusted|trade[\s_-]*date|replay[\s_-]*bar|가격|시세|캔들/,
+  ],
+};
+
+function getCategoryRank(category: DeciderDataGapCategory) {
+  const index = DECIDER_DATA_GAP_CATEGORIES.indexOf(category);
+  return index >= 0 ? index : DECIDER_DATA_GAP_CATEGORIES.length;
+}
+
+function normalizeGapSearchText(value: string) {
+  return `${value.trim().toLowerCase()} ${normalizeToken(value)}`;
+}
+
+function getDataGapCategoriesForText(text: string, source: "structured" | "narrative"): DeciderDataGapCategory[] {
+  const searchable = normalizeGapSearchText(text);
+  const matchedCategories = (Object.entries(DECIDER_DATA_GAP_CATEGORY_PATTERNS) as Array<
+    [Exclude<DeciderDataGapCategory, "other">, RegExp[]]
+  >)
+    .filter(([, patterns]) => patterns.some((pattern) => pattern.test(searchable)))
+    .map(([category]) => category);
+  const hasGapHint = source === "structured" || DATA_GAP_HINT_PATTERN.test(searchable);
+
+  if (matchedCategories.length > 0 && hasGapHint) return matchedCategories;
+  if (source === "structured" && hasGapHint) return ["other"];
+  return [];
+}
+
+function getTraceEntryText(entry: SignalDeciderTraceEntry) {
+  return [entry.label, entry.value, entry.value ? `${entry.label}: ${entry.value}` : null].filter(
+    (value): value is string => hasTextValue(value),
+  );
+}
+
+function getDeciderDataGapCandidates(item: SignalDeciderFeedbackItem) {
+  const structured = [
+    ...item.dataGapFlags,
+    ...item.fiveDayEvaluation.dataQualityWarnings,
+  ];
+  const narrative = [
+    ...item.riskFlags,
+    item.qualityReason,
+    item.reviewConclusion,
+    item.pathOutcome?.detail,
+    item.intradayPathResult,
+    item.thesisSummary,
+    ...item.supportingEvidence.flatMap(getTraceEntryText),
+    ...item.contextBadges.flatMap(getTraceEntryText),
+    ...item.factorAttributions.flatMap(getTraceEntryText),
+    ...item.gateResults.flatMap(getTraceEntryText),
+    ...item.upstreamEvidence.flatMap(getTraceEntryText),
+    ...item.traceability.flatMap(getTraceEntryText),
+    ...item.outcomeHorizons.flatMap((outcome) => [
+      outcome.verdict,
+      outcome.notes,
+    ]),
+  ];
+
+  return [
+    ...structured.map((text) => ({ source: "structured" as const, text })),
+    ...narrative.map((text) => ({ source: "narrative" as const, text })),
+  ].filter((candidate): candidate is { source: "structured" | "narrative"; text: string } =>
+    hasTextValue(candidate.text),
+  );
+}
+
+function buildDeciderDataGapRecords(items: SignalDeciderFeedbackItem[]) {
+  const recordsByKey = new Map<string, DeciderDataGapRecord>();
+
+  for (const item of items) {
+    for (const candidate of getDeciderDataGapCandidates(item)) {
+      const categories = getDataGapCategoriesForText(candidate.text, candidate.source);
+      for (const category of categories) {
+        const key = `${item.id}:${category}`;
+        if (recordsByKey.has(key)) continue;
+        recordsByKey.set(key, {
+          agentName: item.agentName,
+          category,
+          companyName: item.companyName,
+          example: candidate.text,
+          itemId: item.id,
+          marketDate: item.marketDate,
+          symbol: item.symbol,
+        });
+      }
+    }
+  }
+
+  return [...recordsByKey.values()].sort((left, right) => {
+    const categoryRank = getCategoryRank(left.category) - getCategoryRank(right.category);
+    if (categoryRank !== 0) return categoryRank;
+    const symbolRank = left.symbol.localeCompare(right.symbol, "en");
+    if (symbolRank !== 0) return symbolRank;
+    return left.agentName.localeCompare(right.agentName, "en");
+  });
+}
+
+function uniqueSortedValues(values: string[]) {
+  return [...new Set(values.filter(hasTextValue))].sort((left, right) => left.localeCompare(right, "en"));
+}
+
+function uniqueExamples(values: string[], limit = 3) {
+  return [...new Set(values.filter(hasTextValue))].slice(0, limit);
+}
+
+export function buildDeciderDataGapCategorySummaries(records: DeciderDataGapRecord[]) {
+  return DECIDER_DATA_GAP_CATEGORIES.map((category) => {
+    const categoryRecords = records.filter((record) => record.category === category);
+    if (categoryRecords.length <= 0) return null;
+
+    return {
+      affectedAgentCount: uniqueSortedValues(categoryRecords.map((record) => record.agentName)).length,
+      affectedAgents: uniqueSortedValues(categoryRecords.map((record) => record.agentName)),
+      affectedSymbolCount: uniqueSortedValues(categoryRecords.map((record) => record.symbol)).length,
+      affectedSymbols: uniqueSortedValues(categoryRecords.map((record) => record.symbol)),
+      category,
+      examples: uniqueExamples(categoryRecords.map((record) => record.example)),
+      rowCount: uniqueSortedValues(categoryRecords.map((record) => record.itemId)).length,
+    } satisfies DeciderDataGapCategorySummary;
+  })
+    .filter((summary): summary is DeciderDataGapCategorySummary => summary !== null)
+    .sort((left, right) => {
+      if (right.rowCount !== left.rowCount) return right.rowCount - left.rowCount;
+      if (right.affectedSymbolCount !== left.affectedSymbolCount) return right.affectedSymbolCount - left.affectedSymbolCount;
+      return getCategoryRank(left.category) - getCategoryRank(right.category);
+    });
+}
+
+export function buildDeciderDataGapSymbolSummaries(records: DeciderDataGapRecord[]) {
+  const symbols = uniqueSortedValues(records.map((record) => record.symbol));
+
+  return symbols.map((symbol) => {
+    const symbolRecords = records.filter((record) => record.symbol === symbol);
+    const categories = [...new Set(symbolRecords.map((record) => record.category))].sort(
+      (left, right) => getCategoryRank(left) - getCategoryRank(right),
+    );
+
+    return {
+      affectedAgentCount: uniqueSortedValues(symbolRecords.map((record) => record.agentName)).length,
+      affectedAgents: uniqueSortedValues(symbolRecords.map((record) => record.agentName)),
+      categories,
+      companyName: symbolRecords.find((record) => record.companyName)?.companyName ?? null,
+      examples: uniqueExamples(symbolRecords.map((record) => record.example)),
+      repeatedGapCount: symbolRecords.length,
+      symbol,
+    } satisfies DeciderDataGapSymbolSummary;
+  }).sort((left, right) => {
+    if (right.repeatedGapCount !== left.repeatedGapCount) return right.repeatedGapCount - left.repeatedGapCount;
+    return left.symbol.localeCompare(right.symbol, "en");
+  });
+}
+
+function getItemsMarketDate(items: SignalDeciderFeedbackItem[]) {
+  return items.find((item) => hasTextValue(item.marketDate))?.marketDate ?? null;
+}
+
+export function buildDeciderDataGapReport({
+  items,
+  previousItems,
+  topCategoryLimit = 3,
+}: {
+  items: SignalDeciderFeedbackItem[];
+  previousItems?: SignalDeciderFeedbackItem[] | null;
+  topCategoryLimit?: number;
+}): DeciderDataGapReport {
+  const records = buildDeciderDataGapRecords(items);
+  const categorySummaries = buildDeciderDataGapCategorySummaries(records);
+  const symbolSummaries = buildDeciderDataGapSymbolSummaries(records);
+  const rowsWithDataGaps = uniqueSortedValues(records.map((record) => record.itemId)).length;
+  const previousRecords = previousItems ? buildDeciderDataGapRecords(previousItems) : [];
+  const previousRowsWithDataGaps = uniqueSortedValues(previousRecords.map((record) => record.itemId)).length;
+  const previousMarketDate = previousItems ? getItemsMarketDate(previousItems) : null;
+
+  return {
+    categorySummaries,
+    gapRowRatio: items.length > 0 ? rowsWithDataGaps / items.length : 0,
+    records,
+    rowsWithDataGaps,
+    symbolSummaries,
+    topCategories: categorySummaries.slice(0, topCategoryLimit),
+    totalFeedbackRows: items.length,
+    trend:
+      previousItems && previousMarketDate
+        ? {
+            currentRowsWithDataGaps: rowsWithDataGaps,
+            deltaRowsWithDataGaps: rowsWithDataGaps - previousRowsWithDataGaps,
+            previousMarketDate,
+            previousRowsWithDataGaps,
+          }
+        : null,
+  };
+}
+
+export function filterDeciderDataGapRecords({
+  category,
+  records,
+  symbol,
+}: {
+  category?: DeciderDataGapCategory | "all" | null;
+  records: DeciderDataGapRecord[];
+  symbol?: string | "all" | null;
+}) {
+  return records.filter((record) => {
+    const matchesCategory = !category || category === "all" || record.category === category;
+    const matchesSymbol = !symbol || symbol === "all" || record.symbol === symbol;
+    return matchesCategory && matchesSymbol;
+  });
+}
+
+export function resolveDeciderDataGapDisplayState({
+  filteredRecords,
+  report,
+}: {
+  filteredRecords: DeciderDataGapRecord[];
+  report: DeciderDataGapReport;
+}): DeciderDataGapDisplayState {
+  if (report.totalFeedbackRows <= 0) return "no-feedback";
+  if (report.rowsWithDataGaps <= 0) return "no-data-gaps";
+  if (filteredRecords.length <= 0) return "no-filtered-gaps";
+  return "has-data-gaps";
 }
 
 export function buildSignalDeciderFeedbackSummary({

@@ -17,20 +17,27 @@ import {
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
+  buildDeciderDataGapCategorySummaries,
   buildDeciderFeedbackComparisons,
   buildDeciderFeedbackHref,
   buildDeciderFeedbackPath,
+  buildDeciderDataGapReport,
+  buildDeciderDataGapSymbolSummaries,
   buildDeciderFeedbackSummary,
+  DECIDER_DATA_GAP_CATEGORIES,
   DECIDER_FEEDBACK_DASHBOARD_PATH,
+  filterDeciderDataGapRecords,
   getDeciderFeedbackComparisonKey,
   getDeciderAgentLabel,
   getOppositeDeciderAgentName,
+  resolveDeciderDataGapDisplayState,
   resolveDeciderAgentName,
   SHORT_TERM_DECIDER_AGENT_NAME,
   SIGNAL_DECIDER_AGENT_NAME,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+  type DeciderDataGapCategory,
   type DeciderAgentName,
   type DeciderFeedbackComparison,
   type SignalDeciderAction,
@@ -60,9 +67,11 @@ const CARD_LOADING_LABEL = "…";
 const ACTION_FILTERS = ["all", "buy", "watch_for_trigger", "avoid_chase", "wait", "reject", "unknown"] as const;
 const STATUS_FILTERS = ["all", "with-review", "review-pending", "with-risk"] as const;
 const SORT_MODES = ["priority", "symbol", "confidence", "captured"] as const;
+const GAP_CATEGORY_FILTERS = ["all", ...DECIDER_DATA_GAP_CATEGORIES] as const;
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 type SortMode = (typeof SORT_MODES)[number];
+type GapCategoryFilter = (typeof GAP_CATEGORY_FILTERS)[number];
 type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | { message: string };
 
 type SignalDeciderFeedbackCopy = ReturnType<typeof useAppState>["t"]["signalDeciderFeedback"];
@@ -73,6 +82,7 @@ type SignalDeciderReviewCopy = SignalDeciderFeedbackCopy["review"];
 type SignalDeciderEvaluationCopy = SignalDeciderFeedbackCopy["evaluation"];
 type SignalDeciderSummaryCopy = SignalDeciderFeedbackCopy["summary"];
 type SignalDeciderCountCopy = SignalDeciderFeedbackCopy["counts"];
+type DeciderDataGapCopy = SignalDeciderFeedbackCopy["dataGaps"];
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -90,6 +100,10 @@ function resolveSortModeParam(value: string | null): SortMode {
   return SORT_MODES.includes(value as SortMode) ? (value as SortMode) : "priority";
 }
 
+function resolveGapCategoryParam(value: string | null): GapCategoryFilter {
+  return GAP_CATEGORY_FILTERS.includes(value as GapCategoryFilter) ? (value as GapCategoryFilter) : "all";
+}
+
 function getStatusLabel(status: SignalDeciderFeedbackStatus, statusCopy: SignalDeciderStatusCopy) {
   switch (status) {
     case "completed":
@@ -103,6 +117,19 @@ function getStatusLabel(status: SignalDeciderFeedbackStatus, statusCopy: SignalD
     case "waiting":
       return statusCopy.waiting;
   }
+}
+
+function getPreviousBusinessMarketDate(marketDate: string | null | undefined) {
+  if (!hasTextValue(marketDate)) return null;
+  const [year, month, day] = marketDate.split("-").map((part) => Number.parseInt(part, 10));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  do {
+    date.setUTCDate(date.getUTCDate() - 1);
+  } while (date.getUTCDay() === 0 || date.getUTCDay() === 6);
+
+  return date.toISOString().slice(0, 10);
 }
 
 function getStatusToneClass(status: SignalDeciderFeedbackStatus) {
@@ -530,6 +557,60 @@ function getStatusFilterLabel(statusFilter: StatusFilter, copy: SignalDeciderFee
   return copy.all;
 }
 
+function getDataGapCategoryLabel(category: DeciderDataGapCategory, copy: DeciderDataGapCopy["categories"]) {
+  return copy[category].label;
+}
+
+function getDataGapCategoryOwner(category: DeciderDataGapCategory, copy: DeciderDataGapCopy["categories"]) {
+  return copy[category].owner;
+}
+
+function formatDataGapTrend(
+  trend: ReturnType<typeof buildDeciderDataGapReport>["trend"],
+  copy: DeciderDataGapCopy["summary"],
+) {
+  if (!trend) return copy.trendUnavailable;
+  if (trend.deltaRowsWithDataGaps === 0) {
+    return copy.trendFlat.replaceAll("{date}", trend.previousMarketDate);
+  }
+
+  const direction = trend.deltaRowsWithDataGaps > 0 ? copy.trendUp : copy.trendDown;
+  return direction
+    .replaceAll("{date}", trend.previousMarketDate)
+    .replaceAll("{count}", Math.abs(trend.deltaRowsWithDataGaps).toLocaleString("en-US"));
+}
+
+function formatTopDataGapCategories(
+  report: ReturnType<typeof buildDeciderDataGapReport>,
+  copy: DeciderDataGapCopy,
+) {
+  if (report.topCategories.length === 0) return copy.summary.noneDetected;
+
+  return report.topCategories
+    .map(
+      (category) =>
+        `${getDataGapCategoryLabel(category.category, copy.categories)} ${category.affectedSymbolCount.toLocaleString("en-US")}`,
+    )
+    .join(" · ");
+}
+
+function formatDataGapListSummary(values: string[], emptyLabel: string) {
+  if (values.length === 0) return emptyLabel;
+  const visibleValues = values.slice(0, 3);
+  const hiddenCount = values.length - visibleValues.length;
+  return hiddenCount > 0 ? `${visibleValues.join(", ")} +${hiddenCount}` : visibleValues.join(", ");
+}
+
+function getDataGapEmptyMessage(
+  state: ReturnType<typeof resolveDeciderDataGapDisplayState>,
+  copy: DeciderDataGapCopy["empty"],
+) {
+  if (state === "no-feedback") return copy.noFeedback;
+  if (state === "no-data-gaps") return copy.noDataGaps;
+  if (state === "no-filtered-gaps") return copy.noFilteredGaps;
+  return null;
+}
+
 function formatConfidenceDelta(value: number | null) {
   if (value === null) return UNKNOWN_LABEL;
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}`;
@@ -611,10 +692,13 @@ export default function SignalDeciderFeedbackPageClient() {
     () => resolveSortModeParam(searchParams.get(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM)),
     [searchParams],
   );
+  const requestedGapCategory = useMemo(() => resolveGapCategoryParam(searchParams.get("gapCategory")), [searchParams]);
+  const requestedGapSymbol = useMemo(() => searchParams.get("gapSymbol") ?? "all", [searchParams]);
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
   const [feedback, setFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [comparisonFeedback, setComparisonFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
+  const [previousFeedback, setPreviousFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [progress, setProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [error, setError] = useState<FeedbackError | null>(null);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(
@@ -624,6 +708,8 @@ export default function SignalDeciderFeedbackPageClient() {
   const [actionFilter, setActionFilter] = useState<ActionFilter>(requestedActionFilter);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(requestedStatusFilter);
   const [sortMode, setSortMode] = useState<SortMode>(requestedSortMode);
+  const [gapCategory, setGapCategory] = useState<GapCategoryFilter>(requestedGapCategory);
+  const [gapSymbol, setGapSymbol] = useState(requestedGapSymbol);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -647,6 +733,14 @@ export default function SignalDeciderFeedbackPageClient() {
   }, [requestedSortMode]);
 
   useEffect(() => {
+    setGapCategory(requestedGapCategory);
+  }, [requestedGapCategory]);
+
+  useEffect(() => {
+    setGapSymbol(requestedGapSymbol);
+  }, [requestedGapSymbol]);
+
+  useEffect(() => {
     if (requestedMarketDate) {
       setMarketDateDraft(requestedMarketDate);
       return;
@@ -666,6 +760,7 @@ export default function SignalDeciderFeedbackPageClient() {
         setMarketDate(cachedLatest.marketDate);
         setMarketDateDraft(cachedLatest.marketDate);
         setFeedback(cachedLatest.feedback);
+        setPreviousFeedback(null);
         setProgress(cachedLatest.progress);
         setLoadState("ready");
       });
@@ -712,12 +807,14 @@ export default function SignalDeciderFeedbackPageClient() {
         if (!active) return;
         setFeedback(cachedSnapshot.feedback);
         setComparisonFeedback(null);
+        setPreviousFeedback(null);
         setProgress(cachedSnapshot.progress);
         setLoadState("ready");
       });
     } else {
       setFeedback(null);
       setComparisonFeedback(null);
+      setPreviousFeedback(null);
       setProgress(null);
       setLoadState("loading");
     }
@@ -753,8 +850,22 @@ export default function SignalDeciderFeedbackPageClient() {
           fetched: feedbackData,
         });
         const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progressData ?? cachedSnapshot.progress) : progressData;
+        const previousMarketDate = getPreviousBusinessMarketDate(marketDate);
+        const previousFeedbackData =
+          previousMarketDate && (selectedFeedback.items ?? []).length > 0
+            ? await getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+                buildDeciderFeedbackPath({
+                  agentName: activeAgent,
+                  basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+                  limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+                  marketDate: previousMarketDate,
+                }),
+              ).catch(() => null)
+            : null;
+        if (!active) return;
         setFeedback(selectedFeedback);
         setComparisonFeedback(comparisonData);
+        setPreviousFeedback(previousFeedbackData);
         setProgress(selectedProgress);
         setLoadState("ready");
         if (activeAgent === SIGNAL_DECIDER_AGENT_NAME && selectedFeedback === feedbackData) {
@@ -771,6 +882,7 @@ export default function SignalDeciderFeedbackPageClient() {
         if (cachedSnapshot) {
           setFeedback(cachedSnapshot.feedback);
           setComparisonFeedback(null);
+          setPreviousFeedback(null);
           setProgress(cachedSnapshot.progress);
           setLoadState("ready");
           setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
@@ -778,6 +890,7 @@ export default function SignalDeciderFeedbackPageClient() {
         }
         setFeedback(null);
         setComparisonFeedback(null);
+        setPreviousFeedback(null);
         setProgress(null);
         setLoadState("error");
         setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
@@ -807,6 +920,52 @@ export default function SignalDeciderFeedbackPageClient() {
       }),
     [comparisonAgent, comparisonFeedback, marketDate],
   );
+  const previousSummary = useMemo(
+    () =>
+      previousFeedback
+        ? buildDeciderFeedbackSummary({
+            agentName: activeAgent,
+            feedback: previousFeedback,
+            marketDate: getPreviousBusinessMarketDate(displayedMarketDate ?? marketDate),
+            progress: null,
+            previewLimit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+          })
+        : null,
+    [activeAgent, displayedMarketDate, marketDate, previousFeedback],
+  );
+  const dataGapReport = useMemo(
+    () =>
+      buildDeciderDataGapReport({
+        items: summary.items,
+        previousItems: previousSummary && previousSummary.items.length > 0 ? previousSummary.items : null,
+      }),
+    [previousSummary, summary.items],
+  );
+  const validGapSymbol = useMemo(() => {
+    if (gapSymbol === "all") return "all";
+    return dataGapReport.symbolSummaries.some((summaryItem) => summaryItem.symbol === gapSymbol) ? gapSymbol : "all";
+  }, [dataGapReport.symbolSummaries, gapSymbol]);
+  const filteredDataGapRecords = useMemo(
+    () =>
+      filterDeciderDataGapRecords({
+        category: gapCategory,
+        records: dataGapReport.records,
+        symbol: validGapSymbol,
+      }),
+    [dataGapReport.records, gapCategory, validGapSymbol],
+  );
+  const filteredDataGapCategorySummaries = useMemo(
+    () => buildDeciderDataGapCategorySummaries(filteredDataGapRecords),
+    [filteredDataGapRecords],
+  );
+  const filteredDataGapSymbolSummaries = useMemo(
+    () => buildDeciderDataGapSymbolSummaries(filteredDataGapRecords),
+    [filteredDataGapRecords],
+  );
+  const dataGapDisplayState = resolveDeciderDataGapDisplayState({
+    filteredRecords: filteredDataGapRecords,
+    report: dataGapReport,
+  });
   const comparisonByKey = useMemo(() => {
     const signalItems = activeAgent === SIGNAL_DECIDER_AGENT_NAME ? summary.items : comparisonSummary.items;
     const shortTermItems = activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? summary.items : comparisonSummary.items;
@@ -830,6 +989,8 @@ export default function SignalDeciderFeedbackPageClient() {
     activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? copy.tabs.shortTermDecider : copy.tabs.signalDecider;
   const preservedTabState = {
     actionFilter,
+    gapCategory,
+    gapSymbol: validGapSymbol,
     marketDate: displayedMarketDate,
     query,
     sortMode,
@@ -869,6 +1030,7 @@ export default function SignalDeciderFeedbackPageClient() {
   const reviewCopy = copy.review;
   const evaluationCopy = copy.evaluation;
   const countCopy = copy.counts;
+  const dataGapCopy = copy.dataGaps;
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -911,6 +1073,8 @@ export default function SignalDeciderFeedbackPageClient() {
     const normalizedQuery = query.trim();
     if (normalizedQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, normalizedQuery);
     if (actionFilter !== "all") params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, actionFilter);
+    if (gapCategory !== "all") params.set("gapCategory", gapCategory);
+    if (validGapSymbol !== "all") params.set("gapSymbol", validGapSymbol);
     if (statusFilter !== "all") params.set("feedbackStatus", statusFilter);
     if (sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, sortMode);
     router.push(`${isSharedRoute ? DECIDER_FEEDBACK_DASHBOARD_PATH : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`);
@@ -1032,6 +1196,154 @@ export default function SignalDeciderFeedbackPageClient() {
               </select>
             </label>
           </form>
+
+          <section
+            className={styles.dataGapPanel}
+            aria-labelledby="decider-data-gaps-title"
+            data-testid="decider-data-gaps-report"
+          >
+            <header className={styles.dataGapHeader}>
+              <div>
+                <p className={styles.eyebrow}>{dataGapCopy.eyebrow}</p>
+                <h2 id="decider-data-gaps-title">{dataGapCopy.title}</h2>
+                <p>{dataGapCopy.description}</p>
+              </div>
+              <strong className={`pill ${dataGapReport.rowsWithDataGaps > 0 ? "warning" : "neutral"}`}>
+                {activeAgentLabel}
+              </strong>
+            </header>
+
+            <div className={styles.dataGapSummaryGrid}>
+              <div className={styles.summaryCard}>
+                <span>{dataGapCopy.summary.totalRows}</span>
+                <strong>{dataGapReport.totalFeedbackRows.toLocaleString("en-US")}</strong>
+              </div>
+              <div className={styles.summaryCard}>
+                <span>{dataGapCopy.summary.rowsWithGaps}</span>
+                <strong>
+                  {dataGapReport.rowsWithDataGaps.toLocaleString("en-US")}
+                  {dataGapReport.totalFeedbackRows > 0
+                    ? ` · ${Math.round(dataGapReport.gapRowRatio * 100).toLocaleString("en-US")}%`
+                    : ""}
+                </strong>
+              </div>
+              <div className={styles.summaryCard}>
+                <span>{dataGapCopy.summary.topCategories}</span>
+                <strong>{formatTopDataGapCategories(dataGapReport, dataGapCopy)}</strong>
+              </div>
+              <div className={styles.summaryCard}>
+                <span>{dataGapCopy.summary.trend}</span>
+                <strong>{formatDataGapTrend(dataGapReport.trend, dataGapCopy.summary)}</strong>
+              </div>
+            </div>
+
+            <div className={styles.dataGapControls} aria-label={dataGapCopy.filters.label}>
+              <label>
+                <span>{dataGapCopy.filters.category}</span>
+                <select value={gapCategory} onChange={(event) => setGapCategory(event.target.value as GapCategoryFilter)}>
+                  <option value="all">{dataGapCopy.filters.allCategories}</option>
+                  {DECIDER_DATA_GAP_CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {getDataGapCategoryLabel(category, dataGapCopy.categories)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>{dataGapCopy.filters.symbol}</span>
+                <select value={validGapSymbol} onChange={(event) => setGapSymbol(event.target.value)}>
+                  <option value="all">{dataGapCopy.filters.allSymbols}</option>
+                  {dataGapReport.symbolSummaries.map((summaryItem) => (
+                    <option key={summaryItem.symbol} value={summaryItem.symbol}>
+                      {summaryItem.companyName ? `${summaryItem.companyName} · ${summaryItem.symbol}` : summaryItem.symbol}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {loadState === "loading" ? (
+              <div className={styles.emptyState}>{summaryCopy.loading}</div>
+            ) : loadState === "error" ? (
+              <div className={styles.emptyState}>{dataGapCopy.empty.noFeedback}</div>
+            ) : dataGapDisplayState === "has-data-gaps" ? (
+              <>
+                <div className={styles.dataGapTableWrap}>
+                  <table className={styles.dataGapTable}>
+                    <thead>
+                      <tr>
+                        <th>{dataGapCopy.table.category}</th>
+                        <th>{dataGapCopy.table.affectedSymbols}</th>
+                        <th>{dataGapCopy.table.affectedAgents}</th>
+                        <th>{dataGapCopy.table.example}</th>
+                        <th>{dataGapCopy.table.owner}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDataGapCategorySummaries.map((categorySummary) => (
+                        <tr key={categorySummary.category}>
+                          <td>{getDataGapCategoryLabel(categorySummary.category, dataGapCopy.categories)}</td>
+                          <td>
+                            {categorySummary.affectedSymbolCount.toLocaleString("en-US")} ·{" "}
+                            {formatDataGapListSummary(categorySummary.affectedSymbols, UNKNOWN_LABEL)}
+                          </td>
+                          <td>
+                            {categorySummary.affectedAgentCount.toLocaleString("en-US")} ·{" "}
+                            {formatDataGapListSummary(categorySummary.affectedAgents, UNKNOWN_LABEL)}
+                          </td>
+                          <td>{categorySummary.examples[0] ?? UNKNOWN_LABEL}</td>
+                          <td>{getDataGapCategoryOwner(categorySummary.category, dataGapCopy.categories)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <section className={styles.dataGapDrilldown} aria-labelledby="decider-data-gap-symbol-drilldown">
+                  <div className={styles.resultSectionHeader}>
+                    <span>{dataGapCopy.symbolDrilldown.eyebrow}</span>
+                    <strong id="decider-data-gap-symbol-drilldown">
+                      {validGapSymbol === "all" ? dataGapCopy.symbolDrilldown.allSymbols : validGapSymbol}
+                    </strong>
+                  </div>
+                  {validGapSymbol === "all" ? (
+                    <div className={styles.dataGapSymbolGrid}>
+                      {filteredDataGapSymbolSummaries.slice(0, 6).map((symbolSummary) => (
+                        <div key={symbolSummary.symbol} className={styles.dataGapSymbolCard}>
+                          <strong>{symbolSummary.companyName ?? symbolSummary.symbol}</strong>
+                          <span>{symbolSummary.symbol}</span>
+                          <p>
+                            {symbolSummary.repeatedGapCount.toLocaleString("en-US")} ·{" "}
+                            {symbolSummary.categories
+                              .map((category) => getDataGapCategoryLabel(category, dataGapCopy.categories))
+                              .join(", ")}
+                          </p>
+                          <p>{symbolSummary.examples[0] ?? UNKNOWN_LABEL}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={styles.traceList}>
+                      {filteredDataGapRecords.map((record) => (
+                        <div key={`${record.itemId}-${record.category}`} className={styles.traceRow}>
+                          <span className="pill warning">
+                            {getDataGapCategoryLabel(record.category, dataGapCopy.categories)}
+                          </span>
+                          <p>
+                            {record.agentName} · {record.example}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            ) : (
+              <div className={styles.emptyState}>
+                {getDataGapEmptyMessage(dataGapDisplayState, dataGapCopy.empty)}
+              </div>
+            )}
+          </section>
 
           {loadState === "loading" ? (
             <div className={styles.emptyState}>{summaryCopy.loading}</div>

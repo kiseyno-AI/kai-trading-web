@@ -8,6 +8,7 @@ import type {
 } from "@/types/trading-api";
 
 import {
+  buildDeciderDataGapReport,
   buildDeciderFeedbackComparisons,
   buildDeciderFeedbackHref,
   buildDeciderFeedbackPath,
@@ -18,8 +19,10 @@ import {
   buildReviewDateQuery,
   buildSignalDeciderFeedbackListFromReviewDateResponse,
   compactSignalDeciderFeedbackForDashboard,
+  filterDeciderDataGapRecords,
   normalizeDeciderFeedbackItems,
   normalizeSignalDeciderFeedbackItems,
+  resolveDeciderDataGapDisplayState,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
   resolveSignalDeciderLatestFeedbackMarketDate,
@@ -932,6 +935,230 @@ test("normalizes short-term decider tactical fields and data gaps", () => {
   assert.equal(item.contextBadges.some((badge) => badge.label === "DART events" && badge.value === "1 recent"), true);
   assert.equal(item.contextBadges.some((badge) => badge.label === "Investor flow" && badge.value === "Foreign flow positive"), true);
   assert.equal(item.contextBadges.some((badge) => badge.label === "Sector context" && badge.value === "Semiconductor strength"), true);
+});
+
+test("builds decider data-gap report categories from structured flags and narrative reasons", () => {
+  const response = buildFeedbackResponse({
+    summary: { count: 3 },
+    items: [
+      {
+        ...buildFeedbackResponse().items[0],
+        id: "gap-005930",
+        feedback: {
+          role: "signal-decider",
+          symbol: "005930",
+          market_date: "2026-05-07",
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          thesis_summary: "Wait because VWAP unavailable and intraday orderbook context is incomplete.",
+          data_gap_flags: [
+            "factor score missing",
+            "turnover/liquidity missing or anomalous",
+            "signal_features missing",
+            "fundamental ratio/valuation gaps",
+          ],
+          evaluation: {
+            quality_reason: "DART disclosures absent and external news unavailable for the rerun.",
+          },
+          five_day_evaluation: {
+            evaluation_status: "insufficient_data",
+            data_quality_warnings: ["Missing price bars in replay window"],
+          },
+        },
+      },
+      {
+        ...buildFeedbackResponse().items[1],
+        id: "gap-000660",
+        symbol: "000660",
+        feedback: {
+          role: "signal-decider",
+          symbol: "000660",
+          market_date: "2026-05-07",
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          thesis_summary: "Liquidity anomaly remains unresolved.",
+          risk_flags: ["Orderbook unavailable near the open"],
+        },
+      },
+      {
+        id: "clean-035420",
+        market_date: "2026-05-07",
+        symbol: "035420",
+        agent: {
+          name: "signal-decider",
+          run_id: "run-2026-05-07",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "035420",
+          market_date: "2026-05-07",
+          preferred_action: "reject",
+          next_day_open_action: "reject",
+          thesis_summary: "Clean reject without missing context.",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-07T07:45:00+00:00",
+      },
+    ],
+  });
+
+  const report = buildDeciderDataGapReport({
+    items: normalizeDeciderFeedbackItems(response),
+  });
+  const categories = report.categorySummaries.map((summary) => summary.category);
+
+  assert.equal(report.totalFeedbackRows, 3);
+  assert.equal(report.rowsWithDataGaps, 2);
+  assert.ok(categories.includes("factor_scores"));
+  assert.ok(categories.includes("turnover_liquidity"));
+  assert.ok(categories.includes("signal_features"));
+  assert.ok(categories.includes("intraday_orderbook"));
+  assert.ok(categories.includes("fundamental_ratios"));
+  assert.ok(categories.includes("dart_disclosures"));
+  assert.ok(categories.includes("external_news"));
+  assert.ok(categories.includes("price_quality"));
+  assert.equal(report.categorySummaries.find((summary) => summary.category === "turnover_liquidity")?.affectedSymbolCount, 2);
+  assert.match(report.records.find((record) => record.category === "intraday_orderbook")?.example ?? "", /VWAP|Orderbook/i);
+});
+
+test("filters decider data-gap records and resolves empty display states", () => {
+  const report = buildDeciderDataGapReport({
+    items: normalizeDeciderFeedbackItems(
+      buildFeedbackResponse({
+        summary: { count: 1 },
+        items: [
+          {
+            ...buildFeedbackResponse().items[0],
+            id: "gap-005930",
+            feedback: {
+              role: "signal-decider",
+              symbol: "005930",
+              market_date: "2026-05-07",
+              preferred_action: "wait",
+              next_day_open_action: "wait",
+              thesis_summary: "Wait because factor score is missing.",
+            },
+          },
+        ],
+      }),
+    ),
+  });
+
+  const factorRecords = filterDeciderDataGapRecords({
+    category: "factor_scores",
+    records: report.records,
+    symbol: "005930",
+  });
+  const missingRecords = filterDeciderDataGapRecords({
+    category: "external_news",
+    records: report.records,
+    symbol: "005930",
+  });
+
+  assert.equal(factorRecords.length, 1);
+  assert.equal(resolveDeciderDataGapDisplayState({ filteredRecords: factorRecords, report }), "has-data-gaps");
+  assert.equal(resolveDeciderDataGapDisplayState({ filteredRecords: missingRecords, report }), "no-filtered-gaps");
+  assert.equal(
+    resolveDeciderDataGapDisplayState({
+      filteredRecords: [],
+      report: buildDeciderDataGapReport({ items: [] }),
+    }),
+    "no-feedback",
+  );
+  assert.equal(
+    resolveDeciderDataGapDisplayState({
+      filteredRecords: [],
+      report: buildDeciderDataGapReport({
+        items: normalizeDeciderFeedbackItems(
+          buildFeedbackResponse({
+            summary: { count: 1 },
+            items: [
+              {
+                ...buildFeedbackResponse().items[1],
+                feedback: {
+                  role: "signal-decider",
+                  symbol: "000660",
+                  market_date: "2026-05-07",
+                  preferred_action: "wait",
+                  next_day_open_action: "wait",
+                  thesis_summary: "Normal wait row.",
+                },
+              },
+            ],
+          }),
+        ),
+      }),
+    }),
+    "no-data-gaps",
+  );
+});
+
+test("computes decider data-gap trend against previous feedback rows when available", () => {
+  const current = normalizeDeciderFeedbackItems(
+    buildFeedbackResponse({
+      summary: { count: 2 },
+      items: [
+        {
+          ...buildFeedbackResponse().items[0],
+          id: "current-gap-1",
+          market_date: "2026-05-07",
+          feedback: {
+            role: "signal-decider",
+            symbol: "005930",
+            market_date: "2026-05-07",
+            preferred_action: "wait",
+            next_day_open_action: "wait",
+            thesis_summary: "Missing factor score.",
+          },
+        },
+        {
+          ...buildFeedbackResponse().items[1],
+          id: "current-gap-2",
+          market_date: "2026-05-07",
+          feedback: {
+            role: "signal-decider",
+            symbol: "000660",
+            market_date: "2026-05-07",
+            preferred_action: "wait",
+            next_day_open_action: "wait",
+            thesis_summary: "External news unavailable.",
+          },
+        },
+      ],
+    }),
+  );
+  const previous = normalizeDeciderFeedbackItems(
+    buildFeedbackResponse({
+      summary: { count: 1 },
+      items: [
+        {
+          ...buildFeedbackResponse().items[0],
+          id: "previous-gap-1",
+          market_date: "2026-05-06",
+          feedback: {
+            role: "signal-decider",
+            symbol: "005930",
+            market_date: "2026-05-06",
+            preferred_action: "wait",
+            next_day_open_action: "wait",
+            thesis_summary: "Missing factor score.",
+          },
+        },
+      ],
+    }),
+  );
+
+  const report = buildDeciderDataGapReport({ items: current, previousItems: previous });
+
+  assert.deepEqual(report.trend, {
+    currentRowsWithDataGaps: 2,
+    deltaRowsWithDataGaps: 1,
+    previousMarketDate: "2026-05-06",
+    previousRowsWithDataGaps: 1,
+  });
 });
 
 test("builds cross-decider comparison rows for matching symbol dates", () => {
