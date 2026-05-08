@@ -450,6 +450,10 @@ function buildQuote(symbol: keyof typeof symbolMeta) {
   };
 }
 
+function isSymbolMetaKey(symbol: string): symbol is keyof typeof symbolMeta {
+  return symbol in symbolMeta;
+}
+
 async function stubFactorScreeningApis(page: Page, payloads: FactorPayloadFixtures = factorPayloads) {
   await page.route("**/api/trading/eod/freshness", async (route) => {
     await route.fulfill({
@@ -502,7 +506,18 @@ async function stubFactorScreeningApis(page: Page, payloads: FactorPayloadFixtur
 
   await page.route("**/api/trading/quotes/*", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
-    const symbol = pathname.split("/").at(-1) as keyof typeof symbolMeta;
+    const symbol = pathname.split("/").at(-1) ?? "";
+
+    if (!isSymbolMetaKey(symbol)) {
+      await route.fulfill({
+        json: {
+          market_state: "OPEN",
+          as_of: "2026-04-23T09:20:00+09:00",
+          items: [buildQuote("005930"), buildQuote("000660")],
+        },
+      });
+      return;
+    }
 
     await route.fulfill({
       json: buildQuote(symbol),
@@ -755,7 +770,7 @@ test("factor screening supports switching, eligibility filtering, composite plac
   const activeFilterValue = page.getByTestId("factor-active-filter-value");
 
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
-  await expect(page.locator('.side-nav a[href="/markets"]')).toHaveClass(/active/);
+  await expect(page.locator('aside[aria-label="Desktop navigation"] a[href="/markets"]')).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("2026.04.23").first()).toBeVisible();
   await expect(activeFilterValue).toHaveText("Review set");
   await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toBeVisible();
@@ -855,8 +870,7 @@ test("factor screening stays usable on mobile viewport", async ({ page }) => {
   await page.goto("/markets/factors");
 
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
-  await page.getByRole("button", { name: /Open navigation/i }).click();
-  await expect(page.locator('.mobile-nav a[href="/markets"]')).toHaveClass(/active/);
+  await expect(page.getByRole("navigation", { name: /^Primary$/i }).getByRole("link", { name: "Markets", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("2026.04.23").first()).toBeVisible();
 
   const viewportMetrics = await page.evaluate(() => ({

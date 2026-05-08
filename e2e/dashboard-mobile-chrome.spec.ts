@@ -422,8 +422,39 @@ test.describe("dashboard mobile chrome", () => {
     await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Markets", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
+  });
+
+  test("open markets CTA lands in shared mobile markets chrome", async ({ page }) => {
+    await page.goto("/dashboard");
+
+    await page.getByRole("link", { name: /Open Markets/i }).click();
+    await expect(page).toHaveURL(/\/markets$/);
+    await expect(page.getByRole("heading", { name: "Markets" })).toBeVisible();
+    await expect(page.getByText(/Market breadth feed is not connected yet/i)).toBeVisible();
+
+    const bottomNav = page.getByRole("navigation", { name: /^Primary$/i });
+    await expect(bottomNav).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Markets", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
+
+    await expect(page.getByText("KAI Desk")).toHaveCount(0);
+    await expect(page.getByText(/Trading workstation shell/i)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Open navigation/i })).toHaveCount(0);
+    await expect(page.getByText(/Feed On|Alpha Desk|Placeholder route|Market Surface|Ready for API wiring/i)).toHaveCount(0);
+
+    const viewportMetrics = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+
+    expect(viewportMetrics.scrollWidth).toBeLessThanOrEqual(viewportMetrics.clientWidth + 1);
   });
 
   test("mobile process monitor shows a loading indicator instead of stale progress while running", async ({ page }) => {

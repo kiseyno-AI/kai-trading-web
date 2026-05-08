@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
@@ -111,6 +111,10 @@ export function MobileAppChrome({
       ) : null}
       <LanguageSwitchControl testId="dashboard-header-language-switch" />
     </>
+  );
+  const bottomNavStyle = useMemo<CSSProperties>(
+    () => ({ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }),
+    [navItems.length],
   );
 
   useEffect(() => {
@@ -225,7 +229,7 @@ export function MobileAppChrome({
       <div className={styles.bottomNavFrame}>
         {bottomMeta ? <div className={styles.mobileMetaRow}>{bottomMeta}</div> : null}
         {bottomAccessory ? <div className={styles.bottomAccessory}>{bottomAccessory}</div> : null}
-        <nav className={styles.bottomNav} aria-label={t.mobileChrome.primaryNavigation}>
+        <nav className={styles.bottomNav} style={bottomNavStyle} aria-label={t.mobileChrome.primaryNavigation}>
           {navItems.map(renderNavItem)}
         </nav>
       </div>

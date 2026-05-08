@@ -28,7 +28,7 @@ test.describe("smoke", () => {
 
   test("markets shell renders", async ({ page }) => {
     await page.goto("/markets");
-    await expect(page.getByRole("heading", { name: /Market Radar/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Markets$/i })).toBeVisible();
   });
 
   test("bots shell renders", async ({ page }) => {

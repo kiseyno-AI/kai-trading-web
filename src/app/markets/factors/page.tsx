@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
-import { AppShell } from "@/components/layout/app-shell";
 import { FactorScreening } from "@/features/markets/factor-screening";
+
+import { MarketsRouteChrome } from "../markets-route-chrome";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -10,8 +11,8 @@ export const metadata: Metadata = {
 
 export default function FactorScreeningPage() {
   return (
-    <AppShell currentPath="/markets">
+    <MarketsRouteChrome variant="factors">
       <FactorScreening />
-    </AppShell>
+    </MarketsRouteChrome>
   );
 }

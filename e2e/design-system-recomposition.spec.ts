@@ -24,8 +24,10 @@ test.describe("KAI design-system recomposition", () => {
       surface: "#101c2e",
       text: "#d6e2f2",
     });
-    await expect(page.getByRole("navigation").first()).toBeVisible();
-    await expect(page.locator(".nav-icon.active")).toHaveCSS("box-shadow", /rgb\(0, 82, 255\)|rgba\(0, 82, 255/);
+    const marketsNavItem = page.locator('aside[aria-label="Desktop navigation"] a[href="/markets"]');
+    await expect(marketsNavItem).toBeVisible();
+    await expect(marketsNavItem).toHaveAttribute("aria-current", "page");
+    await expect(marketsNavItem).toHaveCSS("box-shadow", /rgb\(0, 82, 255\)|rgba\(0, 82, 255/);
   });
 
   test("major surfaces expose the unified state and panel primitives", async ({ page }) => {

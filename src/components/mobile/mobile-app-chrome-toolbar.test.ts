@@ -106,6 +106,7 @@ test("AppShell and MobileAppChrome share the central route model", () => {
 test("full-screen routes use the shared chrome metadata model for representative pages", () => {
   const representativeRoutes = [
     "src/app/calendar/signal-review-calendar-page-client.tsx",
+    "src/app/markets/markets-route-chrome.tsx",
     "src/app/my-symbols/my-symbols-page-client.tsx",
     "src/app/portfolio/portfolio-page-client.tsx",
     "src/app/dashboard/piotroski-filter/piotroski-filter-page-client.tsx",

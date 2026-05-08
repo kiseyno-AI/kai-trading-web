@@ -63,6 +63,17 @@ test("calendar full-screen routes resolve explicit no-dev-mode title and toolbar
   assert.equal(metadata.toolbarAction, "none");
 });
 
+test("markets full-screen route resolves explicit title and no legacy dev control", () => {
+  const metadata = resolveMobileAppChromeMetadata({
+    pathname: "/markets",
+    activeNav: "markets",
+    t: messages.en,
+  });
+
+  assert.equal(metadata.title, "Markets");
+  assert.equal(metadata.toolbarAction, "none");
+});
+
 test("dashboard workflow routes resolve explicit titles from pathname", () => {
   const metadata = resolveMobileAppChromeMetadata({
     pathname: "/dashboard/signal-decider-feedback",
