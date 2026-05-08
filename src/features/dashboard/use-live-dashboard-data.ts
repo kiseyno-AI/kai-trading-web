@@ -416,11 +416,11 @@ export function useLiveDashboardData({
     );
     if (initialDashboardProcessMarketDate) {
       seedTradingApiJsonCache(
-        `/api/trading/eod/piotroski-filter-results?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}`,
+        `/api/trading/eod/piotroski-filter-results?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}&summary_only=true`,
         initialPiotroskiStatus,
       );
       seedTradingApiJsonCache(
-        `/api/trading/eod/market-risk-filters?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}`,
+        `/api/trading/eod/market-risk-filters?market_date=${encodeURIComponent(initialDashboardProcessMarketDate)}&summary_only=true`,
         initialMarketRiskStatus,
       );
       seedTradingApiJsonCache(
@@ -773,10 +773,10 @@ export function useLiveDashboardData({
       const marketDateParam = encodeURIComponent(filteringMarketDate);
       const [piotroskiResult, marketRiskResult] = await Promise.allSettled([
         getJsonNoCache<EodPiotroskiFilterResultsResponseDto>(
-          `/api/trading/eod/piotroski-filter-results?market_date=${marketDateParam}`,
+          `/api/trading/eod/piotroski-filter-results?market_date=${marketDateParam}&summary_only=true`,
         ),
         getJsonNoCache<EodMarketRiskFiltersResponseDto>(
-          `/api/trading/eod/market-risk-filters?market_date=${marketDateParam}`,
+          `/api/trading/eod/market-risk-filters?market_date=${marketDateParam}&summary_only=true`,
         ),
       ]);
 

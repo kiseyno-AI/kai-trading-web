@@ -205,13 +205,13 @@ export default async function DashboardPage() {
         : Promise.resolve(null),
       resolvedDashboardProcessMarketDate
         ? fetchServerTradingApiJson<EodPiotroskiFilterResultsResponseDto>(
-            `/eod/piotroski-filter-results?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}`,
+            `/eod/piotroski-filter-results?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}&summary_only=true`,
             requestHeaders,
           ).catch(() => null)
         : Promise.resolve(null),
       resolvedDashboardProcessMarketDate
         ? fetchServerTradingApiJson<EodMarketRiskFiltersResponseDto>(
-            `/eod/market-risk-filters?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}`,
+            `/eod/market-risk-filters?market_date=${encodeURIComponent(resolvedDashboardProcessMarketDate)}&summary_only=true`,
             requestHeaders,
           ).catch(() => null)
         : Promise.resolve(null),
