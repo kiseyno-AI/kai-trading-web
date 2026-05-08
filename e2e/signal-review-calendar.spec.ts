@@ -4,6 +4,7 @@ type SignalReviewCalendarMockOptions = {
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
+  mixedHorizonDate?: string;
   pendingRationaleDate?: string;
   pendingWaitDate?: string;
   reviewDateErrorMessages?: Partial<Record<string, string>>;
@@ -141,6 +142,69 @@ function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalend
           symbol_day_context: {
             company: {
               name_ko: "Hwacheon Machinery",
+            },
+          },
+        },
+        received_at: `${date}T07:45:00+00:00`,
+      },
+    ];
+  }
+
+  if (options.mixedHorizonDate === date) {
+    return [
+      {
+        id: "mixed-horizon",
+        market_date: date,
+        symbol: "051910",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "051910",
+          market_date: date,
+          preferred_action: "buy",
+          next_day_open_action: "buy",
+          target_price: 405000,
+          stop_loss_price: 382000,
+          confidence_score_10: 8,
+          conviction_score_10: 7,
+          thesis_summary: "Shorter replay horizons are available while the 5D window is still maturing.",
+          policy_version: "decider-policy-2026.04",
+          evaluation: {
+            target_stop_result: "pending_maturity",
+            quality_reason: "Shorter horizons are available before the 5D primary window matures.",
+            realized_results: {
+              "1d": {
+                status: "target_hit",
+                return_pct: 2.15,
+                target_hit: true,
+                stop_hit: false,
+              },
+              "3d": {
+                status: "neither_hit",
+                return_pct: 0.42,
+                target_hit: false,
+                stop_hit: false,
+              },
+            },
+          },
+          five_day_evaluation: {
+            evaluation_status: "pending_evaluation_window",
+            evaluation_status_reason: "not_mature",
+            trading_days_remaining: 2,
+            expected_evaluation_window_start: "2026-05-01",
+            expected_evaluation_window_end: "2026-05-08",
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "LG Chem",
             },
           },
         },
@@ -452,12 +516,14 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
     const storedDecisionCount =
-      options.pendingRationaleDate === marketDate || options.pendingWaitDate === marketDate
+      options.pendingRationaleDate === marketDate ||
+      options.pendingWaitDate === marketDate ||
+      options.mixedHorizonDate === marketDate
         ? 1
         : marketDate === "2026-04-27"
           ? 2
           : 0;
-    const isCompletedReviewDate = marketDate === "2026-04-27";
+    const isCompletedReviewDate = marketDate === "2026-04-27" || options.mixedHorizonDate === marketDate;
 
     await route.fulfill({
       contentType: "application/json",
@@ -1004,7 +1070,8 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await expect(selectedDateCell).toContainText("2 decisions");
   await expect(selectedDateCell).toContainText("Buy 1 · Wait 1");
 
-  await expect(page.getByText("Target 1 · Stop 0 · Unresolved 1")).toBeVisible();
+  await expect(page.getByText("Target 1 · Stop 0 · Unresolved 0")).toBeVisible();
+  await expect(page.getByText(/pending maturity 0 · insufficient price data 0 · not computed 1/i)).toBeVisible();
   const samsungRow = page.locator("tr").filter({ hasText: "Samsung Electronics" });
   await expect(samsungRow).toContainText("Buy");
   await expect(samsungRow).toContainText("+0.82%");
@@ -1061,7 +1128,7 @@ test("calendar opens the feedback table in Korean locale", async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
   await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
   await expect(page.getByText("액션 믹스")).toBeVisible();
-  await expect(page.getByRole("form", { name: "시그널 디사이더 피드백 필터" }).getByText("검색")).toBeVisible();
+  await expect(page.getByRole("form", { name: "디사이더 피드백 필터" }).getByText("검색")).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Signal-decider feedback");
 });
 
@@ -1106,7 +1173,7 @@ test("calendar-sourced feedback symbol detail returns to the selected feedback d
   await page.getByRole("link", { name: /피드백 표 열기/i }).click();
 
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-06/);
-  const waitCard = page.getByRole("article", { name: /한진중공업홀딩스 시그널 디사이더 피드백/i });
+  const waitCard = page.getByRole("article", { name: /한진중공업홀딩스 .*피드백/i });
   await expect(waitCard).toBeVisible();
   const symbolLink = waitCard.getByRole("link", { name: /한진중공업홀딩스.*003480/ });
   await expect(symbolLink).toHaveAttribute(
@@ -1119,14 +1186,14 @@ test("calendar-sourced feedback symbol detail returns to the selected feedback d
   const feedbackReturnLink = page.getByRole("link", { name: /피드백으로 돌아가기/i });
   await expect(feedbackReturnLink).toHaveAttribute(
     "href",
-    /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-06/,
+    /\/dashboard\/decider-feedback\?(?=.*marketDate=2026-05-06)(?=.*agent=signal-decider)/,
   );
   await expect(page.getByRole("link", { name: /대시보드로 돌아가기/i })).toHaveCount(0);
 
   await feedbackReturnLink.click();
-  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-06/);
+  await expect(page).toHaveURL(/\/dashboard\/decider-feedback\?(?=.*marketDate=2026-05-06)(?=.*agent=signal-decider)/);
   await expect(page.getByText("MD 2026-05-06")).toBeVisible();
-  await expect(page.getByRole("article", { name: /한진중공업홀딩스 시그널 디사이더 피드백/i })).toBeVisible();
+  await expect(page.getByRole("article", { name: /한진중공업홀딩스 .*피드백/i })).toBeVisible();
 });
 
 test("signal review calendar falls back to per-date feedback calls only when month summary fails", async ({ page }) => {
@@ -1199,7 +1266,9 @@ test("signal review calendar separates pending replay state from available ratio
   await expect(dialog.getByRole("heading", { name: "Replay verdict" })).toBeVisible();
   await expect(dialog).toContainText("Replay verdict is not stored yet.");
   await expect(dialog).toContainText("Path unavailable");
-  await expect(dialog).toContainText("Replay horizon results are not stored for this symbol yet.");
+  await expect(dialog).toContainText(/1D\s*not computed/);
+  await expect(dialog).toContainText(/3D\s*not computed/);
+  await expect(dialog).toContainText(/5D\s*not computed/);
 
   await expect(dialog.getByRole("heading", { name: "Risk context" })).toBeVisible();
   await expect(dialog).toContainText("Price action needs confirmation before the replay verdict is trusted.");
@@ -1217,17 +1286,42 @@ test("signal review calendar leaves normal wait pending rows as pending instead 
 
   const waitRow = page.getByRole("button", { name: /한진중공업홀딩스/ });
   await expect(waitRow).toContainText("Wait");
-  await expect(waitRow).toContainText("Pending");
+  await expect(waitRow).toContainText("pending maturity");
   await expect(waitRow).not.toContainText("[확인 필요]");
 
   const waitTableRow = page.locator("tr").filter({ hasText: "한진중공업홀딩스" });
-  await expect(waitTableRow).toContainText("Pending");
+  await expect(waitTableRow).toContainText("pending maturity");
 
   await page.getByRole("button", { name: /Korean/i }).click();
   await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
   const localizedWaitRow = page.getByRole("button", { name: /한진중공업홀딩스/ });
   await expect(localizedWaitRow).toContainText("대기");
+  await expect(localizedWaitRow).toContainText("성숙 대기");
   await expect(localizedWaitRow).not.toContainText("[확인 필요]");
+});
+
+test("signal review calendar shows shorter computed horizons while primary 5D is pending", async ({ page }) => {
+  await mockSignalReviewCalendar(page, { mixedHorizonDate: "2026-04-30" });
+
+  await page.goto("/calendar?date=2026-04-30");
+
+  await expect(page.getByText("Target 0 · Stop 0 · Unresolved 0")).toBeVisible();
+  await expect(page.getByText(/pending maturity 1/i)).toBeVisible();
+  await expect(page.getByText("1D/3D computed 1")).toBeVisible();
+
+  const mixedCard = page.getByRole("button", { name: /LG Chem/ });
+  await expect(mixedCard).toContainText("1D");
+  await expect(mixedCard).toContainText("3D");
+  await expect(mixedCard).toContainText("5D");
+  await expect(mixedCard).toContainText("1D computed · 3D computed · 5D pending maturity");
+  await expect(mixedCard).toContainText("pending maturity");
+  await expect(mixedCard).not.toContainText("Unresolved path");
+
+  const mixedTableRow = page.locator("tr").filter({ hasText: "LG Chem" });
+  await expect(mixedTableRow).toContainText("+2.15%");
+  await expect(mixedTableRow).toContainText("Unresolved");
+  await expect(mixedTableRow).toContainText("pending maturity");
+  await expect(page.locator("body")).not.toContainText("Replay review is pending for the 5-day window.");
 });
 
 test("signal review calendar hides previous selected-date rows while a new date is loading", async ({ page }) => {

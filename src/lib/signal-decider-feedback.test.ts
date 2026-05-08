@@ -385,6 +385,19 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
   assert.equal(items[0]?.outcomeHorizons.length, 2);
   assert.equal(items[0]?.outcomeHorizons[1]?.horizon, "3d");
   assert.equal(items[0]?.outcomeHorizons[1]?.returnPct, -1.4);
+  assert.deepEqual(
+    items[0]?.horizonEvaluations.map((horizon) => ({
+      day: horizon.day,
+      state: horizon.state,
+      outcome: horizon.outcome,
+      returnPct: horizon.returnPct,
+    })),
+    [
+      { day: 1, state: "computed", outcome: "computed", returnPct: 0.8 },
+      { day: 3, state: "computed", outcome: "computed", returnPct: -1.4 },
+      { day: 5, state: "computed", outcome: "target", returnPct: null },
+    ],
+  );
   assert.equal(items[0]?.factorAttributions[0]?.label, "Momentum");
   assert.equal(items[0]?.gateResults[0]?.label, "Liquidity");
   assert.equal(items[0]?.upstreamEvidence[0]?.label, "Technical Snapshot");
@@ -539,6 +552,88 @@ test("normalizes not-mature 5-day metadata as a pending evaluation window", () =
   assert.equal(item.fiveDayEvaluation.windowLabel, "2026-05-07 -> 2026-05-13");
   assert.equal(item.fiveDayEvaluation.targetHitWithin5d, null);
   assert.equal(item.fiveDayEvaluation.stopHitWithin5d, null);
+});
+
+test("preserves computed shorter horizons while primary 5-day evaluation is pending", () => {
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-04-30",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+    items: [
+      {
+        id: "mixed-horizon-row",
+        market_date: "2026-04-30",
+        symbol: "051910",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-04-30",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "051910",
+          market_date: "2026-04-30",
+          preferred_action: "buy",
+          next_day_open_action: "buy",
+          target_price: 405000,
+          stop_loss_price: 382000,
+          thesis_summary: "Shorter replay horizons are already stored while 5D is still maturing.",
+          evaluation: {
+            target_stop_result: "pending_maturity",
+            quality_reason: "Shorter horizons are available before the 5D primary window matures.",
+            realized_results: {
+              "1d": {
+                status: "target_hit",
+                return_pct: 2.15,
+                target_hit: true,
+                stop_hit: false,
+              },
+              "3d": {
+                status: "neither_hit",
+                return_pct: 0.42,
+                target_hit: false,
+                stop_hit: false,
+              },
+            },
+          },
+          five_day_evaluation: {
+            evaluation_status: "pending_evaluation_window",
+            evaluation_status_reason: "not_mature",
+            trading_days_remaining: 2,
+            expected_evaluation_window_start: "2026-05-01",
+            expected_evaluation_window_end: "2026-05-08",
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-04-30T07:45:00+00:00",
+      },
+    ],
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response, { evaluationReferenceDate: "2026-05-04" })[0];
+
+  assert.ok(item);
+  assert.equal(item.pathOutcome, null);
+  assert.deepEqual(
+    item.horizonEvaluations.map((horizon) => ({
+      day: horizon.day,
+      state: horizon.state,
+      outcome: horizon.outcome,
+      returnPct: horizon.returnPct,
+      tradingDaysRemaining: horizon.tradingDaysRemaining,
+    })),
+    [
+      { day: 1, state: "computed", outcome: "target", returnPct: 2.15, tradingDaysRemaining: null },
+      { day: 3, state: "computed", outcome: "unresolved", returnPct: 0.42, tradingDaysRemaining: null },
+      { day: 5, state: "pending", outcome: null, returnPct: null, tradingDaysRemaining: 2 },
+    ],
+  );
 });
 
 test("derives pending 5-day windows for latest rows without persisted evaluation rows", () => {

@@ -165,6 +165,28 @@ export type SignalDeciderOutcomeHorizon = {
   notes: string | null;
 };
 
+export const SIGNAL_DECIDER_REVIEW_HORIZON_DAYS = [1, 3, 5] as const;
+
+export type SignalDeciderReviewHorizonDay = (typeof SIGNAL_DECIDER_REVIEW_HORIZON_DAYS)[number];
+export type SignalDeciderHorizonEvaluationState = DeciderFiveDayEvaluationState;
+export type SignalDeciderHorizonOutcomeKind = "target" | "stop" | "ambiguous" | "unresolved" | "computed";
+
+export type SignalDeciderHorizonEvaluation = {
+  day: SignalDeciderReviewHorizonDay;
+  horizon: string;
+  label: string;
+  state: SignalDeciderHorizonEvaluationState;
+  outcome: SignalDeciderHorizonOutcomeKind | null;
+  status: string | null;
+  statusLabel: string;
+  tone: SignalDeciderQualityTone;
+  returnPct: number | null;
+  realizedPrice: number | null;
+  verdict: string | null;
+  notes: string | null;
+  tradingDaysRemaining: number | null;
+};
+
 export type SignalDeciderTraceEntry = {
   label: string;
   value: string | null;
@@ -274,6 +296,7 @@ export type SignalDeciderFeedbackItem = {
   intradayPathResult: string | null;
   fiveDayEvaluation: DeciderFiveDayEvaluation;
   outcomeHorizons: SignalDeciderOutcomeHorizon[];
+  horizonEvaluations: SignalDeciderHorizonEvaluation[];
   factorAttributions: SignalDeciderTraceEntry[];
   gateResults: SignalDeciderTraceEntry[];
   upstreamEvidence: SignalDeciderTraceEntry[];
@@ -1053,11 +1076,18 @@ function normalizePathOutcome(sources: Array<Record<string, unknown> | null | un
   }
   if (
     normalizedResult.includes("unresolved") ||
-    normalizedResult.includes("pending") ||
     normalizedResult.includes("not_hit") ||
     normalizedResult.includes("neither")
   ) {
     return buildPathOutcome("unresolved", detail);
+  }
+
+  if (
+    normalizedResult.includes("pending") ||
+    normalizedResult.includes("not_computed") ||
+    tokenIndicatesPendingFiveDayWindow(normalizedResult)
+  ) {
+    return null;
   }
 
   return rawResult ? buildPathOutcome("ambiguous", detail) : null;
@@ -1278,6 +1308,434 @@ function getFiveDayEvaluationLabel(status: string | null, rawLabel: string | nul
   if (rawLabel) return rawLabel;
   if (!status) return FIVE_DAY_STATUS_LABELS.not_computed_yet;
   return FIVE_DAY_STATUS_LABELS[status] ?? humanizeToken(status);
+}
+
+function isSignalDeciderReviewHorizonDay(value: number | null): value is SignalDeciderReviewHorizonDay {
+  return value === 1 || value === 3 || value === 5;
+}
+
+function formatReviewHorizonLabel(day: SignalDeciderReviewHorizonDay) {
+  return `${day}D`;
+}
+
+function parseReviewHorizonDay(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+  const compact = value.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  const match =
+    /^d\+?(\d+)$/.exec(compact) ??
+    /^(\d+)d$/.exec(compact) ??
+    /^(\d+)day(?:s)?$/.exec(compact) ??
+    /^(\d+)tradingday(?:s)?$/.exec(compact) ??
+    /^day(\d+)$/.exec(compact) ??
+    /^(\d+)$/.exec(compact);
+  if (!match?.[1]) return null;
+  const day = Number.parseInt(match[1], 10);
+  return isSignalDeciderReviewHorizonDay(day) ? day : null;
+}
+
+function getReviewHorizonDayFromRecord(record: Record<string, unknown>, fallbackHorizon: string | null) {
+  const dayCount = toSafeInteger(record.days ?? record.horizon_days ?? record.horizon_day ?? record.horizon_trading_days);
+  if (isSignalDeciderReviewHorizonDay(dayCount)) return dayCount;
+
+  const rawHorizon =
+    getStringValue(record, ["horizon", "horizon_label", "period", "window", "holding_period"]) ??
+    fallbackHorizon;
+  return parseReviewHorizonDay(rawHorizon);
+}
+
+function getHorizonEvaluationState({
+  hasComputedEvidence,
+  rawReason,
+  rawState,
+  rawStatus,
+}: {
+  hasComputedEvidence: boolean;
+  rawReason: string | null;
+  rawState: string | null;
+  rawStatus: string | null;
+}): SignalDeciderHorizonEvaluationState {
+  const normalizedState = normalizeToken(rawState);
+  const normalizedStatus = normalizeToken(rawStatus);
+  const normalizedReason = normalizeToken(rawReason);
+  const tokens = [normalizedState, normalizedStatus, normalizedReason];
+
+  if (tokens.some(tokenIndicatesPendingFiveDayWindow)) return "pending";
+  if (
+    tokens.some(tokenIndicatesMissingPriceData) ||
+    tokens.some((token) => token === "insufficient_data" || token === "invalid_no_price_levels" || token === "missing_price_levels")
+  ) {
+    return "insufficient";
+  }
+  if (tokens.some((token) => token === "not_computed" || token === "not_computed_yet" || token === "missing_evaluation")) {
+    return "not-computed";
+  }
+  if (tokens.some((token) => token === "unknown" || token === "unrecognized")) return "unknown";
+  if (normalizedState === "computed" || normalizedState === "complete" || normalizedState === "completed" || hasComputedEvidence) {
+    return "computed";
+  }
+  return "unknown";
+}
+
+function getHorizonOutcomeKind({
+  rawStatus,
+  state,
+  stopHit,
+  targetHit,
+}: {
+  rawStatus: string | null;
+  state: SignalDeciderHorizonEvaluationState;
+  stopHit: boolean | null;
+  targetHit: boolean | null;
+}): SignalDeciderHorizonOutcomeKind | null {
+  if (state !== "computed") return null;
+
+  const normalizedStatus = normalizeToken(rawStatus);
+  if (
+    targetHit === true &&
+    stopHit === true ||
+    tokenIncludesAny(normalizedStatus, [
+      "ambiguous",
+      "same_day_ambiguous",
+      "target_and_stop_same_day",
+      "target_and_stop_ambiguous",
+      "unknown_order",
+    ])
+  ) {
+    return "ambiguous";
+  }
+  if (
+    targetHit === true ||
+    tokenIncludesAny(normalizedStatus, [
+      "target_hit_before_stop",
+      "target_before_stop",
+      "target_first",
+      "hit_target_first",
+      "target_hit",
+      "hit_target",
+      "take_profit_hit",
+      "profit_target_hit",
+      "trigger_confirmed_then_target_hit",
+    ])
+  ) {
+    return "target";
+  }
+  if (
+    stopHit === true ||
+    tokenIncludesAny(normalizedStatus, [
+      "stop_hit_before_target",
+      "stop_before_target",
+      "stop_first",
+      "hit_stop_first",
+      "stop_hit",
+      "hit_stop",
+      "stop_loss_hit",
+      "trigger_confirmed_then_stop_hit",
+    ])
+  ) {
+    return "stop";
+  }
+  if (
+    (targetHit === false && stopHit === false) ||
+    tokenIncludesAny(normalizedStatus, [
+      "neither",
+      "neither_hit",
+      "neither_hit_within",
+      "no_hit",
+      "not_hit",
+      "unresolved",
+      "no_target_or_stop_hit",
+    ])
+  ) {
+    return "unresolved";
+  }
+
+  return "computed";
+}
+
+function getHorizonEvaluationTone(
+  state: SignalDeciderHorizonEvaluationState,
+  outcome: SignalDeciderHorizonOutcomeKind | null,
+): SignalDeciderQualityTone {
+  if (state === "insufficient") return "warning";
+  if (state !== "computed") return "neutral";
+  if (outcome === "target") return "positive";
+  if (outcome === "stop") return "negative";
+  if (outcome === "ambiguous") return "warning";
+  if (outcome === "computed") return "info";
+  return "neutral";
+}
+
+function getHorizonStatusLabel(
+  state: SignalDeciderHorizonEvaluationState,
+  outcome: SignalDeciderHorizonOutcomeKind | null,
+) {
+  if (state === "pending") return "Pending maturity";
+  if (state === "insufficient") return "Insufficient price data";
+  if (state === "not-computed") return "Not computed";
+  if (state === "unknown") return "Unknown";
+  if (outcome === "target") return "Target";
+  if (outcome === "stop") return "Stop";
+  if (outcome === "ambiguous") return "Ambiguous";
+  if (outcome === "unresolved") return "Unresolved";
+  return "Computed";
+}
+
+function getHorizonTargetHit(record: Record<string, unknown>) {
+  return getBooleanFromSources([record], [
+    "target_hit_within_horizon",
+    "target_hit_within_window",
+    "target_hit_within_period",
+    "target_hit_within_days",
+    "target_hit",
+    "hit_target",
+    "take_profit_hit",
+  ]);
+}
+
+function getHorizonStopHit(record: Record<string, unknown>) {
+  return getBooleanFromSources([record], [
+    "stop_hit_within_horizon",
+    "stop_hit_within_window",
+    "stop_hit_within_period",
+    "stop_hit_within_days",
+    "stop_hit",
+    "hit_stop",
+    "stop_loss_hit",
+  ]);
+}
+
+function buildHorizonEvaluationFromRecord(
+  record: Record<string, unknown>,
+  fallbackHorizon: string | null,
+): SignalDeciderHorizonEvaluation | null {
+  const day = getReviewHorizonDayFromRecord(record, fallbackHorizon);
+  if (!day) return null;
+
+  const rawStatus = getStringValue(record, [
+    "status",
+    "result",
+    "outcome",
+    "evaluation_status",
+    "evaluation_outcome",
+    "outcome_status",
+    "target_stop_result",
+    "target_stop_outcome",
+    "path_result",
+    "first_hit",
+    "hit_order",
+    "verdict",
+    "evaluation_verdict",
+    "quality_verdict",
+    "grade",
+  ]);
+  const rawState = getStringValue(record, ["state", "evaluation_state", "coverage_state"]);
+  const rawReason = getStringValue(record, [
+    "status_reason",
+    "reason_code",
+    "evaluation_status_reason",
+    "evaluation_reason_code",
+    "not_computed_reason",
+    "failure_reason",
+    "invalid_reason",
+    "missing_reason",
+    "reason",
+    "notes",
+    "summary",
+    "description",
+  ]);
+  const returnPct = toFiniteNumber(
+    record.return_pct ??
+      record.realized_return_pct ??
+      record.outcome_return_pct ??
+      record.pnl_pct ??
+      record.performance_pct,
+  );
+  const realizedPrice = toFiniteNumber(
+    record.realized_price ?? record.exit_price ?? record.close_price ?? record.price ?? record.horizon_price,
+  );
+  const verdict = getStringValue(record, ["verdict", "evaluation_verdict", "quality_verdict", "grade"]);
+  const notes = getStringValue(record, ["notes", "reason", "summary", "description"]);
+  const targetHit = getHorizonTargetHit(record);
+  const stopHit = getHorizonStopHit(record);
+  const state = getHorizonEvaluationState({
+    hasComputedEvidence:
+      returnPct !== null ||
+      realizedPrice !== null ||
+      hasTextValue(verdict) ||
+      hasTextValue(notes) ||
+      targetHit !== null ||
+      stopHit !== null ||
+      hasTextValue(rawStatus),
+    rawReason,
+    rawState,
+    rawStatus,
+  });
+  const outcome = getHorizonOutcomeKind({ rawStatus, state, stopHit, targetHit });
+  const statusLabel = getHorizonStatusLabel(state, outcome);
+
+  return {
+    day,
+    horizon: `${day}d`,
+    label: formatReviewHorizonLabel(day),
+    state,
+    outcome,
+    status: normalizeToken(rawStatus) || normalizeToken(rawState) || null,
+    statusLabel,
+    tone: getHorizonEvaluationTone(state, outcome),
+    returnPct,
+    realizedPrice,
+    verdict: verdict ? humanizeToken(verdict) : null,
+    notes,
+    tradingDaysRemaining: getIntegerFromRecord(record, [
+      "trading_days_remaining",
+      "remaining_trading_days",
+      "evaluation_days_remaining",
+      "days_remaining",
+      "bars_remaining",
+      "forward_bars_remaining",
+    ]),
+  };
+}
+
+function getPrimitiveHorizonRecord(value: unknown): Record<string, unknown> {
+  const numericValue = toFiniteNumber(value);
+  if (numericValue !== null) return { return_pct: numericValue };
+  return { status: value };
+}
+
+function normalizeHorizonEvaluations(value: unknown): SignalDeciderHorizonEvaluation[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => (isRecord(item) ? buildHorizonEvaluationFromRecord(item, null) ?? [] : []));
+  }
+
+  if (!isRecord(value)) return [];
+
+  const direct = buildHorizonEvaluationFromRecord(value, null);
+  const valueEntries = Object.entries(value);
+  const hasNestedHorizonRecords = valueEntries.some(([key, item]) => parseReviewHorizonDay(key) !== null || isRecord(item));
+  const hasOnlyDirectFields =
+    direct !== null &&
+    valueEntries.some(([key]) => isOutcomeHorizonDirectField(key) || key === "state" || key === "evaluation_state") &&
+    valueEntries.every(([key]) => isOutcomeHorizonDirectField(key) || key === "state" || key === "evaluation_state");
+
+  if (hasOnlyDirectFields) return [direct];
+
+  return valueEntries.flatMap(([key, item]) => {
+    const fallbackDay = parseReviewHorizonDay(key);
+    if (isRecord(item)) return buildHorizonEvaluationFromRecord(item, key) ?? [];
+    if (fallbackDay !== null) return buildHorizonEvaluationFromRecord(getPrimitiveHorizonRecord(item), key) ?? [];
+    if (hasNestedHorizonRecords && isOutcomeHorizonDirectField(key)) return [];
+    return [];
+  });
+}
+
+function buildFiveDayHorizonEvaluation(
+  evaluation: DeciderFiveDayEvaluation,
+): SignalDeciderHorizonEvaluation {
+  const statusForOutcome =
+    evaluation.status ??
+    (evaluation.targetHitWithin5d === true
+      ? "target_hit"
+      : evaluation.stopHitWithin5d === true
+        ? "stop_hit"
+        : evaluation.targetHitWithin5d === false && evaluation.stopHitWithin5d === false
+          ? "neither_hit"
+          : null);
+  const outcome = getHorizonOutcomeKind({
+    rawStatus: statusForOutcome,
+    state: evaluation.state,
+    stopHit: evaluation.stopHitWithin5d,
+    targetHit: evaluation.targetHitWithin5d,
+  });
+  const statusLabel =
+    evaluation.state === "computed" && outcome !== "computed"
+      ? getHorizonStatusLabel(evaluation.state, outcome)
+      : evaluation.state === "computed"
+        ? evaluation.label
+        : getHorizonStatusLabel(evaluation.state, outcome);
+
+  return {
+    day: 5,
+    horizon: "5d",
+    label: "5D",
+    state: evaluation.state,
+    outcome,
+    status: evaluation.status,
+    statusLabel,
+    tone: getHorizonEvaluationTone(evaluation.state, outcome),
+    returnPct: null,
+    realizedPrice: null,
+    verdict: evaluation.state === "computed" ? evaluation.label : null,
+    notes: null,
+    tradingDaysRemaining: evaluation.tradingDaysRemaining,
+  };
+}
+
+function buildEmptyHorizonEvaluation(day: SignalDeciderReviewHorizonDay): SignalDeciderHorizonEvaluation {
+  return {
+    day,
+    horizon: `${day}d`,
+    label: formatReviewHorizonLabel(day),
+    state: "not-computed",
+    outcome: null,
+    status: "not_computed_yet",
+    statusLabel: "Not computed",
+    tone: "neutral",
+    returnPct: null,
+    realizedPrice: null,
+    verdict: null,
+    notes: null,
+    tradingDaysRemaining: null,
+  };
+}
+
+function getHorizonEvaluationRank(evaluation: SignalDeciderHorizonEvaluation) {
+  if (evaluation.state === "computed") return 5;
+  if (evaluation.state === "pending" || evaluation.state === "insufficient") return 4;
+  if (evaluation.state === "not-computed") return 2;
+  return 1;
+}
+
+function getHorizonEvaluationDetailScore(evaluation: SignalDeciderHorizonEvaluation) {
+  return [
+    evaluation.outcome,
+    evaluation.returnPct !== null ? "return" : null,
+    evaluation.realizedPrice !== null ? "price" : null,
+    evaluation.verdict,
+    evaluation.notes,
+    evaluation.tradingDaysRemaining !== null ? "remaining" : null,
+  ].filter((value) => value !== null).length;
+}
+
+function chooseHorizonEvaluation(
+  current: SignalDeciderHorizonEvaluation | undefined,
+  next: SignalDeciderHorizonEvaluation,
+) {
+  if (!current) return next;
+  const currentRank = getHorizonEvaluationRank(current);
+  const nextRank = getHorizonEvaluationRank(next);
+  if (nextRank > currentRank) return next;
+  if (nextRank < currentRank) return current;
+  return getHorizonEvaluationDetailScore(next) > getHorizonEvaluationDetailScore(current) ? next : current;
+}
+
+function buildHorizonEvaluations({
+  candidates,
+  fiveDayEvaluation,
+}: {
+  candidates: SignalDeciderHorizonEvaluation[];
+  fiveDayEvaluation: DeciderFiveDayEvaluation;
+}): SignalDeciderHorizonEvaluation[] {
+  const byDay = new Map<SignalDeciderReviewHorizonDay, SignalDeciderHorizonEvaluation>();
+
+  for (const candidate of candidates) {
+    byDay.set(candidate.day, chooseHorizonEvaluation(byDay.get(candidate.day), candidate));
+  }
+
+  const fiveDayHorizon = buildFiveDayHorizonEvaluation(fiveDayEvaluation);
+  byDay.set(5, chooseHorizonEvaluation(byDay.get(5), fiveDayHorizon));
+
+  return SIGNAL_DECIDER_REVIEW_HORIZON_DAYS.map((day) => byDay.get(day) ?? buildEmptyHorizonEvaluation(day));
 }
 
 function formatLocalDateOnly(date = new Date()) {
@@ -2318,7 +2776,16 @@ export function normalizeDeciderFeedbackItems(
           rawFeedbackOutcomeRecord,
         ],
       });
-      const outcomeHorizons = getValuesFromSources([...rootSources, shortTermRecord, evaluationRecord, outcomeRecord], [
+      const horizonSourceRecords = [
+        ...rootSources,
+        shortTermRecord,
+        evaluationRecord,
+        outcomeRecord,
+        ...rawFeedbackSources,
+        rawFeedbackEvaluationRecord,
+        rawFeedbackOutcomeRecord,
+      ];
+      const outcomeHorizons = getValuesFromSources(horizonSourceRecords, [
         "realized_results",
         "realized_outcomes",
         "outcome_horizons",
@@ -2328,6 +2795,22 @@ export function normalizeDeciderFeedbackItems(
         "horizons",
         "results",
       ]).flatMap(normalizeOutcomeHorizons);
+      const horizonEvaluationCandidates = getValuesFromSources(horizonSourceRecords, [
+        "horizon_evaluations",
+        "review_horizons",
+        "realized_results",
+        "realized_outcomes",
+        "outcome_horizons",
+        "outcomes",
+        "horizon_results",
+        "result_by_horizon",
+        "horizons",
+        "results",
+      ]).flatMap(normalizeHorizonEvaluations);
+      const horizonEvaluations = buildHorizonEvaluations({
+        candidates: horizonEvaluationCandidates,
+        fiveDayEvaluation,
+      });
       const pathOutcome = normalizePathOutcome([...rootSources, shortTermRecord, evaluationRecord, outcomeRecord]);
       const intradayPathResult = getStringFromSources([...rootSources, shortTermRecord, evaluationRecord, outcomeRecord], [
         "intraday_path_result",
@@ -2492,6 +2975,7 @@ export function normalizeDeciderFeedbackItems(
         intradayPathResult,
         fiveDayEvaluation,
         outcomeHorizons,
+        horizonEvaluations,
         factorAttributions,
         gateResults,
         upstreamEvidence,
@@ -2554,6 +3038,7 @@ export function compactSignalDeciderFeedbackForDashboard(
         quality_verdict: item.qualityVerdict,
         quality_reason: item.qualityReason,
         five_day_evaluation: item.fiveDayEvaluation,
+        horizon_evaluations: item.horizonEvaluations,
       },
       normalized_feedback: null,
       details: null,
