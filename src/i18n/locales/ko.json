@@ -567,6 +567,83 @@
       "empty": "{agentLabel} 기준으로 같은 종목/일자의 반대 디사이더 결과가 저장되어 있지 않습니다.",
       "unavailable": "반대 디사이더 피드백 조회가 실패했거나 아직 반환되지 않아 비교를 표시할 수 없습니다."
     },
+    "dataGaps": {
+      "eyebrow": "누락 컨텍스트 리포트",
+      "title": "디사이더 데이터 갭",
+      "description": "선택한 시장일자와 에이전트의 저장된 디사이더 피드백 행에서 반복되는 누락 컨텍스트 불만을 집계합니다.",
+      "summary": {
+        "totalRows": "전체 피드백 행",
+        "rowsWithGaps": "데이터 갭 포함 행",
+        "topCategories": "상위 갭 카테고리",
+        "trend": "추세",
+        "noneDetected": "감지 없음",
+        "trendUnavailable": "이전 날짜 없음",
+        "trendFlat": "{date} 대비 동일",
+        "trendUp": "{date} 대비 +{count}행",
+        "trendDown": "{date} 대비 -{count}행"
+      },
+      "filters": {
+        "label": "디사이더 데이터 갭 필터",
+        "category": "갭 카테고리",
+        "symbol": "종목",
+        "allCategories": "모든 카테고리",
+        "allSymbols": "모든 종목"
+      },
+      "table": {
+        "category": "카테고리",
+        "affectedSymbols": "영향 종목",
+        "affectedAgents": "영향 에이전트",
+        "example": "예시 플래그/사유",
+        "owner": "권장 담당/소스"
+      },
+      "symbolDrilldown": {
+        "eyebrow": "종목 드릴다운",
+        "allSymbols": "상위 영향 종목"
+      },
+      "empty": {
+        "noFeedback": "이 날짜와 에이전트의 피드백 행이 없어 데이터 갭 집계를 실행할 수 없습니다.",
+        "noDataGaps": "피드백 행은 있지만 데이터 갭 플래그나 누락 컨텍스트 사유가 감지되지 않았습니다.",
+        "noFilteredGaps": "선택한 카테고리와 종목 필터에 맞는 데이터 갭이 없습니다."
+      },
+      "categories": {
+        "factor_scores": {
+          "label": "팩터 점수",
+          "owner": "팩터 스코어링 파이프라인"
+        },
+        "turnover_liquidity": {
+          "label": "거래대금 / 유동성",
+          "owner": "가격 및 유동성 피처"
+        },
+        "signal_features": {
+          "label": "시그널 피처",
+          "owner": "시그널 피처 저장소"
+        },
+        "intraday_orderbook": {
+          "label": "장중 / 호가",
+          "owner": "장중, 호가, VWAP 소스"
+        },
+        "fundamental_ratios": {
+          "label": "재무 비율",
+          "owner": "펀더멘털 및 밸류에이션 파이프라인"
+        },
+        "dart_disclosures": {
+          "label": "DART 공시",
+          "owner": "DART 공시 수집기"
+        },
+        "external_news": {
+          "label": "외부 뉴스",
+          "owner": "외부 뉴스 컨텍스트"
+        },
+        "price_quality": {
+          "label": "가격 품질",
+          "owner": "일봉/장중 가격 품질"
+        },
+        "other": {
+          "label": "기타",
+          "owner": "에이전트 피드백 트리아지"
+        }
+      }
+    },
     "evaluation": {
       "title": "5일 평가",
       "status": "평가 상태",

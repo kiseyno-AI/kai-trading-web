@@ -457,11 +457,62 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
       return;
     }
 
+    if (marketDate === "2026-04-24" && agentName === "signal-decider") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: marketDate,
+            symbols: [],
+            agent_name: "signal-decider",
+            limit: 200,
+          },
+          summary: {
+            count: 1,
+          },
+          items: [
+            {
+              id: "previous-gap-005930",
+              market_date: marketDate,
+              symbol: "005930",
+              agent: {
+                name: "signal-decider",
+                run_id: "feedback-cycle-2026-04-24",
+              },
+              summary: {},
+              feedback: {
+                role: "signal-decider",
+                symbol: "005930",
+                market_date: marketDate,
+                preferred_action: "wait",
+                next_day_open_action: "wait",
+                confidence_score_10: 6,
+                conviction_score_10: 5,
+                thesis_summary: "Wait while factor score is missing.",
+                data_gap_flags: ["factor score missing"],
+              },
+              normalized_feedback: null,
+              details: null,
+              context: {
+                symbol_day_context: {
+                  company: {
+                    name_ko: "Samsung Electronics",
+                  },
+                },
+              },
+              received_at: "2026-04-24T07:45:00+00:00",
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         request: {
-          market_date: "2026-04-27",
+          market_date: marketDate,
           symbols: [],
           agent_name: "signal-decider",
           limit: 200,
@@ -472,7 +523,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
         items: [
           {
             id: 1,
-            market_date: "2026-04-27",
+            market_date: marketDate,
             symbol: "005930",
             agent: {
               name: "signal-decider",
@@ -482,7 +533,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
             feedback: {
               role: "signal-decider",
               symbol: "005930",
-              market_date: "2026-04-27",
+              market_date: marketDate,
               preferred_action: "buy",
               next_day_open_action: "buy",
               target_price: 82000,
@@ -491,6 +542,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
               conviction_score_10: 7,
               thesis_summary: "Momentum and fundamentals align for a tactical next-day setup.",
               decision_risks: ["Gap-down open", "Liquidity fade"],
+              data_gap_flags: ["factor score missing", "DART disclosures absent"],
               policy_version: "decider-policy-2026.04",
               five_day_evaluation: {
                 evaluation_status: "target_hit_before_stop",
@@ -545,7 +597,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
           },
           {
             id: 2,
-            market_date: "2026-04-27",
+            market_date: marketDate,
             symbol: "000660",
             agent: {
               name: "signal-decider",
@@ -555,7 +607,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
             feedback: {
               role: "signal-decider",
               symbol: "000660",
-              market_date: "2026-04-27",
+              market_date: marketDate,
               preferred_action: "wait",
               next_day_open_action: "wait",
               target_price: 124000,
@@ -1322,6 +1374,39 @@ test("shared decider feedback route loads short-term decider rows and comparison
   await expect(samsungCard).toContainText("External news · 2 recent");
   await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Cross-decider comparison");
   await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Signal action");
+});
+
+test("decider data gaps report aggregates categories and filters symbol drilldown", async ({ page }) => {
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/decider-feedback?agent=signal-decider&marketDate=2026-04-27");
+
+  const report = page.getByTestId("decider-data-gaps-report");
+  await expect(report.getByRole("heading", { name: "Decider Data Gaps" })).toBeVisible();
+  await expect(report).toContainText(/Total feedback rows\s*2/);
+  await expect(report).toContainText(/Rows with data-gap flags\s*2/);
+  await expect(report).toContainText("Factor scores");
+  await expect(report).toContainText("DART disclosures");
+  await expect(report).toContainText("Turnover / liquidity");
+  await expect(report).toContainText("+1 rows vs 2026-04-24");
+  await expect(report.locator("tbody")).toContainText("factor score missing");
+  await expect(report.locator("tbody")).toContainText("Factor scoring pipeline");
+
+  await report.getByLabel("Gap category").selectOption("turnover_liquidity");
+  await expect(report.locator("tbody")).toContainText("Turnover / liquidity");
+  await expect(report.locator("tbody")).toContainText("000660");
+  await expect(report.locator("tbody")).not.toContainText("DART disclosures");
+
+  await report.getByLabel("Gap category").selectOption("all");
+  await report.locator("select").nth(1).selectOption("005930");
+  await expect(report).toContainText("signal-decider · factor score missing");
+  await expect(report).toContainText("signal-decider · DART disclosures absent");
+
+  await report.locator("select").nth(1).selectOption("all");
+  await page.getByRole("link", { name: "Short-term Decider" }).click();
+  const shortTermReport = page.getByTestId("decider-data-gaps-report");
+  await expect(shortTermReport).toContainText("Short-term Decider");
+  await expect(shortTermReport).toContainText("Signal features");
 });
 
 test("decider tabs preserve market date and filter context", async ({ page }) => {
