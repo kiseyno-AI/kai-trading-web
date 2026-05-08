@@ -833,6 +833,10 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(samsungCard).toContainText(/Target\s*₩82,000/);
   await expect(samsungCard).toContainText(/Stop-loss\s*₩73,500/);
   await expect(samsungCard).toContainText("1d +0.82%");
+  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/1D.*Evaluated/);
+  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/3D.*Evaluated/);
+  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/5D.*Target hit/);
+  await expect(samsungCard.getByTestId("signal-decider-horizon-outcomes")).not.toContainText(/1D computed|3D computed|5D computed/i);
   await expect(samsungCard).toContainText("5-day evaluation");
   await expect(samsungCard).toContainText(/Evaluation status\s*Target before stop/);
   await expect(samsungCard).toContainText(/Target hit within 5d\s*Yes/);
@@ -1147,7 +1151,7 @@ test("signal-decider feedback detail stacks content without horizontal scrolling
   await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
 
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
-  await expect(page.locator("table")).toHaveCount(0);
+  await expect(page.locator("table").filter({ hasText: "Decision" })).toHaveCount(0);
 
   const samsungCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
   await expect(samsungCard).toBeVisible();
@@ -1216,6 +1220,8 @@ test("signal-decider feedback detail shows pending maturity copy instead of insu
     /\/dashboard\/symbol\/003480\?.*marketDate=2026-05-06.*navContext=signal-decider-feedback/,
   );
   await expect(waitCard).toContainText("Wait");
+  await expect(waitCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/5D.*Pending/);
+  await expect(waitCard.getByTestId("signal-decider-horizon-outcomes")).not.toContainText(/5D computed/i);
   await expect(waitCard).toContainText(/Evaluation status\s*Pending 5D window/);
   await expect(waitCard).toContainText(/Evaluation window\s*2026-05-07 -> 2026-05-13/);
   await expect(waitCard).toContainText("Needs 3 more trading days before 5-day outcome can be computed.");
@@ -1250,6 +1256,8 @@ test("signal-decider feedback detail distinguishes true insufficient price bars"
 
   const waitCard = page.getByRole("article", { name: /한진중공업홀딩스 signal-decider feedback/i });
   await expect(waitCard).toBeVisible();
+  await expect(waitCard.getByTestId("signal-decider-horizon-outcomes")).toContainText(/5D.*Insufficient price data/);
+  await expect(waitCard.getByTestId("signal-decider-horizon-outcomes")).not.toContainText(/5D computed/i);
   await expect(waitCard).toContainText(/Evaluation status\s*Insufficient price data/);
   await expect(waitCard).toContainText(/Target hit within 5d\s*Missing price data/);
   await expect(waitCard).toContainText(/Evaluation window\s*2026-05-08 -> 2026-05-14/);

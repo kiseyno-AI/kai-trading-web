@@ -416,18 +416,18 @@
       "total": "총 결정"
     },
     "outcomes": {
-      "ambiguous": "모호",
-      "stop": "손절",
-      "target": "목표",
-      "unresolved": "미해결"
+      "ambiguous": "목표/손절 동시",
+      "stop": "손절 도달",
+      "target": "목표 도달",
+      "unresolved": "횡보"
     },
     "horizons": {
-      "computed": "계산됨",
       "daysRemaining": "거래일 {days}일 남음",
+      "evaluated": "평가됨",
       "insufficientData": "가격 데이터 부족",
       "notComputed": "미계산",
       "pendingMaturity": "성숙 대기",
-      "shorterComputed": "1D/3D 계산됨 {count}",
+      "shorterComputed": "1D/3D 결과 {count}",
       "unknown": "불명"
     },
     "table": {
@@ -670,9 +670,14 @@
       "windowNotComputed": "평가 기간 없음",
       "windowUnavailable": "평가 기간 확인 불가",
       "windowUnknown": "평가 기간 상태 불명",
+      "ambiguousBadge": "목표/손절 동시",
       "pendingBadge": "5D 기간 대기",
       "insufficientBadge": "가격 데이터 부족",
       "notComputedBadge": "평가 미계산",
+      "evaluatedBadge": "평가됨",
+      "sidewaysBadge": "횡보",
+      "stopHitBadge": "손절 도달",
+      "targetHitBadge": "목표 도달",
       "unknownBadge": "평가 상태 불명",
       "notComputedValue": "미계산",
       "pendingValue": "대기",

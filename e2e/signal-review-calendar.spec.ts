@@ -210,6 +210,63 @@ function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalend
         },
         received_at: `${date}T07:45:00+00:00`,
       },
+      {
+        id: "mixed-horizon-stop-insufficient",
+        market_date: date,
+        symbol: "035420",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "035420",
+          market_date: date,
+          preferred_action: "buy",
+          next_day_open_action: "buy",
+          target_price: 222000,
+          stop_loss_price: 209000,
+          confidence_score_10: 7,
+          conviction_score_10: 6,
+          thesis_summary: "The first replay horizon hit the stop and later windows lack price bars.",
+          policy_version: "decider-policy-2026.04",
+          evaluation: {
+            quality_reason: "The short replay failed before later horizons could be fully evaluated.",
+            realized_results: {
+              "1d": {
+                status: "stop_hit",
+                return_pct: -3.05,
+                target_hit: false,
+                stop_hit: true,
+              },
+              "3d": {
+                evaluation_status: "insufficient_data",
+                evaluation_status_reason: "missing_price_bars",
+                notes: "Missing 3D replay bars.",
+              },
+            },
+          },
+          five_day_evaluation: {
+            evaluation_status: "insufficient_data",
+            evaluation_status_reason: "missing_price_bars",
+            window_mature: true,
+            missing_price_dates: ["2026-05-06"],
+            evaluation_window_start: "2026-05-01",
+            evaluation_window_end: "2026-05-08",
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "NAVER",
+            },
+          },
+        },
+        received_at: `${date}T07:46:00+00:00`,
+      },
     ];
   }
 
@@ -1070,7 +1127,7 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await expect(selectedDateCell).toContainText("2 decisions");
   await expect(selectedDateCell).toContainText("Buy 1 · Wait 1");
 
-  await expect(page.getByText("Target 1 · Stop 0 · Unresolved 0")).toBeVisible();
+  await expect(page.getByText("Target hit 1 · Stop hit 0 · Sideways 0")).toBeVisible();
   await expect(page.getByText(/pending maturity 0 · insufficient price data 0 · not computed 1/i)).toBeVisible();
   const samsungRow = page.locator("tr").filter({ hasText: "Samsung Electronics" });
   await expect(samsungRow).toContainText("Buy");
@@ -1300,27 +1357,37 @@ test("signal review calendar leaves normal wait pending rows as pending instead 
   await expect(localizedWaitRow).not.toContainText("[확인 필요]");
 });
 
-test("signal review calendar shows shorter computed horizons while primary 5D is pending", async ({ page }) => {
+test("signal review calendar shows outcome badges while preserving pending and insufficient horizons", async ({ page }) => {
   await mockSignalReviewCalendar(page, { mixedHorizonDate: "2026-04-30" });
 
   await page.goto("/calendar?date=2026-04-30");
 
-  await expect(page.getByText("Target 0 · Stop 0 · Unresolved 0")).toBeVisible();
+  await expect(page.getByText("Target hit 0 · Stop hit 0 · Sideways 0")).toBeVisible();
   await expect(page.getByText(/pending maturity 1/i)).toBeVisible();
-  await expect(page.getByText("1D/3D computed 1")).toBeVisible();
+  await expect(page.getByText(/insufficient price data 1/i)).toBeVisible();
+  await expect(page.getByText("1D/3D outcomes 2")).toBeVisible();
 
   const mixedCard = page.getByRole("button", { name: /LG Chem/ });
   await expect(mixedCard).toContainText("1D");
   await expect(mixedCard).toContainText("3D");
   await expect(mixedCard).toContainText("5D");
-  await expect(mixedCard).toContainText("1D computed · 3D computed · 5D pending maturity");
+  await expect(mixedCard).toContainText("1D Target hit · 3D Sideways · 5D pending maturity");
   await expect(mixedCard).toContainText("pending maturity");
+  await expect(mixedCard).not.toContainText("computed");
   await expect(mixedCard).not.toContainText("Unresolved path");
 
   const mixedTableRow = page.locator("tr").filter({ hasText: "LG Chem" });
   await expect(mixedTableRow).toContainText("+2.15%");
-  await expect(mixedTableRow).toContainText("Unresolved");
+  await expect(mixedTableRow).toContainText("Sideways");
   await expect(mixedTableRow).toContainText("pending maturity");
+
+  const insufficientCard = page.getByRole("button", { name: /NAVER/ });
+  await expect(insufficientCard).toContainText("1D Stop hit · 3D insufficient price data · 5D insufficient price data");
+  await expect(insufficientCard).not.toContainText("computed");
+
+  const insufficientTableRow = page.locator("tr").filter({ hasText: "NAVER" });
+  await expect(insufficientTableRow).toContainText("Stop hit");
+  await expect(insufficientTableRow).toContainText("insufficient price data");
   await expect(page.locator("body")).not.toContainText("Replay review is pending for the 5-day window.");
 });
 

@@ -390,12 +390,13 @@ test("normalizes stored signal-decider rows into operator-facing items", () => {
       day: horizon.day,
       state: horizon.state,
       outcome: horizon.outcome,
+      statusLabel: horizon.statusLabel,
       returnPct: horizon.returnPct,
     })),
     [
-      { day: 1, state: "computed", outcome: "computed", returnPct: 0.8 },
-      { day: 3, state: "computed", outcome: "computed", returnPct: -1.4 },
-      { day: 5, state: "computed", outcome: "target", returnPct: null },
+      { day: 1, state: "computed", outcome: null, statusLabel: "Evaluated", returnPct: 0.8 },
+      { day: 3, state: "computed", outcome: null, statusLabel: "Evaluated", returnPct: -1.4 },
+      { day: 5, state: "computed", outcome: "target_hit", statusLabel: "Target hit", returnPct: null },
     ],
   );
   assert.equal(items[0]?.factorAttributions[0]?.label, "Momentum");
@@ -629,9 +630,272 @@ test("preserves computed shorter horizons while primary 5-day evaluation is pend
       tradingDaysRemaining: horizon.tradingDaysRemaining,
     })),
     [
-      { day: 1, state: "computed", outcome: "target", returnPct: 2.15, tradingDaysRemaining: null },
-      { day: 3, state: "computed", outcome: "unresolved", returnPct: 0.42, tradingDaysRemaining: null },
+      { day: 1, state: "computed", outcome: "target_hit", returnPct: 2.15, tradingDaysRemaining: null },
+      { day: 3, state: "computed", outcome: "sideways", returnPct: 0.42, tradingDaysRemaining: null },
       { day: 5, state: "pending", outcome: null, returnPct: null, tradingDaysRemaining: 2 },
+    ],
+  );
+});
+
+test("keeps computed-only horizon evidence neutral until hit flags are explicit", () => {
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-05-01",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+    items: [
+      {
+        id: "computed-only-horizons",
+        market_date: "2026-05-01",
+        symbol: "035720",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-05-01",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "035720",
+          market_date: "2026-05-01",
+          preferred_action: "buy",
+          evaluation: {
+            horizon_evaluations: {
+              "1d": {
+                status: "computed",
+                return_pct: 1.1,
+              },
+              "3d": {
+                status: "computed",
+                realized_price: 81200,
+              },
+              "5d": {
+                status: "computed",
+                return_pct: -0.2,
+                realized_price: 80500,
+              },
+            },
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-01T07:45:00+00:00",
+      },
+    ],
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+
+  assert.ok(item);
+  assert.deepEqual(
+    item.horizonEvaluations.map((horizon) => ({
+      day: horizon.day,
+      state: horizon.state,
+      outcome: horizon.outcome,
+      statusLabel: horizon.statusLabel,
+      returnPct: horizon.returnPct,
+      realizedPrice: horizon.realizedPrice,
+    })),
+    [
+      { day: 1, state: "computed", outcome: null, statusLabel: "Evaluated", returnPct: 1.1, realizedPrice: null },
+      { day: 3, state: "computed", outcome: null, statusLabel: "Evaluated", returnPct: null, realizedPrice: 81200 },
+      { day: 5, state: "computed", outcome: null, statusLabel: "Evaluated", returnPct: -0.2, realizedPrice: 80500 },
+    ],
+  );
+});
+
+test("maps explicit no-hit horizon evidence to sideways", () => {
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-05-01",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+    items: [
+      {
+        id: "explicit-no-hit-horizons",
+        market_date: "2026-05-01",
+        symbol: "035720",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-05-01",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "035720",
+          market_date: "2026-05-01",
+          preferred_action: "buy",
+          evaluation: {
+            horizon_evaluations: {
+              "1d": {
+                status: "computed",
+                return_pct: 0.2,
+                target_hit: false,
+                stop_hit: false,
+              },
+              "3d": {
+                status: "computed",
+                reason_code: "no_target_or_stop_hit",
+                realized_price: 81200,
+              },
+              "5d": {
+                status: "computed",
+                evaluation_status_reason: "unresolved",
+                return_pct: -0.2,
+              },
+            },
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-01T07:45:00+00:00",
+      },
+    ],
+  });
+
+  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+
+  assert.ok(item);
+  assert.deepEqual(
+    item.horizonEvaluations.map((horizon) => ({
+      day: horizon.day,
+      state: horizon.state,
+      outcome: horizon.outcome,
+      statusLabel: horizon.statusLabel,
+    })),
+    [
+      { day: 1, state: "computed", outcome: "sideways", statusLabel: "Sideways" },
+      { day: 3, state: "computed", outcome: "sideways", statusLabel: "Sideways" },
+      { day: 5, state: "computed", outcome: "sideways", statusLabel: "Sideways" },
+    ],
+  );
+});
+
+test("maps horizon evaluations to target, stop, sideways, pending, and insufficient buckets", () => {
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-05-01",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 2 },
+    items: [
+      {
+        id: "outcome-buckets-computed",
+        market_date: "2026-05-01",
+        symbol: "035420",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-05-01",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "035420",
+          market_date: "2026-05-01",
+          preferred_action: "buy",
+          evaluation: {
+            horizon_evaluations: {
+              "1d": {
+                status: "target_hit",
+                return_pct: 2.4,
+                target_hit: true,
+                stop_hit: false,
+              },
+              "3d": {
+                status: "stop_hit",
+                return_pct: -3.1,
+                target_hit: false,
+                stop_hit: true,
+              },
+              "5d": {
+                status: "no_target_or_stop_hit",
+                return_pct: 0.2,
+                target_hit: false,
+                stop_hit: false,
+              },
+            },
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-01T07:45:00+00:00",
+      },
+      {
+        id: "outcome-buckets-coverage",
+        market_date: "2026-05-01",
+        symbol: "051910",
+        agent: {
+          name: "signal-decider",
+          run_id: "feedback-cycle-2026-05-01",
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "051910",
+          market_date: "2026-05-01",
+          preferred_action: "wait",
+          evaluation: {
+            horizon_evaluations: {
+              "1d": {
+                evaluation_status: "pending_evaluation_window",
+                evaluation_status_reason: "not_mature",
+                trading_days_remaining: 1,
+              },
+              "3d": {
+                evaluation_status: "insufficient_data",
+                evaluation_status_reason: "missing_price_bars",
+                notes: "Missing replay bar",
+              },
+            },
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: "2026-05-01T07:45:00+00:00",
+      },
+    ],
+  });
+
+  const [computed, coverage] = normalizeSignalDeciderFeedbackItems(response, {
+    evaluationReferenceDate: "2026-05-08",
+  });
+
+  assert.deepEqual(
+    computed?.horizonEvaluations.map((horizon) => ({
+      day: horizon.day,
+      state: horizon.state,
+      outcome: horizon.outcome,
+      statusLabel: horizon.statusLabel,
+    })),
+    [
+      { day: 1, state: "computed", outcome: "target_hit", statusLabel: "Target hit" },
+      { day: 3, state: "computed", outcome: "stop_hit", statusLabel: "Stop hit" },
+      { day: 5, state: "computed", outcome: "sideways", statusLabel: "Sideways" },
+    ],
+  );
+  assert.deepEqual(
+    coverage?.horizonEvaluations.map((horizon) => ({
+      day: horizon.day,
+      state: horizon.state,
+      outcome: horizon.outcome,
+      statusLabel: horizon.statusLabel,
+      tradingDaysRemaining: horizon.tradingDaysRemaining,
+    })),
+    [
+      { day: 1, state: "pending", outcome: null, statusLabel: "Pending maturity", tradingDaysRemaining: 1 },
+      { day: 3, state: "insufficient", outcome: null, statusLabel: "Insufficient price data", tradingDaysRemaining: null },
+      { day: 5, state: "not-computed", outcome: null, statusLabel: "Not computed", tradingDaysRemaining: 0 },
     ],
   );
 });
