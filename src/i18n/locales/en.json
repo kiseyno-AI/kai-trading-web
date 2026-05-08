@@ -62,6 +62,11 @@
       "title": "Signal Decider Feedback",
       "eyebrow": "Decision Replay"
     },
+    "deciderFeedback": {
+      "label": "decider-feedback",
+      "title": "Decider Feedback",
+      "eyebrow": "Decision Replay"
+    },
     "markets": {
       "label": "markets",
       "title": "Market Radar",
@@ -444,10 +449,17 @@
   },
   "signalDeciderFeedback": {
     "heroEyebrow": "Agent feedback",
-    "heroTitle": "Signal-decider feedback",
+    "heroTitle": "Decider Feedback",
+    "legacyHeroTitle": "Signal-decider feedback",
     "heroCopy": "Decision-support results from the stored signal-decider feedback rows. This view does not create orders.",
+    "shortTermHeroCopy": "Decision-support results from stored short-term decider feedback rows, including tactical trigger plans and short-term risk/data-gap context. This view does not create orders.",
     "chrome": {
       "marketDatePending": "MD pending"
+    },
+    "tabs": {
+      "label": "Decider feedback tabs",
+      "signalDecider": "Signal Decider",
+      "shortTermDecider": "Short-term Decider"
     },
     "status": {
       "completed": "Completed",
@@ -462,15 +474,23 @@
       "marketDate": "Market date",
       "results": "Results",
       "actionMix": "Action mix",
+      "comparisons": "Comparisons",
       "search": "Search",
       "action": "Action",
+      "statusFilter": "Status",
       "sort": "Sort",
-      "filters": "Signal-decider feedback filters",
+      "filters": "Decider feedback filters",
       "decision": "Decision",
+      "tacticalDecision": "Tactical Decision",
       "storedSignal": "Stored signal",
       "conviction": "Conviction",
       "confidence": "Confidence",
       "thesis": "Thesis",
+      "shortTermThesis": "Short-term Thesis",
+      "triggerPlan": "Trigger Plan",
+      "supportingEvidence": "Supporting evidence",
+      "riskAndDataGaps": "Risk & Data Gaps",
+      "contextBadges": "Context badges",
       "reviewState": "Review state",
       "supportContext": "Support context",
       "tracePolicy": "Trace / policy",
@@ -497,14 +517,25 @@
       "buy": "Buy",
       "wait": "Wait",
       "reject": "Reject",
+      "watchForTrigger": "Watch for trigger",
+      "avoidChase": "Avoid chase",
       "unknown": "Unknown",
       "nextDay": "Next-day action",
       "preferred": "Preferred action",
       "target": "Target",
       "stopLoss": "Stop-loss",
+      "trigger": "Trigger",
+      "entryCondition": "Entry condition",
+      "invalidation": "Invalidation",
       "expectedReturn": "Expected return",
       "entryBasis": "Entry basis",
       "holdingPeriod": "Holding period"
+    },
+    "statusFilters": {
+      "all": "All statuses",
+      "withReview": "With review",
+      "reviewPending": "Review pending",
+      "withRisk": "Risk/data gaps"
     },
     "sortOptions": {
       "priority": "Action priority",
@@ -523,6 +554,18 @@
       "pendingMessage": "Verdict and realized outcome are not present in the stored feedback payload yet.",
       "resultEmpty": "Outcome details recorded without additional notes.",
       "noRealizedOutcome": "Realized outcome is not present in this row yet."
+    },
+    "comparison": {
+      "title": "Cross-decider comparison",
+      "shortTermAction": "Short-term action",
+      "signalAction": "Signal action",
+      "agreement": "Agreement",
+      "disagreement": "Disagreement",
+      "unknown": "Unknown",
+      "confidenceDelta": "Confidence delta",
+      "noPair": "No pair",
+      "empty": "No matching opposite-decider output is stored for this symbol/date while viewing {agentLabel}.",
+      "unavailable": "Comparison is unavailable because the opposite-decider feedback read failed or has not returned."
     },
     "evaluation": {
       "title": "5-day evaluation",
@@ -551,6 +594,8 @@
       "evidence": "evidence"
     },
     "summary": {
+      "signalAgentName": "signal-decider",
+      "shortTermAgentName": "Short-term decider",
       "loading": "Loading signal-decider feedback...",
       "error": "Signal-decider feedback is unavailable.",
       "pendingMarketDate": "Pending",

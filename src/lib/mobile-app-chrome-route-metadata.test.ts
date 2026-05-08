@@ -73,3 +73,14 @@ test("dashboard workflow routes resolve explicit titles from pathname", () => {
   assert.equal(metadata.title, "Signal Decider Feedback");
   assert.equal(metadata.toolbarAction, "dev-mode");
 });
+
+test("shared decider feedback route resolves its explicit title", () => {
+  const metadata = resolveMobileAppChromeMetadata({
+    pathname: "/dashboard/decider-feedback",
+    activeNav: "dashboard",
+    t: messages.en,
+  });
+
+  assert.equal(metadata.title, "Decider Feedback");
+  assert.equal(metadata.toolbarAction, "dev-mode");
+});

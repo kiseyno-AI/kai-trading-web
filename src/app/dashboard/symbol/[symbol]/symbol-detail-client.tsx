@@ -87,7 +87,9 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     quoteSourceCopy,
     navContext,
     feedbackActionFilter,
+    feedbackAgent,
     feedbackSortMode,
+    feedbackStatusFilter,
     routeQueryString,
     searchContextQuery,
     selectedBar,
@@ -137,9 +139,11 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       if (marketDate) params.set("marketDate", marketDate);
       if (searchContextQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, searchContextQuery);
       if (feedbackActionFilter) params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, feedbackActionFilter);
+      if (feedbackAgent) params.set("agent", feedbackAgent);
+      if (feedbackStatusFilter) params.set("feedbackStatus", feedbackStatusFilter);
       if (feedbackSortMode) params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, feedbackSortMode);
       const queryString = params.toString();
-      return `/dashboard/signal-decider-feedback${queryString ? `?${queryString}` : ""}`;
+      return `/dashboard/decider-feedback${queryString ? `?${queryString}` : ""}`;
     }
 
     if (navContext === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT && marketDate) {
