@@ -793,7 +793,9 @@ test("dashboard signal-decider card previews partial results and links to the de
   await expect(card).toContainText("Buy 1 · Wait 1");
   await expect(card).toContainText("Samsung Electronics");
   await expect(card).toContainText("Momentum and fundamentals align");
-  await expect(card).toContainText("Target before stop");
+  await expect(card).not.toContainText("Target before stop");
+  await expect(card).not.toContainText("Pending 5D window");
+  await expect(card).not.toContainText("Evaluation not computed");
 
   const samsungPreviewRow = page.getByRole("listitem", { name: /Samsung Electronics signal-decider feedback/i });
   await expectVerticalCentersAligned(
