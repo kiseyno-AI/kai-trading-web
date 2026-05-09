@@ -101,6 +101,7 @@ import {
   normalizeMarketSnapshotToken,
   resolveFundamentalsPollingPresentation,
   shouldShowAgentRoleProgress,
+  shouldShowSignalDeciderCurrentCycleContext,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "@/features/dashboard/live-dashboard-derived-state";
 import type {
@@ -801,6 +802,7 @@ type SignalDeciderFeedbackCardProps = {
   error: string | null;
   model: SignalDeciderFeedbackSummaryModel;
   numberLocale: string;
+  showCurrentCycleContext: boolean;
 };
 
 const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
@@ -808,6 +810,7 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
   error,
   model,
   numberLocale,
+  showCurrentCycleContext,
 }: SignalDeciderFeedbackCardProps) {
   const statusCopyKey = getSignalDeciderStatusCopyKey(model.status);
   const statusLabel = copy.signalDecider.statuses[statusCopyKey];
@@ -844,7 +847,7 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
       {model.isLatestCompletedFallback ? (
         <p className={styles.cardContext}>
           {copy.signalDecider.latestCompleted}: <strong>{model.marketDate ?? UNKNOWN_LABEL}</strong>
-          {model.currentMarketDate ? (
+          {showCurrentCycleContext ? (
             <>
               {" · "}
               {copy.signalDecider.currentCycle}: <strong>{model.currentMarketDate}</strong>{" "}
@@ -2291,6 +2294,11 @@ export function LiveDashboardClient({
               error={displayedSignalDeciderFeedbackError}
               model={signalDeciderFeedbackModel}
               numberLocale={numberLocale}
+              showCurrentCycleContext={shouldShowSignalDeciderCurrentCycleContext({
+                currentMarketDate: signalDeciderFeedbackModel.currentMarketDate,
+                isBreakDay,
+                isLatestCompletedFallback: signalDeciderFeedbackModel.isLatestCompletedFallback,
+              })}
             />
 
             <PortfolioStateCard

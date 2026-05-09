@@ -1144,6 +1144,218 @@ test("dashboard signal-decider card shows latest completed rows while the curren
   expect(feedbackQueries.every((query) => query.includes("market_date="))).toBe(true);
 });
 
+test("dashboard signal-decider card hides current cycle on closed-market weekend days", async ({ page }) => {
+  await mockDashboardShell(page);
+  await page.unroute("**/api/trading/market/status");
+  await page.route("**/api/trading/market/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        state: "WEEKEND",
+        is_open: false,
+        is_trading_day: false,
+        server_time: "2026-05-09T09:00:00+09:00",
+      }),
+    });
+  });
+  await page.unroute("**/api/trading/eod/freshness");
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        today: {
+          trade_date: "2026-05-09",
+          price: {
+            status: "pending",
+            symbols_total: 3,
+            symbols_succeeded: 0,
+            symbols_failed: 0,
+          },
+          technical_analysis: {
+            status: "pending",
+            symbols_total: 3,
+            symbols_succeeded: 0,
+            symbols_failed: 0,
+          },
+          action_summary: {
+            status: "pending",
+            symbols_total: 3,
+            symbols_succeeded: 0,
+            symbols_failed: 0,
+          },
+        },
+        latest: {
+          price_trade_date: "2026-05-08",
+          technical_market_date: "2026-05-08",
+          action_market_date: "2026-05-08",
+        },
+      }),
+    });
+  });
+  await page.unroute("**/api/trading/eod/pipeline/status?**");
+  await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+    const url = new URL(route.request().url());
+    const marketDate = url.searchParams.get("market_date") ?? "2026-05-09";
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_date: marketDate,
+        status: marketDate === "2026-05-08" ? "completed" : "pending",
+        stage_order: ["price_collection", "technical_snapshots", "action_summaries"],
+        stages: {
+          price_collection: {
+            status: marketDate === "2026-05-08" ? "completed" : "pending",
+            processed: marketDate === "2026-05-08" ? 3 : 0,
+            total: 3,
+            failed: 0,
+          },
+          technical_snapshots: {
+            status: marketDate === "2026-05-08" ? "completed" : "pending",
+            processed: marketDate === "2026-05-08" ? 3 : 0,
+            total: 3,
+            failed: 0,
+          },
+          action_summaries: {
+            status: marketDate === "2026-05-08" ? "completed" : "pending",
+            processed: marketDate === "2026-05-08" ? 3 : 0,
+            total: 3,
+            failed: 0,
+          },
+        },
+      }),
+    });
+  });
+  await page.unroute("**/api/trading/agent-context/feedback/progress?**");
+  await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        request: {
+          market_date: "2026-05-08",
+          symbols: null,
+          expected_agents: ["signal-decider"],
+        },
+        summary: {
+          run_id: "feedback-cycle-2026-05-08",
+          run_status: "completed",
+          run_table_status: "completed",
+          cycle_status: "completed",
+          is_live: false,
+          run_started_at: "2026-05-08T06:50:00+00:00",
+          run_completed_at: "2026-05-08T07:45:00+00:00",
+          current_role: "signal-decider",
+          completed_roles: ["signal-decider"],
+          remaining_roles: [],
+          latest_feedback_at: "2026-05-08T07:45:00+00:00",
+          seconds_since_last_feedback: 60,
+          stalled_threshold_seconds: 300,
+          total_symbols: 3,
+          processed_symbols: 3,
+          completed_symbols: 3,
+          in_progress_symbols: 0,
+          pending_symbols: 0,
+          progress_ratio: 1,
+          progress_percent: 100,
+          failed_items: 0,
+          completed_feedback_count: 3,
+          expected_feedback_count: 3,
+        },
+        result: {
+          market_date: "2026-05-08",
+          roles: {
+            "signal-decider": {
+              requested_count: 3,
+              completed_count: 3,
+              error_count: 0,
+            },
+          },
+        },
+      }),
+    });
+  });
+  await page.unroute("**/api/trading/agent-context/feedback?**");
+  await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
+    const url = new URL(route.request().url());
+    const marketDate = url.searchParams.get("market_date") ?? "2026-05-08";
+
+    if (marketDate !== "2026-05-08") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: marketDate,
+            symbols: [],
+            agent_name: "signal-decider",
+            limit: 200,
+          },
+          summary: { count: 0 },
+          items: [],
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        request: {
+          market_date: "2026-05-08",
+          symbols: [],
+          agent_name: "signal-decider",
+          limit: 200,
+        },
+        summary: { count: 1 },
+        items: [
+          {
+            id: "latest-friday-row",
+            market_date: "2026-05-08",
+            symbol: "005930",
+            agent: {
+              name: "signal-decider",
+              run_id: "feedback-cycle-2026-05-08",
+            },
+            summary: {},
+            feedback: {
+              role: "signal-decider",
+              symbol: "005930",
+              market_date: "2026-05-08",
+              preferred_action: "wait",
+              next_day_open_action: "wait",
+              confidence_score_10: 7,
+              conviction_score_10: 6,
+              thesis_summary: "Latest Friday recommendation remains the dashboard basis on the weekend.",
+            },
+            normalized_feedback: null,
+            details: null,
+            context: {
+              symbol_day_context: {
+                company: {
+                  name_ko: "Samsung Electronics",
+                },
+              },
+            },
+            received_at: "2026-05-08T07:45:00+00:00",
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto("/dashboard");
+
+  const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("Latest completed recommendations: 2026-05-08");
+  await expect(card).not.toContainText("Current cycle");
+  await expect(card).not.toContainText("2026-05-09 signal-decider");
+  await expect(card).toContainText("Latest Friday recommendation remains the dashboard basis on the weekend.");
+  await expect(card.getByRole("link", { name: /Open the signal-decider feedback detail page/i })).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-08",
+  );
+});
+
 test("signal-decider feedback detail stacks content without horizontal scrolling on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockDashboardShell(page);
