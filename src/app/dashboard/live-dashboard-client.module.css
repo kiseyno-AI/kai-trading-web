@@ -544,45 +544,6 @@
   line-height: 1.45;
 }
 
-.marketSnapshotMetaGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin: 0;
-}
-
-.marketSnapshotMetaGrid > div {
-  min-width: 0;
-  padding: 0.58rem 0.62rem;
-  border: 1px solid rgba(134, 162, 194, 0.14);
-  border-radius: 0.55rem;
-  background: rgba(142, 164, 191, 0.08);
-}
-
-.marketSnapshotMetaGrid dt,
-.marketSnapshotMetaGrid dd {
-  min-width: 0;
-  margin: 0;
-}
-
-.marketSnapshotMetaGrid dt {
-  color: var(--muted-soft);
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.marketSnapshotMetaGrid dd {
-  margin-top: 0.18rem;
-  color: var(--text-strong);
-  font-size: 0.74rem;
-  font-weight: 800;
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .insightStateList {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.4rem), 1fr));
@@ -2091,7 +2052,6 @@
   .integrityStat,
   .portfolioMetric,
   .marketContextGrid > div,
-  .marketSnapshotMetaGrid > div,
   .marketIndexCard,
   .insightStateList > div {
     border-radius: 0.16rem;

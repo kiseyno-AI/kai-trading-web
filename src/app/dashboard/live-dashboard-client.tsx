@@ -107,7 +107,6 @@ import {
 import type {
   AgentRoleCard,
   AgentRoleStatus,
-  CoreMarketStatus,
   EodStageCard,
   FilteringCardModel,
   FilteringStageModel,
@@ -1216,21 +1215,8 @@ function getMarketSnapshotAsOf(
   );
 }
 
-function getMarketSnapshotSessionLabel(marketStatus: CoreMarketStatus, copy: DashboardLiveCopy) {
-  if (marketStatus.is_open) return copy.marketOpen;
-  if (marketStatus.state?.trim()) return copy.marketClosed;
-  return copy.marketOverview.unknown;
-}
-
-function getMarketSnapshotTradingDayLabel(marketStatus: CoreMarketStatus, copy: DashboardLiveCopy) {
-  if (marketStatus.is_trading_day === true) return copy.marketOverview.tradingDayOpen;
-  if (marketStatus.is_trading_day === false) return copy.marketOverview.breakDay;
-  return copy.marketOverview.unknown;
-}
-
 type MarketOverviewCardProps = {
   copy: DashboardLiveCopy;
-  marketStatus: CoreMarketStatus;
   marketSnapshot: MarketSnapshotResponseDto | null;
   marketSnapshotError: string | null;
   numberLocale: string;
@@ -1238,7 +1224,6 @@ type MarketOverviewCardProps = {
 
 const MarketOverviewCard = memo(function MarketOverviewCard({
   copy,
-  marketStatus,
   marketSnapshot,
   marketSnapshotError,
   numberLocale,
@@ -1263,9 +1248,6 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
   const asOfLabel = getMarketSnapshotAsOf(displaySnapshot, kospi, kosdaq, fxRate);
   const unavailableLabel = copy.marketOverview.valueUnavailable;
   const changeUnavailableLabel = copy.marketOverview.changeUnavailable;
-  const sourceLabel = displaySnapshot?.source?.trim() || copy.marketOverview.snapshotSourceFallback;
-  const sessionLabel = getMarketSnapshotSessionLabel(marketStatus, copy);
-  const tradingDayLabel = getMarketSnapshotTradingDayLabel(marketStatus, copy);
 
   return (
     <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.marketOverviewCard}`}>
@@ -1335,21 +1317,6 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
       {!summaryLine || snapshotPresentation.status !== "ready" ? (
         <p className={styles.cardContext}>{snapshotPresentation.fallbackContextLabel}</p>
       ) : null}
-
-      <dl className={styles.marketSnapshotMetaGrid}>
-        <div>
-          <dt>{copy.marketOverview.session}</dt>
-          <dd>{sessionLabel}</dd>
-        </div>
-        <div>
-          <dt>{copy.marketOverview.tradingDay}</dt>
-          <dd>{tradingDayLabel}</dd>
-        </div>
-        <div>
-          <dt>{copy.marketOverview.source}</dt>
-          <dd>{sourceLabel}</dd>
-        </div>
-      </dl>
 
       <div className={styles.cardActionRow}>
         <Link href="/markets" className={styles.signalDeciderDetailLink} aria-label={copy.marketOverview.openMarkets}>
@@ -2306,7 +2273,6 @@ export function LiveDashboardClient({
 
             <MarketOverviewCard
               copy={copy}
-              marketStatus={market}
               marketSnapshot={marketSnapshot}
               marketSnapshotError={marketSnapshotError}
               numberLocale={numberLocale}
