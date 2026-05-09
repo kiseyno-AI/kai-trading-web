@@ -22,7 +22,7 @@ test.describe("dashboard mobile hero", () => {
     await expect(topbar).toBeVisible();
     await expect(hero).toBeVisible();
     await expect(bottomNav).toBeVisible();
-    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+    await expect(page.getByText(/Trading Command Surface/i)).toBeVisible();
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
 
     const [viewport, topbarBox, heroBox] = await Promise.all([
@@ -58,6 +58,10 @@ test.describe("dashboard mobile hero", () => {
     await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByRole("link", { name: /Open markets/i })).toBeVisible();
+    await expect(marketCard.getByText("Session", { exact: true })).toHaveCount(0);
+    await expect(marketCard.getByText("Trading day", { exact: true })).toHaveCount(0);
+    await expect(marketCard.getByText("Source", { exact: true })).toHaveCount(0);
     await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
     await expect(hero.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
     await expect(hero.getByText(/EOD Status/i)).toHaveCount(0);
