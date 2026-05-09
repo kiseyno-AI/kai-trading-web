@@ -1126,7 +1126,7 @@ export function shouldStopQuotePollingForClosedSession(
   marketStatus: MarketStatusResponse | null,
   quote: QuoteResponse | null,
 ) {
-  return getMarketOpenState(marketStatus) === false && isClosedSessionMarketState(quote?.market_state);
+  return isClosedSessionMarketState(marketStatus?.state) && isClosedSessionMarketState(quote?.market_state);
 }
 
 export function resolveMarketStateValue(value: string | null | undefined, copy: SymbolDetailCopy) {

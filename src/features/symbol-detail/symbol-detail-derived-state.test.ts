@@ -74,6 +74,20 @@ test("stops quote polling only when market and quote resolve to closed-session s
   assert.equal(getMarketOpenState({ state: "WEEKEND" }), false);
   assert.equal(
     shouldStopQuotePollingForClosedSession(
+      { state: "PREOPEN", is_open: false },
+      makeQuote({ market_state: "CLOSED", is_live: false }),
+    ),
+    false,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "POSTCLOSE", is_open: false },
+      makeQuote({ market_state: "CLOSED", is_live: false }),
+    ),
+    false,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
       { state: "WEEKEND", is_open: false },
       makeQuote({ market_state: "WEEKEND", is_live: false }),
     ),
@@ -82,7 +96,7 @@ test("stops quote polling only when market and quote resolve to closed-session s
   assert.equal(
     shouldStopQuotePollingForClosedSession(
       { state: "CLOSED", is_open: false },
-      makeQuote({ market_state: "closed", is_live: false }),
+      makeQuote({ market_state: "CLOSED", is_live: false }),
     ),
     true,
   );
