@@ -20,6 +20,7 @@ import {
   buildSignalDeciderFeedbackHref,
   buildReviewDateQuery,
   buildSignalDeciderFeedbackListFromReviewDateResponse,
+  DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
   formatSignalDeciderActionLabel,
   SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
@@ -780,7 +781,10 @@ export default function SignalReviewCalendarPageClient() {
   const copy = t.signalReview;
   const selectedUnavailable = copy.states.selectedUnavailable;
   const feedbackDate = useMemo(() => parseCompactDateValue(selectedDate), [selectedDate]);
-  const feedbackListHref = useMemo(() => buildSignalDeciderFeedbackHref(feedbackDate), [feedbackDate]);
+  const feedbackListHref = useMemo(
+    () => buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT }),
+    [feedbackDate],
+  );
 
   useEffect(() => {
     let active = true;

@@ -17,8 +17,11 @@ export const SIGNAL_DECIDER_CALENDAR_SUMMARY_UPSTREAM_PATH = "/agent-context/fee
 export const SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT = 200;
 export const SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH = "/api/trading/agent-context/feedback/review";
 export const SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH = "/api/trading/agent-context/feedback/calendar";
+export const DECIDER_FEEDBACK_NAV_CONTEXT_PARAM = "navContext";
+export const DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT = "calendar";
 
 export type DeciderAgentName = (typeof DECIDER_AGENT_NAMES)[number];
+export type DeciderFeedbackNavContext = typeof DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT;
 
 export const DECIDER_DATA_GAP_CATEGORIES = [
   "factor_scores",
@@ -2688,10 +2691,23 @@ export function resolveSignalDeciderLatestFeedbackMarketDate({
   return normalizedCurrentMarketDate;
 }
 
-export function buildSignalDeciderFeedbackHref(marketDate: string | null | undefined) {
-  if (!hasTextValue(marketDate)) return SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH;
-  const params = new URLSearchParams({ marketDate: marketDate.trim() });
-  return `${SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
+export function resolveDeciderFeedbackNavContext(value: string | null | undefined): DeciderFeedbackNavContext | null {
+  return value === DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT ? value : null;
+}
+
+export function buildSignalDeciderFeedbackHref(
+  marketDate: string | null | undefined,
+  {
+    navContext,
+  }: {
+    navContext?: string | null;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
+  if (hasTextValue(navContext)) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, navContext.trim());
+  const query = params.toString();
+  return `${SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}${query ? `?${query}` : ""}`;
 }
 
 export function buildDeciderFeedbackHref({
@@ -2703,6 +2719,7 @@ export function buildDeciderFeedbackHref({
   gapSymbol,
   statusFilter,
   sortMode,
+  navContext,
 }: {
   agentName?: string | null;
   marketDate?: string | null;
@@ -2712,6 +2729,7 @@ export function buildDeciderFeedbackHref({
   gapSymbol?: string | null;
   statusFilter?: string | null;
   sortMode?: string | null;
+  navContext?: string | null;
 } = {}) {
   const params = new URLSearchParams({ agent: resolveDeciderAgentName(agentName) });
   if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
@@ -2721,6 +2739,7 @@ export function buildDeciderFeedbackHref({
   if (hasTextValue(gapSymbol) && gapSymbol !== "all") params.set("gapSymbol", gapSymbol.trim());
   if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
   if (hasTextValue(sortMode) && sortMode !== "priority") params.set("feedbackSort", sortMode.trim());
+  if (hasTextValue(navContext)) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, navContext.trim());
   return `${DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
 }
 

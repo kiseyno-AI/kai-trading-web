@@ -10,6 +10,7 @@ import { useAppState } from "@/components/providers/app-state-provider";
 import {
   SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
   SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
@@ -24,12 +25,16 @@ import {
   buildDeciderDataGapReport,
   buildDeciderDataGapSymbolSummaries,
   buildDeciderFeedbackSummary,
+  buildSignalDeciderFeedbackHref,
   DECIDER_DATA_GAP_CATEGORIES,
+  DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
+  DECIDER_FEEDBACK_NAV_CONTEXT_PARAM,
   DECIDER_FEEDBACK_DASHBOARD_PATH,
   filterDeciderDataGapRecords,
   getDeciderFeedbackComparisonKey,
   getDeciderAgentLabel,
   getOppositeDeciderAgentName,
+  resolveDeciderFeedbackNavContext,
   resolveDeciderDataGapDisplayState,
   resolveDeciderAgentName,
   SHORT_TERM_DECIDER_AGENT_NAME,
@@ -554,6 +559,7 @@ function buildSymbolHref(
   context: {
     agentName: DeciderAgentName;
     actionFilter: ActionFilter;
+    feedbackNavContext: string | null;
     query: string;
     sortMode: SortMode;
     statusFilter: StatusFilter;
@@ -569,6 +575,9 @@ function buildSymbolHref(
   if (context.statusFilter !== "all") params.set("feedbackStatus", context.statusFilter);
   params.set("agent", context.agentName);
   if (context.sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, context.sortMode);
+  if (context.feedbackNavContext) {
+    params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM, context.feedbackNavContext);
+  }
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
@@ -798,6 +807,11 @@ export default function SignalDeciderFeedbackPageClient() {
   );
   const requestedGapCategory = useMemo(() => resolveGapCategoryParam(searchParams.get("gapCategory")), [searchParams]);
   const requestedGapSymbol = useMemo(() => searchParams.get("gapSymbol") ?? "all", [searchParams]);
+  const navContext = useMemo(
+    () => resolveDeciderFeedbackNavContext(searchParams.get(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM)),
+    [searchParams],
+  );
+  const isCalendarContext = navContext === DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT;
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
   const [feedback, setFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
@@ -1107,6 +1121,7 @@ export default function SignalDeciderFeedbackPageClient() {
     gapCategory,
     gapSymbol: validGapSymbol,
     marketDate: displayedMarketDate,
+    navContext,
     query,
     sortMode,
     statusFilter,
@@ -1146,6 +1161,14 @@ export default function SignalDeciderFeedbackPageClient() {
   const evaluationCopy = copy.evaluation;
   const countCopy = copy.counts;
   const dataGapCopy = copy.dataGaps;
+  const calendarReturnDate = displayedMarketDate ?? marketDate ?? requestedMarketDate;
+  const calendarReturnHref =
+    isCalendarContext && calendarReturnDate ? `/calendar?date=${encodeURIComponent(calendarReturnDate)}` : null;
+  const calendarBreadcrumb =
+    isCalendarContext && calendarReturnDate
+      ? copy.calendarContext.breadcrumb.replaceAll("{marketDate}", calendarReturnDate)
+      : null;
+  const calendarContextNav = isCalendarContext ? DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT : null;
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -1177,8 +1200,8 @@ export default function SignalDeciderFeedbackPageClient() {
     if (!nextMarketDate) {
       router.push(
         isSharedRoute
-          ? buildDeciderFeedbackHref({ agentName: activeAgent })
-          : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH,
+          ? buildDeciderFeedbackHref({ agentName: activeAgent, navContext: calendarContextNav })
+          : buildSignalDeciderFeedbackHref(null, { navContext: calendarContextNav }),
       );
       return;
     }
@@ -1192,16 +1215,19 @@ export default function SignalDeciderFeedbackPageClient() {
     if (validGapSymbol !== "all") params.set("gapSymbol", validGapSymbol);
     if (statusFilter !== "all") params.set("feedbackStatus", statusFilter);
     if (sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, sortMode);
+    if (calendarContextNav) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, calendarContextNav);
     router.push(`${isSharedRoute ? DECIDER_FEEDBACK_DASHBOARD_PATH : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`);
   }
 
   return (
     <MobileAppChrome
       chrome={{
-        activeNav: "dashboard",
+        activeNav: isCalendarContext ? "calendar" : "dashboard",
+        hrefs: calendarReturnHref ? { calendar: calendarReturnHref } : undefined,
         status: {
           label: displayedMarketDate ? `MD ${displayedMarketDate}` : copy.chrome.marketDatePending,
         },
+        subtitle: calendarBreadcrumb,
       }}
     >
       <div className={styles.stack}>
@@ -1216,6 +1242,14 @@ export default function SignalDeciderFeedbackPageClient() {
             <p className={styles.pageCopy}>{pageCopy}</p>
           </div>
 
+          {calendarReturnHref && calendarBreadcrumb ? (
+            <nav className={styles.contextNav} aria-label={copy.calendarContext.label}>
+              <span className={styles.contextBreadcrumb}>{calendarBreadcrumb}</span>
+              <Link href={calendarReturnHref} className={styles.contextReturnLink}>
+                {copy.calendarContext.backToCalendar}
+              </Link>
+            </nav>
+          ) : null}
         </section>
 
         <section className={styles.panel}>
@@ -1483,7 +1517,14 @@ export default function SignalDeciderFeedbackPageClient() {
                     >
                     <header className={styles.resultHeader}>
                       <Link
-                        href={buildSymbolHref(item, { actionFilter, agentName: activeAgent, query, sortMode, statusFilter })}
+                        href={buildSymbolHref(item, {
+                          actionFilter,
+                          agentName: activeAgent,
+                          feedbackNavContext: calendarContextNav,
+                          query,
+                          sortMode,
+                          statusFilter,
+                        })}
                         className={styles.symbolLink}
                       >
                         <strong>{item.companyName ?? item.symbol}</strong>

@@ -45,6 +45,7 @@ export const SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT = "piotroski";
 export const SYMBOL_DETAIL_SEARCH_QUERY_PARAM = "q";
 export const SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM = "feedbackAction";
 export const SYMBOL_DETAIL_FEEDBACK_SORT_PARAM = "feedbackSort";
+export const SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM = "feedbackNavContext";
 
 export type SymbolDetailNavContext =
   | typeof SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT

@@ -42,6 +42,7 @@ import {
   SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_MODES,
+  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
@@ -91,6 +92,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     navContext,
     feedbackActionFilter,
     feedbackAgent,
+    feedbackNavContext,
     feedbackSortMode,
     feedbackStatusFilter,
     routeQueryString,
@@ -145,6 +147,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       if (feedbackAgent) params.set("agent", feedbackAgent);
       if (feedbackStatusFilter) params.set("feedbackStatus", feedbackStatusFilter);
       if (feedbackSortMode) params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, feedbackSortMode);
+      if (feedbackNavContext) params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, feedbackNavContext);
       const queryString = params.toString();
       return `/dashboard/decider-feedback${queryString ? `?${queryString}` : ""}`;
     }
