@@ -1248,8 +1248,9 @@ export default function SignalReviewCalendarPageClient() {
     <MobileAppChrome
       chrome={{
         activeNav: "calendar",
+        title: t.mobileChrome.calendar,
         subtitle: getSelectedDateHeader(selectedDate, copy),
-        status: { label: formatMonthLabel(monthKey) },
+        status: { label: formatMonthLabel(monthKey), priority: "supplemental" },
       }}
     >
       <div className={styles.stack}>
