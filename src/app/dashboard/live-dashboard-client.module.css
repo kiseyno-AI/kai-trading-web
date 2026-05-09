@@ -1309,20 +1309,6 @@
   white-space: normal;
 }
 
-.signalDeciderPreviewEvaluation {
-  grid-column: 1 / -1;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.38rem;
-}
-
-.signalDeciderPreviewEvaluation :global(.pill) {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
 .signalDeciderPreviewRow p {
   grid-column: 1 / -1;
   margin: 0;
