@@ -20,7 +20,10 @@ import {
   buildSymbolRouteQuery,
   buildSystemFreshnessSectionModel,
   buildTechnicalFreshnessDate,
+  getMarketOpenState,
+  isClosedSessionMarketState,
   pickSelectedBarTradeDate,
+  shouldStopQuotePollingForClosedSession,
 } from "./symbol-detail-derived-state";
 
 function makeActionSummary(overrides: Partial<AgentContextActionSummaryDto> = {}): AgentContextActionSummaryDto {
@@ -45,6 +48,73 @@ function makeActionSummary(overrides: Partial<AgentContextActionSummaryDto> = {}
     ...overrides,
   };
 }
+
+function makeQuote(overrides: Partial<QuoteResponse> = {}): QuoteResponse {
+  return {
+    symbol: "005930",
+    company_name: "Samsung Electronics",
+    price: 70000,
+    change: 500,
+    change_pct: 0.72,
+    volume: 1250000,
+    turnover: 87500000000,
+    market_state: "OPEN",
+    source: "kis_live",
+    fallback: false,
+    is_live: true,
+    available: true,
+    trade_date: "2026-04-10",
+    ...overrides,
+  };
+}
+
+test("stops quote polling only when market and quote resolve to closed-session states", () => {
+  assert.equal(isClosedSessionMarketState("closed"), true);
+  assert.equal(isClosedSessionMarketState("WEEKEND"), true);
+  assert.equal(getMarketOpenState({ state: "WEEKEND" }), false);
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "PREOPEN", is_open: false },
+      makeQuote({ market_state: "CLOSED", is_live: false }),
+    ),
+    false,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "POSTCLOSE", is_open: false },
+      makeQuote({ market_state: "CLOSED", is_live: false }),
+    ),
+    false,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "WEEKEND", is_open: false },
+      makeQuote({ market_state: "WEEKEND", is_live: false }),
+    ),
+    true,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "CLOSED", is_open: false },
+      makeQuote({ market_state: "CLOSED", is_live: false }),
+    ),
+    true,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "OPEN", is_open: true },
+      makeQuote({ market_state: "CLOSED", is_live: false }),
+    ),
+    false,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "WEEKEND", is_open: false },
+      makeQuote({ market_state: "OPEN" }),
+    ),
+    false,
+  );
+});
 
 test("keeps action-summary fallback labels stable when no summary is available", () => {
   const copy = getSymbolDetailCopy("en");

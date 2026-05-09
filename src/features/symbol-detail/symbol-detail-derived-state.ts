@@ -1107,14 +1107,26 @@ function normalizeMarketCode(value: string | null | undefined) {
   return value.trim().toUpperCase();
 }
 
+export function isClosedSessionMarketState(value: string | null | undefined) {
+  const state = normalizeMarketCode(value);
+  return state === "CLOSED" || state === "WEEKEND";
+}
+
 export function getMarketOpenState(marketStatus: MarketStatusResponse | null) {
   if (!marketStatus) return null;
   if (typeof marketStatus.is_open === "boolean") return marketStatus.is_open;
 
   const state = normalizeMarketCode(marketStatus.state);
   if (state === "OPEN") return true;
-  if (state === "CLOSED") return false;
+  if (isClosedSessionMarketState(state)) return false;
   return null;
+}
+
+export function shouldStopQuotePollingForClosedSession(
+  marketStatus: MarketStatusResponse | null,
+  quote: QuoteResponse | null,
+) {
+  return isClosedSessionMarketState(marketStatus?.state) && isClosedSessionMarketState(quote?.market_state);
 }
 
 export function resolveMarketStateValue(value: string | null | undefined, copy: SymbolDetailCopy) {

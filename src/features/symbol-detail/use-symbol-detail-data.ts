@@ -45,6 +45,7 @@ import {
   pickSelectedBarTradeDate,
   readRouteParam,
   resolveMarketStateValue,
+  shouldStopQuotePollingForClosedSession,
   buildPercentChange,
   buildPriceHistoryRangeMetrics,
 } from "./symbol-detail-derived-state";
@@ -182,7 +183,7 @@ export function useSymbolDetailData({
   const marketStatus = quoteBundleResult.data?.marketStatus ?? null;
   const loading = symbolReady ? quoteBundleResult.isInitialLoading : true;
   const quoteError = quoteBundleResult.error && !quote ? copy.errors.quoteUnavailable : null;
-  const quotePollingStopped = marketStatus?.state === "CLOSED" && quote?.market_state === "CLOSED";
+  const quotePollingStopped = shouldStopQuotePollingForClosedSession(marketStatus, quote);
   const refetchQuoteBundle = quoteBundleResult.refetch;
 
   const marketDate = useMemo(() => {

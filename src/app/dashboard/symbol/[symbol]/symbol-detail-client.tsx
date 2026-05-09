@@ -291,7 +291,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               </span>
             ))}
             <span className={`pill ${quotePollingStopped ? "info" : "warning"}`}>
-              {quotePollingStopped ? copy.hero.pollingStopped : copy.hero.pollingActive}
+              {quotePollingStopped ? copy.hero.closedSession : copy.hero.pollingActive}
             </span>
           </div>
 
