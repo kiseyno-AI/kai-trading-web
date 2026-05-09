@@ -51,6 +51,45 @@
   line-height: 1.6;
 }
 
+.contextNav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.contextBreadcrumb {
+  min-width: 0;
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.contextReturnLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.2rem;
+  padding: 0 0.75rem;
+  border: 1px solid rgba(134, 162, 194, 0.24);
+  border-radius: 0.45rem;
+  background: rgba(3, 7, 13, 0.54);
+  color: var(--text-strong);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-decoration: none;
+}
+
+.contextReturnLink:hover,
+.contextReturnLink:focus-visible {
+  border-color: rgba(88, 139, 255, 0.42);
+  background: rgba(0, 82, 255, 0.18);
+}
+
 .panel {
   display: flex;
   flex-direction: column;

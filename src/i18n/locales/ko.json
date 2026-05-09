@@ -470,6 +470,11 @@
     "chrome": {
       "marketDatePending": "MD 대기"
     },
+    "calendarContext": {
+      "label": "캘린더 피드백 컨텍스트",
+      "breadcrumb": "캘린더 / {marketDate} / 피드백",
+      "backToCalendar": "캘린더로 돌아가기"
+    },
     "tabs": {
       "label": "디사이더 피드백 탭",
       "signalDecider": "시그널 디사이더",

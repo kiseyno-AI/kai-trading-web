@@ -470,6 +470,11 @@
     "chrome": {
       "marketDatePending": "MD pending"
     },
+    "calendarContext": {
+      "label": "Calendar feedback context",
+      "breadcrumb": "Calendar / {marketDate} / Feedback",
+      "backToCalendar": "Back to calendar"
+    },
     "tabs": {
       "label": "Decider feedback tabs",
       "signalDecider": "Signal Decider",

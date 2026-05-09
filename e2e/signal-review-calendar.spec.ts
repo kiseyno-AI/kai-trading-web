@@ -1297,8 +1297,15 @@ test("calendar opens the feedback table in Korean locale", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
 
   await page.getByRole("link", { name: /피드백 표 열기/i }).click();
-  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27&navContext=calendar$/);
   await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+  await expect(
+    page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-04-27 / 피드백"),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "캘린더로 돌아가기" })).toHaveAttribute(
+    "href",
+    "/calendar?date=2026-04-27",
+  );
   await expect(page.getByText("액션 믹스")).toBeVisible();
   await expect(page.getByRole("form", { name: "디사이더 피드백 필터" }).getByText("검색")).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Signal-decider feedback");

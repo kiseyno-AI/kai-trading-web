@@ -1,5 +1,6 @@
 import {
   SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
@@ -505,6 +506,7 @@ export function buildSymbolRouteQuery(
   feedbackSortMode: string | null = null,
   feedbackAgent: string | null = null,
   feedbackStatusFilter: string | null = null,
+  feedbackNavContext: string | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -556,6 +558,10 @@ export function buildSymbolRouteQuery(
 
   if (feedbackSortMode) {
     params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, feedbackSortMode);
+  }
+
+  if (feedbackNavContext) {
+    params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM, feedbackNavContext);
   }
 
   return params.toString();
