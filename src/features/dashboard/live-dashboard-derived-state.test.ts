@@ -59,6 +59,7 @@ import {
   resolveFundamentalsPollingPresentation,
   shouldRevalidateFilteringFallback,
   shouldShowAgentRoleProgress,
+  shouldShowSignalDeciderCurrentCycleContext,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
 
@@ -526,6 +527,41 @@ test("keeps stale fundamentals coverage in break-day state when the market is cl
   assert.equal(
     getFundamentalsStageStatusLabel(buildStage("ready"), "2026-04-21", "2026-04-18", true),
     "break day",
+  );
+});
+
+test("hides signal-decider current-cycle context on break days", () => {
+  assert.equal(
+    shouldShowSignalDeciderCurrentCycleContext({
+      currentMarketDate: "2026-05-09",
+      isBreakDay: true,
+      isLatestCompletedFallback: true,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowSignalDeciderCurrentCycleContext({
+      currentMarketDate: "2026-05-09",
+      isBreakDay: false,
+      isLatestCompletedFallback: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowSignalDeciderCurrentCycleContext({
+      currentMarketDate: null,
+      isBreakDay: false,
+      isLatestCompletedFallback: true,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowSignalDeciderCurrentCycleContext({
+      currentMarketDate: "2026-05-09",
+      isBreakDay: false,
+      isLatestCompletedFallback: false,
+    }),
+    false,
   );
 });
 

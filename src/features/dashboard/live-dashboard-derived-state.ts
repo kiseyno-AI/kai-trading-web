@@ -2762,6 +2762,18 @@ export function isBreakDayMarket(market: CoreMarketStatus) {
   return canUseWeekendFallback && isWeekendIsoDate(market.server_time ?? market.as_of);
 }
 
+export function shouldShowSignalDeciderCurrentCycleContext({
+  currentMarketDate,
+  isBreakDay,
+  isLatestCompletedFallback,
+}: {
+  currentMarketDate: string | null | undefined;
+  isBreakDay: boolean;
+  isLatestCompletedFallback: boolean;
+}) {
+  return isLatestCompletedFallback && !isBreakDay && hasTextValue(currentMarketDate);
+}
+
 function getTodayPriceFreshnessStage(freshness: EodFreshnessResponseDto | null): EodFreshnessStageDto | null {
   if (freshness?.today?.price) return freshness.today.price;
 
