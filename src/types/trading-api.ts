@@ -702,7 +702,7 @@ export type SymbolPriceBarDto = {
   low_price: number;
   close_price: number;
   volume: number;
-  turnover: number;
+  turnover: number | null;
   source: string;
   captured_at: string | null;
 };

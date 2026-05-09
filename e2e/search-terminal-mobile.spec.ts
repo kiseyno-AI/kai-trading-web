@@ -710,7 +710,7 @@ test.describe("search terminal mobile", () => {
     await expect(trendingSection.locator("[aria-busy=\"true\"]")).toHaveCount(0);
   });
 
-  test("opens the candlestick detail page from the Q1 autocomplete without rendering quote prices in the list", async ({ page }) => {
+  test("opens the candlestick detail page from the Q1 autocomplete and flags zero-sentinel turnover", async ({ page }) => {
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       await route.fulfill({
         json: {
@@ -766,7 +766,7 @@ test.describe("search terminal mobile", () => {
               low_price: 70800,
               close_price: 71500,
               volume: 1250000,
-              turnover: 89375000000,
+              turnover: 0,
               source: "test",
               captured_at: "2026-04-14T16:00:00+09:00",
             },
@@ -812,6 +812,9 @@ test.describe("search terminal mobile", () => {
 
     await expect(page.getByRole("heading", { name: /Swipe-aware candlestick chart/i })).toBeVisible();
     await expect(page.getByRole("img", { name: /Historical candlestick chart for 005930/i })).toBeVisible();
+    const volumeFocusCard = page.locator("#chart article").filter({ hasText: "Volume" }).first();
+    await expect(volumeFocusCard).toContainText("Turnover Check needed");
+    await expect(volumeFocusCard).not.toContainText("Turnover ₩0");
   });
 
   test("keeps the favorite dialog overlay above the mobile bottom nav", async ({ page }) => {

@@ -79,7 +79,7 @@ This document defines the first practical frontend contract for wiring `trading-
 - `/dashboard/symbol/[symbol]` now mixes:
   - `GET /quotes/{symbol}` for the live price, volume, turnover, and quote provenance
   - `GET /market/status` only as the polling stop gate for the symbol quote loop
-  - `GET /symbols/{symbol}/price-bars` for the mobile candlestick chart
+  - `GET /symbols/{symbol}/price-bars` for the mobile candlestick chart; the UI treats missing or zero-sentinel candle turnover as confirmation-needed when the same bar has nonzero volume
   - `GET /eod/momentum-factors?market_date=YYYY-MM-DD&symbols={symbol}&limit=1` for the symbol-level factor snapshot momentum card
   - `GET /eod/low-risk-factors?market_date=YYYY-MM-DD&symbol={symbol}` for the symbol-level factor snapshot low-risk card
   - `GET /eod/beta-factors?market_date=YYYY-MM-DD&symbol={symbol}` for the symbol-level factor snapshot beta card

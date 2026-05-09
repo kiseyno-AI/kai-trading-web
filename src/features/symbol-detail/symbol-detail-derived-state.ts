@@ -9,7 +9,7 @@ import {
   type SymbolDetailNavContext,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
-import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
+import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
   getPresenterAvailabilityTone,
   getPresenterFreshnessTone,
@@ -291,6 +291,25 @@ export function formatCompactNumber(
 
 export function formatQuantity(value: number | null | undefined, fallback = "Unavailable", numberLocale = "en-US") {
   return hasNumber(value) ? value.toLocaleString(numberLocale) : fallback;
+}
+
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+export function buildFocusTurnoverValue(
+  focusBar:
+    | (Pick<SymbolPriceBarDto, "turnover"> & {
+        volume?: number | null;
+      })
+    | null,
+  copy: SymbolDetailCopy,
+) {
+  if (!focusBar) return copy.common.unavailable;
+  const { turnover, volume } = focusBar;
+  if (!isFiniteNumber(turnover) || turnover < 0) return copy.chart.turnoverCheckNeeded;
+  if (turnover > 0) return formatTurnover(turnover, "₩", copy.common.unavailable);
+  return volume === 0 ? formatTurnover(0, "₩", copy.common.unavailable) : copy.chart.turnoverCheckNeeded;
 }
 
 export function formatNumberOrDash(value: number | null | undefined, fallback = "Unavailable") {

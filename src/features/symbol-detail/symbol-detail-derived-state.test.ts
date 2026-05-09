@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
-import type { AgentContextActionSummaryDto } from "@/types/trading-api";
+import type { AgentContextActionSummaryDto, SymbolPriceBarDto } from "@/types/trading-api";
 import type { QuoteResponse } from "./symbol-detail-types";
 
 import {
   buildActionSummarySectionModel,
   buildActionFreshnessDate,
   buildDisclosureCoverageSectionModel,
+  buildFocusTurnoverValue,
   buildPercentChange,
   buildFreshnessTone,
   buildFundamentalsHistorySectionModel,
@@ -68,6 +69,21 @@ function makeQuote(overrides: Partial<QuoteResponse> = {}): QuoteResponse {
   };
 }
 
+function makePriceBar(overrides: Partial<SymbolPriceBarDto> = {}): SymbolPriceBarDto {
+  return {
+    trade_date: "2026-04-10",
+    open_price: 268000,
+    high_price: 269000,
+    low_price: 267000,
+    close_price: 268500,
+    volume: 25697000,
+    turnover: 6897645000000,
+    source: "test",
+    captured_at: "2026-04-10T16:00:00+09:00",
+    ...overrides,
+  };
+}
+
 test("stops quote polling only when market and quote resolve to closed-session states", () => {
   assert.equal(isClosedSessionMarketState("closed"), true);
   assert.equal(isClosedSessionMarketState("WEEKEND"), true);
@@ -114,6 +130,21 @@ test("stops quote polling only when market and quote resolve to closed-session s
     ),
     false,
   );
+});
+
+test("formats focus candle turnover only when the selected bar has confirmed turnover semantics", () => {
+  const enCopy = getSymbolDetailCopy("en");
+  const koCopy = getSymbolDetailCopy("ko");
+  const missingTurnoverBar = {
+    ...makePriceBar(),
+    turnover: undefined,
+  } as unknown as SymbolPriceBarDto;
+
+  assert.equal(buildFocusTurnoverValue(makePriceBar({ turnover: 89375000000 }), enCopy), "₩893.8억");
+  assert.equal(buildFocusTurnoverValue(makePriceBar({ turnover: 0 }), enCopy), enCopy.chart.turnoverCheckNeeded);
+  assert.equal(buildFocusTurnoverValue(missingTurnoverBar, koCopy), "확인 필요");
+  assert.equal(buildFocusTurnoverValue(makePriceBar({ turnover: null }), koCopy), "확인 필요");
+  assert.equal(buildFocusTurnoverValue(makePriceBar({ volume: 0, turnover: 0 }), enCopy), "₩0");
 });
 
 test("keeps action-summary fallback labels stable when no summary is available", () => {
