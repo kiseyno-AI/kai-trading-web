@@ -571,6 +571,7 @@ Rules:
 
 - historical chart, not fake realtime tape
 - symbol quote context may augment freshness but must not rewrite the bar history
+- missing or zero-sentinel turnover on a nonzero-volume candle must render as confirmation-needed, not as factual zero turnover
 
 #### C. Factor Snapshot
 

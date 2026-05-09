@@ -19,6 +19,7 @@ import {
   TechnicalAnalysisSection,
 } from "@/features/symbol-detail/symbol-detail-sections";
 import {
+  buildFocusTurnoverValue,
   formatCompactNumber,
   formatIsoDateLabel,
   formatSignedNumber,
@@ -28,7 +29,7 @@ import {
 import { PRICE_HISTORY_RANGES } from "@/features/symbol-detail/symbol-detail-types";
 import { useSymbolDetailData } from "@/features/symbol-detail/use-symbol-detail-data";
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
-import { formatPrice, formatTurnover } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
 
@@ -436,7 +437,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                   <span>{copy.chart.volume}</span>
                   <strong>{formatCompactNumber(focusBar?.volume, copy.common.unavailable, numberLocale)}</strong>
                   <p className="clamp-3">
-                    {focusBar ? `${copy.chart.turnover} ${formatTurnover(focusBar.turnover)}` : copy.chart.turnover}
+                    {focusBar ? `${copy.chart.turnover} ${buildFocusTurnoverValue(focusBar, copy)}` : copy.chart.turnover}
                   </p>
                 </article>
               </div>
