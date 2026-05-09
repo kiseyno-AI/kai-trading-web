@@ -56,6 +56,14 @@ type PriceHistoryRequestSnapshot = {
   limit: string | null;
 };
 
+type MockDetailModeSwitchOptions = {
+  marketDate?: string;
+  marketStatusIsOpen?: boolean;
+  marketStatusState?: string;
+  onQuoteRequest?: () => void;
+  quoteMarketState?: string;
+};
+
 async function mockSystemFreshnessApis(
   page: Page,
   options: {
@@ -245,8 +253,12 @@ async function mockDetailModeSwitchApis(
   page: Page,
   requestCounts: { priceHistory: number; technical: number; action: number; fundamentals: number },
   priceHistoryRequests: PriceHistoryRequestSnapshot[],
+  options: MockDetailModeSwitchOptions = {},
 ) {
-  const marketDate = "2026-04-10";
+  const marketDate = options.marketDate ?? "2026-04-10";
+  const marketStatusState = options.marketStatusState ?? "CLOSED";
+  const marketStatusIsOpen = options.marketStatusIsOpen ?? marketStatusState === "OPEN";
+  const quoteMarketState = options.quoteMarketState ?? "CLOSED";
   let aggregateRequestCount = 0;
 
   await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
@@ -277,6 +289,7 @@ async function mockDetailModeSwitchApis(
   });
 
   await page.route("**/api/trading/quotes/005930", async (route) => {
+    options.onQuoteRequest?.();
     await route.fulfill({
       json: {
         symbol: "005930",
@@ -286,10 +299,10 @@ async function mockDetailModeSwitchApis(
         change_pct: 0.72,
         volume: 1250000,
         turnover: 87500000000,
-        market_state: "CLOSED",
-        source: "daily_price_bar",
-        fallback: true,
-        is_live: false,
+        market_state: quoteMarketState,
+        source: quoteMarketState === "OPEN" ? "kis_live" : "daily_price_bar",
+        fallback: quoteMarketState !== "OPEN",
+        is_live: quoteMarketState === "OPEN",
         available: true,
         trade_date: marketDate,
       },
@@ -299,8 +312,8 @@ async function mockDetailModeSwitchApis(
   await page.route("**/api/trading/market/status", async (route) => {
     await route.fulfill({
       json: {
-        state: "CLOSED",
-        is_open: false,
+        state: marketStatusState,
+        is_open: marketStatusIsOpen,
         server_time: `${marketDate}T16:00:00+09:00`,
       },
     });
@@ -751,6 +764,45 @@ test.describe("symbol detail mobile pages", () => {
       documentOverflow: expect.any(Number),
     });
     expect(headerLayout.documentOverflow).toBeLessThanOrEqual(1);
+  });
+
+  test("weekend quote state shows closed session instead of active polling at 390px", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+    const marketDate = "2026-05-08";
+    let quoteRequestCount = 0;
+
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests, {
+      marketDate,
+      marketStatusIsOpen: false,
+      marketStatusState: "WEEKEND",
+      onQuoteRequest: () => {
+        quoteRequestCount += 1;
+      },
+      quoteMarketState: "WEEKEND",
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(
+      `/dashboard/symbol/005930?name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=${marketDate}&navContext=piotroski`,
+    );
+    await page.getByRole("button", { name: /Korean/i }).click();
+
+    const topbar = page.locator("header.topbar");
+    const hero = page.locator("#summary");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(topbar).toContainText("마켓 닫힘");
+    await expect(hero).toContainText("KOSPI: WEEKEND");
+    await expect(hero).toContainText("휴장 세션");
+    await expect(hero).not.toContainText("폴링 활성");
+    await expect.poll(() => quoteRequestCount).toBe(1);
+
+    await page.waitForTimeout(1_800);
+    expect(quoteRequestCount).toBe(1);
   });
 
   test("deep detail routes preserve their active mode and dedicated sections", async ({ page }) => {
