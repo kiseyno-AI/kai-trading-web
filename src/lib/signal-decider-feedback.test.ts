@@ -1762,6 +1762,85 @@ test("builds signal-decider feedback list payloads from dedicated review-date re
   assert.equal(feedbackResponse.items[0]?.agent.run_id, "run-2026-04-27-1");
 });
 
+test("preserves review-date company names from review, summary, and normalized feedback payloads", () => {
+  const reviewDateResponse = {
+    request: {
+      market_date: "2026-05-08",
+    },
+    summary: {
+      count: 3,
+      review_status_counts: {
+        reviewed: 3,
+      },
+    },
+    items: [
+      {
+        snapshot_id: "review-company-name",
+        symbol: "004150",
+        market_date: "2026-05-08",
+        run_id: "run-2026-05-08-1",
+        captured_at: "2026-05-08T07:45:00+00:00",
+        decision: {
+          role: "signal-decider",
+          symbol: "004150",
+          market_date: "2026-05-08",
+          preferred_action: "wait",
+        },
+        review: {
+          company_name: "한솔홀딩스",
+          review_conclusion: "Replay review is pending for the 5-day window.",
+        },
+      },
+      {
+        snapshot_id: "summary-company-name",
+        symbol: "012630",
+        market_date: "2026-05-08",
+        run_id: "run-2026-05-08-2",
+        captured_at: "2026-05-08T07:46:00+00:00",
+        decision: {
+          role: "signal-decider",
+          symbol: "012630",
+          market_date: "2026-05-08",
+          preferred_action: "wait",
+        },
+        summary: {
+          name_ko: "HDC",
+        },
+      },
+      {
+        snapshot_id: "normalized-company-name",
+        symbol: "000050",
+        market_date: "2026-05-08",
+        run_id: "run-2026-05-08-3",
+        captured_at: "2026-05-08T07:47:00+00:00",
+        decision: {
+          role: "signal-decider",
+          symbol: "000050",
+          market_date: "2026-05-08",
+          preferred_action: "wait",
+        },
+        normalized_feedback: {
+          role: "signal-decider",
+          symbol: "000050",
+          market_date: "2026-05-08",
+          preferred_action: "reject",
+          company_name: "경방",
+        },
+      },
+    ],
+  } satisfies SignalDeciderReviewDateResponse;
+
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: reviewDateResponse,
+  });
+  const items = normalizeSignalDeciderFeedbackItems(feedbackResponse);
+
+  assert.equal(items.find((item) => item.symbol === "004150")?.companyName, "한솔홀딩스");
+  assert.equal(items.find((item) => item.symbol === "012630")?.companyName, "HDC");
+  assert.equal(items.find((item) => item.symbol === "000050")?.companyName, "경방");
+  assert.equal(items.find((item) => item.symbol === "000050")?.action, "reject");
+});
+
 test("keeps review-date summary counts when response supplies a larger requested count", () => {
   const reviewDateResponse = {
     ...buildSignalDeciderReviewDateResponse("2026-04-27", { items: 1 }),

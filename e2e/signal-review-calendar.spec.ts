@@ -6,6 +6,7 @@ type SignalReviewCalendarMockOptions = {
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   identityFallbackDate?: string;
+  issue623Date?: string;
   mixedHorizonDate?: string;
   pendingRationaleDate?: string;
   pendingWaitDate?: string;
@@ -22,6 +23,16 @@ type SignalReviewCalendarRequestHits = {
   reviewDate: number;
 };
 
+type SignalReviewCalendarPayload = Record<string, unknown> & {
+  evaluation?: Record<string, unknown>;
+  next_day_open_action?: unknown;
+  preferred_action?: unknown;
+  quality_reason?: unknown;
+  quality_verdict?: unknown;
+  review_conclusion?: unknown;
+  target_stop_result?: unknown;
+};
+
 type SignalReviewCalendarFeedbackItem = {
   id: string | number;
   market_date: string;
@@ -31,8 +42,8 @@ type SignalReviewCalendarFeedbackItem = {
     run_id: string;
   };
   summary: Record<string, unknown>;
-  feedback: Record<string, unknown>;
-  normalized_feedback: null;
+  feedback: SignalReviewCalendarPayload;
+  normalized_feedback: SignalReviewCalendarPayload | null;
   details: Record<string, unknown> | null;
   context: Record<string, unknown> | null;
   received_at: string;
@@ -76,7 +87,10 @@ function listMonthDates(month: string) {
   return Array.from({ length: maxDay }, (_, index) => `${yearString}-${monthString}-${String(index + 1).padStart(2, "0")}`);
 }
 
-function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalendarMockOptions) {
+function buildMockFeedbackItemsForDate(
+  date: string,
+  options: SignalReviewCalendarMockOptions,
+): SignalReviewCalendarFeedbackItem[] {
   const denseFeedbackCount = options.denseFeedbackDates?.[date] ?? 0;
   if (denseFeedbackCount > 0) {
     const denseFeedbackAction = getDenseFeedbackAction(date, options);
@@ -313,6 +327,112 @@ function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalend
     ];
   }
 
+  if (options.issue623Date === date) {
+    return [
+      {
+        id: "issue-623-review-company",
+        market_date: date,
+        symbol: "004150",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "004150",
+          market_date: date,
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 6,
+          conviction_score_10: 5,
+          thesis_summary: "Wait row with company metadata supplied by the review payload.",
+        },
+        normalized_feedback: null,
+        details: {
+          company_name: "한솔홀딩스",
+          review_conclusion: "Replay review is pending for the 5-day window.",
+          horizon_evaluations: {
+            "5d": {
+              evaluation_status: "pending_evaluation_window",
+              evaluation_status_reason: "not_mature",
+              notes: "Replay review is pending for the 5-day window.",
+              trading_days_remaining: 2,
+            },
+          },
+        },
+        context: null,
+        received_at: `${date}T07:45:00+00:00`,
+      },
+      {
+        id: "issue-623-summary-company",
+        market_date: date,
+        symbol: "012630",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {
+          name_ko: "HDC",
+          horizon_evaluations: {
+            "1d": {
+              evaluation_status: "pending_evaluation_window",
+              evaluation_status_reason: "not_mature",
+              notes: "The 1-day replay window is not mature yet.",
+              trading_days_remaining: 1,
+            },
+          },
+        },
+        feedback: {
+          role: "signal-decider",
+          symbol: "012630",
+          market_date: date,
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 6,
+          conviction_score_10: 5,
+          thesis_summary: "Wait row with company metadata supplied by the summary payload.",
+        },
+        normalized_feedback: null,
+        details: null,
+        context: null,
+        received_at: `${date}T07:46:00+00:00`,
+      },
+      {
+        id: "issue-623-normalized-company",
+        market_date: date,
+        symbol: "000050",
+        agent: {
+          name: "signal-decider",
+          run_id: `feedback-cycle-${date}`,
+        },
+        summary: {},
+        feedback: {
+          role: "signal-decider",
+          symbol: "000050",
+          market_date: date,
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          confidence_score_10: 6,
+          conviction_score_10: 5,
+          thesis_summary: "Wait row with company metadata supplied by normalized feedback.",
+        },
+        normalized_feedback: {
+          role: "signal-decider",
+          symbol: "000050",
+          market_date: date,
+          preferred_action: "wait",
+          next_day_open_action: "wait",
+          company_name: "경방",
+          quality_reason: "Replay review is pending for the 5-day window.",
+        },
+        details: null,
+        context: null,
+        received_at: `${date}T07:47:00+00:00`,
+      },
+    ];
+  }
+
   if (options.identityFallbackDate === date) {
     return [
       {
@@ -520,7 +640,9 @@ function buildReviewDateResponse(marketDate: string, options: SignalReviewCalend
       run_id: item.agent.run_id,
       captured_at: item.received_at,
       decision: item.feedback,
+      normalized_feedback: item.normalized_feedback,
       review: item.details,
+      summary: item.summary,
       context: item.context,
     })),
   };
@@ -669,13 +791,16 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       options.pendingWaitDate === marketDate ||
       options.mixedHorizonDate === marketDate
         ? 1
-        : options.identityFallbackDate === marketDate
+        : options.identityFallbackDate === marketDate || options.issue623Date === marketDate
           ? 3
         : marketDate === "2026-04-27"
           ? 2
           : 0;
     const isCompletedReviewDate =
-      marketDate === "2026-04-27" || options.mixedHorizonDate === marketDate || options.identityFallbackDate === marketDate;
+      marketDate === "2026-04-27" ||
+      options.mixedHorizonDate === marketDate ||
+      options.identityFallbackDate === marketDate ||
+      options.issue623Date === marketDate;
 
     await route.fulfill({
       contentType: "application/json",
@@ -1322,6 +1447,36 @@ test("signal review calendar does not repeat symbols when company names are unav
   const symbolOnlyLink = page.getByRole("link", { name: /004150\s+Name unavailable/i });
   await expect(symbolOnlyLink).toHaveAttribute("href", /\/dashboard\/symbol\/004150\?marketDate=2026-05-07&navContext=calendar$/);
   await expect(symbolOnlyLink).not.toHaveAttribute("href", /name=/);
+});
+
+test("signal review calendar keeps review-date company names and Korean pending copy", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    issue623Date: "2026-05-08",
+  });
+
+  await page.goto("/calendar?date=2026-05-08");
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+  await page.getByRole("button", { name: /Korean/i }).click();
+
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /한솔홀딩스\s+004150/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /한솔홀딩스\s+004150/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /HDC\s+012630/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /HDC\s+012630/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /경방\s+000050/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /경방\s+000050/ })).toBeVisible();
+
+  await expect(page.getByRole("button", { name: /004150\s+종목명 미제공/ })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /004150\s+종목명 미제공/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /012630\s+종목명 미제공/ })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /012630\s+종목명 미제공/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /000050\s+종목명 미제공/ })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /000050\s+종목명 미제공/ })).toHaveCount(0);
+
+  await expect(page.locator("body")).not.toContainText("Replay review is pending for the 5-day window.");
+  await expect(page.locator("body")).not.toContainText("The 1-day replay window is not mature yet.");
+  await expect(page.getByText("리플레이 판정은 아직 저장되지 않았습니다.").first()).toBeVisible();
+  await expect(page.getByText(/1D 성숙 대기/).first()).toBeVisible();
 });
 
 test("signal review calendar uses compact calendar summary for month load", async ({ page }) => {

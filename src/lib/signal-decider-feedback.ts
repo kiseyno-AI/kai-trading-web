@@ -154,9 +154,19 @@ export type SignalDeciderReviewDateResponse = {
     run_id?: string | null;
     captured_at?: string | null;
     decision?: Record<string, unknown> | null;
+    feedback?: Record<string, unknown> | null;
+    normalized_feedback?: Record<string, unknown> | null;
     review?: Record<string, unknown> | null;
+    details?: Record<string, unknown> | null;
     summary?: Record<string, unknown> | null;
     context?: Record<string, unknown> | null;
+    company_name?: string | null;
+    companyName?: string | null;
+    name_ko?: string | null;
+    name?: string | null;
+    name_en?: string | null;
+    display_name?: string | null;
+    corp_name?: string | null;
   }>;
 };
 
@@ -505,6 +515,8 @@ function getStringValue(record: Record<string, unknown> | null | undefined, keys
   return null;
 }
 
+const COMPANY_NAME_KEYS = ["company_name", "companyName", "name_ko", "display_name", "name", "name_en", "corp_name"] as const;
+
 function toSafeInteger(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
   if (typeof value !== "string") return null;
@@ -575,11 +587,49 @@ function toReviewDatePayload(value: unknown): AgentFeedbackStoredPayloadDto | nu
 }
 
 function toReviewDateDecisionPayload(item: SignalDeciderReviewDateResponse["items"][number]) {
+  const itemRecord = item as Record<string, unknown>;
   const decision = toReviewDatePayload(item.decision);
   if (decision) return decision;
 
+  const feedback = toReviewDatePayload(itemRecord.feedback);
+  if (feedback) return feedback;
+
   const summary = toReviewDatePayload(item.summary);
   return summary ? { ...summary, symbol: item.symbol, market_date: item.market_date } : null;
+}
+
+function getReviewDateTopLevelSummary(item: SignalDeciderReviewDateResponse["items"][number]) {
+  const itemRecord = item as Record<string, unknown>;
+  const summary = toReviewDatePayload(item.summary);
+  const topLevelIdentity = COMPANY_NAME_KEYS.reduce<Record<string, unknown>>((identity, key) => {
+    if (key in itemRecord) identity[key] = itemRecord[key];
+    return identity;
+  }, {});
+
+  return {
+    count: 1,
+    ...(summary ?? {}),
+    ...topLevelIdentity,
+  };
+}
+
+function getReviewDateContextFromSource(
+  source: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  if (!source) return null;
+
+  const context = getRecordValue(source, ["context"]);
+  if (context) return getReviewDateContextFromSource(context) ?? context;
+
+  const symbolDayContext = getRecordValue(source, ["symbol_day_context", "symbolDayContext"]);
+  if (symbolDayContext) {
+    return "symbol_day_context" in source || "symbolDayContext" in source ? source : { symbol_day_context: symbolDayContext };
+  }
+
+  const company = getRecordValue(source, ["company"]);
+  if (company) return { symbol_day_context: source };
+
+  return null;
 }
 
 export function buildSignalDeciderFeedbackListFromReviewDateResponse({
@@ -596,14 +646,19 @@ export function buildSignalDeciderFeedbackListFromReviewDateResponse({
   const items = (response.items ?? []).map((item, index) => {
     const marketDate = normalizeMarketDate(item.market_date) ?? resolvedMarketDate;
     const symbol = hasTextValue(item.symbol) ? item.symbol : String(index + 1).padStart(6, "0");
+    const itemRecord = item as Record<string, unknown>;
     const decision = toReviewDateDecisionPayload(item);
     const summary = toReviewDatePayload(item.summary);
-    const itemContext = isRecord((item as Record<string, unknown>).context)
-      ? ((item as Record<string, unknown>).context as Record<string, unknown>)
-      : null;
-    const context = (itemContext ?? getRecordValue(summary, ["context", "symbol_day_context", "symbolDayContext"])) as
-      | Record<string, unknown>
-      | null;
+    const normalizedFeedback = toReviewDatePayload(itemRecord.normalized_feedback);
+    const review = toReviewDatePayload(item.review) ?? toReviewDatePayload(itemRecord.details);
+    const itemContext = isRecord(itemRecord.context) ? itemRecord.context : null;
+    const context =
+      getReviewDateContextFromSource(itemContext) ??
+      itemContext ??
+      getReviewDateContextFromSource(summary) ??
+      getReviewDateContextFromSource(decision) ??
+      getReviewDateContextFromSource(normalizedFeedback) ??
+      getReviewDateContextFromSource(review);
 
     return {
       id: String(item.snapshot_id ?? `${marketDate}-${symbol}-${index}`).replace(/\s+/g, "-"),
@@ -613,16 +668,14 @@ export function buildSignalDeciderFeedbackListFromReviewDateResponse({
         name: SIGNAL_DECIDER_AGENT_NAME,
         run_id: hasTextValue(item.run_id) ? item.run_id : undefined,
       },
-      summary: {
-        count: 1,
-      },
+      summary: getReviewDateTopLevelSummary(item),
       feedback: decision ?? {
         role: SIGNAL_DECIDER_AGENT_NAME,
         symbol,
         market_date: marketDate,
       },
-      normalized_feedback: null,
-      details: toReviewDatePayload(item.review),
+      normalized_feedback: normalizedFeedback,
+      details: review,
       context,
       received_at: hasTextValue(item.captured_at) ? item.captured_at : null,
     } satisfies AgentFeedbackStoredItemDto;
@@ -2335,13 +2388,13 @@ function getPayload(item: AgentFeedbackStoredItemDto): AgentFeedbackStoredPayloa
 }
 
 function getContextCompanyName(symbol: string, context: Record<string, unknown> | null | undefined) {
-  const symbolDayContext = getRecordValue(context, ["symbol_day_context", "symbolDayContext"]);
+  const symbolDayContext = getRecordValue(context, ["symbol_day_context", "symbolDayContext"]) ?? context;
   const company = getRecordValue(symbolDayContext, ["company"]);
 
   return getUsableCompanyName(
     symbol,
-    getStringValue(company, ["name_ko", "name", "company_name", "corp_name"]),
-    getStringValue(symbolDayContext, ["company_name", "companyName", "name_ko", "name"]),
+    getStringValue(company, [...COMPANY_NAME_KEYS]),
+    getStringValue(symbolDayContext, [...COMPANY_NAME_KEYS]),
   );
 }
 
@@ -2763,6 +2816,7 @@ export function normalizeDeciderFeedbackItems(
       const itemAgentName = resolveDeciderAgentName(item.agent.name ?? payload.agent_name ?? payload.role ?? resolvedAgentName);
       const { action, nextDayOpenAction, preferredAction } = resolveDecisionActions(payload);
       const context = isRecord(item.context) ? item.context : null;
+      const itemSummary = isRecord(item.summary) ? item.summary : null;
       const details = isRecord(payload.details) ? payload.details : null;
       const itemDetails = isRecord(item.details) ? item.details : null;
       const decisionSupport = getRecordValue(details, ["decision_support", "decisionSupport"]);
@@ -2771,7 +2825,7 @@ export function normalizeDeciderFeedbackItems(
         rawFeedback && rawFeedback !== payload && isRecord(rawFeedback.details) ? rawFeedback.details : null;
       const rawFeedbackDecisionSupport = getRecordValue(rawFeedbackDetails, ["decision_support", "decisionSupport"]);
       const payloadTraceability = isRecord(payload.traceability) ? payload.traceability : null;
-      const rootSources = [payload, details, decisionSupport, itemDetails];
+      const rootSources = [payload, itemSummary, details, decisionSupport, itemDetails];
       const rawFeedbackSources =
         rawFeedback && rawFeedback !== payload ? [rawFeedback, rawFeedbackDetails, rawFeedbackDecisionSupport] : [];
       const evaluationRecord = getFirstRecordFromSources(rootSources, [
@@ -2917,15 +2971,20 @@ export function normalizeDeciderFeedbackItems(
         "lineage",
       ]).flatMap(normalizeTraceEntries);
       const planSources = [payload, shortTermRecord, details, decisionSupport, itemDetails];
+      const companyNameCandidates = [
+        ...rootSources,
+        shortTermRecord,
+        evaluationRecord,
+        outcomeRecord,
+        ...rawFeedbackSources,
+        rawFeedbackEvaluationRecord,
+        rawFeedbackOutcomeRecord,
+      ].map((source) => getStringValue(source, [...COMPANY_NAME_KEYS]));
       return {
         id: String(item.id),
         agentName: itemAgentName,
         symbol,
-        companyName: getUsableCompanyName(
-          symbol,
-          getStringValue(payload, ["company_name", "companyName", "name_ko", "name"]),
-          getContextCompanyName(symbol, context),
-        ),
+        companyName: getUsableCompanyName(symbol, ...companyNameCandidates, getContextCompanyName(symbol, context)),
         marketDate,
         runId: item.agent.run_id ?? null,
         agentVersion: item.agent.version ?? null,
