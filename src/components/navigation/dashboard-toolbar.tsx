@@ -53,12 +53,15 @@ export function DashboardToolbar({
         {leading ? <div className={styles.leading}>{leading}</div> : null}
         <div className={styles.brandMark} aria-hidden="true" />
         <div className={styles.brandCopy}>
-          <strong className={styles.brandTitle}>{title ?? dashboardCopy.brandTitle}</strong>
+          <strong className={styles.brandTitle} data-dashboard-toolbar-title>
+            {title ?? dashboardCopy.brandTitle}
+          </strong>
           {resolvedSubtitle ? (
             <span
               className={styles.brandSubtitle}
               aria-label={subtitleAriaLabel ?? (isDefaultReleaseSubtitle ? t.mobileChrome.releaseVersion : undefined)}
               data-default-release={isDefaultReleaseSubtitle ? "true" : "false"}
+              data-dashboard-toolbar-subtitle
               data-testid={isDefaultReleaseSubtitle ? releaseTestId ?? undefined : undefined}
             >
               {resolvedSubtitle}

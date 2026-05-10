@@ -30,6 +30,7 @@ import styles from "./mobile-app-chrome.module.css";
 
 type MobileAppChromeStatus = {
   label: ReactNode;
+  priority?: "default" | "supplemental";
   tone?: DashboardToolbarStatusTone;
 };
 
@@ -100,7 +101,12 @@ export function MobileAppChrome({
   const toolbarTitle = chrome.title ?? resolvedMetadata?.title;
   const toolbarAction = chrome.toolbarAction ?? resolvedMetadata?.toolbarAction ?? "none";
   const toolbarStatus = chrome.status ? (
-    <DashboardToolbarStatus tone={chrome.status.tone}>{chrome.status.label}</DashboardToolbarStatus>
+    <DashboardToolbarStatus
+      className={chrome.status.priority === "supplemental" ? styles.toolbarSupplementalStatus : undefined}
+      tone={chrome.status.tone}
+    >
+      {chrome.status.label}
+    </DashboardToolbarStatus>
   ) : null;
   const toolbarActions = (
     <>

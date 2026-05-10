@@ -76,6 +76,10 @@
   flex: 0 0 auto;
 }
 
+.toolbarSupplementalStatus {
+  flex: 0 0 auto;
+}
+
 .main {
   position: relative;
   z-index: 1;
@@ -267,7 +271,6 @@
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.05;
-  text-transform: uppercase;
   white-space: nowrap;
   word-break: keep-all;
 }
@@ -279,6 +282,10 @@
 }
 
 @media (max-width: 380px) {
+  .toolbarSupplementalStatus {
+    display: none;
+  }
+
   .bottomNavFrame {
     padding-inline: 0.55rem;
   }
@@ -294,7 +301,7 @@
   }
 
   .navLabel {
-    font-size: 0.46rem;
+    font-size: 0.42rem;
   }
 }
 

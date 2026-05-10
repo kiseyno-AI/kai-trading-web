@@ -1204,6 +1204,56 @@ async function expectNarrowMobileLabelsContained(page: Page) {
   expect(overflowingLabels).toEqual([]);
 }
 
+async function expectMobileToolbarRouteContextContained(
+  page: Page,
+  {
+    subtitle,
+    title,
+  }: {
+    subtitle: string;
+    title: string;
+  },
+) {
+  const toolbar = page.locator("[data-dashboard-toolbar]").first();
+  await expect(toolbar.locator("[data-dashboard-toolbar-title]")).toHaveText(title);
+  await expect(toolbar.locator("[data-dashboard-toolbar-subtitle]")).toHaveText(subtitle);
+
+  const overflowingContext = await toolbar.evaluate((element) => {
+    const labels = Array.from(
+      element.querySelectorAll<HTMLElement>("[data-dashboard-toolbar-title], [data-dashboard-toolbar-subtitle]"),
+    );
+    const toolbarRect = element.getBoundingClientRect();
+
+    return labels.flatMap((label) => {
+      const style = window.getComputedStyle(label);
+      const rect = label.getBoundingClientRect();
+
+      if (style.display === "none" || style.visibility === "hidden" || rect.width === 0 || rect.height === 0) {
+        return [];
+      }
+
+      const clipsOwnText = label.scrollWidth > label.clientWidth + 1;
+      const crossesToolbar =
+        rect.left < toolbarRect.left - 0.75 ||
+        rect.right > toolbarRect.right + 0.75 ||
+        rect.top < toolbarRect.top - 0.75 ||
+        rect.bottom > toolbarRect.bottom + 0.75;
+
+      if (!clipsOwnText && !crossesToolbar) return [];
+
+      return [
+        {
+          clientWidth: label.clientWidth,
+          scrollWidth: label.scrollWidth,
+          text: label.innerText.trim().replace(/\s+/g, " "),
+        },
+      ];
+    });
+  });
+
+  expect(overflowingContext).toEqual([]);
+}
+
 test("signal review calendar shows date metadata, selected decisions, and symbol replay detail", async ({ page }) => {
   await mockSignalReviewCalendar(page);
 
@@ -1549,19 +1599,23 @@ test("signal review calendar keeps dashboard cached rows when the direct selecte
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
 });
 
-test("signal review calendar keeps narrow mobile cell and bottom-nav labels contained in English and Korean", async ({
+test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav labels contained in English and Korean", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 320, height: 760 });
+  await page.setViewportSize({ width: 320, height: 720 });
   await mockSignalReviewCalendar(page, {
     denseFeedbackDates: {
-      "2026-04-27": 105,
+      "2026-05-08": 105,
     },
   });
 
-  await page.goto("/calendar?date=2026-04-27");
+  await page.goto("/calendar?date=2026-05-08");
 
-  const selectedDateCell = page.locator('[data-calendar-cell="2026-04-27"]');
+  const selectedDateCell = page.locator('[data-calendar-cell="2026-05-08"]');
+  await expectMobileToolbarRouteContextContained(page, {
+    subtitle: "2026-05-08",
+    title: "Calendar",
+  });
   await expect(selectedDateCell).toBeVisible();
   await expect(selectedDateCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]')).toBeVisible();
   await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("105");
@@ -1596,6 +1650,11 @@ test("signal review calendar keeps narrow mobile cell and bottom-nav labels cont
 
   await page.getByRole("button", { name: "Korean" }).click();
   await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+  await expectMobileToolbarRouteContextContained(page, {
+    subtitle: "2026-05-08",
+    title: "캘린더",
+  });
+  await expect(page.getByRole("button", { name: /English|영어/ })).toBeVisible();
   await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("105");
   await expectNarrowMobileLabelsContained(page);
 });
