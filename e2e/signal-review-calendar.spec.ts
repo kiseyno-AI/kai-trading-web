@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type SignalReviewCalendarMockOptions = {
+  denseFeedbackActions?: Partial<Record<string, "buy" | "wait" | "reject" | "unknown">>;
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
@@ -46,6 +47,10 @@ function parseActionPreference(value: unknown) {
   return "unknown";
 }
 
+function getDenseFeedbackAction(date: string, options: SignalReviewCalendarMockOptions) {
+  return options.denseFeedbackActions?.[date] ?? "buy";
+}
+
 function hasReviewEvidence(item: SignalReviewCalendarFeedbackItem) {
   const feedback = item.feedback;
   return (
@@ -74,6 +79,7 @@ function listMonthDates(month: string) {
 function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalendarMockOptions) {
   const denseFeedbackCount = options.denseFeedbackDates?.[date] ?? 0;
   if (denseFeedbackCount > 0) {
+    const denseFeedbackAction = getDenseFeedbackAction(date, options);
     return Array.from({ length: denseFeedbackCount }, (_, index) => ({
       id: `dense-${date}-${index}`,
       market_date: date,
@@ -87,8 +93,8 @@ function buildMockFeedbackItemsForDate(date: string, options: SignalReviewCalend
         role: "signal-decider",
         symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
         market_date: date,
-        preferred_action: "buy",
-        next_day_open_action: "buy",
+        preferred_action: denseFeedbackAction,
+        next_day_open_action: denseFeedbackAction,
         confidence_score_10: 8,
         conviction_score_10: 7,
         thesis_summary: "Dense mobile calendar regression row.",
@@ -734,6 +740,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       return;
     }
     const denseFeedbackCount = options.denseFeedbackDates?.[marketDate] ?? 0;
+    const denseFeedbackAction = getDenseFeedbackAction(marketDate, options);
     const items =
       denseFeedbackCount > 0
         ? Array.from({ length: denseFeedbackCount }, (_, index) => ({
@@ -749,8 +756,8 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
               role: "signal-decider",
               symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
               market_date: marketDate,
-              preferred_action: "buy",
-              next_day_open_action: "buy",
+              preferred_action: denseFeedbackAction,
+              next_day_open_action: denseFeedbackAction,
               confidence_score_10: 8,
               conviction_score_10: 7,
               thesis_summary: "Dense mobile calendar regression row.",
@@ -1604,8 +1611,17 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
 }) => {
   await page.setViewportSize({ width: 320, height: 720 });
   await mockSignalReviewCalendar(page, {
+    denseFeedbackActions: {
+      "2026-05-04": "wait",
+      "2026-05-06": "wait",
+      "2026-05-07": "wait",
+      "2026-05-08": "wait",
+    },
     denseFeedbackDates: {
-      "2026-05-08": 105,
+      "2026-05-04": 85,
+      "2026-05-06": 76,
+      "2026-05-07": 90,
+      "2026-05-08": 111,
     },
   });
 
@@ -1618,8 +1634,8 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   });
   await expect(selectedDateCell).toBeVisible();
   await expect(selectedDateCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]')).toBeVisible();
-  await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("105");
-  await expect(selectedDateCell.locator('[data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]')).toHaveText("B+");
+  await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("111");
+  await expect(selectedDateCell.locator('[data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]')).toHaveText("W");
 
   const navLabels = page.locator("[data-mobile-nav-label]");
   await expect(navLabels).toHaveCount(6);
@@ -1655,7 +1671,32 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
     title: "캘린더",
   });
   await expect(page.getByRole("button", { name: /English|영어/ })).toBeVisible();
-  await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("105");
+  await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("111");
+  await expect(
+    page.locator('[data-calendar-cell="2026-05-04"] [data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("85");
+  await expect(
+    page.locator('[data-calendar-cell="2026-05-04"] [data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("대기");
+  await expect(
+    page.locator('[data-calendar-cell="2026-05-06"] [data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("76");
+  await expect(
+    page.locator('[data-calendar-cell="2026-05-06"] [data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("대기");
+  await expect(
+    page.locator('[data-calendar-cell="2026-05-07"] [data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("90");
+  await expect(
+    page.locator('[data-calendar-cell="2026-05-07"] [data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("대기");
+  await expect(
+    selectedDateCell.locator('[data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]'),
+  ).toHaveText("대기");
+  const compactCalendarLabels = await page.locator('[data-calendar-label-variant="compact"]').evaluateAll((labels) =>
+    labels.map((label) => label.textContent?.trim() ?? ""),
+  );
+  expect(compactCalendarLabels.some((label) => ["대85", "대76", "대90", "대+"].includes(label))).toBe(false);
   await expectNarrowMobileLabelsContained(page);
 });
 

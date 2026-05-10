@@ -114,21 +114,17 @@ const COMPACT_STATUS_LABELS = {
 const COMPACT_ACTION_LABELS = {
   en: {
     buy: "B",
-    avoid_chase: "AC",
     reject: "R",
-    watch_for_trigger: "WT",
     unknown: "?",
     wait: "W",
   },
   ko: {
-    buy: "매",
-    avoid_chase: "추",
-    reject: "제",
-    watch_for_trigger: "트",
-    unknown: "?",
-    wait: "대",
+    buy: "매수",
+    reject: "제외",
+    unknown: "확인",
+    wait: "대기",
   },
-} as const satisfies Record<Locale, Record<SignalDeciderAction, string>>;
+} as const satisfies Record<Locale, Record<(typeof ACTION_KEYS)[number], string>>;
 
 function hasTextValue(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -469,21 +465,21 @@ function formatCompactCalendarNumber(value: number) {
   return value.toLocaleString("en-US");
 }
 
-function formatCompactActionCount(value: number) {
-  if (value > 99) return "+";
-  return formatCompactCalendarNumber(value);
-}
-
 function getCompactStatusLabel(status: DateSnapshotStatus | SignalDeciderFeedbackStatus, locale: Locale) {
   return COMPACT_STATUS_LABELS[locale][status];
 }
 
 function getCompactActionMixLabel(actionCounts: Record<SignalDeciderAction, number>, locale: Locale) {
-  const labels = ACTION_KEYS.filter((action) => actionCounts[action] > 0)
-    .slice(0, 2)
-    .map((action) => `${COMPACT_ACTION_LABELS[locale][action]}${formatCompactActionCount(actionCounts[action])}`);
+  const visibleActions = ACTION_KEYS.filter((action) => actionCounts[action] > 0).sort((left, right) => {
+    const countDifference = actionCounts[right] - actionCounts[left];
+    return countDifference !== 0 ? countDifference : ACTION_KEYS.indexOf(left) - ACTION_KEYS.indexOf(right);
+  });
+  const primaryAction = visibleActions[0];
 
-  return labels.length > 0 ? labels.join("/") : getCompactStatusLabel("waiting", locale);
+  if (!primaryAction) return getCompactStatusLabel("waiting", locale);
+
+  const additionalActionsLabel = visibleActions.length > 1 ? " +" : "";
+  return `${COMPACT_ACTION_LABELS[locale][primaryAction]}${additionalActionsLabel}`;
 }
 
 function getStatusToneClass(status: DateSnapshotStatus | SignalDeciderFeedbackStatus) {
