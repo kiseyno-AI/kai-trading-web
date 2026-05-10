@@ -622,6 +622,44 @@ function getHorizonChipLabel(
   return copy.outcomes.unresolved;
 }
 
+function getLocalizedPendingReviewText(
+  value: string,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  const pendingHorizonMatch = /^(?:the\s+)?(\d+)[-\s]?day replay window is not mature yet\.?$/.exec(normalized);
+  if (pendingHorizonMatch?.[1]) {
+    return `${pendingHorizonMatch[1]}D ${copy.horizons.pendingMaturity}`;
+  }
+
+  if (
+    normalized === "pending maturity" ||
+    normalized === "pending_maturity" ||
+    normalized === "not mature" ||
+    normalized === "not_mature" ||
+    (normalized.includes("not mature") && normalized.includes("replay window"))
+  ) {
+    return copy.horizons.pendingMaturity;
+  }
+
+  if (
+    normalized === "replay review is pending" ||
+    normalized === "replay review is pending." ||
+    normalized.includes("replay review is pending for the")
+  ) {
+    return copy.states.replayVerdictUnavailable;
+  }
+
+  return value;
+}
+
+function getCalendarReviewText(
+  value: string | null | undefined,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  return hasTextValue(value) ? getLocalizedPendingReviewText(value, copy) : null;
+}
+
 function getHorizonOutcomeIcon(horizon: SignalDeciderHorizonEvaluation) {
   if (horizon.state === "pending") return "⏳";
   if (horizon.state === "insufficient") return "⚠️";
@@ -638,7 +676,7 @@ function getHorizonDetailLabel(
 ) {
   const realizedReturn = horizon.returnPct !== null ? formatSignedPercent(horizon.returnPct) : null;
   if (horizon.state === "computed") {
-    return realizedReturn !== UNKNOWN_LABEL ? realizedReturn : horizon.verdict ?? horizon.notes ?? null;
+    return realizedReturn !== UNKNOWN_LABEL ? realizedReturn : getCalendarReviewText(horizon.verdict ?? horizon.notes, copy);
   }
   if (horizon.state === "pending" && horizon.tradingDaysRemaining !== null) {
     return copy.horizons.daysRemaining.replaceAll(
@@ -646,7 +684,7 @@ function getHorizonDetailLabel(
       horizon.tradingDaysRemaining.toLocaleString("en-US"),
     );
   }
-  return horizon.notes;
+  return getCalendarReviewText(horizon.notes, copy);
 }
 
 function getHorizonProgressSummary(
@@ -689,9 +727,13 @@ function isPlainWaitPendingRow(item: SignalDeciderFeedbackItem) {
   return item.action === "wait" && item.pathOutcome === null && getStoredReviewSummary(item) === null;
 }
 
-function getDecisionRowDetailSummary(item: SignalDeciderFeedbackItem, status: SignalDeciderFeedbackStatus) {
+function getDecisionRowDetailSummary(
+  item: SignalDeciderFeedbackItem,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+  status: SignalDeciderFeedbackStatus,
+) {
   const summary = getStoredReviewSummary(item);
-  if (summary) return summary;
+  if (summary) return getCalendarReviewText(summary, copy);
   if (isPlainWaitPendingRow(item) && status !== "needs-review") return null;
   return UNKNOWN_LABEL;
 }
@@ -702,7 +744,7 @@ function getTableInsightSummary(
   status: SignalDeciderFeedbackStatus,
 ) {
   const summary = getStoredReviewSummary(item);
-  if (summary) return summary;
+  if (summary) return getCalendarReviewText(summary, copy);
   if (isPlainWaitPendingRow(item) && status !== "needs-review") return copy.status.pending;
   return UNKNOWN_LABEL;
 }
@@ -1380,7 +1422,7 @@ export default function SignalReviewCalendarPageClient() {
             ) : (
               <div className={styles.decisionList}>
                 {selectedSummary.items.map((item) => {
-                  const decisionRowDetail = getDecisionRowDetailSummary(item, selectedSummary.status);
+                  const decisionRowDetail = getDecisionRowDetailSummary(item, copy, selectedSummary.status);
                   const identity = getDecisionIdentity(item, copy);
                   return (
                     <button
@@ -1517,11 +1559,17 @@ function DetailPanel({
   status: SignalDeciderFeedbackSummaryModel;
 }) {
   const pathOutcome: SignalDeciderPathOutcome | null = item.pathOutcome;
-  const pathOutcomeDetail = pathOutcome?.detail ?? pathOutcome?.label ?? item.intradayPathResult ?? null;
+  const pathOutcomeDetail = getCalendarReviewText(
+    pathOutcome?.detail ?? pathOutcome?.label ?? item.intradayPathResult,
+    copy,
+  );
   const hasReplayVerdict = hasTextValue(item.reviewConclusion) || hasTextValue(item.qualityVerdict);
   const hasQualityReason = hasTextValue(item.qualityReason) && item.qualityReason !== item.reviewConclusion;
   const { diagnosticRiskTags, operatorRiskContext } = splitRiskFlags(item.riskFlags);
   const identity = getDecisionIdentity(item, copy);
+  const reviewConclusion = getCalendarReviewText(item.reviewConclusion, copy);
+  const qualityVerdict = getCalendarReviewText(item.qualityVerdict, copy);
+  const qualityReason = getCalendarReviewText(item.qualityReason, copy);
 
   return (
     <div className={styles.dialogBackdrop} onMouseDown={onClose}>
@@ -1616,9 +1664,9 @@ function DetailPanel({
               {hasReplayVerdict ? (
                 <>
                   <p className={styles.primaryDetailText}>
-                    {item.reviewConclusion ?? item.qualityVerdict ?? copy.status.pending}
+                    {reviewConclusion ?? qualityVerdict ?? copy.status.pending}
                   </p>
-                  {hasQualityReason ? <p>{item.qualityReason}</p> : null}
+                  {hasQualityReason ? <p>{qualityReason}</p> : null}
                 </>
               ) : (
                 <p className={styles.pendingDetailText}>{copy.states.replayVerdictUnavailable}</p>
@@ -1644,8 +1692,8 @@ function DetailPanel({
                         {[
                           getHorizonDetailLabel(horizon, copy),
                           horizon.realizedPrice !== null ? `₩${formatPrice(horizon.realizedPrice)}` : null,
-                          horizon.verdict,
-                          horizon.notes,
+                          getCalendarReviewText(horizon.verdict, copy),
+                          getCalendarReviewText(horizon.notes, copy),
                         ]
                           .filter((part): part is string => hasTextValue(part))
                           .filter((part, index, all) => all.indexOf(part) === index)
