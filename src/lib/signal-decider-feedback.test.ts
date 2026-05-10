@@ -1841,6 +1841,125 @@ test("preserves review-date company names from review, summary, and normalized f
   assert.equal(items.find((item) => item.symbol === "000050")?.action, "reject");
 });
 
+test("keeps review-date summary company names when top-level nullable names are present", () => {
+  const reviewDateResponse = {
+    request: {
+      market_date: "2026-05-08",
+    },
+    summary: {
+      count: 1,
+      review_status_counts: {
+        reviewed: 1,
+      },
+    },
+    items: [
+      {
+        snapshot_id: "summary-name-with-null-top-level-name",
+        symbol: "004150",
+        market_date: "2026-05-08",
+        run_id: "run-2026-05-08-1",
+        captured_at: "2026-05-08T07:45:00+00:00",
+        name_ko: null,
+        decision: {
+          role: "signal-decider",
+          symbol: "004150",
+          market_date: "2026-05-08",
+          preferred_action: "wait",
+        },
+        summary: {
+          name_ko: "한솔홀딩스",
+        },
+      },
+    ],
+  } satisfies SignalDeciderReviewDateResponse;
+
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: reviewDateResponse,
+  });
+  const items = normalizeSignalDeciderFeedbackItems(feedbackResponse);
+
+  assert.equal(items.find((item) => item.symbol === "004150")?.companyName, "한솔홀딩스");
+});
+
+test("uses usable top-level review-date company names when summary lacks one", () => {
+  const reviewDateResponse = {
+    request: {
+      market_date: "2026-05-08",
+    },
+    summary: {
+      count: 1,
+      review_status_counts: {
+        reviewed: 1,
+      },
+    },
+    items: [
+      {
+        snapshot_id: "top-level-name-with-empty-summary",
+        symbol: "012630",
+        market_date: "2026-05-08",
+        run_id: "run-2026-05-08-2",
+        captured_at: "2026-05-08T07:46:00+00:00",
+        name_ko: " HDC ",
+        decision: {
+          role: "signal-decider",
+          symbol: "012630",
+          market_date: "2026-05-08",
+          preferred_action: "wait",
+        },
+        summary: {},
+      },
+    ],
+  } satisfies SignalDeciderReviewDateResponse;
+
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: reviewDateResponse,
+  });
+  const items = normalizeSignalDeciderFeedbackItems(feedbackResponse);
+
+  assert.equal(items.find((item) => item.symbol === "012630")?.companyName, "HDC");
+});
+
+test("ignores blank and non-text top-level review-date names when summary has a company name", () => {
+  const reviewDateResponse = {
+    request: {
+      market_date: "2026-05-08",
+    },
+    summary: {
+      count: 1,
+      review_status_counts: {
+        reviewed: 1,
+      },
+    },
+    items: [
+      {
+        snapshot_id: "summary-name-with-blank-top-level-name",
+        symbol: "000050",
+        market_date: "2026-05-08",
+        run_id: "run-2026-05-08-3",
+        captured_at: "2026-05-08T07:47:00+00:00",
+        name_ko: "   ",
+        decision: {
+          role: "signal-decider",
+          symbol: "000050",
+          market_date: "2026-05-08",
+          preferred_action: "wait",
+        },
+        summary: {
+          name_ko: "경방",
+        },
+      },
+    ],
+  } satisfies SignalDeciderReviewDateResponse;
+  (reviewDateResponse.items[0] as Record<string, unknown>).display_name = 12345;
+
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: reviewDateResponse,
+  });
+  const items = normalizeSignalDeciderFeedbackItems(feedbackResponse);
+
+  assert.equal(items.find((item) => item.symbol === "000050")?.companyName, "경방");
+});
+
 test("keeps review-date summary counts when response supplies a larger requested count", () => {
   const reviewDateResponse = {
     ...buildSignalDeciderReviewDateResponse("2026-04-27", { items: 1 }),

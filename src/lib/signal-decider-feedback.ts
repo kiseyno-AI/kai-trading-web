@@ -601,8 +601,9 @@ function toReviewDateDecisionPayload(item: SignalDeciderReviewDateResponse["item
 function getReviewDateTopLevelSummary(item: SignalDeciderReviewDateResponse["items"][number]) {
   const itemRecord = item as Record<string, unknown>;
   const summary = toReviewDatePayload(item.summary);
-  const topLevelIdentity = COMPANY_NAME_KEYS.reduce<Record<string, unknown>>((identity, key) => {
-    if (key in itemRecord) identity[key] = itemRecord[key];
+  const topLevelIdentity = COMPANY_NAME_KEYS.reduce<Record<string, string>>((identity, key) => {
+    const value = itemRecord[key];
+    if (typeof value === "string" && hasTextValue(value)) identity[key] = value.trim();
     return identity;
   }, {});
 
