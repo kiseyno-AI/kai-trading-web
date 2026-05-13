@@ -1078,7 +1078,7 @@ function getFinalFilteredSymbolCount({
   agentFeedbackProgress: AgentFeedbackProgressResponseDto | null | undefined;
   marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
 }) {
-  return getAgentFeedbackTargetSymbolCount(agentFeedbackProgress) ?? marketRiskStatus?.summary.passed_count ?? null;
+  return marketRiskStatus?.summary.passed_count ?? getAgentFeedbackTargetSymbolCount(agentFeedbackProgress) ?? null;
 }
 
 function buildPiotroskiFilteringStageModel({
@@ -2533,11 +2533,19 @@ function buildStage(
 ): EodFreshnessStageDto | null {
   if (!hasTextValue(status)) return null;
 
+  const normalizedSucceeded = symbolsSucceeded ?? null;
+  const normalizedFailed = symbolsFailed ?? null;
+  const minimumTotal = normalizedSucceeded;
+  const normalizedTotal =
+    hasNumber(symbolsTotal) && (!hasNumber(minimumTotal) || symbolsTotal >= minimumTotal)
+      ? symbolsTotal
+      : (minimumTotal ?? symbolsTotal ?? null);
+
   return {
     status,
-    symbols_total: symbolsTotal ?? null,
-    symbols_succeeded: symbolsSucceeded ?? null,
-    symbols_failed: symbolsFailed ?? null,
+    symbols_total: normalizedTotal,
+    symbols_succeeded: normalizedSucceeded,
+    symbols_failed: normalizedFailed,
   };
 }
 
