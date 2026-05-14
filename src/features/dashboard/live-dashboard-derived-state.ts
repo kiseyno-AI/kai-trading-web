@@ -1078,7 +1078,11 @@ function getFinalFilteredSymbolCount({
   agentFeedbackProgress: AgentFeedbackProgressResponseDto | null | undefined;
   marketRiskStatus: EodMarketRiskFiltersResponseDto | null;
 }) {
-  return marketRiskStatus?.summary.passed_count ?? getAgentFeedbackTargetSymbolCount(agentFeedbackProgress) ?? null;
+  // The final feedback universe is the intersection of the pre-feedback filters,
+  // not the broad KIS market-risk pass count alone. Prefer the core feedback
+  // progress target when available; it is resolved with the same eligibility rule
+  // used by the feedback runner.
+  return getAgentFeedbackTargetSymbolCount(agentFeedbackProgress) ?? marketRiskStatus?.summary.passed_count ?? null;
 }
 
 function buildPiotroskiFilteringStageModel({

@@ -1625,7 +1625,7 @@ test("builds the Piotroski filtering card with the resolved latest-available not
   );
 });
 
-test("keeps the final filtering count tied to the market-risk filter instead of the broader agent target", () => {
+test("keeps the final filtering count tied to the feedback eligibility target instead of broad market-risk pass count", () => {
   const copy = getDashboardLiveCopy("en");
   const model = buildFilteringCardModel({
     agentFeedbackProgress: buildAgentFeedbackProgress({
@@ -1656,7 +1656,7 @@ test("keeps the final filtering count tied to the market-risk filter instead of 
     piotroskiStatusLoadState: "idle",
   });
 
-  assert.equal(model.finalFilteredCountLabel, "2,900");
+  assert.equal(model.finalFilteredCountLabel, "3");
 });
 
 test("builds a scoring card from non-agent pipeline scoring stages", () => {
