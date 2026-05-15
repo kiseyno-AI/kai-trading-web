@@ -14,6 +14,7 @@ import type {
   MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
+import type { DailyPipelineTimelineModel } from "@/lib/eod-pipeline-status";
 
 export type CoreMarketStatus = {
   market?: string | null;
@@ -241,6 +242,7 @@ export type ProcessMonitorModel = {
   patchDate: string | null;
   currentGroupLabel: string | null;
   currentStepLabel: string | null;
+  pipeline: DailyPipelineTimelineModel;
   groups: ProcessMonitorGroup[];
 };
 
