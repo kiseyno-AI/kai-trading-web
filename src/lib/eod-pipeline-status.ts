@@ -716,14 +716,35 @@ function getStageInspectLinks(definition: DailyPipelineStageDefinition, stage: E
   return links;
 }
 
-function getTimelineCurrentStage(stages: DailyPipelineStageModel[], hasLiveStatus: boolean) {
+function hasReportedStageEvidence(stage: DailyPipelineStageModel) {
+  return Boolean(
+    stage.sourceStatus ??
+    stage.startedAt ??
+    stage.updatedAt ??
+    stage.completedAt ??
+    stage.rowsPersisted ??
+    stage.expectedRows ??
+    stage.sourceRunIds.length,
+  );
+}
+
+function getTimelineCurrentStage(
+  stages: DailyPipelineStageModel[],
+  hasLiveStatus: boolean,
+  timelineStatus: DailyPipelineStageStatus,
+) {
   if (!hasLiveStatus) return null;
+  const reportedStages = stages.filter(hasReportedStageEvidence);
+  const pendingCurrentStage = timelineStatus === "running"
+    ? stages.find((stage) => stage.status === "pending")
+    : null;
+
   return (
-    stages.find((stage) => stage.status === "running") ??
-    stages.find((stage) => stage.status === "failed") ??
-    stages.find((stage) => stage.status === "blocked") ??
-    stages.find((stage) => stage.status === "partial") ??
-    stages.find((stage) => stage.status === "pending") ??
+    reportedStages.find((stage) => stage.status === "running") ??
+    reportedStages.find((stage) => stage.status === "failed") ??
+    reportedStages.find((stage) => stage.status === "blocked") ??
+    reportedStages.find((stage) => stage.status === "partial") ??
+    pendingCurrentStage ??
     null
   );
 }
@@ -833,7 +854,7 @@ export function buildDailyPipelineTimelineModel(
     progressPercent: totalCount > 0 ? clampPercent((completedCount / totalCount) * 100) : 0,
     completedCount,
     totalCount,
-    currentStage: getTimelineCurrentStage(stages, hasLiveStatus),
+    currentStage: getTimelineCurrentStage(stages, hasLiveStatus, status),
     hasLiveStatus,
     stages,
   };

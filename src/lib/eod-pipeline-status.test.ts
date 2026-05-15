@@ -150,6 +150,26 @@ test("maps interrupted run metadata to failed status and preserves the reason", 
   assert.deepEqual(stage?.sourceRunIds, [{ key: "feedback_run_id", value: "feedback-42" }]);
 });
 
+test("does not treat synthesized pending fallback stages as current when the pipeline is idle", () => {
+  const model = buildDailyPipelineTimelineModel(
+    buildPipelineStatus({
+      status: "completed",
+      stages: {
+        price_collection: buildStage("completed", {
+          processed: 2809,
+          total: 2809,
+          failed: 0,
+        }),
+      },
+    }),
+    "en-US",
+  );
+
+  assert.equal(model.status, "completed");
+  assert.equal(model.currentStage, null);
+  assert.equal(model.stages.find((stage) => stage.key === "master_refresh")?.status, "pending");
+});
+
 test("always returns the full canonical pipeline stage order", () => {
   const model = buildDailyPipelineTimelineModel(
     buildPipelineStatus({
