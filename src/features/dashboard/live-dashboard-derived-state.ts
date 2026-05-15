@@ -14,6 +14,7 @@ import {
   SHORT_TERM_DECIDER_AGENT_NAME,
   SIGNAL_DECIDER_AGENT_NAME,
 } from "@/lib/signal-decider-feedback";
+import { buildDailyPipelineTimelineModel } from "@/lib/eod-pipeline-status";
 import {
   getPresenterStageDisplayLabel,
   getPresenterStageTone,
@@ -2195,6 +2196,7 @@ export function buildProcessMonitorModel({
   filteringCardModel,
   numberLocale,
   patchDate = null,
+  pipelineStatus = null,
   scoringCardModel,
 }: {
   agentRoleCards: AgentRoleCard[];
@@ -2203,8 +2205,10 @@ export function buildProcessMonitorModel({
   filteringCardModel: FilteringCardModel;
   numberLocale: string;
   patchDate?: string | null;
+  pipelineStatus?: EodPipelineStatusResponseDto | null;
   scoringCardModel: ScoringCardModel;
 }): ProcessMonitorModel {
+  const pipeline = buildDailyPipelineTimelineModel(pipelineStatus, numberLocale);
   const groups = [
     buildProcessMonitorGroup(
       "patch",
@@ -2265,6 +2269,7 @@ export function buildProcessMonitorModel({
     patchDate: resolveNormalizedPresenterDate(patchDate),
     currentGroupLabel: currentGroup?.label ?? null,
     currentStepLabel: currentGroup?.currentStepLabel ?? null,
+    pipeline,
     groups,
   };
 }
@@ -2922,10 +2927,10 @@ export function getTechnicalFreshnessStage(
   const todayStage = freshness?.today?.technical_analysis ?? null;
   if (isRunningFreshnessStage(todayStage)) return todayStage;
   if (useTodayStage && todayStage) return todayStage;
+  if (isProblemFreshnessStage(todayStage)) return todayStage;
 
   const latestStage = getLatestTechnicalFreshnessStage(freshness);
   if (latestStage) return latestStage;
-  if (isProblemFreshnessStage(todayStage)) return todayStage;
 
   return todayStage;
 }
@@ -2951,10 +2956,10 @@ export function getActionFreshnessStage(
   const todayStage = freshness?.today?.action_summary ?? null;
   if (isRunningFreshnessStage(todayStage)) return todayStage;
   if (useTodayStage && todayStage) return todayStage;
+  if (isProblemFreshnessStage(todayStage)) return todayStage;
 
   const latestStage = getLatestActionFreshnessStage(freshness);
   if (latestStage) return latestStage;
-  if (isProblemFreshnessStage(todayStage)) return todayStage;
 
   return todayStage;
 }

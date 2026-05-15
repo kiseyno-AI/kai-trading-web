@@ -1045,28 +1045,81 @@ export type MarketSnapshotResponseDto = {
 };
 
 export type EodPipelineStageKey =
+  | "master_refresh"
+  | "pykrx_universe_refresh"
   | "price_collection"
+  | "pykrx_enrichment"
   | "technical_snapshots"
   | "action_summaries"
   | "trending_ranks"
   | "signal_features"
+  | "market_risk_filter"
   | "fundamentals_daily_refresh"
+  | "piotroski_filter"
+  | "momentum_factors"
+  | "value_factors"
+  | "low_risk_factors"
+  | "beta_factors"
+  | "advanced_value_factors"
   | "unified_value_factors"
   | "quality_factors"
-  | "momentum_factors"
+  | "composite_factors"
+  | "external_news_collect"
+  | "external_news_enrich"
+  | "agent_feedback_summaries"
+  | "signal_decider"
+  | "signal_decider_evaluations"
   | "unified_value_scoring"
   | "quality_scoring"
   | "momentum_scoring";
 
-export type EodPipelineStageDto = {
+export type EodPipelineStageDetailsDto = Record<string, unknown> & {
+  depends_on?: string[] | null;
+  dependencies?: string[] | null;
+  blocking_stages?: string[] | null;
+  blocking_dependencies?: string[] | null;
+  failed_blocking_stages?: string[] | null;
+  failed_blocking_dependencies?: string[] | null;
+  rows_persisted?: number | null;
+  expected_rows?: number | null;
+  expected_rows_source?: string | null;
+  progress_source?: string | null;
+  reason?: string | null;
+  message?: string | null;
+  error_message?: string | null;
+  failure_reason?: string | null;
+  skipped_reason?: string | null;
+  inspect_href?: string | null;
+  inspect_path?: string | null;
+};
+
+export type EodPipelineStageDto = Record<string, unknown> & {
+  task?: string | null;
+  label?: string | null;
   status: string | null;
+  source_status?: string | null;
   processed: number | null;
   total: number | null;
+  succeeded?: number | null;
   failed: number | null;
+  remaining?: number | null;
+  depends_on?: string[] | null;
+  dependencies?: string[] | null;
+  blocking_stages?: string[] | null;
+  blocking_dependencies?: string[] | null;
+  failed_blocking_stages?: string[] | null;
+  failed_blocking_dependencies?: string[] | null;
   current_step?: string | null;
   current_activity?: string | null;
   current_symbol?: string | null;
-  source_run_ids?: Record<string, unknown> | null;
+  current_period?: string | null;
+  started_at?: string | null;
+  updated_at?: string | null;
+  completed_at?: string | null;
+  eod_run_id?: string | number | null;
+  run_id?: string | number | null;
+  source_run_ids?: Record<string, unknown> | Array<string | number | Record<string, unknown>> | null;
+  details?: EodPipelineStageDetailsDto | null;
 };
 
 export type EodPipelineStatusResponseDto = {

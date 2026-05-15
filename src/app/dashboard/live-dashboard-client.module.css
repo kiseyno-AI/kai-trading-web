@@ -338,6 +338,245 @@
   line-height: 1.45;
 }
 
+.pipelineTimelinePanel {
+  display: grid;
+  gap: 0.78rem;
+  margin-top: 0.9rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(134, 162, 194, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(3, 7, 13, 0.58);
+}
+
+.pipelineTimelineHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.pipelineTimelineTitle {
+  margin: 0.18rem 0 0;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.pipelineTimelineCurrent {
+  margin: 0.24rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pipelineSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+  gap: 0.52rem;
+}
+
+.pipelineSummaryGrid > div {
+  min-width: 0;
+  padding: 0.58rem 0.62rem;
+  border: 1px solid rgba(134, 162, 194, 0.16);
+  border-radius: 0.45rem;
+  background: rgba(8, 17, 31, 0.74);
+}
+
+.pipelineSummaryGrid span,
+.pipelineStageMeta dt {
+  display: block;
+  color: var(--muted-soft);
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.pipelineSummaryGrid strong,
+.pipelineStageMeta dd {
+  margin: 0.18rem 0 0;
+  color: var(--text-strong);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.pipelineCurrentReason,
+.pipelineStageReason {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pipelineTimelineList {
+  display: grid;
+  gap: 0.52rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding-right: 0.12rem;
+  overscroll-behavior: contain;
+}
+
+.pipelineStageRow {
+  min-width: 0;
+  display: grid;
+  gap: 0.48rem;
+  padding: 0.66rem;
+  border: 1px solid rgba(134, 162, 194, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(8, 17, 31, 0.72);
+}
+
+.pipelineStageRow[data-pipeline-stage-status="completed"],
+.pipelineStageRow[data-pipeline-stage-status="skipped"] {
+  border-color: rgba(111, 251, 190, 0.24);
+}
+
+.pipelineStageRow[data-pipeline-stage-status="running"] {
+  border-color: rgba(74, 168, 255, 0.32);
+  background:
+    linear-gradient(180deg, rgba(74, 168, 255, 0.1), transparent 48%),
+    rgba(8, 17, 31, 0.78);
+}
+
+.pipelineStageRow[data-pipeline-stage-status="blocked"],
+.pipelineStageRow[data-pipeline-stage-status="failed"],
+.pipelineStageRow[data-pipeline-stage-status="partial"] {
+  border-color: rgba(227, 176, 74, 0.32);
+}
+
+.pipelineStageHeader {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.52rem;
+}
+
+.pipelineStageIndex {
+  width: 1.55rem;
+  min-height: 1.55rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(134, 162, 194, 0.22);
+  border-radius: 999px;
+  background: rgba(3, 7, 13, 0.78);
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pipelineStageTitleBlock {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.pipelineStageTitleBlock strong {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pipelineStageTitleBlock span {
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.66rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.pipelineStageHeader :global(.pill) {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipelineProgressTrack {
+  width: 100%;
+  height: 0.34rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(134, 162, 194, 0.22);
+}
+
+.pipelineProgressTrack i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.pipelineStageRow[data-pipeline-stage-status="completed"] .pipelineProgressTrack i,
+.pipelineStageRow[data-pipeline-stage-status="skipped"] .pipelineProgressTrack i {
+  background: var(--positive);
+}
+
+.pipelineStageRow[data-pipeline-stage-status="running"] .pipelineProgressTrack i {
+  background: linear-gradient(90deg, var(--blue), var(--accent), var(--blue));
+  background-size: 160% 100%;
+  animation: agentProgressFlow 1.4s linear infinite;
+}
+
+.pipelineStageRow[data-pipeline-stage-status="blocked"] .pipelineProgressTrack i,
+.pipelineStageRow[data-pipeline-stage-status="failed"] .pipelineProgressTrack i,
+.pipelineStageRow[data-pipeline-stage-status="partial"] .pipelineProgressTrack i {
+  background: var(--warning);
+}
+
+.pipelineStageMeta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.8rem), 1fr));
+  gap: 0.42rem;
+  margin: 0;
+}
+
+.pipelineStageMeta > div {
+  min-width: 0;
+}
+
+.pipelineInspectLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+}
+
+.pipelineInspectLinks a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  padding: 0.24rem 0.48rem;
+  border: 1px solid rgba(88, 139, 255, 0.24);
+  border-radius: 0.4rem;
+  background: rgba(0, 82, 255, 0.1);
+  color: var(--text-strong);
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.pipelineInspectLinks a:hover {
+  border-color: rgba(88, 139, 255, 0.42);
+  background: rgba(0, 82, 255, 0.18);
+}
+
 .processMonitorPatchDate {
   display: flex;
   align-items: center;
@@ -1565,6 +1804,7 @@
 
 .detailButton:focus-visible,
 .inlineToggleButton:focus-visible,
+.pipelineInspectLinks a:focus-visible,
 .processMonitorBar:focus-visible,
 .processMonitorDrawerCollapseButton:focus-visible,
 .dialogCloseButton:focus-visible,
