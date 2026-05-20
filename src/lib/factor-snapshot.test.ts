@@ -12,6 +12,8 @@ import {
   getMomentumFactorStatusDescriptor,
   getUnifiedValueStatusDescriptor,
   getValueFactorStatusDescriptor,
+  isLowRiskTradingValueUnavailable,
+  resolveLowRiskTradingValueStatus,
   hasUnifiedValueFields,
   pickFactorInspectItem,
   resolveUnifiedValueStatusCode,
@@ -251,4 +253,48 @@ test("factor status helpers preserve explainable family-specific states", () => 
     }),
     { code: "insufficient_components", tone: "warning" },
   );
+});
+
+test("low-risk trading value status is resolved from factor payload status aliases", () => {
+  const payload = {
+    avg_trading_value_20d: 0,
+    factor_payload: {
+      avg_trading_value_20d_status: "missing",
+      avg_trading_value_20d_source: "fallback",
+    },
+  };
+
+  assert.equal(resolveLowRiskTradingValueStatus(payload), "missing");
+  assert.equal(isLowRiskTradingValueUnavailable(payload), true);
+});
+
+test("low-risk trading value is considered available only when positive and status is not unavailable-like", () => {
+  const payload = {
+    avg_trading_value_20d: 325000000,
+    factor_payload: {
+      avg_trading_value_20d_status: "available",
+      avg_trading_value_20d_source: "confirmed",
+    },
+  };
+
+  assert.equal(resolveLowRiskTradingValueStatus(payload), "available");
+  assert.equal(isLowRiskTradingValueUnavailable(payload), false);
+});
+
+test("low-risk trading value unavailable states include estimated and needs-confirmation markers", () => {
+  const estimatedPayload = {
+    avg_trading_value_20d: 120000000,
+    factor_payload: {
+      avg_trading_value_20d_status: "estimated_from_partial",
+    },
+  };
+  const confirmPayload = {
+    avg_trading_value_20d: 120000000,
+    factor_payload: {
+      avg_trading_value_20d_status: "needs confirmation",
+    },
+  };
+
+  assert.equal(isLowRiskTradingValueUnavailable(estimatedPayload), true);
+  assert.equal(isLowRiskTradingValueUnavailable(confirmPayload), true);
 });

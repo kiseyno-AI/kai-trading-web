@@ -17,12 +17,13 @@ import {
   FACTOR_FAMILY_ORDER,
   getAdvancedValueFactorStatusDescriptor,
   getBetaFactorStatusDescriptor,
-  getFactorStatusLabel,
   getLowRiskFactorStatusDescriptor,
   getMomentumFactorStatusDescriptor,
   getUnifiedValueStatusDescriptor,
   getValueFactorStatusDescriptor,
   hasUnifiedValueFields,
+  isLowRiskTradingValueUnavailable,
+  resolveLowRiskTradingValueStatus,
   loadSymbolFactorSnapshot,
   resolveUnifiedValueStatusCode,
   type FactorFamilyId,
@@ -87,28 +88,14 @@ function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function humanizeToken(value: string | null | undefined, fallback = "Unavailable") {
+function humanizeToken(copy: SymbolDetailCopy, value: string | null | undefined, fallback = copy.common.unavailable) {
   if (!value) return fallback;
 
   const normalized = value.trim();
-  const knownLabels: Record<string, string> = {
-    available: "Available",
-    insufficient_components: "Insufficient components",
-    insufficient_fundamentals: "Insufficient fundamentals",
-    invalid_non_positive: "Earnings non-positive",
-    invalid_per: "PER excluded",
-    missing_depreciation_and_amortization: "Missing D&A",
-    missing_ebitda: "Missing EBITDA",
-    missing_enterprise_value: "Missing enterprise value",
-    missing_free_cash_flow: "Missing FCF",
-    missing_market_date_bar: "Missing market-date bar",
-    missing_metric: "Missing metric",
-    non_positive: "Non-positive",
-    scored: "Scored",
-  };
+  const knownLabels = copy.factors.metricStatusLabels;
 
   if (knownLabels[normalized]) {
-    return knownLabels[normalized];
+    return knownLabels[normalized] ?? fallback;
   }
 
   return normalized
@@ -203,6 +190,54 @@ function uniqueNotes(notes: Array<string | null | undefined>) {
   return Array.from(new Set(notes.filter((note): note is string => Boolean(note && note.trim().length > 0))));
 }
 
+function getLocalizedFactorStatusLabel(copy: SymbolDetailCopy, statusCode: string) {
+  const normalized = statusCode.trim();
+  const knownLabel = copy.factors.factorStatusLabels[normalized];
+
+  if (knownLabel) {
+    return knownLabel;
+  }
+
+  return normalized
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getFamilyTitle(copy: SymbolDetailCopy, family: FactorFamilyId) {
+  switch (family) {
+    case "momentum":
+      return copy.factors.momentumFamilyTitle;
+    case "lowRisk":
+      return copy.factors.lowRiskFamilyTitle;
+    case "beta":
+      return copy.factors.betaFamilyTitle;
+    case "value":
+      return copy.factors.valueFamilyTitleUnified;
+    case "advancedValue":
+      return copy.factors.advancedValueFamilyTitle;
+  }
+}
+
+function getFamilySubtitle(copy: SymbolDetailCopy, family: FactorFamilyId, usesUnifiedValue = false) {
+  switch (family) {
+    case "momentum":
+      return copy.factors.momentumFamilySubtitle;
+    case "lowRisk":
+      return copy.factors.lowRiskFamilySubtitle;
+    case "beta":
+      return copy.factors.betaFamilySubtitle;
+    case "value":
+      return usesUnifiedValue
+        ? copy.factors.valueFamilySubtitleUnified
+        : copy.factors.valueFamilySubtitleLegacy;
+    case "advancedValue":
+      return usesUnifiedValue
+        ? copy.factors.advancedValueFamilySubtitleUnified
+        : copy.factors.advancedValueFamilySubtitleLegacy;
+  }
+}
+
 function buildCardMeta(copy: SymbolDetailCopy, result: AnyFactorFamilyResult) {
   const dataDate = result.marketDate ?? result.requestedMarketDate;
   const featureVersion = result.featureVersion ?? copy.common.pending;
@@ -215,19 +250,18 @@ function buildCardMeta(copy: SymbolDetailCopy, result: AnyFactorFamilyResult) {
 }
 
 function buildUnavailableCardModel(copy: SymbolDetailCopy, result: AnyFactorFamilyResult): FactorCardModel {
-  const meta = FACTOR_FAMILY_META[result.family];
   const entries = result.summary?.entries ?? 0;
 
   return {
     family: result.family,
-    title: meta.title,
-    subtitle: meta.subtitle,
+    title: getFamilyTitle(copy, result.family),
+    subtitle: getFamilySubtitle(copy, result.family),
     status: result.ok ? { code: "missing_row", tone: "neutral" } : { code: "unavailable", tone: "warning" },
     body: result.ok
       ? copy.factors.missingBody
       : `${copy.factors.unavailableBody} ${result.error ?? copy.common.unavailable}.`,
     metrics: [
-      { label: "Entries", value: String(entries) },
+      { label: copy.factors.metricEntries, value: String(entries) },
       {
         label: copy.factors.requestedMarketDate,
         value: formatIsoDateLabel(result.requestedMarketDate, copy.common.datePending),
@@ -235,23 +269,23 @@ function buildUnavailableCardModel(copy: SymbolDetailCopy, result: AnyFactorFami
     ],
     quality: null,
     notes: uniqueNotes([
-      result.ok ? "Stored factor row not found for this symbol-date." : null,
-      !result.ok ? result.error : null,
+      result.ok ? copy.factors.missingRowNote : null,
+      !result.ok ? `${copy.factors.missingRowErrorPrefix} ${result.error ?? copy.common.unavailable}` : null,
     ]),
     meta: buildCardMeta(copy, result),
   };
 }
 
-function buildMomentumBody(status: FactorStatusDescriptor) {
+function buildMomentumBody(copy: SymbolDetailCopy, status: FactorStatusDescriptor) {
   switch (status.code) {
     case "eligible":
-      return "12-1 momentum passed the trend filters and the recent overheat guard.";
+      return copy.factors.momentumBodyEligible;
     case "overheated":
-      return "The trend was present, but the recent 5D move tripped the overheat filter.";
+      return copy.factors.momentumBodyOverheated;
     case "insufficient_history":
-      return "The stored bar history is too short for 12-1 momentum ranking.";
+      return copy.factors.momentumBodyInsufficientHistory;
     default:
-      return "Momentum row exists, but the trend confirmation filters did not all pass.";
+      return copy.factors.momentumBodyDefault;
   }
 }
 
@@ -268,49 +302,53 @@ function buildMomentumCardModel(
 
   return {
     family: result.family,
-    title: FACTOR_FAMILY_META[result.family].title,
-    subtitle: FACTOR_FAMILY_META[result.family].subtitle,
+    title: getFamilyTitle(copy, result.family),
+    subtitle: getFamilySubtitle(copy, result.family),
     status,
-    body: buildMomentumBody(status),
+    body: buildMomentumBody(copy, status),
     metrics: [
       {
-        label: "12-1 momentum",
+        label: copy.factors.metricMomentum12,
         value: formatDecimalPercent(item.momentum_12_1, copy.common.unavailable, { signed: true }),
         valueClassName: getValueToneClassName(item.momentum_12_1),
       },
-      { label: "Percentile", value: formatFactorScore(item.momentum_percentile, copy.common.unavailable) },
-      { label: "Rank", value: formatRank(item.momentum_rank, "Unranked") },
+      { label: copy.factors.metricPercentile, value: formatFactorScore(item.momentum_percentile, copy.common.unavailable) },
+      { label: copy.factors.metricRank, value: formatRank(item.momentum_rank, copy.factors.metricRankUnavailable) },
       {
-        label: "5D return",
+        label: copy.factors.metric5dReturn,
         value: formatDecimalPercent(item.return_5d, copy.common.unavailable, { signed: true }),
         valueClassName: getValueToneClassName(item.return_5d),
       },
     ],
     quality: null,
     notes: uniqueNotes([
-      item.has_sufficient_history ? "253-bar history ready" : insufficientHistoryReason ?? "History below 253 bars",
-      item.is_price_above_ma120 ? "Price above MA120" : "Price below MA120",
-      item.is_ma60_above_ma120 ? "MA60 above MA120" : "MA60 below MA120",
-      item.is_recent_overheated ? "Overheat guard tripped" : "Overheat guard clear",
+      item.has_sufficient_history
+        ? copy.factors.momentumNoteHistoryReady
+        : insufficientHistoryReason ?? copy.factors.momentumNoteHistoryMissing,
+      item.is_price_above_ma120 ? copy.factors.momentumNotePriceAboveMa : copy.factors.momentumNotePriceBelowMa,
+      item.is_ma60_above_ma120 ? copy.factors.momentumNoteMa60Above : copy.factors.momentumNoteMa60Below,
+      item.is_recent_overheated
+        ? copy.factors.momentumNoteOverheatTripped
+        : copy.factors.momentumNoteOverheatClear,
     ]),
     meta: buildCardMeta(copy, result),
   };
 }
 
-function buildLowRiskBody(status: FactorStatusDescriptor) {
+function buildLowRiskBody(copy: SymbolDetailCopy, status: FactorStatusDescriptor) {
   switch (status.code) {
     case "eligible":
-      return "Volatility, drawdown, and liquidity checks place the symbol inside the eligible low-risk bucket.";
+      return copy.factors.lowRiskBodyEligible;
     case "watchlist":
-      return "The symbol passed the liquidity gate but did not reach the eligible low-risk score.";
+      return copy.factors.lowRiskBodyWatchlist;
     case "liquidity_excluded":
-      return "Low-volatility signals were present, but the liquidity floor excluded the symbol.";
+      return copy.factors.lowRiskBodyLiquidityExcluded;
     case "insufficient_history":
-      return "The stored history is not deep enough to score this low-risk row completely.";
+      return copy.factors.lowRiskBodyInsufficientHistory;
     case "missing_market_date_bar":
-      return "No stored market-date bar was available for the requested date.";
+      return copy.factors.lowRiskBodyMissingBar;
     default:
-      return "The row is stored, but the low-risk score did not meet the classification thresholds.";
+      return copy.factors.lowRiskBodyDefault;
   }
 }
 
@@ -326,56 +364,64 @@ function buildLowRiskCardModel(
 
   return {
     family: result.family,
-    title: FACTOR_FAMILY_META[result.family].title,
-    subtitle: FACTOR_FAMILY_META[result.family].subtitle,
+    title: getFamilyTitle(copy, result.family),
+    subtitle: getFamilySubtitle(copy, result.family),
     status,
-    body: buildLowRiskBody(status),
+    body: buildLowRiskBody(copy, status),
     metrics: [
-      { label: "Low-risk score", value: formatFactorScore(item.low_risk_score, copy.common.unavailable) },
       {
-        label: "Liquidity percentile",
+        label: copy.factors.metricLowRiskScore,
+        value: formatFactorScore(item.low_risk_score, copy.common.unavailable),
+      },
+      {
+        label: copy.factors.metricLiquidityPercentile,
         value: formatFactorScore(item.liquidity_percentile, copy.common.unavailable),
       },
       {
-        label: "120D drawdown",
+        label: copy.factors.metricDrawdown120d,
         value: formatDecimalPercent(item.max_drawdown_120d, copy.common.unavailable, { signed: true }),
         valueClassName: getValueToneClassName(item.max_drawdown_120d),
       },
       {
-        label: "120D volatility",
+        label: copy.factors.metricVolatility120d,
         value: formatDecimalPercent(item.volatility_120d, copy.common.unavailable),
       },
       {
-        label: "20D trading value",
-        value: formatCompactNumber(item.avg_trading_value_20d, copy.common.unavailable, numberLocale),
+        label: copy.factors.metricTradingValue20d,
+        value: isLowRiskTradingValueUnavailable(item)
+          ? copy.factors.tradingValueUnavailable
+          : formatCompactNumber(item.avg_trading_value_20d, copy.common.unavailable, numberLocale),
       },
     ],
     quality: null,
     notes: uniqueNotes([
       item.passes_liquidity_floor === true
-        ? "Liquidity floor passed"
+        ? copy.factors.liquidityFloorPassed
         : item.passes_liquidity_floor === false
-          ? "Liquidity floor failed"
-          : "Liquidity floor pending",
-      `${item.history_days_available} history days`,
-      item.low_risk_classification ? humanizeToken(item.low_risk_classification) : null,
+          ? copy.factors.liquidityFloorFailed
+          : copy.factors.liquidityFloorPending,
+      `${item.history_days_available} ${copy.factors.metricHistoryDays}`,
+      item.low_risk_classification ? humanizeToken(copy, item.low_risk_classification) : null,
+      resolveLowRiskTradingValueStatus(item)
+        ? `${copy.factors.tradingValueStatusPrefix}: ${humanizeToken(copy, resolveLowRiskTradingValueStatus(item), copy.factors.unavailableValueStatus)}`
+        : null,
     ]),
     meta: buildCardMeta(copy, result),
   };
 }
 
-function buildBetaBody(status: FactorStatusDescriptor, benchmarkId: string | null) {
+function buildBetaBody(copy: SymbolDetailCopy, status: FactorStatusDescriptor, benchmarkId: string | null) {
   switch (status.code) {
     case "eligible":
-      return `Trailing beta sits inside the eligible low-beta band versus ${benchmarkId ?? "the configured benchmark"}.`;
+      return copy.factors.betaBodyEligible.replace("%benchmark%", benchmarkId ?? copy.factors.betaBenchmarkFallback);
     case "watchlist":
-      return `Beta is reasonable versus ${benchmarkId ?? "the configured benchmark"}, but the score stopped at watchlist.`;
+      return copy.factors.betaBodyWatchlist.replace("%benchmark%", benchmarkId ?? copy.factors.betaBenchmarkFallback);
     case "insufficient_history":
-      return "The shared return window is too short to score beta for this symbol-date.";
+      return copy.factors.betaBodyInsufficientHistory;
     case "missing_market_date_bar":
-      return "No stored market-date bar was available for the requested date.";
+      return copy.factors.betaBodyMissingBar;
     default:
-      return "The low-beta score did not reach the eligible or watchlist thresholds.";
+      return copy.factors.betaBodyDefault;
   }
 }
 
@@ -390,25 +436,25 @@ function buildBetaCardModel(
 
   return {
     family: result.family,
-    title: FACTOR_FAMILY_META[result.family].title,
-    subtitle: FACTOR_FAMILY_META[result.family].subtitle,
+    title: copy.factors.betaFamilyTitle,
+    subtitle: copy.factors.betaFamilySubtitle,
     status,
-    body: buildBetaBody(status, item.benchmark_id),
+    body: buildBetaBody(copy, status, item.benchmark_id),
     metrics: [
-      { label: "Low-beta score", value: formatFactorScore(item.low_beta_score, copy.common.unavailable) },
-      { label: "Beta 60D", value: formatRatio(item.beta_60d, copy.common.unavailable) },
-      { label: "Beta 120D", value: formatRatio(item.beta_120d, copy.common.unavailable) },
+      { label: copy.factors.metricLowBetaScore, value: formatFactorScore(item.low_beta_score, copy.common.unavailable) },
+      { label: copy.factors.metricBeta60d, value: formatRatio(item.beta_60d, copy.common.unavailable) },
+      { label: copy.factors.metricBeta120d, value: formatRatio(item.beta_120d, copy.common.unavailable) },
       {
-        label: "120D percentile",
+        label: copy.factors.metricPercentile120d,
         value: formatFactorScore(item.beta_120d_percentile, copy.common.unavailable),
       },
-      { label: "Benchmark", value: item.benchmark_id ?? copy.common.unavailable },
+      { label: copy.factors.metricBenchmark, value: item.benchmark_id ?? copy.common.unavailable },
     ],
     quality: null,
     notes: uniqueNotes([
-      item.low_beta_classification ? humanizeToken(item.low_beta_classification) : null,
-      `${item.history_days_available} history days`,
-      item.benchmark_market ? `${item.benchmark_market} benchmark context` : null,
+      item.low_beta_classification ? humanizeToken(copy, item.low_beta_classification) : null,
+      `${item.history_days_available} ${copy.factors.metricHistoryDays}`,
+      item.benchmark_market ? `${item.benchmark_market} ${copy.factors.benchmarkMarketContext}` : null,
     ]),
     meta: buildCardMeta(copy, result),
   };
@@ -448,42 +494,44 @@ function readValueMetricStatuses(
 }
 
 function buildValueComponentNotes(
+  copy: SymbolDetailCopy,
   item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto,
   advancedItem?: EodAdvancedValueFactorItemDto | null,
 ) {
   const statuses = readValueMetricStatuses(item, advancedItem);
   const hints = [
-    ["PER", statuses.per],
-    ["PBR", statuses.pbr],
-    ["Dividend yield", statuses.dividendYield],
-    ["FCF yield", statuses.fcfYield],
-    ["EV / EBITDA", statuses.evToEbitda],
+    [copy.factors.metricLabelPer, statuses.per],
+    [copy.factors.metricLabelPbr, statuses.pbr],
+    [copy.factors.metricLabelDividendYield, statuses.dividendYield],
+    [copy.factors.metricLabelFcfYield, statuses.fcfYield],
+    [copy.factors.metricLabelEvToEbitda, statuses.evToEbitda],
   ] as const;
 
-  return hints.map(([label, status]) => (status ? `${label}: ${humanizeToken(status)}` : null));
+  return hints.map(([label, status]) => (status ? `${label}: ${humanizeToken(copy, status)}` : null));
 }
 
-function buildQualityProgressLabel(quality: FactorQualitySummary) {
+function buildQualityProgressLabel(copy: SymbolDetailCopy, quality: FactorQualitySummary) {
   if (quality.componentsPossible === null && quality.componentsUsed === null) {
-    return "Component coverage unavailable";
+    return copy.factors.componentCoverageUnavailable;
   }
 
   return `${formatQualityCount(quality.componentsUsed)} used / ${formatQualityCount(quality.componentsPossible)} possible`;
 }
 
-function buildQualitySummaryText(quality: FactorQualitySummary) {
+function buildQualitySummaryText(copy: SymbolDetailCopy, quality: FactorQualitySummary) {
   switch (quality.calculationState) {
     case "complete":
-      return `Quality calculation complete: ${buildQualityProgressLabel(quality)}.`;
+      return `${copy.factors.qualityCalculationCompletePrefix} ${buildQualityProgressLabel(copy, quality)}.`;
     case "partial":
-      return `Quality calculation partial: ${buildQualityProgressLabel(quality)}.`;
+      return `${copy.factors.qualityCalculationPartialPrefix} ${buildQualityProgressLabel(copy, quality)}.`;
     case "unavailable":
-      return `Quality calculation unavailable: ${buildQualityProgressLabel(quality)}.`;
+      return `${copy.factors.qualityCalculationUnavailablePrefix} ${buildQualityProgressLabel(copy, quality)}.`;
   }
 }
 
 function buildQualityModel(
   item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto,
+  copy: SymbolDetailCopy,
   options: { force?: boolean } = {},
 ): FactorQualityModel | null {
   const quality = buildFactorQualitySummary(item, options);
@@ -495,43 +543,37 @@ function buildQualityModel(
       (component) => `${component.label}: ${component.statusLabel}`,
     ),
     metrics: [
-      { label: "Quality score", value: formatQualityScore(quality.score) },
-      { label: "Quality percentile", value: formatQualityScore(quality.percentile) },
-      { label: "Quality rank", value: formatQualityRank(quality.rank) },
-      { label: "Score status", value: quality.statusLabel },
-      { label: "Possible components", value: formatQualityCount(quality.componentsPossible) },
-      { label: "Used components", value: formatQualityCount(quality.componentsUsed) },
-      { label: "Calculation", value: quality.calculationLabel },
+      { label: copy.factors.metricQualityScore, value: formatQualityScore(quality.score) },
+      { label: copy.factors.metricQualityPercentile, value: formatQualityScore(quality.percentile) },
+      { label: copy.factors.metricQualityRank, value: formatQualityRank(quality.rank) },
+      { label: copy.factors.metricScoreStatus, value: quality.statusLabel },
+      { label: copy.factors.metricPossibleComponents, value: formatQualityCount(quality.componentsPossible) },
+      { label: copy.factors.metricUsedComponents, value: formatQualityCount(quality.componentsUsed) },
+      { label: copy.factors.metricCalculation, value: quality.calculationLabel },
     ],
     statusLabel: quality.statusLabel,
-    summary: buildQualitySummaryText(quality),
-    title: "Quality score",
+    summary: buildQualitySummaryText(copy, quality),
+    title: copy.factors.qualityHeaderTitle,
     tone: quality.tone,
   };
 }
 
-function buildValueBody(status: FactorStatusDescriptor, usesUnifiedValue: boolean) {
+function buildValueBody(copy: SymbolDetailCopy, status: FactorStatusDescriptor, usesUnifiedValue: boolean) {
   switch (status.code) {
     case "scored":
-      return usesUnifiedValue
-        ? "Unified valuation score, rank, percentile, and overall status are available for this symbol-date."
-        : "Legacy cross-sectional value ranks are available across PER, PBR, and dividend yield.";
+      return usesUnifiedValue ? copy.factors.valueBodyScoredUnified : copy.factors.valueBodyScoredLegacy;
     case "invalid_per":
-      return "The symbol was excluded from PER scoring because earnings were non-positive.";
+      return copy.factors.valueBodyInvalidPer;
     case "missing_metric":
-      return usesUnifiedValue
-        ? "Unified valuation scoring is incomplete because one or more required metrics were missing."
-        : "One or more required legacy value inputs were missing for this stored symbol-date row.";
+      return usesUnifiedValue ? copy.factors.valueBodyMissingMetricUnified : copy.factors.valueBodyMissingMetricLegacy;
     case "insufficient_components":
-      return "Unified valuation scoring had too few usable components for a complete score.";
+      return copy.factors.valueBodyInsufficientComponents;
     case "insufficient_fundamentals":
-      return "Unified valuation scoring needs a usable stored fundamentals snapshot before all components can score.";
+      return copy.factors.valueBodyInsufficientFundamentals;
     case "missing_market_date_bar":
-      return "No stored market-date bar was available for the requested date.";
+      return copy.factors.valueBodyMissingMarketDateBar;
     default:
-      return usesUnifiedValue
-        ? "Unified valuation status needs review for this stored row."
-        : "One or more required legacy value inputs were missing for this stored symbol-date row.";
+      return usesUnifiedValue ? copy.factors.valueBodyDefaultUnified : copy.factors.valueBodyDefaultLegacy;
   }
 }
 
@@ -548,39 +590,42 @@ function buildValueCardModel(
   const status = usesUnifiedValue
     ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
     : getValueFactorStatusDescriptor(item);
-  const componentNotes = buildValueComponentNotes(item, advancedItem);
+  const componentNotes = buildValueComponentNotes(copy, item, advancedItem);
   const quality = buildQualityModel(item, { force: true });
 
   return {
     family: result.family,
-    title: usesUnifiedValue ? "Unified value" : "Value (legacy components)",
-    subtitle: usesUnifiedValue
-      ? "Unified valuation score with PER, PBR, dividend yield, FCF yield, and EV / EBITDA status context"
-      : "Legacy PER, PBR, and dividend-yield component ranks",
+    title: getFamilyTitle(copy, result.family),
+    subtitle: getFamilySubtitle(copy, result.family, usesUnifiedValue),
     status,
-    body: buildValueBody(status, usesUnifiedValue),
+    body: buildValueBody(copy, status, usesUnifiedValue),
     metrics: usesUnifiedValue
       ? [
-          { label: "Unified value score", value: formatFactorScore(item.unified_value_score, copy.common.unavailable) },
           {
-            label: "Unified percentile",
+            label: copy.factors.valueMetricUnifiedScore,
+            value: formatFactorScore(item.unified_value_score, copy.common.unavailable),
+          },
+          {
+            label: copy.factors.valueMetricUnifiedPercentile,
             value: formatFactorScore(item.unified_value_percentile, copy.common.unavailable),
           },
-          { label: "Unified rank", value: formatRank(item.unified_value_rank, "Unranked") },
-          { label: "Overall status", value: getFactorStatusLabel(status.code) },
-          { label: "Legacy value score", value: formatFactorScore(item.value_score, copy.common.unavailable) },
+          { label: copy.factors.metricOverallStatus, value: getLocalizedFactorStatusLabel(copy, status.code) },
+          {
+            label: copy.factors.valueMetricLegacyValueScore,
+            value: formatFactorScore(item.value_score, copy.common.unavailable),
+          },
         ]
       : [
-          { label: "Legacy value score", value: formatFactorScore(item.value_score, copy.common.unavailable) },
+          { label: copy.factors.valueMetricLegacyValueScore, value: formatFactorScore(item.value_score, copy.common.unavailable) },
           {
-            label: "Legacy percentile",
+            label: copy.factors.valueMetricLegacyPercentile,
             value: formatFactorScore(item.value_percentile, copy.common.unavailable),
           },
-          { label: "Legacy rank", value: formatRank(item.value_rank, "Unranked") },
-          { label: "PER", value: formatRatio(item.per, copy.common.unavailable) },
-          { label: "PBR", value: formatRatio(item.pbr, copy.common.unavailable) },
+          { label: copy.factors.metricRankUnavailable, value: formatRank(item.value_rank, copy.factors.metricRankUnavailable) },
+          { label: copy.factors.valueMetricPer, value: formatRatio(item.per, copy.common.unavailable) },
+          { label: copy.factors.valueMetricPbr, value: formatRatio(item.pbr, copy.common.unavailable) },
           {
-            label: "Dividend yield",
+            label: copy.factors.valueMetricDividendYield,
             value: formatDecimalPercent(item.dividend_yield, copy.common.unavailable),
           },
         ],
@@ -588,31 +633,35 @@ function buildValueCardModel(
     notes: uniqueNotes([
       quality ? `${quality.title}: ${quality.calculationLabel}` : null,
       ...componentNotes,
-      item.unified_value_status ? `Unified status: ${humanizeToken(item.unified_value_status)}` : null,
-      item.value_status ? `Legacy row status: ${humanizeToken(item.value_status)}` : null,
+      item.unified_value_status
+        ? `${copy.factors.valueUnifiedStatusLabel}: ${humanizeToken(copy, item.unified_value_status, copy.factors.unavailableValueStatus)}`
+        : null,
+      item.value_status
+        ? `${copy.factors.valueLegacyStatusLabel}: ${humanizeToken(copy, item.value_status, copy.factors.unavailableValueStatus)}`
+        : null,
     ]),
     meta: buildCardMeta(copy, result),
   };
 }
 
-function buildAdvancedValueBody(status: FactorStatusDescriptor, usesUnifiedValue: boolean) {
+function buildAdvancedValueBody(copy: SymbolDetailCopy, status: FactorStatusDescriptor, usesUnifiedValue: boolean) {
   if (usesUnifiedValue) {
-    return buildValueBody(status, true);
+    return buildValueBody(copy, status, true);
   }
 
   switch (status.code) {
     case "eligible":
-      return "FCF yield and EV / EBITDA both scored, so the advanced-value rank is fully available.";
+      return copy.factors.advancedValueCardBodyEligible;
     case "watchlist":
-      return "Both advanced-value components scored, but the combined score stopped at watchlist.";
+      return copy.factors.advancedValueCardBodyWatchlist;
     case "insufficient_fundamentals":
-      return "The symbol did not have a usable stored annual fundamentals snapshot on or before this market date.";
+      return copy.factors.advancedValueCardBodyInsufficientFundamentals;
     case "insufficient_components":
-      return "Only part of the advanced-value methodology could be scored from the stored price and DART inputs.";
+      return copy.factors.advancedValueCardBodyInsufficientComponents;
     case "missing_market_date_bar":
-      return "No stored market-date bar was available for the requested date.";
+      return copy.factors.valueBodyMissingMarketDateBar;
     default:
-      return "The advanced-value score was available but did not meet the eligible threshold.";
+      return copy.factors.advancedValueCardBodyDefault;
   }
 }
 
@@ -628,55 +677,69 @@ function buildAdvancedValueCardModel(
   const status = usesUnifiedValue
     ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
     : getAdvancedValueFactorStatusDescriptor(item);
-  const componentNotes = buildValueComponentNotes(item);
+  const componentNotes = buildValueComponentNotes(copy, item);
   const quality = usesUnifiedValue ? buildQualityModel(item) : null;
 
   return {
     family: result.family,
-    title: usesUnifiedValue ? "Unified value" : "Advanced value components",
+    title: getFamilyTitle(copy, result.family),
     subtitle: usesUnifiedValue
-      ? "Unified valuation score sourced from the advanced value inspect row"
-      : "FCF yield and EV / EBITDA component view from stored DART fundamentals",
+      ? copy.factors.advancedValueFamilySubtitleUnified
+      : copy.factors.advancedValueFamilySubtitleLegacy,
     status,
-    body: buildAdvancedValueBody(status, usesUnifiedValue),
+    body: buildAdvancedValueBody(copy, status, usesUnifiedValue),
     metrics: usesUnifiedValue
       ? [
-          { label: "Unified value score", value: formatFactorScore(item.unified_value_score, copy.common.unavailable) },
           {
-            label: "Unified percentile",
+            label: copy.factors.valueMetricUnifiedScore,
+            value: formatFactorScore(item.unified_value_score, copy.common.unavailable),
+          },
+          {
+            label: copy.factors.valueMetricUnifiedPercentile,
             value: formatFactorScore(item.unified_value_percentile, copy.common.unavailable),
           },
-          { label: "Unified rank", value: formatRank(item.unified_value_rank, "Unranked") },
-          { label: "Overall status", value: getFactorStatusLabel(status.code) },
           {
-            label: "Advanced component score",
+            label: copy.factors.metricRank,
+            value: formatRank(item.unified_value_rank, copy.factors.metricRankUnavailable),
+          },
+          { label: copy.factors.metricOverallStatus, value: getLocalizedFactorStatusLabel(copy, status.code) },
+          {
+            label: copy.factors.advancedValueMetricComponentScore,
             value: formatFactorScore(item.advanced_value_score, copy.common.unavailable),
           },
         ]
       : [
           {
-            label: "Advanced component score",
+            label: copy.factors.advancedValueMetricComponentScore,
             value: formatFactorScore(item.advanced_value_score, copy.common.unavailable),
           },
           {
-            label: "Component percentile",
+            label: copy.factors.advancedValueMetricComponentPercentile,
             value: formatFactorScore(item.advanced_value_percentile, copy.common.unavailable),
           },
           {
-            label: "FCF yield",
+            label: copy.factors.valueMetricFcfYield,
             value: formatDecimalPercent(item.fcf_yield, copy.common.unavailable, { signed: true }),
             valueClassName: getValueToneClassName(item.fcf_yield),
           },
-          { label: "EV / EBITDA", value: formatRatio(item.ev_to_ebitda, copy.common.unavailable) },
-          { label: "Components", value: `${item.advanced_value_components_used} / 2` },
+          {
+            label: copy.factors.valueMetricEvToEbitda,
+            value: formatRatio(item.ev_to_ebitda, copy.common.unavailable),
+          },
+          {
+            label: copy.factors.advancedValueMetricComponents,
+            value: `${item.advanced_value_components_used} / 2`,
+          },
         ],
     quality,
     notes: uniqueNotes([
       quality ? `${quality.title}: ${quality.calculationLabel}` : null,
       ...componentNotes,
-      item.unified_value_status ? `Unified status: ${humanizeToken(item.unified_value_status)}` : null,
+      item.unified_value_status
+        ? `${copy.factors.valueUnifiedStatusLabel}: ${humanizeToken(copy, item.unified_value_status, copy.factors.unavailableValueStatus)}`
+        : null,
       item.advanced_value_classification
-        ? `Classification: ${humanizeToken(item.advanced_value_classification)}`
+        ? `${copy.factors.advancedValueClassificationLabel}: ${humanizeToken(copy, item.advanced_value_classification, copy.factors.unavailableValueStatus)}`
         : null,
     ]),
     meta: buildCardMeta(copy, result),
@@ -847,7 +910,9 @@ export const FactorSnapshotSection = memo(function FactorSnapshotSection({
                   <strong className={styles.factorFamilyTitle}>{card.title}</strong>
                   <p className={`clamp-3 ${styles.factorFamilySubtitle}`}>{card.subtitle}</p>
                 </div>
-                <span className={`pill ${card.status.tone}`}>{getFactorStatusLabel(card.status.code)}</span>
+                <span className={`pill ${card.status.tone}`}>
+                  {getLocalizedFactorStatusLabel(copy, card.status.code)}
+                </span>
               </div>
 
               <p className={`clamp-3 ${styles.supportingCopy}`}>{card.body}</p>

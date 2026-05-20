@@ -6,7 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useAppState } from "@/components/providers/app-state-provider";
 import { formatPrice } from "@/lib/format";
+import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import {
   buildPiotroskiSymbolHref,
   getPiotroskiMarketDate,
@@ -22,18 +24,16 @@ import type { EodFreshnessResponseDto } from "@/types/trading-api";
 
 import styles from "./piotroski-filter-page.module.css";
 
-const UNKNOWN_LABEL = "[확인 필요]";
-
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
 
-function formatSignedPercent(value: number | null | undefined, fallback = "Unavailable") {
+function formatSignedPercent(value: number | null | undefined, fallback: string) {
   if (!hasNumber(value)) return fallback;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatPiotroskiScore(value: number | null | undefined, fallback = UNKNOWN_LABEL) {
+function formatPiotroskiScore(value: number | null | undefined, fallback: string) {
   if (!hasNumber(value)) return fallback;
   return value.toLocaleString("ko-KR");
 }
@@ -44,6 +44,7 @@ function getQuoteToneClass(value: number | null | undefined) {
 }
 
 function getPiotroskiMarketDateNote(
+  copy: ReturnType<typeof getDashboardLiveCopy>["piotroskiFilter"],
   requestedMarketDate: string | null | undefined,
   effectiveMarketDate: string | null | undefined,
   isLatestFallback: boolean,
@@ -55,12 +56,12 @@ function getPiotroskiMarketDateNote(
 
   if (requestedDate && requestedDate !== effectiveDate) {
     return isLatestFallback
-      ? `Requested ${requestedDate}. Showing the latest available result for ${effectiveDate}.`
-      : `Requested ${requestedDate}. Showing the resolved result for ${effectiveDate}.`;
+      ? `${copy.requestedDatePrefix} ${requestedDate}. ${copy.latestAvailableSuffix} ${copy.requestedMarketDateSuffix} ${effectiveDate}.`
+      : `${copy.requestedDatePrefix} ${requestedDate}. ${copy.resolvedSuffix} ${copy.requestedMarketDateSuffix} ${effectiveDate}.`;
   }
 
   if (isLatestFallback) {
-    return `Showing the latest available result for ${effectiveDate}.`;
+    return `${copy.latestAvailableSuffix} ${copy.requestedMarketDateSuffix} ${effectiveDate}.`;
   }
 
   return null;
@@ -85,16 +86,22 @@ function mergeEnrichedPiotroskiItem(
   };
 }
 
-function getPiotroskiEmptyState(data: PiotroskiPassListResult | null, displayedMarketDate: string | null) {
+function getPiotroskiEmptyState(
+  copy: ReturnType<typeof getDashboardLiveCopy>["piotroskiFilter"],
+  data: PiotroskiPassListResult | null,
+  displayedMarketDate: string | null,
+) {
   if (data && data.totalPassedCount > 0 && data.items.length === 0) {
     const passedLabel = data.totalPassedCount.toLocaleString("ko-KR");
     const dateLabel = displayedMarketDate ?? data.marketDate;
-    return `Piotroski summary reports ${passedLabel} passed symbols for ${dateLabel}, but row details were not returned.`;
+    return copy.passedSummaryTemplate
+      .replace("%passedCount%", passedLabel)
+      .replace("%marketDate%", dateLabel);
   }
 
   return displayedMarketDate
-    ? `No Piotroski pass symbols were stored for ${displayedMarketDate}.`
-    : "Piotroski market date is pending.";
+    ? `${copy.noPassedSymbols} ${displayedMarketDate}.`
+    : copy.marketDateUnavailable;
 }
 
 async function loadFreshness() {
@@ -109,6 +116,8 @@ async function loadFreshness() {
 
 export default function PiotroskiFilterPageClient() {
   const searchParams = useSearchParams();
+  const { locale } = useAppState();
+  const copy = getDashboardLiveCopy(locale).piotroskiFilter;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [data, setData] = useState<PiotroskiPassListResult | null>(null);
@@ -136,12 +145,12 @@ export default function PiotroskiFilterPageClient() {
         setMarketDate(resolvedMarketDate);
         if (!resolvedMarketDate) {
           setLoadState("error");
-          setError("Piotroski market date is unavailable.");
+          setError(copy.marketDateUnavailableError);
         }
       } catch (freshnessError) {
         if (!active) return;
         setLoadState("error");
-        setError(freshnessError instanceof Error ? freshnessError.message : "Piotroski market date is unavailable.");
+        setError(freshnessError instanceof Error ? freshnessError.message : copy.marketDateUnavailableError);
       }
     };
 
@@ -150,7 +159,7 @@ export default function PiotroskiFilterPageClient() {
     return () => {
       active = false;
     };
-  }, [requestedMarketDate]);
+  }, [copy.marketDateUnavailableError, requestedMarketDate]);
 
   useEffect(() => {
     if (!marketDate) return;
@@ -178,7 +187,7 @@ export default function PiotroskiFilterPageClient() {
         if (!active) return;
         setData(null);
         setLoadState("error");
-        setError(loadError instanceof Error ? loadError.message : "Piotroski filter results are unavailable.");
+        setError(loadError instanceof Error ? loadError.message : copy.marketDateUnavailableError);
       }
     };
 
@@ -187,18 +196,23 @@ export default function PiotroskiFilterPageClient() {
     return () => {
       active = false;
     };
-  }, [marketDate]);
+  }, [copy.marketDateUnavailableError, marketDate]);
 
   const displayedMarketDate = data?.marketDate ?? marketDate;
   const marketDateNote = data
-    ? getPiotroskiMarketDateNote(data.requestedMarketDate, data.marketDate, data.isLatestFallback)
+    ? getPiotroskiMarketDateNote(copy, data.requestedMarketDate, data.marketDate, data.isLatestFallback)
     : null;
+  const pageCopyText = displayedMarketDate
+    ? marketDateNote
+      ? `${copy.pageCopyPrefix} ${displayedMarketDate}${copy.pageCopySuffix} ${marketDateNote}`
+      : `${copy.pageCopyPrefix} ${displayedMarketDate}${copy.pageCopySuffix}`
+    : copy.pageCopyLoading;
 
   return (
     <MobileAppChrome
       chrome={{
         activeNav: "dashboard",
-        status: { label: displayedMarketDate ? `MD ${displayedMarketDate}` : "MD pending" },
+        status: { label: displayedMarketDate ? `MD ${displayedMarketDate}` : copy.marketDatePending },
         toolbarAction: "dev-mode",
       }}
     >
@@ -209,53 +223,49 @@ export default function PiotroskiFilterPageClient() {
               label="dashboard.piotroski-board"
               api="/api/trading/eod/piotroski-filter-results + /api/trading/quotes/{symbol} + /api/trading/symbols/search"
             />
-            <p className={styles.eyebrow}>Piotroski Filter</p>
-            <h1 className={styles.pageTitle}>Piotroski filter pass list</h1>
-            <p className={styles.pageCopy}>
-              {displayedMarketDate
-                ? `Showing passed symbols for ${displayedMarketDate}, ranked by Piotroski score descending.${marketDateNote ? ` ${marketDateNote}` : ""}`
-                : "Resolving the latest stored Piotroski market date."}
-            </p>
+            <p className={styles.eyebrow}>{copy.eyebrow}</p>
+            <h1 className={styles.pageTitle}>{copy.title}</h1>
+            <p className={styles.pageCopy}>{pageCopyText}</p>
           </div>
 
           <Link href="/dashboard" className={styles.backLink}>
-            Back to dashboard
+            {copy.backToDashboard}
           </Link>
         </section>
 
         <section className={styles.panel}>
           <div className={styles.summaryGrid}>
             <div className={styles.summaryCard}>
-              <span>Market date</span>
-              <strong>{displayedMarketDate ?? "Pending"}</strong>
+              <span>{copy.marketDateLabel}</span>
+              <strong>{displayedMarketDate ?? copy.pendingMarketDate}</strong>
             </div>
             <div className={styles.summaryCard}>
-              <span>Passed symbols</span>
+              <span>{copy.passedSymbolsLabel}</span>
               <strong>{loadState === "ready" ? data?.totalPassedCount.toLocaleString("ko-KR") ?? "0" : "..."}</strong>
             </div>
             <div className={styles.summaryCard}>
-              <span>Sort</span>
-              <strong>Score desc</strong>
+              <span>{copy.sortLabel}</span>
+              <strong>{copy.sortValue}</strong>
             </div>
           </div>
 
           {loadState === "loading" ? (
-            <div className={styles.emptyState}>Loading Piotroski pass list...</div>
+            <div className={styles.emptyState}>{copy.loading}</div>
           ) : loadState === "error" ? (
-            <div className={styles.emptyState}>{error ?? "Piotroski filter results are unavailable."}</div>
+            <div className={styles.emptyState}>{error ?? copy.marketDateUnavailableError}</div>
           ) : data && data.items.length > 0 ? (
             <div className={styles.list}>
               {data.items.map((item) => {
-                const companyName = item.companyName ?? UNKNOWN_LABEL;
+                const companyName = item.companyName ?? copy.unknownCompany;
                 const closeLabel =
                   item.quote?.available && hasNumber(item.quote.price)
                     ? `₩${formatPrice(item.quote.price)}`
-                    : "Quote unavailable";
+                    : copy.closeUnavailable;
                 const changeLabel = item.quote?.available
-                  ? formatSignedPercent(item.quote.change_pct)
+                  ? formatSignedPercent(item.quote.change_pct, copy.changeUnavailable)
                   : item.quote
                     ? getPiotroskiUnavailableChangeLabel(item.quote.unavailable_reason)
-                    : "Unavailable";
+                    : copy.changeUnavailable;
 
                 return (
                   <Link
@@ -274,16 +284,16 @@ export default function PiotroskiFilterPageClient() {
 
                     <div className={styles.metricGroup}>
                       <div className={styles.metric}>
-                        <span>Close</span>
+                        <span>{copy.metricClose}</span>
                         <strong>{closeLabel}</strong>
                       </div>
                       <div className={styles.metric}>
-                        <span>Change</span>
+                        <span>{copy.metricChange}</span>
                         <strong className={getQuoteToneClass(item.quote?.change_pct)}>{changeLabel}</strong>
                       </div>
                       <div className={styles.metric}>
-                        <span>Score</span>
-                        <strong>{formatPiotroskiScore(item.piotroskiScore)}</strong>
+                        <span>{copy.metricScore}</span>
+                        <strong>{formatPiotroskiScore(item.piotroskiScore, copy.unknownScore)}</strong>
                       </div>
                     </div>
                   </Link>
@@ -291,7 +301,7 @@ export default function PiotroskiFilterPageClient() {
               })}
             </div>
           ) : (
-            <div className={styles.emptyState}>{getPiotroskiEmptyState(data, displayedMarketDate)}</div>
+            <div className={styles.emptyState}>{getPiotroskiEmptyState(copy, data, displayedMarketDate)}</div>
           )}
         </section>
       </div>

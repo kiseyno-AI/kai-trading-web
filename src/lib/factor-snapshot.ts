@@ -145,6 +145,69 @@ function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+type FactorMetricStatusSource = Record<string, unknown> | null;
+type LowRiskTradingValueInput = {
+  avg_trading_value_20d: number | null;
+  factor_payload: Record<string, unknown> | null;
+};
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readText(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function readLowRiskTradingMetricStatus(payload: FactorMetricStatusSource, keys: Array<string>) {
+  const record = readRecord(payload);
+  const statusSources = [
+    readRecord(record?.unified_value_component_statuses),
+    readRecord(record?.unified_component_statuses),
+    readRecord(record?.component_statuses),
+    readRecord(record?.metric_statuses),
+    record,
+  ];
+
+  for (const source of statusSources) {
+    for (const key of keys) {
+      const status = readText(source?.[key]);
+      if (status) return status;
+    }
+  }
+
+  return null;
+}
+
+const UNAVAILABLE_METRIC_STATUS_PATTERNS =
+  /\b(missing|unsupported|estimated|unavailable|confirmation|needs\s*confirmation|pending|invalid|n\/a|확인\s*필요)\b/i;
+
+export function resolveLowRiskTradingValueStatus(input: LowRiskTradingValueInput | null | undefined): string | null {
+  if (!input) return null;
+
+  return (
+    readLowRiskTradingMetricStatus(input.factor_payload, [
+      "avg_trading_value_20d",
+      "avg_trading_value_20d_status",
+      "trading_value_20d",
+      "trading_value_20d_status",
+      "turnover_20d",
+      "turnover_20d_status",
+    ]) ?? null
+  );
+}
+
+export function isLowRiskTradingValueUnavailable(input: LowRiskTradingValueInput | null | undefined) {
+  const value = input?.avg_trading_value_20d;
+  if (!hasNumber(value) || value <= 0) return true;
+
+  const status = resolveLowRiskTradingValueStatus(input);
+  if (!status) return false;
+
+  const normalizedStatus = status.toLowerCase().replace(/[_-]+/g, " ");
+  return UNAVAILABLE_METRIC_STATUS_PATTERNS.test(normalizedStatus);
+}
+
 type UnifiedValueFieldSource = {
   unified_value_score?: number | null;
   unified_value_rank?: number | null;

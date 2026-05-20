@@ -302,3 +302,20 @@ test("TC-SYMBOL-007 system-freshness fallback rows keep stable labels for unavai
   assert.equal(disclosureRow?.status, copy.freshness.unavailable);
   assert.equal(disclosureRow?.detail, copy.disclosures.emptyTitle);
 });
+
+test("TC-SYMBOL-008 factor snapshot copy for KO mode removes English card and metric labels from local UI copy map", () => {
+  const enCopy = getSymbolDetailCopy("en");
+  const koCopy = getSymbolDetailCopy("ko");
+
+  assert.equal(koCopy.factors.momentumFamilyTitle, "모멘텀");
+  assert.equal(koCopy.factors.lowRiskFamilyTitle, "저변동");
+  assert.equal(koCopy.factors.betaFamilyTitle, "베타");
+  assert.equal(koCopy.factors.valueFamilyTitleUnified, "통합 밸류");
+  assert.equal(koCopy.factors.advancedValueFamilyTitle, "고급 밸류 컴포넌트");
+  assert.equal(koCopy.factors.metricMomentum12, "12일 모멘텀");
+  assert.equal(koCopy.factors.metricTradingValue20d, "20일 거래대금");
+  assert.equal(koCopy.factors.tradingValueUnavailable, "확인 필요");
+  assert.equal(koCopy.factors.metricStatusLabels.needs_confirmation, "확인 필요");
+  assert.equal(koCopy.factors.factorStatusLabels.eligible, "적합");
+  assert.notEqual(koCopy.factors.title, enCopy.factors.title);
+});
