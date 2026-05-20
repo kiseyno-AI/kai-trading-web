@@ -51,14 +51,14 @@ function getStringValue(record: UnknownRecord | null | undefined, key: string) {
 }
 
 function getRecordValue(record: UnknownRecord | null | undefined, keys: string[]) {
-  let current: UnknownRecord | unknown = record;
+  if (!isRecord(record)) return null;
 
   for (const key of keys) {
-    if (!isRecord(current)) return null;
-    current = current[key];
+    const value = record[key];
+    if (isRecord(value)) return value;
   }
 
-  return isRecord(current) ? current : null;
+  return null;
 }
 
 function getUsableCompanyName(symbol: string, values: Array<string | null | undefined>) {
@@ -170,8 +170,16 @@ function getReviewDateItemSymbol(item: SignalDeciderReviewDateResponse["items"][
   const payload = isRecord(item.feedback) ? item.feedback : isRecord(item.summary) ? item.summary : null;
   const symbolValue = getStringValue(payload, "symbol");
   const snapshotSymbol = getStringValue(payload, "snapshot_symbol");
+  const decision = isRecord(item.decision as UnknownRecord) ? item.decision : null;
+  const decisionSymbol = getStringValue(decision, "symbol");
 
-  return isText(symbolValue) ? normalizeSymbolCode(symbolValue) : isText(snapshotSymbol) ? normalizeSymbolCode(snapshotSymbol) : null;
+  return isText(symbolValue)
+    ? normalizeSymbolCode(symbolValue)
+    : isText(snapshotSymbol)
+      ? normalizeSymbolCode(snapshotSymbol)
+      : isText(decisionSymbol)
+        ? normalizeSymbolCode(decisionSymbol)
+        : null;
 }
 
 function getReviewDateItemContextCandidates(item: SignalDeciderReviewDateResponse["items"][number]) {

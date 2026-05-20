@@ -195,6 +195,78 @@ test("keeps replay review rows explicit when symbol search cannot enrich", async
   assert.equal(normalized[0]?.companyName, null);
 });
 
+test("uses camelCase context key variant for feedback item company name enrichment", async () => {
+  const response = buildFeedbackListResponse();
+  response.items = response.items.slice(0, 1);
+  response.items[0].context = {
+    symbolDayContext: {
+      company_name: "한화오션",
+    },
+  };
+
+  const resolvedSymbols: string[] = [];
+  const enriched = await enrichSignalDeciderFeedbackListWithSymbolMetadata({
+    response,
+    resolveSymbolName: async (symbol: string) => {
+      resolvedSymbols.push(symbol);
+      if (symbol === "139480") return "should-not-be-used";
+      return null;
+    },
+  });
+  const normalized = normalizeSignalDeciderFeedbackItems(enriched);
+
+  assert.equal(normalized.find((item) => item.symbol === "139480")?.companyName, "한화오션");
+  assert.deepEqual(resolvedSymbols, []);
+});
+
+test("uses snake_case context key variant for review item company name enrichment", async () => {
+  const response = buildReviewDateResponse("139480");
+  response.items[0].context = {
+    symbol_day_context: {
+      company_name: "현대차",
+    },
+  };
+
+  const resolvedSymbols: string[] = [];
+  const enriched = await enrichSignalDeciderReviewDateResponseWithSymbolMetadata({
+    response,
+    resolveSymbolName: async (symbol: string) => {
+      resolvedSymbols.push(symbol);
+      if (symbol === "139480") return "should-not-be-used";
+      return null;
+    },
+  });
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: enriched,
+    fallbackMarketDate: "2026-05-20",
+  });
+  const normalized = normalizeSignalDeciderFeedbackItems(feedbackResponse);
+
+  assert.equal(normalized[0]?.companyName, "현대차");
+  assert.deepEqual(resolvedSymbols, []);
+});
+
+test("falls back to decision symbol for review enrichment when top-level symbol is blank", async () => {
+  const response = buildReviewDateResponse("");
+  response.items[0].decision.symbol = "139480";
+  const resolvedSymbols: string[] = [];
+  const enriched = await enrichSignalDeciderReviewDateResponseWithSymbolMetadata({
+    response,
+    resolveSymbolName: async (symbol) => {
+      resolvedSymbols.push(symbol);
+      return symbol === "139480" ? "한화오션" : null;
+    },
+  });
+  const feedbackResponse = buildSignalDeciderFeedbackListFromReviewDateResponse({
+    response: enriched,
+    fallbackMarketDate: "2026-05-20",
+  });
+  const normalized = normalizeSignalDeciderFeedbackItems(feedbackResponse);
+
+  assert.deepEqual(resolvedSymbols, ["139480"]);
+  assert.equal(normalized[0]?.companyName, "한화오션");
+});
+
 test("loads company names from /symbols/search endpoint for resolver", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalBaseUrl = process.env.TRADING_API_UPSTREAM_BASE_URL;
