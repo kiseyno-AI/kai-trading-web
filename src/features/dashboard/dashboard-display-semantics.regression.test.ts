@@ -318,3 +318,20 @@ test("TC-DASH-007 running fundamentals refresh keeps today-stage mode and in-fli
     },
   );
 });
+
+test("TC-DASH-008 piotroski filter copy remains Korean when using ko locale", () => {
+  const enCopy = getDashboardLiveCopy("en");
+  const koCopy = getDashboardLiveCopy("ko");
+
+  assert.equal(koCopy.piotroskiFilter.title, "피오트로스키 통과 종목");
+  assert.equal(koCopy.piotroskiFilter.eyebrow, "피오트로스키 필터");
+  assert.equal(koCopy.piotroskiFilter.marketDateLabel, "기준일");
+  assert.equal(koCopy.piotroskiFilter.passedSymbolsLabel, "통과 종목");
+  assert.equal(koCopy.piotroskiFilter.sortLabel, "정렬");
+  assert.equal(koCopy.piotroskiFilter.sortValue, "점수 내림차순");
+  assert.equal(koCopy.piotroskiFilter.metricClose, "종가");
+  assert.equal(koCopy.piotroskiFilter.metricChange, "변동");
+  assert.equal(koCopy.piotroskiFilter.metricScore, "점수");
+  assert.equal(koCopy.piotroskiFilter.backToDashboard, "대시보드로 돌아가기");
+  assert.notEqual(koCopy.piotroskiFilter.title, enCopy.piotroskiFilter.title);
+});
