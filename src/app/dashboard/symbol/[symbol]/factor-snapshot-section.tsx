@@ -591,7 +591,7 @@ function buildValueCardModel(
     ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
     : getValueFactorStatusDescriptor(item);
   const componentNotes = buildValueComponentNotes(copy, item, advancedItem);
-  const quality = buildQualityModel(item, { force: true });
+  const quality = buildQualityModel(item, copy, { force: true });
 
   return {
     family: result.family,
@@ -621,7 +621,7 @@ function buildValueCardModel(
             label: copy.factors.valueMetricLegacyPercentile,
             value: formatFactorScore(item.value_percentile, copy.common.unavailable),
           },
-          { label: copy.factors.metricRankUnavailable, value: formatRank(item.value_rank, copy.factors.metricRankUnavailable) },
+          { label: copy.factors.metricRank, value: formatRank(item.value_rank, copy.factors.metricRankUnavailable) },
           { label: copy.factors.valueMetricPer, value: formatRatio(item.per, copy.common.unavailable) },
           { label: copy.factors.valueMetricPbr, value: formatRatio(item.pbr, copy.common.unavailable) },
           {
@@ -678,7 +678,7 @@ function buildAdvancedValueCardModel(
     ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
     : getAdvancedValueFactorStatusDescriptor(item);
   const componentNotes = buildValueComponentNotes(copy, item);
-  const quality = usesUnifiedValue ? buildQualityModel(item) : null;
+  const quality = usesUnifiedValue ? buildQualityModel(item, copy) : null;
 
   return {
     family: result.family,
