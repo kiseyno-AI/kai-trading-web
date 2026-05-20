@@ -204,7 +204,7 @@ function getLocalizedFactorStatusLabel(copy: SymbolDetailCopy, statusCode: strin
     .join(" ");
 }
 
-function getFamilyTitle(copy: SymbolDetailCopy, family: FactorFamilyId) {
+function getFamilyTitle(copy: SymbolDetailCopy, family: FactorFamilyId, usesUnifiedValue = false) {
   switch (family) {
     case "momentum":
       return copy.factors.momentumFamilyTitle;
@@ -213,7 +213,7 @@ function getFamilyTitle(copy: SymbolDetailCopy, family: FactorFamilyId) {
     case "beta":
       return copy.factors.betaFamilyTitle;
     case "value":
-      return copy.factors.valueFamilyTitleUnified;
+      return usesUnifiedValue ? copy.factors.valueFamilyTitleUnified : copy.factors.valueFamilyTitleLegacy;
     case "advancedValue":
       return copy.factors.advancedValueFamilyTitle;
   }
@@ -595,7 +595,7 @@ function buildValueCardModel(
 
   return {
     family: result.family,
-    title: getFamilyTitle(copy, result.family),
+    title: getFamilyTitle(copy, result.family, usesUnifiedValue),
     subtitle: getFamilySubtitle(copy, result.family, usesUnifiedValue),
     status,
     body: buildValueBody(copy, status, usesUnifiedValue),

@@ -51,17 +51,18 @@ function getPiotroskiMarketDateNote(
 ) {
   const requestedDate = requestedMarketDate?.trim() || null;
   const effectiveDate = effectiveMarketDate?.trim() || null;
+  const requestedMarketDateSuffix = copy.requestedMarketDateSuffix || ".";
 
   if (!effectiveDate) return null;
 
   if (requestedDate && requestedDate !== effectiveDate) {
     return isLatestFallback
-      ? `${copy.requestedDatePrefix} ${requestedDate}. ${copy.latestAvailableSuffix} ${copy.requestedMarketDateSuffix} ${effectiveDate}.`
-      : `${copy.requestedDatePrefix} ${requestedDate}. ${copy.resolvedSuffix} ${copy.requestedMarketDateSuffix} ${effectiveDate}.`;
+      ? `${copy.requestedDatePrefix} ${requestedDate}. ${copy.latestAvailableSuffix} ${effectiveDate}${requestedMarketDateSuffix}`
+      : `${copy.requestedDatePrefix} ${requestedDate}. ${copy.resolvedSuffix} ${effectiveDate}${requestedMarketDateSuffix}`;
   }
 
   if (isLatestFallback) {
-    return `${copy.latestAvailableSuffix} ${copy.requestedMarketDateSuffix} ${effectiveDate}.`;
+    return `${copy.latestAvailableSuffix} ${effectiveDate}${requestedMarketDateSuffix}`;
   }
 
   return null;
