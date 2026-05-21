@@ -810,6 +810,16 @@ function buildActionSummarySignalMeterModel(
     };
   }
 
+  if (isInsufficientHistoryActionSummary(actionSummary)) {
+    return {
+      ariaLabel: `${copy.action.signalScore}: ${copy.action.scoreUnavailable}. ${copy.action.currentAction}: ${copy.action.reasonLabels.insufficientHistory}`,
+      currentLabel: `${copy.action.currentAction}: ${copy.action.reasonLabels.insufficientHistory}`,
+      label: copy.action.signalScore,
+      state: "unavailable",
+      valueLabel: copy.action.scoreUnavailable,
+    };
+  }
+
   const actionLabel = resolveActionSummaryActionLabel(actionSummary?.action_label, copy);
   const biasLabel = resolveActionBiasLabel(actionSummary?.bias_direction, copy);
   const currentLabel = `${copy.action.currentAction}: ${actionLabel} · ${copy.action.bias} ${biasLabel}`;
