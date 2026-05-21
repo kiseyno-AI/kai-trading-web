@@ -14,6 +14,11 @@ import { getSearchPageCopy, type SearchPageCopy } from "@/i18n/search-page-copy"
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
 import {
+  resolveKisMetricPresentation,
+  resolveKisSourceLabel,
+  type RealtimeTrendingResponse,
+} from "@/lib/search-trending-metadata";
+import {
   buildMobileToolbarTrendingPath,
   MOBILE_TOOLBAR_FAVORITES_PATH,
   MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT,
@@ -94,41 +99,6 @@ type TrendingMetric = {
   unit?: string | null;
 };
 
-type RealtimeTrendingSource = {
-  source: string;
-  source_label: string;
-  rank: number | null;
-  metric: TrendingMetric;
-  market?: string | null;
-  market_code?: string | null;
-};
-
-type RealtimeTrendingItem = {
-  symbol: string;
-  name?: string | null;
-  market?: string | null;
-  market_code?: string | null;
-  price?: number | null;
-  change?: number | null;
-  change_pct?: number | null;
-  volume?: number | null;
-  turnover?: number | null;
-  best_rank?: number | null;
-  source_count?: number | null;
-  sources?: RealtimeTrendingSource[];
-};
-
-type RealtimeTrendingResponse = {
-  status: string;
-  source: string;
-  as_of?: string | null;
-  market?: string | null;
-  items: RealtimeTrendingItem[];
-  summary?: {
-    item_count?: number | null;
-  };
-};
-
 type StoredTrendingItem = {
   rank: number;
   symbol: string;
@@ -178,6 +148,7 @@ type TrendingDisplayItem = {
   name: string;
   market: string;
   rank: number | null;
+  metricLabel: string;
   sourceLabel: string;
   metricName: string;
   metricUnit: string | null;
@@ -377,10 +348,8 @@ function mapRealtimeTrendingItems(response: RealtimeTrendingResponse, copy: Sear
   return response.items.map((item, index) => {
     const primarySource = item.sources?.[0];
     const sourceCount = item.source_count ?? item.sources?.length ?? 0;
-    const sourceLabel =
-      sourceCount > 1
-        ? `${sourceCount} ${copy.trending.kisListsSuffix}`
-        : primarySource?.source_label ?? response.source.toUpperCase();
+    const metricPresentation = resolveKisMetricPresentation(primarySource, copy);
+    const sourceLabel = resolveKisSourceLabel(primarySource?.source_label, response.source, sourceCount);
     const market = normalizeSymbolMetaSeedValue(item.market ?? item.market_code ?? response.market ?? "KRX");
     const name = normalizeSymbolMetaSeedValue(item.name ?? item.symbol);
     const searchItem = normalizeSearchItem({
@@ -395,10 +364,11 @@ function mapRealtimeTrendingItems(response: RealtimeTrendingResponse, copy: Sear
       name,
       market,
       rank: item.best_rank ?? primarySource?.rank ?? index + 1,
+      metricLabel: metricPresentation.metricLabel,
       sourceLabel,
-      metricName: primarySource?.metric.name ?? "change_pct",
-      metricUnit: primarySource?.metric.unit ?? "percent",
-      metricValue: primarySource?.metric.value ?? null,
+      metricName: metricPresentation.metricName,
+      metricUnit: metricPresentation.metricUnit,
+      metricValue: metricPresentation.metricValue,
       changePct: item.change_pct ?? null,
       price: item.price ?? null,
       searchItem,
@@ -426,6 +396,7 @@ function mapStoredTrendingItems(
       name,
       market,
       rank: item.rank ?? index + 1,
+      metricLabel: `${mode.toUpperCase()} ${copy.trending.storedRankSuffix}`,
       sourceLabel: `${mode.toUpperCase()} ${copy.trending.storedRankSuffix}`,
       metricName: item.metric?.name ?? `${mode}_return_pct`,
       metricUnit: "percent",
@@ -1222,7 +1193,7 @@ export default function SearchPageClient() {
                   <span className={styles.trendingMetric}>
                     <strong className={getTrendingMetricClass(item)}>{formatTrendingMetric(item, numberLocale)}</strong>
                     <small className="clamp-3">
-                      {item.sourceLabel} · {item.market}
+                      {item.metricLabel} · {item.sourceLabel} · {item.market}
                     </small>
                   </span>
                 </button>
