@@ -84,35 +84,31 @@ function makePriceBar(overrides: Partial<SymbolPriceBarDto> = {}): SymbolPriceBa
   };
 }
 
-test("stops quote polling only when market and quote resolve to closed-session states", () => {
+test("stops quote polling for closed/pre-open market state so polling-active copy is not shown", () => {
   assert.equal(isClosedSessionMarketState("closed"), true);
   assert.equal(isClosedSessionMarketState("WEEKEND"), true);
+  assert.equal(isClosedSessionMarketState("PREOPEN"), true);
   assert.equal(getMarketOpenState({ state: "WEEKEND" }), false);
+  assert.equal(getMarketOpenState({ state: "PREOPEN", is_open: true }), true);
+  assert.equal(getMarketOpenState({ state: "PREOPEN", is_open: false }), false);
   assert.equal(
     shouldStopQuotePollingForClosedSession(
       { state: "PREOPEN", is_open: false },
-      makeQuote({ market_state: "CLOSED", is_live: false }),
-    ),
-    false,
-  );
-  assert.equal(
-    shouldStopQuotePollingForClosedSession(
-      { state: "POSTCLOSE", is_open: false },
-      makeQuote({ market_state: "CLOSED", is_live: false }),
-    ),
-    false,
-  );
-  assert.equal(
-    shouldStopQuotePollingForClosedSession(
-      { state: "WEEKEND", is_open: false },
-      makeQuote({ market_state: "WEEKEND", is_live: false }),
+      makeQuote({ market_state: "OPEN", is_live: false }),
     ),
     true,
   );
   assert.equal(
     shouldStopQuotePollingForClosedSession(
       { state: "CLOSED", is_open: false },
-      makeQuote({ market_state: "CLOSED", is_live: false }),
+      makeQuote({ market_state: "OPEN" }),
+    ),
+    true,
+  );
+  assert.equal(
+    shouldStopQuotePollingForClosedSession(
+      { state: "WEEKEND", is_open: false },
+      makeQuote({ market_state: "OPEN" }),
     ),
     true,
   );
@@ -123,12 +119,28 @@ test("stops quote polling only when market and quote resolve to closed-session s
     ),
     false,
   );
+
+  const enCopy = getSymbolDetailCopy("en");
+  const koCopy = getSymbolDetailCopy("ko");
+  const quotePollingStopped = shouldStopQuotePollingForClosedSession(
+    { state: "PREOPEN", is_open: false },
+    makeQuote({ market_state: "OPEN", is_live: false }),
+  );
+  assert.equal(quotePollingStopped ? enCopy.hero.closedSession : enCopy.hero.pollingActive, enCopy.hero.closedSession);
+  assert.equal(quotePollingStopped ? koCopy.hero.closedSession : koCopy.hero.pollingActive, koCopy.hero.closedSession);
+});
+
+test("uses polling-active copy during live sessions even when quote indicates CLOSED", () => {
   assert.equal(
     shouldStopQuotePollingForClosedSession(
-      { state: "WEEKEND", is_open: false },
-      makeQuote({ market_state: "OPEN" }),
+      { state: "OPEN", is_open: true },
+      makeQuote({ market_state: "CLOSED" }),
     ),
     false,
+  );
+  assert.equal(
+    getMarketOpenState({ state: "OPEN", is_open: true }),
+    true,
   );
 });
 
