@@ -40,6 +40,7 @@ export type MobileAppChromeRouteChrome = {
   floatingLayer?: ReactNode;
   hrefs?: AppChromeHrefOverrides;
   leading?: ReactNode;
+  navRouteKeys?: ReadonlyArray<AppChromeRouteKey>;
   status?: MobileAppChromeStatus | null;
   subtitle?: ReactNode | null;
   subtitleAriaLabel?: string;
@@ -85,9 +86,10 @@ export function MobileAppChrome({
   const activeNav = chrome.activeNav ?? null;
   const resolvedMetadata = resolveMobileAppChromeMetadata({ pathname, activeNav, t, locale });
   const hrefOverrides = chrome.hrefs ?? EMPTY_HREF_OVERRIDES;
+  const navRouteKeys = chrome.navRouteKeys ?? FULL_PAGE_CHROME_ROUTE_KEYS;
   const navItems = useMemo(
-    () => buildAppChromeNavItems(t, FULL_PAGE_CHROME_ROUTE_KEYS, hrefOverrides),
-    [hrefOverrides, t],
+    () => buildAppChromeNavItems(t, navRouteKeys, hrefOverrides),
+    [hrefOverrides, navRouteKeys, t],
   );
   const activeHref = activeNav ? resolveAppChromeHref(activeNav, hrefOverrides) : null;
   const prefetchTargets = useMemo(() => {
