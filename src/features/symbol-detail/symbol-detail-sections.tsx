@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { memo, useEffect, useMemo } from "react";
 
+import { useAppState } from "@/components/providers/app-state-provider";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
 import type { AggregateContextLoadState } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
@@ -261,7 +262,10 @@ export const ActionSummarySection = memo(function ActionSummarySection({
   );
   const actionSummaryResult = useUnitData<AgentContextActionSummaryDto | null>(actionSummaryRequest);
   const resolvedActionSummary = actionSummaryResult.data ?? aggregateContext?.action_summary ?? null;
-  const actionSectionModel = buildActionSummarySectionModel(resolvedActionSummary, copy);
+  const { devMode } = useAppState();
+  const actionSectionModel = buildActionSummarySectionModel(resolvedActionSummary, copy, {
+    includePayloadMeta: devMode,
+  });
   const actionSectionRefreshing =
     (actionSummaryResult.hasData || aggregateContext !== null) &&
     (actionSummaryResult.isRefreshing || aggregateContextRefreshing);
@@ -338,7 +342,7 @@ export const ActionSummarySection = memo(function ActionSummarySection({
           ))}
         </div>
 
-        <p className={styles.metaCaption}>{actionSectionModel.metaCaption}</p>
+        {actionSectionModel.metaCaption ? <p className={styles.metaCaption}>{actionSectionModel.metaCaption}</p> : null}
       </UnitRefreshFrame>
     </section>
   );
