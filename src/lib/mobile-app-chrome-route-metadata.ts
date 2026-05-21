@@ -1,6 +1,6 @@
 import type { MessageTree } from "@/i18n/messages";
 import { getSearchPageCopy } from "@/i18n/search-page-copy";
-import type { FullPageChromeRouteKey } from "@/lib/app-chrome-routes";
+import type { AppChromeRouteKey } from "@/lib/app-chrome-routes";
 import type { Locale } from "@/types/trading-api";
 
 type PathMatcher = (pathname: string) => boolean;
@@ -43,7 +43,7 @@ const PATH_BASED_TITLES: RoutePathMetadata[] = [
   },
 ];
 
-const NAV_BASED_TITLES: Partial<Record<FullPageChromeRouteKey, (t: MessageTree, locale: Locale) => string>> = {
+const NAV_BASED_TITLES: Partial<Record<AppChromeRouteKey, (t: MessageTree, locale: Locale) => string>> = {
   dashboard: (t) => t.routes.dashboard.title,
   search: (_t, locale) => getSearchPageCopy(locale).hero.title,
   symbols: (t) => t.mySymbols.title,
@@ -52,7 +52,7 @@ const NAV_BASED_TITLES: Partial<Record<FullPageChromeRouteKey, (t: MessageTree, 
   markets: (t) => t.markets.title,
 };
 
-const NAV_BASED_TOOLBAR_ACTIONS: Partial<Record<FullPageChromeRouteKey, MobileAppChromeRouteMetadata["toolbarAction"]>> = {
+const NAV_BASED_TOOLBAR_ACTIONS: Partial<Record<AppChromeRouteKey, MobileAppChromeRouteMetadata["toolbarAction"]>> = {
   dashboard: "dev-mode",
   search: "dev-mode",
   symbols: "dev-mode",
@@ -66,7 +66,7 @@ export function resolveMobileAppChromeMetadata({
   locale = "en",
 }: {
   pathname: string | null;
-  activeNav?: FullPageChromeRouteKey | null;
+  activeNav?: AppChromeRouteKey | null;
   t: MessageTree;
   locale?: Locale;
 }): MobileAppChromeRouteMetadata {
