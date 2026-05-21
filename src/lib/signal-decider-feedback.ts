@@ -3872,6 +3872,8 @@ export function buildDeciderFeedbackSummary({
     normalizeMarketDate(marketDate);
   const resolvedCurrentMarketDate =
     normalizeMarketDate(currentMarketDate) ?? normalizeMarketDate(progress?.request?.market_date) ?? null;
+  const storedResultCount =
+    feedback?.summary?.count != null ? Math.max(0, toSafeInteger(feedback.summary.count) ?? 0) : Math.max(0, items.length);
   const actionCounts = items.reduce<Record<SignalDeciderAction, number>>(
     (counts, item) => {
       counts[item.action] += 1;
@@ -3894,7 +3896,7 @@ export function buildDeciderFeedbackSummary({
     marketDate: resolvedMarketDate,
     previewItems: items.slice(0, previewLimit),
     requestedCount: roleSnapshot?.requestedCount ?? null,
-    resultCount: items.length,
+    resultCount: storedResultCount,
     runId: progress?.summary?.run_id ?? items[0]?.runId ?? null,
     status,
   };
