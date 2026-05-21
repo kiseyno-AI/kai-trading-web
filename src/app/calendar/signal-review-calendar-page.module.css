@@ -4,6 +4,12 @@
   gap: 1.15rem;
 }
 
+@media (max-width: 1023.98px) {
+  .stack {
+    padding-bottom: var(--mobile-floating-status-offset);
+  }
+}
+
 .heroActions,
 .monthControls,
 .monthStateRow,
