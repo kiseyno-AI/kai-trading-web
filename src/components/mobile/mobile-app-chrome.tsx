@@ -20,7 +20,7 @@ import {
   buildAppChromeNavItems,
   resolveAppChromeHref,
   type AppChromeHrefOverrides,
-  type FullPageChromeRouteKey,
+  type AppChromeRouteKey,
 } from "@/lib/app-chrome-routes";
 import { resolveMobileAppChromeMetadata } from "@/lib/mobile-app-chrome-route-metadata";
 import { warmMobileToolbarViewData } from "@/lib/mobile-toolbar-data";
@@ -35,7 +35,7 @@ type MobileAppChromeStatus = {
 };
 
 export type MobileAppChromeRouteChrome = {
-  activeNav?: FullPageChromeRouteKey | null;
+  activeNav?: AppChromeRouteKey | null;
   bottomAccessory?: ReactNode;
   floatingLayer?: ReactNode;
   hrefs?: AppChromeHrefOverrides;
