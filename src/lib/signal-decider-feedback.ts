@@ -3903,8 +3903,9 @@ export function buildDeciderFeedbackSummary({
 }
 
 export function resolveSignalDeciderFeedbackPreviewState(
-  model: Pick<SignalDeciderFeedbackSummaryModel, "resultCount" | "previewItems">,
+  model: Pick<SignalDeciderFeedbackSummaryModel, "resultCount" | "previewItems" | "completedCount">,
 ): SignalDeciderPreviewState {
   if (model.previewItems.length > 0) return "preview";
+  if ((model.completedCount ?? 0) > 0) return "previewUnavailable";
   return model.resultCount > 0 ? "previewUnavailable" : "empty";
 }

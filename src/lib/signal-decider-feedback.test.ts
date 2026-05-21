@@ -2122,6 +2122,40 @@ test("uses stored result count to show previewUnavailable when summary count exi
   assert.equal(resolveSignalDeciderFeedbackPreviewState(model), "previewUnavailable");
 });
 
+test("uses completed progress count to show previewUnavailable when stored rows are missing from summary and payload", () => {
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback: buildFeedbackResponse({
+      summary: {
+        count: 0,
+      },
+      items: [],
+    }),
+    marketDate: "2026-05-21",
+    previewLimit: 0,
+    progress: buildProgress({
+      summary: {
+        ...buildProgress().summary,
+        run_status: "completed",
+      },
+      result: {
+        market_date: "2026-05-21",
+        roles: {
+          "signal-decider": {
+            requested_count: 122,
+            completed_count: 122,
+            error_count: 0,
+          },
+        },
+      },
+    }),
+  });
+
+  assert.equal(model.resultCount, 0);
+  assert.equal(model.previewItems.length, 0);
+  assert.equal(model.completedCount, 122);
+  assert.equal(resolveSignalDeciderFeedbackPreviewState(model), "previewUnavailable");
+});
+
 test("keeps true empty-state behavior when no rows are stored and no preview rows are returned", () => {
   const model = buildSignalDeciderFeedbackSummary({
     feedback: buildFeedbackResponse({
@@ -2131,7 +2165,18 @@ test("keeps true empty-state behavior when no rows are stored and no preview row
       items: [],
     }),
     marketDate: "2026-04-30",
-    progress: buildProgress(),
+    progress: buildProgress({
+      result: {
+        market_date: "2026-04-30",
+        roles: {
+          "signal-decider": {
+            requested_count: 0,
+            completed_count: 0,
+            error_count: 0,
+          },
+        },
+      },
+    }),
   });
 
   assert.equal(model.resultCount, 0);
