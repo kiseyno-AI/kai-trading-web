@@ -56,6 +56,15 @@ export function resolveKisSourceLabel(
   return cleaned || responseSource.toUpperCase();
 }
 
+export type StoredTrendingMode = "1d" | "5d" | "20d";
+
+export function resolveStoredTrendingLabels(mode: StoredTrendingMode, copy: SearchPageCopy) {
+  return {
+    metricLabel: `${mode.toUpperCase()} ${copy.trending.storedRankSuffix}`,
+    sourceLabel: copy.trending.storedPrefix,
+  };
+}
+
 export type ResolvedKisMetric = {
   metricLabel: string;
   metricValue: number | null;

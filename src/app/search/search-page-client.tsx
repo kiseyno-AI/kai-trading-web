@@ -16,6 +16,7 @@ import { getNumberLocale } from "@/lib/locale";
 import {
   resolveKisMetricPresentation,
   resolveKisSourceLabel,
+  resolveStoredTrendingLabels,
   type RealtimeTrendingResponse,
 } from "@/lib/search-trending-metadata";
 import {
@@ -390,14 +391,15 @@ function mapStoredTrendingItems(
       name_ko: name,
       market,
     });
+    const { metricLabel, sourceLabel } = resolveStoredTrendingLabels(mode, copy);
 
     return {
       symbol: searchItem.symbol,
       name,
       market,
       rank: item.rank ?? index + 1,
-      metricLabel: `${mode.toUpperCase()} ${copy.trending.storedRankSuffix}`,
-      sourceLabel: `${mode.toUpperCase()} ${copy.trending.storedRankSuffix}`,
+      metricLabel,
+      sourceLabel,
       metricName: item.metric?.name ?? `${mode}_return_pct`,
       metricUnit: "percent",
       metricValue: item.metric?.value ?? null,

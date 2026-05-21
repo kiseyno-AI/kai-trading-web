@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getSearchPageCopy } from "@/i18n/search-page-copy";
-import { resolveKisMetricPresentation, resolveKisSourceLabel, type RealtimeTrendingSource } from "@/lib/search-trending-metadata";
+import {
+  resolveKisMetricPresentation,
+  resolveKisSourceLabel,
+  resolveStoredTrendingLabels,
+  type RealtimeTrendingSource,
+} from "@/lib/search-trending-metadata";
 
 const copyKo = getSearchPageCopy("ko");
 const copyEn = getSearchPageCopy("en");
@@ -56,4 +61,19 @@ test("removes source-count-leading text from source labels", () => {
 
   assert.equal(sourceLabel, "KIS");
   assert.equal(noSourceLabel, "KIS");
+});
+
+test("uses a distinct source label for stored trend rows", () => {
+  const labels = ["1d", "5d", "20d"].map((mode) => resolveStoredTrendingLabels(mode, copyEn));
+
+  assert.equal(labels[0].metricLabel, "1D stored rank");
+  assert.equal(labels[1].metricLabel, "5D stored rank");
+  assert.equal(labels[2].metricLabel, "20D stored rank");
+  assert.equal(labels[0].sourceLabel, copyEn.trending.storedPrefix);
+  assert.equal(labels[1].sourceLabel, copyEn.trending.storedPrefix);
+  assert.equal(labels[2].sourceLabel, copyEn.trending.storedPrefix);
+
+  for (const label of labels) {
+    assert.notEqual(label.metricLabel, label.sourceLabel);
+  }
 });
