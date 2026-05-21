@@ -510,6 +510,194 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
     assert.match(workspace.families.advancedValue.rows[1]?.note ?? "", /Unified valuation context: Missing metric/);
     assert.equal(workspace.families.composite.state, "future");
     assert.equal(workspace.families.composite.totalRows, 0);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+test("loadFactorScreeningWorkspace keeps successful families when some factor families time out", async () => {
+  const originalFetch = global.fetch;
+  const marketDate = "2026-04-24";
+  const timeoutMessage = "Timed out after 15.0s while loading /eod/beta-factors from trading-core.";
+
+  global.fetch = (async (input) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    const pathname = new URL(url, "http://kai.local").pathname;
+
+    if (pathname === "/api/trading/eod/momentum-factors") {
+      return new Response(
+        JSON.stringify({
+          market_date: marketDate,
+          feature_version: "momentum_v2",
+          summary: {
+            entries: 1,
+            requested_symbols: [],
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            ranked_symbols: 1,
+            eligible_count: 1,
+          },
+          items: [
+            {
+              symbol: "005930",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+              market_date: marketDate,
+              close_price: 71000,
+              ma_60: 68000,
+              ma_120: 65000,
+              momentum_12_1: 0.28,
+              return_5d: 0.07,
+              has_sufficient_history: true,
+              is_price_above_ma120: true,
+              is_ma60_above_ma120: true,
+              is_recent_overheated: false,
+              momentum_rank: 3,
+              momentum_percentile: 0.97,
+              is_momentum_eligible: true,
+              factor_payload: null,
+              captured_at: null,
+            },
+          ],
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    }
+
+    if (pathname === "/api/trading/eod/value-factors") {
+      return new Response(
+        JSON.stringify({
+          market_date: marketDate,
+          feature_version: "value_v1",
+          summary: {
+            entries: 1,
+            requested_symbol: null,
+            matched_symbols: ["035420"],
+            missing_symbols: [],
+            scored_count: 1,
+            invalid_per_count: 0,
+            missing_metric_count: 0,
+          },
+          items: [
+            {
+              symbol: "035420",
+              name_ko: "NAVER",
+              market: "KOSPI",
+              market_date: marketDate,
+              per: 9.8,
+              pbr: 1.5,
+              dividend_yield: 0.012,
+              per_rank: 12,
+              pbr_rank: 8,
+              dividend_yield_rank: 4,
+              per_percentile: 0.71,
+              pbr_percentile: 0.62,
+              dividend_yield_percentile: 0.74,
+              value_score: 0.77,
+              value_rank: 22,
+              value_percentile: 0.77,
+              value_status: "scored",
+              quality_score: 0.7,
+              quality_rank: 14,
+              quality_percentile: 0.78,
+              quality_status: "scored",
+              components_possible: 6,
+              components_used: 2,
+              is_quality_score_complete: false,
+              factor_payload: null,
+              captured_at: null,
+            },
+          ],
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    }
+
+    if (pathname === "/api/trading/eod/advanced-value-factors") {
+      return new Response(
+        JSON.stringify({
+          market_date: marketDate,
+          feature_version: "advanced_value_v1",
+          summary: {
+            entries: 0,
+            requested_symbol: null,
+            matched_symbols: [],
+            missing_symbols: [],
+            eligible_count: 0,
+            watchlist_count: 0,
+            ineligible_count: 0,
+            insufficient_components_count: 0,
+          },
+          items: [],
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    }
+
+    if (pathname === "/api/trading/eod/beta-factors") {
+      return new Response(
+        JSON.stringify({
+          error: "Upstream request timed out",
+          message: timeoutMessage,
+        }),
+        { headers: { "Content-Type": "application/json" }, status: 504 },
+      );
+    }
+
+    if (pathname === "/api/trading/eod/low-risk-factors") {
+      return new Response(
+        JSON.stringify({
+          error: "Upstream request timed out",
+          message: timeoutMessage,
+        }),
+        { headers: { "Content-Type": "application/json" }, status: 504 },
+      );
+    }
+
+    assert.fail(`Unexpected request path: ${pathname}`);
+  }) as typeof fetch;
+
+  try {
+    const workspace = await loadFactorScreeningWorkspace({
+      marketDate,
+      numberLocale: "en-US",
+    });
+
+    assert.equal(workspace.families.momentum.state, "ready");
+    assert.equal(workspace.families.value.state, "ready");
+    assert.equal(workspace.families.advancedValue.state, "ready");
+    assert.equal(workspace.families.beta.state, "error");
+    assert.equal(workspace.families.lowRisk.state, "error");
+    assert.equal(workspace.families.momentum.totalRows, 1);
+    assert.equal(workspace.families.value.totalRows, 1);
+    assert.equal(workspace.families.advancedValue.totalRows, 0);
+    assert.equal(
+      workspace.families.momentum.rows[0]?.symbol,
+      "005930",
+    );
+    assert.equal(
+      workspace.families.value.rows[0]?.symbol,
+      "035420",
+    );
+    assert.equal(
+      workspace.families.advancedValue.rows.length,
+      0,
+    );
+    assert.equal(workspace.families.beta.error?.includes("HTTP"), false);
+    assert.equal(workspace.families.lowRisk.error?.includes("HTTP"), false);
+    assert.match(workspace.families.beta.error ?? "", /timed out/i);
+    assert.match(workspace.families.lowRisk.error ?? "", /factor family data request timed out/i);
+    assert.equal(workspace.families.beta.note, "Factor family data request timed out.");
+    assert.equal(workspace.families.lowRisk.note, "Factor family data request timed out.");
   } finally {
     global.fetch = originalFetch;
   }

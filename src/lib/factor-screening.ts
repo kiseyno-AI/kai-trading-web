@@ -39,6 +39,7 @@ import type {
 } from "@/types/trading-api";
 
 export const FACTOR_SCREENING_FAMILY_ORDER = [...FACTOR_FAMILY_ORDER, "composite"] as const;
+export const FACTOR_SCREENING_API_REQUEST_TIMEOUT_MS = 15_000;
 
 export type FactorScreeningFamilyId = (typeof FACTOR_SCREENING_FAMILY_ORDER)[number];
 export type FactorScreeningStatusBucket = "eligible" | "caution" | "audit";
@@ -915,19 +916,32 @@ function buildReadyDataset(options: {
   };
 }
 
-function buildErrorDataset(family: FactorFamilyId, requestedMarketDate: string, error: string): FactorScreeningDataset {
+function buildErrorDataset(
+  family: FactorFamilyId,
+  requestedMarketDate: string,
+  error: string,
+): FactorScreeningDataset {
   const meta = FACTOR_SCREENING_FAMILY_META[family];
+  const normalizedError = error.trim();
+  const lowerCaseError = normalizedError.toLowerCase();
+  const isTimeout =
+    lowerCaseError.includes("timed out") ||
+    lowerCaseError.includes("timeout") ||
+    lowerCaseError.includes("504");
+  const note = isTimeout
+    ? "Factor family data request timed out."
+    : "Factor family data is currently unavailable.";
 
   return {
     api: meta.api,
     auditCount: 0,
     cautionCount: 0,
     eligibleCount: 0,
-    error,
+    error: note,
     family,
     featureVersion: null,
     marketDate: null,
-    note: "Core factor data did not load for this family.",
+    note,
     requestedMarketDate,
     rows: [],
     shortLabel: meta.shortLabel,
@@ -974,13 +988,23 @@ async function loadAvailableFamilyDataset(
     numberLocale: string;
   },
 ): Promise<FactorScreeningDataset> {
-  const path = buildFactorScreeningPath(family, options.marketDate);
+    const path = buildFactorScreeningPath(family, options.marketDate);
 
   try {
     switch (family) {
       case "momentum": {
-        const result = await getTradingApiJsonResult<EodMomentumFactorsResponseDto>(resolveTradingApiClientPath(path));
-        if (!result.ok) return buildErrorDataset(family, options.marketDate, `HTTP ${result.status}`);
+        const result = await getTradingApiJsonResult<EodMomentumFactorsResponseDto>(
+          resolveTradingApiClientPath(path),
+          undefined,
+          { timeoutMs: FACTOR_SCREENING_API_REQUEST_TIMEOUT_MS },
+        );
+        if (!result.ok) {
+          return buildErrorDataset(
+            family,
+            options.marketDate,
+            result.message ? `Request failed: ${result.message}` : `HTTP ${result.status}`,
+          );
+        }
 
         const rows = assignDisplayRanks(buildMomentumRows(result.data));
         return buildReadyDataset({
@@ -994,8 +1018,18 @@ async function loadAvailableFamilyDataset(
         });
       }
       case "lowRisk": {
-        const result = await getTradingApiJsonResult<EodLowRiskFactorsResponseDto>(resolveTradingApiClientPath(path));
-        if (!result.ok) return buildErrorDataset(family, options.marketDate, `HTTP ${result.status}`);
+        const result = await getTradingApiJsonResult<EodLowRiskFactorsResponseDto>(
+          resolveTradingApiClientPath(path),
+          undefined,
+          { timeoutMs: FACTOR_SCREENING_API_REQUEST_TIMEOUT_MS },
+        );
+        if (!result.ok) {
+          return buildErrorDataset(
+            family,
+            options.marketDate,
+            result.message ? `Request failed: ${result.message}` : `HTTP ${result.status}`,
+          );
+        }
 
         const rows = assignDisplayRanks(buildLowRiskRows(result.data, options.numberLocale));
         return buildReadyDataset({
@@ -1009,8 +1043,18 @@ async function loadAvailableFamilyDataset(
         });
       }
       case "beta": {
-        const result = await getTradingApiJsonResult<EodBetaFactorsResponseDto>(resolveTradingApiClientPath(path));
-        if (!result.ok) return buildErrorDataset(family, options.marketDate, `HTTP ${result.status}`);
+        const result = await getTradingApiJsonResult<EodBetaFactorsResponseDto>(
+          resolveTradingApiClientPath(path),
+          undefined,
+          { timeoutMs: FACTOR_SCREENING_API_REQUEST_TIMEOUT_MS },
+        );
+        if (!result.ok) {
+          return buildErrorDataset(
+            family,
+            options.marketDate,
+            result.message ? `Request failed: ${result.message}` : `HTTP ${result.status}`,
+          );
+        }
 
         const rows = assignDisplayRanks(buildBetaRows(result.data));
         return buildReadyDataset({
@@ -1024,8 +1068,18 @@ async function loadAvailableFamilyDataset(
         });
       }
       case "value": {
-        const result = await getTradingApiJsonResult<EodValueFactorsResponseDto>(resolveTradingApiClientPath(path));
-        if (!result.ok) return buildErrorDataset(family, options.marketDate, `HTTP ${result.status}`);
+        const result = await getTradingApiJsonResult<EodValueFactorsResponseDto>(
+          resolveTradingApiClientPath(path),
+          undefined,
+          { timeoutMs: FACTOR_SCREENING_API_REQUEST_TIMEOUT_MS },
+        );
+        if (!result.ok) {
+          return buildErrorDataset(
+            family,
+            options.marketDate,
+            result.message ? `Request failed: ${result.message}` : `HTTP ${result.status}`,
+          );
+        }
 
         const rows = assignDisplayRanks(buildValueRows(result.data));
         return buildReadyDataset({
@@ -1041,8 +1095,16 @@ async function loadAvailableFamilyDataset(
       case "advancedValue": {
         const result = await getTradingApiJsonResult<EodAdvancedValueFactorsResponseDto>(
           resolveTradingApiClientPath(path),
+          undefined,
+          { timeoutMs: FACTOR_SCREENING_API_REQUEST_TIMEOUT_MS },
         );
-        if (!result.ok) return buildErrorDataset(family, options.marketDate, `HTTP ${result.status}`);
+        if (!result.ok) {
+          return buildErrorDataset(
+            family,
+            options.marketDate,
+            result.message ? `Request failed: ${result.message}` : `HTTP ${result.status}`,
+          );
+        }
 
         const rows = assignDisplayRanks(buildAdvancedValueRows(result.data));
         return buildReadyDataset({
