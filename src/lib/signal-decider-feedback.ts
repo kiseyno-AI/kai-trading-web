@@ -334,6 +334,8 @@ export type SignalDeciderFeedbackSummaryModel = {
   status: SignalDeciderFeedbackStatus;
 };
 
+export type SignalDeciderPreviewState = "preview" | "previewUnavailable" | "empty";
+
 type SignalDeciderRoleSnapshot = {
   requestedCount: number | null;
   completedCount: number | null;
@@ -3870,6 +3872,8 @@ export function buildDeciderFeedbackSummary({
     normalizeMarketDate(marketDate);
   const resolvedCurrentMarketDate =
     normalizeMarketDate(currentMarketDate) ?? normalizeMarketDate(progress?.request?.market_date) ?? null;
+  const storedResultCount =
+    feedback?.summary?.count != null ? Math.max(0, toSafeInteger(feedback.summary.count) ?? 0) : Math.max(0, items.length);
   const actionCounts = items.reduce<Record<SignalDeciderAction, number>>(
     (counts, item) => {
       counts[item.action] += 1;
@@ -3892,8 +3896,15 @@ export function buildDeciderFeedbackSummary({
     marketDate: resolvedMarketDate,
     previewItems: items.slice(0, previewLimit),
     requestedCount: roleSnapshot?.requestedCount ?? null,
-    resultCount: items.length,
+    resultCount: storedResultCount,
     runId: progress?.summary?.run_id ?? items[0]?.runId ?? null,
     status,
   };
+}
+
+export function resolveSignalDeciderFeedbackPreviewState(
+  model: Pick<SignalDeciderFeedbackSummaryModel, "resultCount" | "previewItems">,
+): SignalDeciderPreviewState {
+  if (model.previewItems.length > 0) return "preview";
+  return model.resultCount > 0 ? "previewUnavailable" : "empty";
 }

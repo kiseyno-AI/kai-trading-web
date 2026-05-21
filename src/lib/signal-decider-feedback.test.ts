@@ -26,6 +26,7 @@ import {
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
   resolveSignalDeciderLatestFeedbackMarketDate,
+  resolveSignalDeciderFeedbackPreviewState,
   selectSignalDeciderDashboardFeedback,
   SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
@@ -2088,6 +2089,54 @@ test("builds a compact summary with preview, action counts, and detail href", ()
   assert.equal(model.actionCounts.buy, 1);
   assert.equal(model.actionCounts.wait, 1);
   assert.equal(model.detailHref, "/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+});
+
+test("reports preview unavailable when rows exist but preview rows are omitted", () => {
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback: buildFeedbackResponse(),
+    marketDate: "2026-04-27",
+    previewLimit: 0,
+    progress: buildProgress(),
+  });
+
+  assert.equal(model.resultCount, 2);
+  assert.equal(model.previewItems.length, 0);
+  assert.equal(resolveSignalDeciderFeedbackPreviewState(model), "previewUnavailable");
+});
+
+test("uses stored result count to show previewUnavailable when summary count exists without stored rows", () => {
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback: buildFeedbackResponse({
+      summary: {
+        count: 4,
+      },
+      items: [],
+    }),
+    marketDate: "2026-04-30",
+    progress: buildProgress(),
+    previewLimit: 0,
+  });
+
+  assert.equal(model.resultCount, 4);
+  assert.equal(model.previewItems.length, 0);
+  assert.equal(resolveSignalDeciderFeedbackPreviewState(model), "previewUnavailable");
+});
+
+test("keeps true empty-state behavior when no rows are stored and no preview rows are returned", () => {
+  const model = buildSignalDeciderFeedbackSummary({
+    feedback: buildFeedbackResponse({
+      summary: {
+        count: 0,
+      },
+      items: [],
+    }),
+    marketDate: "2026-04-30",
+    progress: buildProgress(),
+  });
+
+  assert.equal(model.resultCount, 0);
+  assert.equal(model.previewItems.length, 0);
+  assert.equal(resolveSignalDeciderFeedbackPreviewState(model), "empty");
 });
 
 test("keeps signal-decider feedback status transparent when progress is running but no rows are stored yet", () => {
