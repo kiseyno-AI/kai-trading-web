@@ -92,10 +92,11 @@ function humanizeToken(copy: SymbolDetailCopy, value: string | null | undefined,
   if (!value) return fallback;
 
   const normalized = value.trim();
-  const knownLabels = copy.factors.metricStatusLabels;
+  const knownLabels: Partial<Record<string, string>> = copy.factors.metricStatusLabels;
+  const knownLabel = knownLabels[normalized];
 
-  if (knownLabels[normalized]) {
-    return knownLabels[normalized] ?? fallback;
+  if (knownLabel) {
+    return knownLabel;
   }
 
   return normalized
@@ -192,7 +193,8 @@ function uniqueNotes(notes: Array<string | null | undefined>) {
 
 function getLocalizedFactorStatusLabel(copy: SymbolDetailCopy, statusCode: string) {
   const normalized = statusCode.trim();
-  const knownLabel = copy.factors.factorStatusLabels[normalized];
+  const knownLabels: Partial<Record<string, string>> = copy.factors.factorStatusLabels;
+  const knownLabel = knownLabels[normalized];
 
   if (knownLabel) {
     return knownLabel;

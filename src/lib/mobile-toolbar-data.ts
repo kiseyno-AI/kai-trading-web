@@ -5,7 +5,7 @@ import {
 } from "@/lib/trading-api-cache";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 
-export type MobileToolbarViewKey = "dashboard" | "search" | "symbols" | "portfolio" | "calendar" | "markets";
+export type MobileToolbarViewKey = "dashboard" | "search" | "symbols" | "portfolio" | "calendar" | "markets" | "bots";
 
 export const MOBILE_TOOLBAR_MARKET_STATUS_PATH = "/api/trading/market/status";
 export const MOBILE_TOOLBAR_TRACKED_QUOTES_PATH = "/api/trading/quotes/tracked";
