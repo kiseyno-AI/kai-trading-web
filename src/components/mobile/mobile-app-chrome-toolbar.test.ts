@@ -103,6 +103,13 @@ test("AppShell and MobileAppChrome share the central route model", () => {
   assert.match(mobileChromeSource, /buildAppChromeNavItems/);
 });
 
+test("Markets route chrome uses an explicit route key override to expose Bots on full-screen mobile chrome", () => {
+  const source = readFileSync(join(repoRoot, "src/app/markets/markets-route-chrome.tsx"), "utf8");
+
+  assert.match(source, /MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
+  assert.match(source, /navRouteKeys:\s*MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
+});
+
 test("full-screen routes use the shared chrome metadata model for representative pages", () => {
   const representativeRoutes = [
     "src/app/calendar/signal-review-calendar-page-client.tsx",
