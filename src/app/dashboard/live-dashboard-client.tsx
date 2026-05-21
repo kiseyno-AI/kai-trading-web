@@ -25,6 +25,7 @@ import type {
 import {
   buildSignalDeciderFeedbackSummary,
   formatSignalDeciderActionLabel,
+  resolveSignalDeciderFeedbackPreviewState,
   selectSignalDeciderDashboardFeedback,
   type SignalDeciderFeedbackStatus,
   type SignalDeciderFeedbackSummaryModel,
@@ -819,6 +820,7 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
   const statusCopyKey = getSignalDeciderStatusCopyKey(model.status);
   const statusLabel = copy.signalDecider.statuses[statusCopyKey];
   const statusTone = getSignalDeciderStatusTone(model.status);
+  const previewState = resolveSignalDeciderFeedbackPreviewState(model);
 
   return (
     <article
@@ -863,7 +865,7 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
 
       {error ? <p className={styles.cardContext}>{copy.signalDecider.unavailable} {error}</p> : null}
 
-      {model.previewItems.length > 0 ? (
+      {previewState === "preview" ? (
         <div className={styles.signalDeciderPreviewList} role="list" aria-label={copy.signalDecider.preview}>
           {model.previewItems.map((item) => (
             <div
@@ -898,7 +900,11 @@ const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
           ))}
         </div>
       ) : (
-        <div className={styles.emptyState}>{copy.signalDecider.empty}</div>
+        <div className={styles.emptyState}>
+          {previewState === "previewUnavailable"
+            ? copy.signalDecider.previewUnavailable
+            : copy.signalDecider.empty}
+        </div>
       )}
 
       <Link href={model.detailHref} className={styles.signalDeciderMoreLink} aria-label={copy.signalDecider.openDetail}>

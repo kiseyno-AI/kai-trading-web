@@ -334,6 +334,8 @@ export type SignalDeciderFeedbackSummaryModel = {
   status: SignalDeciderFeedbackStatus;
 };
 
+export type SignalDeciderPreviewState = "preview" | "previewUnavailable" | "empty";
+
 type SignalDeciderRoleSnapshot = {
   requestedCount: number | null;
   completedCount: number | null;
@@ -3896,4 +3898,11 @@ export function buildDeciderFeedbackSummary({
     runId: progress?.summary?.run_id ?? items[0]?.runId ?? null,
     status,
   };
+}
+
+export function resolveSignalDeciderFeedbackPreviewState(
+  model: Pick<SignalDeciderFeedbackSummaryModel, "resultCount" | "previewItems">,
+): SignalDeciderPreviewState {
+  if (model.previewItems.length > 0) return "preview";
+  return model.resultCount > 0 ? "previewUnavailable" : "empty";
 }
