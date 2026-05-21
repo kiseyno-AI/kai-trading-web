@@ -1134,7 +1134,7 @@ function normalizeMarketCode(value: string | null | undefined) {
 
 export function isClosedSessionMarketState(value: string | null | undefined) {
   const state = normalizeMarketCode(value);
-  return state === "CLOSED" || state === "WEEKEND";
+  return state === "CLOSED" || state === "WEEKEND" || state === "PREOPEN";
 }
 
 export function getMarketOpenState(marketStatus: MarketStatusResponse | null) {
@@ -1151,6 +1151,11 @@ export function shouldStopQuotePollingForClosedSession(
   marketStatus: MarketStatusResponse | null,
   quote: QuoteResponse | null,
 ) {
+  const marketOpen = getMarketOpenState(marketStatus);
+
+  if (marketOpen === false) return true;
+  if (marketOpen === true) return false;
+
   return isClosedSessionMarketState(marketStatus?.state) && isClosedSessionMarketState(quote?.market_state);
 }
 
