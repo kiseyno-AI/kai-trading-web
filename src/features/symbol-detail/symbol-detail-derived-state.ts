@@ -645,6 +645,7 @@ export function buildHeroPiotroskiMetricModel({
 
 export function buildActionTone(actionSummary: AgentContextActionSummaryDto | null): ActionSummarySectionModel["tone"] {
   if (!actionSummary) return "neutral";
+  if (isInsufficientHistoryActionSummary(actionSummary)) return "info";
   if (actionSummary.bias_direction === "long") return "positive";
   if (actionSummary.bias_direction === "short") return "negative";
   return "info";
@@ -731,6 +732,69 @@ function formatSignalScore(score: number) {
   return Number.isInteger(roundedScore) ? String(roundedScore) : roundedScore.toFixed(1);
 }
 
+function normalizeActionToken(value: string | null | undefined) {
+  return typeof value === "string" ? value.trim().toLowerCase() : null;
+}
+
+function resolveActionCopyToken<T extends Record<string, string>>(value: string | null | undefined, labels: T, fallback: string) {
+  const normalized = normalizeActionToken(value);
+  if (!normalized) return fallback;
+
+  const directMatch = labels[normalized as keyof T];
+  if (directMatch) return directMatch;
+
+  const camelCased = normalized
+    .split(/[_\-\s]+/)
+    .filter(Boolean)
+    .map((part, index) => (index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join("");
+  const camelMatch = labels[camelCased as keyof T];
+  if (camelMatch) return camelMatch;
+
+  return humanizeToken(normalized);
+}
+
+function resolveActionSummaryActionLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
+  return resolveActionCopyToken(value, copy.action.actionLabels, copy.action.actionLabels.noAction);
+}
+
+function resolveActionConfidenceLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
+  const normalized = normalizeActionToken(value);
+  if (!normalized) return copy.action.confidenceLevels.unavailable;
+  return copy.action.confidenceLevels[normalized as keyof typeof copy.action.confidenceLevels] ?? humanizeToken(normalized);
+}
+
+function resolveActionRiskLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
+  const normalized = normalizeActionToken(value);
+  if (!normalized) return copy.action.riskLevels.unavailable;
+  return copy.action.riskLevels[normalized as keyof typeof copy.action.riskLevels] ?? humanizeToken(normalized);
+}
+
+function resolveActionBiasLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
+  const normalized = normalizeActionToken(value);
+  if (!normalized) return copy.action.biasDirections.neutral;
+  return copy.action.biasDirections[normalized as keyof typeof copy.action.biasDirections] ?? humanizeToken(normalized);
+}
+
+function resolveActionReasonLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
+  const normalized = normalizeActionToken(value);
+  if (!normalized) return null;
+  if (normalized === "insufficient_history") return copy.action.reasonLabels.insufficientHistory;
+  return humanizeToken(normalized);
+}
+
+function isInsufficientHistoryActionSummary(actionSummary: AgentContextActionSummaryDto | null) {
+  if (!actionSummary) return false;
+  const actionLabel = normalizeActionToken(actionSummary.action_label);
+  const hasInsufficientHistoryReason = actionSummary.reasons.some((reason) => normalizeActionToken(reason) === "insufficient_history");
+  return actionLabel === "insufficient_data" || hasInsufficientHistoryReason;
+}
+
+function buildActionReasonTags(actionSummary: AgentContextActionSummaryDto | null, copy: SymbolDetailCopy) {
+  const reasons = actionSummary?.reasons.slice(0, 4) ?? [];
+  return reasons.map((reason) => resolveActionReasonLabel(reason, copy)).filter((reason): reason is string => Boolean(reason));
+}
+
 function buildActionSummarySignalMeterModel(
   actionSummary: AgentContextActionSummaryDto | null,
   score: number,
@@ -746,8 +810,8 @@ function buildActionSummarySignalMeterModel(
     };
   }
 
-  const actionLabel = humanizeToken(actionSummary.action_label);
-  const biasLabel = humanizeToken(actionSummary.bias_direction);
+  const actionLabel = resolveActionSummaryActionLabel(actionSummary?.action_label, copy);
+  const biasLabel = resolveActionBiasLabel(actionSummary?.bias_direction, copy);
   const currentLabel = `${copy.action.currentAction}: ${actionLabel} · ${copy.action.bias} ${biasLabel}`;
   const valueLabel = `${formatSignalScore(score)} / 100`;
 
@@ -763,27 +827,37 @@ function buildActionSummarySignalMeterModel(
 export function buildActionSummarySectionModel(
   actionSummary: AgentContextActionSummaryDto | null,
   copy: SymbolDetailCopy,
+  options?: { includePayloadMeta?: boolean },
 ): ActionSummarySectionModel {
-  const reasons = actionSummary?.reasons.slice(0, 4) ?? [];
+  const reasonTags = buildActionReasonTags(actionSummary, copy);
   const payloadTags = buildInsightTags(actionSummary?.summary_payload);
   const score = clampSignalScore(actionSummary?.signal_score);
+  const isInsufficientHistory = isInsufficientHistoryActionSummary(actionSummary);
+  const baseBody = reasonTags.length > 0 ? reasonTags.join(" · ") : null;
+  const body = baseBody
+    ? isInsufficientHistory
+      ? `${baseBody} · ${copy.action.insufficientHistoryExplanation}`
+      : baseBody
+    : isInsufficientHistory
+      ? copy.action.insufficientHistoryExplanation
+      : copy.action.emptyBody;
 
   return {
-    badgeLabel: actionSummary ? humanizeToken(actionSummary.action_label) : copy.action.unavailable,
-    body: reasons.length > 0 ? reasons.join(" ") : copy.action.emptyBody,
+    badgeLabel: actionSummary ? resolveActionSummaryActionLabel(actionSummary.action_label, copy) : copy.action.unavailable,
+    body,
     headline: buildActionHeadline(actionSummary, copy),
-    metaCaption: `${copy.action.payloadKeys}: ${payloadTags.join(" · ")}`,
+    metaCaption: options?.includePayloadMeta ? `${copy.action.payloadKeys}: ${payloadTags.join(" · ")}` : "",
     meter: buildActionSummarySignalMeterModel(actionSummary, score, copy),
     metrics: [
       {
         key: "confidence",
         label: copy.action.confidence,
-        value: humanizeToken(actionSummary?.confidence_tier),
+        value: resolveActionConfidenceLabel(actionSummary?.confidence_tier, copy),
       },
       {
         key: "risk",
         label: copy.action.risk,
-        value: humanizeToken(actionSummary?.risk_tier),
+        value: resolveActionRiskLabel(actionSummary?.risk_tier, copy),
       },
       {
         key: "trigger",
@@ -793,7 +867,7 @@ export function buildActionSummarySectionModel(
           : copy.action.noTriggerPrice,
       },
     ],
-    reasonTags: reasons.length > 0 ? reasons : [copy.action.noRationaleRows],
+    reasonTags: reasonTags.length > 0 ? reasonTags : [copy.action.noRationaleRows],
     score,
     tone: buildActionTone(actionSummary),
   };
@@ -1276,7 +1350,8 @@ export function getPiotroskiLabel(
 
 export function buildActionHeadline(actionSummary: AgentContextActionSummaryDto | null, copy: SymbolDetailCopy) {
   if (!actionSummary) return copy.action.emptyHeadline;
-  return `${humanizeToken(actionSummary.action_label)} · ${copy.action.confidence} ${humanizeToken(actionSummary.confidence_tier)}`;
+  const actionLabel = resolveActionSummaryActionLabel(actionSummary.action_label, copy);
+  return `${actionLabel} · ${copy.action.confidence} ${resolveActionConfidenceLabel(actionSummary.confidence_tier, copy)}`;
 }
 
 export function buildTechnicalHeadline(

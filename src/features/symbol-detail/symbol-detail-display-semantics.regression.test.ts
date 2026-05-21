@@ -138,7 +138,7 @@ test("TC-SYMBOL-003 action-summary fallback labels stay stable when no summary i
   assert.equal(model.badgeLabel, copy.action.unavailable);
   assert.equal(model.headline, copy.action.emptyHeadline);
   assert.equal(model.body, copy.action.emptyBody);
-  assert.equal(model.metaCaption, `${copy.action.payloadKeys}: No payload keys`);
+  assert.equal(model.metaCaption, "");
   assert.deepEqual(model.reasonTags, [copy.action.noRationaleRows]);
   assert.equal(model.metrics[0]?.value, "Unavailable");
   assert.equal(model.metrics[1]?.value, "Unavailable");
@@ -164,6 +164,29 @@ test("TC-SYMBOL-003 action-summary fallback labels stay stable when no summary i
     ].join(" "),
     /\b(?:Sell|Strong Buy)\b/,
   );
+});
+
+test("TC-SYMBOL-008 action-summary insufficient-history state localizes KO copy and hides raw tokens", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildActionSummarySectionModel(
+    makeActionSummary({
+      action_label: "insufficient_data",
+      confidence_tier: "low",
+      risk_tier: "unknown",
+      reasons: ["insufficient_history"],
+    }),
+    copy,
+  );
+  const rendered = `${model.badgeLabel} ${model.headline} ${model.body} ${model.reasonTags.join(" ")}`;
+
+  assert.equal(model.badgeLabel, copy.action.actionLabels.insufficientData);
+  assert.equal(model.body, `${copy.action.reasonLabels.insufficientHistory} · ${copy.action.insufficientHistoryExplanation}`);
+  assert.equal(model.reasonTags[0], copy.action.reasonLabels.insufficientHistory);
+  assert.equal(model.metrics[0]?.value, copy.action.confidenceLevels.low);
+  assert.equal(model.metrics[1]?.value, copy.action.riskLevels.unknown);
+  assert.equal(model.tone, "info");
+  assert.equal(model.meter.state, "resolved");
+  assert.doesNotMatch(rendered, /\binsufficient_history\b|Summary Version|Symbol|Market Date|Bias Direction|Insufficient Data\b/);
 });
 
 test("TC-SYMBOL-004 action-summary resolved meter presents the current strong-buy long bias", () => {

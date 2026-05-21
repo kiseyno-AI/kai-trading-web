@@ -166,7 +166,7 @@ test("keeps action-summary fallback labels stable when no summary is available",
   assert.equal(model.badgeLabel, copy.action.unavailable);
   assert.equal(model.headline, copy.action.emptyHeadline);
   assert.equal(model.body, copy.action.emptyBody);
-  assert.equal(model.metaCaption, `${copy.action.payloadKeys}: No payload keys`);
+  assert.equal(model.metaCaption, "");
   assert.deepEqual(model.reasonTags, [copy.action.noRationaleRows]);
   assert.equal(model.metrics[0]?.value, "Unavailable");
   assert.equal(model.metrics[1]?.value, "Unavailable");
@@ -191,6 +191,61 @@ test("keeps action-summary fallback labels stable when no summary is available",
     ].join(" "),
     /\b(?:Sell|Strong Buy)\b/,
   );
+});
+
+test("shows action summary payload keys only when includePayloadMeta is enabled", () => {
+  const copy = getSymbolDetailCopy("en");
+  const model = buildActionSummarySectionModel(
+    makeActionSummary({
+      summary_payload: {
+        summary_version: "2",
+        symbol: "005930",
+        market_date: "2026-04-10",
+      },
+    }),
+    copy,
+    { includePayloadMeta: true },
+  );
+
+  assert.equal(model.metaCaption, `${copy.action.payloadKeys}: Summary Version · Symbol · Market Date`);
+});
+
+test("localizes insufficient-history action summaries in Korean and explains the missing data", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildActionSummarySectionModel(
+    makeActionSummary({
+      action_label: "insufficient_data",
+      confidence_tier: "low",
+      risk_tier: "unknown",
+      reasons: ["insufficient_history"],
+      summary_payload: {
+        summary_version: "2",
+        symbol: "005930",
+        market_date: "2026-04-10",
+      },
+    }),
+    copy,
+  );
+
+  const rendered = [
+    model.badgeLabel,
+    model.headline,
+    model.body,
+    ...model.reasonTags,
+    ...model.metrics.map((metric) => metric.value),
+  ].join(" ");
+
+  assert.equal(model.badgeLabel, copy.action.actionLabels.insufficientData);
+  assert.equal(model.tone, "info");
+  assert.equal(model.headline, `${copy.action.actionLabels.insufficientData} · ${copy.action.confidence} ${copy.action.confidenceLevels.low}`);
+  assert.equal(model.body, `${copy.action.reasonLabels.insufficientHistory} · ${copy.action.insufficientHistoryExplanation}`);
+  assert.equal(model.reasonTags[0], copy.action.reasonLabels.insufficientHistory);
+  assert.equal(model.metrics[0]?.value, copy.action.confidenceLevels.low);
+  assert.equal(model.metrics[1]?.value, copy.action.riskLevels.unknown);
+  assert.match(model.meter.currentLabel, /데이터 부족/);
+  assert.equal(model.meter.valueLabel, "94 / 100");
+  assert.equal(model.metaCaption, "");
+  assert.doesNotMatch(rendered, /\binsufficient_history\b|Summary Version|Symbol|Market Date|Bias Direction|Low|Unknown\b/);
 });
 
 test("presents resolved strong-buy long-bias action summaries as the current meter state", () => {
