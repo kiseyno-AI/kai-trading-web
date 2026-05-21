@@ -60,6 +60,14 @@ const searchPageCopy = {
       storedPrefix: "Stored",
       storedRankSuffix: "stored rank",
       kisListsSuffix: "KIS lists",
+      metricUnavailable: "Metric unavailable",
+      kisMetricLabels: {
+        volumeRank: "Volume rank",
+        fluctuation: "Fluctuation",
+        htsTopView: "Top-view rank",
+        score: "Score",
+        rank: "Rank",
+      },
     },
     results: {
       title: "Search Results",
@@ -153,6 +161,14 @@ const searchPageCopy = {
       storedPrefix: "저장된",
       storedRankSuffix: "저장 랭크",
       kisListsSuffix: "KIS 리스트",
+      metricUnavailable: "지표 미확인",
+      kisMetricLabels: {
+        volumeRank: "거래량 순위",
+        fluctuation: "등락률",
+        htsTopView: "조회 순위",
+        score: "점수",
+        rank: "순위",
+      },
     },
     results: {
       title: "검색 결과",
