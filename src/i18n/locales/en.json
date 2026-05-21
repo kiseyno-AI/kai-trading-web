@@ -404,7 +404,7 @@
       "replayVerdictUnavailable": "Replay verdict is not stored yet. Use the signal rationale separately from pending review fields.",
       "replayUnavailable": "Replay horizon results are not stored for this symbol yet.",
       "riskContextUnavailable": "No operator-facing risk context is stored for this signal.",
-      "selectedUnavailable": "Selected date review is unavailable.",
+      "selectedUnavailable": "Unable to load selected-date reviews. Re-select the date to retry.",
       "signalRationaleUnavailable": "Signal rationale is not stored for this decision.",
       "unavailableMonth": "Calendar scan unavailable"
     },

@@ -45,6 +45,7 @@ import {
   writeSignalDeciderFeedbackCache,
 } from "@/lib/signal-decider-feedback-cache";
 import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
+import { getUserFacingSelectedDateReviewError } from "@/lib/signal-decider-calendar-error";
 import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
@@ -167,33 +168,6 @@ function getDecisionIdentity(
         subtitle: copy.labels.nameUnavailable,
         title: item.symbol,
       };
-}
-
-function isDependencyGapWarning(value: string): boolean {
-  const normalized = value.toLowerCase();
-  return (
-    value.includes("전용 Core 계약") ||
-    value.includes("캘린더 인덱스") ||
-    normalized.includes("dependency gap") ||
-    normalized.includes("dedicated core contract") ||
-    normalized.includes("dedicated calendar/replay endpoint") ||
-    normalized.includes("real generic signal-decider feedback")
-  );
-}
-
-function getUserFacingSelectedError({
-  errorMessage,
-  selectedUnavailable,
-  devMode,
-}: {
-  errorMessage: string;
-  selectedUnavailable: string;
-  devMode: boolean;
-}) {
-  const normalizedError = errorMessage.trim();
-  if (!normalizedError) return selectedUnavailable;
-  if (!devMode && isDependencyGapWarning(normalizedError)) return selectedUnavailable;
-  return normalizedError;
 }
 
 function toCalendarInt(value: unknown): number {
@@ -1081,7 +1055,7 @@ export default function SignalReviewCalendarPageClient() {
           setSelectedLoadState("ready");
           setSelectedError(
             error instanceof Error
-              ? getUserFacingSelectedError({
+                ? getUserFacingSelectedDateReviewError({
                   errorMessage: error.message,
                   selectedUnavailable,
                   devMode,
@@ -1107,11 +1081,11 @@ export default function SignalReviewCalendarPageClient() {
             setSelectedLoadState("ready");
             setSelectedError(
               fallbackError instanceof Error
-                ? getUserFacingSelectedError({
-                    errorMessage: fallbackError.message,
-                    selectedUnavailable,
-                    devMode,
-                  })
+                ? getUserFacingSelectedDateReviewError({
+                  errorMessage: fallbackError.message,
+                  selectedUnavailable,
+                  devMode,
+                })
                 : selectedUnavailable,
             );
             return;
@@ -1122,7 +1096,7 @@ export default function SignalReviewCalendarPageClient() {
           setSelectedLoadState("error");
           setSelectedError(
             fallbackError instanceof Error
-              ? getUserFacingSelectedError({
+                ? getUserFacingSelectedDateReviewError({
                   errorMessage: fallbackError.message,
                   selectedUnavailable,
                   devMode,

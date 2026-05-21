@@ -1,0 +1,35 @@
+const REVIEW_ENDPOINT_PATTERN = /\bagent-context\/feedback\b(?:\/[^\s"]*)?/i;
+
+function isDependencyGapWarning(value: string): boolean {
+  const normalized = value.toLowerCase();
+  const normalizedValue = value.toLowerCase();
+  return (
+    normalized.includes("전용 core 계약") ||
+    normalized.includes("캘린더 인덱스") ||
+    normalizedValue.includes("dependency gap") ||
+    normalizedValue.includes("dedicated core contract") ||
+    normalizedValue.includes("dedicated calendar/replay endpoint") ||
+    normalizedValue.includes("real generic signal-decider feedback")
+  );
+}
+
+function isReviewBackendError(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return REVIEW_ENDPOINT_PATTERN.test(normalized) || normalized.includes("timed out after") || normalized.includes("trading-core");
+}
+
+export function getUserFacingSelectedDateReviewError({
+  errorMessage,
+  selectedUnavailable,
+  devMode,
+}: {
+  errorMessage: string;
+  selectedUnavailable: string;
+  devMode: boolean;
+}) {
+  const normalizedError = errorMessage.trim();
+  if (!normalizedError) return selectedUnavailable;
+  if (isReviewBackendError(normalizedError)) return selectedUnavailable;
+  if (!devMode && isDependencyGapWarning(normalizedError)) return selectedUnavailable;
+  return normalizedError;
+}
