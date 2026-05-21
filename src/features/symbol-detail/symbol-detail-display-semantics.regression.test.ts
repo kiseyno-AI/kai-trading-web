@@ -185,7 +185,10 @@ test("TC-SYMBOL-008 action-summary insufficient-history state localizes KO copy 
   assert.equal(model.metrics[0]?.value, copy.action.confidenceLevels.low);
   assert.equal(model.metrics[1]?.value, copy.action.riskLevels.unknown);
   assert.equal(model.tone, "info");
-  assert.equal(model.meter.state, "resolved");
+  assert.equal(model.meter.state, "unavailable");
+  assert.equal(model.meter.currentLabel, `현재 액션: ${copy.action.reasonLabels.insufficientHistory}`);
+  assert.equal(model.meter.valueLabel, copy.action.scoreUnavailable);
+  assert.doesNotMatch(model.meter.ariaLabel, /\b\d+\s*\/\s*100\b/);
   assert.doesNotMatch(rendered, /\binsufficient_history\b|Summary Version|Symbol|Market Date|Bias Direction|Insufficient Data\b/);
 });
 

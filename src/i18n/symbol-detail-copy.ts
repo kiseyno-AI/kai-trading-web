@@ -128,6 +128,7 @@ const symbolDetailCopy = {
       payloadKeys: "Payload keys",
       bias: "Bias",
       signalScore: "Signal score",
+      scoreUnavailable: "Not computed",
       signalUnavailable: "No current action resolved",
       currentAction: "Current action",
       actionLabels: {
@@ -578,6 +579,7 @@ const symbolDetailCopy = {
       payloadKeys: "페이로드 키",
       bias: "편향",
       signalScore: "시그널 점수",
+      scoreUnavailable: "점수 계산 불가",
       signalUnavailable: "확정된 현재 액션 없음",
       currentAction: "현재 액션",
       actionLabels: {

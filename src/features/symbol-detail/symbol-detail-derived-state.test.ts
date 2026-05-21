@@ -243,9 +243,11 @@ test("localizes insufficient-history action summaries in Korean and explains the
   assert.equal(model.metrics[0]?.value, copy.action.confidenceLevels.low);
   assert.equal(model.metrics[1]?.value, copy.action.riskLevels.unknown);
   assert.match(model.meter.currentLabel, /데이터 부족/);
-  assert.equal(model.meter.valueLabel, "94 / 100");
+  assert.equal(model.meter.valueLabel, copy.action.scoreUnavailable);
+  assert.equal(model.meter.state, "unavailable");
   assert.equal(model.metaCaption, "");
   assert.doesNotMatch(rendered, /\binsufficient_history\b|Summary Version|Symbol|Market Date|Bias Direction|Low|Unknown\b/);
+  assert.doesNotMatch(model.meter.valueLabel, /\b\d+\s*\/\s*100\b/);
 });
 
 test("presents resolved strong-buy long-bias action summaries as the current meter state", () => {
@@ -259,6 +261,24 @@ test("presents resolved strong-buy long-bias action summaries as the current met
   assert.equal(model.meter.valueLabel, "94 / 100");
   assert.equal(model.meter.currentLabel, "Current action: Strong Buy · Bias Long");
   assert.match(model.meter.ariaLabel, /Signal score: 94 \/ 100/);
+});
+
+test("preserves a confirmed zero score as a resolved numeric score", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildActionSummarySectionModel(
+    makeActionSummary({
+      action_label: "strong_buy",
+      signal_score: 0,
+      reasons: ["Trend support confirmed", "Volume expansion detected"],
+    }),
+    copy,
+  );
+
+  assert.equal(model.meter.state, "resolved");
+  assert.equal(model.score, 0);
+  assert.equal(model.meter.valueLabel, "0 / 100");
+  assert.equal(model.meter.currentLabel, `현재 액션: 강한 매수 · 편향 롱`);
+  assert.match(model.meter.ariaLabel, /시그널 점수: 0 \/ 100/);
 });
 
 test("keeps fundamentals-history empty-state outputs stable when no history is available", () => {
