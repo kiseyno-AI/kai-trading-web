@@ -52,6 +52,7 @@ export type DashboardDeciderRow = {
 
 export type DashboardDeciderOverviewModel = {
   contextLabel: string | null;
+  diagnostics: string[];
   emptyLabel: string | null;
   mode: "market-open" | "closed-completed" | "closed-in-progress";
   rows: DashboardDeciderRow[];
@@ -71,8 +72,10 @@ export type DashboardPortfolioOverviewModel = {
   buyRows: DashboardPortfolioTradeRow[];
   buyStateLabel: string | null;
   contextLabel: string | null;
+  diagnostics: string[];
   execConnectionLabel: string;
   execConnectionTone: OverviewTone;
+  executionBoardStateLabel: string | null;
   metrics: DashboardOverviewMetric[];
   sellRows: DashboardPortfolioTradeRow[];
   sellStateLabel: string | null;
@@ -102,6 +105,10 @@ function humanizeToken(value: string | null | undefined, fallback: string) {
 
 function textOrNull(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function compactDiagnostics(...messages: Array<string | null | undefined>) {
+  return messages.map((message) => textOrNull(message)).filter((message): message is string => Boolean(message));
 }
 
 function quantityOrUndefined(value: unknown): ExecutionRuntimeQuantity | undefined {
@@ -460,6 +467,7 @@ export function buildDashboardDeciderOverviewModel({
   const overviewCopy = copy.dashboardOverview;
   const boardBySymbol = getBoardItemsBySymbol(board);
   const quoteBySymbol = getTrackedQuoteBySymbol(tracked);
+  const diagnostics = compactDiagnostics(monitoredSymbolsError, boardError, trackedError);
 
   if (market.is_open) {
     const rows = (monitoredSymbols?.items ?? []).map((item) => {
@@ -474,7 +482,11 @@ export function buildDashboardDeciderOverviewModel({
           {
             key: "stop-loss",
             label: overviewCopy.stopLossPrice,
-            value: formatPrice(getStopLossPriceWithFallback(item, supportingBoardItem), numberLocale, overviewCopy.unavailable),
+            value: formatPrice(
+              getStopLossPriceWithFallback(item, supportingBoardItem),
+              numberLocale,
+              overviewCopy.unavailable,
+            ),
           },
           {
             key: "target",
@@ -490,27 +502,33 @@ export function buildDashboardDeciderOverviewModel({
         symbol: item.symbol,
       };
     });
+    const hasMarketOpenRuntimeDelay = Boolean(monitoredSymbolsError || trackedError);
+    const marketOpenContext = [
+      overviewCopy.marketOpenContext,
+      hasMarketOpenRuntimeDelay ? overviewCopy.runtimeDataDelayed : null,
+      trackedError ? overviewCopy.trackedQuotesUnavailable : null,
+    ].filter(Boolean).join(" ");
 
     return {
-      contextLabel: trackedError
-        ? `${overviewCopy.marketOpenContext} ${overviewCopy.trackedQuotesUnavailable} ${trackedError}`
-        : overviewCopy.marketOpenContext,
+      contextLabel: marketOpenContext,
+      diagnostics,
       emptyLabel:
         rows.length > 0
           ? null
           : monitoredSymbolsError
-            ? `${overviewCopy.monitoredSymbolsUnavailable} ${monitoredSymbolsError}`
+            ? overviewCopy.monitoringListUpdating
             : overviewCopy.noMonitoredStocks,
       mode: "market-open",
       rows,
-      statusLabel: overviewCopy.marketOpen,
-      statusTone: "positive",
+      statusLabel: hasMarketOpenRuntimeDelay ? overviewCopy.runtimeDelayed : overviewCopy.marketOpen,
+      statusTone: hasMarketOpenRuntimeDelay ? "warning" : "positive",
     };
   }
 
   if (processStatus !== "completed") {
     return {
       contextLabel: null,
+      diagnostics,
       emptyLabel: overviewCopy.processInProgress,
       mode: "closed-in-progress",
       rows: [],
@@ -545,23 +563,25 @@ export function buildDashboardDeciderOverviewModel({
       ],
       symbol: item.symbol,
     }));
+  const hasBoardRuntimeDelay = Boolean(boardError);
 
   return {
-    contextLabel: boardError
-      ? `${overviewCopy.marketClosedCompletedContext} ${overviewCopy.executionBoardUnavailable} ${boardError}`
+    contextLabel: hasBoardRuntimeDelay
+      ? `${overviewCopy.marketClosedCompletedContext} ${overviewCopy.executionBoardUpdating}`
       : overviewCopy.marketClosedCompletedContext,
+    diagnostics,
     emptyLabel:
       rows.length > 0
         ? null
         : boardError
-          ? `${overviewCopy.executionBoardUnavailable} ${boardError}`
+          ? overviewCopy.executionBoardUpdating
           : board
             ? overviewCopy.noNextDayExecStocks
             : overviewCopy.executionBoardUnavailable,
     mode: "closed-completed",
     rows,
     statusLabel: overviewCopy.nextDayExec,
-    statusTone: "neutral",
+    statusTone: hasBoardRuntimeDelay ? "warning" : "neutral",
   };
 }
 
@@ -591,11 +611,15 @@ export function buildDashboardPortfolioOverviewModel({
   const portfolioMetrics = buildPortfolioMetricModels(summary, metricFallback);
   const totalAssets = portfolioMetrics.find((metric) => metric.id === "total-assets");
   const dayPnl = portfolioMetrics.find((metric) => metric.id === "day-pnl");
+  const hasPortfolioAccounts = getPortfolioAccounts(summary).length > 0;
+  const dayPnlPending = hasPortfolioAccounts && dayPnl?.available !== true;
   const heldPositionCount = getHeldPositionCount(summary);
   const execConnected = executionStatus?.exec_connected === true;
   const activity = getPortfolioActivity(summary);
   const boardItems = getBoardItems(board);
-  const buyRows = boardItems.filter(isBuyExecutionItem).map((item) => buildBuyRow({ copy: overviewCopy, item, numberLocale }));
+  const buyRows = boardItems
+    .filter(isBuyExecutionItem)
+    .map((item) => buildBuyRow({ copy: overviewCopy, item, numberLocale }));
   const sellRows = boardItems
     .filter(isSellExecutionItem)
     .map((item) =>
@@ -605,28 +629,34 @@ export function buildDashboardPortfolioOverviewModel({
         item,
       }),
     );
-  const boardUnavailable = !board && boardError;
+  const hasBoardRuntimeDelay = Boolean(boardError);
+  const executionBoardStateLabel = hasBoardRuntimeDelay
+    ? overviewCopy.executionBoardUpdating
+    : board
+      ? null
+      : overviewCopy.executionBoardUnavailable;
+  const contextLabel = executionStatusError ? overviewCopy.runtimeDataDelayed : null;
+  const diagnostics = compactDiagnostics(executionStatusError, boardError);
 
   return {
     buyRows,
     buyStateLabel:
       buyRows.length > 0
         ? null
-        : boardUnavailable
-          ? `${overviewCopy.executionBoardUnavailable} ${boardError}`
+        : executionBoardStateLabel
+          ? null
           : board
             ? overviewCopy.noBoughtStocks
-            : overviewCopy.executionBoardUnavailable,
-    contextLabel:
-      executionStatusError || boardError
-        ? [executionStatusError, boardError].filter(Boolean).join(" ")
-        : null,
+            : null,
+    contextLabel,
+    diagnostics,
     execConnectionLabel: execConnected
       ? overviewCopy.execConnected
       : executionStatus
         ? overviewCopy.execDisconnected
         : overviewCopy.unavailable,
     execConnectionTone: execConnected ? "positive" : "warning",
+    executionBoardStateLabel,
     metrics: [
       {
         key: "exec-connection",
@@ -647,8 +677,13 @@ export function buildDashboardPortfolioOverviewModel({
       {
         key: "day-pnl",
         label: copy.portfolioState.metrics.dayPnl,
-        tone: dayPnl?.tone ?? "neutral",
-        value: dayPnl?.value ?? metricFallback,
+        tone: dayPnlPending ? "neutral" : dayPnl?.tone ?? "neutral",
+        value:
+          dayPnl?.available === true
+            ? dayPnl.value
+            : dayPnlPending
+              ? copy.portfolioState.dayPnlPending
+              : metricFallback,
       },
       {
         key: "held-positions",
@@ -667,11 +702,11 @@ export function buildDashboardPortfolioOverviewModel({
     sellStateLabel:
       sellRows.length > 0
         ? null
-        : boardUnavailable
-          ? `${overviewCopy.executionBoardUnavailable} ${boardError}`
+        : executionBoardStateLabel
+          ? null
           : board
             ? overviewCopy.noSoldStocks
-            : overviewCopy.executionBoardUnavailable,
+            : null,
     statusLabel: getPortfolioStatusLabel(portfolioState, copy),
     statusTone: getPortfolioStatusTone(portfolioState),
   };

@@ -804,12 +804,32 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
         <div className={styles.emptyState}>{model.emptyLabel}</div>
       )}
 
+      <RuntimeDiagnosticsHint copy={copy} diagnostics={model.diagnostics} />
+
       <Link href={detailHref} className={styles.signalDeciderMoreLink} aria-label={copy.signalDecider.openDetail}>
         {copy.signalDecider.viewDetail}
       </Link>
     </article>
   );
 });
+
+function RuntimeDiagnosticsHint({
+  copy,
+  diagnostics,
+}: {
+  copy: DashboardLiveCopy;
+  diagnostics: readonly string[];
+}) {
+  if (diagnostics.length === 0) return null;
+
+  const diagnosticText = diagnostics.join("\n");
+
+  return (
+    <span className={styles.runtimeDiagnosticHint} data-diagnostic-detail={diagnosticText} title={diagnosticText}>
+      {copy.dashboardOverview.diagnosticsAvailable}
+    </span>
+  );
+}
 
 function TradeRowList({
   emptyLabel,
@@ -820,6 +840,8 @@ function TradeRowList({
   label: string;
   rows: DashboardPortfolioTradeRow[];
 }) {
+  if (rows.length === 0 && !emptyLabel) return null;
+
   return (
     <section className={styles.tradeListSection} aria-label={label}>
       <h3>{label}</h3>
@@ -845,9 +867,9 @@ function TradeRowList({
             </div>
           ))}
         </div>
-      ) : (
+      ) : emptyLabel ? (
         <div className={styles.emptyState}>{emptyLabel}</div>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -886,6 +908,8 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
       </div>
 
       {model.contextLabel ? <p className={styles.cardContext}>{model.contextLabel}</p> : null}
+      {model.executionBoardStateLabel ? <div className={styles.emptyState}>{model.executionBoardStateLabel}</div> : null}
+      <RuntimeDiagnosticsHint copy={copy} diagnostics={model.diagnostics} />
 
       <TradeRowList
         emptyLabel={model.buyStateLabel}

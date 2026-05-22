@@ -87,6 +87,34 @@ test("builds market-open decider rows from monitored symbols without per-symbol 
   );
 });
 
+test("sanitizes market-open monitored-symbol timeout while preserving diagnostics", () => {
+  const rawTimeout =
+    "Timed out after 5.0s while loading /execution/runtime/monitored-symbols?market_date=2026-05-22 from trading-core.";
+
+  const model = buildDashboardDeciderOverviewModel({
+    board: null,
+    copy,
+    market: marketOpen,
+    monitoredSymbols: null,
+    monitoredSymbolsError: rawTimeout,
+    numberLocale: "en-US",
+    processStatus: "running",
+    tracked: null,
+  });
+
+  assert.equal(model.mode, "market-open");
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.statusLabel, "Runtime delayed");
+  assert.equal(model.statusTone, "warning");
+  assert.equal(model.contextLabel?.includes("Runtime data is delayed."), true);
+  assert.equal(model.emptyLabel, "Monitoring list is updating.");
+  assert.deepEqual(model.diagnostics, [rawTimeout]);
+  assert.doesNotMatch(
+    [model.contextLabel, model.emptyLabel, model.statusLabel].filter(Boolean).join("\n"),
+    /Timed out after 5\.0s|trading-core|\/execution\/runtime\/monitored-symbols/,
+  );
+});
+
 test("uses the exact in-progress copy while the closed-market daily process is incomplete", () => {
   const model = buildDashboardDeciderOverviewModel({
     board: null,
@@ -226,4 +254,75 @@ test("maps portfolio status, held positions, and same-day bought/sold execution 
     ],
   );
   assert.equal(model.sellRows[0].values[0].value, "₩8,000");
+});
+
+test("preserves portfolio summary fields while daily-board timeout and missing day P/L stay operator-safe", () => {
+  const rawTimeout =
+    "Timed out after 5.0s while loading /execution/runtime/daily-board?market_date=2026-05-22 from trading-core.";
+  const summary = {
+    sync: { status: "synced" },
+    accounts: [
+      {
+        id: "account-1",
+        label: "Primary",
+        status: "synced",
+        summary: {
+          totalAssets: { amount: 1_000_000, currency: "KRW" },
+          pnl: {},
+        },
+        holdings: [
+          {
+            symbol: "005930",
+            name: "Samsung Electronics",
+            quantity: 3,
+          },
+        ],
+      },
+    ],
+  } satisfies PortfolioSummaryDto;
+  const executionStatus = {
+    exec_connected: true,
+    status: "ready",
+  } satisfies ExecutionRuntimeStatusResponseDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    board: null,
+    boardError: rawTimeout,
+    copy,
+    executionStatus,
+    executionStatusError: null,
+    marketDate: "2026-05-22",
+    numberLocale: "en-US",
+    portfolioState: "fully-synced",
+    summary,
+  });
+
+  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
+  assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
+  assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "Today P/L pending");
+  assert.equal(model.metrics.find((metric) => metric.key === "held-positions")?.value, "1 holding");
+  assert.equal(model.executionBoardStateLabel, "Today's execution board is updating.");
+  assert.equal(model.buyStateLabel, null);
+  assert.equal(model.sellStateLabel, null);
+  assert.deepEqual(model.diagnostics, [rawTimeout]);
+  assert.doesNotMatch(
+    [
+      model.contextLabel,
+      model.executionBoardStateLabel,
+      model.buyStateLabel,
+      model.sellStateLabel,
+      ...model.metrics.map((metric) => metric.value),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    /Timed out after 5\.0s|trading-core|\/execution\/runtime\/daily-board/,
+  );
+});
+
+test("ships Korean operator copy for delayed runtime and missing day P/L states", () => {
+  const koreanCopy = getDashboardLiveCopy("ko");
+
+  assert.equal(koreanCopy.dashboardOverview.monitoringListUpdating, "모니터링 목록을 불러오는 중입니다.");
+  assert.equal(koreanCopy.dashboardOverview.executionBoardUpdating, "금일 매수/매도 내역을 갱신 중입니다.");
+  assert.equal(koreanCopy.portfolioState.dayPnlPending, "금일 손익 집계 대기 중");
 });

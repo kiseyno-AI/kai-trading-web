@@ -961,6 +961,22 @@
   line-height: 1.45;
 }
 
+.runtimeDiagnosticHint {
+  display: inline-flex;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0.28rem 0.5rem;
+  border: 1px solid rgba(134, 162, 194, 0.18);
+  border-radius: 0.45rem;
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .agentProgressDate {
   color: var(--muted-soft);
   font-size: 0.78rem;
