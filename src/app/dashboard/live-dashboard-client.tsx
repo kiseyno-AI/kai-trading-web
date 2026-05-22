@@ -789,6 +789,11 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
                   {row.marketLabel ? ` · ${row.marketLabel}` : ""}
                 </span>
               </div>
+              {row.compactPriceLine ? (
+                <p className={styles.overviewCompactPriceLine} title={row.compactPriceLine}>
+                  {row.compactPriceLine}
+                </p>
+              ) : null}
               <dl className={styles.overviewValueGrid}>
                 {row.prices.map((price) => (
                   <div key={price.key}>

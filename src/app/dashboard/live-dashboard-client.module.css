@@ -787,6 +787,20 @@
   overflow-wrap: anywhere;
 }
 
+.overviewCompactPriceLine {
+  display: none;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .overviewValueGrid,
 .tradeValueList {
   display: grid;
@@ -2310,6 +2324,18 @@
   .sectionHeaderRow {
     align-items: flex-start;
     flex-wrap: wrap;
+  }
+
+  .signalDeciderCard[data-decider-overview-mode="market-open"] .overviewSymbolRow {
+    gap: 0.44rem;
+  }
+
+  .signalDeciderCard[data-decider-overview-mode="market-open"] .overviewCompactPriceLine {
+    display: block;
+  }
+
+  .signalDeciderCard[data-decider-overview-mode="market-open"] .overviewValueGrid {
+    display: none;
   }
 }
 

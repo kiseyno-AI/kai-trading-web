@@ -425,6 +425,61 @@ test.describe("dashboard mobile chrome", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
+  test("monitored symbol prices use one compact mobile line", async ({ page }) => {
+    const pipelineStatus: "running" | "completed" = "completed";
+    await mockDashboardProcessStatusApis(page, () => pipelineStatus);
+    await page.route("**/api/trading/execution/runtime/status**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ready",
+          mode: "paper",
+          exec_connected: true,
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/monitored-symbols**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-16",
+          items: [
+            {
+              symbol: "000660",
+              name: "SK hynix",
+              market: "KRX",
+              monitoring_state: "watching_target_stop",
+              planned_intents: ["buy"],
+              target_price: 184000,
+              stop_loss_price: 174000,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/daily-board**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-16",
+          items: [],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const deciderCard = page.locator("article").filter({
+      has: page.getByRole("heading", { name: /Decider recommendations/i }),
+    });
+    const compactPriceLine = deciderCard.getByText("Stop 174,000 · Target 184,000 · Now —", { exact: true });
+    await expect(compactPriceLine).toBeVisible();
+    await expect(deciderCard.getByText("Current price", { exact: true })).toBeHidden();
+    await expect
+      .poll(() => compactPriceLine.evaluate((element) => getComputedStyle(element).whiteSpace))
+      .toBe("nowrap");
+  });
+
   test("bottom assets navigation lands in shared mobile portfolio chrome", async ({ page }) => {
     await page.goto("/dashboard");
 

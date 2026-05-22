@@ -43,6 +43,7 @@ export type DashboardOverviewPriceItem = {
 };
 
 export type DashboardDeciderRow = {
+  compactPriceLine?: string;
   key: string;
   marketLabel: string | null;
   nameLabel: string;
@@ -177,6 +178,10 @@ function formatPrice(
   return numericValue.toLocaleString(numberLocale, {
     maximumFractionDigits: 4,
   });
+}
+
+function formatCompactPriceLine(prices: DashboardOverviewPriceItem[]) {
+  return prices.map((price) => `${price.label} ${price.value}`).join(" · ");
 }
 
 function getTrackedQuoteBySymbol(tracked: CoreTrackedQuotesResponse | null | undefined) {
@@ -473,8 +478,29 @@ export function buildDashboardDeciderOverviewModel({
     const rows = (monitoredSymbols?.items ?? []).map((item) => {
       const supportingBoardItem = findSupportingBoardItem(item.symbol, boardBySymbol);
       const quote = quoteBySymbol.get(item.symbol);
+      const stopLossPrice = getStopLossPriceWithFallback(item, supportingBoardItem);
+      const targetPrice = getTargetPrice(item, supportingBoardItem);
+      const currentPrice = getCurrentPrice(item, quote);
+      const compactPrices = [
+        {
+          key: "stop-loss",
+          label: overviewCopy.stopLossPriceCompact,
+          value: formatPrice(stopLossPrice, numberLocale, "—"),
+        },
+        {
+          key: "target",
+          label: overviewCopy.targetPriceCompact,
+          value: formatPrice(targetPrice, numberLocale, "—"),
+        },
+        {
+          key: "current",
+          label: overviewCopy.currentPriceCompact,
+          value: formatPrice(currentPrice, numberLocale, "—"),
+        },
+      ];
 
       return {
+        compactPriceLine: formatCompactPriceLine(compactPrices),
         key: item.symbol,
         marketLabel: textOrNull(item.market) ?? textOrNull(quote?.market_state),
         nameLabel: getItemName(item, quote),
@@ -482,21 +508,17 @@ export function buildDashboardDeciderOverviewModel({
           {
             key: "stop-loss",
             label: overviewCopy.stopLossPrice,
-            value: formatPrice(
-              getStopLossPriceWithFallback(item, supportingBoardItem),
-              numberLocale,
-              overviewCopy.unavailable,
-            ),
+            value: formatPrice(stopLossPrice, numberLocale, overviewCopy.unavailable),
           },
           {
             key: "target",
             label: overviewCopy.targetPrice,
-            value: formatPrice(getTargetPrice(item, supportingBoardItem), numberLocale, overviewCopy.unavailable),
+            value: formatPrice(targetPrice, numberLocale, overviewCopy.unavailable),
           },
           {
             key: "current",
             label: overviewCopy.currentPrice,
-            value: formatPrice(getCurrentPrice(item, quote), numberLocale, overviewCopy.unavailable),
+            value: formatPrice(currentPrice, numberLocale, overviewCopy.unavailable),
           },
         ],
         symbol: item.symbol,

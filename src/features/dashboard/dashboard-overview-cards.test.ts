@@ -85,6 +85,52 @@ test("builds market-open decider rows from monitored symbols without per-symbol 
       ["Current price", "71,500"],
     ],
   );
+  assert.equal(model.rows[0].compactPriceLine, "Stop 70,000 · Target 76,000 · Now 71,500");
+});
+
+test("builds compact market-open decider price line with current-price fallback", () => {
+  const monitoredSymbols = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "000660",
+        name: "SK hynix",
+        market: "KRX",
+        status: "watching_target_stop",
+        monitoring_state: "watching_target_stop",
+        planned_intents: ["buy"],
+        target_price: 184000,
+        stop_loss_price: 174000,
+      },
+    ],
+  } satisfies ExecutionRuntimeMonitoredSymbolsResponseDto;
+  const tracked = {
+    as_of: "2026-05-22T10:00:00+09:00",
+    market_state: "open",
+    items: [],
+  } satisfies CoreTrackedQuotesResponse;
+
+  const model = buildDashboardDeciderOverviewModel({
+    board: null,
+    copy,
+    market: marketOpen,
+    monitoredSymbols,
+    numberLocale: "en-US",
+    processStatus: "running",
+    tracked,
+  });
+
+  assert.equal(model.mode, "market-open");
+  assert.equal(model.rows.length, 1);
+  assert.equal(model.rows[0].compactPriceLine, "Stop 174,000 · Target 184,000 · Now —");
+  assert.deepEqual(
+    model.rows[0].prices.map((price) => [price.label, price.value]),
+    [
+      ["Stop-loss", "174,000"],
+      ["Target", "184,000"],
+      ["Current price", "Unavailable"],
+    ],
+  );
 });
 
 test("sanitizes market-open monitored-symbol timeout while preserving diagnostics", () => {
