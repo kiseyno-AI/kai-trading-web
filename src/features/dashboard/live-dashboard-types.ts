@@ -11,7 +11,6 @@ import type {
   ExecutionRuntimeDailyBoardResponseDto,
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeStatusResponseDto,
-  MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
 import type { DailyPipelineTimelineModel } from "@/lib/eod-pipeline-status";
@@ -67,7 +66,6 @@ export type LiveDashboardClientProps = {
   initialMarketRiskStatus?: EodMarketRiskFiltersResponseDto | null;
   initialScoringValueFactors?: EodValueFactorsResponseDto | null;
   initialScoringMomentumFactors?: EodMomentumFactorsResponseDto | null;
-  initialMarketSnapshot: MarketSnapshotResponseDto | null;
   initialAgentFeedbackProgress: AgentFeedbackProgressResponseDto | null;
   initialSignalDeciderFeedback: AgentFeedbackListResponseDto | null;
   initialLatestSignalDeciderFeedback?: AgentFeedbackListResponseDto | null;

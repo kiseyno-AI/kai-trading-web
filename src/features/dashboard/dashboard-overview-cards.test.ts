@@ -1,0 +1,229 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
+import type {
+  ExecutionRuntimeDailyBoardResponseDto,
+  ExecutionRuntimeMonitoredSymbolsResponseDto,
+  ExecutionRuntimeStatusResponseDto,
+  PortfolioSummaryDto,
+} from "@/types/trading-api";
+
+import {
+  buildDashboardDeciderOverviewModel,
+  buildDashboardPortfolioOverviewModel,
+} from "./dashboard-overview-cards";
+import type { CoreMarketStatus, CoreTrackedQuotesResponse } from "./live-dashboard-types";
+
+const copy = getDashboardLiveCopy("en");
+const marketOpen = {
+  is_open: true,
+  server_time: "2026-05-22T10:00:00+09:00",
+  state: "REGULAR",
+} satisfies CoreMarketStatus;
+const marketClosed = {
+  is_open: false,
+  server_time: "2026-05-22T18:00:00+09:00",
+  state: "CLOSED",
+} satisfies CoreMarketStatus;
+
+test("builds market-open decider rows from monitored symbols without per-symbol fanout", () => {
+  const monitoredSymbols = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "005930",
+        name: "Samsung Electronics",
+        market: "KRX",
+        status: "watching_target_stop",
+        monitoring_state: "watching_target_stop",
+        planned_intents: ["buy"],
+        target_price: 76000,
+        stop_loss_price: 70000,
+      },
+    ],
+  } satisfies ExecutionRuntimeMonitoredSymbolsResponseDto;
+  const tracked = {
+    as_of: "2026-05-22T10:00:00+09:00",
+    market_state: "open",
+    items: [
+      {
+        available: true,
+        as_of: "2026-05-22T10:00:00+09:00",
+        change: 500,
+        change_pct: 0.7,
+        company_name: "Samsung Electronics",
+        fallback: false,
+        is_live: true,
+        market_state: "open",
+        price: 71500,
+        source: "kis",
+        symbol: "005930",
+        turnover: 1000,
+        volume: 100,
+      },
+    ],
+  } satisfies CoreTrackedQuotesResponse;
+
+  const model = buildDashboardDeciderOverviewModel({
+    board: null,
+    copy,
+    market: marketOpen,
+    monitoredSymbols,
+    numberLocale: "en-US",
+    processStatus: "running",
+    tracked,
+  });
+
+  assert.equal(model.mode, "market-open");
+  assert.equal(model.rows.length, 1);
+  assert.deepEqual(
+    model.rows[0].prices.map((price) => [price.label, price.value]),
+    [
+      ["Stop-loss", "70,000"],
+      ["Target", "76,000"],
+      ["Current price", "71,500"],
+    ],
+  );
+});
+
+test("uses the exact in-progress copy while the closed-market daily process is incomplete", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: null,
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "running",
+    tracked: null,
+  });
+
+  assert.equal(model.mode, "closed-in-progress");
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.emptyLabel, "일별 프로세스 진행 중");
+});
+
+test("builds closed-market next-day exec rows with close prices when the daily process completed", () => {
+  const board = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "000660",
+        name: "SK hynix",
+        market: "KRX",
+        status: "scheduled",
+        intent: "next_open_buy",
+        target_price: 184000,
+        stop_loss_price: 174000,
+        market_close_price: 179500,
+        target_trade_date: "2026-05-25",
+      },
+    ],
+  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+
+  const model = buildDashboardDeciderOverviewModel({
+    board,
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.equal(model.mode, "closed-completed");
+  assert.equal(model.rows.length, 1);
+  assert.deepEqual(
+    model.rows[0].prices.map((price) => [price.label, price.value]),
+    [
+      ["Stop-loss", "174,000"],
+      ["Target", "184,000"],
+      ["Close price", "179,500"],
+    ],
+  );
+});
+
+test("maps portfolio status, held positions, and same-day bought/sold execution rows honestly", () => {
+  const summary = {
+    sync: { status: "synced" },
+    accounts: [
+      {
+        id: "account-1",
+        label: "Primary",
+        status: "synced",
+        summary: {
+          totalAssets: { amount: 1_000_000, currency: "KRW" },
+          pnl: { day: { amount: 12_500, currency: "KRW" } },
+        },
+        holdings: [
+          {
+            symbol: "005930",
+            name: "Samsung Electronics",
+            quantity: 3,
+          },
+        ],
+        recentActivity: [
+          {
+            id: "sell-activity",
+            symbol: "035420",
+            side: "sell",
+            realizedPnl: { amount: 8_000, currency: "KRW" },
+            updatedAt: "2026-05-22T12:10:00+09:00",
+          },
+        ],
+      },
+    ],
+  } satisfies PortfolioSummaryDto;
+  const board = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "005930",
+        name: "Samsung Electronics",
+        market: "KRX",
+        status: "filled",
+        intent: "buy",
+        target_price: 76000,
+        stop_loss_price: 70000,
+        trade_price: 71500,
+      },
+      {
+        symbol: "035420",
+        name: "NAVER",
+        market: "KRX",
+        status: "filled",
+        intent: "sell",
+      },
+    ],
+  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+  const executionStatus = {
+    exec_connected: true,
+    status: "ready",
+  } satisfies ExecutionRuntimeStatusResponseDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    board,
+    boardError: null,
+    copy,
+    executionStatus,
+    executionStatusError: null,
+    marketDate: "2026-05-22",
+    numberLocale: "en-US",
+    portfolioState: "fully-synced",
+    summary,
+  });
+
+  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
+  assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
+  assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "₩12,500");
+  assert.equal(model.metrics.find((metric) => metric.key === "held-positions")?.value, "1 holding");
+  assert.deepEqual(
+    model.buyRows[0].values.map((value) => [value.label, value.value]),
+    [
+      ["Target", "76,000"],
+      ["Stop-loss", "70,000"],
+      ["Trade price", "71,500"],
+    ],
+  );
+  assert.equal(model.sellRows[0].values[0].value, "₩8,000");
+});

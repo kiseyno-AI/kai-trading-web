@@ -24,25 +24,10 @@ import type {
 } from "@/lib/eod-pipeline-status";
 import {
   buildSignalDeciderFeedbackSummary,
-  formatSignalDeciderActionLabel,
-  resolveSignalDeciderFeedbackPreviewState,
   selectSignalDeciderDashboardFeedback,
-  type SignalDeciderFeedbackStatus,
-  type SignalDeciderFeedbackSummaryModel,
 } from "@/lib/signal-decider-feedback";
 import { writeSignalDeciderFeedbackCache } from "@/lib/signal-decider-feedback-cache";
-import {
-  buildPortfolioMetricModels,
-  getPortfolioAccounts,
-  getPortfolioHoldings,
-  getPortfolioLastSyncedAt,
-  getPortfolioSyncMessage,
-  resolvePortfolioSummaryState,
-  type PortfolioMetricId,
-  type PortfolioMetricModel,
-  type PortfolioSummaryState,
-} from "@/features/portfolio/portfolio-display";
-import { ExecutionRuntimePanel } from "@/features/dashboard/execution-runtime-panel";
+import { resolvePortfolioSummaryState } from "@/features/portfolio/portfolio-display";
 import {
   getFundamentalsRunDate,
   getLatestAvailableFundamentalsCoverage,
@@ -53,11 +38,17 @@ import {
 } from "@/lib/dashboard-eod-stage-data";
 import { getNumberLocale } from "@/lib/locale";
 import {
+  buildDashboardDeciderOverviewModel,
+  buildDashboardPortfolioOverviewModel,
+  type DashboardDeciderOverviewModel,
+  type DashboardPortfolioOverviewModel,
+  type DashboardPortfolioTradeRow,
+} from "@/features/dashboard/dashboard-overview-cards";
+import {
   UNKNOWN_LABEL,
   buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
-  buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
   buildScoringCardModel,
   formatEodSymbolCount,
@@ -75,17 +66,6 @@ import {
   getFundamentalsStatusLabel,
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedSymbolsDetail,
-  getMarketSnapshotFlow,
-  getMarketSnapshotFlowAmount,
-  getMarketSnapshotFxChange,
-  getMarketSnapshotFxChangeRate,
-  getMarketSnapshotFxRate,
-  getMarketSnapshotFxValue,
-  getMarketSnapshotIndex,
-  getMarketSnapshotIndexChange,
-  getMarketSnapshotIndexChangeRate,
-  getMarketSnapshotIndexLevel,
-  getMarketSnapshotSummaryLine,
   getPipelineStageResolvedStatusDate,
   getPipelineStage,
   getPriceFreshnessStage,
@@ -98,16 +78,13 @@ import {
   isAgentFeedbackProgressRunning,
   isBreakDayMarket,
   isIconOnlyEodStageStatus,
-  isOfflineTrackedPlaceholder,
   markAgentFeedbackProgressStopped,
   maskAgentRoleCardsAsWaiting,
   maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
   mergeRunningPipelineStage,
-  normalizeMarketSnapshotToken,
   resolveFundamentalsPollingPresentation,
   shouldShowAgentRoleProgress,
-  shouldShowSignalDeciderCurrentCycleContext,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "@/features/dashboard/live-dashboard-derived-state";
 import type {
@@ -127,11 +104,6 @@ import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-da
 import type {
   AgentContextCoreControlRequestDto,
   AgentContextCoreControlResponseDto,
-  MarketSnapshotFlowDto,
-  MarketSnapshotFxRateDto,
-  MarketSnapshotIndexDto,
-  MarketSnapshotResponseDto,
-  PortfolioSummaryDto,
 } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
@@ -766,574 +738,169 @@ const OperationalIntegrityCards = memo(function OperationalIntegrityCards({
   );
 });
 
-function getSignalDeciderStatusCopyKey(status: SignalDeciderFeedbackStatus) {
-  return status === "needs-review" ? "needsReview" : status;
+function getOverviewValueClassName(tone: "positive" | "negative" | "neutral" | "warning") {
+  if (tone === "positive") return styles.positive;
+  if (tone === "negative") return styles.negative;
+  if (tone === "warning") return styles.warningText;
+  return "";
 }
 
-function getSignalDeciderStatusTone(status: SignalDeciderFeedbackStatus) {
-  if (status === "completed") return "positive";
-  if (status === "partial" || status === "needs-review") return "warning";
-  return "neutral";
-}
-
-function getSignalDeciderQualityTone(tone: string | null | undefined) {
-  if (tone === "positive" || tone === "warning" || tone === "negative" || tone === "info") return tone;
-  return "neutral";
-}
-
-function formatSignalDeciderResultCount(model: SignalDeciderFeedbackSummaryModel, numberLocale: string) {
-  const completedCount = typeof model.completedCount === "number" ? model.completedCount : model.resultCount;
-  const resultCount = completedCount.toLocaleString(numberLocale);
-  if (typeof model.requestedCount === "number" && model.requestedCount > completedCount) {
-    return `${resultCount} / ${model.requestedCount.toLocaleString(numberLocale)}`;
-  }
-  return resultCount;
-}
-
-function formatSignalDeciderActionMix(model: SignalDeciderFeedbackSummaryModel, numberLocale: string) {
-  const visibleActions = (["buy", "wait", "reject"] as const)
-    .filter((action) => model.actionCounts[action] > 0)
-    .map((action) => `${formatSignalDeciderActionLabel(action)} ${model.actionCounts[action].toLocaleString(numberLocale)}`);
-
-  if (model.actionCounts.unknown > 0) {
-    visibleActions.push(`Unknown ${model.actionCounts.unknown.toLocaleString(numberLocale)}`);
-  }
-
-  return visibleActions.length > 0 ? visibleActions.join(" · ") : UNKNOWN_LABEL;
-}
-
-type SignalDeciderFeedbackCardProps = {
+type DeciderRecommendationCardProps = {
   copy: DashboardLiveCopy;
-  error: string | null;
-  model: SignalDeciderFeedbackSummaryModel;
-  numberLocale: string;
-  showCurrentCycleContext: boolean;
+  detailHref: string;
+  feedbackStatus: string;
+  model: DashboardDeciderOverviewModel;
 };
 
-const SignalDeciderFeedbackCard = memo(function SignalDeciderFeedbackCard({
+const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
   copy,
-  error,
+  detailHref,
+  feedbackStatus,
   model,
-  numberLocale,
-  showCurrentCycleContext,
-}: SignalDeciderFeedbackCardProps) {
-  const statusCopyKey = getSignalDeciderStatusCopyKey(model.status);
-  const statusLabel = copy.signalDecider.statuses[statusCopyKey];
-  const statusTone = getSignalDeciderStatusTone(model.status);
-  const previewState = resolveSignalDeciderFeedbackPreviewState(model);
-
+}: DeciderRecommendationCardProps) {
   return (
     <article
       className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.signalDeciderCard}`}
-      data-signal-decider-status={model.status}
+      data-decider-overview-mode={model.mode}
+      data-signal-decider-status={feedbackStatus}
     >
+      <ComponentTag
+        label="dashboard.decider-recommendations"
+        api="/api/trading/execution/runtime/monitored-symbols + /api/trading/execution/runtime/daily-board + /api/trading/quotes/tracked"
+      />
+
       <div className={styles.sectionHeaderRow}>
         <div>
-          <h2 className={styles.sectionTitle}>{copy.signalDecider.title}</h2>
-          <p className={styles.cardContext}>{copy.signalDecider.decisionSupportOnly}</p>
+          <p className={styles.sectionEyebrow}>{copy.dashboardOverview.deciderEyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.dashboardOverview.deciderTitle}</h2>
+          {model.contextLabel ? <p className={styles.cardContext}>{model.contextLabel}</p> : null}
         </div>
-        <span className={`pill ${statusTone}`}>{statusLabel}</span>
+        <span className={`pill ${model.statusTone}`}>{model.statusLabel}</span>
       </div>
 
-      <div className={styles.statusMetricGrid}>
-        <div className={styles.statusMetric}>
-          <span>{copy.signalDecider.results}</span>
-          <strong>{formatSignalDeciderResultCount(model, numberLocale)}</strong>
-        </div>
-        <div className={styles.statusMetric}>
-          <span>{copy.signalDecider.date}</span>
-          <strong>{model.marketDate ?? UNKNOWN_LABEL}</strong>
-        </div>
-        <div className={styles.statusMetric}>
-          <span>{copy.signalDecider.actionMix}</span>
-          <strong>{formatSignalDeciderActionMix(model, numberLocale)}</strong>
-        </div>
-      </div>
-
-      {model.isLatestCompletedFallback ? (
-        <p className={styles.cardContext}>
-          {copy.signalDecider.latestCompleted}: <strong>{model.marketDate ?? UNKNOWN_LABEL}</strong>
-          {showCurrentCycleContext ? (
-            <>
-              {" · "}
-              {copy.signalDecider.currentCycle}: <strong>{model.currentMarketDate}</strong>{" "}
-              {copy.signalDecider.currentCycleRole} {statusLabel.toLowerCase()}
-            </>
-          ) : null}
-        </p>
-      ) : null}
-
-      {error ? <p className={styles.cardContext}>{copy.signalDecider.unavailable} {error}</p> : null}
-
-      {previewState === "preview" ? (
-        <div className={styles.signalDeciderPreviewList} role="list" aria-label={copy.signalDecider.preview}>
-          {model.previewItems.map((item) => (
-            <div
-              key={item.id}
-              className={styles.signalDeciderPreviewRow}
-              role="listitem"
-              aria-label={`${item.companyName ?? item.symbol} signal-decider feedback`}
-            >
-              <div className={styles.signalDeciderPreviewMain}>
-                <strong>{item.companyName ?? item.symbol}</strong>
-                <span>{item.symbol}</span>
-              </div>
-              <div className={styles.signalDeciderPreviewMeta}>
-                <span className={`pill ${item.action === "buy" ? "positive" : item.action === "reject" ? "warning" : "neutral"}`}>
-                  {item.actionLabel}
-                </span>
-                {item.qualityTag ? (
-                  <span className={`pill ${getSignalDeciderQualityTone(item.qualityTag.tone)}`}>
-                    {item.qualityTag.label}
-                  </span>
-                ) : null}
-                <span className={styles.signalDeciderPreviewScore}>
-                  {item.convictionScore !== null
-                    ? `${item.convictionScore}/10`
-                    : item.confidenceScore !== null
-                      ? `${item.confidenceScore}/10`
-                      : UNKNOWN_LABEL}
+      {model.rows.length > 0 ? (
+        <div className={styles.overviewSymbolList} role="list" aria-label={copy.dashboardOverview.deciderTitle}>
+          {model.rows.map((row) => (
+            <div key={row.key} className={styles.overviewSymbolRow} role="listitem">
+              <div className={styles.overviewSymbolIdentity}>
+                <strong>{row.nameLabel}</strong>
+                <span>
+                  {row.symbol}
+                  {row.marketLabel ? ` · ${row.marketLabel}` : ""}
                 </span>
               </div>
-              {item.thesisSummary ? <p className="clamp-3">{item.thesisSummary}</p> : null}
+              <dl className={styles.overviewValueGrid}>
+                {row.prices.map((price) => (
+                  <div key={price.key}>
+                    <dt>{price.label}</dt>
+                    <dd>{price.value}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           ))}
         </div>
       ) : (
-        <div className={styles.emptyState}>
-          {previewState === "previewUnavailable"
-            ? copy.signalDecider.previewUnavailable
-            : copy.signalDecider.empty}
-        </div>
+        <div className={styles.emptyState}>{model.emptyLabel}</div>
       )}
 
-      <Link href={model.detailHref} className={styles.signalDeciderMoreLink} aria-label={copy.signalDecider.openDetail}>
+      <Link href={detailHref} className={styles.signalDeciderMoreLink} aria-label={copy.signalDecider.openDetail}>
         {copy.signalDecider.viewDetail}
       </Link>
     </article>
   );
 });
 
-function getPortfolioMetricLabel(id: PortfolioMetricId, copy: DashboardLiveCopy) {
-  if (id === "total-assets") return copy.portfolioState.metrics.totalAssets;
-  if (id === "day-pnl") return copy.portfolioState.metrics.dayPnl;
-  if (id === "unrealized-pnl") return copy.portfolioState.metrics.unrealizedPnl;
-  return copy.portfolioState.metrics.cashBuyingPower;
+function TradeRowList({
+  emptyLabel,
+  label,
+  rows,
+}: {
+  emptyLabel: string | null;
+  label: string;
+  rows: DashboardPortfolioTradeRow[];
+}) {
+  return (
+    <section className={styles.tradeListSection} aria-label={label}>
+      <h3>{label}</h3>
+      {rows.length > 0 ? (
+        <div className={styles.tradeRowList} role="list">
+          {rows.map((row) => (
+            <div key={row.key} className={styles.tradeRow} role="listitem">
+              <div className={styles.overviewSymbolIdentity}>
+                <strong>{row.nameLabel}</strong>
+                <span>
+                  {row.symbol}
+                  {row.marketLabel ? ` · ${row.marketLabel}` : ""}
+                </span>
+              </div>
+              <dl className={styles.tradeValueList}>
+                {row.values.map((value) => (
+                  <div key={value.key}>
+                    <dt>{value.label}</dt>
+                    <dd>{value.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.emptyState}>{emptyLabel}</div>
+      )}
+    </section>
+  );
 }
 
-function getPortfolioMetricClassName(metric: PortfolioMetricModel) {
-  if (metric.tone === "positive") return styles.positive;
-  if (metric.tone === "negative") return styles.negative;
-  return "";
-}
-
-function formatPortfolioCount(count: number, singularLabel: string, pluralLabel: string, numberLocale: string) {
-  const label = count === 1 ? singularLabel : pluralLabel;
-  return `${count.toLocaleString(numberLocale)} ${label}`;
-}
-
-function humanizePortfolioStatus(value: string) {
-  return value
-    .split(/[_\s-]+/)
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1).toLowerCase()}`)
-    .join(" ");
-}
-
-function getPortfolioStateStatusLabel(state: PortfolioSummaryState, summary: PortfolioSummaryDto | null, copy: DashboardLiveCopy) {
-  if (state === "loading") return copy.portfolioState.statusLoading;
-  if (state === "connected-empty") return copy.portfolioState.statusEmpty;
-  if (
-    state === "endpoint-pending" ||
-    state === "invalid-response" ||
-    state === "not-configured" ||
-    state === "upstream-unavailable"
-  ) {
-    return copy.portfolioState.statusUnavailable;
-  }
-  if (state === "partial-data" || state === "stale-sync") return copy.portfolioState.statusDegraded;
-
-  return summary?.sync?.status ? humanizePortfolioStatus(summary.sync.status) : copy.portfolioState.statusReady;
-}
-
-function getPortfolioStateStatusTone(state: PortfolioSummaryState) {
-  if (state === "fully-synced") return "positive";
-  if (
-    state === "endpoint-pending" ||
-    state === "invalid-response" ||
-    state === "not-configured" ||
-    state === "partial-data" ||
-    state === "stale-sync" ||
-    state === "upstream-unavailable"
-  ) {
-    return "warning";
-  }
-  return "neutral";
-}
-
-function getPortfolioStateMetricFallback(state: PortfolioSummaryState, copy: DashboardLiveCopy) {
-  if (state === "loading") return copy.portfolioState.loading;
-  if (
-    state === "endpoint-pending" ||
-    state === "invalid-response" ||
-    state === "not-configured" ||
-    state === "upstream-unavailable"
-  ) {
-    return copy.portfolioState.unavailableMetric;
-  }
-  if (state === "partial-data" || state === "stale-sync") return copy.portfolioState.degradedMetric;
-  if (state === "connected-empty") return copy.portfolioState.emptyMetric;
-
-  return copy.portfolioState.waiting;
-}
-
-type PortfolioStateCardProps = {
+type PortfolioStatusCardProps = {
   copy: DashboardLiveCopy;
-  error: string | null;
-  loadState: "error" | "loading" | "success";
-  numberLocale: string;
-  summary: PortfolioSummaryDto | null;
+  model: DashboardPortfolioOverviewModel;
 };
 
-const PortfolioStateCard = memo(function PortfolioStateCard({
+const PortfolioStatusCard = memo(function PortfolioStatusCard({
   copy,
-  error,
-  loadState,
-  numberLocale,
-  summary,
-}: PortfolioStateCardProps) {
-  const state = resolvePortfolioSummaryState({
-    error,
-    loading: loadState === "loading",
-    summary,
-  });
-  const metrics = buildPortfolioMetricModels(summary, getPortfolioStateMetricFallback(state, copy));
-  const accounts = getPortfolioAccounts(summary);
-  const holdings = getPortfolioHoldings(summary);
-  const lastSyncedAt = getPortfolioLastSyncedAt(summary);
-  const statusLabel = getPortfolioStateStatusLabel(state, summary, copy);
-  const statusTone = getPortfolioStateStatusTone(state);
-  const lastSyncedLabel = formatDisplayTimestamp(lastSyncedAt, copy.portfolioState.waiting);
-  const syncMessage = getPortfolioSyncMessage(summary);
-  const context =
-    state === "loading"
-      ? copy.portfolioState.loadingSummary
-      : state === "endpoint-pending" ||
-          state === "invalid-response" ||
-          state === "not-configured" ||
-          state === "upstream-unavailable"
-        ? error ?? copy.portfolioState.unavailable
-        : state === "partial-data" || state === "stale-sync"
-          ? syncMessage ?? copy.portfolioState.degradedSummary
-          : state === "connected-empty"
-            ? copy.portfolioState.emptySummary
-            : null;
-
+  model,
+}: PortfolioStatusCardProps) {
   return (
     <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.portfolioStateCard}`}>
-      <ComponentTag label="dashboard.portfolio-state" api="/api/trading/portfolio/summary" />
-
-      <div className={styles.sectionHeaderRow}>
-        <div>
-          <p className={styles.sectionEyebrow}>{copy.portfolioState.eyebrow}</p>
-          <h2 className={styles.sectionTitle}>{copy.portfolioState.title}</h2>
-        </div>
-        <span className={`pill ${statusTone}`}>{statusLabel}</span>
-      </div>
-
-      <div className={styles.portfolioMetricGrid} aria-label={copy.portfolioState.summaryMetrics}>
-        {metrics.map((metric) => (
-          <div key={metric.id} className={styles.portfolioMetric} data-portfolio-metric={metric.id}>
-            <span>{getPortfolioMetricLabel(metric.id, copy)}</span>
-            <strong className={getPortfolioMetricClassName(metric)}>{metric.value}</strong>
-          </div>
-        ))}
-      </div>
-
-      <dl className={styles.insightStateList}>
-        <div>
-          <dt>{copy.portfolioState.accountState}</dt>
-          <dd>{formatPortfolioCount(accounts.length, copy.portfolioState.account, copy.portfolioState.accounts, numberLocale)}</dd>
-        </div>
-        <div>
-          <dt>{copy.portfolioState.holdings}</dt>
-          <dd>
-            {formatPortfolioCount(
-              holdings.length,
-              copy.portfolioState.holding,
-              copy.portfolioState.holdingsPlural,
-              numberLocale,
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>{copy.portfolioState.lastSync}</dt>
-          <dd>{lastSyncedLabel}</dd>
-        </div>
-      </dl>
-
-      {context ? <p className={styles.cardContext}>{context}</p> : null}
-
-      <Link href="/portfolio" className={styles.signalDeciderDetailLink} aria-label={copy.portfolioState.openDetail}>
-        {copy.portfolioState.openDetail}
-      </Link>
-    </article>
-  );
-});
-
-type MarketSnapshotTone = "positive" | "negative" | null;
-
-function getMarketSnapshotTone(value: number | null): MarketSnapshotTone {
-  if (value === null || value === 0) return null;
-  return value > 0 ? "positive" : "negative";
-}
-
-function getMarketSnapshotToneClassName(tone: MarketSnapshotTone) {
-  if (tone === "positive") return styles.positive;
-  if (tone === "negative") return styles.negative;
-  return "";
-}
-
-function formatMarketSnapshotNumber(
-  value: number | null,
-  numberLocale: string,
-  maximumFractionDigits = 2,
-  unavailableLabel = UNKNOWN_LABEL,
-) {
-  if (value === null) return unavailableLabel;
-
-  return value.toLocaleString(numberLocale, {
-    maximumFractionDigits,
-    minimumFractionDigits: maximumFractionDigits,
-  });
-}
-
-function formatSignedMarketSnapshotNumber(
-  value: number | null,
-  numberLocale: string,
-  maximumFractionDigits = 2,
-  unavailableLabel = UNKNOWN_LABEL,
-) {
-  if (value === null) return unavailableLabel;
-  const prefix = value > 0 ? "+" : "";
-
-  return `${prefix}${formatMarketSnapshotNumber(value, numberLocale, maximumFractionDigits)}`;
-}
-
-function formatSignedMarketSnapshotPercent(value: number | null, numberLocale: string, unavailableLabel = UNKNOWN_LABEL) {
-  if (value === null) return unavailableLabel;
-
-  return `${formatSignedMarketSnapshotNumber(value, numberLocale, 2)}%`;
-}
-
-function formatMarketSnapshotDelta(
-  change: number | null,
-  changeRate: number | null,
-  numberLocale: string,
-  unavailableLabel = UNKNOWN_LABEL,
-) {
-  const changeLabel = formatSignedMarketSnapshotNumber(change, numberLocale, 2, unavailableLabel);
-  const rateLabel = formatSignedMarketSnapshotPercent(changeRate, numberLocale, unavailableLabel);
-
-  if (changeLabel === unavailableLabel && rateLabel === unavailableLabel) return unavailableLabel;
-  if (changeLabel === unavailableLabel) return rateLabel;
-  if (rateLabel === unavailableLabel) return changeLabel;
-
-  return `${changeLabel} (${rateLabel})`;
-}
-
-function compactMarketSnapshotAmount(value: number, numberLocale: string) {
-  const absoluteValue = Math.abs(value);
-
-  if (absoluteValue >= 1_000_000_000_000) {
-    return `${(absoluteValue / 1_000_000_000_000).toLocaleString(numberLocale, {
-      maximumFractionDigits: 1,
-    })}T`;
-  }
-
-  if (absoluteValue >= 1_000_000_000) {
-    return `${(absoluteValue / 1_000_000_000).toLocaleString(numberLocale, {
-      maximumFractionDigits: 1,
-    })}B`;
-  }
-
-  if (absoluteValue >= 1_000_000) {
-    return `${(absoluteValue / 1_000_000).toLocaleString(numberLocale, {
-      maximumFractionDigits: 1,
-    })}M`;
-  }
-
-  return absoluteValue.toLocaleString(numberLocale, { maximumFractionDigits: 0 });
-}
-
-function formatSignedMarketSnapshotAmount(
-  value: number | null,
-  flow: MarketSnapshotFlowDto | null | undefined,
-  numberLocale: string,
-  unavailableLabel = UNKNOWN_LABEL,
-) {
-  if (value === null) return unavailableLabel;
-  const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
-  const currency = flow?.currency?.trim().toUpperCase() ?? "";
-  const unit = flow?.unit?.trim();
-  const amountLabel = compactMarketSnapshotAmount(value, numberLocale);
-
-  if (unit) return `${prefix}${amountLabel} ${unit}`;
-  if (currency === "KRW") return `${prefix}₩${amountLabel}`;
-  if (currency) return `${prefix}${amountLabel} ${currency}`;
-
-  return `${prefix}${amountLabel}`;
-}
-function getMarketSnapshotFlowTone(flow: MarketSnapshotFlowDto | null | undefined): MarketSnapshotTone {
-  const amount = getMarketSnapshotFlowAmount(flow);
-  if (amount !== null) return getMarketSnapshotTone(amount);
-
-  const direction = normalizeMarketSnapshotToken(flow?.direction);
-  if (direction.includes("buy") || direction.includes("inflow") || direction.includes("positive")) return "positive";
-  if (direction.includes("sell") || direction.includes("outflow") || direction.includes("negative")) return "negative";
-
-  return null;
-}
-
-function formatMarketSnapshotFlow(
-  flow: MarketSnapshotFlowDto | null | undefined,
-  numberLocale: string,
-  unavailableLabel = UNKNOWN_LABEL,
-) {
-  const summary = flow?.summary?.trim();
-  if (summary) return summary;
-
-  const amount = getMarketSnapshotFlowAmount(flow);
-  if (amount !== null) return formatSignedMarketSnapshotAmount(amount, flow, numberLocale, unavailableLabel);
-
-  return flow?.direction?.trim() || unavailableLabel;
-}
-
-function getMarketSnapshotAsOf(
-  snapshot: MarketSnapshotResponseDto | null,
-  kospi: MarketSnapshotIndexDto | null,
-  kosdaq: MarketSnapshotIndexDto | null,
-  fxRate: MarketSnapshotFxRateDto | null,
-) {
-  return getFirstTextValue(
-    snapshot?.as_of,
-    snapshot?.market_date,
-    kospi?.as_of,
-    kospi?.market_date,
-    kosdaq?.as_of,
-    kosdaq?.market_date,
-    fxRate?.as_of,
-  );
-}
-
-type MarketOverviewCardProps = {
-  copy: DashboardLiveCopy;
-  marketSnapshot: MarketSnapshotResponseDto | null;
-  marketSnapshotError: string | null;
-  numberLocale: string;
-};
-
-const MarketOverviewCard = memo(function MarketOverviewCard({
-  copy,
-  marketSnapshot,
-  marketSnapshotError,
-  numberLocale,
-}: MarketOverviewCardProps) {
-  const snapshotPresentation = buildMarketSnapshotPresentation(copy, marketSnapshot, marketSnapshotError);
-  const displaySnapshot = snapshotPresentation.displaySnapshot;
-  const kospi = getMarketSnapshotIndex(displaySnapshot, "kospi");
-  const kosdaq = getMarketSnapshotIndex(displaySnapshot, "kosdaq");
-  const fxRate = getMarketSnapshotFxRate(displaySnapshot);
-  const kospiLevel = getMarketSnapshotIndexLevel(kospi);
-  const kospiChange = getMarketSnapshotIndexChange(kospi);
-  const kospiChangeRate = getMarketSnapshotIndexChangeRate(kospi);
-  const kosdaqLevel = getMarketSnapshotIndexLevel(kosdaq);
-  const kosdaqChange = getMarketSnapshotIndexChange(kosdaq);
-  const kosdaqChangeRate = getMarketSnapshotIndexChangeRate(kosdaq);
-  const usdKrwRate = getMarketSnapshotFxValue(fxRate);
-  const usdKrwChange = getMarketSnapshotFxChange(fxRate);
-  const usdKrwChangeRate = getMarketSnapshotFxChangeRate(fxRate);
-  const foreignFlow = getMarketSnapshotFlow(displaySnapshot, "foreign");
-  const institutionalFlow = getMarketSnapshotFlow(displaySnapshot, "institutional");
-  const summaryLine = getMarketSnapshotSummaryLine(displaySnapshot);
-  const asOfLabel = getMarketSnapshotAsOf(displaySnapshot, kospi, kosdaq, fxRate);
-  const unavailableLabel = copy.marketOverview.valueUnavailable;
-  const changeUnavailableLabel = copy.marketOverview.changeUnavailable;
-
-  return (
-    <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.marketOverviewCard}`}>
       <ComponentTag
-        label="dashboard.market-overview"
-        api="/api/trading/market/snapshot"
+        label="dashboard.portfolio-status"
+        api="/api/trading/portfolio/summary + /api/trading/execution/runtime/status + /api/trading/execution/runtime/daily-board"
       />
 
       <div className={styles.sectionHeaderRow}>
         <div>
-          <p className={styles.sectionEyebrow}>{copy.marketOverview.eyebrow}</p>
-          <h2 className={styles.sectionTitle}>{copy.marketOverview.title}</h2>
+          <p className={styles.sectionEyebrow}>{copy.dashboardOverview.portfolioEyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.dashboardOverview.portfolioTitle}</h2>
         </div>
-        <span className={`pill ${snapshotPresentation.statusTone}`}>
-          {snapshotPresentation.statusLabel}
-        </span>
+        <span className={`pill ${model.statusTone}`}>{model.statusLabel}</span>
       </div>
 
-      <div className={styles.marketIndexGrid} aria-label={copy.marketOverview.indexSummary}>
-        <div className={styles.marketIndexCard}>
-          <div className={styles.marketIndexHeader}>
-            <span>{copy.marketOverview.kospi}</span>
-            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : copy.marketOverview.asOfUnavailable}</span>
+      <div className={styles.portfolioMetricGrid} aria-label={copy.portfolioState.summaryMetrics}>
+        {model.metrics.map((metric) => (
+          <div key={metric.key} className={styles.portfolioMetric} data-portfolio-metric={metric.key}>
+            <span>{metric.label}</span>
+            <strong className={getOverviewValueClassName(metric.tone)}>{metric.value}</strong>
           </div>
-          <strong>{formatMarketSnapshotNumber(kospiLevel, numberLocale, 2, unavailableLabel)}</strong>
-          <span className={getMarketSnapshotToneClassName(getMarketSnapshotTone(kospiChange))}>
-            {formatMarketSnapshotDelta(kospiChange, kospiChangeRate, numberLocale, changeUnavailableLabel)}
-          </span>
-        </div>
-
-        <div className={styles.marketIndexCard}>
-          <div className={styles.marketIndexHeader}>
-            <span>{copy.marketOverview.kosdaq}</span>
-            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : copy.marketOverview.asOfUnavailable}</span>
-          </div>
-          <strong>{formatMarketSnapshotNumber(kosdaqLevel, numberLocale, 2, unavailableLabel)}</strong>
-          <span className={getMarketSnapshotToneClassName(getMarketSnapshotTone(kosdaqChange))}>
-            {formatMarketSnapshotDelta(kosdaqChange, kosdaqChangeRate, numberLocale, changeUnavailableLabel)}
-          </span>
-        </div>
+        ))}
       </div>
 
-      <div className={styles.marketContextGrid}>
-        <div>
-          <span>{copy.marketOverview.usdKrw}</span>
-          <strong>{formatMarketSnapshotNumber(usdKrwRate, numberLocale, 2, unavailableLabel)}</strong>
-          <small className={getMarketSnapshotToneClassName(getMarketSnapshotTone(usdKrwChange))}>
-            {formatMarketSnapshotDelta(usdKrwChange, usdKrwChangeRate, numberLocale, changeUnavailableLabel)}
-          </small>
-        </div>
-        <div>
-          <span>{copy.marketOverview.foreignFlow}</span>
-          <strong className={getMarketSnapshotToneClassName(getMarketSnapshotFlowTone(foreignFlow))}>
-            {formatMarketSnapshotFlow(foreignFlow, numberLocale, unavailableLabel)}
-          </strong>
-        </div>
-        <div>
-          <span>{copy.marketOverview.institutionalFlow}</span>
-          <strong className={getMarketSnapshotToneClassName(getMarketSnapshotFlowTone(institutionalFlow))}>
-            {formatMarketSnapshotFlow(institutionalFlow, numberLocale, unavailableLabel)}
-          </strong>
-        </div>
-      </div>
+      {model.contextLabel ? <p className={styles.cardContext}>{model.contextLabel}</p> : null}
 
-      {summaryLine ? <p className={styles.marketSummaryLine}>{summaryLine}</p> : null}
+      <TradeRowList
+        emptyLabel={model.buyStateLabel}
+        label={copy.dashboardOverview.todayBought}
+        rows={model.buyRows}
+      />
+      <TradeRowList
+        emptyLabel={model.sellStateLabel}
+        label={copy.dashboardOverview.todaySold}
+        rows={model.sellRows}
+      />
 
-      {!summaryLine || snapshotPresentation.status !== "ready" ? (
-        <p className={styles.cardContext}>{snapshotPresentation.fallbackContextLabel}</p>
-      ) : null}
-
-      <div className={styles.cardActionRow}>
-        <Link href="/markets" className={styles.signalDeciderDetailLink} aria-label={copy.marketOverview.openMarkets}>
-          {copy.marketOverview.openMarkets}
-        </Link>
-      </div>
+      <Link href="/portfolio" className={styles.signalDeciderDetailLink} aria-label={copy.portfolioState.openDetail}>
+        {copy.portfolioState.openDetail}
+      </Link>
     </article>
   );
 });
@@ -1689,7 +1256,6 @@ export function LiveDashboardClient({
   initialMarketRiskStatus,
   initialScoringValueFactors,
   initialScoringMomentumFactors,
-  initialMarketSnapshot,
   initialAgentFeedbackProgress,
   initialSignalDeciderFeedback,
   initialLatestSignalDeciderFeedback,
@@ -1718,8 +1284,6 @@ export function LiveDashboardClient({
     fundamentalsStatus,
     latestSignalDeciderFeedback,
     market,
-    marketSnapshot,
-    marketSnapshotError,
     marketRiskStatus,
     marketRiskStatusError,
     marketRiskStatusLoadState,
@@ -1740,7 +1304,6 @@ export function LiveDashboardClient({
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
     signalDeciderFeedback,
-    signalDeciderFeedbackError,
     tracked,
     trackedError,
   } = useLiveDashboardData({
@@ -1750,7 +1313,6 @@ export function LiveDashboardClient({
     initialFundamentalsStatus,
     initialMarket,
     initialMarketRiskStatus,
-    initialMarketSnapshot,
     initialPipelineStatus,
     initialPiotroskiStatus,
     initialScoringMomentumFactors,
@@ -2247,7 +1809,6 @@ export function LiveDashboardClient({
     signalDeciderFeedbackSelection.feedback,
     signalDeciderFeedbackSelection.isLatestCompletedFallback,
   ]);
-  const displayedSignalDeciderFeedbackError = waitForAgentFeedback ? null : signalDeciderFeedbackError;
   const processMonitorModel = useMemo(
     () =>
       buildProcessMonitorModel({
@@ -2271,12 +1832,70 @@ export function LiveDashboardClient({
       scoringCardModel,
     ],
   );
-  const marketBadgeLabel = market.is_open ? copy.marketOpen : copy.marketClosed;
-  const coreUnavailable =
-    market.state === "OFFLINE PLACEHOLDER" ||
-    isOfflineTrackedPlaceholder(tracked) ||
-    Boolean(marketError || trackedError);
-  const error = trackedError ?? marketError;
+  const portfolioSummaryState = resolvePortfolioSummaryState({
+    error: portfolioSummaryError,
+    loading: portfolioSummaryLoadState === "loading",
+    summary: portfolioSummary,
+  });
+  const deciderOverviewModel = useMemo(
+    () =>
+      buildDashboardDeciderOverviewModel({
+        board: executionRuntimeDailyBoard,
+        boardError: executionRuntimeDailyBoardError,
+        copy,
+        market,
+        monitoredSymbols: executionRuntimeMonitoredSymbols,
+        monitoredSymbolsError: executionRuntimeMonitoredSymbolsError,
+        numberLocale,
+        processStatus: processMonitorModel.status,
+        tracked,
+        trackedError,
+      }),
+    [
+      copy,
+      executionRuntimeDailyBoard,
+      executionRuntimeDailyBoardError,
+      executionRuntimeMonitoredSymbols,
+      executionRuntimeMonitoredSymbolsError,
+      market,
+      numberLocale,
+      processMonitorModel.status,
+      tracked,
+      trackedError,
+    ],
+  );
+  const portfolioOverviewModel = useMemo(
+    () =>
+      buildDashboardPortfolioOverviewModel({
+        board: executionRuntimeDailyBoard,
+        boardError: executionRuntimeDailyBoardError,
+        copy,
+        executionStatus: executionRuntimeStatus,
+        executionStatusError: executionRuntimeStatusError,
+        marketDate: executionRuntimeMarketDate,
+        numberLocale,
+        portfolioState: portfolioSummaryState,
+        summary: portfolioSummary,
+      }),
+    [
+      copy,
+      executionRuntimeDailyBoard,
+      executionRuntimeDailyBoardError,
+      executionRuntimeMarketDate,
+      executionRuntimeStatus,
+      executionRuntimeStatusError,
+      numberLocale,
+      portfolioSummary,
+      portfolioSummaryState,
+    ],
+  );
+  const marketStatusUnavailable = market.state === "OFFLINE PLACEHOLDER" || Boolean(marketError);
+  const marketBadgeLabel = marketStatusUnavailable
+    ? copy.dashboardOverview.unavailable
+    : market.is_open
+      ? copy.marketOpen
+      : copy.marketClosed;
+  const marketBadgeTone = marketStatusUnavailable ? "warning" : market.is_open ? "positive" : "closed";
   const fundamentalsDialogOpen =
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
   const processMonitorDrawerMounted = processMonitorDrawerOpen || processMonitorDrawerClosing;
@@ -2449,21 +2068,10 @@ export function LiveDashboardClient({
           />
         ),
         floatingLayer: processMonitorFloatingLayer,
-        status: { label: marketBadgeLabel, tone: market.is_open ? "positive" : "closed" },
+        status: { label: marketBadgeLabel, tone: marketBadgeTone },
       }}
     >
       <div className={`${styles.stack} ${styles.dashboardWideShell}`}>
-        {coreUnavailable ? (
-          <section className={`${styles.panel} ${styles.alertPanel}`}>
-            <ComponentTag label="dashboard.core-unavailable" api="/api/trading/market/status + /api/trading/quotes/tracked" />
-            <p className={styles.sectionEyebrow}>{copy.coreUnavailable.eyebrow}</p>
-            <strong className={styles.alertTitle}>{copy.coreUnavailable.title}</strong>
-            <p className="clamp-3">
-              {error ?? copy.coreUnavailable.description}
-            </p>
-          </section>
-        ) : null}
-
         <section className={styles.primaryInsightsSection} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.primary-insights"
@@ -2479,45 +2087,18 @@ export function LiveDashboardClient({
           />
 
           <div className={styles.primaryInsightGrid}>
-            <SignalDeciderFeedbackCard
+            <DeciderRecommendationCard
               copy={copy}
-              error={displayedSignalDeciderFeedbackError}
-              model={signalDeciderFeedbackModel}
-              numberLocale={numberLocale}
-              showCurrentCycleContext={shouldShowSignalDeciderCurrentCycleContext({
-                currentMarketDate: signalDeciderFeedbackModel.currentMarketDate,
-                isBreakDay,
-                isLatestCompletedFallback: signalDeciderFeedbackModel.isLatestCompletedFallback,
-              })}
+              detailHref={signalDeciderFeedbackModel.detailHref}
+              feedbackStatus={signalDeciderFeedbackModel.status}
+              model={deciderOverviewModel}
             />
 
-            <PortfolioStateCard
+            <PortfolioStatusCard
               copy={copy}
-              error={portfolioSummaryError}
-              loadState={portfolioSummaryLoadState}
-              numberLocale={numberLocale}
-              summary={portfolioSummary}
-            />
-
-            <MarketOverviewCard
-              copy={copy}
-              marketSnapshot={marketSnapshot}
-              marketSnapshotError={marketSnapshotError}
-              numberLocale={numberLocale}
+              model={portfolioOverviewModel}
             />
           </div>
-
-          <ExecutionRuntimePanel
-            board={executionRuntimeDailyBoard}
-            boardError={executionRuntimeDailyBoardError}
-            copy={copy}
-            marketDate={executionRuntimeMarketDate}
-            monitoredSymbols={executionRuntimeMonitoredSymbols}
-            monitoredSymbolsError={executionRuntimeMonitoredSymbolsError}
-            numberLocale={numberLocale}
-            status={executionRuntimeStatus}
-            statusError={executionRuntimeStatusError}
-          />
         </section>
 
       </div>

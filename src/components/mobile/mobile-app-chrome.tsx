@@ -110,6 +110,13 @@ export function MobileAppChrome({
       {chrome.status.label}
     </DashboardToolbarStatus>
   ) : null;
+  const desktopRailMarketStatus = chrome.status ? (
+    <DashboardToolbarStatus className={styles.desktopRailStatusPill} tone={chrome.status.tone}>
+      {chrome.status.label}
+    </DashboardToolbarStatus>
+  ) : (
+    <span className={`pill neutral ${styles.desktopRailStatusPill}`}>{t.mobileChrome.marketStatusPending}</span>
+  );
   const toolbarActions = (
     <>
       {toolbarAction === "dev-mode" ? (
@@ -117,7 +124,9 @@ export function MobileAppChrome({
           <DevModeToggle />
         </span>
       ) : null}
-      <LanguageSwitchControl testId="dashboard-header-language-switch" />
+      <span className={styles.toolbarLanguageAction}>
+        <LanguageSwitchControl testId="dashboard-header-language-switch" />
+      </span>
     </>
   );
   const bottomNavStyle = useMemo<CSSProperties>(
@@ -211,6 +220,23 @@ export function MobileAppChrome({
         <nav className={styles.desktopNav} aria-label={t.mobileChrome.primaryDesktopNavigation}>
           {navItems.map(renderDesktopNavItem)}
         </nav>
+
+        <div className={styles.desktopRailMetaGroup} aria-label={t.mobileChrome.desktopMetadata}>
+          <section className={styles.desktopRailMeta} aria-label={t.mobileChrome.currentScreen}>
+            <span className={styles.desktopRailMetaLabel}>{t.mobileChrome.currentScreen}</span>
+            <strong className={styles.desktopRailScreenName}>{toolbarTitle}</strong>
+          </section>
+
+          <section className={styles.desktopRailMeta} aria-label={t.mobileChrome.marketStatus}>
+            <span className={styles.desktopRailMetaLabel}>{t.mobileChrome.marketStatus}</span>
+            {desktopRailMarketStatus}
+          </section>
+
+          <section className={styles.desktopRailMeta} aria-label={t.common.languageSwitcher}>
+            <span className={styles.desktopRailMetaLabel}>{t.common.languageSwitcher}</span>
+            <LanguageSwitchControl testId="dashboard-desktop-rail-language-switch" />
+          </section>
+        </div>
 
         {desktopRailFooter ? (
           <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>

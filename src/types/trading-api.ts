@@ -182,6 +182,10 @@ export type PortfolioOrderActivityDto = {
   quantity?: number | null;
   filledQuantity?: number | null;
   averageFillPrice?: PortfolioMoneyAmountDto | null;
+  targetPrice?: PortfolioMoneyAmountDto | null;
+  stopLossPrice?: PortfolioMoneyAmountDto | null;
+  tradePrice?: PortfolioMoneyAmountDto | null;
+  realizedPnl?: PortfolioMoneyAmountDto | null;
   submittedAt?: string | null;
   updatedAt?: string | null;
 };
@@ -283,6 +287,13 @@ export type ExecutionRuntimeBoardItemDto = Record<string, unknown> & {
   open_quantity?: ExecutionRuntimeQuantity;
   planned_price?: ExecutionRuntimeQuantity;
   avg_fill_price?: ExecutionRuntimeQuantity;
+  trade_price?: ExecutionRuntimeQuantity;
+  fill_price?: ExecutionRuntimeQuantity;
+  current_price?: ExecutionRuntimeQuantity;
+  close_price?: ExecutionRuntimeQuantity;
+  market_close_price?: ExecutionRuntimeQuantity;
+  eod_close_price?: ExecutionRuntimeQuantity;
+  realized_pnl?: ExecutionRuntimeQuantity | PortfolioMoneyAmountDto | null;
   decision_source?: string | null;
   decision_snapshot_id?: number | string | null;
   policy_version?: string | null;
@@ -329,6 +340,10 @@ export type ExecutionRuntimeMonitoredSymbolDto = Record<string, unknown> & {
   monitoring_state: ExecutionRuntimeMonitoringState;
   position_side?: string | null;
   planned_intents?: string[] | null;
+  target_price?: ExecutionRuntimeQuantity;
+  stop_loss_price?: ExecutionRuntimeQuantity;
+  current_price?: ExecutionRuntimeQuantity;
+  close_price?: ExecutionRuntimeQuantity;
   last_event_at?: string | null;
   account_references?: string[] | null;
   status_counts?: Record<string, number> | null;

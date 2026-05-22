@@ -25,17 +25,6 @@ async function openProcessMonitorDrawer(page: Page) {
   return drawer;
 }
 
-async function expectVerticalCentersAligned(left: Locator, right: Locator, tolerancePx = 3) {
-  const [leftBox, rightBox] = await Promise.all([left.boundingBox(), right.boundingBox()]);
-  if (!leftBox || !rightBox) {
-    throw new Error("Expected both elements to be visible before checking alignment.");
-  }
-
-  const leftCenterY = leftBox.y + leftBox.height / 2;
-  const rightCenterY = rightBox.y + rightBox.height / 2;
-  expect(Math.abs(leftCenterY - rightCenterY)).toBeLessThanOrEqual(tolerancePx);
-}
-
 async function expectHorizontalCentersAligned(left: Locator, right: Locator, tolerancePx = 4) {
   const [leftBox, rightBox] = await Promise.all([left.boundingBox(), right.boundingBox()]);
   if (!leftBox || !rightBox) {
@@ -70,6 +59,57 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
         market_state: "CLOSED",
         as_of: now,
         items: [],
+      }),
+    });
+  });
+  await page.route("**/api/trading/execution/runtime/status**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ready",
+        mode: "paper",
+        exec_connected: true,
+      }),
+    });
+  });
+  await page.route("**/api/trading/execution/runtime/monitored-symbols**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_date: "2026-04-27",
+        items: [],
+      }),
+    });
+  });
+  await page.route("**/api/trading/execution/runtime/daily-board**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_date: "2026-04-27",
+        items: [
+          {
+            symbol: "005930",
+            name: "Samsung Electronics",
+            market: "KOSPI",
+            intent: "next_open_buy",
+            status: "scheduled",
+            target_trade_date: "2026-04-28",
+            target_price: 82000,
+            stop_loss_price: 73500,
+            market_close_price: 79500,
+          },
+          {
+            symbol: "000660",
+            name: "SK hynix",
+            market: "KOSPI",
+            intent: "next_open_buy",
+            status: "scheduled",
+            target_trade_date: "2026-04-28",
+            target_price: 124000,
+            stop_loss_price: 116500,
+            market_close_price: 120000,
+          },
+        ],
       }),
     });
   });
@@ -212,15 +252,15 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
         },
         summary: {
           run_id: "feedback-cycle-2026-04-27",
-          run_status: "partial",
-          run_table_status: "partial",
-          cycle_status: "partial",
+          run_status: "completed",
+          run_table_status: "completed",
+          cycle_status: "completed",
           is_live: false,
           run_started_at: "2026-04-27T06:50:00+00:00",
           run_completed_at: "2026-04-27T07:45:00+00:00",
-          current_role: "signal-decider",
-          completed_roles: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
-          remaining_roles: ["signal-decider"],
+          current_role: null,
+          completed_roles: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer", "signal-decider"],
+          remaining_roles: [],
           latest_feedback_at: "2026-04-27T07:45:00+00:00",
           seconds_since_last_feedback: 120,
           stalled_threshold_seconds: 300,
@@ -228,11 +268,11 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
           processed_symbols: 3,
           completed_symbols: 2,
           in_progress_symbols: 0,
-          pending_symbols: 1,
-          progress_ratio: 0.66,
-          progress_percent: 66,
+          pending_symbols: 0,
+          progress_ratio: 1,
+          progress_percent: 100,
           failed_items: 0,
-          completed_feedback_count: 14,
+          completed_feedback_count: 15,
           expected_feedback_count: 15,
         },
         result: {
@@ -240,7 +280,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
           roles: {
             "signal-decider": {
               requested_count: 3,
-              completed_count: 2,
+              completed_count: 3,
               error_count: 0,
             },
           },
@@ -781,34 +821,26 @@ async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
   }, marketDate);
 }
 
-test("dashboard signal-decider card previews partial results and links to the detail page", async ({ page }) => {
+test("dashboard signal-decider card keeps in-progress body copy and links to the detail page", async ({ page }) => {
   await mockDashboardShell(page);
 
   await page.goto("/dashboard");
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
-  await expect(card).toContainText("Partial");
-  await expect(card).toContainText("2 / 3");
-  await expect(card).toContainText("Buy 1 · Wait 1");
-  await expect(card).toContainText("Samsung Electronics");
-  await expect(card).toContainText("Momentum and fundamentals align");
-  await expect(card).not.toContainText("Target before stop");
-  await expect(card).not.toContainText("Pending 5D window");
-  await expect(card).not.toContainText("Evaluation not computed");
-
-  const samsungPreviewRow = page.getByRole("listitem", { name: /Samsung Electronics signal-decider feedback/i });
-  await expectVerticalCentersAligned(
-    samsungPreviewRow.getByText("Buy", { exact: true }),
-    samsungPreviewRow.getByText("7/10", { exact: true }),
-  );
-  const hynixPreviewRow = page.getByRole("listitem", { name: /SK hynix signal-decider feedback/i });
-  await expectVerticalCentersAligned(
-    hynixPreviewRow.getByText("Wait", { exact: true }),
-    hynixPreviewRow.getByText("5/10", { exact: true }),
-  );
+  await expect(card).toHaveAttribute("data-decider-overview-mode", "closed-in-progress");
+  await expect(card).toContainText("일별 프로세스 진행 중");
+  await expect(card).not.toContainText("Samsung Electronics");
+  await expect(card).not.toContainText("SK hynix");
+  await expect(card).not.toContainText("Stop-loss");
+  await expect(card).not.toContainText("Target");
+  await expect(card).not.toContainText("Close price");
+  await expect(card).not.toContainText("Momentum and fundamentals align");
+  await expect(card).not.toContainText("2 / 3");
+  await expect(card).not.toContainText("Buy 1 · Wait 1");
   const detailLink = card.getByRole("link", { name: /Open the signal-decider feedback detail page/i });
   await expect(detailLink).toHaveText("More");
+  await expect(detailLink).toHaveAttribute("href", "/dashboard/signal-decider-feedback?marketDate=2026-04-27");
   await expectHorizontalCentersAligned(card, detailLink);
   const detailLinkBox = await detailLink.boundingBox();
   expect(detailLinkBox).not.toBeNull();
@@ -1133,10 +1165,11 @@ test("dashboard signal-decider card shows latest completed rows while the curren
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-signal-decider-status", "running");
-  await expect(card).toContainText("Latest completed recommendations: 2026-04-29");
-  await expect(card).toContainText("Current cycle: 2026-04-30 signal-decider running");
-  await expect(card).toContainText("Previous completed cycle row remains visible during today's run.");
-  await expect(card).toContainText("Buy 1");
+  await expect(card).toContainText("일별 프로세스 진행 중");
+  await expect(card).not.toContainText("Latest completed recommendations: 2026-04-29");
+  await expect(card).not.toContainText("Current cycle: 2026-04-30 signal-decider running");
+  await expect(card).not.toContainText("Previous completed cycle row remains visible during today's run.");
+  await expect(card).not.toContainText("Buy 1");
   await expect(card).not.toContainText("0 / 3");
   await expect(card.getByRole("link", { name: /Open the signal-decider feedback detail page/i })).toHaveAttribute(
     "href",
@@ -1348,10 +1381,11 @@ test("dashboard signal-decider card hides current cycle on closed-market weekend
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
-  await expect(card).toContainText("Latest completed recommendations: 2026-05-08");
+  await expect(card).toContainText(/Next-day exec|일별 프로세스 진행 중/);
+  await expect(card).not.toContainText("Latest completed recommendations: 2026-05-08");
   await expect(card).not.toContainText("Current cycle");
   await expect(card).not.toContainText("2026-05-09 signal-decider");
-  await expect(card).toContainText("Latest Friday recommendation remains the dashboard basis on the weekend.");
+  await expect(card).not.toContainText("Latest Friday recommendation remains the dashboard basis on the weekend.");
   await expect(card.getByRole("link", { name: /Open the signal-decider feedback detail page/i })).toHaveAttribute(
     "href",
     "/dashboard/signal-decider-feedback?marketDate=2026-05-08",
@@ -1502,7 +1536,7 @@ test("signal-decider detail keeps dashboard stored rows when the direct detail r
   await page.goto("/dashboard");
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
-  await expect(card).toContainText("Samsung Electronics");
+  await expect(card).toContainText("일별 프로세스 진행 중");
   await expect
     .poll(async () =>
       page.evaluate(() => window.sessionStorage.getItem("kai.signalDeciderFeedback.v1:2026-04-27") !== null),
@@ -1510,8 +1544,10 @@ test("signal-decider detail keeps dashboard stored rows when the direct detail r
     .toBe(true);
 
   shell.setSignalDeciderFeedbackMode("empty");
-  await card.getByRole("link", { name: /Open the signal-decider feedback detail page/i }).click();
+  const detailLink = card.getByRole("link", { name: /Open the signal-decider feedback detail page/i });
+  await expect(detailLink).toHaveAttribute("href", "/dashboard/signal-decider-feedback?marketDate=2026-04-27");
 
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toBeVisible();
   await expect(page.getByRole("article", { name: /SK hynix signal-decider feedback/i })).toBeVisible();
@@ -1651,9 +1687,8 @@ test("dashboard signal-decider card retries after a transient completed-run feed
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
-  await expect(card).toContainText("Signal-decider feedback is unavailable. temporary feedback outage", {
-    timeout: 3_000,
-  });
+  await expect(card).toContainText("일별 프로세스 진행 중");
+  await expect(card).not.toContainText("Signal-decider feedback is unavailable.");
 
   const failedRequestCount = shell.getSignalDeciderFeedbackRequestCount();
   shell.setSignalDeciderFeedbackFailure(false);
@@ -1661,8 +1696,7 @@ test("dashboard signal-decider card retries after a transient completed-run feed
   await expect
     .poll(shell.getSignalDeciderFeedbackRequestCount, { timeout: 7_000 })
     .toBeGreaterThan(failedRequestCount);
-  await expect(card).toContainText("Partial");
-  await expect(card).toContainText("Samsung Electronics");
+  await expect(card).toHaveAttribute("data-signal-decider-status", "completed");
   await expect(card).not.toContainText("Signal-decider feedback is unavailable.");
 });
 

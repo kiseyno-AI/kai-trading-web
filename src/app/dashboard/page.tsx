@@ -49,7 +49,6 @@ import type {
   ExecutionRuntimeDailyBoardResponseDto,
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeStatusResponseDto,
-  MarketSnapshotResponseDto,
 } from "@/types/trading-api";
 
 export const dynamic = "force-dynamic";
@@ -120,7 +119,6 @@ export default async function DashboardPage() {
   let marketRiskStatus: EodMarketRiskFiltersResponseDto | null = null;
   let scoringValueFactors: EodValueFactorsResponseDto | null = null;
   let scoringMomentumFactors: EodMomentumFactorsResponseDto | null = null;
-  let marketSnapshot: MarketSnapshotResponseDto | null = null;
   let agentFeedbackProgress: AgentFeedbackProgressResponseDto | null = null;
   let signalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
   let latestSignalDeciderFeedback: AgentFeedbackListResponseDto | null = null;
@@ -132,11 +130,10 @@ export default async function DashboardPage() {
   const requestHeaders = await headers();
 
   try {
-    [market, tracked, freshness, marketSnapshot, executionRuntimeStatus] = await Promise.all([
+    [market, tracked, freshness, executionRuntimeStatus] = await Promise.all([
       fetchServerTradingApiJson<CoreMarketStatus>("/market/status", requestHeaders),
       fetchServerTradingApiJson<CoreTrackedQuotesResponse>("/quotes/tracked", requestHeaders),
       fetchServerTradingApiJson<EodFreshnessResponseDto>("/eod/freshness", requestHeaders).catch(() => null),
-      fetchServerTradingApiJson<MarketSnapshotResponseDto>("/market/snapshot", requestHeaders).catch(() => null),
       fetchServerTradingApiJson<ExecutionRuntimeStatusResponseDto>(
         EXECUTION_RUNTIME_STATUS_UPSTREAM_PATH,
         requestHeaders,
@@ -299,7 +296,6 @@ export default async function DashboardPage() {
       initialMarketRiskStatus={marketRiskStatus}
       initialScoringValueFactors={scoringValueFactors}
       initialScoringMomentumFactors={scoringMomentumFactors}
-      initialMarketSnapshot={marketSnapshot}
       initialAgentFeedbackProgress={agentFeedbackProgress}
       initialSignalDeciderFeedback={signalDeciderFeedback}
       initialLatestSignalDeciderFeedback={latestSignalDeciderFeedback}

@@ -353,7 +353,6 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   await expect(releaseBadge).toContainText(RELEASE_VERSION_LABEL);
   await expect(localeSwitch).toBeVisible();
   await expect(bottomNav).toBeVisible();
-  await expect(page.getByText(/Tags On|Tags Off|태그 켜짐|태그 꺼짐/)).toHaveCount(0);
 
   const [topbarBox, processBarBox, releaseBox, localeBox, bottomNavBox] = await Promise.all([
     topbar.boundingBox(),
@@ -404,13 +403,12 @@ test.describe("dashboard mobile chrome", () => {
     expect(topbarBox!.x).toBeGreaterThanOrEqual(0);
 
     await expect(bottomNav).toBeVisible();
-    const dashboardTitle = page.getByText(/Trading Dashboard/i).first();
+    const dashboardTitle = page.locator("[data-dashboard-toolbar-title]").first();
     const headerRelease = page.getByTestId("dashboard-header-release");
     const headerLanguageSwitch = page.getByTestId("dashboard-header-language-switch");
-    await expect(dashboardTitle).toBeVisible();
+    await expect(dashboardTitle).toContainText(/Trading Command Surface|트레이딩 커맨드 서피스/);
     await expect(headerRelease).toContainText(RELEASE_VERSION_LABEL);
     await expect(headerLanguageSwitch).toBeVisible();
-    await expect(page.getByText(/Tags On|Tags Off|태그 켜짐|태그 꺼짐/)).toHaveCount(0);
 
     const [titleBox, releaseBox] = await Promise.all([dashboardTitle.boundingBox(), headerRelease.boundingBox()]);
     expect(titleBox).not.toBeNull();
@@ -422,26 +420,28 @@ test.describe("dashboard mobile chrome", () => {
     await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Markets", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
-  test("open markets CTA lands in shared mobile markets chrome", async ({ page }) => {
+  test("bottom assets navigation lands in shared mobile portfolio chrome", async ({ page }) => {
     await page.goto("/dashboard");
 
-    await page.getByRole("link", { name: /Open Markets/i }).click();
-    await expect(page).toHaveURL(/\/markets$/);
-    await expect(page.getByRole("heading", { name: "Markets" })).toBeVisible();
-    await expect(page.getByText(/Market breadth feed is not connected yet/i)).toBeVisible();
+    const assetsLink = page
+      .getByRole("navigation", { name: /^(Primary|기본 내비게이션)$/i })
+      .getByRole("link", { name: "Assets", exact: true });
+    await expect(assetsLink).toHaveAttribute("href", "/portfolio");
+    await page.goto("/portfolio");
 
-    const bottomNav = page.getByRole("navigation", { name: /^Primary$/i });
+    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
+
+    const bottomNav = page.getByRole("navigation", { name: /^(Primary|기본 내비게이션)$/i });
     await expect(bottomNav).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Markets", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
 
     await expect(page.getByText("KAI Desk")).toHaveCount(0);
