@@ -710,17 +710,17 @@
       "evidence": "evidence"
     },
     "summary": {
-      "signalAgentName": "signal-decider",
-      "shortTermAgentName": "Short-term decider",
-      "loading": "Loading signal-decider feedback...",
-      "error": "Signal-decider feedback is unavailable.",
+      "signalAgentName": "Signal Decider",
+      "shortTermAgentName": "Short-term Decider",
+      "loading": "Loading {agentLabel} feedback...",
+      "error": "{agentLabel} feedback is unavailable.",
       "pendingMarketDate": "Pending",
       "noDataDateLabel": "the selected market date",
-      "noDataMarketDateUnavailable": "No signal-decider rows are stored for the selected market date.",
-      "stateRunning": "Signal-decider is still running for {dateLabel}, so stored rows are not ready yet.",
-      "statePartial": "Signal-decider feedback for {dateLabel} is partially available, but no rows matched the current filters.",
-      "stateNeedsReview": "Signal-decider rows for {dateLabel} require review-state completion before they can render here.",
-      "stateWaiting": "No signal-decider feedback rows were returned for {dateLabel}."
+      "noDataMarketDateUnavailable": "No {agentLabel} rows are stored for the selected market date.",
+      "stateRunning": "{agentLabel} is still running for {dateLabel}, so stored rows are not ready yet.",
+      "statePartial": "{agentLabel} feedback for {dateLabel} is available, but no rows matched the current filters.",
+      "stateNeedsReview": "{agentLabel} rows for {dateLabel} require review-state completion before they can render here.",
+      "stateWaiting": "No {agentLabel} feedback rows were returned for {dateLabel}."
     },
     "detail": {
       "hero": "Decision review",
@@ -737,8 +737,8 @@
       "traceabilityTitle": "Traceability"
     },
     "errors": {
-      "marketDateUnavailable": "Signal-decider market date is unavailable.",
-      "feedbackUnavailable": "Signal-decider feedback is unavailable."
+      "marketDateUnavailable": "{agentLabel} market date is unavailable.",
+      "feedbackUnavailable": "{agentLabel} feedback is unavailable."
     }
   },
   "markets": {

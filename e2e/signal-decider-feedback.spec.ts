@@ -4,9 +4,11 @@ const now = "2026-04-27T16:30:00+09:00";
 
 type MockDashboardShellOptions = {
   eodFreshnessDelayMs?: number;
+  feedbackDelayMs?: number;
   failEodFreshness?: boolean;
   failSignalDeciderFeedback?: boolean;
   failSignalDeciderFeedbackRequestNumber?: number;
+  failShortTermDeciderFeedback?: boolean;
 };
 type SignalDeciderFeedbackMode = "normal" | "empty";
 
@@ -294,9 +296,14 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
     const agentName = url.searchParams.get("agent_name") ?? "signal-decider";
     const isSignalDeciderRead = agentName === "signal-decider";
+    const isShortTermDeciderRead = agentName === "short-term-decider";
 
     if (hasMarketDate && isSignalDeciderRead) {
       signalDeciderFeedbackRequestCount += 1;
+    }
+
+    if (hasMarketDate && options.feedbackDelayMs) {
+      await delay(options.feedbackDelayMs);
     }
 
     if (
@@ -305,6 +312,17 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
       (shouldFailSignalDeciderFeedback ||
         signalDeciderFeedbackRequestCount === options.failSignalDeciderFeedbackRequestNumber)
     ) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "temporary feedback outage",
+        }),
+      });
+      return;
+    }
+
+    if (hasMarketDate && isShortTermDeciderRead && options.failShortTermDeciderFeedback) {
       await route.fulfill({
         status: 503,
         contentType: "application/json",
@@ -1551,8 +1569,8 @@ test("signal-decider detail keeps dashboard stored rows when the direct detail r
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toBeVisible();
   await expect(page.getByRole("article", { name: /SK hynix signal-decider feedback/i })).toBeVisible();
-  await expect(page.getByText("Loading signal-decider feedback...")).toHaveCount(0);
-  await expect(page.getByText(/No signal-decider rows are stored/)).toHaveCount(0);
+  await expect(page.getByText("Loading Signal Decider feedback...")).toHaveCount(0);
+  await expect(page.getByText(/No Signal Decider rows are stored/)).toHaveCount(0);
 });
 
 test("signal-decider detail stays anchored to an explicitly selected empty date", async ({ page }) => {
@@ -1629,7 +1647,7 @@ test("signal-decider detail stays anchored to an explicitly selected empty date"
 
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
   await expect(
-    page.getByText(/partially available, but no rows matched the current filters|No signal-decider feedback rows were returned for|No signal-decider rows are stored/i),
+    page.getByText(/available, but no rows matched the current filters|No Signal Decider feedback rows were returned for|No Signal Decider rows are stored/i),
   ).toBeVisible();
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
   expect(feedbackMarketDateRequests.every((marketDate) => marketDate === "2026-04-26")).toBe(true);
@@ -1668,14 +1686,27 @@ test("signal-decider detail keeps cached latest rows when fallback freshness fai
   const cachedCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
   await expect(cachedCard).toBeVisible();
   await expect(cachedCard).toContainText("Dashboard already loaded this stored signal-decider row.");
-  await expect(page.getByText("Loading signal-decider feedback...")).toHaveCount(0);
+  await expect(page.getByText("Loading Signal Decider feedback...")).toHaveCount(0);
   await expect(page.getByText("freshness temporarily unavailable")).toHaveCount(0);
-  await expect(page.getByText("Signal-decider feedback is unavailable.")).toHaveCount(0);
+  await expect(page.getByText("Signal Decider feedback is unavailable.")).toHaveCount(0);
 
   await page.waitForTimeout(250);
   await expect(cachedCard).toBeVisible();
   await expect(cachedCard).toContainText("Dashboard already loaded this stored signal-decider row.");
   await expect(page.getByText("freshness temporarily unavailable")).toHaveCount(0);
+});
+
+test("signal-decider detail preserves market-date context for fallback freshness errors", async ({ page }) => {
+  await mockDashboardShell(page, {
+    failEodFreshness: true,
+  });
+
+  await page.goto("/dashboard/signal-decider-feedback");
+
+  await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  await expect(page.locator("body")).toContainText("Signal Decider market date is unavailable.");
+  await expect(page.locator("body")).toContainText("freshness temporarily unavailable");
+  await expect(page.locator("body")).not.toContainText("Signal Decider feedback is unavailable.");
 });
 
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {
@@ -1731,6 +1762,58 @@ test("shared decider feedback route loads short-term decider rows and comparison
   await expect(samsungCard).toContainText("External news · 2 recent");
   await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Cross-decider comparison");
   await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Signal action");
+});
+
+test("shared decider feedback route names the selected short-term agent while loading in Korean", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+  });
+  await mockDashboardShell(page, {
+    feedbackDelayMs: 3_000,
+  });
+
+  await page.goto("/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-05-08&navContext=calendar");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(page.getByRole("link", { name: "단기 디사이더" })).toHaveAttribute("aria-current", "page");
+
+  const report = page.getByTestId("decider-data-gaps-report");
+  await expect(report).toContainText("단기 디사이더 피드백을 불러오는 중...");
+  await expect(report).not.toContainText("시그널 디사이더 피드백을 불러오는 중...");
+  await expect(page.locator("body")).toContainText("단기 디사이더 피드백을 불러오는 중...");
+});
+
+test("shared decider feedback route uses selected-agent empty copy for both decider tabs", async ({ page }) => {
+  const shell = await mockDashboardShell(page);
+  shell.setSignalDeciderFeedbackMode("empty");
+
+  await page.goto("/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-27");
+
+  await expect(page.getByRole("link", { name: "Short-term Decider" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("body")).toContainText("No Short-term Decider feedback rows were returned for 2026-04-27.");
+  await expect(page.locator("body")).not.toContainText("No signal-decider feedback rows");
+  await expect(page.getByTestId("decider-data-gaps-report")).toContainText(
+    "No feedback rows are available for this date and agent",
+  );
+
+  await page.getByRole("link", { name: "Signal Decider" }).click();
+
+  await expect(page.getByRole("link", { name: "Signal Decider" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("body")).toContainText("No Signal Decider feedback rows were returned for 2026-04-27.");
+});
+
+test("shared decider feedback route names short-term decider in unavailable copy", async ({ page }) => {
+  await mockDashboardShell(page, {
+    failShortTermDeciderFeedback: true,
+  });
+
+  await page.goto("/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-27");
+
+  await expect(page.getByRole("link", { name: "Short-term Decider" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("body")).toContainText("Short-term Decider feedback is unavailable.");
+  await expect(page.locator("body")).toContainText("temporary feedback outage");
+  await expect(page.locator("body")).not.toContainText("Signal Decider feedback is unavailable.");
+  await expect(page.locator("body")).not.toContainText("Signal-decider feedback is unavailable.");
 });
 
 test("decider data gaps report aggregates categories and filters symbol drilldown", async ({ page }) => {

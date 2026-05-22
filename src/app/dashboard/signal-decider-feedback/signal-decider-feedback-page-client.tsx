@@ -32,7 +32,6 @@ import {
   DECIDER_FEEDBACK_DASHBOARD_PATH,
   filterDeciderDataGapRecords,
   getDeciderFeedbackComparisonKey,
-  getDeciderAgentLabel,
   getOppositeDeciderAgentName,
   resolveDeciderFeedbackNavContext,
   resolveDeciderDataGapDisplayState,
@@ -79,7 +78,9 @@ type ActionFilter = (typeof ACTION_FILTERS)[number];
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 type SortMode = (typeof SORT_MODES)[number];
 type GapCategoryFilter = (typeof GAP_CATEGORY_FILTERS)[number];
-type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | { message: string };
+type FeedbackErrorSource = "feedback" | "marketDate" | "generic";
+type DetailedFeedbackError = { message: string; source: FeedbackErrorSource };
+type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | DetailedFeedbackError;
 
 type SignalDeciderFeedbackCopy = ReturnType<typeof useAppState>["t"]["signalDeciderFeedback"];
 type SignalDeciderStatusCopy = SignalDeciderFeedbackCopy["status"];
@@ -162,6 +163,22 @@ function getActionToneClass(action: SignalDeciderAction) {
 
 function formatScore(value: number | null) {
   return value === null ? UNKNOWN_LABEL : `${value}/10`;
+}
+
+function formatDeciderAgentCopy(template: string, agentLabel: string) {
+  return template.replaceAll("{agentLabel}", agentLabel);
+}
+
+function getFeedbackError(
+  error: unknown,
+  source: "feedback" | "marketDate",
+  fallback: "feedbackUnavailable" | "marketDateUnavailable",
+): FeedbackError {
+  return error instanceof Error ? { message: error.message, source } : fallback;
+}
+
+function hasFeedbackErrorSource(error: FeedbackError | null, source: FeedbackErrorSource): error is DetailedFeedbackError {
+  return typeof error === "object" && error !== null && error.source === source;
 }
 
 function formatSignedPercent(value: number | null) {
@@ -272,8 +289,20 @@ function getSignalDeciderSummaryStatusLabel(
   status: SignalDeciderFeedbackStatus,
   statusCopy: SignalDeciderStatusCopy,
   summaryCopy: SignalDeciderSummaryCopy,
+  agentLabel: string,
+  error: FeedbackError | null,
+  marketDateUnavailableMessage: string,
 ) {
-  return loadState === "ready" ? getStatusLabel(status, statusCopy) : summaryCopy.loading;
+  if (loadState === "ready") return getStatusLabel(status, statusCopy);
+  if (loadState === "error") {
+    if (error === "marketDateUnavailable" || hasFeedbackErrorSource(error, "marketDate")) {
+      return marketDateUnavailableMessage;
+    }
+    if (hasFeedbackErrorSource(error, "generic")) return error.message;
+
+    return formatDeciderAgentCopy(summaryCopy.error, agentLabel);
+  }
+  return formatDeciderAgentCopy(summaryCopy.loading, agentLabel);
 }
 
 function getSignalDeciderSummaryNumericValue(
@@ -292,33 +321,45 @@ function getSignalDeciderSummaryActionMix(
 }
 
 function getSignalDeciderNoDataMessage({
+  agentLabel,
+  hasStoredRows,
   marketDate,
   status,
   summaryCopy,
 }: {
+  agentLabel: string;
+  hasStoredRows: boolean;
   marketDate: string | null | undefined;
   status: SignalDeciderFeedbackStatus;
   summaryCopy: SignalDeciderSummaryCopy;
 }) {
   const dateLabel = hasTextValue(marketDate) ? marketDate : summaryCopy.noDataDateLabel;
 
+  if (hasStoredRows) {
+    return formatDeciderAgentCopy(summaryCopy.statePartial, agentLabel).replaceAll("{dateLabel}", dateLabel);
+  }
+
   if (status === "running") {
-    return summaryCopy.stateRunning.replaceAll("{dateLabel}", dateLabel);
+    return formatDeciderAgentCopy(summaryCopy.stateRunning, agentLabel).replaceAll("{dateLabel}", dateLabel);
   }
 
   if (status === "partial") {
-    return summaryCopy.statePartial.replaceAll("{dateLabel}", dateLabel);
+    return formatDeciderAgentCopy(summaryCopy.statePartial, agentLabel).replaceAll("{dateLabel}", dateLabel);
   }
 
   if (status === "needs-review") {
-    return summaryCopy.stateNeedsReview.replaceAll("{dateLabel}", dateLabel);
+    return formatDeciderAgentCopy(summaryCopy.stateNeedsReview, agentLabel).replaceAll("{dateLabel}", dateLabel);
+  }
+
+  if (status === "completed") {
+    return formatDeciderAgentCopy(summaryCopy.noDataMarketDateUnavailable, agentLabel);
   }
 
   if (status === "waiting") {
-    return summaryCopy.stateWaiting.replaceAll("{dateLabel}", dateLabel);
+    return formatDeciderAgentCopy(summaryCopy.stateWaiting, agentLabel).replaceAll("{dateLabel}", dateLabel);
   }
 
-  return summaryCopy.stateWaiting.replaceAll("{dateLabel}", dateLabel);
+  return formatDeciderAgentCopy(summaryCopy.stateWaiting, agentLabel).replaceAll("{dateLabel}", dateLabel);
 }
 
 function getTraceSummaryParts(item: SignalDeciderFeedbackItem, countCopy: SignalDeciderCountCopy) {
@@ -904,7 +945,7 @@ export default function SignalDeciderFeedbackPageClient() {
         if (!active) return;
         if (cachedLatest) return;
         setLoadState("error");
-        setError(freshnessError instanceof Error ? { message: freshnessError.message } : "marketDateUnavailable");
+        setError(getFeedbackError(freshnessError, "marketDate", "marketDateUnavailable"));
       }
     };
 
@@ -1014,7 +1055,7 @@ export default function SignalDeciderFeedbackPageClient() {
           setPreviousFeedback(null);
           setProgress(cachedSnapshot.progress);
           setLoadState("ready");
-          setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
+          setError(getFeedbackError(loadError, "feedback", "feedbackUnavailable"));
           return;
         }
         setFeedback(null);
@@ -1022,7 +1063,7 @@ export default function SignalDeciderFeedbackPageClient() {
         setPreviousFeedback(null);
         setProgress(null);
         setLoadState("error");
-        setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
+        setError(getFeedbackError(loadError, "feedback", "feedbackUnavailable"));
       }
     };
 
@@ -1106,7 +1147,8 @@ export default function SignalDeciderFeedbackPageClient() {
     );
   }, [activeAgent, comparisonSummary.items, summary.items]);
   const comparisonCount = comparisonByKey.size;
-  const activeAgentLabel = getDeciderAgentLabel(activeAgent);
+  const activeAgentLabel =
+    activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? copy.summary.shortTermAgentName : copy.summary.signalAgentName;
   const pageTitle = isSharedRoute ? copy.heroTitle : copy.legacyHeroTitle;
   const pageCopy = isShortTermAgent ? copy.shortTermHeroCopy : copy.heroCopy;
   const componentTagLabel = isSharedRoute ? "dashboard.decider-feedback" : "dashboard.signal-decider-feedback";
@@ -1128,8 +1170,6 @@ export default function SignalDeciderFeedbackPageClient() {
   };
   const signalTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SIGNAL_DECIDER_AGENT_NAME });
   const shortTermTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SHORT_TERM_DECIDER_AGENT_NAME });
-  const activeAgentEmptyLabel =
-    activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? copy.summary.shortTermAgentName : copy.summary.signalAgentName;
   const noComparisonMessage =
     comparisonFeedback === null
       ? copy.comparison.unavailable
@@ -1161,6 +1201,10 @@ export default function SignalDeciderFeedbackPageClient() {
   const evaluationCopy = copy.evaluation;
   const countCopy = copy.counts;
   const dataGapCopy = copy.dataGaps;
+  const feedbackLoadingMessage = formatDeciderAgentCopy(summaryCopy.loading, activeAgentLabel);
+  const feedbackErrorMessage = formatDeciderAgentCopy(summaryCopy.error, activeAgentLabel);
+  const feedbackUnavailableMessage = formatDeciderAgentCopy(copy.errors.feedbackUnavailable, activeAgentLabel);
+  const marketDateUnavailableMessage = formatDeciderAgentCopy(copy.errors.marketDateUnavailable, activeAgentLabel);
   const calendarReturnDate = displayedMarketDate ?? marketDate ?? requestedMarketDate;
   const calendarReturnHref =
     isCalendarContext && calendarReturnDate ? `/calendar?date=${encodeURIComponent(calendarReturnDate)}` : null;
@@ -1189,10 +1233,12 @@ export default function SignalDeciderFeedbackPageClient() {
 
   const displayError = useMemo(() => {
     if (error === null) return null;
-    if (error === "feedbackUnavailable") return copy.errors.feedbackUnavailable;
-    if (error === "marketDateUnavailable") return copy.errors.marketDateUnavailable;
+    if (error === "feedbackUnavailable") return feedbackUnavailableMessage;
+    if (error === "marketDateUnavailable") return marketDateUnavailableMessage;
+    if (error.source === "feedback") return `${feedbackUnavailableMessage} ${error.message}`;
+    if (error.source === "marketDate") return `${marketDateUnavailableMessage} ${error.message}`;
     return error.message;
-  }, [copy.errors.feedbackUnavailable, copy.errors.marketDateUnavailable, error]);
+  }, [error, feedbackUnavailableMessage, marketDateUnavailableMessage]);
 
   function handleMarketDateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1274,7 +1320,15 @@ export default function SignalDeciderFeedbackPageClient() {
             <div className={styles.summaryCard}>
               <span>{labelsCopy.status}</span>
               <strong className={getStatusToneClass(loadState === "ready" ? summary.status : "running")}>
-                {getSignalDeciderSummaryStatusLabel(loadState, summary.status, statusCopy, summaryCopy)}
+                {getSignalDeciderSummaryStatusLabel(
+                  loadState,
+                  summary.status,
+                  statusCopy,
+                  summaryCopy,
+                  activeAgentLabel,
+                  error,
+                  marketDateUnavailableMessage,
+                )}
               </strong>
             </div>
             <div className={styles.summaryCard}>
@@ -1412,7 +1466,7 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
 
             {loadState === "loading" ? (
-              <div className={styles.emptyState}>{summaryCopy.loading}</div>
+              <div className={styles.emptyState}>{feedbackLoadingMessage}</div>
             ) : loadState === "error" ? (
               <div className={styles.emptyState}>{dataGapCopy.empty.noFeedback}</div>
             ) : dataGapDisplayState === "has-data-gaps" ? (
@@ -1495,9 +1549,9 @@ export default function SignalDeciderFeedbackPageClient() {
           </section>
 
           {loadState === "loading" ? (
-            <div className={styles.emptyState}>{summaryCopy.loading}</div>
+            <div className={styles.emptyState}>{feedbackLoadingMessage}</div>
           ) : loadState === "error" ? (
-            <div className={styles.emptyState}>{displayError ?? summaryCopy.error}</div>
+            <div className={styles.emptyState}>{displayError ?? feedbackErrorMessage}</div>
           ) : visibleItems.length > 0 ? (
             <div className={styles.resultsList} aria-label={copy.labels.results}>
               {visibleItems.map((item) => {
@@ -1696,10 +1750,13 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
           ) : (
             <div className={styles.emptyState}>
-              {getSignalDeciderNoDataMessage({ marketDate: displayedMarketDate, status: summary.status, summaryCopy }).replaceAll(
-                "Signal-decider",
-                activeAgentEmptyLabel,
-              ).replaceAll("signal-decider", activeAgentEmptyLabel.toLowerCase())}
+              {getSignalDeciderNoDataMessage({
+                agentLabel: activeAgentLabel,
+                hasStoredRows: summary.items.length > 0,
+                marketDate: displayedMarketDate,
+                status: summary.status,
+                summaryCopy,
+              })}
             </div>
           )}
         </section>
