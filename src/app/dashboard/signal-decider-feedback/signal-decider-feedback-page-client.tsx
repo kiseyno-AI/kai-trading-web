@@ -78,7 +78,9 @@ type ActionFilter = (typeof ACTION_FILTERS)[number];
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 type SortMode = (typeof SORT_MODES)[number];
 type GapCategoryFilter = (typeof GAP_CATEGORY_FILTERS)[number];
-type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | { message: string };
+type FeedbackErrorSource = "feedback" | "marketDate" | "generic";
+type DetailedFeedbackError = { message: string; source: FeedbackErrorSource };
+type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | DetailedFeedbackError;
 
 type SignalDeciderFeedbackCopy = ReturnType<typeof useAppState>["t"]["signalDeciderFeedback"];
 type SignalDeciderStatusCopy = SignalDeciderFeedbackCopy["status"];
@@ -165,6 +167,18 @@ function formatScore(value: number | null) {
 
 function formatDeciderAgentCopy(template: string, agentLabel: string) {
   return template.replaceAll("{agentLabel}", agentLabel);
+}
+
+function getFeedbackError(
+  error: unknown,
+  source: "feedback" | "marketDate",
+  fallback: "feedbackUnavailable" | "marketDateUnavailable",
+): FeedbackError {
+  return error instanceof Error ? { message: error.message, source } : fallback;
+}
+
+function hasFeedbackErrorSource(error: FeedbackError | null, source: FeedbackErrorSource): error is DetailedFeedbackError {
+  return typeof error === "object" && error !== null && error.source === source;
 }
 
 function formatSignedPercent(value: number | null) {
@@ -276,9 +290,18 @@ function getSignalDeciderSummaryStatusLabel(
   statusCopy: SignalDeciderStatusCopy,
   summaryCopy: SignalDeciderSummaryCopy,
   agentLabel: string,
+  error: FeedbackError | null,
+  marketDateUnavailableMessage: string,
 ) {
   if (loadState === "ready") return getStatusLabel(status, statusCopy);
-  if (loadState === "error") return formatDeciderAgentCopy(summaryCopy.error, agentLabel);
+  if (loadState === "error") {
+    if (error === "marketDateUnavailable" || hasFeedbackErrorSource(error, "marketDate")) {
+      return marketDateUnavailableMessage;
+    }
+    if (hasFeedbackErrorSource(error, "generic")) return error.message;
+
+    return formatDeciderAgentCopy(summaryCopy.error, agentLabel);
+  }
   return formatDeciderAgentCopy(summaryCopy.loading, agentLabel);
 }
 
@@ -922,7 +945,7 @@ export default function SignalDeciderFeedbackPageClient() {
         if (!active) return;
         if (cachedLatest) return;
         setLoadState("error");
-        setError(freshnessError instanceof Error ? { message: freshnessError.message } : "marketDateUnavailable");
+        setError(getFeedbackError(freshnessError, "marketDate", "marketDateUnavailable"));
       }
     };
 
@@ -1032,7 +1055,7 @@ export default function SignalDeciderFeedbackPageClient() {
           setPreviousFeedback(null);
           setProgress(cachedSnapshot.progress);
           setLoadState("ready");
-          setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
+          setError(getFeedbackError(loadError, "feedback", "feedbackUnavailable"));
           return;
         }
         setFeedback(null);
@@ -1040,7 +1063,7 @@ export default function SignalDeciderFeedbackPageClient() {
         setPreviousFeedback(null);
         setProgress(null);
         setLoadState("error");
-        setError(loadError instanceof Error ? { message: loadError.message } : "feedbackUnavailable");
+        setError(getFeedbackError(loadError, "feedback", "feedbackUnavailable"));
       }
     };
 
@@ -1212,7 +1235,9 @@ export default function SignalDeciderFeedbackPageClient() {
     if (error === null) return null;
     if (error === "feedbackUnavailable") return feedbackUnavailableMessage;
     if (error === "marketDateUnavailable") return marketDateUnavailableMessage;
-    return `${feedbackUnavailableMessage} ${error.message}`;
+    if (error.source === "feedback") return `${feedbackUnavailableMessage} ${error.message}`;
+    if (error.source === "marketDate") return `${marketDateUnavailableMessage} ${error.message}`;
+    return error.message;
   }, [error, feedbackUnavailableMessage, marketDateUnavailableMessage]);
 
   function handleMarketDateSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1295,7 +1320,15 @@ export default function SignalDeciderFeedbackPageClient() {
             <div className={styles.summaryCard}>
               <span>{labelsCopy.status}</span>
               <strong className={getStatusToneClass(loadState === "ready" ? summary.status : "running")}>
-                {getSignalDeciderSummaryStatusLabel(loadState, summary.status, statusCopy, summaryCopy, activeAgentLabel)}
+                {getSignalDeciderSummaryStatusLabel(
+                  loadState,
+                  summary.status,
+                  statusCopy,
+                  summaryCopy,
+                  activeAgentLabel,
+                  error,
+                  marketDateUnavailableMessage,
+                )}
               </strong>
             </div>
             <div className={styles.summaryCard}>

@@ -1696,6 +1696,19 @@ test("signal-decider detail keeps cached latest rows when fallback freshness fai
   await expect(page.getByText("freshness temporarily unavailable")).toHaveCount(0);
 });
 
+test("signal-decider detail preserves market-date context for fallback freshness errors", async ({ page }) => {
+  await mockDashboardShell(page, {
+    failEodFreshness: true,
+  });
+
+  await page.goto("/dashboard/signal-decider-feedback");
+
+  await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  await expect(page.locator("body")).toContainText("Signal Decider market date is unavailable.");
+  await expect(page.locator("body")).toContainText("freshness temporarily unavailable");
+  await expect(page.locator("body")).not.toContainText("Signal Decider feedback is unavailable.");
+});
+
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {
   const shell = await mockDashboardShell(page, {
     failSignalDeciderFeedback: true,
