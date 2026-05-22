@@ -712,15 +712,15 @@
     "summary": {
       "signalAgentName": "시그널 디사이더",
       "shortTermAgentName": "단기 디사이더",
-      "loading": "시그널 디사이더 피드백을 불러오는 중...",
-      "error": "시그널 디사이더 피드백을 사용할 수 없습니다.",
+      "loading": "{agentLabel} 피드백을 불러오는 중...",
+      "error": "{agentLabel} 피드백을 사용할 수 없습니다.",
       "pendingMarketDate": "대기",
       "noDataDateLabel": "선택한 시장일자",
-      "noDataMarketDateUnavailable": "선택한 시장일자의 시그널 디사이더 행이 없습니다.",
-      "stateRunning": "선택한 {dateLabel}에 대한 시그널 디사이더가 아직 실행 중이어서 저장된 행을 바로 표시할 수 없습니다.",
-      "statePartial": "선택한 {dateLabel}의 시그널 디사이더 피드백은 부분적으로만 제공되고 있으며 현재 필터와 일치하는 항목이 없습니다.",
-      "stateNeedsReview": "선택한 {dateLabel}의 시그널 디사이더 행은 리뷰 완료 후 표시됩니다.",
-      "stateWaiting": "선택한 {dateLabel}에는 시그널 디사이더 피드백 행이 반환되지 않았습니다."
+      "noDataMarketDateUnavailable": "선택한 시장일자의 {agentLabel} 행이 없습니다.",
+      "stateRunning": "선택한 {dateLabel}에 대한 {agentLabel}가 아직 실행 중이어서 저장된 행을 바로 표시할 수 없습니다.",
+      "statePartial": "선택한 {dateLabel}의 {agentLabel} 피드백은 제공되고 있지만 현재 필터와 일치하는 항목이 없습니다.",
+      "stateNeedsReview": "선택한 {dateLabel}의 {agentLabel} 행은 리뷰 완료 후 표시됩니다.",
+      "stateWaiting": "선택한 {dateLabel}에는 {agentLabel} 피드백 행이 반환되지 않았습니다."
     },
     "detail": {
       "hero": "결정 리뷰",
@@ -737,8 +737,8 @@
       "traceabilityTitle": "추적 가능성"
     },
     "errors": {
-      "marketDateUnavailable": "시그널 디사이더 시장일자를 사용할 수 없습니다.",
-      "feedbackUnavailable": "시그널 디사이더 피드백을 사용할 수 없습니다."
+      "marketDateUnavailable": "{agentLabel} 시장일자를 사용할 수 없습니다.",
+      "feedbackUnavailable": "{agentLabel} 피드백을 사용할 수 없습니다."
     }
   },
   "markets": {
