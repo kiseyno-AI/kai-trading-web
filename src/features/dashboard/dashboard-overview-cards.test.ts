@@ -368,6 +368,8 @@ test("preserves portfolio summary fields while daily-board timeout and missing d
 test("ships Korean operator copy for delayed runtime and missing day P/L states", () => {
   const koreanCopy = getDashboardLiveCopy("ko");
 
+  assert.equal(copy.dashboardOverview.moreRows, "More");
+  assert.equal(koreanCopy.dashboardOverview.moreRows, "더 보기");
   assert.equal(koreanCopy.dashboardOverview.monitoringListUpdating, "모니터링 목록을 불러오는 중입니다.");
   assert.equal(koreanCopy.dashboardOverview.executionBoardUpdating, "금일 매수/매도 내역을 갱신 중입니다.");
   assert.equal(koreanCopy.portfolioState.dayPnlPending, "금일 손익 집계 대기 중");
