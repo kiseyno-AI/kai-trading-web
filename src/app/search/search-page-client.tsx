@@ -181,6 +181,7 @@ type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const UNKNOWN = UNKNOWN_SYMBOL_META;
 const SEARCH_SUGGESTIONS_ID = "search-symbol-suggestions";
+const QUICK_ACCESS_STATUS_ID = "quick-access-status";
 const FAVORITE_DIALOG_ID = "favorite-symbol-dialog";
 const FAVORITE_SUGGESTIONS_ID = "favorite-symbol-suggestions";
 const TRENDING_INITIAL_LIMIT = MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT;
@@ -1001,22 +1002,26 @@ export default function SearchPageClient() {
               <button
                 ref={favoriteOpenButtonRef}
                 type="button"
+                className={styles.quickAccessAddButton}
                 onClick={handleOpenFavoriteDialog}
                 disabled={favoriteSavingSymbol !== null}
                 aria-label={copy.quickAccess.openFavoriteSearch}
+                aria-describedby={QUICK_ACCESS_STATUS_ID}
                 aria-haspopup="dialog"
                 aria-expanded={favoriteDialogOpen}
                 aria-controls={favoriteDialogOpen ? FAVORITE_DIALOG_ID : undefined}
               >
-                +
+                <span className={styles.quickAccessAddGlyph} aria-hidden="true">
+                  +
+                </span>
+                <span id={QUICK_ACCESS_STATUS_ID} className={styles.quickAccessAddText}>
+                  {favoriteListError
+                    ? copy.status.unavailable
+                    : favoriteItems.length > 0
+                      ? copy.quickAccess.coreFavorites
+                      : copy.quickAccess.noFavorites}
+                </span>
               </button>
-              <span>
-                {favoriteListError
-                  ? copy.status.unavailable
-                  : favoriteItems.length > 0
-                    ? copy.quickAccess.coreFavorites
-                    : copy.quickAccess.noFavorites}
-              </span>
             </div>
           </div>
           <div className={styles.quickGrid}>
