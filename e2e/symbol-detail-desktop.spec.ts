@@ -585,6 +585,35 @@ test.describe("symbol detail desktop", () => {
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
 
     const summary = page.locator("#summary");
+    const tradeButton = summary.getByRole("button", { name: "Trading disabled · read-only" });
+    await expect(tradeButton).toBeDisabled();
+    await expect(tradeButton).toHaveAttribute("aria-disabled", "true");
+    await expect(tradeButton).toHaveAttribute("aria-describedby", "symbol-trade-disabled-description");
+    await expect(summary.locator("#symbol-trade-disabled-description")).toHaveText(
+      "Read-only screen. Order execution is unavailable here.",
+    );
+
+    const tradeTreatment = await tradeButton.evaluate((button) => {
+      const accentProbe = document.createElement("span");
+      accentProbe.style.backgroundColor = getComputedStyle(document.documentElement)
+        .getPropertyValue("--accent")
+        .trim();
+      document.body.append(accentProbe);
+      const accentBackground = getComputedStyle(accentProbe).backgroundColor;
+      accentProbe.remove();
+
+      const buttonStyle = getComputedStyle(button);
+      return {
+        accentBackground,
+        background: buttonStyle.backgroundColor,
+        borderStyle: buttonStyle.borderStyle,
+        cursor: buttonStyle.cursor,
+      };
+    });
+    expect(tradeTreatment.background).not.toBe(tradeTreatment.accentBackground);
+    expect(tradeTreatment.borderStyle).toBe("solid");
+    expect(tradeTreatment.cursor).toBe("not-allowed");
+
     await expect(summary.getByText("Quote freshness")).toHaveCount(0);
     await expect(summary.getByText("TA latest")).toHaveCount(0);
     await expect(summary.getByText("Action latest")).toHaveCount(0);

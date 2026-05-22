@@ -616,6 +616,54 @@ test.describe("symbol detail mobile pages", () => {
     }
   });
 
+  test("disabled trade placeholder is visibly read-only in the mobile hero", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+    await page.getByRole("button", { name: /Korean/i }).click();
+
+    const hero = page.locator("#summary");
+    const tradeButton = hero.getByRole("button", { name: "거래 비활성 · 읽기 전용" });
+    await expect(tradeButton).toBeDisabled();
+    await expect(tradeButton).toHaveAttribute("aria-disabled", "true");
+    await expect(tradeButton).toHaveAttribute("aria-describedby", "symbol-trade-disabled-description");
+    await expect(hero.locator("#symbol-trade-disabled-description")).toHaveText(
+      "읽기 전용 화면입니다. 주문 실행은 제공되지 않습니다.",
+    );
+    await expect(page.getByRole("button", { name: "005930를 추적 종목에 추가" })).toBeVisible();
+
+    const tradeTreatment = await tradeButton.evaluate((button) => {
+      const accentProbe = document.createElement("span");
+      accentProbe.style.backgroundColor = getComputedStyle(document.documentElement)
+        .getPropertyValue("--accent")
+        .trim();
+      document.body.append(accentProbe);
+      const accentBackground = getComputedStyle(accentProbe).backgroundColor;
+      accentProbe.remove();
+
+      const buttonStyle = getComputedStyle(button);
+      return {
+        accentBackground,
+        background: buttonStyle.backgroundColor,
+        borderStyle: buttonStyle.borderStyle,
+        cursor: buttonStyle.cursor,
+        documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    expect(tradeTreatment.background).not.toBe(tradeTreatment.accentBackground);
+    expect(tradeTreatment.borderStyle).toBe("solid");
+    expect(tradeTreatment.cursor).toBe("not-allowed");
+    expect(tradeTreatment.documentOverflow).toBeLessThanOrEqual(1);
+  });
+
   test("detail tabs keep long labels readable at narrow mobile widths", async ({ page }) => {
     const requestCounts = {
       priceHistory: 0,
