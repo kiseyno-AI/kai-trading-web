@@ -21,9 +21,12 @@ import { getTradingApiCacheTtlMs } from "@/lib/trading-api-cache";
 import { sanitizeDiagnosticUrl } from "@/lib/web-diagnostics";
 
 test.describe("smoke", () => {
-  test("home redirects to dashboard", async ({ page }) => {
+  test("home renders the dashboard shell", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(
+      /Trading Command Surface|트레이딩 커맨드 서피스/,
+    );
   });
 
   test("markets shell renders", async ({ page }) => {
