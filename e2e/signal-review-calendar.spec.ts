@@ -6,6 +6,7 @@ type SignalReviewCalendarMockOptions = {
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   identityFallbackDate?: string;
+  issue672Date?: string;
   issue623Date?: string;
   mixedHorizonDate?: string;
   pendingRationaleDate?: string;
@@ -312,6 +313,11 @@ function buildMockFeedbackItemsForDate(
           conviction_score_10: 4,
           thesis_summary: "Waiting for confirmation before any operator action is needed.",
           policy_version: "decider-policy-2026.05",
+          five_day_evaluation: {
+            evaluation_status: "pending_evaluation_window",
+            evaluation_status_reason: "not_mature",
+            trading_days_remaining: 2,
+          },
         },
         normalized_feedback: null,
         details: null,
@@ -325,6 +331,59 @@ function buildMockFeedbackItemsForDate(
         received_at: `${date}T07:45:00+00:00`,
       },
     ];
+  }
+
+  if (options.issue672Date === date) {
+    return [
+      { companyName: "신영와코루", review: "1D target hit first; keep the wait call under review.", stop: 16200, symbol: "005800", target: 17900 },
+      { companyName: "엔피케이", review: "Stop guard held while the 3D window stays unresolved.", stop: 1850, symbol: "048830", target: 2100 },
+      { companyName: "나라셀라", review: "5D replay is pending; compare target and stop before feedback review.", stop: 4250, symbol: "405920", target: 4890 },
+      { companyName: "조흥", review: "Sideways result needs a symbol drill-in before operator feedback.", stop: 172000, symbol: "002600", target: 190000 },
+      { companyName: "성창오토텍", review: "Target/stop context must remain readable at the mobile edge.", stop: 4010, symbol: "080470", target: 4560 },
+    ].map((row, index) => ({
+      id: `issue-672-${row.symbol}`,
+      market_date: date,
+      symbol: row.symbol,
+      agent: {
+        name: "signal-decider",
+        run_id: `feedback-cycle-${date}`,
+      },
+      summary: {},
+      feedback: {
+        role: "signal-decider",
+        symbol: row.symbol,
+        market_date: date,
+        preferred_action: "wait",
+        next_day_open_action: "wait",
+        target_price: row.target,
+        stop_loss_price: row.stop,
+        confidence_score_10: 6,
+        conviction_score_10: 5,
+        thesis_summary: "Mobile selected-date decision context regression coverage.",
+        evaluation: {
+          target_stop_result: index === 0 ? "target_hit_first" : index === 1 ? "stop_hit_first" : "neither_hit",
+          quality_reason: row.review,
+          realized_results: {
+            "1d": {
+              status: index === 0 ? "target_hit" : index === 1 ? "stop_hit" : "neither_hit",
+              return_pct: index === 1 ? -1.35 : 0.64 + index / 10,
+              target_hit: index === 0,
+              stop_hit: index === 1,
+            },
+          },
+        },
+      },
+      normalized_feedback: null,
+      details: null,
+      context: {
+        symbol_day_context: {
+          company: {
+            name_ko: row.companyName,
+          },
+        },
+      },
+      received_at: `${date}T07:${String(45 + index).padStart(2, "0")}:00+00:00`,
+    }));
   }
 
   if (options.issue623Date === date) {
@@ -962,6 +1021,11 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
                 conviction_score_10: 4,
                 thesis_summary: "Waiting for confirmation before any operator action is needed.",
                 policy_version: "decider-policy-2026.05",
+                five_day_evaluation: {
+                  evaluation_status: "pending_evaluation_window",
+                  evaluation_status_reason: "not_mature",
+                  trading_days_remaining: 2,
+                },
               },
               normalized_feedback: null,
               details: null,
@@ -1386,6 +1450,30 @@ async function expectMobileToolbarRouteContextContained(
   expect(overflowingContext).toEqual([]);
 }
 
+async function expectMobileDecisionCardsContained(page: Page) {
+  const overflowMetrics = await page.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="calendar-mobile-decision-card"]'));
+    const visibleTables = Array.from(document.querySelectorAll<HTMLElement>("table")).filter((table) => {
+      const style = window.getComputedStyle(table);
+      const rect = table.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    });
+
+    return {
+      cardOverflows: cards.map((card) => card.scrollWidth - card.clientWidth),
+      documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      visibleTableCount: visibleTables.length,
+    };
+  });
+
+  expect(overflowMetrics.documentOverflow).toBeLessThanOrEqual(1);
+  expect(overflowMetrics.visibleTableCount).toBe(0);
+  expect(overflowMetrics.cardOverflows.length).toBeGreaterThan(0);
+  for (const overflow of overflowMetrics.cardOverflows) {
+    expect(overflow).toBeLessThanOrEqual(1);
+  }
+}
+
 test("signal review calendar shows date metadata, selected decisions, and symbol replay detail", async ({ page }) => {
   await mockSignalReviewCalendar(page);
 
@@ -1540,7 +1628,7 @@ test("feedback table link keeps the selected calendar date in navigation", async
 
   await feedbackLink.click();
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-05/);
-  await expect(page.getByText("MD 2026-05-05")).toBeVisible();
+  await expect(page.getByText("MD 2026-05-05").first()).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/calendar\?date=2026-05-05/);
 
@@ -1583,7 +1671,7 @@ test("calendar-sourced feedback symbol detail returns to the selected feedback d
 
   await feedbackReturnLink.click();
   await expect(page).toHaveURL(/\/dashboard\/decider-feedback\?(?=.*marketDate=2026-05-06)(?=.*agent=signal-decider)/);
-  await expect(page.getByText("MD 2026-05-06")).toBeVisible();
+  await expect(page.getByText("MD 2026-05-06").first()).toBeVisible();
   await expect(page.getByRole("article", { name: /한진중공업홀딩스 .*피드백/i })).toBeVisible();
 });
 
@@ -1793,7 +1881,7 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   await expect(selectedDateCell.locator('[data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]')).toHaveText("W");
 
   const navLabels = page.locator("[data-mobile-nav-label]");
-  await expect(navLabels).toHaveCount(6);
+  await expect(navLabels).toHaveCount(5);
   await expect
     .poll(() =>
       navLabels.evaluateAll((labels) =>
@@ -1814,7 +1902,6 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
       { lineHeight: expect.any(Number), text: "Search", whiteSpace: "nowrap", wraps: false },
       { lineHeight: expect.any(Number), text: "Calendar", whiteSpace: "nowrap", wraps: false },
       { lineHeight: expect.any(Number), text: "Assets", whiteSpace: "nowrap", wraps: false },
-      { lineHeight: expect.any(Number), text: "Markets", whiteSpace: "nowrap", wraps: false },
       { lineHeight: expect.any(Number), text: "My Symbols", whiteSpace: "nowrap", wraps: false },
     ]);
   await expectNarrowMobileLabelsContained(page);
@@ -1855,6 +1942,52 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   await expectNarrowMobileLabelsContained(page);
 });
 
+test("signal review calendar stacks selected-date decision context on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    issue672Date: "2026-05-22",
+  });
+
+  await page.goto("/calendar?date=2026-05-22");
+  await page.getByRole("button", { name: "Korean" }).click();
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+
+  await page.getByRole("heading", { name: "선택 날짜 결정" }).scrollIntoViewIfNeeded();
+  const wideTable = page.locator("table").filter({ hasText: "결정" });
+  await expect(wideTable).toHaveCount(1);
+  await expect(wideTable).toBeHidden();
+
+  const mobileCards = page.getByTestId("calendar-mobile-decision-card");
+  await expect(mobileCards).toHaveCount(5);
+
+  const firstCard = page.getByRole("article", { name: /신영와코루.*선택 날짜 결정/ });
+  await expect(firstCard).toBeVisible();
+  await expect(firstCard.getByRole("link", { name: /신영와코루\s+005800/ })).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/005800\?name=/,
+  );
+  await expect(firstCard).toContainText("대기");
+  await expect(firstCard).toContainText(/목표\s*₩17,900/);
+  await expect(firstCard).toContainText(/손절\s*₩16,200/);
+  await expect(firstCard).toContainText("D+1");
+  await expect(firstCard).toContainText("리뷰 인사이트");
+  await expect(firstCard).toContainText("Later price action favored a buy");
+  await expect(firstCard.getByRole("link", { name: "피드백 표 열기" })).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-22&navContext=calendar",
+  );
+  await expect(firstCard.getByRole("button", { name: "리뷰" })).toBeVisible();
+
+  const lastCard = page.getByRole("article", { name: /성창오토텍.*선택 날짜 결정/ });
+  await lastCard.scrollIntoViewIfNeeded();
+  await expect(lastCard).toBeVisible();
+  await expect(lastCard).toContainText(/목표\s*₩4,560/);
+  await expect(lastCard).toContainText(/손절\s*₩4,010/);
+  await expect(lastCard).toContainText("Replay outcome is still unresolved");
+
+  await expectMobileDecisionCardsContained(page);
+});
+
 test("signal review calendar resolves selected-date gateway timeouts into an explicit error state", async ({ page }) => {
   await mockSignalReviewCalendar(page, {
     timeoutReviewDateDates: ["2026-04-29"],
@@ -1864,7 +1997,7 @@ test("signal review calendar resolves selected-date gateway timeouts into an exp
   await page.goto("/calendar?date=2026-04-29");
 
   await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
-  await expect(page.getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i).first()).toBeVisible();
+  await expect(page.getByText("Unable to load selected-date reviews. Re-select the date to retry.").first()).toBeVisible();
   await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
 });

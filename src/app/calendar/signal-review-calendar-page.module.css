@@ -417,6 +417,99 @@
   background: rgba(3, 7, 13, 0.5);
 }
 
+.mobileDecisionCards {
+  display: none;
+}
+
+.mobileDecisionCard {
+  min-width: 0;
+  display: grid;
+  gap: 0.78rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(134, 162, 194, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(3, 7, 13, 0.52);
+}
+
+.mobileDecisionHeader,
+.mobileDecisionActions {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.62rem;
+}
+
+.mobileDecisionHeader :global(.pill) {
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
+}
+
+.mobileDecisionFacts {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.52rem;
+  margin: 0;
+}
+
+.mobileDecisionFacts div {
+  min-width: 0;
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.58rem;
+  border: 1px solid rgba(134, 162, 194, 0.14);
+  border-radius: 0.5rem;
+  background: rgba(8, 17, 31, 0.5);
+}
+
+.mobileDecisionFacts dt {
+  color: var(--muted-soft);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mobileDecisionFacts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.mobileDecisionFacts dd .horizonChip {
+  align-items: flex-start;
+}
+
+.mobileDecisionWideFact {
+  grid-column: 1 / -1;
+}
+
+.mobileDecisionActions {
+  align-items: stretch;
+}
+
+.mobileDecisionLink {
+  min-height: 2.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(88, 139, 255, 0.18);
+  border-radius: 0.5rem;
+  background: rgba(0, 82, 255, 0.1);
+  color: var(--text-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0 0.72rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
 .resultsTable {
   width: 100%;
   min-width: 76rem;
@@ -499,6 +592,7 @@
 }
 
 .secondaryLink:hover,
+.mobileDecisionLink:hover,
 .symbolLink:hover,
 .reviewButton:hover,
 .closeButton:hover,
@@ -511,6 +605,7 @@
 .dayCell:focus-visible,
 .decisionRow:focus-visible,
 .secondaryLink:focus-visible,
+.mobileDecisionLink:focus-visible,
 .symbolLink:focus-visible,
 .reviewButton:focus-visible,
 .closeButton:focus-visible,
@@ -734,6 +829,33 @@
 
   .panel {
     padding: 0.82rem;
+  }
+
+  .tableWrap {
+    display: none;
+  }
+
+  .mobileDecisionCards {
+    display: grid;
+    gap: 0.62rem;
+  }
+
+  .mobileDecisionHeader,
+  .mobileDecisionActions {
+    flex-direction: column;
+  }
+
+  .mobileDecisionHeader {
+    align-items: flex-start;
+  }
+
+  .mobileDecisionFacts {
+    grid-template-columns: 1fr;
+  }
+
+  .mobileDecisionActions .reviewButton,
+  .mobileDecisionLink {
+    width: 100%;
   }
 
   .weekHeader,

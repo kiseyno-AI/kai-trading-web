@@ -477,6 +477,17 @@ function getActionToneClass(action: SignalDeciderAction) {
   return "neutral";
 }
 
+function getCalendarActionLabel(
+  action: SignalDeciderAction,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  if (action === "buy") return copy.actions.buy;
+  if (action === "wait") return copy.actions.wait;
+  if (action === "reject") return copy.actions.reject;
+  if (action === "unknown") return copy.actions.unknown;
+  return formatSignalDeciderActionLabel(action);
+}
+
 function formatSignedPercent(value: number | null) {
   if (value === null) return UNKNOWN_LABEL;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -1410,7 +1421,7 @@ export default function SignalReviewCalendarPageClient() {
                         <small>{identity.subtitle}</small>
                       </span>
                       <span className={`pill ${getActionToneClass(item.action)}`}>
-                        {formatSignalDeciderActionLabel(item.action)}
+                        {getCalendarActionLabel(item.action, copy)}
                       </span>
                       <span className={styles.horizonChipRow}>
                         {([1, 3, 5] as const).map((day) => (
@@ -1440,69 +1451,88 @@ export default function SignalReviewCalendarPageClient() {
           ) : selectedDisplayLoadState === "error" ? (
             <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>
           ) : selectedSummary.items.length > 0 ? (
-            <div className={styles.tableWrap}>
-              <table className={styles.resultsTable}>
-                <thead>
-                  <tr>
-                    <th>{copy.table.symbol}</th>
-                    <th>{copy.table.decision}</th>
-                    <th>{copy.table.targetStop}</th>
-                    <th>{copy.table.d1}</th>
-                    <th>{copy.table.d3}</th>
-                    <th>{copy.table.d5}</th>
-                    <th>{copy.table.path}</th>
-                    <th>{copy.table.insight}</th>
-                    <th>{copy.table.review}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedSummary.items.map((item) => {
-                    const identity = getDecisionIdentity(item, copy);
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
-                            <strong>{identity.title}</strong>
-                            <span>{identity.subtitle}</span>
-                          </Link>
-                        </td>
-                        <td>
-                          <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
-                        </td>
-                        <td>
-                          <div className={styles.targetStopStack}>
-                            <span>{copy.table.target}: {formatCurrencyValue(item.targetPrice)}</span>
-                            <span>{copy.table.stop}: {formatCurrencyValue(item.stopLossPrice)}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 1)} showDetail />
-                        </td>
-                        <td>
-                          <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 3)} showDetail />
-                        </td>
-                        <td>
-                          <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 5)} showDetail />
-                        </td>
-                        <td>
-                          {item.pathOutcome ? (
-                            <span className={`pill ${getPillToneClass(item.pathOutcome.tone)}`}>{item.pathOutcome.label}</span>
-                          ) : (
-                            copy.states.pathUnavailable
-                          )}
-                        </td>
-                        <td>{getTableInsightSummary(item, copy, selectedSummary.status)}</td>
-                        <td>
-                          <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
-                            {copy.actions.review}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className={styles.mobileDecisionCards}>
+                {selectedSummary.items.map((item) => (
+                  <MobileDecisionCard
+                    key={item.id}
+                    copy={copy}
+                    feedbackHref={buildSignalDeciderFeedbackHref(item.marketDate, {
+                      navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
+                    })}
+                    item={item}
+                    onReview={() => setSelectedItemId(item.id)}
+                    status={selectedSummary}
+                  />
+                ))}
+              </div>
+
+              <div className={styles.tableWrap}>
+                <table className={styles.resultsTable}>
+                  <thead>
+                    <tr>
+                      <th>{copy.table.symbol}</th>
+                      <th>{copy.table.decision}</th>
+                      <th>{copy.table.targetStop}</th>
+                      <th>{copy.table.d1}</th>
+                      <th>{copy.table.d3}</th>
+                      <th>{copy.table.d5}</th>
+                      <th>{copy.table.path}</th>
+                      <th>{copy.table.insight}</th>
+                      <th>{copy.table.review}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedSummary.items.map((item) => {
+                      const identity = getDecisionIdentity(item, copy);
+                      return (
+                        <tr key={item.id}>
+                          <td>
+                            <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
+                              <strong>{identity.title}</strong>
+                              <span>{identity.subtitle}</span>
+                            </Link>
+                          </td>
+                          <td>
+                            <span className={`pill ${getActionToneClass(item.action)}`}>
+                              {getCalendarActionLabel(item.action, copy)}
+                            </span>
+                          </td>
+                          <td>
+                            <div className={styles.targetStopStack}>
+                              <span>{copy.table.target}: {formatCurrencyValue(item.targetPrice)}</span>
+                              <span>{copy.table.stop}: {formatCurrencyValue(item.stopLossPrice)}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 1)} showDetail />
+                          </td>
+                          <td>
+                            <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 3)} showDetail />
+                          </td>
+                          <td>
+                            <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 5)} showDetail />
+                          </td>
+                          <td>
+                            {item.pathOutcome ? (
+                              <span className={`pill ${getPillToneClass(item.pathOutcome.tone)}`}>{item.pathOutcome.label}</span>
+                            ) : (
+                              copy.states.pathUnavailable
+                            )}
+                          </td>
+                          <td>{getTableInsightSummary(item, copy, selectedSummary.status)}</td>
+                          <td>
+                            <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
+                              {copy.actions.review}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <div className={styles.emptyState}>{copy.states.emptySelected}</div>
           )}
@@ -1518,6 +1548,90 @@ export default function SignalReviewCalendarPageClient() {
         ) : null}
       </div>
     </MobileAppChrome>
+  );
+}
+
+function MobileDecisionCard({
+  copy,
+  feedbackHref,
+  item,
+  onReview,
+  status,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  feedbackHref: string;
+  item: SignalDeciderFeedbackItem;
+  onReview: () => void;
+  status: SignalDeciderFeedbackSummaryModel;
+}) {
+  const identity = getDecisionIdentity(item, copy);
+
+  return (
+    <article
+      className={styles.mobileDecisionCard}
+      data-testid="calendar-mobile-decision-card"
+      aria-label={`${identity.title} ${copy.table.title}`}
+    >
+      <header className={styles.mobileDecisionHeader}>
+        <Link href={buildSymbolHref(item)} className={styles.symbolLink}>
+          <strong>{identity.title}</strong>
+          <span>{identity.subtitle}</span>
+        </Link>
+        <span className={`pill ${getActionToneClass(item.action)}`}>{getCalendarActionLabel(item.action, copy)}</span>
+      </header>
+
+      <dl className={styles.mobileDecisionFacts}>
+        <div>
+          <dt>{copy.table.target}</dt>
+          <dd>{formatCurrencyValue(item.targetPrice)}</dd>
+        </div>
+        <div>
+          <dt>{copy.table.stop}</dt>
+          <dd>{formatCurrencyValue(item.stopLossPrice)}</dd>
+        </div>
+        <div>
+          <dt>{copy.table.d1}</dt>
+          <dd>
+            <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 1)} showDetail />
+          </dd>
+        </div>
+        <div>
+          <dt>{copy.table.d3}</dt>
+          <dd>
+            <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 3)} showDetail />
+          </dd>
+        </div>
+        <div>
+          <dt>{copy.table.d5}</dt>
+          <dd>
+            <HorizonChip copy={copy} horizon={getHorizonEvaluation(item, 5)} showDetail />
+          </dd>
+        </div>
+        <div>
+          <dt>{copy.table.path}</dt>
+          <dd>
+            {item.pathOutcome ? (
+              <span className={`pill ${getPillToneClass(item.pathOutcome.tone)}`}>{item.pathOutcome.label}</span>
+            ) : (
+              copy.states.pathUnavailable
+            )}
+          </dd>
+        </div>
+        <div className={styles.mobileDecisionWideFact}>
+          <dt>{copy.table.insight}</dt>
+          <dd>{getTableInsightSummary(item, copy, status.status)}</dd>
+        </div>
+      </dl>
+
+      <footer className={styles.mobileDecisionActions}>
+        <Link href={feedbackHref} className={styles.mobileDecisionLink}>
+          {copy.actions.openFeedback}
+        </Link>
+        <button type="button" className={styles.reviewButton} onClick={onReview}>
+          {copy.actions.review}
+        </button>
+      </footer>
+    </article>
   );
 }
 
@@ -1562,7 +1676,7 @@ function DetailPanel({
               {identity.subtitle} · {item.marketDate || status.marketDate || copy.status.pending}
             </p>
             <div className={styles.detailBadges}>
-              <span className={`pill ${getActionToneClass(item.action)}`}>{item.actionLabel}</span>
+              <span className={`pill ${getActionToneClass(item.action)}`}>{getCalendarActionLabel(item.action, copy)}</span>
               {item.qualityTag ? (
                 <span className={`pill ${getPillToneClass(item.qualityTag.tone)}`}>{item.qualityTag.label}</span>
               ) : null}
@@ -1583,7 +1697,7 @@ function DetailPanel({
               <dl>
                 <div>
                   <dt>{copy.table.decision}</dt>
-                  <dd>{item.actionLabel}</dd>
+                  <dd>{getCalendarActionLabel(item.action, copy)}</dd>
                 </div>
                 <div>
                   <dt>{copy.table.target}</dt>
