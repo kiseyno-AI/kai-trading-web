@@ -528,7 +528,8 @@ test.describe("search terminal desktop", () => {
     await expect(quickSection.getByRole("button", { name: /005930/i })).toHaveCount(0);
 
     const openFavoriteSearch = quickSection.getByRole("button", { name: /Open favorite search/i });
-    await expect(openFavoriteSearch).toHaveText("+");
+    await expect(openFavoriteSearch).toContainText("+");
+    await expect(openFavoriteSearch).toContainText(/No favorites/i);
     await openFavoriteSearch.click();
 
     const dialog = page.getByRole("dialog", { name: /Save Symbol/i });

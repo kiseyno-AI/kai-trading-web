@@ -1001,6 +1001,7 @@ export default function SearchPageClient() {
               <button
                 ref={favoriteOpenButtonRef}
                 type="button"
+                className={styles.quickAccessAddButton}
                 onClick={handleOpenFavoriteDialog}
                 disabled={favoriteSavingSymbol !== null}
                 aria-label={copy.quickAccess.openFavoriteSearch}
@@ -1008,15 +1009,17 @@ export default function SearchPageClient() {
                 aria-expanded={favoriteDialogOpen}
                 aria-controls={favoriteDialogOpen ? FAVORITE_DIALOG_ID : undefined}
               >
-                +
+                <span className={styles.quickAccessAddGlyph} aria-hidden="true">
+                  +
+                </span>
+                <span className={styles.quickAccessAddText}>
+                  {favoriteListError
+                    ? copy.status.unavailable
+                    : favoriteItems.length > 0
+                      ? copy.quickAccess.coreFavorites
+                      : copy.quickAccess.noFavorites}
+                </span>
               </button>
-              <span>
-                {favoriteListError
-                  ? copy.status.unavailable
-                  : favoriteItems.length > 0
-                    ? copy.quickAccess.coreFavorites
-                    : copy.quickAccess.noFavorites}
-              </span>
             </div>
           </div>
           <div className={styles.quickGrid}>

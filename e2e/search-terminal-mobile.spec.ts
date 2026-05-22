@@ -22,6 +22,77 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
   });
 
+  test("keeps the quick-access favorite add control easy to tap and keyboard reachable", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: "2026-04-14T08:55:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const quickSection = page.locator("section", { has: page.getByRole("heading", { name: "Quick Access" }) }).first();
+    const addControl = quickSection.getByRole("button", { name: /Open favorite search/i });
+    await expect(addControl).toContainText(/No favorites/i);
+
+    const addControlBox = await addControl.boundingBox();
+    expect(addControlBox).not.toBeNull();
+    expect(addControlBox!.width).toBeGreaterThanOrEqual(44);
+    expect(addControlBox!.height).toBeGreaterThanOrEqual(44);
+
+    await page.getByLabel(/Search markets, symbols, or analysis/i).focus();
+    await page.keyboard.press("Tab");
+    await expect(addControl).toBeFocused();
+
+    const focusStyle = await addControl.evaluate((element) => {
+      const styles = window.getComputedStyle(element);
+
+      return {
+        outlineStyle: styles.outlineStyle,
+        outlineWidth: Number.parseFloat(styles.outlineWidth),
+      };
+    });
+    expect(focusStyle.outlineStyle).not.toBe("none");
+    expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
+
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: /Save Symbol/i });
+    await expect(dialog).toBeVisible();
+    await expect(page.getByLabel(/Favorite symbol search/i)).toBeFocused();
+
+    await page.getByRole("button", { name: /Close favorite search/i }).click();
+    await expect(dialog).toHaveCount(0);
+
+    await addControl.click({
+      position: {
+        x: Math.max(addControlBox!.width - 8, 1),
+        y: addControlBox!.height / 2,
+      },
+    });
+    await expect(page.getByRole("dialog", { name: /Save Symbol/i })).toBeVisible();
+  });
+
   test("keeps Q1 autocomplete hidden for a blank search even if the endpoint has default matches", async ({ page }) => {
     const searchRequests: string[] = [];
 
