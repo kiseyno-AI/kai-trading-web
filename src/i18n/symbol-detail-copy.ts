@@ -33,7 +33,9 @@ const symbolDetailCopy = {
     hero: {
       eyebrow: "Market Insights",
       trade: "Trade",
-      tradeDisabledTitle: "Execution route is disabled on this read-only screen",
+      tradeDisabledLabel: "Trading disabled · read-only",
+      tradeDisabledDescription: "Read-only screen. Order execution is unavailable here.",
+      tradeDisabledTitle: "Trading is disabled because this symbol page is read-only.",
       priceLoading: "Loading...",
       quotePending: "Quote pending",
       awaitingQuoteSource: "Awaiting a fresh quote source",
@@ -493,7 +495,9 @@ const symbolDetailCopy = {
     hero: {
       eyebrow: "마켓 인사이트",
       trade: "거래",
-      tradeDisabledTitle: "이 읽기 전용 화면에서는 실행 경로가 비활성화되어 있습니다",
+      tradeDisabledLabel: "거래 비활성 · 읽기 전용",
+      tradeDisabledDescription: "읽기 전용 화면입니다. 주문 실행은 제공되지 않습니다.",
+      tradeDisabledTitle: "이 종목 화면은 읽기 전용이므로 거래 실행이 비활성화되어 있습니다.",
       priceLoading: "로딩 중...",
       quotePending: "호가 대기 중",
       awaitingQuoteSource: "최신 호가 소스를 기다리는 중",

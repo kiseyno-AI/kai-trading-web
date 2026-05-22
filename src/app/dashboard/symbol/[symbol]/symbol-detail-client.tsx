@@ -58,6 +58,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const { locale } = useAppState();
   const copy = getSymbolDetailCopy(locale);
   const numberLocale = getNumberLocale(locale);
+  const tradeDisabledDescriptionId = "symbol-trade-disabled-description";
   const {
     activeDetailMode,
     activeMode,
@@ -243,9 +244,21 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             </div>
 
             <div className={styles.heroControls}>
-              <button type="button" className={styles.tradeButton} disabled title={copy.hero.tradeDisabledTitle}>
-                {copy.hero.trade}
-              </button>
+              <div className={styles.tradeStatusGroup}>
+                <button
+                  type="button"
+                  className={styles.tradeButton}
+                  disabled
+                  aria-disabled="true"
+                  aria-describedby={tradeDisabledDescriptionId}
+                  title={copy.hero.tradeDisabledTitle}
+                >
+                  {copy.hero.tradeDisabledLabel}
+                </button>
+                <p id={tradeDisabledDescriptionId} className={styles.tradeDisabledText}>
+                  {copy.hero.tradeDisabledDescription}
+                </p>
+              </div>
               <button
                 type="button"
                 className={`${styles.watchBadge} ${isTrackedSymbol ? styles.watchBadgeActive : ""}`.trim()}

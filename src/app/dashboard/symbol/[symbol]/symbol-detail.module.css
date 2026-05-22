@@ -66,6 +66,15 @@
   gap: 0.75rem;
 }
 
+.heroTopRow {
+  flex-wrap: wrap;
+}
+
+.heroTopRow > div:first-child {
+  min-width: min(100%, 12rem);
+  flex: 1 1 12rem;
+}
+
 .cardHeader > div {
   min-width: 0;
 }
@@ -93,19 +102,52 @@
   gap: 0.55rem;
 }
 
+.tradeStatusGroup {
+  display: flex;
+  min-width: 0;
+  max-width: min(100%, 12rem);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
 .tradeButton {
-  border: none;
+  display: inline-flex;
+  min-height: 2.6rem;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--primary-foreground);
-  padding: 0.72rem 1rem;
+  background: var(--surface-low);
+  color: var(--muted);
+  cursor: not-allowed;
+  padding: 0.66rem 0.82rem;
   font-family: var(--font-inter), sans-serif;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  line-height: 1.22;
   box-shadow: none;
-  opacity: 0.9;
+  opacity: 1;
+  text-align: center;
+  text-transform: none;
+  white-space: normal;
+}
+
+.tradeButton:disabled {
+  border-color: var(--border);
+  background: var(--surface-low);
+  color: var(--muted);
+}
+
+.tradeDisabledText {
+  max-width: 100%;
+  margin: 0;
+  color: var(--muted-soft);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  text-align: right;
 }
 
 .watchBadge {
