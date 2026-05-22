@@ -849,6 +849,30 @@
   line-height: 1.35;
 }
 
+.incrementalListMoreButton {
+  min-width: 0;
+  min-height: 2.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.58rem 0.82rem;
+  border: 1px solid rgba(88, 139, 255, 0.28);
+  border-radius: 0.5rem;
+  background: rgba(0, 82, 255, 0.1);
+  color: var(--text-strong);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.incrementalListMoreButton:hover {
+  border-color: rgba(88, 139, 255, 0.44);
+  background: rgba(0, 82, 255, 0.18);
+}
+
 .marketIndexCard strong {
   font-size: clamp(1.35rem, 4vw, 1.8rem);
   line-height: 1.05;
@@ -1925,6 +1949,7 @@
 
 .detailButton:focus-visible,
 .inlineToggleButton:focus-visible,
+.incrementalListMoreButton:focus-visible,
 .pipelineInspectLinks a:focus-visible,
 .processMonitorBar:focus-visible,
 .processMonitorDrawerCollapseButton:focus-visible,

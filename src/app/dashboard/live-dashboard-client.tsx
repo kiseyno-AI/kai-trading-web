@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
+import { useIncrementalList } from "@/components/dashboard/use-incremental-list";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
@@ -745,11 +746,47 @@ function getOverviewValueClassName(tone: "positive" | "negative" | "neutral" | "
   return "";
 }
 
+function getMoreRowsLabel(copy: DashboardLiveCopy, remainingCount: number, numberLocale: string) {
+  return `${copy.dashboardOverview.moreRows} (${remainingCount.toLocaleString(numberLocale)})`;
+}
+
+function IncrementalListMoreButton({
+  ariaControls,
+  copy,
+  numberLocale,
+  remainingCount,
+  testId,
+  onClick,
+}: {
+  ariaControls: string;
+  copy: DashboardLiveCopy;
+  numberLocale: string;
+  remainingCount: number;
+  testId: string;
+  onClick: () => void;
+}) {
+  const label = getMoreRowsLabel(copy, remainingCount, numberLocale);
+
+  return (
+    <button
+      type="button"
+      className={styles.incrementalListMoreButton}
+      aria-controls={ariaControls}
+      aria-label={label}
+      data-testid={testId}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
 type DeciderRecommendationCardProps = {
   copy: DashboardLiveCopy;
   detailHref: string;
   feedbackStatus: string;
   model: DashboardDeciderOverviewModel;
+  numberLocale: string;
 };
 
 const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
@@ -757,7 +794,11 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
   detailHref,
   feedbackStatus,
   model,
+  numberLocale,
 }: DeciderRecommendationCardProps) {
+  const listId = "dashboard-decider-recommendations-list";
+  const incrementalRows = useIncrementalList(model.rows);
+
   return (
     <article
       className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.signalDeciderCard}`}
@@ -779,32 +820,55 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
       </div>
 
       {model.rows.length > 0 ? (
-        <div className={styles.overviewSymbolList} role="list" aria-label={copy.dashboardOverview.deciderTitle}>
-          {model.rows.map((row) => (
-            <div key={row.key} className={styles.overviewSymbolRow} role="listitem">
-              <div className={styles.overviewSymbolIdentity}>
-                <strong>{row.nameLabel}</strong>
-                <span>
-                  {row.symbol}
-                  {row.marketLabel ? ` · ${row.marketLabel}` : ""}
-                </span>
+        <>
+          <div
+            id={listId}
+            className={styles.overviewSymbolList}
+            role="list"
+            aria-label={copy.dashboardOverview.deciderTitle}
+            data-testid="dashboard-decider-list"
+          >
+            {incrementalRows.visibleItems.map((row) => (
+              <div
+                key={row.key}
+                className={styles.overviewSymbolRow}
+                role="listitem"
+                data-testid="dashboard-decider-row"
+              >
+                <div className={styles.overviewSymbolIdentity}>
+                  <strong>{row.nameLabel}</strong>
+                  <span>
+                    {row.symbol}
+                    {row.marketLabel ? ` · ${row.marketLabel}` : ""}
+                  </span>
+                </div>
+                {row.compactPriceLine ? (
+                  <p className={styles.overviewCompactPriceLine} title={row.compactPriceLine}>
+                    {row.compactPriceLine}
+                  </p>
+                ) : null}
+                <dl className={styles.overviewValueGrid}>
+                  {row.prices.map((price) => (
+                    <div key={price.key}>
+                      <dt>{price.label}</dt>
+                      <dd>{price.value}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
-              {row.compactPriceLine ? (
-                <p className={styles.overviewCompactPriceLine} title={row.compactPriceLine}>
-                  {row.compactPriceLine}
-                </p>
-              ) : null}
-              <dl className={styles.overviewValueGrid}>
-                {row.prices.map((price) => (
-                  <div key={price.key}>
-                    <dt>{price.label}</dt>
-                    <dd>{price.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          {incrementalRows.canRevealMore ? (
+            <IncrementalListMoreButton
+              ariaControls={listId}
+              copy={copy}
+              numberLocale={numberLocale}
+              remainingCount={incrementalRows.remainingCount}
+              testId="dashboard-decider-more"
+              onClick={incrementalRows.revealMore}
+            />
+          ) : null}
+        </>
       ) : (
         <div className={styles.emptyState}>{model.emptyLabel}</div>
       )}
@@ -837,41 +901,69 @@ function RuntimeDiagnosticsHint({
 }
 
 function TradeRowList({
+  copy,
   emptyLabel,
   label,
+  listId,
+  numberLocale,
   rows,
+  testId,
 }: {
+  copy: DashboardLiveCopy;
   emptyLabel: string | null;
   label: string;
+  listId: string;
+  numberLocale: string;
   rows: DashboardPortfolioTradeRow[];
+  testId: string;
 }) {
+  const incrementalRows = useIncrementalList(rows);
+
   if (rows.length === 0 && !emptyLabel) return null;
 
   return (
     <section className={styles.tradeListSection} aria-label={label}>
       <h3>{label}</h3>
       {rows.length > 0 ? (
-        <div className={styles.tradeRowList} role="list">
-          {rows.map((row) => (
-            <div key={row.key} className={styles.tradeRow} role="listitem">
-              <div className={styles.overviewSymbolIdentity}>
-                <strong>{row.nameLabel}</strong>
-                <span>
-                  {row.symbol}
-                  {row.marketLabel ? ` · ${row.marketLabel}` : ""}
-                </span>
+        <>
+          <div
+            id={listId}
+            className={styles.tradeRowList}
+            role="list"
+            aria-label={label}
+            data-testid={`${testId}-list`}
+          >
+            {incrementalRows.visibleItems.map((row) => (
+              <div key={row.key} className={styles.tradeRow} role="listitem" data-testid={`${testId}-row`}>
+                <div className={styles.overviewSymbolIdentity}>
+                  <strong>{row.nameLabel}</strong>
+                  <span>
+                    {row.symbol}
+                    {row.marketLabel ? ` · ${row.marketLabel}` : ""}
+                  </span>
+                </div>
+                <dl className={styles.tradeValueList}>
+                  {row.values.map((value) => (
+                    <div key={value.key}>
+                      <dt>{value.label}</dt>
+                      <dd>{value.value}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
-              <dl className={styles.tradeValueList}>
-                {row.values.map((value) => (
-                  <div key={value.key}>
-                    <dt>{value.label}</dt>
-                    <dd>{value.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          {incrementalRows.canRevealMore ? (
+            <IncrementalListMoreButton
+              ariaControls={listId}
+              copy={copy}
+              numberLocale={numberLocale}
+              remainingCount={incrementalRows.remainingCount}
+              testId={`${testId}-more`}
+              onClick={incrementalRows.revealMore}
+            />
+          ) : null}
+        </>
       ) : emptyLabel ? (
         <div className={styles.emptyState}>{emptyLabel}</div>
       ) : null}
@@ -882,11 +974,13 @@ function TradeRowList({
 type PortfolioStatusCardProps = {
   copy: DashboardLiveCopy;
   model: DashboardPortfolioOverviewModel;
+  numberLocale: string;
 };
 
 const PortfolioStatusCard = memo(function PortfolioStatusCard({
   copy,
   model,
+  numberLocale,
 }: PortfolioStatusCardProps) {
   return (
     <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.portfolioStateCard}`}>
@@ -917,14 +1011,22 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
       <RuntimeDiagnosticsHint copy={copy} diagnostics={model.diagnostics} />
 
       <TradeRowList
+        copy={copy}
         emptyLabel={model.buyStateLabel}
         label={copy.dashboardOverview.todayBought}
+        listId="dashboard-today-bought-list"
+        numberLocale={numberLocale}
         rows={model.buyRows}
+        testId="dashboard-today-bought"
       />
       <TradeRowList
+        copy={copy}
         emptyLabel={model.sellStateLabel}
         label={copy.dashboardOverview.todaySold}
+        listId="dashboard-today-sold-list"
+        numberLocale={numberLocale}
         rows={model.sellRows}
+        testId="dashboard-today-sold"
       />
 
       <Link href="/portfolio" className={styles.signalDeciderDetailLink} aria-label={copy.portfolioState.openDetail}>
@@ -2121,11 +2223,13 @@ export function LiveDashboardClient({
               detailHref={signalDeciderFeedbackModel.detailHref}
               feedbackStatus={signalDeciderFeedbackModel.status}
               model={deciderOverviewModel}
+              numberLocale={numberLocale}
             />
 
             <PortfolioStatusCard
               copy={copy}
               model={portfolioOverviewModel}
+              numberLocale={numberLocale}
             />
           </div>
         </section>
