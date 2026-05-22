@@ -55,6 +55,10 @@ test.describe("search terminal mobile", () => {
     const quickSection = page.locator("section", { has: page.getByRole("heading", { name: "Quick Access" }) }).first();
     const addControl = quickSection.getByRole("button", { name: /Open favorite search/i });
     await expect(addControl).toContainText(/No favorites/i);
+    await expect(addControl).toHaveAccessibleName("Open favorite search");
+    await expect(addControl).toHaveAccessibleDescription("No favorites");
+    await expect(addControl).toHaveAttribute("aria-describedby", "quick-access-status");
+    await expect(page.locator("#quick-access-status")).toHaveText("No favorites");
 
     const addControlBox = await addControl.boundingBox();
     expect(addControlBox).not.toBeNull();
@@ -247,6 +251,9 @@ test.describe("search terminal mobile", () => {
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
 
     const quickSection = page.locator("section").filter({ has: page.getByRole("heading", { name: "Quick Access" }) }).first();
+    await expect(quickSection.getByRole("button", { name: /Open favorite search/i })).toHaveAccessibleDescription(
+      "Unavailable",
+    );
     await expect(quickSection.locator("strong").filter({ hasText: /^Unavailable$/ })).toBeVisible();
     await expect(quickSection.getByText(/Favorite list unavailable\. HTTP 503/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /005930.*Samsung Electronics/i }).first()).toBeVisible();

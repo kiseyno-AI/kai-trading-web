@@ -72,15 +72,16 @@ test.describe("search terminal desktop", () => {
     });
 
     await page.goto("/search");
+    const banner = page.getByRole("banner");
 
     await expect.poll(() => marketStatusRequests).toBe(1);
-    await expect(page.getByText("Market Open")).toBeVisible();
+    await expect(banner.getByText("Market Open")).toBeVisible();
 
     await page.clock.runFor(60_000);
 
     await expect.poll(() => marketStatusRequests).toBe(2);
-    await expect(page.getByText("Market Closed")).toBeVisible();
-    await expect(page.getByText("Market Open")).toHaveCount(0);
+    await expect(banner.getByText("Market Closed")).toBeVisible();
+    await expect(banner.getByText("Market Open")).toHaveCount(0);
   });
 
   test("updates the terminal result title from the query", async ({ page }) => {
@@ -349,6 +350,9 @@ test.describe("search terminal desktop", () => {
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
 
     const quickSection = getQuickAccessSection(page);
+    await expect(quickSection.getByRole("button", { name: /Open favorite search/i })).toHaveAccessibleDescription(
+      "Unavailable",
+    );
     await expect(quickSection.locator("strong").filter({ hasText: /^Unavailable$/ })).toBeVisible();
     await expect(quickSection.getByText(/Favorite list unavailable\. HTTP 503/i)).toBeVisible();
     await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
@@ -449,6 +453,9 @@ test.describe("search terminal desktop", () => {
 
     const quickSection = getQuickAccessSection(page);
     await expect(quickSection.getByText(/Core favorites/i)).toBeVisible();
+    await expect(quickSection.getByRole("button", { name: /Open favorite search/i })).toHaveAccessibleDescription(
+      "Core favorites",
+    );
     await expect(quickSection.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await expect(quickSection.getByRole("button", { name: /000660/i })).toHaveCount(0);
     await expect(quickSection.getByRole("button", { name: /035420|NAVER/i })).toHaveCount(0);
@@ -530,6 +537,7 @@ test.describe("search terminal desktop", () => {
     const openFavoriteSearch = quickSection.getByRole("button", { name: /Open favorite search/i });
     await expect(openFavoriteSearch).toContainText("+");
     await expect(openFavoriteSearch).toContainText(/No favorites/i);
+    await expect(openFavoriteSearch).toHaveAccessibleDescription("No favorites");
     await openFavoriteSearch.click();
 
     const dialog = page.getByRole("dialog", { name: /Save Symbol/i });
