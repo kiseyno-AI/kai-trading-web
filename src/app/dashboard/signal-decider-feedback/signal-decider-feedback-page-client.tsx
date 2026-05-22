@@ -1471,6 +1471,50 @@ export default function SignalDeciderFeedbackPageClient() {
               <div className={styles.emptyState}>{dataGapCopy.empty.noFeedback}</div>
             ) : dataGapDisplayState === "has-data-gaps" ? (
               <>
+                <div className={styles.dataGapCategoryCards} aria-label={dataGapCopy.table.category}>
+                  {filteredDataGapCategorySummaries.map((categorySummary) => {
+                    const categoryLabel = getDataGapCategoryLabel(categorySummary.category, dataGapCopy.categories);
+
+                    return (
+                      <article
+                        key={categorySummary.category}
+                        className={styles.dataGapCategoryCard}
+                        data-testid="decider-data-gap-category-card"
+                        aria-label={`${categoryLabel} ${dataGapCopy.table.category}`}
+                      >
+                        <div className={styles.dataGapCategoryCardHeader}>
+                          <span>{dataGapCopy.table.category}</span>
+                          <strong>{categoryLabel}</strong>
+                        </div>
+                        <dl className={styles.dataGapCategoryFacts}>
+                          <div>
+                            <dt>{dataGapCopy.table.affectedSymbols}</dt>
+                            <dd>
+                              {categorySummary.affectedSymbolCount.toLocaleString("en-US")} ·{" "}
+                              {formatDataGapListSummary(categorySummary.affectedSymbols, UNKNOWN_LABEL)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>{dataGapCopy.table.affectedAgents}</dt>
+                            <dd>
+                              {categorySummary.affectedAgentCount.toLocaleString("en-US")} ·{" "}
+                              {formatDataGapListSummary(categorySummary.affectedAgents, UNKNOWN_LABEL)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>{dataGapCopy.table.example}</dt>
+                            <dd>{categorySummary.examples[0] ?? UNKNOWN_LABEL}</dd>
+                          </div>
+                          <div>
+                            <dt>{dataGapCopy.table.owner}</dt>
+                            <dd>{getDataGapCategoryOwner(categorySummary.category, dataGapCopy.categories)}</dd>
+                          </div>
+                        </dl>
+                      </article>
+                    );
+                  })}
+                </div>
+
                 <div className={styles.dataGapTableWrap}>
                   <table className={styles.dataGapTable}>
                     <thead>
