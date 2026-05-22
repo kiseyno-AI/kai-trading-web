@@ -39,9 +39,13 @@ test.describe("smoke", () => {
   test("dashboard renders success or upstream-missing state", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page).toHaveTitle(/Trading Dashboard Home/i);
-    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+    await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(
+      /Trading Command Surface|트레이딩 커맨드 서피스/,
+    );
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
     await expect(page.getByText(/Sovereign Desk/i)).toHaveCount(0);
   });
 

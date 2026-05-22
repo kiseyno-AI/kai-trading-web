@@ -58,3 +58,13 @@ test("centralizes mobile floating offsets in the shared shell css", () => {
   assert.match(dashboardCss, /var\(--mobile-floating-status-offset\)/);
   assert.doesNotMatch(dashboardCss, /mobile-floating-status-offset,\s*calc\([^)]*safe-area-inset-bottom/);
 });
+
+test("desktop rail keeps metadata and navigation scrollable at fixed desktop widths", () => {
+  const css = readFileSync(cssPath, "utf8");
+
+  assert.match(css, /\.desktopRail\s*\{[^}]*height:\s*100dvh;[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;/s);
+  assert.match(css, /\.desktopNav\s*\{[^}]*flex:\s*1 1 auto;[^}]*overflow-y:\s*auto;/s);
+  assert.match(css, /\.desktopRailMetaGroup\s*\{/);
+  assert.match(css, /\.desktopRailScreenName\s*\{[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s);
+  assert.match(css, /\.toolbarLanguageAction\s*\{[^}]*display:\s*none;/s);
+});

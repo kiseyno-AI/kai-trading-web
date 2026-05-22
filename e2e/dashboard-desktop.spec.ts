@@ -83,56 +83,83 @@ async function getRequiredBox(locator: Locator, label: string) {
 
 test.describe("dashboard desktop", () => {
   test("dashboard labels match currently wired core data", async ({ page }) => {
-    await page.route("**/api/trading/market/snapshot", async (route) => {
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          state: "OPEN",
+          is_open: true,
+          is_trading_day: true,
+          server_time: "2026-04-28T10:15:00+09:00",
+        }),
+      });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           as_of: "2026-04-28T10:15:00+09:00",
-          indices: {
-            kospi: { level: 2742.31, change: 18.42, change_rate: 0.68 },
-            kosdaq: { level: 842.17, change: -4.11, change_rate: -0.51 },
-          },
-          fx: {
-            usdkrw: { rate: 1378.2, change: 1.4, change_rate: 0.1 },
-          },
-          flows: {
-            foreign: { summary: "+₩248B net buy" },
-            institutional: { summary: "-₩91B net sell" },
-          },
-          summary: {
-            market_bias: "Constructive",
-            breadth: "Large caps leading",
-          },
+          market_state: "OPEN",
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/monitored-symbols**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-28",
+          items: [
+            {
+              symbol: "005930",
+              name: "Samsung Electronics",
+              market: "KOSPI",
+              monitoring_state: "watching_target_stop",
+              planned_intents: ["buy"],
+              target_price: 76000,
+              stop_loss_price: 70000,
+              current_price: 71500,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/status**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ready",
+          mode: "paper",
+          exec_connected: true,
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/daily-board**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-28",
+          items: [],
         }),
       });
     });
 
     await page.goto("/dashboard");
 
-    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+    await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(/Trading Command Surface|트레이딩 커맨드 서피스/);
     const desktopNav = page.getByRole("navigation", { name: /Primary desktop/i });
     await expect(desktopNav).toBeVisible();
     await expect(desktopNav.getByRole("link", { name: /Market Status/i })).toHaveCount(0);
     await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveAttribute("href", "/my-symbols");
+    await expect(page.getByLabel("Current screen")).toContainText(/Trading Command Surface|트레이딩 커맨드 서피스/);
+    await expect(page.getByLabel("Market status")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Market condition/i })).toBeVisible();
-    const marketCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
-    await expect(marketCard.getByText("KOSPI", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("KOSDAQ", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("2,742.31", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("+18.42 (+0.68%)", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("842.17", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("-4.11 (-0.51%)", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("1,378.20", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("+₩248B net buy", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("-₩91B net sell", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Constructive · Large caps leading", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /^Exec runtime$/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Monitored symbols/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
@@ -143,9 +170,13 @@ test.describe("dashboard desktop", () => {
     await expect(page.locator('#dashboard-freshness [class*="supportingCopy"]')).toHaveCount(0);
     const deciderCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });
     await expect(deciderCard).toHaveCount(1);
-    await expect(deciderCard.getByText("Results", { exact: true })).toBeVisible();
-    await expect(deciderCard.getByText("Market date", { exact: true })).toBeVisible();
-    await expect(deciderCard.getByText("Action mix", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Stop-loss", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Target", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Current price", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Results", { exact: true })).toHaveCount(0);
+    await expect(deciderCard.getByText("Market date", { exact: true })).toHaveCount(0);
+    await expect(deciderCard.getByText("Action mix", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Run", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Errors", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toHaveCount(0);
@@ -163,12 +194,11 @@ test.describe("dashboard desktop", () => {
     await expect(processDrawer.getByRole("link", { name: /Open the factor scoring workspace/i })).toBeVisible();
     await expect(processDrawer.getByRole("link", { name: /Open the full Piotroski filter pass list/i })).toBeVisible();
     await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
-    const headerLanguageSwitch = page.getByTestId("dashboard-header-language-switch");
-    await expect(headerLanguageSwitch).toBeVisible();
-    await expect(headerLanguageSwitch.getByRole("button", { name: /English/i })).toBeVisible();
-    await expect(headerLanguageSwitch.getByRole("button", { name: /Korean/i })).toBeVisible();
-    await expect(page.locator('[aria-label="Locale switcher"]:visible')).toHaveCount(1);
-    await expect(page.getByText(/Tags On|Tags Off|태그 켜짐|태그 꺼짐/)).toHaveCount(0);
+    const desktopLanguageSwitch = page.getByTestId("dashboard-desktop-rail-language-switch");
+    await expect(desktopLanguageSwitch).toBeVisible();
+    await expect(desktopLanguageSwitch.getByRole("button", { name: /English/i })).toBeVisible();
+    await expect(desktopLanguageSwitch.getByRole("button", { name: /Korean/i })).toBeVisible();
+    await expect(page.getByTestId("dashboard-desktop-rail-language-switch")).toHaveCount(1);
 
     await expect(page.getByRole("heading", { name: /Layer sync events/i })).toHaveCount(0);
     await expect(page.getByText(/Real-Time Audit Feed/i)).toHaveCount(0);
@@ -183,25 +213,19 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
-    const portfolioCard = getPrimaryInsightCard(page, /Portfolio state/i);
-    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+    const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
 
     await expect(signalCard).toBeVisible();
     await expect(portfolioCard).toBeVisible();
-    await expect(marketCard).toBeVisible();
 
-    const [signalBox, portfolioBox, marketBox] = await Promise.all([
+    const [signalBox, portfolioBox] = await Promise.all([
       getRequiredBox(signalCard, "signal card"),
       getRequiredBox(portfolioCard, "portfolio card"),
-      getRequiredBox(marketCard, "market card"),
     ]);
 
     expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
     expect(portfolioBox.x).toBeGreaterThan(signalBox.x);
-    expect(marketBox.x).toBeGreaterThan(portfolioBox.x);
     expect(Math.abs(signalBox.width - portfolioBox.width)).toBeLessThan(signalBox.width * 0.25);
-    expect(Math.abs(portfolioBox.width - marketBox.width)).toBeLessThan(portfolioBox.width * 0.25);
-    expect(Math.abs(marketBox.y - signalBox.y)).toBeLessThan(24);
   });
 
   test("primary insight cards keep a balanced two-up layout at intermediate desktop widths", async ({ page }) => {
@@ -209,119 +233,44 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
-    const portfolioCard = getPrimaryInsightCard(page, /Portfolio state/i);
-    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+    const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
 
     await expect(signalCard).toBeVisible();
     await expect(portfolioCard).toBeVisible();
-    await expect(marketCard).toBeVisible();
 
-    const [signalBox, portfolioBox, marketBox] = await Promise.all([
+    const [signalBox, portfolioBox] = await Promise.all([
       getRequiredBox(signalCard, "signal card"),
       getRequiredBox(portfolioCard, "portfolio card"),
-      getRequiredBox(marketCard, "market card"),
     ]);
 
     expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
     expect(Math.abs(portfolioBox.width - signalBox.width)).toBeLessThan(signalBox.width * 0.35);
-    expect(marketBox.y).toBeGreaterThan(signalBox.y + signalBox.height - 2);
-    expect(Math.abs(marketBox.x - signalBox.x)).toBeLessThan(24);
   });
 
-  test("market condition card recovers after a temporary snapshot outage", async ({ page }) => {
-    let snapshotAttempts = 0;
+  test("dashboard body no longer requests or renders the market snapshot card", async ({ page }) => {
+    let snapshotRequests = 0;
 
     await page.route("**/api/trading/market/snapshot", async (route) => {
-      snapshotAttempts += 1;
-
-      if (snapshotAttempts === 1) {
-        await route.fulfill({
-          contentType: "application/json",
-          status: 503,
-          body: JSON.stringify({ detail: "market snapshot temporarily unavailable" }),
-        });
-        return;
-      }
-
+      snapshotRequests += 1;
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({
-          as_of: "2026-04-28T10:17:00+09:00",
-          indices: {
-            kospi: { level: 2801.55, change: 21.35, change_rate: 0.77 },
-            kosdaq: { level: 853.44, change: 2.84, change_rate: 0.33 },
-          },
-          fx: {
-            usdkrw: { rate: 1369.4, change: -3.1, change_rate: -0.23 },
-          },
-          flows: {
-            foreign: { summary: "+₩312B net buy" },
-            institutional: { summary: "+₩64B net buy" },
-          },
-          summary: {
-            line: "Recovered snapshot visible without refresh.",
-          },
-        }),
+        body: JSON.stringify({ detail: "market snapshot should not be read by dashboard body" }),
       });
     });
 
     await page.goto("/dashboard");
+    await page.waitForTimeout(750);
 
-    const marketCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
-    await expect(marketCard.locator(".pill.warning", { hasText: "Unavailable" })).toBeVisible();
-    await expect(marketCard.getByText("Snapshot", { exact: true })).toBeVisible({ timeout: 10_000 });
-    await expect(marketCard.getByText("2,801.55", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Recovered snapshot visible without refresh.", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Unavailable", { exact: true })).toHaveCount(0);
-    await expect(marketCard.getByText("[확인 필요]", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
+    expect(snapshotRequests).toBe(0);
   });
 
-  test("market condition card keeps partial-but-usable snapshot values visible", async ({ page }) => {
-    await page.route("**/api/trading/market/snapshot", async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          status: "partial",
-          data: {
-            as_of: "2026-04-28T10:21:00+09:00",
-            source: "core-market-snapshot",
-            indices: {
-              kospi: { level: 2742.31, change: 18.42, change_rate: 0.68 },
-            },
-            fx: {
-              usdkrw: { value: 1378.2 },
-            },
-            flows: {
-              foreign: { value: 248_000_000_000, unit: "KRW" },
-            },
-            summary: {
-              line: "Partial snapshot still carries usable market context.",
-            },
-            missing_fields: ["indices.kosdaq", "flows.institutional"],
-          },
-        }),
-      });
-    });
-
-    await page.goto("/dashboard");
-
-    const marketCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
-    await expect(marketCard.getByText("Partial", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("2,742.31", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("+18.42 (+0.68%)", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("1,378.20", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("+248B KRW", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Partial snapshot still carries usable market context.", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText(/Missing:.*KOSDAQ.*Institutional flow/i)).toBeVisible();
-    await expect(marketCard.getByText("[확인 필요]", { exact: true })).toHaveCount(0);
-  });
-
-  test("execution runtime panel shows degraded status and partial board data", async ({ page }) => {
+  test("portfolio status card maps exec status and same-day trade rows", async ({ page }) => {
     await page.route("**/api/trading/execution/runtime/status**", async (route) => {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-          status: "degraded",
+          status: "ready",
           mode: "live",
           exec_connected: true,
           automation_enabled: false,
@@ -332,6 +281,35 @@ test.describe("dashboard desktop", () => {
           open_order_count: 2,
           active_execution_job_count: 1,
           issues: [{ code: "readiness_reason", message: "monitor loop stalled" }],
+        }),
+      });
+    });
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          sync: { status: "synced" },
+          accounts: [
+            {
+              id: "account-1",
+              label: "Primary",
+              status: "synced",
+              summary: {
+                totalAssets: { amount: 1000000, currency: "KRW" },
+                pnl: { day: { amount: 12500, currency: "KRW" } },
+              },
+              holdings: [{ symbol: "005930", name: "Samsung Electronics", quantity: 5 }],
+              recentActivity: [
+                {
+                  id: "sell-activity",
+                  symbol: "000660",
+                  side: "sell",
+                  realizedPnl: { amount: 8000, currency: "KRW" },
+                  updatedAt: "2026-04-30T12:00:00Z",
+                },
+              ],
+            },
+          ],
         }),
       });
     });
@@ -380,19 +358,20 @@ test.describe("dashboard desktop", () => {
               status: "partial",
               filled_quantity: "5",
               planned_quantity: null,
-              avg_fill_price: null,
-              planned_price: null,
+              avg_fill_price: 71500,
+              target_price: 76000,
+              stop_loss_price: 70000,
               last_updated_at: null,
             },
             {
               symbol: "000660",
-              name: null,
-              market: null,
-              intent: "next_open_buy",
-              status: "failed",
+              name: "SK hynix",
+              market: "KOSPI",
+              intent: "sell",
+              status: "filled",
               filled_quantity: 0,
               planned_quantity: 10,
-              failure_reason: "broker rejected order",
+              realized_pnl: { amount: 8000, currency: "KRW" },
             },
           ],
         }),
@@ -401,27 +380,27 @@ test.describe("dashboard desktop", () => {
 
     await page.goto("/dashboard");
 
-    const runtimeCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /^Exec runtime$/i }) });
-    await expect(runtimeCard.getByText("Exec degraded", { exact: true })).toBeVisible();
-    await expect(runtimeCard.getByText("Live mode", { exact: true })).toBeVisible();
-    await expect(runtimeCard.getByText("Kill switch enabled", { exact: true })).toBeVisible();
-    await expect(runtimeCard.getByText("Open orders", { exact: true })).toBeVisible();
-    await expect(runtimeCard.getByText("2", { exact: true })).toBeVisible();
-    await expect(runtimeCard.getByText(/Readiness Reason: monitor loop stalled/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Exec runtime$/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Monitored symbols/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
 
-    const monitoredCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Monitored symbols/i }) });
-    await expect(monitoredCard.getByText("Reconciling", { exact: true })).toBeVisible();
-    await expect(monitoredCard.getByText("Target sell / Stop sell", { exact: true })).toBeVisible();
-    await expect(monitoredCard.getByText("Partial 1", { exact: true })).toBeVisible();
-
-    const boardCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Same-day execution board/i }) });
-    const partialRow = boardCard.locator('[role="listitem"][data-board-status="partial"]');
-    await expect(partialRow.getByText("Partially filled", { exact: true })).toBeVisible();
-    await expect(partialRow.getByText("5", { exact: true })).toBeVisible();
-    await expect(partialRow.getByText("Price unavailable", { exact: true })).toBeVisible();
-    const failedRow = boardCard.locator('[role="listitem"][data-board-status="failed"]');
-    await expect(failedRow.getByText("Failed", { exact: true })).toBeVisible();
-    await expect(failedRow.getByText("broker rejected order", { exact: true })).toBeVisible();
+    const portfolioCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Portfolio status/i }) });
+    await expect(portfolioCard.getByText("Exec integration", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Connected", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Total assets", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("₩1,000,000", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Today P/L", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("₩12,500", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Held positions", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("1 holding", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Today bought", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("76,000", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("70,000", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("71,500", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Today sold", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("SK hynix", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("₩8,000", { exact: true })).toBeVisible();
   });
 
   test("desktop process monitor expands as a floating overlay over dashboard context", async ({ page }) => {

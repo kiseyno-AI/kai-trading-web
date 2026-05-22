@@ -22,7 +22,9 @@ test.describe("dashboard mobile hero", () => {
     await expect(topbar).toBeVisible();
     await expect(hero).toBeVisible();
     await expect(bottomNav).toBeVisible();
-    await expect(page.getByText(/Trading Command Surface/i)).toBeVisible();
+    await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(
+      /Trading Command Surface|트레이딩 커맨드 서피스/,
+    );
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
 
     const [viewport, topbarBox, heroBox] = await Promise.all([
@@ -43,50 +45,38 @@ test.describe("dashboard mobile hero", () => {
     await expect(hero.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     const deciderCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });
     await expect(deciderCard).toHaveCount(1);
-    await expect(deciderCard.getByText("Results", { exact: true })).toBeVisible();
-    await expect(deciderCard.getByText("Market date", { exact: true })).toBeVisible();
-    await expect(deciderCard.getByText("Action mix", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Results", { exact: true })).toHaveCount(0);
+    await expect(deciderCard.getByText("Market date", { exact: true })).toHaveCount(0);
+    await expect(deciderCard.getByText("Action mix", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Run", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Errors", { exact: true })).toHaveCount(0);
-    await expect(hero.getByRole("heading", { name: /Portfolio state/i })).toBeVisible();
-    const portfolioCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Portfolio state/i }) });
+    await expect(hero.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
+    const portfolioCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Portfolio status/i }) });
     await expect(portfolioCard).toBeVisible();
-    await expect(hero.getByRole("heading", { name: /Market condition/i })).toBeVisible();
-    const marketCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
-    await expect(marketCard.getByText("KOSPI", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("KOSDAQ", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
-    await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
-    await expect(marketCard.getByRole("link", { name: /Open markets/i })).toBeVisible();
-    await expect(marketCard.getByText("Session", { exact: true })).toHaveCount(0);
-    await expect(marketCard.getByText("Trading day", { exact: true })).toHaveCount(0);
-    await expect(marketCard.getByText("Source", { exact: true })).toHaveCount(0);
-    await expect(marketCard.getByText(/Piotroski pass|KIS risk pass|Risk watchlist/i)).toHaveCount(0);
+    await expect(hero.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
+    await expect(hero.getByRole("heading", { name: /^Exec runtime$/i })).toHaveCount(0);
+    await expect(hero.getByRole("heading", { name: /Monitored symbols/i })).toHaveCount(0);
+    await expect(hero.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
     await expect(hero.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
     await expect(hero.getByText(/EOD Status/i)).toHaveCount(0);
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 
-    const [deciderBox, portfolioBox, marketBox] = await Promise.all([
+    const [deciderBox, portfolioBox] = await Promise.all([
       deciderCard.boundingBox(),
       portfolioCard.boundingBox(),
-      marketCard.boundingBox(),
     ]);
 
     expect(deciderBox).not.toBeNull();
     expect(portfolioBox).not.toBeNull();
-    expect(marketBox).not.toBeNull();
 
-    if (!deciderBox || !portfolioBox || !marketBox) {
+    if (!deciderBox || !portfolioBox) {
       throw new Error("Expected mobile primary insight cards to have layout boxes.");
     }
 
     expect(portfolioBox.y).toBeGreaterThan(deciderBox.y + deciderBox.height - 1);
-    expect(marketBox.y).toBeGreaterThan(portfolioBox.y + portfolioBox.height - 1);
     expect(Math.abs(portfolioBox.x - deciderBox.x)).toBeLessThan(8);
-    expect(Math.abs(marketBox.x - deciderBox.x)).toBeLessThan(8);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer.locator('[class*="processMonitorDrawerSummary"]')).toHaveCount(0);
@@ -103,7 +93,7 @@ test.describe("dashboard mobile hero", () => {
     await expect(processDrawer.locator('[aria-label="Technical Analysis freshness"]')).toBeVisible();
     await expect(processDrawer.locator('[aria-label="Action Summary freshness"]')).toBeVisible();
     await expect(processDrawer.locator('[aria-label="Fundamentals freshness"]')).toBeVisible();
-    await expect(marketCard.getByText(/Succeeded/i)).toHaveCount(0);
-    await expect(marketCard.getByText(/Price Module/i)).toHaveCount(0);
+    await expect(hero.getByText(/Succeeded/i)).toHaveCount(0);
+    await expect(hero.getByText(/Price Module/i)).toHaveCount(0);
   });
 });
