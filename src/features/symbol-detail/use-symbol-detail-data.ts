@@ -23,7 +23,12 @@ import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { invalidateTradingApiCacheByPathPrefix } from "@/lib/trading-api-cache";
 import { useUnitData } from "@/lib/use-unit-data";
-import type { Locale, SymbolPriceBarDto, SymbolPriceBarsResponseDto } from "@/types/trading-api";
+import type {
+  EodFreshnessResponseDto,
+  Locale,
+  SymbolPriceBarDto,
+  SymbolPriceBarsResponseDto,
+} from "@/types/trading-api";
 
 import {
   fetchUnitJson,
@@ -36,6 +41,7 @@ import {
   buildMarketStateRows,
   buildPriceHistoryQuery,
   buildQuoteSourceLabel,
+  buildSymbolDetailMarketDateBasisCopy,
   buildSymbolRouteQuery,
   getCurrentSeoulMarketDate,
   getLocalizedSymbolDetailModes,
@@ -46,6 +52,8 @@ import {
   pickSelectedBarTradeDate,
   readRouteParam,
   resolveMarketStateValue,
+  resolveSymbolDetailCurrentMarketDate,
+  resolveSymbolDetailEffectiveMarketDate,
   shouldStopQuotePollingForClosedSession,
   buildPercentChange,
   buildPriceHistoryRangeMetrics,
@@ -188,12 +196,50 @@ export function useSymbolDetailData({
   const quotePollingStopped = shouldStopQuotePollingForClosedSession(marketStatus, quote);
   const refetchQuoteBundle = quoteBundleResult.refetch;
 
-  const marketDate = useMemo(() => {
-    if (requestedMarketDate) return requestedMarketDate;
-    if (quote?.trade_date) return quote.trade_date;
-    if (!loading) return defaultMarketDate;
-    return null;
-  }, [defaultMarketDate, loading, quote?.trade_date, requestedMarketDate]);
+  const freshnessBasisRequest = useMemo(
+    () => ({
+      enabled: symbolReady && !requestedMarketDate,
+      key: ["symbol-detail", "freshness"] as const,
+      ttlMs: 30_000,
+      fetcher: async () => fetchUnitJson<EodFreshnessResponseDto>("/api/trading/eod/freshness"),
+    }),
+    [requestedMarketDate, symbolReady],
+  );
+  const freshnessBasisResult = useUnitData<EodFreshnessResponseDto>(freshnessBasisRequest);
+  const freshnessBasis = requestedMarketDate ? null : freshnessBasisResult.data;
+  const waitForFreshnessBasis =
+    !requestedMarketDate &&
+    symbolReady &&
+    !freshnessBasisResult.hasData &&
+    !freshnessBasisResult.error &&
+    (freshnessBasisResult.isInitialLoading || freshnessBasisResult.source === "none");
+  const marketDate = useMemo(
+    () =>
+      resolveSymbolDetailEffectiveMarketDate({
+        defaultMarketDate,
+        freshness: freshnessBasis,
+        quoteTradeDate: quote?.trade_date,
+        requestedMarketDate,
+        waitForFreshness: waitForFreshnessBasis,
+      }),
+    [defaultMarketDate, freshnessBasis, quote?.trade_date, requestedMarketDate, waitForFreshnessBasis],
+  );
+  const currentMarketDate = useMemo(
+    () => resolveSymbolDetailCurrentMarketDate(freshnessBasis, marketStatus, defaultMarketDate),
+    [defaultMarketDate, freshnessBasis, marketStatus],
+  );
+  const marketDateBasisCopy = useMemo(
+    () =>
+      buildSymbolDetailMarketDateBasisCopy({
+        copy,
+        currentMarketDate,
+        effectiveMarketDate: marketDate,
+        hasExplicitMarketDate: Boolean(requestedMarketDate),
+        marketState: marketStatus?.state ?? quote?.market_state,
+      }),
+    [copy, currentMarketDate, marketDate, marketStatus?.state, quote?.market_state, requestedMarketDate],
+  );
+  const marketDateLabel = requestedMarketDate ? copy.chart.requestedMarketDate : copy.chart.effectiveMarketDate;
   const fundamentalsEntryLimit = activeMode === "fundamentals-history" ? 8 : 4;
   const disclosureItemLimit = activeMode === "disclosure-coverage" ? 8 : 4;
 
@@ -475,6 +521,8 @@ export function useSymbolDetailData({
     loading,
     localizedModes,
     marketDate,
+    marketDateBasisCopy,
+    marketDateLabel,
     marketLabel,
     marketStateRows,
     normalizedSymbol,

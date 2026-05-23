@@ -1068,7 +1068,7 @@ test.describe("symbol detail desktop", () => {
       has: page.getByText("Momentum", { exact: true }),
     });
     await expect(momentumCard).toContainText("Eligible");
-    await expect(momentumCard).toContainText("12-1 momentum");
+    await expect(momentumCard).toContainText("12D momentum");
     await expect(momentumCard).toContainText("22.1%");
 
     const lowRiskCard = factorSection.locator("article").filter({
@@ -1219,7 +1219,7 @@ test.describe("symbol detail desktop", () => {
   test("detail tabs update in place without resetting scroll or adding a back-stack entry", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/dashboard");
-    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+    await expect(page.getByRole("banner").getByText(/Trading Command Surface/i).first()).toBeVisible();
 
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
     const detailUrl = page.url();
@@ -1238,7 +1238,7 @@ test.describe("symbol detail desktop", () => {
     await page.goBack();
 
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByText(/Trading Dashboard/i)).toBeVisible();
+    await expect(page.getByRole("banner").getByText(/Trading Command Surface/i).first()).toBeVisible();
   });
 
   test("technical detail renders the desktop candlestick view", async ({ page }) => {

@@ -82,6 +82,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     loading,
     localizedModes,
     marketDate,
+    marketDateBasisCopy,
+    marketDateLabel,
     marketLabel,
     marketStateRows,
     normalizedSymbol,
@@ -488,7 +490,12 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                         ? `${selectedRange} ${copy.chart.returnLabel} ${copy.chart.returnUnavailable}`
                         : `${selectedRange} ${copy.chart.returnPendingSuffix}`}
                 </span>
-                <span>{marketDate ? `${copy.chart.requestedMarketDate} ${formatIsoDateLabel(marketDate, copy.common.datePending)}` : copy.chart.marketDatePending}</span>
+                <span>
+                  {marketDateBasisCopy ??
+                    (marketDate
+                      ? `${marketDateLabel} ${formatIsoDateLabel(marketDate, copy.common.datePending)}`
+                      : copy.chart.marketDatePending)}
+                </span>
                 <span>{historyHydrating ? copy.chart.loadingTitle : copy.chart.swipeHint}</span>
               </div>
             </UnitRefreshFrame>
@@ -499,6 +506,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
           <FactorSnapshotSection
             copy={copy}
             marketDate={marketDate}
+            marketDateBasisCopy={marketDateBasisCopy}
+            marketDateLabel={marketDateLabel}
             normalizedSymbol={normalizedSymbol}
             numberLocale={numberLocale}
             symbolReady={symbolReady}

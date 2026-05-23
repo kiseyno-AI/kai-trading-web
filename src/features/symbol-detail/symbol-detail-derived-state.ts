@@ -181,6 +181,14 @@ export type SystemFreshnessSectionModel = {
   tone: "positive" | "warning" | "info" | "neutral";
 };
 
+type SymbolDetailMarketDateBasisOptions = {
+  copy: SymbolDetailCopy;
+  currentMarketDate: string | null;
+  effectiveMarketDate: string | null;
+  hasExplicitMarketDate: boolean;
+  marketState: string | null | undefined;
+};
+
 export function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
 }
@@ -396,6 +404,131 @@ export function getCurrentSeoulMarketDate(now = new Date()) {
   const month = parts.find((part) => part.type === "month")?.value ?? "01";
   const day = parts.find((part) => part.type === "day")?.value ?? "01";
   return `${year}-${month}-${day}`;
+}
+
+function normalizeIsoDate(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+function readIsoDatePrefix(value: unknown) {
+  if (typeof value !== "string") return null;
+  return normalizeIsoDate(value.slice(0, 10));
+}
+
+function readFreshnessRecordDate(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    normalizeIsoDate(record.trade_date) ??
+    normalizeIsoDate(record.market_date) ??
+    normalizeIsoDate(record.latest_date) ??
+    readIsoDatePrefix(record.completed_at) ??
+    readIsoDatePrefix(record.updated_at) ??
+    readIsoDatePrefix(record.last_updated_at)
+  );
+}
+
+function pickFirstIsoDate(values: unknown[]) {
+  for (const value of values) {
+    const normalized = normalizeIsoDate(value);
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
+export function resolveSymbolDetailLatestStoredMarketDate(freshness: EodFreshnessResponseDto | null) {
+  const latest = freshness?.latest;
+  const latestStages = latest?.stage_details ?? latest?.stageDetails ?? latest?.stages ?? null;
+
+  const priceBasis = pickFirstIsoDate([
+    latest?.price_trade_date,
+    freshness?.price?.latest_date,
+    readFreshnessRecordDate(latest?.price),
+    readFreshnessRecordDate(latestStages?.price),
+    readFreshnessRecordDate(latestStages?.price_collection),
+  ]);
+
+  if (priceBasis) {
+    return priceBasis;
+  }
+
+  return pickFirstIsoDate([
+    latest?.technical_market_date,
+    freshness?.technical?.latest_date,
+    readFreshnessRecordDate(latest?.technical),
+    readFreshnessRecordDate(latest?.technical_analysis),
+    readFreshnessRecordDate(latestStages?.technical),
+    readFreshnessRecordDate(latestStages?.technical_analysis),
+    readFreshnessRecordDate(latestStages?.technical_snapshots),
+    latest?.action_market_date,
+    freshness?.action?.latest_date,
+    readFreshnessRecordDate(latest?.action),
+    readFreshnessRecordDate(latest?.action_summary),
+    readFreshnessRecordDate(latestStages?.action),
+    readFreshnessRecordDate(latestStages?.action_summary),
+    readFreshnessRecordDate(latestStages?.action_summaries),
+    latest?.trade_date,
+    latest?.market_date,
+    latest?.latest_date,
+  ]);
+}
+
+export function resolveSymbolDetailCurrentMarketDate(
+  freshness: EodFreshnessResponseDto | null,
+  marketStatus: MarketStatusResponse | null,
+  defaultMarketDate: string,
+) {
+  return (
+    normalizeIsoDate(freshness?.today?.trade_date) ??
+    readIsoDatePrefix(marketStatus?.server_time) ??
+    normalizeIsoDate(defaultMarketDate) ??
+    defaultMarketDate
+  );
+}
+
+export function resolveSymbolDetailEffectiveMarketDate({
+  defaultMarketDate,
+  freshness,
+  quoteTradeDate,
+  requestedMarketDate,
+  waitForFreshness,
+}: {
+  defaultMarketDate: string;
+  freshness: EodFreshnessResponseDto | null;
+  quoteTradeDate: string | null | undefined;
+  requestedMarketDate: string | null;
+  waitForFreshness: boolean;
+}) {
+  const explicitMarketDate = normalizeIsoDate(requestedMarketDate);
+  if (explicitMarketDate) return explicitMarketDate;
+  if (requestedMarketDate) return requestedMarketDate;
+
+  const latestStoredMarketDate = resolveSymbolDetailLatestStoredMarketDate(freshness);
+  if (latestStoredMarketDate) return latestStoredMarketDate;
+  if (waitForFreshness) return null;
+
+  return normalizeIsoDate(quoteTradeDate) ?? normalizeIsoDate(defaultMarketDate) ?? defaultMarketDate;
+}
+
+export function buildSymbolDetailMarketDateBasisCopy({
+  copy,
+  currentMarketDate,
+  effectiveMarketDate,
+  hasExplicitMarketDate,
+  marketState,
+}: SymbolDetailMarketDateBasisOptions) {
+  if (hasExplicitMarketDate || !currentMarketDate || !effectiveMarketDate || currentMarketDate === effectiveMarketDate) {
+    return null;
+  }
+
+  const closedSuffix = isClosedSessionMarketState(marketState) ? ` ${copy.common.closedMarketSession}` : "";
+  return `${copy.common.latestStoredBasis} ${effectiveMarketDate} · ${copy.common.currentMarketDate} ${currentMarketDate}${closedSuffix}`;
 }
 
 export function formatIsoDateLabel(value: string | null | undefined, fallback = "Date pending") {
