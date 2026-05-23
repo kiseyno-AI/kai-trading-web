@@ -545,6 +545,9 @@ test.describe("dashboard mobile chrome", () => {
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
+    await expect(processBar).toContainText(/15\s*\/\s*24/);
+    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
   });
 
   test("expanded mobile process monitor keeps a single close arrow and dismisses from outside click", async ({ page }) => {
@@ -1627,5 +1630,8 @@ test.describe("dashboard desktop process monitor canonical truth", () => {
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
+    await expect(processBar).toContainText(/15\s*\/\s*24/);
+    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
   });
 });

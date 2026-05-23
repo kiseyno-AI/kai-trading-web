@@ -98,7 +98,6 @@ import type {
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
   ProcessMonitorModel,
-  ProcessMonitorStatus,
   ScoringCardModel,
   ScoringStageModel,
 } from "@/features/dashboard/live-dashboard-types";
@@ -1045,38 +1044,7 @@ type ProcessMonitorTriggerProps = {
   onOpen: () => void;
 };
 
-function hasIncompleteCanonicalPipelineForTrigger(model: ProcessMonitorModel) {
-  return getCanonicalPipelineTriggerStatus(model.pipeline) !== "completed";
-}
-
-function getCanonicalPipelineTriggerStatus(pipeline: ProcessMonitorModel["pipeline"]): ProcessMonitorStatus {
-  if (!pipeline.hasLiveStatus) return "completed";
-  if (pipeline.status === "failed") return "error";
-  if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
-  if (pipeline.status === "running") return "running";
-  if (pipeline.status === "pending") {
-    return pipeline.completedCount > 0 && pipeline.completedCount < pipeline.totalCount ? "partial" : "pending";
-  }
-
-  return (
-    pipeline.completedCount < pipeline.totalCount ||
-    pipeline.stages.some((stage) => stage.status !== "completed" && stage.status !== "skipped")
-      ? "partial"
-      : "completed"
-  );
-}
-
-function getProcessMonitorTriggerSummary(model: ProcessMonitorModel, copy: DashboardLiveCopy) {
-  const canonicalStatus = getCanonicalPipelineTriggerStatus(model.pipeline);
-
-  if (model.status === "completed" && canonicalStatus !== "completed") {
-    return {
-      progressLabel: model.pipeline.progressLabel,
-      status: canonicalStatus,
-      statusLabel: copy.processMonitor.statuses[canonicalStatus],
-    };
-  }
-
+function getProcessMonitorTriggerSummary(model: ProcessMonitorModel) {
   return {
     progressLabel: model.progressLabel,
     status: model.status,
@@ -1085,11 +1053,11 @@ function getProcessMonitorTriggerSummary(model: ProcessMonitorModel, copy: Dashb
 }
 
 function getProcessMonitorCurrentLabel(model: ProcessMonitorModel, copy: DashboardLiveCopy) {
-  if (model.pipeline.currentStage) {
-    return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
-  }
+  if (model.summarySource === "canonical-pipeline") {
+    if (model.pipeline.currentStage) {
+      return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
+    }
 
-  if (hasIncompleteCanonicalPipelineForTrigger(model)) {
     return `${copy.processMonitor.current}: ${copy.processMonitor.noCurrentStage}`;
   }
 
@@ -1107,7 +1075,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
   placement,
   onOpen,
 }: ProcessMonitorTriggerProps) {
-  const triggerSummary = getProcessMonitorTriggerSummary(model, copy);
+  const triggerSummary = getProcessMonitorTriggerSummary(model);
   const currentLabel = getProcessMonitorCurrentLabel(model, copy);
   const showLoadingSummary = placement === "mobile" && triggerSummary.status === "running";
   const summaryLabel = showLoadingSummary ? triggerSummary.statusLabel : triggerSummary.progressLabel;
