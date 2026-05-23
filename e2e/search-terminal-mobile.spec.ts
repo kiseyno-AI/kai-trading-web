@@ -952,6 +952,45 @@ test.describe("search terminal mobile", () => {
         },
       });
     });
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        json: {
+          state: "OPEN",
+          is_open: true,
+          server_time: "2026-04-14T09:00:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        json: {
+          today: {
+            trade_date: "2026-04-14",
+            eod_status: "completed",
+            symbols_total: 1,
+            symbols_succeeded: 1,
+            symbols_failed: 0,
+          },
+          latest: {
+            price_trade_date: "2026-04-14",
+            technical_market_date: "2026-04-14",
+            action_market_date: "2026-04-14",
+          },
+          price: {
+            success: true,
+            latest_date: "2026-04-14",
+          },
+          technical: {
+            success: true,
+            latest_date: "2026-04-14",
+          },
+          action: {
+            success: true,
+            latest_date: "2026-04-14",
+          },
+        },
+      });
+    });
 
     await page.goto("/search");
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
@@ -973,6 +1012,506 @@ test.describe("search terminal mobile", () => {
     const volumeFocusCard = page.locator("#chart article").filter({ hasText: "Volume" }).first();
     await expect(volumeFocusCard).toContainText("Turnover Check needed");
     await expect(volumeFocusCard).not.toContainText("Turnover ₩0");
+  });
+
+  test("uses latest stored market date when Search opens a supported equity on a weekend", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+
+    const latestDate = "2026-05-22";
+    const weekendDate = "2026-05-23";
+    const priceBarEndDates: Array<string | null> = [];
+    const factorMarketDates: Array<string | null> = [];
+
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({ json: { count: 0, items: [] } });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: `${weekendDate}T12:30:00+09:00`,
+          market: "KRX",
+          summary: { item_count: 0 },
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/trending-stocks?**", async (route) => {
+      await route.fulfill({
+        json: {
+          request: { resolved_market_date: latestDate },
+          summary: { count: 0, data_available: true },
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q") ?? "";
+
+      await route.fulfill({
+        json: {
+          query,
+          count: query ? 1 : 0,
+          items: query
+            ? [
+                {
+                  symbol: "005930",
+                  standard_code: "KR7005930003",
+                  name_ko: "삼성전자",
+                  market: "KOSPI",
+                  instrument_type: "stock",
+                },
+              ]
+            : [],
+        },
+      });
+    });
+    await page.route("**/api/trading/quotes/005930**", async (route) => {
+      await route.fulfill({
+        json: {
+          symbol: "005930",
+          company_name: "삼성전자",
+          price: null,
+          change: null,
+          change_pct: null,
+          volume: null,
+          turnover: null,
+          market_state: "WEEKEND",
+          source: "daily_price_bar",
+          fallback: true,
+          is_live: false,
+          available: false,
+          cached_at: `${weekendDate}T12:30:00+09:00`,
+          unavailable_reason: "no_live_quote_or_fresh_fallback",
+        },
+      });
+    });
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        json: {
+          state: "WEEKEND",
+          is_open: false,
+          server_time: `${weekendDate}T12:30:00+09:00`,
+          markets: [
+            {
+              market: "KOSPI",
+              state: "WEEKEND",
+              is_open: false,
+              available: true,
+              ready: true,
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        json: {
+          today: {
+            trade_date: weekendDate,
+            eod_status: "pending",
+            symbols_total: 1,
+            symbols_succeeded: 0,
+            symbols_failed: 0,
+          },
+          latest: {
+            price_trade_date: latestDate,
+            technical_market_date: latestDate,
+            action_market_date: latestDate,
+          },
+          price: {
+            success: true,
+            latest_date: latestDate,
+          },
+          technical: {
+            success: true,
+            latest_date: latestDate,
+          },
+          action: {
+            success: true,
+            latest_date: latestDate,
+          },
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const endDate = requestUrl.searchParams.get("end_date");
+      priceBarEndDates.push(endDate);
+
+      await route.fulfill({
+        json: {
+          symbol: "005930",
+          count: endDate === latestDate ? 3 : 0,
+          start_date: endDate === latestDate ? "2026-05-20" : null,
+          end_date: endDate === latestDate ? latestDate : null,
+          requested_start_date: requestUrl.searchParams.get("start_date"),
+          requested_end_date: endDate,
+          items:
+            endDate === latestDate
+              ? [
+                  {
+                    trade_date: "2026-05-20",
+                    open_price: 69000,
+                    high_price: 70000,
+                    low_price: 68800,
+                    close_price: 69700,
+                    volume: 900000,
+                    turnover: 62730000000,
+                    source: "test",
+                    captured_at: "2026-05-20T16:00:00+09:00",
+                  },
+                  {
+                    trade_date: "2026-05-21",
+                    open_price: 69800,
+                    high_price: 70700,
+                    low_price: 69500,
+                    close_price: 70400,
+                    volume: 980000,
+                    turnover: 68992000000,
+                    source: "test",
+                    captured_at: "2026-05-21T16:00:00+09:00",
+                  },
+                  {
+                    trade_date: latestDate,
+                    open_price: 70500,
+                    high_price: 71800,
+                    low_price: 70200,
+                    close_price: 71500,
+                    volume: 1250000,
+                    turnover: 89375000000,
+                    source: "test",
+                    captured_at: `${latestDate}T16:00:00+09:00`,
+                  },
+                ]
+              : [],
+        },
+      });
+    });
+    await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const marketDate = requestUrl.searchParams.get("market_date") ?? latestDate;
+
+      await route.fulfill({
+        json: {
+          request: {
+            market_date: marketDate,
+            symbols: ["005930"],
+            fs_div: null,
+            fs_label: null,
+            disclosures_limit: 4,
+          },
+          summary: {
+            requested_symbol_count: 1,
+            matched_symbol_count: 1,
+            technical_snapshot_count: 1,
+            action_summary_count: 1,
+            fundamentals_count: 0,
+            recent_disclosure_symbol_count: 0,
+            missing_symbols: [],
+          },
+          items: [
+            {
+              symbol: "005930",
+              market_date: marketDate,
+              company: {
+                symbol: "005930",
+                name_ko: "삼성전자",
+                market: "KOSPI",
+                instrument_type: "stock",
+                standard_code: "KR7005930003",
+                source: "test",
+                is_active: true,
+                last_refreshed_at: null,
+                dart: null,
+              },
+              technical_snapshot: {
+                symbol: "005930",
+                market_date: marketDate,
+                close_price: 71500,
+                return_5d: 0.024,
+                return_20d: 0.041,
+                volume_ratio_20d: 1.12,
+                ma_alignment: "bullish",
+                trend_state: "uptrend",
+                breakout_20d: true,
+                breakdown_20d: false,
+                source: "test",
+                captured_at: `${marketDate}T16:00:00+09:00`,
+              },
+              action_summary: {
+                symbol: "005930",
+                market_date: marketDate,
+                source: "test",
+                action_label: "buy",
+                bias_direction: "long",
+                signal_score: 82,
+                confidence_tier: "high",
+                risk_tier: "medium",
+                trigger_price: 71600,
+                invalidation_price: 69000,
+                support_price: 70000,
+                resistance_price: 73000,
+                reasons: ["latest stored basis"],
+                summary_payload: {},
+                captured_at: `${marketDate}T16:05:00+09:00`,
+              },
+              fundamentals: {
+                latest_snapshot: null,
+                history_summary: {
+                  entries: 0,
+                  latest_receipt_date: null,
+                  latest_period_end_date: null,
+                  available_business_years: [],
+                  recent_periods: [],
+                },
+              },
+              recent_disclosures: {
+                count: 0,
+                items: [],
+              },
+              availability: {
+                company: true,
+                technical_snapshot: true,
+                action_summary: true,
+                fundamentals: false,
+                recent_disclosures: false,
+              },
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: latestDate,
+          summary: {
+            entries: 1,
+            requested_symbol: "005930",
+            matched_symbols: ["005930"],
+            missing_symbols: [],
+            passed_count: 1,
+            not_passed_count: 0,
+          },
+          item: {
+            symbol: "005930",
+            market_date: latestDate,
+            passed_filter: true,
+            piotroski_score: 8,
+            passes_piotroski_score: true,
+            captured_at: `${latestDate}T16:10:00+09:00`,
+          },
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/momentum-factors?**", async (route) => {
+      const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+      factorMarketDates.push(marketDate);
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "momentum_factor_v2",
+          summary: { entries: 1, matched_symbols: ["005930"], missing_symbols: [] },
+          items: [
+            {
+              symbol: "005930",
+              market_date: marketDate,
+              close_price: 71500,
+              ma_60: 69000,
+              ma_120: 66500,
+              momentum_12_1: 0.18,
+              return_5d: 0.024,
+              has_sufficient_history: true,
+              is_price_above_ma120: true,
+              is_ma60_above_ma120: true,
+              is_recent_overheated: false,
+              momentum_rank: 12,
+              momentum_percentile: 0.92,
+              is_momentum_eligible: true,
+              factor_payload: {},
+              captured_at: `${marketDate}T16:20:00+09:00`,
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/low-risk-factors?**", async (route) => {
+      const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+      factorMarketDates.push(marketDate);
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "low_risk_v1",
+          summary: { entries: 1, matched_symbols: ["005930"], missing_symbols: [] },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            volatility_60d: 0.12,
+            volatility_120d: 0.15,
+            max_drawdown_120d: -0.18,
+            avg_trading_value_20d: 125000000,
+            volatility_60d_rank: 10,
+            volatility_120d_rank: 15,
+            max_drawdown_120d_rank: 9,
+            liquidity_rank: 180,
+            volatility_60d_percentile: 0.91,
+            volatility_120d_percentile: 0.88,
+            max_drawdown_120d_percentile: 0.9,
+            liquidity_percentile: 0.55,
+            passes_liquidity_floor: true,
+            low_risk_score: 0.71,
+            low_risk_classification: "eligible",
+            is_low_risk_eligible: true,
+            history_days_available: 250,
+            factor_payload: {},
+            captured_at: `${marketDate}T16:20:00+09:00`,
+          },
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/beta-factors?**", async (route) => {
+      const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+      factorMarketDates.push(marketDate);
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "beta_v1",
+          summary: { entries: 1, matched_symbols: ["005930"], missing_symbols: [] },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            benchmark_id: "KOSPI_EQW",
+            benchmark_market: "KOSPI",
+            beta_60d: 0.78,
+            beta_120d: 0.82,
+            beta_60d_rank: 22,
+            beta_120d_rank: 37,
+            beta_60d_percentile: 0.84,
+            beta_120d_percentile: 0.76,
+            low_beta_score: 0.8,
+            low_beta_classification: "eligible",
+            is_low_beta_eligible: true,
+            history_days_available: 180,
+            factor_payload: {},
+            captured_at: `${marketDate}T16:20:00+09:00`,
+          },
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/value-factors?**", async (route) => {
+      const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+      factorMarketDates.push(marketDate);
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "value_factor_v1",
+          summary: { entries: 1, matched_symbols: ["005930"], missing_symbols: [] },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            per: 11.8,
+            pbr: 1.24,
+            dividend_yield: 0.021,
+            per_status: "available",
+            pbr_status: "available",
+            dividend_yield_status: "available",
+            per_rank: 120,
+            pbr_rank: 96,
+            dividend_yield_rank: 48,
+            per_percentile: 0.67,
+            pbr_percentile: 0.74,
+            dividend_yield_percentile: 0.88,
+            value_score: 0.763,
+            value_rank: 54,
+            value_percentile: 0.86,
+            value_status: "scored",
+            unified_value_score: 0.812,
+            unified_value_rank: 34,
+            unified_value_percentile: 0.9,
+            unified_value_status: "scored",
+            quality_score: 0.714,
+            quality_rank: 88,
+            quality_percentile: 0.76,
+            quality_status: "scored_partial",
+            components_possible: 6,
+            components_used: 5,
+            is_quality_score_complete: false,
+            factor_payload: {},
+            captured_at: `${marketDate}T16:20:00+09:00`,
+          },
+        },
+      });
+    });
+    await page.route("**/api/trading/eod/advanced-value-factors?**", async (route) => {
+      const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+      factorMarketDates.push(marketDate);
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "advanced_value_v1",
+          summary: { entries: 1, matched_symbols: ["005930"], missing_symbols: [] },
+          item: {
+            symbol: "005930",
+            market_date: marketDate,
+            market_cap_proxy: 120000000000,
+            enterprise_value: 150000000000,
+            ebitda: 9500000000,
+            free_cash_flow: 4200000000,
+            fcf_yield: 0.035,
+            ev_to_ebitda: 7.2,
+            fcf_yield_status: "available",
+            ev_to_ebitda_status: "available",
+            fcf_yield_valid_for_scoring: true,
+            ev_to_ebitda_valid_for_scoring: true,
+            fcf_yield_rank: 22,
+            ev_to_ebitda_rank: 31,
+            fcf_yield_percentile: 0.83,
+            ev_to_ebitda_percentile: 0.79,
+            advanced_value_score: 0.81,
+            advanced_value_rank: 30,
+            advanced_value_percentile: 0.88,
+            advanced_value_components_used: 2,
+            advanced_value_classification: "eligible",
+            is_advanced_value_eligible: true,
+            factor_payload: {},
+            captured_at: `${marketDate}T16:20:00+09:00`,
+          },
+        },
+      });
+    });
+
+    await page.goto("/search");
+    await page.getByLabel(/마켓, 종목 또는 분석 검색/i).fill("삼성");
+
+    const resultCard = page.getByRole("link", { name: /005930.*삼성전자/ }).first();
+    await expect(resultCard).toBeVisible();
+    await expect(resultCard).toHaveAttribute("href", /\/dashboard\/symbol\/005930\?.*navContext=search/);
+
+    await Promise.all([page.waitForURL(/\/dashboard\/symbol\/005930/), resultCard.click()]);
+
+    await expect(page.getByText("최신 저장 기준일 2026-05-22 · 현재 2026-05-23 휴장").first()).toBeVisible();
+    await expect(page.getByRole("img", { name: /Historical candlestick chart for 005930/i })).toBeVisible();
+    await expect(page.locator("#factor-snapshot")).toContainText("5 / 5 팩터 준비됨");
+    await expect(page.locator("#factor-snapshot")).toContainText("적용 기준일");
+    await expect(page.locator("#factor-snapshot")).toContainText("2026.05.22");
+    expect(priceBarEndDates).toContain(latestDate);
+    expect(priceBarEndDates).not.toContain(weekendDate);
+    expect(factorMarketDates.length).toBeGreaterThanOrEqual(5);
+    expect(factorMarketDates.every((marketDate) => marketDate === latestDate)).toBe(true);
   });
 
   test("keeps the favorite dialog overlay above the mobile bottom nav", async ({ page }) => {

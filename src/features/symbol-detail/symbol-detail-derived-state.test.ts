@@ -18,12 +18,16 @@ import {
   buildModuleStatusTone,
   buildPriceHistoryRangeMetrics,
   buildQuoteSourceLabel,
+  buildSymbolDetailMarketDateBasisCopy,
   buildSymbolRouteQuery,
   buildSystemFreshnessSectionModel,
   buildTechnicalFreshnessDate,
   getMarketOpenState,
   isClosedSessionMarketState,
   pickSelectedBarTradeDate,
+  resolveSymbolDetailCurrentMarketDate,
+  resolveSymbolDetailEffectiveMarketDate,
+  resolveSymbolDetailLatestStoredMarketDate,
   shouldStopQuotePollingForClosedSession,
 } from "./symbol-detail-derived-state";
 
@@ -141,6 +145,86 @@ test("uses polling-active copy during live sessions even when quote indicates CL
   assert.equal(
     getMarketOpenState({ state: "OPEN", is_open: true }),
     true,
+  );
+});
+
+test("resolves implicit symbol-detail market date from latest stored freshness while preserving explicit dates", () => {
+  const freshness = {
+    today: {
+      trade_date: "2026-05-23",
+      eod_status: "pending",
+    },
+    latest: {
+      price_trade_date: "2026-05-22",
+      technical_market_date: "2026-05-22",
+      action_market_date: "2026-05-22",
+    },
+  };
+
+  assert.equal(resolveSymbolDetailLatestStoredMarketDate(freshness), "2026-05-22");
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-23",
+      freshness,
+      quoteTradeDate: null,
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-05-22",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-23",
+      freshness,
+      quoteTradeDate: null,
+      requestedMarketDate: "2026-05-23",
+      waitForFreshness: false,
+    }),
+    "2026-05-23",
+  );
+});
+
+test("falls back to layer-specific latest dates and labels non-trading latest-stored basis", () => {
+  const koCopy = getSymbolDetailCopy("ko");
+  const freshness = {
+    today: {
+      trade_date: "2026-05-23",
+      eod_status: "pending",
+    },
+    latest: {
+      technical_market_date: "2026-05-22",
+      action_market_date: "2026-05-22",
+    },
+    price: {
+      success: true,
+      latest_date: "2026-05-22",
+    },
+  };
+
+  assert.equal(resolveSymbolDetailLatestStoredMarketDate(freshness), "2026-05-22");
+  assert.equal(
+    resolveSymbolDetailCurrentMarketDate(freshness, { state: "WEEKEND", is_open: false }, "2026-05-23"),
+    "2026-05-23",
+  );
+  assert.equal(
+    buildSymbolDetailMarketDateBasisCopy({
+      copy: koCopy,
+      currentMarketDate: "2026-05-23",
+      effectiveMarketDate: "2026-05-22",
+      hasExplicitMarketDate: false,
+      marketState: "WEEKEND",
+    }),
+    "최신 저장 기준일 2026-05-22 · 현재 2026-05-23 휴장",
+  );
+  assert.equal(
+    buildSymbolDetailMarketDateBasisCopy({
+      copy: koCopy,
+      currentMarketDate: "2026-05-23",
+      effectiveMarketDate: "2026-05-22",
+      hasExplicitMarketDate: true,
+      marketState: "WEEKEND",
+    }),
+    null,
   );
 });
 

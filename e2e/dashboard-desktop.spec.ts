@@ -1515,7 +1515,7 @@ test.describe("dashboard desktop", () => {
     await fullListRows.nth(0).click();
 
     await expect(page).toHaveURL(
-      /\/dashboard\/symbol\/000660\?name=SK(?:\+|%20)hynix&marketDate=2026-04-15$/,
+      /\/dashboard\/symbol\/000660\?name=SK(?:\+|%20)hynix&marketDate=2026-04-15&navContext=piotroski$/,
     );
     expect(piotroskiRequestedMarketDates).toContain("2026-04-15");
     await expect(page.getByRole("heading", { name: "SK hynix" })).toBeVisible();
@@ -1883,7 +1883,7 @@ test.describe("dashboard desktop", () => {
 
     await expect(piotroskiSection).toHaveAttribute("data-filter-status", "waiting");
     await expect(marketRiskSection).toHaveAttribute("data-filter-status", "waiting");
-    await expect(piotroskiSection).toContainText(/Filtered\s*\[확인 필요\]/);
+    await expect(piotroskiSection).toContainText(/Filtered\s*Waiting/);
     await expect(piotroskiSection).not.toContainText("Latest available 2026-04-24");
     await expect(marketRiskSection).not.toContainText("Requested 2026-04-27");
 

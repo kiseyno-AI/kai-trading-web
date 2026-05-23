@@ -39,6 +39,8 @@ import styles from "./symbol-detail.module.css";
 type FactorSnapshotSectionProps = {
   copy: SymbolDetailCopy;
   marketDate: string | null;
+  marketDateBasisCopy: string | null;
+  marketDateLabel: string;
   normalizedSymbol: string;
   numberLocale: string;
   symbolReady: boolean;
@@ -771,6 +773,8 @@ function buildFactorCardModel(
 export const FactorSnapshotSection = memo(function FactorSnapshotSection({
   copy,
   marketDate,
+  marketDateBasisCopy,
+  marketDateLabel,
   normalizedSymbol,
   numberLocale,
   symbolReady,
@@ -881,10 +885,11 @@ export const FactorSnapshotSection = memo(function FactorSnapshotSection({
           <p className={`clamp-3 ${styles.supportingCopy}`}>
             {partialFailureCount > 0 ? copy.factors.partialFailureBody : copy.factors.compositeBody}
           </p>
+          {marketDateBasisCopy ? <p className={styles.metaCaption}>{marketDateBasisCopy}</p> : null}
 
           <div className={styles.factorCompositeGrid}>
             <article className={styles.metricCard}>
-              <span>{copy.factors.requestedMarketDate}</span>
+              <span>{marketDateLabel}</span>
               <strong>{formatIsoDateLabel(marketDate, copy.common.datePending)}</strong>
             </article>
             <article className={styles.metricCard}>

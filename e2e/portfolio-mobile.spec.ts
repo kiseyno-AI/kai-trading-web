@@ -217,7 +217,7 @@ test.describe("portfolio mobile route", () => {
     await page.goto("/portfolio");
 
     await expect(page.getByText("KIS Empty Account")).toBeVisible();
-    await expect(page.getByText("Connected empty")).toBeVisible();
+    await expect(page.getByRole("banner").getByText("Connected empty")).toBeVisible();
     await expect(page.getByText("Portfolio is connected and empty.")).toBeVisible();
     await expect(page.getByText("No holdings reported yet.")).toBeVisible();
     await expect(page.getByText("The aggregate summary is connected and returned no holdings for the current accounts.")).toBeVisible();

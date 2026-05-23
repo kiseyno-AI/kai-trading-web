@@ -205,11 +205,11 @@ test.describe("Piotroski pass-list route", () => {
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText("000660");
     await expect(rows.nth(0)).toHaveAttribute("href", /marketDate=2026-04-29.*navContext=piotroski/);
-    await expect(rows.nth(0)).toContainText("Quote unavailable");
+    await expect(rows.nth(0)).toContainText(/Close\s*Unavailable/);
     await expect(rows.nth(0)).toContainText("9");
     await expect(rows.nth(1)).toContainText("005930");
     await expect(rows.nth(1)).toHaveAttribute("href", /marketDate=2026-04-29.*navContext=piotroski/);
-    await expect(rows.nth(1)).toContainText("Quote unavailable");
+    await expect(rows.nth(1)).toContainText(/Close\s*Unavailable/);
     await expect(rows.nth(1)).toContainText("8");
     await expect.poll(() => quoteRequests.length).toBeGreaterThan(0);
   });
