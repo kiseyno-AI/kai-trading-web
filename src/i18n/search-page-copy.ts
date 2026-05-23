@@ -42,6 +42,8 @@ const searchPageCopy = {
       startTypingTitle: "Start typing to search.",
       startTypingBody: "Suggestions use the same symbol master as Universal Search.",
       savedSuffix: "saved to core favorites.",
+      limitedCoverageLabel: "Limited coverage",
+      limitedCoverageBody: "Outside equity detail coverage. Keep managing it here instead of opening the full symbol detail.",
     },
     trending: {
       title: "Trending Symbols",
@@ -143,6 +145,8 @@ const searchPageCopy = {
       startTypingTitle: "검색어를 입력하세요.",
       startTypingBody: "제안 목록은 통합 검색과 동일한 종목 마스터를 사용합니다.",
       savedSuffix: "핵심 즐겨찾기에 저장되었습니다.",
+      limitedCoverageLabel: "지원 제한",
+      limitedCoverageBody: "주식 상세 커버리지 밖의 즐겨찾기입니다. 상세 화면 대신 이곳에서 관리하세요.",
     },
     trending: {
       title: "인기 종목",
