@@ -2612,11 +2612,42 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.deepEqual(model.groups.map((group) => group.status), ["completed", "completed", "completed", "completed"]);
   assert.equal(model.pipeline.status, "partial");
   assert.equal(model.pipeline.progressLabel, "15 / 24");
+  assert.equal(model.pipeline.currentStage, null);
   assert.equal(model.status, "partial");
   assert.equal(model.statusLabel, copy.processMonitor.statuses.partial);
   assert.equal(model.progressLabel, "15 / 24");
   assert.equal(model.completedCount, 15);
   assert.equal(model.totalCount, 24);
+
+  const pendingTopLevelModel = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+    patchDate: "2026-04-27",
+    pipelineStatus: { ...pipelineStatus, status: "pending" },
+    scoringCardModel,
+  });
+  assert.equal(pendingTopLevelModel.pipeline.status, "pending");
+  assert.equal(pendingTopLevelModel.status, "partial");
+  assert.equal(pendingTopLevelModel.statusLabel, copy.processMonitor.statuses.partial);
+  assert.equal(pendingTopLevelModel.progressLabel, "15 / 24");
+
+  const completedTopLevelModel = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+    patchDate: "2026-04-27",
+    pipelineStatus: { ...pipelineStatus, status: "completed" },
+    scoringCardModel,
+  });
+  assert.equal(completedTopLevelModel.pipeline.status, "completed");
+  assert.equal(completedTopLevelModel.status, "partial");
+  assert.equal(completedTopLevelModel.statusLabel, copy.processMonitor.statuses.partial);
+  assert.equal(completedTopLevelModel.progressLabel, "15 / 24");
 });
 
 test("keeps the full daily process monitor completed from latest available data when today is empty", () => {

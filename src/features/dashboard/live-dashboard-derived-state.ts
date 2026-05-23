@@ -2192,18 +2192,37 @@ function buildProcessMonitorGroup(
   };
 }
 
+function hasIncompleteCanonicalPipelineStages(pipeline: DailyPipelineTimelineModel) {
+  return pipeline.stages.some((stage) => stage.status !== "completed" && stage.status !== "skipped");
+}
+
+function hasCanonicalPipelineProgressGap(pipeline: DailyPipelineTimelineModel) {
+  return pipeline.completedCount < pipeline.totalCount;
+}
+
 function getCanonicalPipelineProcessStatus(pipeline: DailyPipelineTimelineModel): ProcessMonitorStatus {
   if (pipeline.status === "failed") return "error";
   if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
   if (pipeline.status === "running") return "running";
-  if (pipeline.status === "pending") return "pending";
-  if (pipeline.status === "completed" && pipeline.completedCount < pipeline.totalCount) return "partial";
+  if (pipeline.status === "pending") {
+    return pipeline.completedCount > 0 && hasCanonicalPipelineProgressGap(pipeline) ? "partial" : "pending";
+  }
+  if (
+    pipeline.status === "completed" &&
+    (hasCanonicalPipelineProgressGap(pipeline) || hasIncompleteCanonicalPipelineStages(pipeline))
+  ) {
+    return "partial";
+  }
   return "completed";
 }
 
 function shouldUseCanonicalPipelineSummary(pipeline: DailyPipelineTimelineModel) {
   if (!pipeline.hasLiveStatus) return false;
-  return getCanonicalPipelineProcessStatus(pipeline) !== "completed";
+  return (
+    getCanonicalPipelineProcessStatus(pipeline) !== "completed" ||
+    hasCanonicalPipelineProgressGap(pipeline) ||
+    hasIncompleteCanonicalPipelineStages(pipeline)
+  );
 }
 
 function getProcessMonitorStatusPriority(status: ProcessMonitorStatus) {

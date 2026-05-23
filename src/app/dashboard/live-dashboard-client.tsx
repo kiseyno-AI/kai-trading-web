@@ -98,6 +98,7 @@ import type {
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
   ProcessMonitorModel,
+  ProcessMonitorStatus,
   ScoringCardModel,
   ScoringStageModel,
 } from "@/features/dashboard/live-dashboard-types";
@@ -1044,15 +1045,51 @@ type ProcessMonitorTriggerProps = {
   onOpen: () => void;
 };
 
+function hasIncompleteCanonicalPipelineForTrigger(model: ProcessMonitorModel) {
+  return getCanonicalPipelineTriggerStatus(model.pipeline) !== "completed";
+}
+
+function getCanonicalPipelineTriggerStatus(pipeline: ProcessMonitorModel["pipeline"]): ProcessMonitorStatus {
+  if (!pipeline.hasLiveStatus) return "completed";
+  if (pipeline.status === "failed") return "error";
+  if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
+  if (pipeline.status === "running") return "running";
+  if (pipeline.status === "pending") {
+    return pipeline.completedCount > 0 && pipeline.completedCount < pipeline.totalCount ? "partial" : "pending";
+  }
+
+  return (
+    pipeline.completedCount < pipeline.totalCount ||
+    pipeline.stages.some((stage) => stage.status !== "completed" && stage.status !== "skipped")
+      ? "partial"
+      : "completed"
+  );
+}
+
+function getProcessMonitorTriggerSummary(model: ProcessMonitorModel, copy: DashboardLiveCopy) {
+  const canonicalStatus = getCanonicalPipelineTriggerStatus(model.pipeline);
+
+  if (model.status === "completed" && canonicalStatus !== "completed") {
+    return {
+      progressLabel: model.pipeline.progressLabel,
+      status: canonicalStatus,
+      statusLabel: copy.processMonitor.statuses[canonicalStatus],
+    };
+  }
+
+  return {
+    progressLabel: model.progressLabel,
+    status: model.status,
+    statusLabel: model.statusLabel,
+  };
+}
+
 function getProcessMonitorCurrentLabel(model: ProcessMonitorModel, copy: DashboardLiveCopy) {
   if (model.pipeline.currentStage) {
     return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
   }
 
-  if (
-    model.pipeline.hasLiveStatus &&
-    (model.pipeline.status !== "completed" || model.pipeline.completedCount < model.pipeline.totalCount)
-  ) {
+  if (hasIncompleteCanonicalPipelineForTrigger(model)) {
     return `${copy.processMonitor.current}: ${copy.processMonitor.noCurrentStage}`;
   }
 
@@ -1070,9 +1107,10 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
   placement,
   onOpen,
 }: ProcessMonitorTriggerProps) {
+  const triggerSummary = getProcessMonitorTriggerSummary(model, copy);
   const currentLabel = getProcessMonitorCurrentLabel(model, copy);
-  const showLoadingSummary = placement === "mobile" && model.status === "running";
-  const summaryLabel = showLoadingSummary ? model.statusLabel : model.progressLabel;
+  const showLoadingSummary = placement === "mobile" && triggerSummary.status === "running";
+  const summaryLabel = showLoadingSummary ? triggerSummary.statusLabel : triggerSummary.progressLabel;
 
   return (
     <button
@@ -1080,7 +1118,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
       className={`${styles.processMonitorBar} ${
         placement === "desktop" ? styles.processMonitorDesktopBar : styles.processMonitorMobileBar
       }`}
-      data-process-monitor-status={model.status}
+      data-process-monitor-status={triggerSummary.status}
       aria-label={`${copy.processMonitor.open}: ${currentLabel} (${summaryLabel})`}
       aria-busy={showLoadingSummary || undefined}
       aria-haspopup="dialog"
@@ -1095,17 +1133,17 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
 
       <span
         className={styles.processMonitorSummary}
-        data-process-status={model.status}
+        data-process-status={triggerSummary.status}
         data-process-summary-mode={showLoadingSummary ? "loading" : "progress"}
       >
-        {showLoadingSummary ? null : <span>{model.statusLabel}</span>}
+        {showLoadingSummary ? null : <span>{triggerSummary.statusLabel}</span>}
         {showLoadingSummary ? (
-          <strong className={styles.processMonitorLoadingValue} aria-label={model.statusLabel}>
+          <strong className={styles.processMonitorLoadingValue} aria-label={triggerSummary.statusLabel}>
             <span className={styles.processMonitorLoadingSpinner} aria-hidden="true" />
-            <span className={styles.processMonitorLoadingText}>{model.statusLabel}</span>
+            <span className={styles.processMonitorLoadingText}>{triggerSummary.statusLabel}</span>
           </strong>
         ) : (
-          <strong>{model.progressLabel}</strong>
+          <strong>{triggerSummary.progressLabel}</strong>
         )}
       </span>
     </button>

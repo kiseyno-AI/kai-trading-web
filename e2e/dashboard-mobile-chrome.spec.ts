@@ -544,6 +544,7 @@ test.describe("dashboard mobile chrome", () => {
     const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
+    await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
   });
 
   test("expanded mobile process monitor keeps a single close arrow and dismisses from outside click", async ({ page }) => {
@@ -1596,5 +1597,35 @@ test.describe("dashboard mobile chrome", () => {
       }),
     );
     await expect(stopDialog).toHaveCount(0);
+  });
+});
+
+test.describe("dashboard desktop process monitor canonical truth", () => {
+  test.use({
+    deviceScaleFactor: 1,
+    hasTouch: false,
+    isMobile: false,
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36",
+    viewport: { width: 1440, height: 900 },
+  });
+
+  test("desktop process monitor trigger mirrors partial canonical pipeline counts", async ({ page }) => {
+    const pipelineStatus: MockPipelineStatus = "partial";
+    await mockDashboardProcessStatusApis(page, () => pipelineStatus);
+
+    await page.goto("/dashboard");
+
+    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
+    await expect(processBar).toContainText(/Partial|부분 완료/);
+    await expect(processBar).toContainText(/15\s*\/\s*24/);
+    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
+    await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
+    await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
+    await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
   });
 });
