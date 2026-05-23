@@ -1849,6 +1849,48 @@ test("decider data gaps report aggregates categories and filters symbol drilldow
   await expect(shortTermReport).toContainText("Signal features");
 });
 
+test("decider data gaps report keeps category context readable at 320px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/decider-feedback?agent=signal-decider&marketDate=2026-04-27");
+
+  const report = page.getByTestId("decider-data-gaps-report");
+  await expect(report.getByRole("heading", { name: "Decider Data Gaps" })).toBeVisible();
+  await expect(report.locator("table")).toBeHidden();
+
+  const factorCard = report.getByTestId("decider-data-gap-category-card").filter({ hasText: "Factor scores" });
+  await expect(factorCard).toBeVisible();
+  await expect(factorCard).toContainText("Affected symbols");
+  await expect(factorCard).toContainText("005930");
+  await expect(factorCard).toContainText("Affected agents");
+  await expect(factorCard).toContainText("signal-decider");
+  await expect(factorCard).toContainText("Example flag/reason");
+  await expect(factorCard).toContainText("factor score missing");
+  await expect(factorCard).toContainText("Suggested owner/source");
+  await expect(factorCard).toContainText("Factor scoring pipeline");
+
+  const overflow = await report.evaluate((element) => {
+    const viewportWidth = window.innerWidth;
+    return Array.from(element.querySelectorAll<HTMLElement>("*"))
+      .filter((node) => {
+        const style = window.getComputedStyle(node);
+        if (style.display === "none" || style.visibility === "hidden") return false;
+        const rect = node.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return false;
+        return rect.left < -1 || rect.right > viewportWidth + 1;
+      })
+      .map((node) => ({
+        testId: node.getAttribute("data-testid"),
+        text: node.textContent?.trim().slice(0, 80) ?? "",
+      }));
+  });
+  expect(overflow).toEqual([]);
+
+  const bodyOverflow = await page.evaluate(() => document.body.scrollWidth - window.innerWidth);
+  expect(bodyOverflow).toBeLessThanOrEqual(1);
+});
+
 test("decider tabs preserve market date and filter context", async ({ page }) => {
   await mockDashboardShell(page);
 
