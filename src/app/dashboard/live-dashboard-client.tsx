@@ -1049,11 +1049,18 @@ function getProcessMonitorCurrentLabel(model: ProcessMonitorModel, copy: Dashboa
     return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
   }
 
+  if (
+    model.pipeline.hasLiveStatus &&
+    (model.pipeline.status !== "completed" || model.pipeline.completedCount < model.pipeline.totalCount)
+  ) {
+    return `${copy.processMonitor.current}: ${copy.processMonitor.noCurrentStage}`;
+  }
+
   if (model.currentGroupLabel && model.currentStepLabel) {
     return `${copy.processMonitor.current}: ${model.currentGroupLabel} · ${model.currentStepLabel}`;
   }
 
-  return copy.processMonitor.allComplete;
+  return model.status === "completed" ? copy.processMonitor.allComplete : `${copy.processMonitor.current}: ${model.statusLabel}`;
 }
 
 const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({

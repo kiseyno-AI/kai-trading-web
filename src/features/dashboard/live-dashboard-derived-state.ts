@@ -14,7 +14,10 @@ import {
   SHORT_TERM_DECIDER_AGENT_NAME,
   SIGNAL_DECIDER_AGENT_NAME,
 } from "@/lib/signal-decider-feedback";
-import { buildDailyPipelineTimelineModel } from "@/lib/eod-pipeline-status";
+import {
+  buildDailyPipelineTimelineModel,
+  type DailyPipelineTimelineModel,
+} from "@/lib/eod-pipeline-status";
 import {
   getPresenterStageDisplayLabel,
   getPresenterStageTone,
@@ -2189,6 +2192,37 @@ function buildProcessMonitorGroup(
   };
 }
 
+function getCanonicalPipelineProcessStatus(pipeline: DailyPipelineTimelineModel): ProcessMonitorStatus {
+  if (pipeline.status === "failed") return "error";
+  if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
+  if (pipeline.status === "running") return "running";
+  if (pipeline.status === "pending") return "pending";
+  if (pipeline.status === "completed" && pipeline.completedCount < pipeline.totalCount) return "partial";
+  return "completed";
+}
+
+function shouldUseCanonicalPipelineSummary(pipeline: DailyPipelineTimelineModel) {
+  if (!pipeline.hasLiveStatus) return false;
+  return getCanonicalPipelineProcessStatus(pipeline) !== "completed";
+}
+
+function getProcessMonitorStatusPriority(status: ProcessMonitorStatus) {
+  switch (status) {
+    case "error":
+      return 5;
+    case "retry":
+      return 4;
+    case "running":
+      return 3;
+    case "partial":
+      return 2;
+    case "pending":
+      return 1;
+    case "completed":
+      return 0;
+  }
+}
+
 export function buildProcessMonitorModel({
   agentRoleCards,
   copy,
@@ -2239,7 +2273,7 @@ export function buildProcessMonitorModel({
       numberLocale,
     ),
   ];
-  const status = getProcessMonitorAggregateStatus(groups.map((group) => ({
+  const groupedStatus = getProcessMonitorAggregateStatus(groups.map((group) => ({
     key: group.key,
     label: group.label,
     status: group.status,
@@ -2249,8 +2283,24 @@ export function buildProcessMonitorModel({
     metrics: [],
     note: null,
   } satisfies ProcessMonitorStep)));
-  const completedCount = groups.reduce((sum, group) => sum + group.completedCount, 0);
-  const totalCount = groups.reduce((sum, group) => sum + group.totalCount, 0);
+  const groupedCompletedCount = groups.reduce((sum, group) => sum + group.completedCount, 0);
+  const groupedTotalCount = groups.reduce((sum, group) => sum + group.totalCount, 0);
+  const canonicalPipelineStatus = getCanonicalPipelineProcessStatus(pipeline);
+  const useCanonicalPipelineSummary = shouldUseCanonicalPipelineSummary(pipeline);
+  const useCanonicalPipelineStatus =
+    useCanonicalPipelineSummary &&
+    getProcessMonitorStatusPriority(canonicalPipelineStatus) >= getProcessMonitorStatusPriority(groupedStatus);
+  const status = useCanonicalPipelineStatus ? canonicalPipelineStatus : groupedStatus;
+  const completedCount = useCanonicalPipelineSummary ? pipeline.completedCount : groupedCompletedCount;
+  const totalCount = useCanonicalPipelineSummary ? pipeline.totalCount : groupedTotalCount;
+  const progressLabel = useCanonicalPipelineSummary
+    ? pipeline.progressLabel
+    : buildProcessMonitorProgressLabel(completedCount, totalCount, numberLocale);
+  const progressPercent = useCanonicalPipelineSummary
+    ? pipeline.progressPercent
+    : totalCount > 0
+      ? clampAgentProgressPercent((completedCount / totalCount) * 100)
+      : 0;
   const currentGroup =
     groups.find((group) => group.status === "error") ??
     groups.find((group) => group.status === "retry") ??
@@ -2262,8 +2312,8 @@ export function buildProcessMonitorModel({
   return {
     status,
     statusLabel: getProcessMonitorStatusLabel(status, copy),
-    progressLabel: buildProcessMonitorProgressLabel(completedCount, totalCount, numberLocale),
-    progressPercent: totalCount > 0 ? clampAgentProgressPercent((completedCount / totalCount) * 100) : 0,
+    progressLabel,
+    progressPercent,
     completedCount,
     totalCount,
     patchDate: resolveNormalizedPresenterDate(patchDate),

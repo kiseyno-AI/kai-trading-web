@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { CANONICAL_EOD_PIPELINE_STAGE_ORDER } from "@/lib/eod-pipeline-status";
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 import { chromiumIPhone13 } from "./devices";
 
@@ -11,6 +12,7 @@ const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트
 const yesLabel = /Yes|예/;
 
 type FilteringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
+type MockPipelineStatus = "running" | "completed" | "partial";
 
 async function expectFilteringStageStatusIcon(stage: Locator, status: FilteringStageStatus, label: string) {
   await expect(stage).toHaveAttribute("data-filter-status", status);
@@ -78,7 +80,7 @@ function getOverlapArea(first: LayoutBox, second: LayoutBox) {
   return overlapWidth * overlapHeight;
 }
 
-async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () => "running" | "completed") {
+async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () => MockPipelineStatus) {
   const now = "2026-04-16T09:10:00+09:00";
 
   await page.route("**/api/trading/market/status", async (route) => {
@@ -174,72 +176,53 @@ async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () 
   });
   await page.route("**/api/trading/eod/pipeline/status**", async (route) => {
     const status = getPipelineStatus();
-    const actionStatus = status === "running" ? "running" : "completed";
-    const actionProcessed = status === "running" ? 1180 : 3200;
+    const partialCompletedStageKeys = new Set([
+      "master_refresh",
+      "pykrx_universe_refresh",
+      "price_collection",
+      "pykrx_enrichment",
+      "technical_snapshots",
+      "action_summaries",
+      "trending_ranks",
+      "signal_features",
+      "market_risk_filter",
+      "fundamentals_daily_refresh",
+      "piotroski_filter",
+      "momentum_factors",
+      "unified_value_factors",
+      "quality_factors",
+      "agent_feedback_summaries",
+    ]);
+    const stages = Object.fromEntries(
+      CANONICAL_EOD_PIPELINE_STAGE_ORDER.map((stageKey) => {
+        const isRunningAction = status === "running" && stageKey === "action_summaries";
+        const isCompleted =
+          status === "completed" ||
+          (status === "running" && CANONICAL_EOD_PIPELINE_STAGE_ORDER.indexOf(stageKey) < 5) ||
+          (status === "partial" && partialCompletedStageKeys.has(stageKey));
+
+        return [
+          stageKey,
+          {
+            status: isRunningAction ? "running" : isCompleted ? "completed" : "pending",
+            processed: isRunningAction ? 1180 : isCompleted ? 3200 : null,
+            total: isRunningAction || isCompleted ? 3200 : null,
+            failed: 0,
+            current_step: isRunningAction ? "build_symbol_summary" : null,
+            current_activity: isRunningAction ? "Rendering EOD summaries" : null,
+            current_symbol: isRunningAction ? "005930" : null,
+          },
+        ];
+      }),
+    );
 
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         market_date: "2026-04-16",
         status,
-        stage_order: [
-          "price_collection",
-          "technical_snapshots",
-          "action_summaries",
-          "trending_ranks",
-          "signal_features",
-          "fundamentals_daily_refresh",
-          "unified_value_scoring",
-          "quality_scoring",
-          "momentum_scoring",
-        ],
-        stages: {
-          price_collection: {
-            status: "completed",
-            processed: 3200,
-            total: 3200,
-            failed: 0,
-          },
-          technical_snapshots: {
-            status: "completed",
-            processed: 3200,
-            total: 3200,
-            failed: 0,
-          },
-          action_summaries: {
-            status: actionStatus,
-            processed: actionProcessed,
-            total: 3200,
-            failed: 0,
-            current_step: status === "running" ? "build_symbol_summary" : null,
-            current_activity: status === "running" ? "Rendering EOD summaries" : null,
-            current_symbol: status === "running" ? "005930" : null,
-          },
-          fundamentals_daily_refresh: {
-            status: "completed",
-            processed: 3200,
-            total: 3200,
-            failed: 0,
-          },
-          unified_value_scoring: {
-            status: "completed",
-            processed: 3200,
-            total: 3200,
-            failed: 0,
-          },
-          quality_scoring: {
-            status: "completed",
-            processed: 3200,
-            total: 3200,
-            failed: 0,
-          },
-          momentum_scoring: {
-            status: "completed",
-            processed: 3200,
-            total: 3200,
-            failed: 0,
-          },
-        },
+        stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+        stages,
       }),
     });
   });
@@ -543,6 +526,24 @@ test.describe("dashboard mobile chrome", () => {
     await expect(completedSummary).toBeVisible();
     await expect(completedSummary).toContainText(/\d+\s*\/\s*\d+/);
     await expect(processBar).toHaveAccessibleName(/\d+\s*\/\s*\d+/);
+  });
+
+  test("mobile process monitor trigger mirrors partial canonical pipeline counts", async ({ page }) => {
+    const pipelineStatus: MockPipelineStatus = "partial";
+    await mockDashboardProcessStatusApis(page, () => pipelineStatus);
+
+    await page.goto("/dashboard");
+
+    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
+    await expect(processBar).toContainText(/Partial|부분 완료/);
+    await expect(processBar).toContainText(/15\s*\/\s*24/);
+    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
+    await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
+    await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
   });
 
   test("expanded mobile process monitor keeps a single close arrow and dismisses from outside click", async ({ page }) => {

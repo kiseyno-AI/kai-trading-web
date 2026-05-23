@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
+import { CANONICAL_EOD_PIPELINE_STAGE_ORDER } from "@/lib/eod-pipeline-status";
 import {
   getDashboardProcessResolvedMarketDate,
   resolveDashboardProcessPipelineStatus,
@@ -13,6 +14,7 @@ import type {
   EodFreshnessStageDto,
   EodMarketRiskFiltersResponseDto,
   EodMomentumFactorsResponseDto,
+  EodPipelineStageDto,
   EodPipelineStatusResponseDto,
   EodPiotroskiFilterResultsResponseDto,
   EodValueFactorsResponseDto,
@@ -466,6 +468,19 @@ function buildPipelineStatus(overrides: Partial<EodPipelineStatusResponseDto> = 
     stage_order: ["price_collection", "technical_snapshots", "action_summaries", "fundamentals_daily_refresh"],
     stages: {},
     ...overrides,
+  };
+}
+
+function buildPipelineStageDto(
+  status: string,
+  processed: number | null = null,
+  total: number | null = null,
+): EodPipelineStageDto {
+  return {
+    status,
+    processed,
+    total,
+    failed: 0,
   };
 }
 
@@ -2428,6 +2443,180 @@ test("builds grouped daily process monitor state from patch, filter, scoring, an
   assert.equal(model.groups[2]?.status, "pending");
   assert.equal(model.groups[2]?.steps.find((step) => step.key === "unified-value")?.label, copy.scoring.stages.unifiedValue);
   assert.equal(model.groups[3]?.status, "running");
+});
+
+test("uses canonical pipeline progress when grouped process monitor rollup is complete but full pipeline is partial", () => {
+  const copy = getDashboardLiveCopy("en");
+  const completedPipelineStageKeys = new Set([
+    "master_refresh",
+    "pykrx_universe_refresh",
+    "price_collection",
+    "pykrx_enrichment",
+    "technical_snapshots",
+    "action_summaries",
+    "trending_ranks",
+    "signal_features",
+    "market_risk_filter",
+    "fundamentals_daily_refresh",
+    "piotroski_filter",
+    "momentum_factors",
+    "unified_value_factors",
+    "quality_factors",
+    "agent_feedback_summaries",
+  ]);
+  const pipelineStatus = buildPipelineStatus({
+    status: "partial",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    stages: Object.fromEntries(
+      CANONICAL_EOD_PIPELINE_STAGE_ORDER.map((stageKey) => {
+        const isCompleted = completedPipelineStageKeys.has(stageKey);
+        return [
+          stageKey,
+          buildPipelineStageDto(
+            isCompleted ? "completed" : "pending",
+            isCompleted ? 100 : null,
+            isCompleted ? 100 : null,
+          ),
+        ];
+      }),
+    ),
+  });
+  const completedFreshnessStage = {
+    status: "ready",
+    symbols_total: 100,
+    symbols_succeeded: 100,
+    symbols_failed: 0,
+  };
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      copy.stage.price,
+      completedFreshnessStage,
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      pipelineStatus.stages.price_collection,
+      copy,
+      "en-US",
+    ),
+    buildEodStageCard(
+      "technical",
+      copy.stage.technical,
+      completedFreshnessStage,
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      pipelineStatus.stages.technical_snapshots,
+      copy,
+      "en-US",
+    ),
+    buildEodStageCard(
+      "action",
+      copy.stage.action,
+      completedFreshnessStage,
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      pipelineStatus.stages.action_summaries,
+      copy,
+      "en-US",
+    ),
+    buildEodStageCard(
+      "fundamentals",
+      copy.stage.fundamentals,
+      completedFreshnessStage,
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      "2026-04-27",
+      false,
+      pipelineStatus.stages.fundamentals_daily_refresh,
+      copy,
+      "en-US",
+    ),
+  ];
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: {
+      market_date: "2026-04-27",
+      summary: {
+        entries: 100,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 90,
+        watchlist_count: 10,
+        failed_count: 0,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-04-27",
+    piotroskiStatus: {
+      market_date: "2026-04-27",
+      summary: {
+        entries: 100,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 40,
+        not_passed_count: 60,
+      },
+      items: [],
+    },
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "ready",
+  });
+  const completedScoringStage = {
+    displayMarketDate: "2026-04-27",
+    displayMarketDateLabel: "2026-04-27",
+    metrics: [{ key: "progress", label: copy.processMonitor.progress, value: "100 / 100" }],
+    note: null,
+    progressLabel: "100 / 100",
+    status: "completed" as const,
+    statusLabel: copy.scoring.statuses.completed,
+    statusTone: "positive" as const,
+  };
+  const scoringCardModel = {
+    stages: [
+      { ...completedScoringStage, key: "unified-value" as const, label: copy.scoring.stages.unifiedValue },
+      { ...completedScoringStage, key: "quality" as const, label: copy.scoring.stages.quality },
+      { ...completedScoringStage, key: "momentum" as const, label: copy.scoring.stages.momentum },
+    ],
+  };
+  const agentRoleCards = buildAgentRoleCards(
+    buildAgentFeedbackProgress({ marketDate: "2026-04-27", totalSymbols: 100 }),
+    copy,
+    "en-US",
+  );
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+    patchDate: "2026-04-27",
+    pipelineStatus,
+    scoringCardModel,
+  });
+
+  assert.deepEqual(model.groups.map((group) => group.status), ["completed", "completed", "completed", "completed"]);
+  assert.equal(model.pipeline.status, "partial");
+  assert.equal(model.pipeline.progressLabel, "15 / 24");
+  assert.equal(model.status, "partial");
+  assert.equal(model.statusLabel, copy.processMonitor.statuses.partial);
+  assert.equal(model.progressLabel, "15 / 24");
+  assert.equal(model.completedCount, 15);
+  assert.equal(model.totalCount, 24);
 });
 
 test("keeps the full daily process monitor completed from latest available data when today is empty", () => {
