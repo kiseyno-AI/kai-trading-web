@@ -382,6 +382,20 @@
   text-align: left;
 }
 
+.quickCardContent {
+  display: grid;
+  min-width: 0;
+  gap: 0.34rem;
+}
+
+.quickCardHeader {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .quickCard strong {
   display: block;
   color: var(--search-text-strong);
@@ -389,6 +403,33 @@
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.quickCardUnsupported {
+  border-color: rgba(244, 216, 127, 0.36);
+  background: rgba(18, 27, 38, 0.9);
+  cursor: default;
+}
+
+.quickCoverageBadge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  border: 1px solid rgba(244, 216, 127, 0.42);
+  border-radius: var(--radius-sm);
+  background: rgba(244, 216, 127, 0.12);
+  color: #f4d87f;
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.2;
+  padding: 0.18rem 0.38rem;
+}
+
+.quickCoverageBody {
+  margin-top: 0.08rem;
+  line-height: 1.35;
 }
 
 .favoriteDialogOverlay {

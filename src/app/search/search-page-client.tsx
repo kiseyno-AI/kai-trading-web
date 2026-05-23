@@ -34,6 +34,7 @@ import {
   normalizeSymbolMetaSeedValue,
 } from "@/lib/symbol-meta";
 import { getSearchSuggestionBadge } from "@/lib/search-suggestion-badge";
+import { hasSymbolDetailCoverage } from "@/lib/symbol-detail-coverage";
 import {
   getTradingApiJsonResult,
   invalidateTradingApiCacheByPathPrefix,
@@ -53,6 +54,7 @@ type SymbolSearchItem = {
   standard_code: string;
   name_ko: string;
   market: string;
+  instrument_type: string | null;
 };
 
 type SymbolSearchResponse = {
@@ -66,6 +68,7 @@ type FavoriteSymbolItem = {
   standard_code: string | null;
   name_ko: string | null;
   market: string | null;
+  instrument_type?: string | null;
 };
 
 type FavoriteSymbolsResponse = {
@@ -251,12 +254,14 @@ function normalizeSearchItem(item: {
   standard_code?: string | null;
   name_ko?: string | null;
   market?: string | null;
+  instrument_type?: string | null;
 }): SymbolSearchItem {
   return {
     symbol: normalizeSymbolCode(item.symbol),
     standard_code: normalizeSymbolMetaSeedValue(item.standard_code ?? ""),
     name_ko: normalizeSymbolMetaSeedValue(item.name_ko ?? item.symbol),
     market: normalizeSymbolMetaSeedValue(item.market ?? ""),
+    instrument_type: getForwardableSymbolMetaSeedValue(item.instrument_type ?? ""),
   };
 }
 
@@ -1028,19 +1033,45 @@ export default function SearchPageClient() {
             {favoriteListError ? (
               <PanelUnavailable message={favoriteListError} label={copy.status.unavailable} />
             ) : quickAccessItems.length > 0 ? (
-              quickAccessItems.map((item) => (
-                <button
-                  key={item.symbol}
-                  type="button"
-                  className={styles.quickCard}
-                  onClick={() => handleSelect(item, { navigate: true })}
-                >
-                  <span>
-                    <strong className="clamp-3">{item.symbol}</strong>
-                    <small className="clamp-3">{item.name_ko}</small>
-                  </span>
-                </button>
-              ))
+              quickAccessItems.map((item) => {
+                const isSymbolDetailCovered = hasSymbolDetailCoverage(item);
+
+                if (!isSymbolDetailCovered) {
+                  return (
+                    <article
+                      key={item.symbol}
+                      className={`${styles.quickCard} ${styles.quickCardUnsupported}`}
+                      role="group"
+                      aria-label={`${item.symbol} ${item.name_ko} ${copy.quickAccess.limitedCoverageLabel}: ${copy.quickAccess.limitedCoverageBody}`}
+                    >
+                      <span className={styles.quickCardContent}>
+                        <span className={styles.quickCardHeader}>
+                          <strong className="clamp-3">{item.symbol}</strong>
+                          <span className={styles.quickCoverageBadge}>{copy.quickAccess.limitedCoverageLabel}</span>
+                        </span>
+                        <small className="clamp-3">{item.name_ko}</small>
+                        <small className={`${styles.quickCoverageBody} clamp-3`}>
+                          {copy.quickAccess.limitedCoverageBody}
+                        </small>
+                      </span>
+                    </article>
+                  );
+                }
+
+                return (
+                  <button
+                    key={item.symbol}
+                    type="button"
+                    className={styles.quickCard}
+                    onClick={() => handleSelect(item, { navigate: true })}
+                  >
+                    <span className={styles.quickCardContent}>
+                      <strong className="clamp-3">{item.symbol}</strong>
+                      <small className="clamp-3">{item.name_ko}</small>
+                    </span>
+                  </button>
+                );
+              })
             ) : (
               <div className={styles.emptyState}>
                 <strong>{copy.quickAccess.emptyTitle}</strong>

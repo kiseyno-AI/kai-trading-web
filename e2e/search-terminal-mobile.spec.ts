@@ -1,8 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { chromiumIPhone13 } from "./devices";
 
 test.use(chromiumIPhone13);
+
+function getQuickAccessSection(page: Page) {
+  return page.locator("section", { has: page.getByRole("heading", { name: /Quick Access|빠른 접근/ }) }).first();
+}
 
 test.describe("search terminal mobile", () => {
   test("renders mobile terminal chrome and bottom tabs", async ({ page }) => {
@@ -95,6 +99,82 @@ test.describe("search terminal mobile", () => {
       },
     });
     await expect(page.getByRole("dialog", { name: /Save Symbol/i })).toBeVisible();
+  });
+
+  test("labels unsupported favorite coverage on mobile quick access without exposing a detail shortcut", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 1,
+          items: [
+            {
+              symbol: "F70100026",
+              standard_code: null,
+              name_ko: "한투글로벌넥스트웨이브1(A)",
+              market: "KOSPI",
+              instrument_type: "fund",
+              is_active: true,
+              sort_order: 0,
+              favorited_at: "2026-05-23T06:30:00+09:00",
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T16:00:00+09:00",
+          market: "KRX",
+          summary: {
+            item_count: 0,
+          },
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const quickSection = getQuickAccessSection(page);
+    const unsupportedFavorite = quickSection.getByRole("group", { name: /F70100026.*지원 제한/ });
+    await expect(unsupportedFavorite).toBeVisible();
+    await expect(unsupportedFavorite).toContainText("지원 제한");
+    await expect(unsupportedFavorite).toContainText("주식 상세 커버리지 밖");
+    await expect(quickSection.getByRole("button", { name: /F70100026/ })).toHaveCount(0);
+
+    const [cardBox, viewport] = await Promise.all([
+      unsupportedFavorite.boundingBox(),
+      page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })),
+    ]);
+    expect(cardBox).not.toBeNull();
+    expect(cardBox!.x).toBeGreaterThanOrEqual(0);
+    expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(viewport.width);
   });
 
   test("keeps Q1 autocomplete hidden for a blank search even if the endpoint has default matches", async ({ page }) => {
