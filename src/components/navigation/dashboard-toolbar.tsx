@@ -15,6 +15,7 @@ export type DashboardToolbarProps = {
   actions?: ReactNode;
   className?: string;
   leading?: ReactNode;
+  narrowLayout?: "wrap-actions";
   releaseTestId?: string | null;
   status?: ReactNode;
   subtitle?: ReactNode | null;
@@ -32,6 +33,7 @@ export function DashboardToolbar({
   actions,
   className,
   leading,
+  narrowLayout,
   releaseTestId = "dashboard-header-release",
   status,
   subtitle,
@@ -48,6 +50,7 @@ export function DashboardToolbar({
       className={cn(styles.toolbar, className)}
       data-dashboard-toolbar
       data-has-leading={leading ? "true" : "false"}
+      data-narrow-layout={narrowLayout}
     >
       <div className={styles.brandCluster}>
         {leading ? <div className={styles.leading}>{leading}</div> : null}

@@ -154,3 +154,31 @@
     gap: 0.35rem;
   }
 }
+
+@media (max-width: 380px) {
+  .toolbar[data-narrow-layout="wrap-actions"] {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: 0.45rem;
+  }
+
+  .toolbar[data-narrow-layout="wrap-actions"] .brandCluster {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .toolbar[data-narrow-layout="wrap-actions"] .actions {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+  }
+
+  .toolbar[data-narrow-layout="wrap-actions"] .statusPill {
+    min-width: 0;
+    max-width: calc(100% - 5rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

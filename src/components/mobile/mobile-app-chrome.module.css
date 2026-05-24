@@ -287,6 +287,18 @@
 }
 
 @media (max-width: 380px) {
+  .surface[data-mobile-toolbar-layout="wrap-actions"] .headerFrame {
+    padding-inline: 0.55rem;
+  }
+
+  .surface[data-mobile-toolbar-layout="wrap-actions"] .headerInner {
+    padding: 0.72rem 0.8rem;
+  }
+
+  .surface[data-mobile-toolbar-layout="wrap-actions"] .main {
+    padding-top: 7.1rem;
+  }
+
   .toolbarSupplementalStatus {
     display: none;
   }

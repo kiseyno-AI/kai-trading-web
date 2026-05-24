@@ -102,6 +102,7 @@ export function MobileAppChrome({
   const desktopRailFooter = <MobileAppChromeDesktopRailFooter />;
   const toolbarTitle = chrome.title ?? resolvedMetadata?.title;
   const toolbarAction = chrome.toolbarAction ?? resolvedMetadata?.toolbarAction ?? "none";
+  const narrowToolbarLayout = chrome.status && chrome.status.priority !== "supplemental" ? "wrap-actions" : undefined;
   const toolbarStatus = chrome.status ? (
     <DashboardToolbarStatus
       className={chrome.status.priority === "supplemental" ? styles.toolbarSupplementalStatus : undefined}
@@ -204,6 +205,7 @@ export function MobileAppChrome({
       className={styles.surface}
       data-mobile-bottom-accessory={bottomAccessory ? "present" : "absent"}
       data-mobile-meta-row={bottomMeta ? "visible" : "hidden"}
+      data-mobile-toolbar-layout={narrowToolbarLayout ?? "single-row"}
     >
       <div className={styles.glowPrimary} />
       <div className={styles.glowSecondary} />
@@ -250,6 +252,7 @@ export function MobileAppChrome({
           <DashboardToolbar
             actions={toolbarActions}
             leading={chrome.leading}
+            narrowLayout={narrowToolbarLayout}
             status={toolbarStatus}
             subtitle={chrome.subtitle}
             subtitleAriaLabel={chrome.subtitleAriaLabel}
