@@ -459,11 +459,13 @@ function getCompactActionMixLabel(actionCounts: Record<SignalDeciderAction, numb
 function getCalendarCellDisplaySnapshot({
   monthDecisionCount,
   monthLoadState,
+  selectedReadyDateInDisplayedMonth,
   selectedDisplayLoadState,
   snapshot,
 }: {
   monthDecisionCount: number;
   monthLoadState: MonthLoadState;
+  selectedReadyDateInDisplayedMonth: boolean;
   selectedDisplayLoadState: DetailLoadState;
   snapshot: CalendarDateSnapshot;
 }): CalendarDateSnapshot {
@@ -471,7 +473,8 @@ function getCalendarCellDisplaySnapshot({
     snapshot.status !== "loading" ||
     monthLoadState !== "partial" ||
     monthDecisionCount <= 0 ||
-    selectedDisplayLoadState !== "ready"
+    selectedDisplayLoadState !== "ready" ||
+    !selectedReadyDateInDisplayedMonth
   ) {
     return snapshot;
   }
@@ -1219,6 +1222,8 @@ export default function SignalReviewCalendarPageClient() {
         .reduce((sum, snapshot) => sum + snapshot.decisionCount, 0),
     [monthKey, monthSnapshots],
   );
+  const selectedReadyDateInDisplayedMonth =
+    selectedDate !== null && selectedDisplayLoadState === "ready" && getMonthKey(selectedDate) === monthKey;
 
   useEffect(() => {
     let active = true;
@@ -1296,6 +1301,7 @@ export default function SignalReviewCalendarPageClient() {
       ? getCalendarCellDisplaySnapshot({
           monthDecisionCount,
           monthLoadState,
+          selectedReadyDateInDisplayedMonth,
           selectedDisplayLoadState,
           snapshot: rawSnapshot,
         })
