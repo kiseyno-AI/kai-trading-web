@@ -24,14 +24,30 @@ async function expectFilteringStageStatusIcon(stage: Locator, status: FilteringS
 }
 
 async function openProcessMonitorDrawer(page: Page) {
-  const drawer = page.getByRole("dialog", { name: /Daily process monitor/i });
+  const drawer = page.getByRole("dialog", { name: /Daily process monitor|일별 프로세스 모니터/i });
   if (await drawer.isVisible().catch(() => false)) {
     return drawer;
   }
 
-  await page.getByRole("button", { name: /Open process monitor/i }).first().click();
+  await page.getByRole("button", { name: /Open process monitor|프로세스 모니터 열기/i }).first().click();
   await expect(drawer).toBeVisible();
   return drawer;
+}
+
+async function expectAllVisibleProcessMonitorTriggersMirrorCanonical(page: Page) {
+  const processBars = page.getByRole("button", { name: /Open process monitor|프로세스 모니터 열기/i });
+  const count = await processBars.count();
+  expect(count).toBeGreaterThan(0);
+
+  for (let index = 0; index < count; index += 1) {
+    const processBar = processBars.nth(index);
+    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
+    await expect(processBar).toHaveAttribute("data-process-summary-source", "canonical-pipeline");
+    await expect(processBar).toContainText(/Partial|부분 완료/);
+    await expect(processBar).toContainText(/15\s*\/\s*24/);
+    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+    await expect(processBar).not.toContainText(/14\s*\/\s*14/);
+  }
 }
 
 async function waitForProcessMonitorDrawerLayout(drawer: Locator) {
@@ -531,23 +547,20 @@ test.describe("dashboard mobile chrome", () => {
   test("mobile process monitor trigger mirrors partial canonical pipeline counts", async ({ page }) => {
     const pipelineStatus: MockPipelineStatus = "partial";
     await mockDashboardProcessStatusApis(page, () => pipelineStatus);
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
 
     await page.goto("/dashboard");
 
-    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
-    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
-    await expect(processBar).toContainText(/Partial|부분 완료/);
-    await expect(processBar).toContainText(/15\s*\/\s*24/);
-    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
-    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
-    await expect(processBar).toContainText(/15\s*\/\s*24/);
-    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
   });
 
   test("expanded mobile process monitor keeps a single close arrow and dismisses from outside click", async ({ page }) => {
@@ -1616,22 +1629,19 @@ test.describe("dashboard desktop process monitor canonical truth", () => {
   test("desktop process monitor trigger mirrors partial canonical pipeline counts", async ({ page }) => {
     const pipelineStatus: MockPipelineStatus = "partial";
     await mockDashboardProcessStatusApis(page, () => pipelineStatus);
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
 
     await page.goto("/dashboard");
 
-    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
-    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
-    await expect(processBar).toContainText(/Partial|부분 완료/);
-    await expect(processBar).toContainText(/15\s*\/\s*24/);
-    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
-    await expect(processBar).toHaveAttribute("data-process-monitor-status", "partial");
-    await expect(processBar).toContainText(/15\s*\/\s*24/);
-    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
   });
 });
