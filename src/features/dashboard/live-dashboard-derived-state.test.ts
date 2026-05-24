@@ -2615,6 +2615,7 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.equal(model.pipeline.currentStage, null);
   assert.equal(model.status, "partial");
   assert.equal(model.statusLabel, copy.processMonitor.statuses.partial);
+  assert.equal(model.summarySource, "canonical-pipeline");
   assert.equal(model.progressLabel, "15 / 24");
   assert.equal(model.completedCount, 15);
   assert.equal(model.totalCount, 24);
@@ -2647,6 +2648,7 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.equal(completedTopLevelModel.pipeline.status, "completed");
   assert.equal(completedTopLevelModel.status, "partial");
   assert.equal(completedTopLevelModel.statusLabel, copy.processMonitor.statuses.partial);
+  assert.equal(completedTopLevelModel.summarySource, "canonical-pipeline");
   assert.equal(completedTopLevelModel.progressLabel, "15 / 24");
 });
 

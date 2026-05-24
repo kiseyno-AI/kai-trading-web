@@ -2225,23 +2225,6 @@ function shouldUseCanonicalPipelineSummary(pipeline: DailyPipelineTimelineModel)
   );
 }
 
-function getProcessMonitorStatusPriority(status: ProcessMonitorStatus) {
-  switch (status) {
-    case "error":
-      return 5;
-    case "retry":
-      return 4;
-    case "running":
-      return 3;
-    case "partial":
-      return 2;
-    case "pending":
-      return 1;
-    case "completed":
-      return 0;
-  }
-}
-
 export function buildProcessMonitorModel({
   agentRoleCards,
   copy,
@@ -2306,10 +2289,7 @@ export function buildProcessMonitorModel({
   const groupedTotalCount = groups.reduce((sum, group) => sum + group.totalCount, 0);
   const canonicalPipelineStatus = getCanonicalPipelineProcessStatus(pipeline);
   const useCanonicalPipelineSummary = shouldUseCanonicalPipelineSummary(pipeline);
-  const useCanonicalPipelineStatus =
-    useCanonicalPipelineSummary &&
-    getProcessMonitorStatusPriority(canonicalPipelineStatus) >= getProcessMonitorStatusPriority(groupedStatus);
-  const status = useCanonicalPipelineStatus ? canonicalPipelineStatus : groupedStatus;
+  const status = useCanonicalPipelineSummary ? canonicalPipelineStatus : groupedStatus;
   const completedCount = useCanonicalPipelineSummary ? pipeline.completedCount : groupedCompletedCount;
   const totalCount = useCanonicalPipelineSummary ? pipeline.totalCount : groupedTotalCount;
   const progressLabel = useCanonicalPipelineSummary
@@ -2331,6 +2311,7 @@ export function buildProcessMonitorModel({
   return {
     status,
     statusLabel: getProcessMonitorStatusLabel(status, copy),
+    summarySource: useCanonicalPipelineSummary ? "canonical-pipeline" : "grouped-rollup",
     progressLabel,
     progressPercent,
     completedCount,

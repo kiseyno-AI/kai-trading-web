@@ -233,6 +233,7 @@ export type ProcessMonitorGroup = {
 export type ProcessMonitorModel = {
   status: ProcessMonitorStatus;
   statusLabel: string;
+  summarySource: "canonical-pipeline" | "grouped-rollup";
   progressLabel: string;
   progressPercent: number;
   completedCount: number;
