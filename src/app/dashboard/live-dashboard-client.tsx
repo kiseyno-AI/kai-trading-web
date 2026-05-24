@@ -98,6 +98,7 @@ import type {
   FundamentalsFailureDetails,
   LiveDashboardClientProps,
   ProcessMonitorModel,
+  ProcessMonitorStatus,
   ScoringCardModel,
   ScoringStageModel,
 } from "@/features/dashboard/live-dashboard-types";
@@ -1044,16 +1045,65 @@ type ProcessMonitorTriggerProps = {
   onOpen: () => void;
 };
 
-function getProcessMonitorTriggerSummary(model: ProcessMonitorModel) {
+type ProcessMonitorTriggerSummary = {
+  progressLabel: string;
+  source: ProcessMonitorModel["summarySource"];
+  status: ProcessMonitorStatus;
+  statusLabel: string;
+};
+
+function hasIncompleteCanonicalPipeline(pipeline: DailyPipelineTimelineModel) {
+  return (
+    pipeline.completedCount < pipeline.totalCount ||
+    pipeline.stages.some((stage) => stage.status !== "completed" && stage.status !== "skipped")
+  );
+}
+
+function getCanonicalPipelineProcessMonitorStatus(pipeline: DailyPipelineTimelineModel): ProcessMonitorStatus {
+  if (pipeline.status === "failed") return "error";
+  if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
+  if (pipeline.status === "running") return "running";
+  if (pipeline.status === "pending") {
+    return pipeline.completedCount > 0 && pipeline.completedCount < pipeline.totalCount ? "partial" : "pending";
+  }
+  if (pipeline.status === "completed" && hasIncompleteCanonicalPipeline(pipeline)) return "partial";
+  return "completed";
+}
+
+function shouldUseCanonicalPipelineTriggerSummary(model: ProcessMonitorModel) {
+  if (!model.pipeline.hasLiveStatus) return false;
+  const canonicalStatus = getCanonicalPipelineProcessMonitorStatus(model.pipeline);
+  return canonicalStatus !== "completed" || hasIncompleteCanonicalPipeline(model.pipeline);
+}
+
+function getProcessMonitorTriggerSummary(
+  model: ProcessMonitorModel,
+  copy: DashboardLiveCopy,
+): ProcessMonitorTriggerSummary {
+  if (shouldUseCanonicalPipelineTriggerSummary(model)) {
+    const status = getCanonicalPipelineProcessMonitorStatus(model.pipeline);
+    return {
+      progressLabel: model.pipeline.progressLabel,
+      source: "canonical-pipeline",
+      status,
+      statusLabel: copy.processMonitor.statuses[status],
+    };
+  }
+
   return {
     progressLabel: model.progressLabel,
+    source: model.summarySource,
     status: model.status,
     statusLabel: model.statusLabel,
   };
 }
 
-function getProcessMonitorCurrentLabel(model: ProcessMonitorModel, copy: DashboardLiveCopy) {
-  if (model.summarySource === "canonical-pipeline") {
+function getProcessMonitorCurrentLabel(
+  model: ProcessMonitorModel,
+  copy: DashboardLiveCopy,
+  triggerSummary: ProcessMonitorTriggerSummary,
+) {
+  if (triggerSummary.source === "canonical-pipeline") {
     if (model.pipeline.currentStage) {
       return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
     }
@@ -1065,7 +1115,9 @@ function getProcessMonitorCurrentLabel(model: ProcessMonitorModel, copy: Dashboa
     return `${copy.processMonitor.current}: ${model.currentGroupLabel} · ${model.currentStepLabel}`;
   }
 
-  return model.status === "completed" ? copy.processMonitor.allComplete : `${copy.processMonitor.current}: ${model.statusLabel}`;
+  return triggerSummary.status === "completed"
+    ? copy.processMonitor.allComplete
+    : `${copy.processMonitor.current}: ${triggerSummary.statusLabel}`;
 }
 
 const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
@@ -1075,8 +1127,8 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
   placement,
   onOpen,
 }: ProcessMonitorTriggerProps) {
-  const triggerSummary = getProcessMonitorTriggerSummary(model);
-  const currentLabel = getProcessMonitorCurrentLabel(model, copy);
+  const triggerSummary = getProcessMonitorTriggerSummary(model, copy);
+  const currentLabel = getProcessMonitorCurrentLabel(model, copy, triggerSummary);
   const showLoadingSummary = placement === "mobile" && triggerSummary.status === "running";
   const summaryLabel = showLoadingSummary ? triggerSummary.statusLabel : triggerSummary.progressLabel;
 
@@ -1087,6 +1139,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
         placement === "desktop" ? styles.processMonitorDesktopBar : styles.processMonitorMobileBar
       }`}
       data-process-monitor-status={triggerSummary.status}
+      data-process-summary-source={triggerSummary.source}
       aria-label={`${copy.processMonitor.open}: ${currentLabel} (${summaryLabel})`}
       aria-busy={showLoadingSummary || undefined}
       aria-haspopup="dialog"
