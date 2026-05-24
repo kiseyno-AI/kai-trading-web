@@ -10,6 +10,11 @@ import {
   type SymbolDetailNavContext,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
+import {
+  getLatestActionMarketDate,
+  getLatestPriceTradeDate,
+  getLatestTechnicalMarketDate,
+} from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
   getPresenterAvailabilityTone,
@@ -447,8 +452,9 @@ export function resolveSymbolDetailLatestStoredMarketDate(freshness: EodFreshnes
   const latestStages = latest?.stage_details ?? latest?.stageDetails ?? latest?.stages ?? null;
 
   const priceBasis = pickFirstIsoDate([
-    latest?.price_trade_date,
+    getLatestPriceTradeDate(freshness),
     freshness?.price?.latest_date,
+    latest?.price_trade_date,
     readFreshnessRecordDate(latest?.price),
     readFreshnessRecordDate(latestStages?.price),
     readFreshnessRecordDate(latestStages?.price_collection),
@@ -459,15 +465,17 @@ export function resolveSymbolDetailLatestStoredMarketDate(freshness: EodFreshnes
   }
 
   return pickFirstIsoDate([
-    latest?.technical_market_date,
+    getLatestTechnicalMarketDate(freshness),
     freshness?.technical?.latest_date,
+    latest?.technical_market_date,
     readFreshnessRecordDate(latest?.technical),
     readFreshnessRecordDate(latest?.technical_analysis),
     readFreshnessRecordDate(latestStages?.technical),
     readFreshnessRecordDate(latestStages?.technical_analysis),
     readFreshnessRecordDate(latestStages?.technical_snapshots),
-    latest?.action_market_date,
+    getLatestActionMarketDate(freshness),
     freshness?.action?.latest_date,
+    latest?.action_market_date,
     readFreshnessRecordDate(latest?.action),
     readFreshnessRecordDate(latest?.action_summary),
     readFreshnessRecordDate(latestStages?.action),
@@ -845,6 +853,7 @@ export function buildTechnicalFreshnessDate(
   return resolvePresenterDate(
     technicalSnapshot?.market_date,
     freshness?.technical?.latest_date,
+    getLatestTechnicalMarketDate(freshness),
     freshness?.latest?.technical_market_date,
   );
 }
@@ -853,7 +862,12 @@ export function buildActionFreshnessDate(
   actionSummary: AgentContextActionSummaryDto | null,
   freshness: EodFreshnessResponseDto | null,
 ) {
-  return resolvePresenterDate(actionSummary?.market_date, freshness?.latest?.action_market_date);
+  return resolvePresenterDate(
+    actionSummary?.market_date,
+    freshness?.action?.latest_date,
+    getLatestActionMarketDate(freshness),
+    freshness?.latest?.action_market_date,
+  );
 }
 
 function clampSignalScore(score: number | null | undefined) {
@@ -1547,7 +1561,7 @@ export function buildLatestPriceLabel(
   quote: QuoteResponse | null,
   copy: SymbolDetailCopy,
 ) {
-  return resolvePresenterDate(freshness?.latest?.price_trade_date, quote?.trade_date)
+  return resolvePresenterDate(getLatestPriceTradeDate(freshness), freshness?.price?.latest_date, quote?.trade_date)
     ?? formatDisplayTimestamp(quote?.cached_at, copy.hero.quotePending);
 }
 
