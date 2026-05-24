@@ -1726,6 +1726,48 @@ test("signal review calendar clears global loading once stored month data is ava
   await expect(emptyNeighborCell).toContainText("No rows");
 });
 
+test("signal review calendar settles unresolved past cells after stored selected rows render in partial coverage", async ({
+  page,
+}) => {
+  const delayedHistoricalDateFetch = createDeferred();
+  try {
+    await mockSignalReviewCalendar(page, {
+      denseFeedbackDates: {
+        "2026-05-22": 118,
+      },
+      forceCalendarSummaryFailure: true,
+      feedbackDelays: {
+        "2026-05-01": delayedHistoricalDateFetch.promise,
+      },
+    });
+
+    await page.goto("/calendar?date=2026-05-22");
+    await page.getByRole("button", { name: /Korean/i }).click();
+
+    await expect(page.getByText("월간 커버리지가 부분적으로 로드됨")).toBeVisible();
+    await expect(page.getByText("118 월간 결정")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "2026-05-22" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveAttribute(
+      "href",
+      /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-22/,
+    );
+
+    const delayedPastCell = page.getByRole("button", { name: /2026-05-01/ });
+    await expect(
+      delayedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
+    ).toHaveText("부분");
+    await expect(
+      delayedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
+    ).toHaveText("부분");
+    await expect(
+      delayedPastCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
+    ).toHaveText("--");
+    await expect(delayedPastCell).not.toContainText("로딩 중");
+  } finally {
+    delayedHistoricalDateFetch.resolve();
+  }
+});
+
 test("signal review calendar separates pending replay state from available rationale and diagnostic risks", async ({
   page,
 }) => {

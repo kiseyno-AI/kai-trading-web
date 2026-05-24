@@ -456,6 +456,66 @@ function getCompactActionMixLabel(actionCounts: Record<SignalDeciderAction, numb
   return `${COMPACT_ACTION_LABELS[locale][primaryAction]}${additionalActionsLabel}`;
 }
 
+function getCalendarCellDisplaySnapshot({
+  monthDecisionCount,
+  monthLoadState,
+  selectedDisplayLoadState,
+  snapshot,
+}: {
+  monthDecisionCount: number;
+  monthLoadState: MonthLoadState;
+  selectedDisplayLoadState: DetailLoadState;
+  snapshot: CalendarDateSnapshot;
+}): CalendarDateSnapshot {
+  if (
+    snapshot.status !== "loading" ||
+    monthLoadState !== "partial" ||
+    monthDecisionCount <= 0 ||
+    selectedDisplayLoadState !== "ready"
+  ) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    status: "partial",
+  };
+}
+
+function getCalendarCellDecisionLabel(
+  snapshot: CalendarDateSnapshot,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  if (snapshot.decisionCount > 0) {
+    return `${snapshot.decisionCount} ${copy.labels.decisions}`;
+  }
+
+  if (snapshot.status === "empty") return copy.status.empty;
+  if (snapshot.status === "loading") return copy.status.pending;
+  return getStatusLabel(snapshot.status, copy);
+}
+
+function getCompactCalendarCellDecisionLabel(snapshot: CalendarDateSnapshot) {
+  if (snapshot.decisionCount > 0) return formatCompactCalendarNumber(snapshot.decisionCount);
+  if (snapshot.status === "empty") return "0";
+  if (snapshot.status === "loading") return "...";
+  return "--";
+}
+
+function getCalendarCellActionMixLabel(
+  snapshot: CalendarDateSnapshot,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  if (snapshot.decisionCount > 0) return getActionMixLabel(snapshot.actionCounts, copy);
+  if (snapshot.status === "empty") return copy.status.empty;
+  return getStatusLabel(snapshot.status, copy);
+}
+
+function getCompactCalendarCellActionMixLabel(snapshot: CalendarDateSnapshot, locale: Locale) {
+  if (snapshot.decisionCount > 0) return getCompactActionMixLabel(snapshot.actionCounts, locale);
+  return getCompactStatusLabel(snapshot.status, locale);
+}
+
 function getStatusToneClass(status: DateSnapshotStatus | SignalDeciderFeedbackStatus) {
   if (status === "reviewed" || status === "completed") return styles.positiveTone;
   if (status === "partial" || status === "needs-review" || status === "stored") return styles.warningTone;
@@ -1160,6 +1220,57 @@ export default function SignalReviewCalendarPageClient() {
     [monthKey, monthSnapshots],
   );
 
+  useEffect(() => {
+    let active = true;
+
+    queueMicrotask(() => {
+      if (!active) return;
+
+      const monthDays = calendarDays.filter((day) => day.inMonth && !day.isFuture);
+      const nextMonthLoadState = getMonthLoadStateFromSnapshots({
+        monthDays,
+        snapshots: monthSnapshots,
+      });
+      setMonthLoadState((current) => (current === nextMonthLoadState ? current : nextMonthLoadState));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [calendarDays, monthSnapshots]);
+
+  useEffect(() => {
+    if (!selectedDate || selectedDisplayLoadState !== "ready" || getMonthKey(selectedDate) !== monthKey) return;
+
+    let active = true;
+
+    queueMicrotask(() => {
+      if (!active) return;
+
+      const selectedSnapshot = buildDateSnapshot(selectedDate, selectedFeedback);
+      setMonthSnapshots((current) => {
+        const currentSnapshot = current[selectedDate];
+        if (
+          currentSnapshot &&
+          currentSnapshot.status !== "loading" &&
+          currentSnapshot.status !== "unavailable" &&
+          currentSnapshot.decisionCount >= selectedSnapshot.decisionCount
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [selectedDate]: selectedSnapshot,
+        };
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [monthKey, selectedDate, selectedDisplayLoadState, selectedFeedback]);
+
   function handleSelectDate(dateKey: string) {
     setSelectedDate(dateKey);
     setMonthKey(getMonthKey(dateKey));
@@ -1171,9 +1282,9 @@ export default function SignalReviewCalendarPageClient() {
   }
 
   function renderCalendarCell(day: CalendarDay) {
-    const snapshot = day.inMonth
+    const rawSnapshot = day.inMonth
       ? monthSnapshots[day.dateKey] ?? {
-          actionCounts: { buy: 0, wait: 0, reject: 0, unknown: 0 },
+          actionCounts: { ...EMPTY_ACTION_COUNTS },
           dateKey: day.dateKey,
           decisionCount: 0,
           error: null,
@@ -1181,22 +1292,22 @@ export default function SignalReviewCalendarPageClient() {
           status: day.isFuture ? "future" : "loading",
         }
       : null;
+    const snapshot = rawSnapshot
+      ? getCalendarCellDisplaySnapshot({
+          monthDecisionCount,
+          monthLoadState,
+          selectedDisplayLoadState,
+          snapshot: rawSnapshot,
+        })
+      : null;
     const active = day.dateKey === selectedDate;
     const disabled = !day.inMonth || day.isFuture;
     const statusLabel = snapshot ? getStatusLabel(snapshot.status, copy) : "";
-    const decisionLabel = snapshot
-      ? snapshot.decisionCount > 0
-        ? `${snapshot.decisionCount} ${copy.labels.decisions}`
-        : copy.status.empty
-      : "";
-    const actionMixLabel = snapshot
-      ? snapshot.decisionCount > 0
-        ? getActionMixLabel(snapshot.actionCounts, copy)
-        : copy.status.pending
-      : "";
+    const decisionLabel = snapshot ? getCalendarCellDecisionLabel(snapshot, copy) : "";
+    const actionMixLabel = snapshot ? getCalendarCellActionMixLabel(snapshot, copy) : "";
     const compactStatusLabel = snapshot ? getCompactStatusLabel(snapshot.status, locale) : "";
-    const compactDecisionLabel = snapshot ? formatCompactCalendarNumber(snapshot.decisionCount) : "";
-    const compactActionMixLabel = snapshot ? getCompactActionMixLabel(snapshot.actionCounts, locale) : "";
+    const compactDecisionLabel = snapshot ? getCompactCalendarCellDecisionLabel(snapshot) : "";
+    const compactActionMixLabel = snapshot ? getCompactCalendarCellActionMixLabel(snapshot, locale) : "";
     const ariaLabel = [day.dateKey, statusLabel, decisionLabel, actionMixLabel].filter(Boolean).join(" ");
 
     return (
