@@ -1015,12 +1015,25 @@ test.describe("search terminal mobile", () => {
   });
 
   test("uses latest stored market date when Search opens a supported equity on a weekend", async ({ page }) => {
+    const latestDate = "2026-05-22";
+    const weekendDate = "2026-05-24";
+
     await page.addInitScript(() => {
       window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
     });
-
-    const latestDate = "2026-05-22";
-    const weekendDate = "2026-05-23";
+    await page.addInitScript((fixedNowIso) => {
+      const fixedNow = new Date(fixedNowIso).valueOf();
+      const RealDate = Date;
+      window.Date = new Proxy(RealDate, {
+        apply(target, thisArg, args) {
+          return args.length === 0 ? new target(fixedNow).toString() : Reflect.apply(target, thisArg, args);
+        },
+        construct(target, args) {
+          return args.length === 0 ? new target(fixedNow) : Reflect.construct(target, args);
+        },
+      }) as DateConstructor;
+      Date.now = () => fixedNow;
+    }, `${weekendDate}T12:30:00+09:00`);
     const priceBarEndDates: Array<string | null> = [];
     const factorMarketDates: Array<string | null> = [];
 
@@ -1128,21 +1141,23 @@ test.describe("search terminal mobile", () => {
             symbols_failed: 0,
           },
           latest: {
-            price_trade_date: latestDate,
-            technical_market_date: latestDate,
-            action_market_date: latestDate,
-          },
-          price: {
-            success: true,
-            latest_date: latestDate,
-          },
-          technical: {
-            success: true,
-            latest_date: latestDate,
-          },
-          action: {
-            success: true,
-            latest_date: latestDate,
+            stages: {
+              price: {
+                summary: {
+                  price_trade_date: latestDate,
+                },
+              },
+              technical_snapshots: {
+                summary: {
+                  market_date: latestDate,
+                },
+              },
+              action_summaries: {
+                summary: {
+                  market_date: latestDate,
+                },
+              },
+            },
           },
         },
       });
@@ -1503,11 +1518,14 @@ test.describe("search terminal mobile", () => {
 
     await Promise.all([page.waitForURL(/\/dashboard\/symbol\/005930/), resultCard.click()]);
 
-    await expect(page.getByText("최신 저장 기준일 2026-05-22 · 현재 2026-05-23 휴장").first()).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930/);
+    expect(new URL(page.url()).searchParams.get("marketDate")).toBeNull();
+    await expect(page.getByText("최신 저장 기준일 2026-05-22 · 현재 2026-05-24 휴장").first()).toBeVisible();
     await expect(page.getByRole("img", { name: /Historical candlestick chart for 005930/i })).toBeVisible();
     await expect(page.locator("#factor-snapshot")).toContainText("5 / 5 팩터 준비됨");
     await expect(page.locator("#factor-snapshot")).toContainText("적용 기준일");
     await expect(page.locator("#factor-snapshot")).toContainText("2026.05.22");
+    await expect(page.locator("#freshness")).toContainText("2026-05-22");
     expect(priceBarEndDates).toContain(latestDate);
     expect(priceBarEndDates).not.toContain(weekendDate);
     expect(factorMarketDates.length).toBeGreaterThanOrEqual(5);

@@ -228,6 +228,60 @@ test("falls back to layer-specific latest dates and labels non-trading latest-st
   );
 });
 
+test("resolves implicit symbol-detail basis from nested latest freshness stage summaries", () => {
+  const koCopy = getSymbolDetailCopy("ko");
+  const freshness = {
+    today: {
+      trade_date: "2026-05-24",
+      eod_status: "pending",
+    },
+    latest: {
+      stages: {
+        price: {
+          summary: {
+            price_trade_date: "2026-05-22",
+          },
+        },
+        technical_snapshots: {
+          summary: {
+            market_date: "2026-05-22",
+          },
+        },
+        action_summaries: {
+          summary: {
+            market_date: "2026-05-22",
+          },
+        },
+      },
+    },
+  };
+
+  assert.equal(resolveSymbolDetailLatestStoredMarketDate(freshness), "2026-05-22");
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness,
+      quoteTradeDate: null,
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-05-22",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness,
+      quoteTradeDate: null,
+      requestedMarketDate: "2026-05-24",
+      waitForFreshness: false,
+    }),
+    "2026-05-24",
+  );
+  assert.equal(buildLatestPriceLabel(freshness, null, koCopy), "2026-05-22");
+  assert.equal(buildTechnicalFreshnessDate(null, freshness), "2026-05-22");
+  assert.equal(buildActionFreshnessDate(null, freshness), "2026-05-22");
+});
+
 test("formats focus candle turnover only when the selected bar has confirmed turnover semantics", () => {
   const enCopy = getSymbolDetailCopy("en");
   const koCopy = getSymbolDetailCopy("ko");
