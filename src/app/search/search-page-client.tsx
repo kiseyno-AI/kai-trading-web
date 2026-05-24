@@ -771,6 +771,11 @@ export default function SearchPageClient() {
   const favoriteInputItem = favoriteSymbolCandidate ? getValidatedFavoriteItem(favoriteSymbolCandidate) : null;
   const canAddFavorite = favoriteInputItem !== null && favoriteSavingSymbol === null;
   const quickAccessItems = favoriteItems;
+  const quickAccessStatusText = favoriteListError
+    ? copy.status.unavailable
+    : favoriteItems.length > 0
+      ? copy.quickAccess.coreFavorites
+      : copy.quickAccess.noFavorites;
   const selectedTrendingTab = trendingTabs.find((tab) => tab.mode === trendingMode) ?? trendingTabs[0];
   const canShowMoreTrending = trendingItems.length > 0 && trendingResultCount >= trendingVisibleLimit && !trendingLoading;
   const marketBadgeLabel =
@@ -1008,6 +1013,7 @@ export default function SearchPageClient() {
                 ref={favoriteOpenButtonRef}
                 type="button"
                 className={styles.quickAccessAddButton}
+                data-testid="quick-access-favorite-add"
                 onClick={handleOpenFavoriteDialog}
                 disabled={favoriteSavingSymbol !== null}
                 aria-label={copy.quickAccess.openFavoriteSearch}
@@ -1020,11 +1026,7 @@ export default function SearchPageClient() {
                   +
                 </span>
                 <span id={QUICK_ACCESS_STATUS_ID} className={styles.quickAccessAddText}>
-                  {favoriteListError
-                    ? copy.status.unavailable
-                    : favoriteItems.length > 0
-                      ? copy.quickAccess.coreFavorites
-                      : copy.quickAccess.noFavorites}
+                  {quickAccessStatusText}
                 </span>
               </button>
             </div>

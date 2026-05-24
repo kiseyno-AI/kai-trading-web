@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { chromiumIPhone13 } from "./devices";
 
@@ -6,6 +6,19 @@ test.use(chromiumIPhone13);
 
 function getQuickAccessSection(page: Page) {
   return page.locator("section", { has: page.getByRole("heading", { name: /Quick Access|빠른 접근/ }) }).first();
+}
+
+async function expectMinimumTargetSize(locator: Locator, minimumSize = 44) {
+  const box = await locator.boundingBox();
+
+  if (!box) {
+    throw new Error("Expected quick-access add control to have a rendered bounding box");
+  }
+
+  expect(box.width).toBeGreaterThanOrEqual(minimumSize);
+  expect(box.height).toBeGreaterThanOrEqual(minimumSize);
+
+  return box;
 }
 
 test.describe("search terminal mobile", () => {
@@ -27,6 +40,9 @@ test.describe("search terminal mobile", () => {
   });
 
   test("keeps the quick-access favorite add control easy to tap and keyboard reachable", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({
         json: {
@@ -56,20 +72,17 @@ test.describe("search terminal mobile", () => {
 
     await page.goto("/search");
 
-    const quickSection = page.locator("section", { has: page.getByRole("heading", { name: "Quick Access" }) }).first();
-    const addControl = quickSection.getByRole("button", { name: /Open favorite search/i });
-    await expect(addControl).toContainText(/No favorites/i);
-    await expect(addControl).toHaveAccessibleName("Open favorite search");
-    await expect(addControl).toHaveAccessibleDescription("No favorites");
+    const quickSection = getQuickAccessSection(page);
+    const addControl = quickSection.getByRole("button", { name: "즐겨찾기 검색 열기" });
+    await expect(addControl).toContainText(/즐겨찾기 없음/i);
+    await expect(addControl).toHaveAccessibleName("즐겨찾기 검색 열기");
+    await expect(addControl).toHaveAccessibleDescription("즐겨찾기 없음");
     await expect(addControl).toHaveAttribute("aria-describedby", "quick-access-status");
-    await expect(page.locator("#quick-access-status")).toHaveText("No favorites");
+    await expect(page.locator("#quick-access-status")).toHaveText("즐겨찾기 없음");
 
-    const addControlBox = await addControl.boundingBox();
-    expect(addControlBox).not.toBeNull();
-    expect(addControlBox!.width).toBeGreaterThanOrEqual(44);
-    expect(addControlBox!.height).toBeGreaterThanOrEqual(44);
+    const addControlBox = await expectMinimumTargetSize(addControl);
 
-    await page.getByLabel(/Search markets, symbols, or analysis/i).focus();
+    await page.getByLabel(/마켓, 종목 또는 분석 검색/i).focus();
     await page.keyboard.press("Tab");
     await expect(addControl).toBeFocused();
 
@@ -85,20 +98,20 @@ test.describe("search terminal mobile", () => {
     expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
 
     await page.keyboard.press("Enter");
-    const dialog = page.getByRole("dialog", { name: /Save Symbol/i });
+    const dialog = page.getByRole("dialog", { name: /종목 저장/i });
     await expect(dialog).toBeVisible();
-    await expect(page.getByLabel(/Favorite symbol search/i)).toBeFocused();
+    await expect(page.getByLabel(/즐겨찾기 종목 검색/i)).toBeFocused();
 
-    await page.getByRole("button", { name: /Close favorite search/i }).click();
+    await page.getByRole("button", { name: /즐겨찾기 검색 닫기/i }).click();
     await expect(dialog).toHaveCount(0);
 
     await addControl.click({
       position: {
-        x: Math.max(addControlBox!.width - 8, 1),
-        y: addControlBox!.height / 2,
+        x: Math.max(addControlBox.width - 8, 1),
+        y: addControlBox.height / 2,
       },
     });
-    await expect(page.getByRole("dialog", { name: /Save Symbol/i })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: /종목 저장/i })).toBeVisible();
   });
 
   test("labels unsupported favorite coverage on mobile quick access without exposing a detail shortcut", async ({
