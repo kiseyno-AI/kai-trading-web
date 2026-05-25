@@ -1070,17 +1070,11 @@ function getCanonicalPipelineProcessMonitorStatus(pipeline: DailyPipelineTimelin
   return "completed";
 }
 
-function shouldUseCanonicalPipelineTriggerSummary(model: ProcessMonitorModel) {
-  if (!model.pipeline.hasLiveStatus) return false;
-  const canonicalStatus = getCanonicalPipelineProcessMonitorStatus(model.pipeline);
-  return canonicalStatus !== "completed" || hasIncompleteCanonicalPipeline(model.pipeline);
-}
-
 function getProcessMonitorTriggerSummary(
   model: ProcessMonitorModel,
   copy: DashboardLiveCopy,
 ): ProcessMonitorTriggerSummary {
-  if (shouldUseCanonicalPipelineTriggerSummary(model)) {
+  if (model.pipeline.hasLiveStatus) {
     const status = getCanonicalPipelineProcessMonitorStatus(model.pipeline);
     return {
       progressLabel: model.pipeline.progressLabel,
@@ -1106,6 +1100,10 @@ function getProcessMonitorCurrentLabel(
   if (triggerSummary.source === "canonical-pipeline") {
     if (model.pipeline.currentStage) {
       return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
+    }
+
+    if (triggerSummary.status === "completed") {
+      return `${copy.processMonitor.fullPipelineEyebrow}: ${triggerSummary.statusLabel}`;
     }
 
     return `${copy.processMonitor.current}: ${copy.processMonitor.noCurrentStage}`;
