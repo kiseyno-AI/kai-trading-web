@@ -4,7 +4,11 @@ import { useAppState } from "@/components/providers/app-state-provider";
 
 import styles from "./dev-mode-toggle.module.css";
 
-export function DevModeToggle() {
+type DevModeToggleProps = {
+  tabIndex?: number;
+};
+
+export function DevModeToggle({ tabIndex }: DevModeToggleProps) {
   const { devMode, setDevMode, t } = useAppState();
 
   return (
@@ -12,6 +16,7 @@ export function DevModeToggle() {
       type="button"
       className={`${styles.toggle} ${devMode ? styles.active : ""}`.trim()}
       aria-pressed={devMode}
+      tabIndex={tabIndex}
       onClick={() => setDevMode(!devMode)}
     >
       {devMode ? t.common.tagsOn : t.common.tagsOff}

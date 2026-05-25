@@ -1,6 +1,6 @@
 .desktopBreadcrumb,
 .sectionHeader h2,
-.sectionHeader span,
+.sectionHeader > span,
 .desktopResultsHeader h2,
 .desktopResultsHeader button,
 .resultsTable th,
@@ -202,8 +202,8 @@
   letter-spacing: 0.14em;
 }
 
-.sectionHeader span,
-.sectionHeader button {
+.sectionHeader > span,
+.sectionHeader > button {
   border: 0;
   background: transparent;
   color: var(--search-text-meta);
@@ -218,9 +218,10 @@
   cursor: pointer;
 }
 
-.quickAccessAddButton {
+.sectionHeader .quickAccessAddButton {
   box-sizing: border-box;
   display: inline-flex;
+  flex: 0 0 auto;
   min-inline-size: 2.75rem;
   min-block-size: 2.75rem;
   align-items: center;
@@ -240,22 +241,22 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.quickAccessAddButton:hover {
+.sectionHeader .quickAccessAddButton:hover {
   border-color: var(--outline-strong);
   background: var(--surface);
   box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.12);
 }
 
-.quickAccessAddButton:focus-visible {
+.sectionHeader .quickAccessAddButton:focus-visible {
   outline: 2px solid rgba(88, 139, 255, 0.88);
   outline-offset: 2px;
 }
 
-.quickAccessAddButton:active {
+.sectionHeader .quickAccessAddButton:active {
   transform: translateY(1px);
 }
 
-.quickAccessAddGlyph {
+.sectionHeader .quickAccessAddGlyph {
   display: grid;
   inline-size: 1.75rem;
   block-size: 1.75rem;
@@ -270,7 +271,7 @@
   line-height: 1;
 }
 
-.quickAccessAddText {
+.sectionHeader .quickAccessAddText {
   min-width: 0;
   color: inherit;
   line-height: 1.15;

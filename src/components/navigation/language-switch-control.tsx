@@ -7,6 +7,7 @@ import type { Locale } from "@/types/trading-api";
 import styles from "./language-switch-control.module.css";
 
 type LanguageSwitchControlProps = {
+  buttonTabIndex?: number;
   className?: string;
   testId?: string;
   variant?: "compact" | "topbar";
@@ -14,7 +15,12 @@ type LanguageSwitchControlProps = {
 
 const localeOptions = ["en", "ko"] as const satisfies readonly Locale[];
 
-export function LanguageSwitchControl({ className, testId, variant = "compact" }: LanguageSwitchControlProps) {
+export function LanguageSwitchControl({
+  buttonTabIndex,
+  className,
+  testId,
+  variant = "compact",
+}: LanguageSwitchControlProps) {
   const { locale, setLocale, t } = useAppState();
 
   return (
@@ -35,6 +41,7 @@ export function LanguageSwitchControl({ className, testId, variant = "compact" }
           )}
           aria-pressed={locale === option}
           aria-label={option === "en" ? t.common.languageEnglish : t.common.languageKorean}
+          tabIndex={buttonTabIndex}
           onClick={() => setLocale(option)}
         >
           {t.languages[option].short}

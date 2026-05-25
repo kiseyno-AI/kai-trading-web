@@ -17,6 +17,20 @@ async function expectMinimumTargetSize(locator: Locator, minimumSize = 44) {
   return box;
 }
 
+async function expectVisibleAffordance(locator: Locator) {
+  const styles = await locator.evaluate((element) => {
+    const computedStyles = window.getComputedStyle(element);
+
+    return {
+      backgroundColor: computedStyles.backgroundColor,
+      borderWidth: Number.parseFloat(computedStyles.borderTopWidth),
+    };
+  });
+
+  expect(styles.borderWidth).toBeGreaterThanOrEqual(1);
+  expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+}
+
 test.describe("search terminal desktop", () => {
   test("renders the Stitch centered terminal layout", async ({ page }) => {
     await page.goto("/search");
@@ -63,6 +77,7 @@ test.describe("search terminal desktop", () => {
     const addControl = getQuickAccessSection(page).getByRole("button", { name: /Open favorite search/i });
     await expect(addControl).toHaveAccessibleDescription("No favorites");
     await expectMinimumTargetSize(addControl);
+    await expectVisibleAffordance(addControl);
 
     await addControl.focus();
     const focusStyle = await addControl.evaluate((element) => {
