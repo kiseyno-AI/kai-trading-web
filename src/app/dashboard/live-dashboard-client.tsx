@@ -75,6 +75,7 @@ import {
   getTechnicalFreshnessStage,
   getActionFreshnessStage,
   getFundamentalsFreshnessStage,
+  hasLivePipelineRunningState,
   hasCompletedDefaultAgentRoles,
   isAgentFeedbackProgressRunning,
   isBreakDayMarket,
@@ -106,7 +107,6 @@ import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-da
 import type {
   AgentContextCoreControlRequestDto,
   AgentContextCoreControlResponseDto,
-  EodPipelineStatusResponseDto,
 } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
@@ -121,16 +121,6 @@ const AGENT_FEEDBACK_STOP_REQUEST = {
   signal_name: "SIGKILL",
   port: 8000,
 } satisfies AgentContextCoreControlRequestDto;
-
-function isRunningStatus(value: string | null | undefined) {
-  return value?.trim().toLowerCase() === "running";
-}
-
-function hasLivePipelineRunningState(pipelineStatus: EodPipelineStatusResponseDto | null) {
-  if (!pipelineStatus) return false;
-  if (isRunningStatus(pipelineStatus.status)) return true;
-  return Object.values(pipelineStatus.stages ?? {}).some((stage) => isRunningStatus(stage?.status));
-}
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {

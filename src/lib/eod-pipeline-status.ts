@@ -339,6 +339,18 @@ function normalizeStatusToken(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ") ?? null;
 }
 
+export function normalizeDailyPipelineStatusToken(
+  value: string | null | undefined,
+): DailyPipelineStageStatus | null {
+  const normalizedStatus = normalizeStatusToken(value);
+  if (!normalizedStatus) return null;
+  return PIPELINE_STATUS_TOKEN_MAP.get(normalizedStatus) ?? "pending";
+}
+
+export function isDailyPipelineStatusRunning(value: string | null | undefined) {
+  return normalizeDailyPipelineStatusToken(value) === "running";
+}
+
 function getTextValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -378,10 +390,8 @@ function resolveStageStatus(
   expectedRows: number | null,
 ): DailyPipelineStageStatus {
   const rawStatus = getTextValue(stage?.status) ?? getTextValue(stage?.source_status);
-  const normalizedStatus = normalizeStatusToken(rawStatus);
-  if (normalizedStatus) {
-    return PIPELINE_STATUS_TOKEN_MAP.get(normalizedStatus) ?? "pending";
-  }
+  const normalizedStatus = normalizeDailyPipelineStatusToken(rawStatus);
+  if (normalizedStatus) return normalizedStatus;
 
   if (!stage) return "pending";
   if (rowsPersisted !== null) {
@@ -753,7 +763,7 @@ function getTimelineStatus(
   stages: readonly DailyPipelineStageModel[],
   pipelineStatus: EodPipelineStatusResponseDto | null,
 ): DailyPipelineStageStatus {
-  const reportedStatus = PIPELINE_STATUS_TOKEN_MAP.get(normalizeStatusToken(pipelineStatus?.status) ?? "");
+  const reportedStatus = normalizeDailyPipelineStatusToken(pipelineStatus?.status);
   if (reportedStatus === "running" || reportedStatus === "failed" || reportedStatus === "partial") return reportedStatus;
   if (stages.some((stage) => stage.status === "running")) return "running";
   if (stages.some((stage) => stage.status === "failed")) return "failed";

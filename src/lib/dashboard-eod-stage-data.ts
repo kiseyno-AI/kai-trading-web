@@ -11,6 +11,7 @@ import {
   getLatestEodSymbolsSucceeded as getLatestPatchSymbolsSucceeded,
   getLatestEodSymbolsTotal as getLatestPatchSymbolsTotal,
 } from "@/lib/eod-freshness-latest";
+import { isDailyPipelineStatusRunning } from "@/lib/eod-pipeline-status";
 import { shouldPreferTodayPresenterStageData } from "@/lib/stage-date-status-presenter";
 
 function hasTextValue(value: string | null | undefined): value is string {
@@ -297,7 +298,7 @@ export function getFundamentalsStageDisplayCounts(
 }
 
 export function isRunningPipelineStage(pipelineStage: EodPipelineStageDto | null | undefined) {
-  return pipelineStage?.status?.trim().toLowerCase() === "running";
+  return isDailyPipelineStatusRunning(pipelineStage?.status);
 }
 
 export function shouldUseTodayStageData(

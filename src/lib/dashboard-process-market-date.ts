@@ -1,5 +1,6 @@
 import { normalizeDartFundamentalsMarketDate } from "@/lib/dart-fundamentals-daily";
 import { getLatestEodTradeDate } from "@/lib/eod-freshness-latest";
+import { normalizeDailyPipelineStatusToken } from "@/lib/eod-pipeline-status";
 import type {
   EodFreshnessResponseDto,
   EodPipelineStageDto,
@@ -29,25 +30,17 @@ export function getDashboardProcessResolvedMarketDate(
   );
 }
 
-function normalizePipelineStatus(value: string | null | undefined) {
-  return value?.trim().toLowerCase().replace(/[_-]+/g, " ") ?? null;
-}
-
 function isRunningPipelineStatus(value: string | null | undefined) {
-  return normalizePipelineStatus(value) === "running";
+  return normalizeDailyPipelineStatusToken(value) === "running";
 }
 
 function isCompletedPipelineStatus(value: string | null | undefined) {
-  const normalizedStatus = normalizePipelineStatus(value);
-  return normalizedStatus !== null && ["completed", "ready", "available", "success"].includes(normalizedStatus);
+  return normalizeDailyPipelineStatusToken(value) === "completed";
 }
 
 function isProblemPipelineStatus(value: string | null | undefined) {
-  const normalizedStatus = normalizePipelineStatus(value);
-  return (
-    normalizedStatus !== null &&
-    ["failed", "error", "partial", "needs review", "completed with errors"].includes(normalizedStatus)
-  );
+  const normalizedStatus = normalizeDailyPipelineStatusToken(value);
+  return normalizedStatus === "failed" || normalizedStatus === "partial";
 }
 
 function isRunningPipelineStage(stage: EodPipelineStageDto | null | undefined) {

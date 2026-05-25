@@ -6,6 +6,8 @@ import type { EodPipelineStageDto, EodPipelineStatusResponseDto } from "@/types/
 import {
   CANONICAL_EOD_PIPELINE_STAGE_ORDER,
   buildDailyPipelineTimelineModel,
+  isDailyPipelineStatusRunning,
+  normalizeDailyPipelineStatusToken,
 } from "./eod-pipeline-status";
 
 function buildStage(
@@ -32,6 +34,13 @@ function buildPipelineStatus(
     ...overrides,
   };
 }
+
+test("normalizes supported live pipeline status tokens to running", () => {
+  for (const token of ["running", "in_progress", "started", "active"] as const) {
+    assert.equal(normalizeDailyPipelineStatusToken(token), "running", token);
+    assert.equal(isDailyPipelineStatusRunning(token), true, token);
+  }
+});
 
 test("keeps a live running stage running when persisted rows are still zero", () => {
   const model = buildDailyPipelineTimelineModel(
