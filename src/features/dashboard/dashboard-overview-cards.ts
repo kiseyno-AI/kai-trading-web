@@ -44,6 +44,7 @@ export type DashboardOverviewPriceItem = {
 
 export type DashboardDeciderRow = {
   compactPriceLine?: string;
+  intentLabel?: string | null;
   key: string;
   marketLabel: string | null;
   nameLabel: string;
@@ -55,7 +56,7 @@ export type DashboardDeciderOverviewModel = {
   contextLabel: string | null;
   diagnostics: string[];
   emptyLabel: string | null;
-  mode: "market-open" | "closed-completed" | "closed-in-progress";
+  mode: "market-open" | "closed-completed" | "closed-in-progress" | "closed-planned";
   rows: DashboardDeciderRow[];
   statusLabel: string;
   statusTone: OverviewTone;
@@ -86,6 +87,15 @@ export type DashboardPortfolioOverviewModel = {
 
 const OPEN_BUY_INTENTS = ["buy", "buy_to_open", "next_open_buy", "next-day buy", "next day buy"];
 const SELL_INTENTS = ["sell", "sell_to_close", "target_sell", "stop_sell"];
+const PLANNED_BUY_INTENTS = [...OPEN_BUY_INTENTS, "planned_buy", "today_buy"] as const;
+const PLANNED_SELL_INTENTS = [
+  ...SELL_INTENTS,
+  "next_open_sell",
+  "next-day sell",
+  "next day sell",
+  "planned_sell",
+  "today_sell",
+] as const;
 const FILLED_STATUSES = new Set(["filled", "partial"]);
 const NEXT_DAY_STATUSES = new Set(["planned", "accepted", "scheduled", "submitted"]);
 
@@ -294,6 +304,90 @@ function isNextDayExecutionCandidate(item: ExecutionRuntimeBoardItemDto, boardMa
   if (targetTradeDate && (!boardMarketDate || targetTradeDate !== boardMarketDate)) return true;
   if (hasAnyIntent(item, ["next_open_buy", "next_open_sell", "next_day_exec", "next"])) return true;
   return NEXT_DAY_STATUSES.has(normalizeToken(item.status));
+}
+
+function getPlannedTradeSide(item: ExecutionRuntimeBoardItemDto) {
+  if (hasAnyIntent(item, PLANNED_BUY_INTENTS)) return "buy";
+  if (hasAnyIntent(item, PLANNED_SELL_INTENTS)) return "sell";
+  return null;
+}
+
+function getDatePart(value: string | null | undefined) {
+  const datePart = value?.trim().slice(0, 10) ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : null;
+}
+
+function isTodayPlannedTrade(
+  item: ExecutionRuntimeBoardItemDto,
+  boardMarketDate: string | null,
+  currentMarketDate: string | null,
+) {
+  const targetTradeDate = textOrNull(item.target_trade_date);
+  if (targetTradeDate) return targetTradeDate === currentMarketDate;
+  if (!currentMarketDate) return !boardMarketDate;
+  return !boardMarketDate || boardMarketDate === currentMarketDate;
+}
+
+function getPlannedTradeIntentLabel(
+  item: ExecutionRuntimeBoardItemDto,
+  boardMarketDate: string | null,
+  currentMarketDate: string | null,
+  copy: DashboardOverviewCopy,
+) {
+  const side = getPlannedTradeSide(item);
+  const todayPlan = isTodayPlannedTrade(item, boardMarketDate, currentMarketDate);
+  if (side === "buy") return todayPlan ? copy.plannedBuyToday : copy.plannedBuyNext;
+  if (side === "sell") return todayPlan ? copy.plannedSellToday : copy.plannedSellNext;
+
+  const rawIntent = textOrNull(item.intent) ?? textOrNull(item.side) ?? textOrNull(item.action);
+  return rawIntent ? humanizeToken(rawIntent, copy.plannedTrade) : null;
+}
+
+function isPlannedTradeCandidate(item: ExecutionRuntimeBoardItemDto, boardMarketDate: string | null) {
+  if (!getPlannedTradeSide(item)) return false;
+  if (isFilledExecutionItem(item)) return false;
+  return isNextDayExecutionCandidate(item, boardMarketDate);
+}
+
+function buildClosedMarketDeciderRow({
+  boardMarketDate,
+  copy,
+  currentMarketDate,
+  index,
+  item,
+  numberLocale,
+}: {
+  boardMarketDate: string | null;
+  copy: DashboardOverviewCopy;
+  currentMarketDate: string | null;
+  index: number;
+  item: ExecutionRuntimeBoardItemDto;
+  numberLocale: string;
+}): DashboardDeciderRow {
+  return {
+    intentLabel: getPlannedTradeIntentLabel(item, boardMarketDate, currentMarketDate, copy),
+    key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? index}`,
+    marketLabel: textOrNull(item.market),
+    nameLabel: textOrNull(item.name) ?? item.symbol,
+    prices: [
+      {
+        key: "stop-loss",
+        label: copy.stopLossPrice,
+        value: formatPrice(getStopLossPriceWithFallback(item, null), numberLocale, copy.unavailable),
+      },
+      {
+        key: "target",
+        label: copy.targetPrice,
+        value: formatPrice(getTargetPrice(item, null), numberLocale, copy.unavailable),
+      },
+      {
+        key: "close",
+        label: copy.closePrice,
+        value: formatPrice(getClosedPrice(item), numberLocale, copy.unavailable),
+      },
+    ],
+    symbol: item.symbol,
+  };
 }
 
 function formatCount(
@@ -547,7 +641,7 @@ export function buildDashboardDeciderOverviewModel({
     };
   }
 
-  if (processStatus !== "completed") {
+  if (processStatus === "running") {
     return {
       contextLabel: null,
       diagnostics,
@@ -560,32 +654,47 @@ export function buildDashboardDeciderOverviewModel({
   }
 
   const boardMarketDate = board?.market_date ?? board?.request?.market_date ?? null;
+  const currentMarketDate = getDatePart(market.server_time);
+  const hasBoardRuntimeDelay = Boolean(boardError);
+
+  if (processStatus !== "completed") {
+    const rows = getBoardItems(board)
+      .filter((item) => isPlannedTradeCandidate(item, boardMarketDate))
+      .map((item, index) =>
+        buildClosedMarketDeciderRow({ boardMarketDate, copy: overviewCopy, currentMarketDate, index, item, numberLocale }),
+      );
+    const isTodayPlan = rows.length > 0 && getBoardItems(board)
+      .filter((item) => isPlannedTradeCandidate(item, boardMarketDate))
+      .every((item) => isTodayPlannedTrade(item, boardMarketDate, currentMarketDate));
+
+    return {
+      contextLabel: rows.length > 0 ? overviewCopy.plannedTradesContext : null,
+      diagnostics,
+      emptyLabel:
+        rows.length > 0
+          ? null
+          : boardError
+            ? overviewCopy.executionBoardUpdating
+            : board
+              ? overviewCopy.noPlannedTrades
+              : overviewCopy.executionBoardUnavailable,
+      mode: "closed-planned",
+      rows,
+      statusLabel:
+        rows.length > 0
+          ? isTodayPlan
+            ? overviewCopy.plannedTradesToday
+            : overviewCopy.plannedTrades
+          : copy.processMonitor.statuses[processStatus],
+      statusTone: rows.length > 0 ? "neutral" : processStatus === "pending" ? "neutral" : "warning",
+    };
+  }
+
   const rows = getBoardItems(board)
     .filter((item) => isNextDayExecutionCandidate(item, boardMarketDate))
-    .map((item, index) => ({
-      key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? index}`,
-      marketLabel: textOrNull(item.market),
-      nameLabel: textOrNull(item.name) ?? item.symbol,
-      prices: [
-        {
-          key: "stop-loss",
-          label: overviewCopy.stopLossPrice,
-          value: formatPrice(getStopLossPriceWithFallback(item, null), numberLocale, overviewCopy.unavailable),
-        },
-        {
-          key: "target",
-          label: overviewCopy.targetPrice,
-          value: formatPrice(getTargetPrice(item, null), numberLocale, overviewCopy.unavailable),
-        },
-        {
-          key: "close",
-          label: overviewCopy.closePrice,
-          value: formatPrice(getClosedPrice(item), numberLocale, overviewCopy.unavailable),
-        },
-      ],
-      symbol: item.symbol,
-    }));
-  const hasBoardRuntimeDelay = Boolean(boardError);
+    .map((item, index) =>
+      buildClosedMarketDeciderRow({ boardMarketDate, copy: overviewCopy, currentMarketDate, index, item, numberLocale }),
+    );
 
   return {
     contextLabel: hasBoardRuntimeDelay

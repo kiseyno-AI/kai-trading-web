@@ -75,6 +75,7 @@ import {
   getTechnicalFreshnessStage,
   getActionFreshnessStage,
   getFundamentalsFreshnessStage,
+  hasLivePipelineRunningState,
   hasCompletedDefaultAgentRoles,
   isAgentFeedbackProgressRunning,
   isBreakDayMarket,
@@ -839,8 +840,7 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
                 <div className={styles.overviewSymbolIdentity}>
                   <strong>{row.nameLabel}</strong>
                   <span>
-                    {row.symbol}
-                    {row.marketLabel ? ` · ${row.marketLabel}` : ""}
+                    {[row.symbol, row.marketLabel, row.intentLabel].filter(Boolean).join(" · ")}
                   </span>
                 </div>
                 {row.compactPriceLine ? (
@@ -2027,6 +2027,12 @@ export function LiveDashboardClient({
       scoringCardModel,
     ],
   );
+  const hasLiveDailyProcessRunning = useMemo(
+    () => hasLivePipelineRunningState(pipelineStatus) || isAgentFeedbackRunning,
+    [isAgentFeedbackRunning, pipelineStatus],
+  );
+  const deciderProcessStatus: ProcessMonitorStatus =
+    processMonitorModel.status === "running" && !hasLiveDailyProcessRunning ? "pending" : processMonitorModel.status;
   const portfolioSummaryState = resolvePortfolioSummaryState({
     error: portfolioSummaryError,
     loading: portfolioSummaryLoadState === "loading",
@@ -2042,7 +2048,7 @@ export function LiveDashboardClient({
         monitoredSymbols: executionRuntimeMonitoredSymbols,
         monitoredSymbolsError: executionRuntimeMonitoredSymbolsError,
         numberLocale,
-        processStatus: processMonitorModel.status,
+        processStatus: deciderProcessStatus,
         tracked,
         trackedError,
       }),
@@ -2054,7 +2060,7 @@ export function LiveDashboardClient({
       executionRuntimeMonitoredSymbolsError,
       market,
       numberLocale,
-      processMonitorModel.status,
+      deciderProcessStatus,
       tracked,
       trackedError,
     ],

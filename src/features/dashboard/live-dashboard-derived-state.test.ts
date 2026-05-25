@@ -48,6 +48,7 @@ import {
   getFundamentalsCheckedCount,
   getFundamentalsFreshnessStage,
   getPipelineStageResolvedStatusDate,
+  hasLivePipelineRunningState,
   getMarketSnapshotPollDelayMs,
   getPriceFreshnessStage,
   getResolvedAgentProgressRunStatus,
@@ -483,6 +484,24 @@ function buildPipelineStageDto(
     failed: 0,
   };
 }
+
+test("treats active live pipeline tokens as running for the dashboard process gate", () => {
+  for (const token of ["running", "in_progress", "started", "active"] as const) {
+    assert.equal(hasLivePipelineRunningState(buildPipelineStatus({ status: token, stages: {} })), true, token);
+    assert.equal(
+      hasLivePipelineRunningState(
+        buildPipelineStatus({
+          status: "pending",
+          stages: {
+            price_collection: buildPipelineStageDto(token),
+          },
+        }),
+      ),
+      true,
+      token,
+    );
+  }
+});
 
 test("keeps stale completed fundamentals coverage synced on an active trading day", () => {
   assert.equal(

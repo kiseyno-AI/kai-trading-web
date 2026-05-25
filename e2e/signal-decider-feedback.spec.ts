@@ -839,20 +839,22 @@ async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
   }, marketDate);
 }
 
-test("dashboard signal-decider card keeps in-progress body copy and links to the detail page", async ({ page }) => {
+test("dashboard signal-decider card shows planned board rows and links to the detail page", async ({ page }) => {
   await mockDashboardShell(page);
 
   await page.goto("/dashboard");
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
-  await expect(card).toHaveAttribute("data-decider-overview-mode", "closed-in-progress");
-  await expect(card).toContainText("일별 프로세스 진행 중");
-  await expect(card).not.toContainText("Samsung Electronics");
-  await expect(card).not.toContainText("SK hynix");
-  await expect(card).not.toContainText("Stop-loss");
-  await expect(card).not.toContainText("Target");
-  await expect(card).not.toContainText("Close price");
+  await expect(card).toHaveAttribute("data-decider-overview-mode", "closed-planned");
+  await expect(card).not.toContainText("일별 프로세스 진행 중");
+  await expect(card).toContainText("Planned trades");
+  await expect(card).toContainText("Samsung Electronics");
+  await expect(card).toContainText("SK hynix");
+  await expect(card).toContainText("Next-open buy");
+  await expect(card).toContainText("Stop-loss");
+  await expect(card).toContainText("Target");
+  await expect(card).toContainText("Close price");
   await expect(card).not.toContainText("Momentum and fundamentals align");
   await expect(card).not.toContainText("2 / 3");
   await expect(card).not.toContainText("Buy 1 · Wait 1");
@@ -1399,7 +1401,8 @@ test("dashboard signal-decider card hides current cycle on closed-market weekend
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
-  await expect(card).toContainText(/Next-day exec|일별 프로세스 진행 중/);
+  await expect(card).toContainText(/Next-day exec|Today's plan|Planned trades|Samsung Electronics/);
+  await expect(card).not.toContainText("일별 프로세스 진행 중");
   await expect(card).not.toContainText("Latest completed recommendations: 2026-05-08");
   await expect(card).not.toContainText("Current cycle");
   await expect(card).not.toContainText("2026-05-09 signal-decider");
@@ -1554,7 +1557,8 @@ test("signal-decider detail keeps dashboard stored rows when the direct detail r
   await page.goto("/dashboard");
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
-  await expect(card).toContainText("일별 프로세스 진행 중");
+  await expect(card).toContainText("Samsung Electronics");
+  await expect(card).not.toContainText("일별 프로세스 진행 중");
   await expect
     .poll(async () =>
       page.evaluate(() => window.sessionStorage.getItem("kai.signalDeciderFeedback.v1:2026-04-27") !== null),
@@ -1718,7 +1722,8 @@ test("dashboard signal-decider card retries after a transient completed-run feed
 
   const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
   await expect(card).toBeVisible();
-  await expect(card).toContainText("일별 프로세스 진행 중");
+  await expect(card).toContainText("Samsung Electronics");
+  await expect(card).not.toContainText("일별 프로세스 진행 중");
   await expect(card).not.toContainText("Signal-decider feedback is unavailable.");
 
   const failedRequestCount = shell.getSignalDeciderFeedbackRequestCount();

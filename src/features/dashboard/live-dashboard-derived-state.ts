@@ -16,6 +16,8 @@ import {
 } from "@/lib/signal-decider-feedback";
 import {
   buildDailyPipelineTimelineModel,
+  isDailyPipelineStatusRunning,
+  normalizeDailyPipelineStatusToken,
   type DailyPipelineTimelineModel,
 } from "@/lib/eod-pipeline-status";
 import {
@@ -1004,7 +1006,7 @@ function getFilteringStageStatus(
 }
 
 function isDailyPipelineRunning(pipelineStatus: EodPipelineStatusResponseDto | null | undefined) {
-  return normalizePipelineStatus(pipelineStatus?.status) === "running";
+  return hasLivePipelineRunningState(pipelineStatus);
 }
 
 function getFilteringStageStatusLabel(status: FilteringStageStatus, copy: DashboardLiveCopy) {
@@ -2621,7 +2623,7 @@ function isProblemFreshnessStage(stage: EodFreshnessStageDto | null | undefined)
 }
 
 function normalizePipelineStatus(value: string | null | undefined) {
-  return value?.trim().toLowerCase() ?? null;
+  return normalizeDailyPipelineStatusToken(value);
 }
 
 function normalizePipelineStageStatus(stage: EodPipelineStageDto | null | undefined) {
@@ -2704,10 +2706,15 @@ export function resolveFundamentalsPollingPresentation({
   };
 }
 
-function hasRunningDashboardPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
-  if (normalizePipelineStatus(pipelineStatus?.status) === "running") return true;
+export function hasLivePipelineRunningState(pipelineStatus: EodPipelineStatusResponseDto | null | undefined) {
+  if (!pipelineStatus) return false;
+  if (isDailyPipelineStatusRunning(pipelineStatus.status)) return true;
 
-  return Object.values(pipelineStatus?.stages ?? {}).some((stage) => isRunningPipelineStage(stage));
+  return Object.values(pipelineStatus.stages ?? {}).some((stage) => isDailyPipelineStatusRunning(stage?.status));
+}
+
+function hasRunningDashboardPipelineStage(pipelineStatus: EodPipelineStatusResponseDto | null) {
+  return hasLivePipelineRunningState(pipelineStatus);
 }
 
 export function getEodPipelineStatusPollDelayMs(pipelineStatus: EodPipelineStatusResponseDto | null) {
