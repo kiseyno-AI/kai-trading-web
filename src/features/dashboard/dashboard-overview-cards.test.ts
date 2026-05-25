@@ -161,7 +161,7 @@ test("sanitizes market-open monitored-symbol timeout while preserving diagnostic
   );
 });
 
-test("uses the exact in-progress copy while the closed-market daily process is incomplete", () => {
+test("uses in-progress copy only while the closed-market daily process is running", () => {
   const model = buildDashboardDeciderOverviewModel({
     board: null,
     copy,
@@ -174,7 +174,117 @@ test("uses the exact in-progress copy while the closed-market daily process is i
 
   assert.equal(model.mode, "closed-in-progress");
   assert.equal(model.rows.length, 0);
+  assert.equal(model.statusLabel, "Daily process running");
   assert.equal(model.emptyLabel, "일별 프로세스 진행 중");
+});
+
+test("shows planned buy and sell rows when closed-market process is partial without a live stage", () => {
+  const board = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "005930",
+        name: "Samsung Electronics",
+        market: "KRX",
+        status: "planned",
+        intent: "buy",
+        target_price: 76000,
+        stop_loss_price: 70000,
+        market_close_price: 71500,
+      },
+      {
+        symbol: "035420",
+        name: "NAVER",
+        market: "KRX",
+        status: "scheduled",
+        intent: "sell",
+        market_close_price: 186000,
+      },
+    ],
+  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+
+  const model = buildDashboardDeciderOverviewModel({
+    board,
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "partial",
+    tracked: null,
+  });
+
+  assert.equal(model.mode, "closed-planned");
+  assert.equal(model.statusLabel, "Today's plan");
+  assert.equal(model.emptyLabel, null);
+  assert.equal(model.rows.length, 2);
+  assert.equal(model.rows[0].intentLabel, "Planned buy today");
+  assert.equal(model.rows[1].intentLabel, "Planned sell today");
+  assert.doesNotMatch([model.statusLabel, model.emptyLabel, model.contextLabel].filter(Boolean).join("\n"), /running|진행 중/i);
+});
+
+test("labels target-date planned rows as today's plan before market open", () => {
+  const board = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "005930",
+        name: "Samsung Electronics",
+        market: "KRX",
+        status: "scheduled",
+        intent: "next_open_buy",
+        target_trade_date: "2026-05-25",
+        target_price: 76000,
+        stop_loss_price: 70000,
+        market_close_price: 71500,
+      },
+      {
+        symbol: "035420",
+        name: "NAVER",
+        market: "KRX",
+        status: "scheduled",
+        intent: "next_open_sell",
+        target_trade_date: "2026-05-25",
+        market_close_price: 186000,
+      },
+    ],
+  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+
+  const model = buildDashboardDeciderOverviewModel({
+    board,
+    copy,
+    market: {
+      is_open: false,
+      server_time: "2026-05-25T08:30:00+09:00",
+      state: "PREOPEN",
+    },
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "partial",
+    tracked: null,
+  });
+
+  assert.equal(model.mode, "closed-planned");
+  assert.equal(model.statusLabel, "Today's plan");
+  assert.equal(model.rows[0].intentLabel, "Planned buy today");
+  assert.equal(model.rows[1].intentLabel, "Planned sell today");
+});
+
+test("uses an honest empty state when no planned rows exist and no process is running", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: { market_date: "2026-05-22", items: [] },
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "partial",
+    tracked: null,
+  });
+
+  assert.equal(model.mode, "closed-planned");
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.statusLabel, "Partial");
+  assert.equal(model.emptyLabel, "No planned buy/sell stocks returned.");
+  assert.doesNotMatch([model.statusLabel, model.emptyLabel].join("\n"), /running|진행 중/i);
 });
 
 test("builds closed-market next-day exec rows with close prices when the daily process completed", () => {
