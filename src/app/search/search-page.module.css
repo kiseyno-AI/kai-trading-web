@@ -218,10 +218,11 @@
   cursor: pointer;
 }
 
-.sectionHeader .quickAccessAddButton {
+.quickAccessAddButton {
+  box-sizing: border-box;
   display: inline-flex;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
@@ -230,36 +231,50 @@
   background: var(--search-card-bg-soft);
   padding: 0 0.85rem;
   color: var(--search-text);
+  touch-action: manipulation;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.sectionHeader .quickAccessAddButton:hover {
+.quickAccessAddButton:hover {
   border-color: var(--outline-strong);
   background: var(--surface);
   box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.12);
 }
 
-.sectionHeader .quickAccessAddButton:focus-visible {
+.quickAccessAddButton:focus-visible {
   outline: 2px solid rgba(88, 139, 255, 0.88);
   outline-offset: 2px;
 }
 
-.sectionHeader .quickAccessAddButton:active {
+.quickAccessAddButton:active {
   transform: translateY(1px);
 }
 
-.sectionHeader .quickAccessAddGlyph {
+.quickAccessAddGlyph {
+  display: grid;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  flex: 0 0 1.75rem;
+  place-items: center;
+  border: 1px solid rgba(88, 139, 255, 0.38);
+  border-radius: 999px;
+  background: rgba(0, 82, 255, 0.16);
   color: var(--search-text-strong);
   font-size: 1rem;
+  letter-spacing: 0;
   line-height: 1;
 }
 
-.sectionHeader .quickAccessAddText {
+.quickAccessAddText {
+  min-width: 0;
   color: inherit;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .sectionHeader button:disabled,

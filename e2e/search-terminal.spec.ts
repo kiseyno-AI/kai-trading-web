@@ -1,7 +1,20 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function getQuickAccessSection(page: Page) {
   return page.locator("section", { has: page.getByRole("heading", { name: /Quick Access|빠른 접근/ }) }).first();
+}
+
+async function expectMinimumTargetSize(locator: Locator, minimumSize = 44) {
+  const box = await locator.boundingBox();
+
+  if (!box) {
+    throw new Error("Expected quick-access add control to have a rendered bounding box");
+  }
+
+  expect(box.width).toBeGreaterThanOrEqual(minimumSize);
+  expect(box.height).toBeGreaterThanOrEqual(minimumSize);
+
+  return box;
 }
 
 test.describe("search terminal desktop", () => {
@@ -15,6 +28,56 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByRole("heading", { name: /Search Results/i })).toBeVisible();
     await expect(page.getByText(/Selected Terminal Feed/i)).toHaveCount(0);
     await expect(page.getByText(/Search workspace/i)).toHaveCount(0);
+  });
+
+  test("keeps the quick-access favorite add control target sized on desktop", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          items: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: "2026-04-14T08:55:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          query: "",
+          count: 0,
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const addControl = getQuickAccessSection(page).getByRole("button", { name: /Open favorite search/i });
+    await expect(addControl).toHaveAccessibleDescription("No favorites");
+    await expectMinimumTargetSize(addControl);
+
+    await addControl.focus();
+    const focusStyle = await addControl.evaluate((element) => {
+      const styles = window.getComputedStyle(element);
+
+      return {
+        outlineStyle: styles.outlineStyle,
+        outlineWidth: Number.parseFloat(styles.outlineWidth),
+      };
+    });
+    expect(focusStyle.outlineStyle).not.toBe("none");
+    expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
+
+    await addControl.click();
+    await expect(page.getByRole("dialog", { name: /Save Symbol/i })).toBeVisible();
   });
 
   test("resets the header badge to the closed fallback when market status fails", async ({ page }) => {
