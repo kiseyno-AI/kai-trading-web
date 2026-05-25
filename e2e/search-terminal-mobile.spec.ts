@@ -21,6 +21,88 @@ async function expectMinimumTargetSize(locator: Locator, minimumSize = 44) {
   return box;
 }
 
+async function expectVisibleAffordance(locator: Locator) {
+  const styles = await locator.evaluate((element) => {
+    const computedStyles = window.getComputedStyle(element);
+
+    return {
+      backgroundColor: computedStyles.backgroundColor,
+      borderWidth: Number.parseFloat(computedStyles.borderTopWidth),
+    };
+  });
+
+  expect(styles.borderWidth).toBeGreaterThanOrEqual(1);
+  expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+}
+
+async function expectMobileHiddenShellControlsSuppressed(page: Page, expectedLabels: string[]) {
+  const hiddenShellControls = await page.locator("[data-app-chrome-hidden-when-mobile]").evaluateAll((containers) =>
+    containers.flatMap((container) =>
+      Array.from(container.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]")).map(
+        (element) => {
+          const rect = element.getBoundingClientRect();
+
+          return {
+            hiddenAncestor: Boolean(element.closest("[aria-hidden='true'], [inert]")),
+            label: (element.getAttribute("aria-label") || element.textContent || "").replace(/\s+/g, " ").trim(),
+            tabIndex: element.tabIndex,
+            zeroRect: rect.width === 0 && rect.height === 0,
+          };
+        },
+      ),
+    ),
+  );
+
+  expect(hiddenShellControls.map((control) => control.label)).toEqual(expect.arrayContaining(expectedLabels));
+  expect(hiddenShellControls.filter((control) => control.tabIndex >= 0)).toEqual([]);
+  expect(hiddenShellControls.filter((control) => control.zeroRect && !control.hiddenAncestor)).toEqual([]);
+}
+
+async function expectFirstTabTargetVisible(page: Page) {
+  await page.evaluate(() => {
+    document.body.setAttribute("tabindex", "-1");
+    document.body.focus();
+    document.body.removeAttribute("tabindex");
+  });
+
+  let activeTarget: {
+    hiddenShellAncestor: boolean;
+    label: string;
+    rect: { height: number; width: number } | null;
+  } | null = null;
+
+  for (let tabPress = 0; tabPress < 8; tabPress += 1) {
+    await page.keyboard.press("Tab");
+    activeTarget = await page.evaluate(() => {
+      const element = document.activeElement as HTMLElement | null;
+      const rect = element?.getBoundingClientRect();
+
+      if (!element?.closest("[data-app-chrome-root]")) return null;
+
+      return {
+        hiddenShellAncestor: Boolean(element.closest("[data-app-chrome-hidden-when-mobile]")),
+        label: (element.getAttribute("aria-label") || element.textContent || "").replace(/\s+/g, " ").trim(),
+        rect: rect
+          ? {
+              height: rect.height,
+              width: rect.width,
+            }
+          : null,
+      };
+    });
+
+    if (activeTarget) break;
+  }
+
+  if (!activeTarget) {
+    throw new Error("Expected Tab to reach a visible app chrome target");
+  }
+
+  expect(activeTarget.hiddenShellAncestor).toBe(false);
+  expect(activeTarget.rect?.width ?? 0).toBeGreaterThan(0);
+  expect(activeTarget.rect?.height ?? 0).toBeGreaterThan(0);
+}
+
 test.describe("search terminal mobile", () => {
   test("renders mobile terminal chrome and bottom tabs", async ({ page }) => {
     await page.goto("/search");
@@ -81,6 +163,7 @@ test.describe("search terminal mobile", () => {
     await expect(page.locator("#quick-access-status")).toHaveText("즐겨찾기 없음");
 
     const addControlBox = await expectMinimumTargetSize(addControl);
+    await expectVisibleAffordance(addControl);
 
     await page.getByLabel(/마켓, 종목 또는 분석 검색/i).focus();
     await page.keyboard.press("Tab");
@@ -112,6 +195,39 @@ test.describe("search terminal mobile", () => {
       },
     });
     await expect(page.getByRole("dialog", { name: /종목 저장/i })).toBeVisible();
+  });
+
+  test("removes hidden shared shell controls from the mobile tab order", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+
+    await page.goto("/search");
+    await expect(page.getByLabel(/마켓, 종목 또는 분석 검색/i)).toBeVisible();
+    await expectMobileHiddenShellControlsSuppressed(page, [
+      "대시보드",
+      "검색",
+      "캘린더",
+      "자산",
+      "내 종목",
+      "영어",
+      "한국어",
+      "태그 꺼짐",
+    ]);
+    await expectFirstTabTargetVisible(page);
+
+    await page.goto("/calendar");
+    await expect(page.getByRole("heading", { name: /시그널 리뷰 캘린더|Signal Review Calendar/i })).toBeVisible();
+    await expectMobileHiddenShellControlsSuppressed(page, [
+      "대시보드",
+      "검색",
+      "캘린더",
+      "자산",
+      "내 종목",
+      "영어",
+      "한국어",
+    ]);
+    await expectFirstTabTargetVisible(page);
   });
 
   test("labels unsupported favorite coverage on mobile quick access without exposing a detail shortcut", async ({
