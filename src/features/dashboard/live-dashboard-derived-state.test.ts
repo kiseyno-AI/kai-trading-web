@@ -2650,6 +2650,40 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.equal(completedTopLevelModel.statusLabel, copy.processMonitor.statuses.partial);
   assert.equal(completedTopLevelModel.summarySource, "canonical-pipeline");
   assert.equal(completedTopLevelModel.progressLabel, "15 / 24");
+
+  const fullyCompletedPipelineStatus = buildPipelineStatus({
+    status: "completed",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    stages: Object.fromEntries(
+      CANONICAL_EOD_PIPELINE_STAGE_ORDER.map((stageKey) => [
+        stageKey,
+        buildPipelineStageDto("completed", 100, 100),
+      ]),
+    ),
+  });
+  const fullyCompletedModel = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+    patchDate: "2026-04-27",
+    pipelineStatus: fullyCompletedPipelineStatus,
+    scoringCardModel,
+  });
+  assert.deepEqual(fullyCompletedModel.groups.map((group) => group.status), [
+    "completed",
+    "completed",
+    "completed",
+    "completed",
+  ]);
+  assert.equal(fullyCompletedModel.pipeline.status, "completed");
+  assert.equal(fullyCompletedModel.status, "completed");
+  assert.equal(fullyCompletedModel.statusLabel, copy.processMonitor.statuses.completed);
+  assert.equal(fullyCompletedModel.summarySource, "canonical-pipeline");
+  assert.equal(fullyCompletedModel.progressLabel, "24 / 24");
+  assert.equal(fullyCompletedModel.completedCount, 24);
+  assert.equal(fullyCompletedModel.totalCount, 24);
 });
 
 test("keeps the full daily process monitor completed from latest available data when today is empty", () => {

@@ -2217,12 +2217,7 @@ function getCanonicalPipelineProcessStatus(pipeline: DailyPipelineTimelineModel)
 }
 
 function shouldUseCanonicalPipelineSummary(pipeline: DailyPipelineTimelineModel) {
-  if (!pipeline.hasLiveStatus) return false;
-  return (
-    getCanonicalPipelineProcessStatus(pipeline) !== "completed" ||
-    hasCanonicalPipelineProgressGap(pipeline) ||
-    hasIncompleteCanonicalPipelineStages(pipeline)
-  );
+  return pipeline.hasLiveStatus;
 }
 
 export function buildProcessMonitorModel({

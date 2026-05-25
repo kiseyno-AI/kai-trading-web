@@ -538,10 +538,13 @@ test.describe("dashboard mobile chrome", () => {
     pipelineStatus = "completed";
 
     await expect(processBar).toHaveAttribute("data-process-monitor-status", "completed");
+    await expect(processBar).toHaveAttribute("data-process-summary-source", "canonical-pipeline");
     const completedSummary = processBar.locator('[data-process-summary-mode="progress"]');
     await expect(completedSummary).toBeVisible();
-    await expect(completedSummary).toContainText(/\d+\s*\/\s*\d+/);
-    await expect(processBar).toHaveAccessibleName(/\d+\s*\/\s*\d+/);
+    await expect(completedSummary).toContainText(/24\s*\/\s*24/);
+    await expect(processBar).toHaveAccessibleName(/24\s*\/\s*24/);
+    await expect(processBar).not.toContainText(/All groups complete|모든 그룹 완료/);
+    await expect(processBar).not.toContainText(/14\s*\/\s*14/);
   });
 
   test("mobile process monitor trigger mirrors partial canonical pipeline counts", async ({ page }) => {
