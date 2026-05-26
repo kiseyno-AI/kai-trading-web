@@ -79,6 +79,8 @@ export type DashboardPortfolioOverviewModel = {
   execConnectionTone: OverviewTone;
   executionBoardStateLabel: string | null;
   metrics: DashboardOverviewMetric[];
+  planRows: DashboardPortfolioTradeRow[];
+  planStateLabel: string | null;
   sellRows: DashboardPortfolioTradeRow[];
   sellStateLabel: string | null;
   statusLabel: string;
@@ -272,14 +274,25 @@ function getStopLossPriceWithFallback(
 }
 
 function hasAnyIntent(item: Record<string, unknown>, intentTokens: readonly string[]) {
-  const directIntentKeys = ["intent", "side", "order_side", "position_side", "action"];
-  const directIntents = directIntentKeys.map((key) => normalizeToken(textOrNull(item[key]))).filter(Boolean);
   const plannedIntents = Array.isArray(item.planned_intents)
     ? item.planned_intents.map((value) => normalizeToken(textOrNull(value))).filter(Boolean)
     : [];
-  const allIntents = [...directIntents, ...plannedIntents].filter(Boolean);
 
-  return allIntents.some((value) =>
+  return [...getDirectIntentTokens(item), ...plannedIntents].some((value) =>
+    intentTokens.some((token) => {
+      const normalizedToken = normalizeToken(token);
+      return value === normalizedToken || value.includes(normalizedToken);
+    }),
+  );
+}
+
+function getDirectIntentTokens(item: Record<string, unknown>) {
+  const directIntentKeys = ["intent", "side", "order_side", "position_side", "action"];
+  return directIntentKeys.map((key) => normalizeToken(textOrNull(item[key]))).filter(Boolean);
+}
+
+function hasDirectIntent(item: Record<string, unknown>, intentTokens: readonly string[]) {
+  return getDirectIntentTokens(item).some((value) =>
     intentTokens.some((token) => {
       const normalizedToken = normalizeToken(token);
       return value === normalizedToken || value.includes(normalizedToken);
@@ -291,12 +304,31 @@ function isFilledExecutionItem(item: ExecutionRuntimeBoardItemDto) {
   return FILLED_STATUSES.has(normalizeToken(item.status));
 }
 
+function hasPartialFillEvidence(item: ExecutionRuntimeBoardItemDto) {
+  const filledQuantity = quantityToNumber(getQuantity(item, ["filled_quantity"]));
+  if (filledQuantity !== null && filledQuantity > 0) return true;
+
+  for (const priceKey of ["avg_fill_price", "trade_price", "fill_price"]) {
+    const price = quantityToNumber(getQuantity(item, [priceKey]));
+    if (price !== null && price > 0) return true;
+  }
+
+  return false;
+}
+
+function isActualExecutionItem(item: ExecutionRuntimeBoardItemDto) {
+  if (!isFilledExecutionItem(item)) return false;
+  if (!hasDirectIntent(item, [...OPEN_BUY_INTENTS, ...SELL_INTENTS])) return false;
+  if (normalizeToken(item.status) === "partial") return hasPartialFillEvidence(item);
+  return true;
+}
+
 function isBuyExecutionItem(item: ExecutionRuntimeBoardItemDto) {
-  return isFilledExecutionItem(item) && hasAnyIntent(item, OPEN_BUY_INTENTS);
+  return isActualExecutionItem(item) && hasDirectIntent(item, OPEN_BUY_INTENTS);
 }
 
 function isSellExecutionItem(item: ExecutionRuntimeBoardItemDto) {
-  return isFilledExecutionItem(item) && hasAnyIntent(item, SELL_INTENTS);
+  return isActualExecutionItem(item) && hasDirectIntent(item, SELL_INTENTS);
 }
 
 function isNextDayExecutionCandidate(item: ExecutionRuntimeBoardItemDto, boardMarketDate: string | null) {
@@ -474,6 +506,101 @@ function formatTradeMoney(
   fallback: string,
 ) {
   return formatPortfolioMoney(value, fallback);
+}
+
+function getPortfolioPlanBuyPrice(item: ExecutionRuntimeBoardItemDto) {
+  return getQuantity(item, [
+    "planned_buy_price",
+    "buy_target_price",
+    "buy_price",
+    "entry_price",
+    "planned_price",
+    "limit_price",
+  ]);
+}
+
+function getPortfolioPlanSellPrice(item: ExecutionRuntimeBoardItemDto) {
+  return getQuantity(item, [
+    "planned_sell_price",
+    "sell_target_price",
+    "take_profit_price",
+    "target_price",
+    "limit_sell_price",
+  ]);
+}
+
+function isPortfolioPlanCandidate(item: ExecutionRuntimeBoardItemDto) {
+  if (isBuyExecutionItem(item) || isSellExecutionItem(item)) return false;
+  if (getPlannedTradeSide(item)) return true;
+  if (textOrNull(item.monitoring_state)) return true;
+  return (
+    getPortfolioPlanBuyPrice(item) !== undefined ||
+    getPortfolioPlanSellPrice(item) !== undefined ||
+    getStopLossPriceWithFallback(item, null) !== undefined
+  );
+}
+
+function buildPlanRows({
+  copy,
+  items,
+  numberLocale,
+}: {
+  copy: DashboardOverviewCopy;
+  items: ExecutionRuntimeBoardItemDto[];
+  numberLocale: string;
+}) {
+  const bySymbol = new Map<
+    string,
+    {
+      buyPrice: ExecutionRuntimeQuantity | undefined;
+      item: ExecutionRuntimeBoardItemDto;
+      sellPrice: ExecutionRuntimeQuantity | undefined;
+      stopLossPrice: ExecutionRuntimeQuantity | undefined;
+    }
+  >();
+
+  for (const item of items) {
+    if (!isPortfolioPlanCandidate(item)) continue;
+
+    const current = bySymbol.get(item.symbol);
+    if (!current) {
+      bySymbol.set(item.symbol, {
+        buyPrice: getPortfolioPlanBuyPrice(item),
+        item,
+        sellPrice: getPortfolioPlanSellPrice(item),
+        stopLossPrice: getStopLossPriceWithFallback(item, null),
+      });
+      continue;
+    }
+
+    current.buyPrice ??= getPortfolioPlanBuyPrice(item);
+    current.sellPrice ??= getPortfolioPlanSellPrice(item);
+    current.stopLossPrice ??= getStopLossPriceWithFallback(item, null);
+  }
+
+  return Array.from(bySymbol.values()).map(({ buyPrice, item, sellPrice, stopLossPrice }) => ({
+    key: `${item.symbol}-plan`,
+    marketLabel: textOrNull(item.market),
+    nameLabel: textOrNull(item.name) ?? item.symbol,
+    symbol: item.symbol,
+    values: [
+      {
+        key: "buy-target",
+        label: copy.buyPlanPrice,
+        value: formatPrice(buyPrice, numberLocale, copy.unavailable),
+      },
+      {
+        key: "sell-target",
+        label: copy.sellPlanPrice,
+        value: formatPrice(sellPrice, numberLocale, copy.unavailable),
+      },
+      {
+        key: "stop-loss",
+        label: copy.stopLossPrice,
+        value: formatPrice(stopLossPrice, numberLocale, copy.unavailable),
+      },
+    ],
+  }));
 }
 
 function buildBuyRow({
@@ -760,6 +887,7 @@ export function buildDashboardPortfolioOverviewModel({
         item,
       }),
     );
+  const planRows = buildPlanRows({ copy: overviewCopy, items: boardItems, numberLocale });
   const hasBoardRuntimeDelay = Boolean(boardError);
   const executionBoardStateLabel = hasBoardRuntimeDelay
     ? overviewCopy.executionBoardUpdating
@@ -776,6 +904,8 @@ export function buildDashboardPortfolioOverviewModel({
         ? null
         : executionBoardStateLabel
           ? null
+          : planRows.length > 0
+            ? null
           : board
             ? overviewCopy.noBoughtStocks
             : null,
@@ -829,12 +959,23 @@ export function buildDashboardPortfolioOverviewModel({
         ),
       },
     ],
+    planRows,
+    planStateLabel:
+      planRows.length > 0
+        ? null
+        : executionBoardStateLabel || buyRows.length > 0 || sellRows.length > 0
+          ? null
+          : board
+            ? overviewCopy.noMonitoringPlanRows
+            : null,
     sellRows,
     sellStateLabel:
       sellRows.length > 0
         ? null
         : executionBoardStateLabel
           ? null
+          : planRows.length > 0
+            ? null
           : board
             ? overviewCopy.noSoldStocks
             : null,
