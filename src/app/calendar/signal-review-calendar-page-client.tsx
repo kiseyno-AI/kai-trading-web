@@ -600,6 +600,9 @@ function getSelectedDateDisplayStatus({
     ) {
       return selectedSnapshot.status;
     }
+    if (!selectedSnapshot || selectedSnapshot.status === "loading") {
+      return summary.status === "waiting" ? "loading" : summary.status;
+    }
     return "empty";
   }
 
@@ -631,6 +634,9 @@ function getSelectedDateEmptyStateMessage({
 }) {
   if (displayStatus === "unavailable" && selectedError) {
     return selectedError;
+  }
+  if (displayStatus === "loading" || displayStatus === "running" || displayStatus === "waiting") {
+    return copy.states.loadingSelected;
   }
   return copy.states.emptySelected;
 }
@@ -1323,6 +1329,15 @@ export default function SignalReviewCalendarPageClient() {
       const selectedSnapshot = buildDateSnapshot(selectedDate, selectedFeedback);
       setMonthSnapshots((current) => {
         const currentSnapshot = current[selectedDate];
+        const currentSnapshotUnresolved = !currentSnapshot || currentSnapshot.status === "loading";
+        if (
+          currentSnapshotUnresolved &&
+          selectedSnapshot.decisionCount <= 0 &&
+          (selectedSummary.status === "running" || selectedSummary.status === "waiting")
+        ) {
+          return current;
+        }
+
         if (currentSnapshot?.status === "unavailable" && selectedSnapshot.decisionCount <= 0) {
           return current;
         }
@@ -1346,7 +1361,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [monthKey, selectedDate, selectedDisplayLoadState, selectedFeedback]);
+  }, [monthKey, selectedDate, selectedDisplayLoadState, selectedFeedback, selectedSummary.status]);
 
   function handleSelectDate(dateKey: string) {
     setSelectedDate(dateKey);

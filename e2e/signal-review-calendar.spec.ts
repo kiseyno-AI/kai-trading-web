@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type SignalReviewCalendarMockOptions = {
+  calendarSummaryDelay?: Promise<void>;
   denseFeedbackActions?: Partial<Record<string, "buy" | "wait" | "reject" | "unknown">>;
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
@@ -787,6 +788,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
 
   await page.route("**/api/trading/agent-context/feedback/calendar**", async (route) => {
     requestHits.calendarSummary += 1;
+    await options.calendarSummaryDelay;
 
     if (options.forceCalendarSummaryFailure) {
       await route.fulfill({
@@ -1814,6 +1816,52 @@ test("signal review calendar keeps a different month loading while the selected 
   }
 });
 
+test("signal review calendar keeps zero-row selected-date summary running while the month snapshot is unresolved", async ({
+  page,
+}) => {
+  const delayedMonthSummary = createDeferred();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const requestHits = await mockSignalReviewCalendar(page, {
+      calendarSummaryDelay: delayedMonthSummary.promise,
+      forceCalendarSummaryFailure: true,
+      runningProgressDates: ["2026-05-26"],
+    });
+
+    await page.goto("/calendar?date=2026-05-26");
+    await page.getByRole("button", { name: "Korean" }).click();
+    await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+    await expect.poll(async () => requestHits.reviewDate).toBeGreaterThanOrEqual(1);
+    await expect.poll(async () => requestHits.progress).toBeGreaterThanOrEqual(1);
+
+    const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-26" }) });
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+      "data-selected-date-status",
+      "running",
+    );
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("로딩 중");
+    await expect(selectedPanel.locator("div").filter({ hasText: /^액션 믹스\s*대기$/ }).locator("strong")).toHaveText(
+      "대기",
+    );
+    await expect(selectedPanel).toContainText("선택한 날짜의 결정을 불러오는 중...");
+    await expect(selectedPanel).not.toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
+
+    delayedMonthSummary.resolve();
+
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+      "data-selected-date-status",
+      "empty",
+    );
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("행 없음");
+    await expect(selectedPanel.locator("div").filter({ hasText: /^액션 믹스\s*행 없음$/ }).locator("strong")).toHaveText(
+      "행 없음",
+    );
+    await expect(selectedPanel).toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
+  } finally {
+    delayedMonthSummary.resolve();
+  }
+});
+
 test("signal review calendar settles unavailable zero-row selected-date summary", async ({ page }) => {
   const unavailableDateFetch = createDeferred();
   try {
@@ -1845,6 +1893,9 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
       "data-selected-date-status",
       "unavailable",
     );
+    await expect(
+      selectedPanel.locator("div").filter({ hasText: /^액션 믹스\s*사용 불가$/ }).locator("strong"),
+    ).toHaveText("사용 불가");
     await expect(selectedPanel).toContainText("총 결정");
     await expect(selectedPanel).toContainText("0");
     await expect(selectedPanel).toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
