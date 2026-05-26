@@ -7,47 +7,21 @@ import { fileURLToPath } from "node:url";
 const cssPath = join(dirname(fileURLToPath(import.meta.url)), "mobile-app-chrome.module.css");
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function getEnclosingMediaQueries(source: string, index: number) {
-  const stack: Array<string | null> = [];
-
-  for (let position = 0; position < index; position += 1) {
-    const character = source[position];
-
-    if (character === "{") {
-      const previousOpen = source.lastIndexOf("{", position - 1);
-      const previousClose = source.lastIndexOf("}", position - 1);
-      const headerStart = Math.max(previousOpen, previousClose) + 1;
-      const header = source.slice(headerStart, position).trim();
-
-      stack.push(header.startsWith("@media") ? header : null);
-      continue;
-    }
-
-    if (character === "}") {
-      stack.pop();
-    }
-  }
-
-  return stack.filter((query): query is string => query !== null);
-}
-
-test("keeps bottom accessory main padding scoped below the desktop layout", () => {
+test("reserves shared mobile bottom chrome in main padding for every route", () => {
   const css = readFileSync(cssPath, "utf8");
   const selector = '.surface[data-mobile-bottom-accessory="present"] .main';
-  const selectorMatches = [...css.matchAll(new RegExp(escapeRegExp(selector), "g"))];
+  const accessoryOverrideMatches = [...css.matchAll(new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))];
 
-  assert.equal(selectorMatches.length, 1);
-
-  const selectorIndex = selectorMatches[0].index;
-  assert.notEqual(selectorIndex, undefined);
-
-  const ruleBlock = css.slice(selectorIndex, css.indexOf("}", selectorIndex) + 1);
-  assert.match(ruleBlock, /padding-bottom:\s*calc\(var\(--mobile-bottom-chrome-height\) \+ 0\.4rem\);/);
-  assert.deepEqual(getEnclosingMediaQueries(css, selectorIndex), ["@media (max-width: 1023.98px)"]);
+  assert.match(css, /--mobile-bottom-content-buffer:\s*1\.55rem;/);
+  assert.match(
+    css,
+    /\.main\s*\{[^}]*padding:\s*5\.5rem 0\.9rem calc\(var\(--mobile-bottom-chrome-height\) \+ var\(--mobile-bottom-content-buffer\)\);/s,
+  );
+  assert.equal(
+    accessoryOverrideMatches.length,
+    0,
+    "Accessory routes should inherit the shared chrome reserve instead of using a smaller override.",
+  );
 });
 
 test("centralizes mobile floating offsets in the shared shell css", () => {

@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { CANONICAL_EOD_PIPELINE_STAGE_ORDER } from "@/lib/eod-pipeline-status";
 import { RELEASE_VERSION_LABEL } from "@/lib/release-version";
 import { chromiumIPhone13 } from "./devices";
+import { expectMobileContentClearsBottomChrome } from "./mobile-bottom-chrome";
 
 test.use(chromiumIPhone13);
 
@@ -422,6 +423,17 @@ test.describe("dashboard mobile chrome", () => {
     await expect(bottomNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
+  });
+
+  test("dashboard content scrolls clear of the process monitor accessory and bottom nav", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/dashboard");
+
+    const routeContent = page.locator("[data-app-chrome-root] main > div").first();
+    await expect(page.getByRole("button", { name: /Open process monitor/i }).first()).toBeVisible();
+    await expect(routeContent.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+
+    await expectMobileContentClearsBottomChrome(page, routeContent);
   });
 
   test("monitored symbol prices use one compact mobile line", async ({ page }) => {

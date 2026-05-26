@@ -2,6 +2,7 @@
   --mobile-bottom-accessory-height: 0rem;
   --mobile-bottom-meta-height: 2.35rem;
   --mobile-bottom-nav-height: calc(6.05rem + env(safe-area-inset-bottom));
+  --mobile-bottom-content-buffer: 1.55rem;
   --mobile-bottom-chrome-height: calc(
     var(--mobile-bottom-nav-height) + var(--mobile-bottom-meta-height) + var(--mobile-bottom-accessory-height)
   );
@@ -90,7 +91,7 @@
   z-index: 1;
   width: min(100%, 31rem);
   margin: 0 auto;
-  padding: 5.5rem 0.9rem calc(7.6rem + env(safe-area-inset-bottom));
+  padding: 5.5rem 0.9rem calc(var(--mobile-bottom-chrome-height) + var(--mobile-bottom-content-buffer));
 }
 
 .bottomNavFrame {
@@ -319,12 +320,6 @@
 
   .navLabel {
     font-size: 0.42rem;
-  }
-}
-
-@media (max-width: 1023.98px) {
-  .surface[data-mobile-bottom-accessory="present"] .main {
-    padding-bottom: calc(var(--mobile-bottom-chrome-height) + 0.4rem);
   }
 }
 

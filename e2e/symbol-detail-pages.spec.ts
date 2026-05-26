@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { chromiumIPhone13 } from "./devices";
+import { expectMobileContentClearsBottomChrome } from "./mobile-bottom-chrome";
 
 test.use(chromiumIPhone13);
 
@@ -662,6 +663,25 @@ test.describe("symbol detail mobile pages", () => {
     expect(tradeTreatment.borderStyle).toBe("solid");
     expect(tradeTreatment.cursor).toBe("not-allowed");
     expect(tradeTreatment.documentOverflow).toBeLessThanOrEqual(1);
+  });
+
+  test("lower insight cards scroll clear of the mobile bottom nav", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+
+    const freshnessCard = page.locator("#freshness");
+    await expect(freshnessCard.getByRole("heading", { name: /Layer-specific freshness registry/i })).toBeVisible();
+
+    await expectMobileContentClearsBottomChrome(page, freshnessCard);
   });
 
   test("detail tabs keep long labels readable at narrow mobile widths", async ({ page }) => {
