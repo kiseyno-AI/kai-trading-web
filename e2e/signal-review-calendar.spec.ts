@@ -7,6 +7,7 @@ type SignalReviewCalendarMockOptions = {
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   identityFallbackDate?: string;
+  issue705Date?: string;
   issue672Date?: string;
   issue623Date?: string;
   mixedHorizonDate?: string;
@@ -51,6 +52,17 @@ type SignalReviewCalendarFeedbackItem = {
   context: Record<string, unknown> | null;
   received_at: string;
 };
+
+async function getActiveElementState(page: Page) {
+  return page.evaluate(() => {
+    const element = document.activeElement as HTMLElement | null;
+
+    return {
+      inDialog: Boolean(element?.closest('[role="dialog"][aria-modal="true"]')),
+      label: (element?.getAttribute("aria-label") || element?.textContent || "").replace(/\s+/g, " ").trim(),
+    };
+  });
+}
 
 function parseActionPreference(value: unknown) {
   if (typeof value !== "string") return "unknown";
@@ -333,6 +345,82 @@ function buildMockFeedbackItemsForDate(
         received_at: `${date}T07:45:00+00:00`,
       },
     ];
+  }
+
+  if (options.issue705Date === date) {
+    return [
+      {
+        companyName: "비상교육",
+        id: "issue-705-bisang",
+        review: "Wait was justified on replay.",
+        stop: 4680,
+        symbol: "100220",
+        target: 5360,
+      },
+      {
+        companyName: "한국주철관",
+        id: "issue-705-background-row",
+        review: "Wait was justified on replay.",
+        stop: 9050,
+        symbol: "000970",
+        target: 10350,
+      },
+    ].map((row, index) => ({
+      id: row.id,
+      market_date: date,
+      symbol: row.symbol,
+      agent: {
+        name: "signal-decider",
+        run_id: `feedback-cycle-${date}`,
+      },
+      summary: {},
+      feedback: {
+        role: "signal-decider",
+        symbol: row.symbol,
+        market_date: date,
+        preferred_action: "wait",
+        next_day_open_action: "wait",
+        target_price: row.target,
+        stop_loss_price: row.stop,
+        confidence_score_10: 6,
+        conviction_score_10: 5,
+        thesis_summary: "Calendar replay dialog focus trap regression row.",
+        evaluation: {
+          target_stop_result: "neither_hit",
+          quality_reason: row.review,
+          realized_results: {
+            "1d": {
+              status: "neither_hit",
+              return_pct: index === 0 ? 0.22 : -0.14,
+              target_hit: false,
+              stop_hit: false,
+            },
+            "3d": {
+              status: "neither_hit",
+              return_pct: index === 0 ? 0.48 : 0.11,
+              target_hit: false,
+              stop_hit: false,
+            },
+            "5d": {
+              status: "neither_hit",
+              return_pct: index === 0 ? 0.72 : 0.18,
+              target_hit: false,
+              stop_hit: false,
+            },
+          },
+        },
+      },
+      normalized_feedback: null,
+      details: null,
+      context: {
+        symbol_day_context: {
+          company: {
+            name_ko: row.companyName,
+          },
+        },
+      },
+      received_at: `${date}T07:${String(45 + index).padStart(2, "0")}:00+00:00`,
+    }));
   }
 
   if (options.issue672Date === date) {
@@ -853,6 +941,8 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       options.pendingWaitDate === marketDate ||
       options.mixedHorizonDate === marketDate
         ? 1
+        : options.issue705Date === marketDate
+          ? 2
         : options.identityFallbackDate === marketDate || options.issue623Date === marketDate
           ? 3
         : marketDate === "2026-04-27"
@@ -863,6 +953,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       !hasRunningProgress &&
       (marketDate === "2026-04-27" ||
         options.mixedHorizonDate === marketDate ||
+        options.issue705Date === marketDate ||
         options.identityFallbackDate === marketDate ||
         options.issue623Date === marketDate);
     const runStatus = hasRunningProgress ? "running" : isCompletedReviewDate ? "completed" : "pending";
@@ -1515,6 +1606,54 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await page.goBack();
   await expect(page).toHaveURL(/\/calendar\?date=2026-04-27/);
   await expect(samsungRow).toContainText("Target hit intraday first");
+});
+
+test("signal review calendar traps replay dialog focus and restores the mobile opener", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    issue705Date: "2026-05-04",
+  });
+
+  await page.goto("/calendar?date=2026-05-04");
+  await page.getByRole("button", { name: /Korean/i }).click();
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+
+  const openerCard = page.getByTestId("calendar-mobile-decision-card").filter({ hasText: "비상교육" });
+  const opener = openerCard.locator("button").filter({ hasText: "리뷰" });
+  await opener.scrollIntoViewIfNeeded();
+  await opener.click();
+
+  const dialog = page.getByRole("dialog", { name: /비상교육/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("aria-modal", "true");
+  await expect(dialog.getByRole("button", { name: "닫기" })).toBeFocused();
+
+  const openerSuppression = await opener.evaluate((element) => ({
+    hiddenAncestor: Boolean(element.closest("[aria-hidden='true']")),
+    inertAncestor: Boolean(element.closest("[inert]")),
+  }));
+  const bottomNavSuppression = await page.locator('[data-mobile-nav-item="calendar"]').evaluate((element) => ({
+    hiddenAncestor: Boolean(element.closest("[aria-hidden='true']")),
+    inertAncestor: Boolean(element.closest("[inert]")),
+  }));
+  expect(openerSuppression).toEqual({ hiddenAncestor: true, inertAncestor: true });
+  expect(bottomNavSuppression).toEqual({ hiddenAncestor: true, inertAncestor: true });
+
+  for (let tabPress = 0; tabPress < 4; tabPress += 1) {
+    await page.keyboard.press("Tab");
+    const activeElementState = await getActiveElementState(page);
+    expect(activeElementState.inDialog).toBe(true);
+    expect(activeElementState.label).not.toContain("한국주철관");
+  }
+
+  await page.keyboard.press("Shift+Tab");
+  const reverseTabState = await getActiveElementState(page);
+  expect(reverseTabState.inDialog).toBe(true);
+  expect(reverseTabState.label).not.toContain("한국주철관");
+
+  await dialog.getByRole("button", { name: "닫기" }).click();
+  await expect(page.getByRole("dialog", { name: /비상교육/ })).toHaveCount(0);
+  await expect(opener).toBeFocused();
 });
 
 test("signal review calendar does not repeat symbols when company names are unavailable", async ({ page }) => {

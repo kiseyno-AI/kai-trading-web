@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
@@ -59,6 +59,14 @@ const UNKNOWN_LABEL = "[확인 필요]";
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const ACTION_KEYS = ["buy", "wait", "reject", "unknown"] as const satisfies readonly SignalDeciderAction[];
 const DAY_MS = 86_400_000;
+const DETAIL_DIALOG_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 type CalendarDay = {
   dateKey: string;
@@ -895,6 +903,14 @@ function buildSymbolHref(item: SignalDeciderFeedbackItem) {
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
 
+function getFocusableDetailDialogElements(container: HTMLElement) {
+  return Array.from(container.querySelectorAll<HTMLElement>(DETAIL_DIALOG_FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.closest("[aria-hidden='true'], [inert]")) return false;
+    const styles = window.getComputedStyle(element);
+    return styles.display !== "none" && styles.visibility !== "hidden";
+  });
+}
+
 function getSelectedDateHeader(
   selectedDate: string | null,
   copy: ReturnType<typeof useAppState>["t"]["signalReview"],
@@ -920,6 +936,8 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const detailOpenerRef = useRef<HTMLElement | null>(null);
+  const shouldRestoreDetailFocusRef = useRef(false);
   const { devMode, locale, t } = useAppState();
   const copy = t.signalReview;
   const selectedUnavailable = copy.states.selectedUnavailable;
@@ -1373,6 +1391,28 @@ export default function SignalReviewCalendarPageClient() {
     setMonthKey((value) => addMonths(value, delta));
   }
 
+  const openDetailPanel = useCallback((itemId: string) => {
+    detailOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    shouldRestoreDetailFocusRef.current = false;
+    setSelectedItemId(itemId);
+  }, []);
+
+  const closeDetailPanel = useCallback(() => {
+    shouldRestoreDetailFocusRef.current = true;
+    setSelectedItemId(null);
+  }, []);
+
+  useEffect(() => {
+    if (selectedItemId !== null || !shouldRestoreDetailFocusRef.current) return;
+
+    shouldRestoreDetailFocusRef.current = false;
+    const opener = detailOpenerRef.current;
+    detailOpenerRef.current = null;
+    if (opener?.isConnected) {
+      opener.focus({ preventScroll: true });
+    }
+  }, [selectedItemId]);
+
   function renderCalendarCell(day: CalendarDay) {
     const rawSnapshot = day.inMonth
       ? monthSnapshots[day.dateKey] ?? {
@@ -1475,6 +1515,10 @@ export default function SignalReviewCalendarPageClient() {
     <MobileAppChrome
       chrome={{
         activeNav: "calendar",
+        modalLayer: selectedItem ? (
+          <DetailPanel copy={copy} item={selectedItem} onClose={closeDetailPanel} status={selectedSummary} />
+        ) : null,
+        modalOpen: Boolean(selectedItem),
         title: t.mobileChrome.calendar,
         subtitle: getSelectedDateHeader(selectedDate, copy),
         status: { label: formatMonthLabel(monthKey), priority: "supplemental" },
@@ -1617,7 +1661,7 @@ export default function SignalReviewCalendarPageClient() {
                       key={item.id}
                       type="button"
                       className={`${styles.decisionRow} ${selectedItemId === item.id ? styles.selectedDecision : ""}`.trim()}
-                      onClick={() => setSelectedItemId(item.id)}
+                      onClick={() => openDetailPanel(item.id)}
                     >
                       <span className={styles.symbolBlock}>
                         <strong>{identity.title}</strong>
@@ -1664,7 +1708,7 @@ export default function SignalReviewCalendarPageClient() {
                       navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
                     })}
                     item={item}
-                    onReview={() => setSelectedItemId(item.id)}
+                    onReview={() => openDetailPanel(item.id)}
                     status={selectedSummary}
                   />
                 ))}
@@ -1725,7 +1769,7 @@ export default function SignalReviewCalendarPageClient() {
                           </td>
                           <td>{getTableInsightSummary(item, copy, selectedSummary.status)}</td>
                           <td>
-                            <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
+                            <button type="button" className={styles.reviewButton} onClick={() => openDetailPanel(item.id)}>
                               {copy.actions.review}
                             </button>
                           </td>
@@ -1741,14 +1785,6 @@ export default function SignalReviewCalendarPageClient() {
           )}
         </section>
 
-        {selectedItem ? (
-          <DetailPanel
-            copy={copy}
-            item={selectedItem}
-            onClose={() => setSelectedItemId(null)}
-            status={selectedSummary}
-          />
-        ) : null}
       </div>
     </MobileAppChrome>
   );
@@ -1861,14 +1897,80 @@ function DetailPanel({
   const reviewConclusion = getCalendarReviewText(item.reviewConclusion, copy);
   const qualityVerdict = getCalendarReviewText(item.qualityVerdict, copy);
   const qualityReason = getCalendarReviewText(item.qualityReason, copy);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    queueMicrotask(() => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const initialFocusTarget = closeButtonRef.current ?? getFocusableDetailDialogElements(dialog)[0] ?? dialog;
+      initialFocusTarget.focus({ preventScroll: true });
+    });
+
+    const keepFocusInDialog = (event: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusableElements = getFocusableDetailDialogElements(dialog);
+      const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog.focus({ preventScroll: true });
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!activeElement || !dialog.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus({ preventScroll: true });
+        return;
+      }
+
+      if (event.shiftKey && activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus({ preventScroll: true });
+        return;
+      }
+
+      if (!event.shiftKey && activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus({ preventScroll: true });
+      }
+    };
+
+    document.addEventListener("keydown", keepFocusInDialog, true);
+
+    return () => {
+      document.removeEventListener("keydown", keepFocusInDialog, true);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
 
   return (
     <div className={styles.dialogBackdrop} onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className={styles.detailDialog}
         role="dialog"
         aria-modal="true"
         aria-labelledby="signal-review-detail-title"
+        tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className={styles.detailHeader}>
@@ -1888,7 +1990,7 @@ function DetailPanel({
               ) : null}
             </div>
           </div>
-          <button type="button" className={styles.closeButton} onClick={onClose}>
+          <button ref={closeButtonRef} type="button" className={styles.closeButton} onClick={onClose}>
             {copy.actions.close}
           </button>
         </header>

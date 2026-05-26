@@ -40,6 +40,8 @@ export type MobileAppChromeRouteChrome = {
   floatingLayer?: ReactNode;
   hrefs?: AppChromeHrefOverrides;
   leading?: ReactNode;
+  modalLayer?: ReactNode;
+  modalOpen?: boolean;
   navRouteKeys?: ReadonlyArray<AppChromeRouteKey>;
   status?: MobileAppChromeStatus | null;
   subtitle?: ReactNode | null;
@@ -100,6 +102,7 @@ export function MobileAppChrome({
   const { t, locale } = useAppState();
   const { beginNavigation, isNavigatingTo } = useNavigationLoading();
   const activeNav = chrome.activeNav ?? null;
+  const modalOpen = Boolean(chrome.modalOpen);
   const desktopChromeActive = useMediaQuery("(min-width: 1024px)");
   const toolbarDevActionVisible = useMediaQuery("(min-width: 521px)");
   const desktopChromeHiddenTabIndex = desktopChromeActive ? undefined : -1;
@@ -122,6 +125,8 @@ export function MobileAppChrome({
   const bottomAccessory = chrome.bottomAccessory;
   const bottomMeta = null;
   const desktopRailFooter = <MobileAppChromeDesktopRailFooter />;
+  const desktopChromeSuppressed = modalOpen || !desktopChromeActive;
+  const mobileChromeSuppressed = modalOpen || desktopChromeActive;
   const toolbarTitle = chrome.title ?? resolvedMetadata?.title;
   const toolbarAction = chrome.toolbarAction ?? resolvedMetadata?.toolbarAction ?? "none";
   const narrowToolbarLayout = chrome.status && chrome.status.priority !== "supplemental" ? "wrap-actions" : undefined;
@@ -250,9 +255,9 @@ export function MobileAppChrome({
       <aside
         className={styles.desktopRail}
         aria-label={t.mobileChrome.desktopNavigation}
-        aria-hidden={desktopChromeActive ? undefined : true}
+        aria-hidden={desktopChromeSuppressed ? true : undefined}
         data-app-chrome-hidden-when-mobile
-        inert={desktopChromeActive ? undefined : true}
+        inert={desktopChromeSuppressed ? true : undefined}
       >
         <div className={styles.desktopBrand}>
           <div className={styles.desktopBrandMark} aria-hidden="true" />
@@ -293,7 +298,12 @@ export function MobileAppChrome({
         ) : null}
       </aside>
 
-      <header className={`${styles.headerFrame} topbar`} data-app-chrome-topbar="fixed">
+      <header
+        className={`${styles.headerFrame} topbar`}
+        data-app-chrome-topbar="fixed"
+        aria-hidden={modalOpen ? true : undefined}
+        inert={modalOpen ? true : undefined}
+      >
         <div className={styles.headerInner}>
           <DashboardToolbar
             actions={toolbarActions}
@@ -307,12 +317,14 @@ export function MobileAppChrome({
         </div>
       </header>
 
-      <main className={styles.main}>{children}</main>
+      <main className={styles.main} aria-hidden={modalOpen ? true : undefined} inert={modalOpen ? true : undefined}>
+        {children}
+      </main>
 
       <div
         className={styles.bottomNavFrame}
-        aria-hidden={desktopChromeActive ? true : undefined}
-        inert={desktopChromeActive ? true : undefined}
+        aria-hidden={mobileChromeSuppressed ? true : undefined}
+        inert={mobileChromeSuppressed ? true : undefined}
       >
         {bottomMeta ? <div className={styles.mobileMetaRow}>{bottomMeta}</div> : null}
         {bottomAccessory ? <div className={styles.bottomAccessory}>{bottomAccessory}</div> : null}
@@ -321,6 +333,7 @@ export function MobileAppChrome({
         </nav>
       </div>
       {chrome.floatingLayer}
+      {chrome.modalLayer}
     </div>
   );
 }
