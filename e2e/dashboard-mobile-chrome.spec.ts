@@ -14,6 +14,7 @@ const yesLabel = /Yes|예/;
 
 type FilteringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
 type MockPipelineStatus = "running" | "completed" | "partial";
+type MockPipelineStageOverride = (stageKey: string) => Record<string, unknown> | null;
 
 async function expectFilteringStageStatusIcon(stage: Locator, status: FilteringStageStatus, label: string) {
   await expect(stage).toHaveAttribute("data-filter-status", status);
@@ -97,7 +98,11 @@ function getOverlapArea(first: LayoutBox, second: LayoutBox) {
   return overlapWidth * overlapHeight;
 }
 
-async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () => MockPipelineStatus) {
+async function mockDashboardProcessStatusApis(
+  page: Page,
+  getPipelineStatus: () => MockPipelineStatus,
+  getStageOverride?: MockPipelineStageOverride,
+) {
   const now = "2026-04-16T09:10:00+09:00";
 
   await page.route("**/api/trading/market/status", async (route) => {
@@ -217,18 +222,20 @@ async function mockDashboardProcessStatusApis(page: Page, getPipelineStatus: () 
           status === "completed" ||
           (status === "running" && CANONICAL_EOD_PIPELINE_STAGE_ORDER.indexOf(stageKey) < 5) ||
           (status === "partial" && partialCompletedStageKeys.has(stageKey));
+        const stage = {
+          status: isRunningAction ? "running" : isCompleted ? "completed" : "pending",
+          processed: isRunningAction ? 1180 : isCompleted ? 3200 : null,
+          total: isRunningAction || isCompleted ? 3200 : null,
+          failed: 0,
+          current_step: isRunningAction ? "build_symbol_summary" : null,
+          current_activity: isRunningAction ? "Rendering EOD summaries" : null,
+          current_symbol: isRunningAction ? "005930" : null,
+          ...(getStageOverride?.(stageKey) ?? {}),
+        };
 
         return [
           stageKey,
-          {
-            status: isRunningAction ? "running" : isCompleted ? "completed" : "pending",
-            processed: isRunningAction ? 1180 : isCompleted ? 3200 : null,
-            total: isRunningAction || isCompleted ? 3200 : null,
-            failed: 0,
-            current_step: isRunningAction ? "build_symbol_summary" : null,
-            current_activity: isRunningAction ? "Rendering EOD summaries" : null,
-            current_symbol: isRunningAction ? "005930" : null,
-          },
+          stage,
         ];
       }),
     );
@@ -1658,5 +1665,37 @@ test.describe("dashboard desktop process monitor canonical truth", () => {
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
     await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
+  });
+
+  test("desktop process monitor renders oversized stored-row evidence without an impossible ratio", async ({ page }) => {
+    await mockDashboardProcessStatusApis(page, () => "completed", (stageKey) => {
+      if (stageKey !== "trending_ranks") return null;
+
+      return {
+        label: "stored trending rank rebuild",
+        processed: null,
+        total: null,
+        eod_run_id: 299,
+        details: {
+          rows_persisted: 8412,
+          expected_rows: 3,
+          progress_source: "stored_rows",
+        },
+      };
+    });
+
+    await page.goto("/dashboard");
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const trendingRanksStage = processDrawer.locator('[data-pipeline-stage="trending_ranks"]');
+
+    await expect(trendingRanksStage).toBeVisible();
+    await expect(trendingRanksStage).toContainText("stored trending rank rebuild");
+    await expect(trendingRanksStage).toContainText("8,412 stored rows");
+    await expect(trendingRanksStage).toContainText("eod_run_id: 299");
+    await expect(trendingRanksStage).not.toContainText(/8,412\s*\/\s*3/);
+    await expect(
+      trendingRanksStage.getByRole("progressbar", { name: /stored trending rank rebuild Progress/i }),
+    ).toHaveAttribute("aria-valuetext", "8,412 stored rows");
   });
 });

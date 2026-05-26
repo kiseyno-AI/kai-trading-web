@@ -129,6 +129,37 @@ test("uses completed stored-row evidence without requiring live progress counter
   assert.match(stage?.reason ?? "", /stored row evidence/);
 });
 
+test("formats completed stored-row evidence as a row count when expected rows are a different unit", () => {
+  const model = buildDailyPipelineTimelineModel(
+    buildPipelineStatus({
+      status: "completed",
+      stages: {
+        trending_ranks: buildStage("completed", {
+          label: "stored trending rank rebuild",
+          processed: null,
+          total: null,
+          eod_run_id: 299,
+          details: {
+            rows_persisted: 8412,
+            expected_rows: 3,
+            progress_source: "stored_rows",
+          },
+        }),
+      },
+    }),
+    "en-US",
+  );
+  const stage = model.stages.find((item) => item.key === "trending_ranks");
+
+  assert.equal(stage?.status, "completed");
+  assert.equal(stage?.progressLabel, "8,412 stored rows");
+  assert.equal(stage?.progressPercent, 100);
+  assert.equal(stage?.progressSource, "stored_rows");
+  assert.deepEqual(stage?.sourceRunIds, [{ key: "eod_run_id", value: "299" }]);
+  assert.match(stage?.reason ?? "", /stored row evidence/);
+  assert.doesNotMatch(stage?.progressLabel ?? "", /8,412\s*\/\s*3/);
+});
+
 test("maps interrupted run metadata to failed status and preserves the reason", () => {
   const model = buildDailyPipelineTimelineModel(
     buildPipelineStatus({

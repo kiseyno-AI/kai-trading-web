@@ -384,6 +384,34 @@ function formatProgressLabel(processed: number | null, total: number | null, num
   return null;
 }
 
+function formatStoredRowsProgressLabel(rowsPersisted: number, total: number | null, numberLocale: string) {
+  if (total !== null && rowsPersisted > total) {
+    return `${formatCount(rowsPersisted, numberLocale)} ${DAILY_PIPELINE_PROGRESS_SOURCE_LABELS.stored_rows}`;
+  }
+
+  return formatProgressLabel(rowsPersisted, total, numberLocale);
+}
+
+function formatStageProgressLabel({
+  processed,
+  progressSource,
+  rowsPersisted,
+  total,
+  numberLocale,
+}: {
+  processed: number | null;
+  progressSource: DailyPipelineProgressSource;
+  rowsPersisted: number | null;
+  total: number | null;
+  numberLocale: string;
+}) {
+  if (progressSource === "stored_rows" && rowsPersisted !== null) {
+    return formatStoredRowsProgressLabel(rowsPersisted, total, numberLocale);
+  }
+
+  return formatProgressLabel(processed, total, numberLocale);
+}
+
 function resolveStageStatus(
   stage: EodPipelineStageDto | null,
   rowsPersisted: number | null,
@@ -813,7 +841,13 @@ export function buildDailyPipelineTimelineModel(
     const completedProcessedCount =
       status === "completed" && processedCount === null && totalCount !== null ? totalCount : processedCount;
     const progressLabel =
-      formatProgressLabel(completedProcessedCount, totalCount, numberLocale) ??
+      formatStageProgressLabel({
+        processed: completedProcessedCount,
+        progressSource,
+        rowsPersisted,
+        total: totalCount,
+        numberLocale,
+      }) ??
       DAILY_PIPELINE_STATUS_LABELS[status];
     const progressPercent = getProgressPercent(status, completedProcessedCount, totalCount);
     const explicitReason = getExplicitStageReason(reportedStage);
