@@ -80,6 +80,7 @@ type CalendarDateSnapshot = {
 
 type MonthLoadState = "idle" | "loading" | "ready" | "partial" | "unavailable";
 type DetailLoadState = "idle" | "loading" | "ready" | "error";
+type SelectedDateDisplayStatus = DateSnapshotStatus | SignalDeciderFeedbackStatus;
 
 const EMPTY_ACTION_COUNTS = { buy: 0, wait: 0, reject: 0, watch_for_trigger: 0, avoid_chase: 0, unknown: 0 } as const;
 
@@ -574,14 +575,70 @@ function getStatusLabel(
   return copy.status[status];
 }
 
-function getFeedbackStatusLabel(
-  status: SignalDeciderFeedbackStatus,
-  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
-) {
-  if (status === "completed") return copy.status.reviewed;
-  if (status === "needs-review") return copy.status.needsReview;
-  if (status === "running") return copy.status.loading;
-  return copy.status[status];
+function getSelectedDateDisplayStatus({
+  loadState,
+  selectedError,
+  selectedSnapshot,
+  summary,
+}: {
+  loadState: DetailLoadState;
+  selectedError: string | null;
+  selectedSnapshot: CalendarDateSnapshot | null;
+  summary: SignalDeciderFeedbackSummaryModel;
+}): SelectedDateDisplayStatus {
+  if (loadState === "loading") return "loading";
+  if (loadState === "error") return "unavailable";
+  if (loadState === "idle") return summary.status;
+
+  if (summary.resultCount <= 0) {
+    if (selectedError) return "unavailable";
+    if (
+      selectedSnapshot?.status === "empty" ||
+      selectedSnapshot?.status === "future" ||
+      selectedSnapshot?.status === "partial" ||
+      selectedSnapshot?.status === "unavailable"
+    ) {
+      return selectedSnapshot.status;
+    }
+    if (!selectedSnapshot || selectedSnapshot.status === "loading") {
+      return summary.status === "waiting" ? "loading" : summary.status;
+    }
+    return "empty";
+  }
+
+  return summary.status;
+}
+
+function getSelectedDateActionMixLabel({
+  copy,
+  displayStatus,
+  summary,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  displayStatus: SelectedDateDisplayStatus;
+  summary: SignalDeciderFeedbackSummaryModel;
+}) {
+  if (summary.resultCount > 0) return getActionMixLabel(summary.actionCounts, copy);
+  if (displayStatus === "loading" || displayStatus === "running") return copy.status.pending;
+  return getStatusLabel(displayStatus, copy);
+}
+
+function getSelectedDateEmptyStateMessage({
+  copy,
+  displayStatus,
+  selectedError,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  displayStatus: SelectedDateDisplayStatus;
+  selectedError: string | null;
+}) {
+  if (displayStatus === "unavailable" && selectedError) {
+    return selectedError;
+  }
+  if (displayStatus === "loading" || displayStatus === "running" || displayStatus === "waiting") {
+    return copy.states.loadingSelected;
+  }
+  return copy.states.emptySelected;
 }
 
 function getPrimaryHorizonCounts(items: SignalDeciderFeedbackItem[]) {
@@ -1224,6 +1281,23 @@ export default function SignalReviewCalendarPageClient() {
   );
   const selectedReadyDateInDisplayedMonth =
     selectedDate !== null && selectedDisplayLoadState === "ready" && getMonthKey(selectedDate) === monthKey;
+  const selectedSnapshot = selectedDate ? (monthSnapshots[selectedDate] ?? null) : null;
+  const selectedDisplayStatus = getSelectedDateDisplayStatus({
+    loadState: selectedDisplayLoadState,
+    selectedError,
+    selectedSnapshot,
+    summary: selectedSummary,
+  });
+  const selectedActionMixLabel = getSelectedDateActionMixLabel({
+    copy,
+    displayStatus: selectedDisplayStatus,
+    summary: selectedSummary,
+  });
+  const selectedEmptyStateMessage = getSelectedDateEmptyStateMessage({
+    copy,
+    displayStatus: selectedDisplayStatus,
+    selectedError,
+  });
 
   useEffect(() => {
     let active = true;
@@ -1255,6 +1329,19 @@ export default function SignalReviewCalendarPageClient() {
       const selectedSnapshot = buildDateSnapshot(selectedDate, selectedFeedback);
       setMonthSnapshots((current) => {
         const currentSnapshot = current[selectedDate];
+        const currentSnapshotUnresolved = !currentSnapshot || currentSnapshot.status === "loading";
+        if (
+          currentSnapshotUnresolved &&
+          selectedSnapshot.decisionCount <= 0 &&
+          (selectedSummary.status === "running" || selectedSummary.status === "waiting")
+        ) {
+          return current;
+        }
+
+        if (currentSnapshot?.status === "unavailable" && selectedSnapshot.decisionCount <= 0) {
+          return current;
+        }
+
         if (
           currentSnapshot &&
           currentSnapshot.status !== "loading" &&
@@ -1274,7 +1361,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [monthKey, selectedDate, selectedDisplayLoadState, selectedFeedback]);
+  }, [monthKey, selectedDate, selectedDisplayLoadState, selectedFeedback, selectedSummary.status]);
 
   function handleSelectDate(dateKey: string) {
     setSelectedDate(dateKey);
@@ -1464,12 +1551,11 @@ export default function SignalReviewCalendarPageClient() {
                 <p className={styles.eyebrow}>{copy.selected.eyebrow}</p>
                 <h2>{selectedDate ?? copy.status.pending}</h2>
               </div>
-              <span className={`${styles.dayStatus} ${getStatusToneClass(selectedSummary.status)}`}>
-                {selectedDisplayLoadState === "loading"
-                  ? copy.status.loading
-                  : selectedDisplayLoadState === "error"
-                    ? copy.status.unavailable
-                    : getFeedbackStatusLabel(selectedSummary.status, copy)}
+              <span
+                className={`${styles.dayStatus} ${getStatusToneClass(selectedDisplayStatus)}`}
+                data-selected-date-status={selectedDisplayStatus}
+              >
+                {getStatusLabel(selectedDisplayStatus, copy)}
               </span>
             </header>
 
@@ -1480,7 +1566,7 @@ export default function SignalReviewCalendarPageClient() {
               </div>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.actionMix}</span>
-                <strong>{getActionMixLabel(selectedSummary.actionCounts, copy)}</strong>
+                <strong>{selectedActionMixLabel}</strong>
               </div>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.reviewed}</span>
@@ -1520,7 +1606,7 @@ export default function SignalReviewCalendarPageClient() {
             ) : selectedDisplayLoadState === "error" ? (
               <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>
             ) : selectedSummary.items.length === 0 ? (
-              <div className={styles.emptyState}>{copy.states.emptySelected}</div>
+              <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
             ) : (
               <div className={styles.decisionList}>
                 {selectedSummary.items.map((item) => {
@@ -1651,7 +1737,7 @@ export default function SignalReviewCalendarPageClient() {
               </div>
             </>
           ) : (
-            <div className={styles.emptyState}>{copy.states.emptySelected}</div>
+            <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
           )}
         </section>
 
