@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { chromiumIPhone13 } from "./devices";
+import { expectMobileContentClearsBottomChrome } from "./mobile-bottom-chrome";
 
 test.use(chromiumIPhone13);
 
@@ -119,6 +120,71 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByLabel(/Search suggestions/i)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
     await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
+  });
+
+  test("trending rows scroll clear of the mobile bottom nav", async ({ page }) => {
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({ json: { count: 0, items: [] } });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          count: 0,
+          last_updated_at: "2026-05-27T09:00:00+09:00",
+          tracked_symbols: [],
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({ json: { count: 0, items: [], query: "" } });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          as_of: "2026-05-27T09:00:00+09:00",
+          items: Array.from({ length: 6 }, (_, index) => ({
+            best_rank: index + 1,
+            change_pct: 0.42 - index / 10,
+            market: "KRX",
+            name: `KAI Bottom ${index + 1}`,
+            price: 71000 + index * 100,
+            source_count: 1,
+            sources: [
+              {
+                metric: { name: "volume", unit: "shares", value: 250000 - index * 1000 },
+                rank: index + 1,
+                source: "volume-rank",
+                source_label: "volume-rank",
+              },
+            ],
+            symbol: `00900${index + 1}`,
+          })),
+          market: "KRX",
+          source: "kis",
+          status: "ok",
+          summary: { item_count: 6 },
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/trending-stocks?**", async (route) => {
+      await route.fulfill({
+        json: {
+          items: [],
+          request: { period: "1d", resolved_market_date: "2026-05-27" },
+          summary: { item_count: 0 },
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const trendingSection = page.locator("section", {
+      has: page.getByRole("heading", { name: /Trending Symbols/i }),
+    });
+    const lastTrendingRow = trendingSection.getByRole("button", { name: /KAI Bottom 5/i });
+    await expect(lastTrendingRow).toBeVisible();
+
+    await expectMobileContentClearsBottomChrome(page, lastTrendingRow);
   });
 
   test("keeps the quick-access favorite add control easy to tap and keyboard reachable", async ({ page }) => {
