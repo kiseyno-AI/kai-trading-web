@@ -1013,6 +1013,15 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
 
       <TradeRowList
         copy={copy}
+        emptyLabel={model.planStateLabel}
+        label={copy.dashboardOverview.monitoringPlan}
+        listId="dashboard-monitoring-plan-list"
+        numberLocale={numberLocale}
+        rows={model.planRows}
+        testId="dashboard-monitoring-plan"
+      />
+      <TradeRowList
+        copy={copy}
         emptyLabel={model.buyStateLabel}
         label={copy.dashboardOverview.todayBought}
         listId="dashboard-today-bought-list"

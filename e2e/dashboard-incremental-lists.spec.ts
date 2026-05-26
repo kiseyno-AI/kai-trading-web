@@ -57,11 +57,13 @@ function buildBoardItems({ buyCount, sellCount }: { buyCount: number; sellCount:
 async function mockDashboardRuntimeLists(
   page: Page,
   {
+    boardItems,
     buyCount,
     monitoredCount,
     monitoredError = false,
     sellCount,
   }: {
+    boardItems?: unknown[];
     buyCount: number;
     monitoredCount: number;
     monitoredError?: boolean;
@@ -174,7 +176,7 @@ async function mockDashboardRuntimeLists(
       contentType: "application/json",
       body: JSON.stringify({
         market_date: "2026-04-30",
-        items: buildBoardItems({ buyCount, sellCount }),
+        items: boardItems ?? buildBoardItems({ buyCount, sellCount }),
       }),
     });
   });
@@ -257,5 +259,55 @@ test.describe("dashboard incremental lists", () => {
     await expect(portfolioCard.getByTestId("dashboard-today-sold-row")).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-today-bought-more")).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-today-sold-more")).toHaveCount(0);
+  });
+
+  test("shows planned-only portfolio board rows once on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockDashboardRuntimeLists(page, {
+      boardItems: [
+        {
+          symbol: "005930",
+          name: "Samsung Electronics",
+          market: "KOSPI",
+          status: "partial",
+          monitoring_state: "watching_target_stop",
+          planned_intents: ["buy", "target_sell", "stop_sell"],
+          target_price: 76000,
+          stop_loss_price: 70000,
+        },
+        {
+          symbol: "005930",
+          name: "Samsung Electronics",
+          market: "KOSPI",
+          status: "scheduled",
+          intent: "buy",
+          planned_price: 71500,
+        },
+      ],
+      buyCount: 0,
+      monitoredCount: 1,
+      sellCount: 0,
+    });
+
+    await page.goto("/dashboard");
+
+    const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
+    const planSection = portfolioCard.locator("section").filter({
+      has: page.getByRole("heading", { name: "Monitoring plan", exact: true }),
+    });
+
+    await expect(planSection).toBeVisible();
+    await expect(planSection.getByTestId("dashboard-monitoring-plan-row")).toHaveCount(1);
+    await expect(planSection.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(planSection.getByText("Buy target", { exact: true })).toBeVisible();
+    await expect(planSection.getByText("71,500", { exact: true })).toBeVisible();
+    await expect(planSection.getByText("Sell target", { exact: true })).toBeVisible();
+    await expect(planSection.getByText("76,000", { exact: true })).toBeVisible();
+    await expect(planSection.getByText("Stop-loss", { exact: true })).toBeVisible();
+    await expect(planSection.getByText("70,000", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByRole("heading", { name: "Today bought", exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByRole("heading", { name: "Today sold", exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-today-bought-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-today-sold-row")).toHaveCount(0);
   });
 });
