@@ -313,7 +313,7 @@ function hasPartialFillEvidence(item: ExecutionRuntimeBoardItemDto) {
     if (price !== null && price > 0) return true;
   }
 
-  return Boolean(textOrNull(item.broker_order_id));
+  return false;
 }
 
 function isActualExecutionItem(item: ExecutionRuntimeBoardItemDto) {

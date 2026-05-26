@@ -549,6 +549,54 @@ test("does not treat zero-quantity partial rows as bought executions", () => {
   );
 });
 
+test("keeps broker-order-id-only partial rows out of same-day executions", () => {
+  const board = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "000660",
+        name: "SK hynix",
+        market: "KRX",
+        status: "partial",
+        intent: "buy",
+        broker_order_id: "KIS-ack-000660",
+        filled_quantity: 0,
+        avg_fill_price: 0,
+        trade_price: 0,
+        fill_price: 0,
+        planned_price: 179500,
+        target_price: 184000,
+        stop_loss_price: 174000,
+      },
+    ],
+  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    board,
+    boardError: null,
+    copy,
+    executionStatus: { exec_connected: true, status: "ready" },
+    executionStatusError: null,
+    marketDate: "2026-05-22",
+    numberLocale: "en-US",
+    portfolioState: "fully-synced",
+    summary: null,
+  });
+
+  assert.equal(model.buyRows.length, 0);
+  assert.equal(model.sellRows.length, 0);
+  assert.equal(model.planRows.length, 1);
+  assert.equal(model.planRows[0].symbol, "000660");
+  assert.deepEqual(
+    model.planRows[0].values.map((value) => [value.label, value.value]),
+    [
+      ["Buy target", "179,500"],
+      ["Sell target", "184,000"],
+      ["Stop-loss", "174,000"],
+    ],
+  );
+});
+
 test("keeps clear same-day buy and sell executions split even when the symbol repeats", () => {
   const board = {
     market_date: "2026-05-22",
