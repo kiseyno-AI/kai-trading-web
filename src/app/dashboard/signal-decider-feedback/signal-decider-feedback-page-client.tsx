@@ -1298,7 +1298,7 @@ export default function SignalDeciderFeedbackPageClient() {
           ) : null}
         </section>
 
-        <section className={styles.panel}>
+        <section className={isCalendarContext ? `${styles.panel} ${styles.calendarPrimaryPanel}` : styles.panel}>
           <nav className={styles.agentTabs} aria-label={copy.tabs.label}>
             <Link
               href={signalTabHref}
