@@ -1106,11 +1106,18 @@ export type EodPipelineStageDetailsDto = Record<string, unknown> & {
   skipped_reason?: string | null;
   inspect_href?: string | null;
   inspect_path?: string | null;
+  inspect_routes?: string[] | null;
+  missing_count?: number | null;
+  missing_symbols_sample?: string[] | null;
+  missing_symbol_details_sample?: Array<Record<string, unknown>> | null;
 };
 
 export type EodPipelineStageDto = Record<string, unknown> & {
   task?: string | null;
+  stage_id?: string | null;
   label?: string | null;
+  group?: string | null;
+  order?: number | null;
   status: string | null;
   source_status?: string | null;
   processed: number | null;
@@ -1134,6 +1141,9 @@ export type EodPipelineStageDto = Record<string, unknown> & {
   eod_run_id?: string | number | null;
   run_id?: string | number | null;
   source_run_ids?: Record<string, unknown> | Array<string | number | Record<string, unknown>> | null;
+  inspect_routes?: string[] | null;
+  output_tables?: string[] | null;
+  default_selected?: boolean | null;
   details?: EodPipelineStageDetailsDto | null;
 };
 
@@ -1143,6 +1153,16 @@ export type EodPipelineStatusResponseDto = {
   status: string | null;
   stage_order: EodPipelineStageKey[];
   stages: Partial<Record<EodPipelineStageKey, EodPipelineStageDto>>;
+  total_stages?: number | null;
+  completed_stages?: number | null;
+  display_completed_stages?: number | null;
+  partial_stages?: number | null;
+  failed_stages?: number | null;
+  blocked_stages?: number | null;
+  running_stages?: number | null;
+  pending_stages?: number | null;
+  current_stage?: EodPipelineStageKey | string | null;
+  current_stage_status?: string | null;
 };
 
 export type DartFundamentalsSymbolSampleItemDto =

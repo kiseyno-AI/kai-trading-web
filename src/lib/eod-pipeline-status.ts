@@ -473,6 +473,41 @@ function getDefinitionByKey(key: string) {
   return DAILY_PIPELINE_STAGE_DEFINITIONS.find((definition) => definition.key === key) ?? null;
 }
 
+function isCanonicalStageKey(value: unknown): value is CanonicalEodPipelineStageKey {
+  return (
+    typeof value === "string" &&
+    CANONICAL_EOD_PIPELINE_STAGE_ORDER.includes(value as CanonicalEodPipelineStageKey)
+  );
+}
+
+function getPipelineStageDefinitions(
+  pipelineStatus: EodPipelineStatusResponseDto | null,
+): readonly DailyPipelineStageDefinition[] {
+  const stageOrder = Array.isArray(pipelineStatus?.stage_order) ? pipelineStatus.stage_order : [];
+  const coreOrderedDefinitions = stageOrder
+    .filter(isCanonicalStageKey)
+    .map((key) => {
+      const fallback = getDefinitionByKey(key);
+      const reportedStage = pipelineStatus?.stages?.[key] ?? null;
+      const details = getStageDetails(reportedStage);
+      const reportedDependencies = readStringList(reportedStage?.depends_on ?? details?.depends_on)
+        .filter(isCanonicalStageKey);
+      return {
+        key,
+        label: getTextValue(reportedStage?.label) ?? fallback?.label ?? humanizeToken(key),
+        dependencies: reportedDependencies.length > 0 ? reportedDependencies : (fallback?.dependencies ?? []),
+        inspectLinks: fallback?.inspectLinks,
+        aliases: fallback?.aliases,
+      } satisfies DailyPipelineStageDefinition;
+    });
+
+  if (coreOrderedDefinitions.length === CANONICAL_EOD_PIPELINE_STAGE_ORDER.length) {
+    return coreOrderedDefinitions;
+  }
+
+  return DAILY_PIPELINE_STAGE_DEFINITIONS;
+}
+
 function getStageLabel(key: string) {
   return getDefinitionByKey(key)?.label ?? humanizeToken(key);
 }
@@ -631,7 +666,13 @@ function getProgressPercent(
 
 function getExplicitStageReason(stage: EodPipelineStageDto | null) {
   const details = getStageDetails(stage);
-  return (
+  const missingCount = getNumberValue(details?.missing_count);
+  const missingSymbols = readStringList(details?.missing_symbols_sample).slice(0, 4);
+  const missingSuffix =
+    missingCount !== null && missingCount > 0
+      ? ` Missing ${missingCount.toLocaleString()} symbol${missingCount === 1 ? "" : "s"}${missingSymbols.length > 0 ? `: ${missingSymbols.join(", ")}` : ""}.`
+      : "";
+  const explicitReason =
     getTextValue(details?.reason) ??
     getTextValue(details?.message) ??
     getTextValue(details?.failure_reason) ??
@@ -640,7 +681,12 @@ function getExplicitStageReason(stage: EodPipelineStageDto | null) {
     getTextValue(stage?.reason) ??
     getTextValue(stage?.message) ??
     getTextValue(stage?.failure_reason) ??
-    getTextValue(stage?.error_message) ??
+    getTextValue(stage?.error_message);
+
+  if (explicitReason) return `${explicitReason}${missingSuffix}`.trim();
+  if (missingSuffix) return missingSuffix.trim();
+
+  return (
     null
   );
 }
@@ -745,6 +791,13 @@ function getStageInspectLinks(definition: DailyPipelineStageDefinition, stage: E
   const details = getStageDetails(stage);
   const explicitHref = getTextValue(details?.inspect_href) ?? getTextValue(details?.inspect_path);
   const links = [...(definition.inspectLinks ?? [])];
+  const inspectRoutes = readStringList(stage?.inspect_routes ?? details?.inspect_routes);
+  inspectRoutes.forEach((route) => {
+    const href = route.startsWith("/api/trading") ? route : `/api/trading${route.startsWith("/") ? route : `/${route}`}`;
+    if (!links.some((link) => link.href === href)) {
+      links.push({ label: humanizeToken(route.split("/").filter(Boolean).at(-1) ?? "Inspect"), href });
+    }
+  });
   if (explicitHref && !links.some((link) => link.href === explicitHref)) {
     links.unshift({ label: "Inspect", href: explicitHref });
   }
@@ -770,8 +823,15 @@ function getTimelineCurrentStage(
   stages: DailyPipelineStageModel[],
   hasLiveStatus: boolean,
   timelineStatus: DailyPipelineStageStatus,
+  pipelineStatus: EodPipelineStatusResponseDto | null,
 ) {
   if (!hasLiveStatus) return null;
+  const reportedCurrentStage = getTextValue(pipelineStatus?.current_stage);
+  const reportedCurrent = reportedCurrentStage
+    ? stages.find((stage) => stage.key === reportedCurrentStage)
+    : null;
+  if (reportedCurrent) return reportedCurrent;
+
   const reportedStages = stages.filter(hasReportedStageEvidence);
   const pendingCurrentStage = timelineStatus === "running"
     ? stages.find((stage) => stage.status === "pending")
@@ -809,8 +869,9 @@ export function buildDailyPipelineTimelineModel(
 ): DailyPipelineTimelineModel {
   const stageModelsByKey = new Map<string, DailyPipelineStageModel>();
   const hasLiveStatus = Boolean(pipelineStatus);
+  const stageDefinitions = getPipelineStageDefinitions(pipelineStatus);
 
-  const stages = DAILY_PIPELINE_STAGE_DEFINITIONS.map((definition, index) => {
+  const stages = stageDefinitions.map((definition, index) => {
     const reportedStage = getReportedStage(pipelineStatus, definition);
     const rowsPersisted = getRowsPersisted(reportedStage);
     const expectedRows = getExpectedRows(reportedStage);
@@ -854,7 +915,7 @@ export function buildDailyPipelineTimelineModel(
     const stageModel: DailyPipelineStageModel = {
       key: definition.key,
       label: getTextValue(reportedStage?.label) ?? definition.label,
-      order: index + 1,
+      order: getNumberValue(reportedStage?.order) ?? index + 1,
       status,
       statusLabel: DAILY_PIPELINE_STATUS_LABELS[status],
       progressLabel,
@@ -887,8 +948,10 @@ export function buildDailyPipelineTimelineModel(
     return stageModel;
   });
   const status = getTimelineStatus(stages, pipelineStatus);
-  const completedCount = stages.filter((stage) => stage.status === "completed" || stage.status === "skipped").length;
-  const totalCount = stages.length;
+  const completedCount =
+    getNumberValue(pipelineStatus?.display_completed_stages) ??
+    stages.filter((stage) => stage.status === "completed" || stage.status === "skipped").length;
+  const totalCount = getNumberValue(pipelineStatus?.total_stages) ?? stages.length;
 
   return {
     marketDate: pipelineStatus?.market_date ?? null,
@@ -898,7 +961,7 @@ export function buildDailyPipelineTimelineModel(
     progressPercent: totalCount > 0 ? clampPercent((completedCount / totalCount) * 100) : 0,
     completedCount,
     totalCount,
-    currentStage: getTimelineCurrentStage(stages, hasLiveStatus, status),
+    currentStage: getTimelineCurrentStage(stages, hasLiveStatus, status, pipelineStatus),
     hasLiveStatus,
     stages,
   };
