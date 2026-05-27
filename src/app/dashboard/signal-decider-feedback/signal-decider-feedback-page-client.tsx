@@ -1265,6 +1265,218 @@ export default function SignalDeciderFeedbackPageClient() {
     router.push(`${isSharedRoute ? DECIDER_FEEDBACK_DASHBOARD_PATH : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`);
   }
 
+  const feedbackResultsBlock = loadState === "loading" ? (
+    <div className={styles.emptyState}>{feedbackLoadingMessage}</div>
+  ) : loadState === "error" ? (
+    <div className={styles.emptyState}>{displayError ?? feedbackErrorMessage}</div>
+  ) : visibleItems.length > 0 ? (
+    <div className={styles.resultsList} aria-label={copy.labels.results}>
+      {visibleItems.map((item) => {
+        const reviewStateRows = getReviewStateRows(item, reviewCopy);
+        const reviewNotes = getReviewNotes(item);
+        const supportContextRows = getSupportContextRows(item, labelsCopy, countCopy);
+        const comparison = comparisonByKey.get(getDeciderFeedbackComparisonKey(item));
+        const riskAndGapFlags = [...item.riskFlags, ...item.dataGapFlags];
+
+        return (
+          <article
+            key={item.id}
+            className={styles.resultCard}
+            aria-label={`${item.companyName ?? item.symbol} ${pageTitle}`}
+            data-testid="signal-decider-result-card"
+            data-agent-name={activeAgent}
+          >
+            <header className={styles.resultHeader}>
+              <Link
+                href={buildSymbolHref(item, {
+                  actionFilter,
+                  agentName: activeAgent,
+                  feedbackNavContext: calendarContextNav,
+                  query,
+                  sortMode,
+                  statusFilter,
+                })}
+                className={styles.symbolLink}
+              >
+                <strong>{item.companyName ?? item.symbol}</strong>
+                <span>{item.symbol}</span>
+              </Link>
+              <div className={styles.resultBadges}>
+                <span className={`pill ${getActionToneClass(item.action)}`}>
+                  {getLocalizedActionLabel(item.action, actionCopy)}
+                </span>
+                {getDecisionQualityLabel(item) ? (
+                  <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
+                    {getDecisionQualityDisplayLabel(item, reviewCopy)}
+                  </span>
+                ) : null}
+                <span className={`pill ${getPillToneClass(item.fiveDayEvaluation.tone)}`}>
+                  {getFiveDayEvaluationDisplayLabel(item.fiveDayEvaluation, evaluationCopy)}
+                </span>
+              </div>
+            </header>
+
+            {comparison ? (
+              <ComparisonRow actionCopy={actionCopy} comparison={comparison} copy={copy.comparison} />
+            ) : (
+              <section className={styles.comparisonRow} data-testid="decider-comparison-empty">
+                <div className={styles.resultSectionHeader}>
+                  <span>{copy.comparison.title}</span>
+                  <strong className="pill neutral">{copy.comparison.noPair}</strong>
+                </div>
+                <p>{noComparisonMessage}</p>
+              </section>
+            )}
+
+            <section className={styles.resultDecisionSection}>
+              <div className={styles.resultSectionHeader}>
+                <span>{isShortTermAgent ? labelsCopy.tacticalDecision : labelsCopy.decision}</span>
+                <strong>{isShortTermAgent ? selectedTabLabel : labelsCopy.storedSignal}</strong>
+              </div>
+              <div className={styles.resultMetricGrid}>
+                <div className={styles.scoreStack} data-testid="signal-decider-score-area">
+                  <span>
+                    <span>{labelsCopy.conviction}</span>
+                    <strong>{formatScore(item.convictionScore)}</strong>
+                  </span>
+                  <span>
+                    <span>{labelsCopy.confidence}</span>
+                    <strong>{formatScore(item.confidenceScore)}</strong>
+                  </span>
+                </div>
+                {getDecisionPlanRows(item, actionCopy).map((row) => (
+                  <div key={row.label} className={styles.resultMetric}>
+                    <span>{row.label}</span>
+                    <strong>{row.value}</strong>
+                  </div>
+                ))}
+              </div>
+              <section className={styles.resultThesis}>
+                <span>{isShortTermAgent ? labelsCopy.shortTermThesis : labelsCopy.thesis}</span>
+                <p>{item.thesisSummary ?? UNKNOWN_LABEL}</p>
+              </section>
+              {isShortTermAgent && item.supportingEvidence.length > 0 ? (
+                <TraceEntryList title={labelsCopy.supportingEvidence} entries={item.supportingEvidence.slice(0, 3)} />
+              ) : null}
+            </section>
+
+            {isShortTermAgent ? (
+              <section className={styles.resultDecisionSection} data-testid="short-term-trigger-plan">
+                <div className={styles.resultSectionHeader}>
+                  <span>{labelsCopy.triggerPlan}</span>
+                  <strong>{actionCopy.holdingPeriod}</strong>
+                </div>
+                <div className={styles.resultMetricGrid}>
+                  {[
+                    { label: actionCopy.trigger, value: item.triggerCondition ?? UNKNOWN_LABEL },
+                    { label: actionCopy.entryCondition, value: item.entryCondition ?? item.entryPriceBasis ?? UNKNOWN_LABEL },
+                    { label: actionCopy.target, value: formatCurrencyValue(item.targetPrice) },
+                    { label: actionCopy.stopLoss, value: formatCurrencyValue(item.stopLossPrice) },
+                    { label: actionCopy.invalidation, value: item.invalidationCondition ?? UNKNOWN_LABEL },
+                    { label: actionCopy.holdingPeriod, value: item.suggestedHoldingPeriod ?? UNKNOWN_LABEL },
+                  ].map((row) => (
+                    <div key={row.label} className={styles.resultMetric}>
+                      <span>{row.label}</span>
+                      <strong>{row.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <section className={styles.resultReviewSection}>
+              <div className={styles.resultSectionHeader}>
+                <span>{labelsCopy.reviewState}</span>
+                <strong>{hasReviewData(item) ? labelsCopy.result : reviewCopy.pending}</strong>
+              </div>
+              <HorizonOutcomeStrip copy={evaluationCopy} item={item} />
+              <div className={styles.resultMetricGrid} data-testid="signal-decider-review-state">
+                {reviewStateRows.map((row) => (
+                  <div key={row.label} className={styles.resultMetric}>
+                    <span>{row.label}</span>
+                    <strong>{row.value}</strong>
+                  </div>
+                ))}
+              </div>
+              <FiveDayEvaluationBlock copy={evaluationCopy} evaluation={item.fiveDayEvaluation} />
+              {hasReviewData(item) ? (
+                <>
+                  {reviewNotes.map((note) => (
+                    <p key={note} className={styles.reviewNote}>
+                      {note}
+                    </p>
+                  ))}
+                </>
+              ) : (
+                <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
+                  <strong>{reviewCopy.pending}</strong>
+                  <p>{reviewCopy.pendingMessage}</p>
+                </div>
+              )}
+            </section>
+
+            <section className={styles.resultSupportSection}>
+              <div className={styles.resultSectionHeader}>
+                <span>{isShortTermAgent ? labelsCopy.riskAndDataGaps : labelsCopy.supportContext}</span>
+                <strong>{isShortTermAgent ? labelsCopy.contextBadges : labelsCopy.tracePolicy}</strong>
+              </div>
+              {isShortTermAgent ? (
+                <>
+                  {riskAndGapFlags.length > 0 ? (
+                    <div className={styles.traceList} data-testid="short-term-risk-data-gaps">
+                      {riskAndGapFlags.map((risk) => (
+                        <div key={risk} className={styles.traceRow}>
+                          <span className="pill warning">{labelsCopy.risks}</span>
+                          <p>{risk}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+                  )}
+                  {item.contextBadges.length > 0 ? (
+                    <div className={styles.resultBadges} data-testid="short-term-context-badges">
+                      {item.contextBadges.map((badge) => (
+                        <span key={`${badge.label}-${badge.value ?? ""}`} className={`pill ${getPillToneClass(badge.tone)}`}>
+                          {badge.label}{badge.value ? ` · ${badge.value}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className={styles.resultMetricGrid} data-testid="signal-decider-support-context">
+                  {supportContextRows.map((row) => (
+                    <div key={row.label} className={styles.resultMetric}>
+                      <span>{row.label}</span>
+                      <strong>{row.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <footer className={styles.resultFooter}>
+              <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
+                {copy.labels.review}
+              </button>
+            </footer>
+          </article>
+        );
+      })}
+    </div>
+  ) : (
+    <div className={styles.emptyState}>
+      {getSignalDeciderNoDataMessage({
+        agentLabel: activeAgentLabel,
+        hasStoredRows: summary.items.length > 0,
+        marketDate: displayedMarketDate,
+        status: summary.status,
+        summaryCopy,
+      })}
+    </div>
+  );
+
   return (
     <MobileAppChrome
       chrome={{
@@ -1399,6 +1611,8 @@ export default function SignalDeciderFeedbackPageClient() {
               </select>
             </label>
           </form>
+
+          {isCalendarContext ? feedbackResultsBlock : null}
 
           <section
             className={styles.dataGapPanel}
@@ -1592,217 +1806,7 @@ export default function SignalDeciderFeedbackPageClient() {
             )}
           </section>
 
-          {loadState === "loading" ? (
-            <div className={styles.emptyState}>{feedbackLoadingMessage}</div>
-          ) : loadState === "error" ? (
-            <div className={styles.emptyState}>{displayError ?? feedbackErrorMessage}</div>
-          ) : visibleItems.length > 0 ? (
-            <div className={styles.resultsList} aria-label={copy.labels.results}>
-              {visibleItems.map((item) => {
-                const reviewStateRows = getReviewStateRows(item, reviewCopy);
-                const reviewNotes = getReviewNotes(item);
-                const supportContextRows = getSupportContextRows(item, labelsCopy, countCopy);
-                const comparison = comparisonByKey.get(getDeciderFeedbackComparisonKey(item));
-                const riskAndGapFlags = [...item.riskFlags, ...item.dataGapFlags];
-
-                return (
-                    <article
-                      key={item.id}
-                      className={styles.resultCard}
-                      aria-label={`${item.companyName ?? item.symbol} ${pageTitle}`}
-                      data-testid="signal-decider-result-card"
-                      data-agent-name={activeAgent}
-                    >
-                    <header className={styles.resultHeader}>
-                      <Link
-                        href={buildSymbolHref(item, {
-                          actionFilter,
-                          agentName: activeAgent,
-                          feedbackNavContext: calendarContextNav,
-                          query,
-                          sortMode,
-                          statusFilter,
-                        })}
-                        className={styles.symbolLink}
-                      >
-                        <strong>{item.companyName ?? item.symbol}</strong>
-                        <span>{item.symbol}</span>
-                      </Link>
-                      <div className={styles.resultBadges}>
-                        <span className={`pill ${getActionToneClass(item.action)}`}>
-                          {getLocalizedActionLabel(item.action, actionCopy)}
-                        </span>
-                        {getDecisionQualityLabel(item) ? (
-                          <span className={`pill ${getPillToneClass(item.qualityTag?.tone)}`}>
-                            {getDecisionQualityDisplayLabel(item, reviewCopy)}
-                          </span>
-                        ) : null}
-                        <span className={`pill ${getPillToneClass(item.fiveDayEvaluation.tone)}`}>
-                          {getFiveDayEvaluationDisplayLabel(item.fiveDayEvaluation, evaluationCopy)}
-                        </span>
-                      </div>
-                    </header>
-
-                    {comparison ? (
-                      <ComparisonRow actionCopy={actionCopy} comparison={comparison} copy={copy.comparison} />
-                    ) : (
-                      <section className={styles.comparisonRow} data-testid="decider-comparison-empty">
-                        <div className={styles.resultSectionHeader}>
-                          <span>{copy.comparison.title}</span>
-                          <strong className="pill neutral">{copy.comparison.noPair}</strong>
-                        </div>
-                        <p>{noComparisonMessage}</p>
-                      </section>
-                    )}
-
-                    <section className={styles.resultDecisionSection}>
-                      <div className={styles.resultSectionHeader}>
-                        <span>{isShortTermAgent ? labelsCopy.tacticalDecision : labelsCopy.decision}</span>
-                        <strong>{isShortTermAgent ? selectedTabLabel : labelsCopy.storedSignal}</strong>
-                      </div>
-                      <div className={styles.resultMetricGrid}>
-                        <div className={styles.scoreStack} data-testid="signal-decider-score-area">
-                          <span>
-                            <span>{labelsCopy.conviction}</span>
-                            <strong>{formatScore(item.convictionScore)}</strong>
-                          </span>
-                          <span>
-                            <span>{labelsCopy.confidence}</span>
-                            <strong>{formatScore(item.confidenceScore)}</strong>
-                          </span>
-                        </div>
-                        {getDecisionPlanRows(item, actionCopy).map((row) => (
-                          <div key={row.label} className={styles.resultMetric}>
-                            <span>{row.label}</span>
-                            <strong>{row.value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                      <section className={styles.resultThesis}>
-                        <span>{isShortTermAgent ? labelsCopy.shortTermThesis : labelsCopy.thesis}</span>
-                        <p>{item.thesisSummary ?? UNKNOWN_LABEL}</p>
-                      </section>
-                      {isShortTermAgent && item.supportingEvidence.length > 0 ? (
-                        <TraceEntryList title={labelsCopy.supportingEvidence} entries={item.supportingEvidence.slice(0, 3)} />
-                      ) : null}
-                    </section>
-
-                    {isShortTermAgent ? (
-                      <section className={styles.resultDecisionSection} data-testid="short-term-trigger-plan">
-                        <div className={styles.resultSectionHeader}>
-                          <span>{labelsCopy.triggerPlan}</span>
-                          <strong>{actionCopy.holdingPeriod}</strong>
-                        </div>
-                        <div className={styles.resultMetricGrid}>
-                          {[
-                            { label: actionCopy.trigger, value: item.triggerCondition ?? UNKNOWN_LABEL },
-                            { label: actionCopy.entryCondition, value: item.entryCondition ?? item.entryPriceBasis ?? UNKNOWN_LABEL },
-                            { label: actionCopy.target, value: formatCurrencyValue(item.targetPrice) },
-                            { label: actionCopy.stopLoss, value: formatCurrencyValue(item.stopLossPrice) },
-                            { label: actionCopy.invalidation, value: item.invalidationCondition ?? UNKNOWN_LABEL },
-                            { label: actionCopy.holdingPeriod, value: item.suggestedHoldingPeriod ?? UNKNOWN_LABEL },
-                          ].map((row) => (
-                            <div key={row.label} className={styles.resultMetric}>
-                              <span>{row.label}</span>
-                              <strong>{row.value}</strong>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                    ) : null}
-
-                    <section className={styles.resultReviewSection}>
-                      <div className={styles.resultSectionHeader}>
-                        <span>{labelsCopy.reviewState}</span>
-                        <strong>{hasReviewData(item) ? labelsCopy.result : reviewCopy.pending}</strong>
-                      </div>
-                      <HorizonOutcomeStrip copy={evaluationCopy} item={item} />
-                      <div className={styles.resultMetricGrid} data-testid="signal-decider-review-state">
-                        {reviewStateRows.map((row) => (
-                          <div key={row.label} className={styles.resultMetric}>
-                            <span>{row.label}</span>
-                            <strong>{row.value}</strong>
-                          </div>
-                        ))}
-                      </div>
-                      <FiveDayEvaluationBlock copy={evaluationCopy} evaluation={item.fiveDayEvaluation} />
-                      {hasReviewData(item) ? (
-                        <>
-                          {reviewNotes.map((note) => (
-                            <p key={note} className={styles.reviewNote}>
-                              {note}
-                            </p>
-                          ))}
-                        </>
-                      ) : (
-                        <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
-                          <strong>{reviewCopy.pending}</strong>
-                          <p>{reviewCopy.pendingMessage}</p>
-                        </div>
-                      )}
-                    </section>
-
-                    <section className={styles.resultSupportSection}>
-                      <div className={styles.resultSectionHeader}>
-                        <span>{isShortTermAgent ? labelsCopy.riskAndDataGaps : labelsCopy.supportContext}</span>
-                        <strong>{isShortTermAgent ? labelsCopy.contextBadges : labelsCopy.tracePolicy}</strong>
-                      </div>
-                      {isShortTermAgent ? (
-                        <>
-                          {riskAndGapFlags.length > 0 ? (
-                            <div className={styles.traceList} data-testid="short-term-risk-data-gaps">
-                              {riskAndGapFlags.map((risk) => (
-                                <div key={risk} className={styles.traceRow}>
-                                  <span className="pill warning">{labelsCopy.risks}</span>
-                                  <p>{risk}</p>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
-                          )}
-                          {item.contextBadges.length > 0 ? (
-                            <div className={styles.resultBadges} data-testid="short-term-context-badges">
-                              {item.contextBadges.map((badge) => (
-                                <span key={`${badge.label}-${badge.value ?? ""}`} className={`pill ${getPillToneClass(badge.tone)}`}>
-                                  {badge.label}{badge.value ? ` · ${badge.value}` : ""}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : (
-                        <div className={styles.resultMetricGrid} data-testid="signal-decider-support-context">
-                          {supportContextRows.map((row) => (
-                            <div key={row.label} className={styles.resultMetric}>
-                              <span>{row.label}</span>
-                              <strong>{row.value}</strong>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-
-                    <footer className={styles.resultFooter}>
-                      <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
-                        {copy.labels.review}
-                      </button>
-                    </footer>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className={styles.emptyState}>
-              {getSignalDeciderNoDataMessage({
-                agentLabel: activeAgentLabel,
-                hasStoredRows: summary.items.length > 0,
-                marketDate: displayedMarketDate,
-                status: summary.status,
-                summaryCopy,
-              })}
-            </div>
-          )}
+          {isCalendarContext ? null : feedbackResultsBlock}
         </section>
 
         {selectedItem ? (

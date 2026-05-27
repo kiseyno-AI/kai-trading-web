@@ -1756,6 +1756,36 @@ test("calendar opens the feedback table in Korean locale", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText("Signal-decider feedback");
 });
 
+test("calendar-sourced mobile feedback shows decision rows before data-gap diagnostics", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page);
+
+  await page.goto("/calendar?date=2026-04-27");
+  await page.getByRole("button", { name: /Korean/i }).click();
+  await page.getByRole("link", { name: /피드백 표 열기/i }).first().click();
+
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27&navContext=calendar$/);
+  const firstDecisionRow = page.getByTestId("signal-decider-result-card").first();
+  const dataGapReport = page.getByTestId("decider-data-gaps-report");
+  await expect(firstDecisionRow).toBeVisible();
+  await expect(dataGapReport).toBeVisible();
+
+  const orderedFeedbackBlocks = await page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll('[data-testid="signal-decider-result-card"], [data-testid="decider-data-gaps-report"]'),
+      (element) => element.getAttribute("data-testid"),
+    ),
+  );
+  expect(orderedFeedbackBlocks[0]).toBe("signal-decider-result-card");
+  expect(orderedFeedbackBlocks).toContain("decider-data-gaps-report");
+
+  const firstDecisionBox = await firstDecisionRow.boundingBox();
+  const dataGapBox = await dataGapReport.boundingBox();
+  expect(firstDecisionBox, "first decision row should have a rendered position").not.toBeNull();
+  expect(dataGapBox, "data-gap report should have a rendered position").not.toBeNull();
+  expect(firstDecisionBox!.y).toBeLessThan(dataGapBox!.y);
+});
+
 test("feedback table link keeps the selected calendar date in navigation", async ({ page }) => {
   await mockSignalReviewCalendar(page, {
     denseFeedbackDates: {
