@@ -6,6 +6,7 @@ import { useMemo } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { buildDisclosureDocumentUrl } from "@/lib/disclosure-document-url";
 import {
   resolveSymbolDetailActiveNav,
   resolveSymbolDetailNavContext,
@@ -44,11 +45,6 @@ function buildPreservedSymbolQuery(searchParams: SearchParamReader) {
 function buildDisclosureCoverageHref(symbol: string, queryString: string) {
   const path = `/dashboard/symbol/${encodeURIComponent(symbol)}/disclosure-coverage`;
   return queryString ? `${path}?${queryString}` : path;
-}
-
-function buildDocumentUrl(receiptNo: string) {
-  const query = new URLSearchParams({ rcept_no: receiptNo });
-  return `/api/trading/disclosures/dart/filings/document?${query.toString()}`;
 }
 
 function buildDartViewerUrl(receiptNo: string) {
@@ -108,7 +104,7 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
   const filingCategory = getSearchParam(searchParams, "filingCategory", "No category");
   const captureStatus = getSearchParam(searchParams, "captureStatus", "Not captured");
   const corpName = getSearchParam(searchParams, "corpName", searchParams.get("name") ?? symbol);
-  const documentUrl = useMemo(() => buildDocumentUrl(receiptNo), [receiptNo]);
+  const documentUrl = useMemo(() => buildDisclosureDocumentUrl(receiptNo), [receiptNo]);
   const dartViewerUrl = useMemo(() => buildDartViewerUrl(receiptNo), [receiptNo]);
 
   return (
