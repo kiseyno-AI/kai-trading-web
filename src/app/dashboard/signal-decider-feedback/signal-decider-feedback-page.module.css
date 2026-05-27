@@ -97,15 +97,6 @@
   padding: 1.1rem;
 }
 
-.calendarPrimaryPanel > .resultsList,
-.calendarPrimaryPanel > .emptyState {
-  order: 1;
-}
-
-.calendarPrimaryPanel > .dataGapPanel {
-  order: 2;
-}
-
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));

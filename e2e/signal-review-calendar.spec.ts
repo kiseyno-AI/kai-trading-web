@@ -1770,6 +1770,15 @@ test("calendar-sourced mobile feedback shows decision rows before data-gap diagn
   await expect(firstDecisionRow).toBeVisible();
   await expect(dataGapReport).toBeVisible();
 
+  const orderedFeedbackBlocks = await page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll('[data-testid="signal-decider-result-card"], [data-testid="decider-data-gaps-report"]'),
+      (element) => element.getAttribute("data-testid"),
+    ),
+  );
+  expect(orderedFeedbackBlocks[0]).toBe("signal-decider-result-card");
+  expect(orderedFeedbackBlocks).toContain("decider-data-gaps-report");
+
   const firstDecisionBox = await firstDecisionRow.boundingBox();
   const dataGapBox = await dataGapReport.boundingBox();
   expect(firstDecisionBox, "first decision row should have a rendered position").not.toBeNull();
