@@ -5,14 +5,16 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const calendarCssPath = join(dirname(fileURLToPath(import.meta.url)), "../../app/calendar/signal-review-calendar-page.module.css");
+const calendarSourcePath = join(dirname(fileURLToPath(import.meta.url)), "../../app/calendar/signal-review-calendar-page-client.tsx");
+const chromeCssPath = join(dirname(fileURLToPath(import.meta.url)), "mobile-app-chrome.module.css");
 const calendarCss = readFileSync(calendarCssPath, "utf8");
+const calendarSource = readFileSync(calendarSourcePath, "utf8");
+const chromeCss = readFileSync(chromeCssPath, "utf8");
 
-function hasCalendarStackSafeAreaRule(source: string) {
-  return /@media \(max-width:\s*1023\.98px\)\s*\{[\s\S]*?\.stack\s*\{[\s\S]*?padding-bottom:\s*var\(--mobile-floating-status-offset\);[\s\S]*?\}/.test(
-    source,
-  );
-}
-
-test("calendar stack reserves mobile bottom chrome spacing", () => {
-  assert.ok(hasCalendarStackSafeAreaRule(calendarCss), "Expected .stack mobile rule with var(--mobile-floating-status-offset)");
+test("calendar uses the shared contained mobile scrollport instead of page-local bottom padding", () => {
+  assert.match(calendarSource, /contentScrollMode:\s*"contained"/);
+  assert.doesNotMatch(calendarCss, /--mobile-floating-status-offset|--mobile-bottom-chrome-height/);
+  assert.match(chromeCss, /\.surface\[data-mobile-content-scroll="contained"\]\s*\.main\s*\{/);
+  assert.match(chromeCss, /height:\s*calc\(100dvh - var\(--mobile-bottom-chrome-height\)\);/);
+  assert.match(chromeCss, /scroll-padding-bottom:\s*var\(--mobile-bottom-content-buffer\);/);
 });

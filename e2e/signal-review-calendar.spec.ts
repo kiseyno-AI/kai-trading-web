@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { expectMobileContentClearsBottomChrome } from "./mobile-bottom-chrome";
+
 type SignalReviewCalendarMockOptions = {
   calendarSummaryDelay?: Promise<void>;
   denseFeedbackActions?: Partial<Record<string, "buy" | "wait" | "reject" | "unknown">>;
@@ -2292,6 +2294,61 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   );
   expect(compactCalendarLabels.some((label) => ["대85", "대76", "대90", "대+"].includes(label))).toBe(false);
   await expectNarrowMobileLabelsContained(page);
+});
+
+test("signal review calendar keeps month cells and replay rows above the mobile bottom nav", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    issue672Date: "2026-05-27",
+  });
+
+  await page.goto("/calendar?date=2026-05-27");
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+
+  const scrollportMetrics = await page.locator("[data-app-chrome-root]").evaluate((root) => {
+    const main = root.querySelector("main");
+    const bottomNav = root.querySelector('nav[aria-label="Primary"], nav[aria-label="기본 내비게이션"]');
+    const bottomChrome = bottomNav?.parentElement;
+
+    if (!(main instanceof HTMLElement) || !(bottomChrome instanceof HTMLElement)) {
+      return null;
+    }
+
+    const mainRect = main.getBoundingClientRect();
+    const chromeRect = bottomChrome.getBoundingClientRect();
+    const mainStyle = window.getComputedStyle(main);
+
+    return {
+      chromeTop: chromeRect.top,
+      mainBottom: mainRect.bottom,
+      mainClientHeight: main.clientHeight,
+      mainOverflowY: mainStyle.overflowY,
+      mainScrollHeight: main.scrollHeight,
+    };
+  });
+
+  expect(scrollportMetrics).not.toBeNull();
+  expect(scrollportMetrics!.mainOverflowY).toBe("auto");
+  expect(scrollportMetrics!.mainScrollHeight).toBeGreaterThan(scrollportMetrics!.mainClientHeight);
+  expect(scrollportMetrics!.mainBottom).toBeLessThanOrEqual(scrollportMetrics!.chromeTop);
+
+  const selectedDateCell = page.locator('[data-calendar-cell="2026-05-27"]');
+  await selectedDateCell.evaluate((element) => element.scrollIntoView({ block: "end" }));
+  const selectedCellClearance = await selectedDateCell.evaluate((element) => {
+    const bottomNav = document.querySelector('nav[aria-label="Primary"], nav[aria-label="기본 내비게이션"]');
+    const bottomChrome = bottomNav?.parentElement;
+
+    if (!(bottomChrome instanceof HTMLElement)) {
+      throw new Error("Expected mobile bottom chrome to be rendered.");
+    }
+
+    return bottomChrome.getBoundingClientRect().top - element.getBoundingClientRect().bottom;
+  });
+  expect(selectedCellClearance).toBeGreaterThanOrEqual(8);
+
+  const lastReplayCard = page.getByRole("article", { name: /성창오토텍.*Selected-date decisions/ });
+  await expect(lastReplayCard).toBeVisible();
+  await expectMobileContentClearsBottomChrome(page, lastReplayCard);
 });
 
 test("signal review calendar stacks selected-date decision context on mobile", async ({ page }) => {
