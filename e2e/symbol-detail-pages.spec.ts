@@ -7,6 +7,12 @@ test.use(chromiumIPhone13);
 
 const symbolSeed =
   "name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10";
+const configuredBasePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim() ?? "";
+const appBasePath =
+  configuredBasePath && configuredBasePath !== "/"
+    ? `${configuredBasePath.startsWith("/") ? "" : "/"}${configuredBasePath}`.replace(/\/+$/, "")
+    : "";
+const withBasePath = (pathname: string) => `${appBasePath}${pathname}`;
 
 const detailPages = [
   {
@@ -1307,13 +1313,22 @@ test.describe("symbol detail mobile pages", () => {
       });
     });
 
-    await page.goto(`/dashboard/symbol/005930/disclosure-coverage?${symbolSeed}`);
+    await page.goto(withBasePath(`/dashboard/symbol/005930/disclosure-coverage?${symbolSeed}`));
     await page.getByRole("link", { name: /Open report detail for Quarterly report/i }).click();
+
+    const expectedDocumentUrl =
+      `${appBasePath}/api/trading/disclosures/dart/filings/document?rcept_no=202604100001`;
+    const reportFrame = page.locator('iframe[title="Quarterly report filing document"]');
 
     await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\/disclosure-coverage\/202604100001\?/);
     await expect(page.getByText(/DART Report Detail/i)).toBeVisible();
     await expect(page.getByRole("heading", { name: /Quarterly report/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Back to disclosures/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Download document/i })).toHaveAttribute(
+      "href",
+      expectedDocumentUrl,
+    );
+    await expect(reportFrame).toHaveAttribute("src", expectedDocumentUrl);
     await expect(page.frameLocator('iframe[title="Quarterly report filing document"]').getByText(/Mock filing document body/i)).toBeVisible();
   });
 });
