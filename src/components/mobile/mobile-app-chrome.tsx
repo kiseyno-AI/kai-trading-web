@@ -37,6 +37,7 @@ type MobileAppChromeStatus = {
 export type MobileAppChromeRouteChrome = {
   activeNav?: AppChromeRouteKey | null;
   bottomAccessory?: ReactNode;
+  contentScrollMode?: "document" | "contained";
   floatingLayer?: ReactNode;
   hrefs?: AppChromeHrefOverrides;
   leading?: ReactNode;
@@ -246,6 +247,7 @@ export function MobileAppChrome({
       className={styles.surface}
       data-mobile-bottom-accessory={bottomAccessory ? "present" : "absent"}
       data-mobile-meta-row={bottomMeta ? "visible" : "hidden"}
+      data-mobile-content-scroll={chrome.contentScrollMode ?? "document"}
       data-mobile-toolbar-layout={narrowToolbarLayout ?? "single-row"}
       data-app-chrome-root
     >

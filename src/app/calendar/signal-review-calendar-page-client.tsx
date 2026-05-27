@@ -1515,6 +1515,7 @@ export default function SignalReviewCalendarPageClient() {
     <MobileAppChrome
       chrome={{
         activeNav: "calendar",
+        contentScrollMode: "contained",
         modalLayer: selectedItem ? (
           <DetailPanel copy={copy} item={selectedItem} onClose={closeDetailPanel} status={selectedSummary} />
         ) : null,

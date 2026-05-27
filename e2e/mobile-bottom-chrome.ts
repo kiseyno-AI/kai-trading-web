@@ -2,10 +2,39 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 export async function expectMobileContentClearsBottomChrome(page: Page, content: Locator, minimumGap = 8) {
   await content.scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await content.evaluate((element) => {
+    const main = element.closest("[data-app-chrome-root]")?.querySelector("main");
+    const mainStyle = main instanceof HTMLElement ? window.getComputedStyle(main) : null;
+    const mainCanScroll =
+      main instanceof HTMLElement &&
+      main.scrollHeight > main.clientHeight + 1 &&
+      mainStyle !== null &&
+      mainStyle.overflowY !== "visible";
+
+    if (mainCanScroll) {
+      main.scrollTo(0, main.scrollHeight);
+      return;
+    }
+
+    window.scrollTo(0, document.documentElement.scrollHeight);
+  });
   await expect
     .poll(() =>
-      page.evaluate(() => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2),
+      content.evaluate((element) => {
+        const main = element.closest("[data-app-chrome-root]")?.querySelector("main");
+        const mainStyle = main instanceof HTMLElement ? window.getComputedStyle(main) : null;
+        const mainCanScroll =
+          main instanceof HTMLElement &&
+          main.scrollHeight > main.clientHeight + 1 &&
+          mainStyle !== null &&
+          mainStyle.overflowY !== "visible";
+
+        if (mainCanScroll) {
+          return main.scrollTop + main.clientHeight >= main.scrollHeight - 2;
+        }
+
+        return window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+      }),
     )
     .toBe(true);
 
