@@ -167,7 +167,7 @@ const PIPELINE_STATUS_TOKEN_MAP = new Map<string, DailyPipelineStageStatus>([
   ["skipped", "skipped"],
 ]);
 
-const DAILY_PIPELINE_STAGE_DEFINITIONS = [
+const DAILY_PIPELINE_STAGE_DEFINITIONS: readonly DailyPipelineStageDefinition[] = [
   {
     key: "master_refresh",
     label: "Master refresh",
@@ -318,7 +318,7 @@ const DAILY_PIPELINE_STAGE_DEFINITIONS = [
     dependencies: ["signal_decider"],
     inspectLinks: [{ label: "Decider review", href: "/dashboard/signal-decider-feedback" }],
   },
-] as const satisfies readonly DailyPipelineStageDefinition[];
+];
 
 export function buildEodPipelineStatusPath(basePath: string, marketDate: string | null | undefined) {
   const params = new URLSearchParams();
