@@ -22,6 +22,7 @@ import {
   buildFocusTurnoverValue,
   formatCompactNumber,
   formatIsoDateLabel,
+  formatQuoteUnavailableReasonLabel,
   formatSignedNumber,
   formatSignedPercent,
   hasNumber,
@@ -294,7 +295,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             <span className={hasNumber(quote?.change_pct) ? (quote.change_pct >= 0 ? styles.positive : styles.negative) : ""}>
               {quote?.available
                 ? `${formatSignedPercent(quote.change_pct, copy.common.unavailable)} · ${formatSignedNumber(quote.change, copy.common.unavailable, numberLocale)}`
-                : quote?.unavailable_reason ?? copy.hero.awaitingQuoteSource}
+                : formatQuoteUnavailableReasonLabel(quote?.unavailable_reason, copy)}
             </span>
             {quoteSourceCopy ? <p className={`clamp-3 ${styles.heroCopy}`}>{quoteSourceCopy}</p> : null}
           </div>

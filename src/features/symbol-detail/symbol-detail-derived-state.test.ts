@@ -21,7 +21,9 @@ import {
   buildSymbolDetailMarketDateBasisCopy,
   buildSymbolRouteQuery,
   buildSystemFreshnessSectionModel,
+  buildTechnicalAnalysisSectionModel,
   buildTechnicalFreshnessDate,
+  formatQuoteUnavailableReasonLabel,
   getMarketOpenState,
   isClosedSessionMarketState,
   pickSelectedBarTradeDate,
@@ -745,6 +747,64 @@ test("marks partial chart basis in quote-source labels for daily price-bar fallb
     buildQuoteSourceLabel(quote, copy, { isPriceHistoryBasisInvalid: true }),
     `${copy.chart.latestPriceUpdate} : 2026-04-30 · ${copy.chart.returnUnavailable}`,
   );
+});
+
+test("localizes quote unavailable reasons before rendering symbol-detail copy", () => {
+  const enCopy = getSymbolDetailCopy("en");
+  const koCopy = getSymbolDetailCopy("ko");
+  const quote = makeQuote({
+    price: null,
+    change: null,
+    change_pct: null,
+    volume: null,
+    turnover: null,
+    available: false,
+    is_live: false,
+    fallback: true,
+    source: "daily_price_bar",
+    unavailable_reason: "no_live_quote_or_fresh_fallback",
+  });
+
+  assert.equal(formatQuoteUnavailableReasonLabel(quote.unavailable_reason, enCopy), enCopy.hero.awaitingQuoteSource);
+  assert.equal(formatQuoteUnavailableReasonLabel(quote.unavailable_reason, koCopy), koCopy.hero.awaitingQuoteSource);
+  assert.equal(
+    buildQuoteSourceLabel(quote, enCopy),
+    `${enCopy.freshness.quoteCoverageUnavailable} ${enCopy.hero.awaitingQuoteSource}.`,
+  );
+  assert.equal(
+    buildQuoteSourceLabel(quote, koCopy),
+    `${koCopy.freshness.quoteCoverageUnavailable} ${koCopy.hero.awaitingQuoteSource}.`,
+  );
+  assert.doesNotMatch(buildQuoteSourceLabel(quote, koCopy), /no_live_quote_or_fresh_fallback/);
+
+  assert.equal(
+    formatQuoteUnavailableReasonLabel("Quote cache waiting for confirmation", enCopy),
+    "Quote cache waiting for confirmation",
+  );
+  assert.equal(
+    formatQuoteUnavailableReasonLabel("Quote cache waiting for confirmation", koCopy),
+    koCopy.hero.awaitingQuoteSource,
+  );
+});
+
+test("localizes empty technical unavailable state in Korean without backend debug tokens", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildTechnicalAnalysisSectionModel(null, null, copy);
+  const rendered = [
+    model.badgeLabel,
+    model.headline,
+    model.body,
+    model.metaCaption,
+    ...model.metrics.map((metric) => metric.value),
+    ...model.payloadTags,
+  ].join(" ");
+
+  assert.equal(model.badgeLabel, copy.technical.unavailable);
+  assert.equal(model.metrics.find((metric) => metric.key === "volume-ratio-20d")?.value, copy.technical.unavailable);
+  assert.equal(model.metrics.find((metric) => metric.key === "atr-14")?.value, copy.technical.unavailable);
+  assert.deepEqual(model.payloadTags, [copy.technical.noPayloadKeys]);
+  assert.equal(model.metaCaption, `${copy.technical.noSourceDate} · ${copy.technical.freshnessNote}`);
+  assert.doesNotMatch(rendered, /Unavailable|No payload keys|소스 날짜 소스 날짜 없음|no_live_quote_or_fresh_fallback/);
 });
 
 test("keeps symbol-detail freshness date fallback precedence stable", () => {

@@ -338,6 +338,37 @@ export function humanizeToken(value: string | null | undefined, fallback = "Unav
     .join(" ");
 }
 
+const MACHINE_UNAVAILABLE_REASON_PATTERN = /^[a-z0-9]+(?:[_-][a-z0-9]+)+$/i;
+const QUOTE_UNAVAILABLE_REASON_LABELS: Record<string, (copy: SymbolDetailCopy) => string> = {
+  no_live_quote_or_fresh_fallback: (copy) => copy.hero.awaitingQuoteSource,
+};
+
+function withTerminalPeriod(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return /[.!?。]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function shouldExposeBackendUnavailableReason(value: string, copy: SymbolDetailCopy) {
+  if (MACHINE_UNAVAILABLE_REASON_PATTERN.test(value)) return false;
+
+  return copy.common.unavailable === "Unavailable";
+}
+
+export function formatQuoteUnavailableReasonLabel(
+  unavailableReason: string | null | undefined,
+  copy: SymbolDetailCopy,
+  fallback = copy.hero.awaitingQuoteSource,
+) {
+  const normalizedReason = unavailableReason?.trim();
+  if (!normalizedReason) return fallback;
+
+  const mappedReason = QUOTE_UNAVAILABLE_REASON_LABELS[normalizedReason.toLowerCase()];
+  if (mappedReason) return mappedReason(copy);
+
+  return shouldExposeBackendUnavailableReason(normalizedReason, copy) ? normalizedReason : fallback;
+}
+
 function isDisplayableHighlightValue(value: unknown): value is DartFundamentalsHistoryMetricDto["value"] {
   return typeof value === "number" || typeof value === "string" || value === null;
 }
@@ -557,10 +588,10 @@ export function buildQuoteSourceLabel(
 ) {
   if (!quote) return copy.hero.quotePending;
   if (!quote.available) {
-    const unavailableLabel = copy.freshness.quoteCoverageUnavailable.replace(/\.$/, "");
-    return quote.unavailable_reason
-      ? `${unavailableLabel} ${quote.unavailable_reason}.`
-      : copy.freshness.quoteCoverageUnavailable;
+    const reasonLabel = formatQuoteUnavailableReasonLabel(quote.unavailable_reason, copy, "");
+    if (!reasonLabel) return copy.freshness.quoteCoverageUnavailable;
+
+    return `${withTerminalPeriod(copy.freshness.quoteCoverageUnavailable)} ${withTerminalPeriod(reasonLabel)}`;
   }
   if (quote.is_live) return copy.freshness.live;
   if (quote.source === "daily_price_bar") {
@@ -821,13 +852,24 @@ export function buildConfidenceTone(
   return "info";
 }
 
-export function buildInsightTags(payload: Record<string, unknown> | null | undefined) {
+export function buildInsightTags(payload: Record<string, unknown> | null | undefined, emptyLabel = "No payload keys") {
   const keys = payload ? Object.keys(payload) : [];
   if (keys.length === 0) {
-    return ["No payload keys"];
+    return [emptyLabel];
   }
 
   return keys.slice(0, 4).map((key) => humanizeToken(key, key));
+}
+
+function buildTechnicalSourceDateCaption(
+  technicalFreshnessDate: string | null,
+  copy: SymbolDetailCopy,
+) {
+  const sourceDateLabel = technicalFreshnessDate
+    ? `${copy.technical.sourceDate} ${technicalFreshnessDate}`
+    : copy.technical.noSourceDate;
+
+  return `${sourceDateLabel} · ${copy.technical.freshnessNote}`;
 }
 
 export function formatHighlightLabel(metric: DartFundamentalsHistoryMetricDto, index: number) {
@@ -987,7 +1029,7 @@ export function buildActionSummarySectionModel(
   options?: { includePayloadMeta?: boolean },
 ): ActionSummarySectionModel {
   const reasonTags = buildActionReasonTags(actionSummary, copy);
-  const payloadTags = buildInsightTags(actionSummary?.summary_payload);
+  const payloadTags = buildInsightTags(actionSummary?.summary_payload, copy.action.noPayloadKeys);
   const score = clampSignalScore(actionSummary?.signal_score);
   const isInsufficientHistory = isInsufficientHistoryActionSummary(actionSummary);
   const baseBody = reasonTags.length > 0 ? reasonTags.join(" · ") : null;
@@ -1041,7 +1083,7 @@ export function buildTechnicalAnalysisSectionModel(
       ? `${copy.technical.breakout20d} ${technicalSnapshot.breakout_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.breakdown20d} ${technicalSnapshot.breakdown_20d ? copy.technical.yes : copy.technical.no} · ${copy.technical.source} ${technicalSnapshot.source}`
       : copy.technical.emptyBody,
     headline: buildTechnicalHeadline(technicalSnapshot, copy),
-    metaCaption: `${copy.technical.sourceDate} ${technicalFreshnessDate ?? copy.technical.noSourceDate} · ${copy.technical.freshnessNote}`,
+    metaCaption: buildTechnicalSourceDateCaption(technicalFreshnessDate, copy),
     metrics: [
       {
         key: "return-5d",
@@ -1056,16 +1098,16 @@ export function buildTechnicalAnalysisSectionModel(
       {
         key: "volume-ratio-20d",
         label: copy.technical.volumeRatio20d,
-        value: formatNumberOrDash(technicalSnapshot?.volume_ratio_20d),
+        value: formatNumberOrDash(technicalSnapshot?.volume_ratio_20d, copy.technical.unavailable),
       },
       {
         key: "atr-14",
         label: copy.technical.atr14,
-        value: formatNumberOrDash(technicalSnapshot?.atr_14),
+        value: formatNumberOrDash(technicalSnapshot?.atr_14, copy.technical.unavailable),
       },
     ],
     tone: buildTechnicalTone(technicalSnapshot),
-    payloadTags: buildInsightTags(technicalSnapshot?.signal_payload),
+    payloadTags: buildInsightTags(technicalSnapshot?.signal_payload, copy.technical.noPayloadKeys),
   };
 }
 
@@ -1623,7 +1665,7 @@ export function buildSystemFreshnessSectionModel({
         date: buildLatestPriceLabel(freshness, quote, copy),
         detail: quote?.available
           ? buildQuoteSourceLabel(quote, copy)
-          : quote?.unavailable_reason ?? copy.freshness.quoteCoverageUnavailable,
+          : formatQuoteUnavailableReasonLabel(quote?.unavailable_reason, copy, copy.freshness.quoteCoverageUnavailable),
         id: "price",
         label: copy.freshness.priceModule,
         status: quote?.available
