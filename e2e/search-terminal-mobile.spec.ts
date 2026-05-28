@@ -1716,6 +1716,8 @@ test.describe("search terminal mobile", () => {
     await expect(page).toHaveURL(/\/dashboard\/symbol\/005930/);
     expect(new URL(page.url()).searchParams.get("marketDate")).toBeNull();
     await expect(page.getByText("최신 저장 기준일 2026-05-22 · 현재 2026-05-24 휴장").first()).toBeVisible();
+    await expect(page.locator("#summary")).toContainText("최신 호가 소스를 기다리는 중");
+    await expect(page.locator("#summary")).not.toContainText("no_live_quote_or_fresh_fallback");
     await expect(page.getByRole("img", { name: /Historical candlestick chart for 005930/i })).toBeVisible();
     await expect(page.locator("#factor-snapshot")).toContainText("5 / 5 팩터 준비됨");
     await expect(page.locator("#factor-snapshot")).toContainText("적용 기준일");

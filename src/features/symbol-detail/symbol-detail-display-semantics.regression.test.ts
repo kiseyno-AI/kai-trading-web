@@ -15,6 +15,8 @@ import {
   buildDisclosureCoverageSectionModel,
   buildFundamentalsHistorySectionModel,
   buildSystemFreshnessSectionModel,
+  buildTechnicalAnalysisSectionModel,
+  formatQuoteUnavailableReasonLabel,
 } from "./symbol-detail-derived-state";
 
 function makeActionSummary(overrides: Partial<AgentContextActionSummaryDto> = {}): AgentContextActionSummaryDto {
@@ -190,6 +192,27 @@ test("TC-SYMBOL-008 action-summary insufficient-history state localizes KO copy 
   assert.equal(model.meter.valueLabel, copy.action.scoreUnavailable);
   assert.doesNotMatch(model.meter.ariaLabel, /\b\d+\s*\/\s*100\b/);
   assert.doesNotMatch(rendered, /\binsufficient_history\b|Summary Version|Symbol|Market Date|Bias Direction|Insufficient Data\b/);
+});
+
+test("TC-SYMBOL-009 technical unavailable state localizes KO copy and hides backend tokens", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildTechnicalAnalysisSectionModel(null, null, copy);
+  const quoteReason = formatQuoteUnavailableReasonLabel("no_live_quote_or_fresh_fallback", copy);
+  const rendered = [
+    quoteReason,
+    model.badgeLabel,
+    model.headline,
+    model.body,
+    model.metaCaption,
+    ...model.metrics.map((metric) => metric.value),
+    ...model.payloadTags,
+  ].join(" ");
+
+  assert.equal(quoteReason, copy.hero.awaitingQuoteSource);
+  assert.equal(model.badgeLabel, copy.technical.unavailable);
+  assert.equal(model.payloadTags[0], copy.technical.noPayloadKeys);
+  assert.equal(model.metaCaption, `${copy.technical.noSourceDate} · ${copy.technical.freshnessNote}`);
+  assert.doesNotMatch(rendered, /no_live_quote_or_fresh_fallback|Unavailable|No payload keys|소스 날짜 소스 날짜 없음/);
 });
 
 test("TC-SYMBOL-004 action-summary resolved meter presents the current strong-buy long bias", () => {

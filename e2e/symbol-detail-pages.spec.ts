@@ -68,7 +68,10 @@ type MockDetailModeSwitchOptions = {
   marketStatusIsOpen?: boolean;
   marketStatusState?: string;
   onQuoteRequest?: () => void;
+  quoteAvailable?: boolean;
   quoteMarketState?: string;
+  quoteUnavailableReason?: string;
+  technicalSnapshotAvailable?: boolean;
 };
 
 async function mockSystemFreshnessApis(
@@ -266,6 +269,8 @@ async function mockDetailModeSwitchApis(
   const marketStatusState = options.marketStatusState ?? "CLOSED";
   const marketStatusIsOpen = options.marketStatusIsOpen ?? marketStatusState === "OPEN";
   const quoteMarketState = options.quoteMarketState ?? "CLOSED";
+  const quoteAvailable = options.quoteAvailable ?? true;
+  const technicalSnapshotAvailable = options.technicalSnapshotAvailable ?? true;
   let aggregateRequestCount = 0;
 
   await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
@@ -301,17 +306,20 @@ async function mockDetailModeSwitchApis(
       json: {
         symbol: "005930",
         company_name: "Samsung Electronics",
-        price: 70000,
-        change: 500,
-        change_pct: 0.72,
-        volume: 1250000,
-        turnover: 87500000000,
+        price: quoteAvailable ? 70000 : null,
+        change: quoteAvailable ? 500 : null,
+        change_pct: quoteAvailable ? 0.72 : null,
+        volume: quoteAvailable ? 1250000 : null,
+        turnover: quoteAvailable ? 87500000000 : null,
         market_state: quoteMarketState,
         source: quoteMarketState === "OPEN" ? "kis_live" : "daily_price_bar",
         fallback: quoteMarketState !== "OPEN",
         is_live: quoteMarketState === "OPEN",
-        available: true,
+        available: quoteAvailable,
         trade_date: marketDate,
+        unavailable_reason: quoteAvailable
+          ? null
+          : options.quoteUnavailableReason ?? "no_live_quote_or_fresh_fallback",
       },
     });
   });
@@ -426,28 +434,30 @@ async function mockDetailModeSwitchApis(
     await route.fulfill({
       json: {
         market_date: marketDate,
-        items: [
-          {
-            symbol: "005930",
-            market_date: marketDate,
-            source: "test",
-            close_price: 70000,
-            volume: 1250000,
-            trend_state: "uptrend",
-            ma_alignment: "bullish_stack",
-            breakout_20d: true,
-            breakdown_20d: false,
-            return_5d: 1.5,
-            return_20d: 4.2,
-            volume_ratio_20d: 1.3,
-            atr_14: 1200,
-            atr_pct_14: 1.7,
-            signal_payload: {
-              trend: "uptrend",
-            },
-            captured_at: `${marketDate}T16:00:00+09:00`,
-          },
-        ],
+        items: technicalSnapshotAvailable
+          ? [
+              {
+                symbol: "005930",
+                market_date: marketDate,
+                source: "test",
+                close_price: 70000,
+                volume: 1250000,
+                trend_state: "uptrend",
+                ma_alignment: "bullish_stack",
+                breakout_20d: true,
+                breakdown_20d: false,
+                return_5d: 1.5,
+                return_20d: 4.2,
+                volume_ratio_20d: 1.3,
+                atr_14: 1200,
+                atr_pct_14: 1.7,
+                signal_payload: {
+                  trend: "uptrend",
+                },
+                captured_at: `${marketDate}T16:00:00+09:00`,
+              },
+            ]
+          : [],
       },
     });
   });
@@ -877,6 +887,44 @@ test.describe("symbol detail mobile pages", () => {
 
     await page.waitForTimeout(1_800);
     expect(quoteRequestCount).toBe(1);
+  });
+
+  test("technical unavailable state in Korean hides backend tokens on mobile", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests, {
+      quoteAvailable: false,
+      quoteUnavailableReason: "no_live_quote_or_fresh_fallback",
+      technicalSnapshotAvailable: false,
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/symbol/005930/technical-analysis?${symbolSeed}`);
+
+    const hero = page.locator("#summary");
+    const technical = page.locator("#technical");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(hero).toContainText("최신 호가 소스를 기다리는 중");
+    await expect(hero).toContainText("호가 커버리지를 확인할 수 없습니다. 최신 호가 소스를 기다리는 중.");
+    await expect(technical.getByRole("heading", { name: "저장된 스냅샷 지표" })).toBeVisible();
+    await expect(technical).toContainText("사용할 수 없음");
+    await expect(technical).toContainText("스냅샷 없음");
+    await expect(technical).toContainText("소스 날짜 없음 · 레이어 신선도는 가격 신선도와 별개입니다.");
+
+    await expect(hero).not.toContainText("no_live_quote_or_fresh_fallback");
+    await expect(technical).not.toContainText("no_live_quote_or_fresh_fallback");
+    await expect(technical).not.toContainText("Unavailable");
+    await expect(technical).not.toContainText("No payload keys");
+    await expect(technical).not.toContainText("소스 날짜 소스 날짜 없음");
   });
 
   test("deep detail routes preserve their active mode and dedicated sections", async ({ page }) => {
