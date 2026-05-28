@@ -5,6 +5,7 @@ const normalizedBasePath =
   configuredBasePath && configuredBasePath !== "/"
     ? `${configuredBasePath.startsWith("/") ? "" : "/"}${configuredBasePath}`.replace(/\/+$/, "")
     : "";
+const useWebServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER !== "1";
 
 export default defineConfig({
   testDir: "e2e",
@@ -18,12 +19,16 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: "npm run dev",
-    url: `http://127.0.0.1:3000${normalizedBasePath}/manifest.webmanifest`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    stdout: "pipe",
-    stderr: "pipe",
-  },
+  ...(useWebServer
+    ? {
+        webServer: {
+          command: "npm run dev",
+          url: `http://127.0.0.1:3000${normalizedBasePath}/manifest.webmanifest`,
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      }
+    : {}),
 });

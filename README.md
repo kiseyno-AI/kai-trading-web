@@ -209,6 +209,26 @@ Local production serving for the bridge/Tailscale path uses launchd label `com.k
 
 The script installs dependencies when needed, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web`, then restarts the launchd-managed `next start` server on port `8383`.
 
+The canonical Tailnet browser entrypoint is the HTTPS Tailscale Serve/Funnel URL:
+
+```text
+https://gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net/trading-web
+```
+
+Use the HTTPS URL directly for browser-based QA. The plain HTTP URL is only a redirect hop and should not be published as the canonical start URL for managed Chrome workflows.
+
+Run the browser-level Tailnet smoke check after a redeploy with:
+
+```bash
+TAILNET_ENTRYPOINT_URL=https://gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net/trading-web npm run test:e2e:tailnet
+```
+
+To make the redeploy helper run the same Chromium check after the local curl health checks pass:
+
+```bash
+RUN_TAILNET_BROWSER_SMOKE=1 /Users/shawn/trading-web/scripts/redeploy-prod-8383.sh
+```
+
 ---
 
 ## Project structure (abbreviated)
