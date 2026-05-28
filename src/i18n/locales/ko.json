@@ -186,6 +186,8 @@
     "noFavoritesSaved": "저장된 즐겨찾기가 없습니다.",
     "noFavoritesCopy": "내 종목 상단에 유지할 핵심 즐겨찾기는 검색 페이지에서 고정하세요.",
     "marketPending": "마켓 대기 중",
+    "limitedCoverageLabel": "지원 제한",
+    "limitedCoverageBody": "주식 상세 커버리지 밖의 즐겨찾기입니다. 상세 화면 대신 이곳에서 관리하세요.",
     "trackedQuoteCoverage": "추적 호가 커버리지",
     "trackedQuotes": "추적 호가",
     "fullTrackedList": "전체 추적 목록",

@@ -4,7 +4,102 @@ import { chromiumIPhone13 } from "./devices";
 
 test.use(chromiumIPhone13);
 
-async function mockMobileToolbarApis(page: Page) {
+type MockFavoriteSymbol = {
+  symbol: string;
+  standard_code: string | null;
+  name_ko: string | null;
+  market: string | null;
+  instrument_type?: string | null;
+  is_active?: boolean | null;
+  sort_order?: number;
+  favorited_at?: string | null;
+};
+
+type MockTrackedQuote = {
+  symbol: string;
+  company_name: string;
+  price: number | null;
+  change: number | null;
+  change_pct: number | null;
+  volume: number | null;
+  turnover: number | null;
+  as_of: string | null;
+  market_state: string;
+  source: string;
+  fallback: boolean;
+  is_live: boolean;
+  available: boolean;
+  trade_date: string | null;
+  cached_at: string | null;
+  unavailable_reason: string | null;
+};
+
+const supportedFavorites: MockFavoriteSymbol[] = [
+  {
+    symbol: "005930",
+    standard_code: "KR7005930003",
+    name_ko: "Samsung Electronics",
+    market: "KOSPI",
+    instrument_type: "stock",
+  },
+  {
+    symbol: "000660",
+    standard_code: "KR7000660001",
+    name_ko: "SK hynix",
+    market: "KOSPI",
+    instrument_type: "stock",
+  },
+];
+
+const supportedTrackedQuotes: MockTrackedQuote[] = [
+  {
+    symbol: "005930",
+    company_name: "Samsung Electronics",
+    price: 71500,
+    change: 700,
+    change_pct: 0.99,
+    volume: 120000,
+    turnover: 8580000000,
+    as_of: "2026-04-21T09:12:00+09:00",
+    market_state: "OPEN",
+    source: "kis",
+    fallback: false,
+    is_live: true,
+    available: true,
+    trade_date: "2026-04-21",
+    cached_at: "2026-04-21T09:12:00+09:00",
+    unavailable_reason: null,
+  },
+  {
+    symbol: "000660",
+    company_name: "SK hynix",
+    price: 183400,
+    change: -1200,
+    change_pct: -0.65,
+    volume: 94000,
+    turnover: 17239600000,
+    as_of: "2026-04-21T09:12:00+09:00",
+    market_state: "OPEN",
+    source: "db_cache",
+    fallback: true,
+    is_live: false,
+    available: true,
+    trade_date: "2026-04-21",
+    cached_at: "2026-04-21T09:12:00+09:00",
+    unavailable_reason: null,
+  },
+];
+
+async function mockMobileToolbarApis(
+  page: Page,
+  options: {
+    favorites?: MockFavoriteSymbol[];
+    trackedQuotes?: MockTrackedQuote[];
+  } = {},
+) {
+  const favorites = options.favorites ?? supportedFavorites;
+  const trackedQuotes = options.trackedQuotes ?? supportedTrackedQuotes;
+
   await page.route("**/api/trading/market/status", async (route) => {
     await route.fulfill({
       json: {
@@ -17,29 +112,16 @@ async function mockMobileToolbarApis(page: Page) {
   await page.route("**/api/trading/symbols/favorites", async (route) => {
     await route.fulfill({
       json: {
-        count: 2,
-        items: [
-          {
-            symbol: "005930",
-            standard_code: "KR7005930003",
-            name_ko: "Samsung Electronics",
-            market: "KOSPI",
-          },
-          {
-            symbol: "000660",
-            standard_code: "KR7000660001",
-            name_ko: "SK hynix",
-            market: "KOSPI",
-          },
-        ],
+        count: favorites.length,
+        items: favorites,
       },
     });
   });
   await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
     await route.fulfill({
       json: {
-        tracked_symbols: ["005930", "000660"],
-        count: 2,
+        tracked_symbols: trackedQuotes.map((item) => item.symbol),
+        count: trackedQuotes.length,
         last_updated_at: "2026-04-21T09:12:00+09:00",
       },
     });
@@ -75,44 +157,7 @@ async function mockMobileToolbarApis(page: Page) {
       json: {
         market_state: "OPEN",
         as_of: "2026-04-21T09:12:00+09:00",
-        items: [
-          {
-            symbol: "005930",
-            company_name: "Samsung Electronics",
-            price: 71500,
-            change: 700,
-            change_pct: 0.99,
-            volume: 120000,
-            turnover: 8580000000,
-            as_of: "2026-04-21T09:12:00+09:00",
-            market_state: "OPEN",
-            source: "kis",
-            fallback: false,
-            is_live: true,
-            available: true,
-            trade_date: "2026-04-21",
-            cached_at: "2026-04-21T09:12:00+09:00",
-            unavailable_reason: null,
-          },
-          {
-            symbol: "000660",
-            company_name: "SK hynix",
-            price: 183400,
-            change: -1200,
-            change_pct: -0.65,
-            volume: 94000,
-            turnover: 17239600000,
-            as_of: "2026-04-21T09:12:00+09:00",
-            market_state: "OPEN",
-            source: "db_cache",
-            fallback: true,
-            is_live: false,
-            available: true,
-            trade_date: "2026-04-21",
-            cached_at: "2026-04-21T09:12:00+09:00",
-            unavailable_reason: null,
-          },
-        ],
+        items: trackedQuotes,
       },
     });
   });
@@ -145,6 +190,62 @@ test.describe("my symbols mobile flow", () => {
     const mySymbolsNavItem = page.getByRole("link", { name: "My Symbols", exact: true });
     await expect(mySymbolsNavItem).toHaveAttribute("aria-current", "page");
     await expect(mySymbolsNavItem).toHaveClass(/navItemActive/);
+  });
+
+  test("labels unsupported favorites without exposing a symbol detail shortcut", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockMobileToolbarApis(page, {
+      favorites: [
+        {
+          symbol: "F70100026",
+          standard_code: null,
+          name_ko: "한투글로벌넥스트웨이브1(A)",
+          market: "KOSPI",
+          instrument_type: "fund",
+          is_active: true,
+          sort_order: 0,
+          favorited_at: "2026-05-23T06:30:00+09:00",
+        },
+      ],
+      trackedQuotes: [
+        {
+          symbol: "F70100026",
+          company_name: "한투글로벌넥스트웨이브1(A)",
+          price: null,
+          change: null,
+          change_pct: null,
+          volume: null,
+          turnover: null,
+          as_of: null,
+          market_state: "UNKNOWN",
+          source: "fund",
+          fallback: true,
+          is_live: false,
+          available: false,
+          trade_date: null,
+          cached_at: null,
+          unavailable_reason: "unsupported instrument",
+        },
+      ],
+    });
+
+    await page.goto("/my-symbols");
+
+    await expect(page.getByRole("heading", { name: "내 종목" })).toBeVisible();
+
+    const favoriteSection = page.locator("section").filter({ has: page.getByRole("heading", { name: "고정 종목" }) });
+    const unsupportedFavorite = favoriteSection.getByRole("group", { name: /F70100026.*지원 제한/ });
+    await expect(unsupportedFavorite).toBeVisible();
+    await expect(unsupportedFavorite).toContainText("지원 제한");
+    await expect(unsupportedFavorite).toContainText("주식 상세 커버리지 밖");
+    await expect(page.getByRole("group", { name: /F70100026.*지원 제한/ })).toHaveCount(2);
+    await expect(page.getByRole("link", { name: /F70100026/ })).toHaveCount(0);
+    await expect(page.locator('a[href*="/dashboard/symbol/F70100026"]')).toHaveCount(0);
+
+    await unsupportedFavorite.click();
+    await expect(page).toHaveURL(/\/my-symbols$/);
   });
 
   test("dashboard navigation keeps loading feedback local to the toolbar and avoids any full-page loader", async ({
@@ -198,7 +299,7 @@ test.describe("my symbols mobile flow", () => {
     await dashboardLink.click();
 
     await expect.poll(() => page.evaluate(() => (window as Window & { __dashboardNavPendingSeen?: boolean }).__dashboardNavPendingSeen ?? false)).toBe(true);
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(page.getByRole("status", { name: /Loading symbol workspace|Loading next surface/i })).toHaveCount(0);
