@@ -808,6 +808,10 @@
   .dayCellTextCompact {
     display: inline-block;
   }
+
+  .dayCell [data-calendar-compact-empty="true"] {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
