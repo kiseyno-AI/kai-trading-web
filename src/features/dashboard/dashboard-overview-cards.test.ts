@@ -327,7 +327,57 @@ test("builds closed-market next-day exec rows with close prices when the daily p
   );
 });
 
-test("maps portfolio status, held positions, and same-day bought/sold execution rows honestly", () => {
+test("shows exec-approved monitoring rows from runtime monitored symbols with target profile", () => {
+  const monitoredSymbols = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "004150",
+        name: "Hansol Holdings",
+        market: "KRX",
+        monitoring_state: "watching_target_stop",
+        exec_agent_approved: true,
+        exec_monitoring_active: true,
+        exec_agent_target_profile: "tactical_2pct",
+        exec_agent_target_tag: "short_swing",
+        approved_quantity: 12,
+        approved_notional: { amount: 900_000, currency: "KRW" },
+        target_price: 76000,
+        stop_loss_price: 70000,
+        current_price: 71500,
+      },
+    ],
+  } satisfies ExecutionRuntimeMonitoredSymbolsResponseDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy,
+    executionStatus: { exec_connected: true, status: "ready" },
+    executionStatusError: null,
+    monitoredSymbols,
+    monitoredSymbolsError: null,
+    numberLocale: "en-US",
+    portfolioState: "fully-synced",
+    summary: null,
+  });
+
+  assert.equal(model.monitoringRows.length, 1);
+  assert.equal(model.holdingRows.length, 0);
+  assert.deepEqual(model.monitoringRows[0].badges, ["Exec-approved", "Watching target/stop"]);
+  assert.deepEqual(
+    model.monitoringRows[0].values.map((value) => [value.label, value.value]),
+    [
+      ["Monitoring state", "Watching target/stop"],
+      ["Target profile", "tactical_2pct / short_swing"],
+      ["Current price", "71,500"],
+      ["Target", "76,000"],
+      ["Stop-loss", "70,000"],
+      ["Approved qty", "12"],
+      ["Approved notional", "₩900,000"],
+    ],
+  );
+});
+
+test("shows actual held positions from the portfolio summary", () => {
   const summary = {
     sync: { status: "synced" },
     accounts: [
@@ -343,55 +393,24 @@ test("maps portfolio status, held positions, and same-day bought/sold execution 
           {
             symbol: "005930",
             name: "Samsung Electronics",
+            market: "KRX",
             quantity: 3,
-          },
-        ],
-        recentActivity: [
-          {
-            id: "sell-activity",
-            symbol: "035420",
-            side: "sell",
-            realizedPnl: { amount: 8_000, currency: "KRW" },
-            updatedAt: "2026-05-22T12:10:00+09:00",
+            averagePrice: { amount: 71_000, currency: "KRW" },
+            lastPrice: { amount: 72_500, currency: "KRW" },
+            marketValue: { amount: 217_500, currency: "KRW" },
+            unrealizedPnl: { amount: 4_500, currency: "KRW" },
           },
         ],
       },
     ],
   } satisfies PortfolioSummaryDto;
-  const board = {
-    market_date: "2026-05-22",
-    items: [
-      {
-        symbol: "005930",
-        name: "Samsung Electronics",
-        market: "KRX",
-        status: "filled",
-        intent: "buy",
-        target_price: 76000,
-        stop_loss_price: 70000,
-        trade_price: 71500,
-      },
-      {
-        symbol: "035420",
-        name: "NAVER",
-        market: "KRX",
-        status: "filled",
-        intent: "sell",
-      },
-    ],
-  } satisfies ExecutionRuntimeDailyBoardResponseDto;
-  const executionStatus = {
-    exec_connected: true,
-    status: "ready",
-  } satisfies ExecutionRuntimeStatusResponseDto;
 
   const model = buildDashboardPortfolioOverviewModel({
-    board,
-    boardError: null,
     copy,
-    executionStatus,
+    executionStatus: { exec_connected: true, status: "ready" },
     executionStatusError: null,
-    marketDate: "2026-05-22",
+    monitoredSymbols: { market_date: "2026-05-22", items: [] },
+    monitoredSymbolsError: null,
     numberLocale: "en-US",
     portfolioState: "fully-synced",
     summary,
@@ -401,64 +420,77 @@ test("maps portfolio status, held positions, and same-day bought/sold execution 
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
   assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "₩12,500");
   assert.equal(model.metrics.find((metric) => metric.key === "held-positions")?.value, "1 holding");
-  assert.equal(model.planRows.length, 0);
+  assert.equal(model.monitoringRows.length, 0);
+  assert.equal(model.holdingRows.length, 1);
+  assert.deepEqual(model.holdingRows[0].badges, ["Held"]);
   assert.deepEqual(
-    model.buyRows[0].values.map((value) => [value.label, value.value]),
+    model.holdingRows[0].values.map((value) => [value.label, value.value]),
     [
-      ["Target", "76,000"],
-      ["Stop-loss", "70,000"],
-      ["Trade price", "71,500"],
+      ["Quantity", "3"],
+      ["Average price", "₩71,000"],
+      ["Current price", "₩72,500"],
+      ["Market value", "₩217,500"],
+      ["Unrealized P/L", "₩4,500"],
     ],
   );
-  assert.equal(model.sellRows[0].values[0].value, "₩8,000");
 });
 
-test("renders monitored-only portfolio board rows once as a trading plan", () => {
-  const board = {
+test("deduplicates symbols that are both exec-monitored and held without double-counting runtime quantity", () => {
+  const summary = {
+    sync: { status: "synced" },
+    accounts: [
+      {
+        id: "account-1",
+        label: "Primary",
+        status: "synced",
+        holdings: [
+          {
+            symbol: "005930",
+            name: "Samsung Electronics",
+            market: "KRX",
+            quantity: 3,
+            averagePrice: { amount: 71_000, currency: "KRW" },
+          },
+        ],
+      },
+    ],
+  } satisfies PortfolioSummaryDto;
+  const monitoredSymbols = {
     market_date: "2026-05-22",
     items: [
       {
         symbol: "005930",
         name: "Samsung Electronics",
         market: "KRX",
-        status: "partial",
         monitoring_state: "watching_target_stop",
-        planned_intents: ["buy", "target_sell", "stop_sell"],
+        exec_agent_approved: true,
+        exec_monitoring_active: true,
+        position_quantity: 3,
         target_price: 76000,
         stop_loss_price: 70000,
       },
     ],
-  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+  } satisfies ExecutionRuntimeMonitoredSymbolsResponseDto;
 
   const model = buildDashboardPortfolioOverviewModel({
-    board,
-    boardError: null,
     copy,
     executionStatus: { exec_connected: true, status: "ready" },
     executionStatusError: null,
-    marketDate: "2026-05-22",
+    monitoredSymbols,
+    monitoredSymbolsError: null,
     numberLocale: "en-US",
     portfolioState: "fully-synced",
-    summary: null,
+    summary,
   });
 
-  assert.equal(model.buyRows.length, 0);
-  assert.equal(model.sellRows.length, 0);
-  assert.equal(model.buyStateLabel, null);
-  assert.equal(model.sellStateLabel, null);
-  assert.equal(model.planRows.length, 1);
-  assert.equal(model.planRows[0].symbol, "005930");
-  assert.deepEqual(
-    model.planRows[0].values.map((value) => [value.label, value.value]),
-    [
-      ["Buy target", "Unavailable"],
-      ["Sell target", "76,000"],
-      ["Stop-loss", "70,000"],
-    ],
-  );
+  assert.equal(model.monitoringRows.length, 1);
+  assert.equal(model.holdingRows.length, 0);
+  assert.deepEqual(model.monitoringRows[0].badges, ["Exec-approved", "Watching target/stop", "Held"]);
+  assert.equal(model.monitoringRows[0].values.find((value) => value.key === "quantity")?.value, "3");
+  assert.equal(model.monitoringRows[0].values.find((value) => value.key === "average-price")?.value, "₩71,000");
 });
 
-test("deduplicates planned portfolio board rows by symbol and merges plan fields", () => {
+test("keeps first-card planned rows while excluding core-only planned rows from the second card", () => {
   const board = {
     market_date: "2026-05-22",
     items: [
@@ -467,185 +499,88 @@ test("deduplicates planned portfolio board rows by symbol and merges plan fields
         name: "Samsung Electronics",
         market: "KRX",
         status: "scheduled",
-        intent: "buy",
-        planned_price: 71500,
-        stop_loss_price: 70000,
-      },
-      {
-        symbol: "005930",
-        name: "Samsung Electronics",
-        market: "KRX",
-        status: "scheduled",
-        intent: "sell",
-        target_price: 76000,
-      },
-    ],
-  } satisfies ExecutionRuntimeDailyBoardResponseDto;
-
-  const model = buildDashboardPortfolioOverviewModel({
-    board,
-    boardError: null,
-    copy,
-    executionStatus: { exec_connected: true, status: "ready" },
-    executionStatusError: null,
-    marketDate: "2026-05-22",
-    numberLocale: "en-US",
-    portfolioState: "fully-synced",
-    summary: null,
-  });
-
-  assert.equal(model.buyRows.length, 0);
-  assert.equal(model.sellRows.length, 0);
-  assert.equal(model.planRows.length, 1);
-  assert.deepEqual(
-    model.planRows[0].values.map((value) => [value.label, value.value]),
-    [
-      ["Buy target", "71,500"],
-      ["Sell target", "76,000"],
-      ["Stop-loss", "70,000"],
-    ],
-  );
-});
-
-test("does not treat zero-quantity partial rows as bought executions", () => {
-  const board = {
-    market_date: "2026-05-22",
-    items: [
-      {
-        symbol: "000660",
-        name: "SK hynix",
-        market: "KRX",
-        status: "partial",
-        intent: "buy",
-        filled_quantity: 0,
-        planned_price: 179500,
-        target_price: 184000,
-        stop_loss_price: 174000,
-      },
-    ],
-  } satisfies ExecutionRuntimeDailyBoardResponseDto;
-
-  const model = buildDashboardPortfolioOverviewModel({
-    board,
-    boardError: null,
-    copy,
-    executionStatus: { exec_connected: true, status: "ready" },
-    executionStatusError: null,
-    marketDate: "2026-05-22",
-    numberLocale: "en-US",
-    portfolioState: "fully-synced",
-    summary: null,
-  });
-
-  assert.equal(model.buyRows.length, 0);
-  assert.equal(model.planRows.length, 1);
-  assert.deepEqual(
-    model.planRows[0].values.map((value) => [value.label, value.value]),
-    [
-      ["Buy target", "179,500"],
-      ["Sell target", "184,000"],
-      ["Stop-loss", "174,000"],
-    ],
-  );
-});
-
-test("keeps broker-order-id-only partial rows out of same-day executions", () => {
-  const board = {
-    market_date: "2026-05-22",
-    items: [
-      {
-        symbol: "000660",
-        name: "SK hynix",
-        market: "KRX",
-        status: "partial",
-        intent: "buy",
-        broker_order_id: "KIS-ack-000660",
-        filled_quantity: 0,
-        avg_fill_price: 0,
-        trade_price: 0,
-        fill_price: 0,
-        planned_price: 179500,
-        target_price: 184000,
-        stop_loss_price: 174000,
-      },
-    ],
-  } satisfies ExecutionRuntimeDailyBoardResponseDto;
-
-  const model = buildDashboardPortfolioOverviewModel({
-    board,
-    boardError: null,
-    copy,
-    executionStatus: { exec_connected: true, status: "ready" },
-    executionStatusError: null,
-    marketDate: "2026-05-22",
-    numberLocale: "en-US",
-    portfolioState: "fully-synced",
-    summary: null,
-  });
-
-  assert.equal(model.buyRows.length, 0);
-  assert.equal(model.sellRows.length, 0);
-  assert.equal(model.planRows.length, 1);
-  assert.equal(model.planRows[0].symbol, "000660");
-  assert.deepEqual(
-    model.planRows[0].values.map((value) => [value.label, value.value]),
-    [
-      ["Buy target", "179,500"],
-      ["Sell target", "184,000"],
-      ["Stop-loss", "174,000"],
-    ],
-  );
-});
-
-test("keeps clear same-day buy and sell executions split even when the symbol repeats", () => {
-  const board = {
-    market_date: "2026-05-22",
-    items: [
-      {
-        symbol: "005930",
-        name: "Samsung Electronics",
-        market: "KRX",
-        status: "filled",
-        intent: "buy",
+        intent: "next_open_buy",
         target_price: 76000,
         stop_loss_price: 70000,
-        trade_price: 71500,
-      },
-      {
-        symbol: "005930",
-        name: "Samsung Electronics",
-        market: "KRX",
-        status: "filled",
-        intent: "sell",
-        realized_pnl: { amount: 8000, currency: "KRW" },
+        market_close_price: 71500,
       },
     ],
   } satisfies ExecutionRuntimeDailyBoardResponseDto;
-
-  const model = buildDashboardPortfolioOverviewModel({
+  const deciderModel = buildDashboardDeciderOverviewModel({
     board,
-    boardError: null,
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "partial",
+    tracked: null,
+  });
+  const portfolioModel = buildDashboardPortfolioOverviewModel({
     copy,
     executionStatus: { exec_connected: true, status: "ready" },
     executionStatusError: null,
-    marketDate: "2026-05-22",
+    monitoredSymbols: { market_date: "2026-05-22", items: [] },
+    monitoredSymbolsError: null,
     numberLocale: "en-US",
     portfolioState: "fully-synced",
     summary: null,
   });
 
-  assert.equal(model.planRows.length, 0);
-  assert.equal(model.buyRows.length, 1);
-  assert.equal(model.sellRows.length, 1);
-  assert.equal(model.buyRows[0].symbol, "005930");
-  assert.equal(model.sellRows[0].symbol, "005930");
-  assert.equal(model.buyRows[0].values.find((value) => value.key === "trade")?.value, "71,500");
-  assert.equal(model.sellRows[0].values.find((value) => value.key === "realized-pnl")?.value, "₩8,000");
+  assert.equal(deciderModel.rows.length, 1);
+  assert.equal(deciderModel.rows[0].symbol, "005930");
+  assert.equal(portfolioModel.monitoringRows.length, 0);
+  assert.equal(portfolioModel.holdingRows.length, 0);
+  assert.equal(portfolioModel.monitoringStateLabel, "No exec-approved monitoring symbols returned for today.");
 });
 
-test("preserves portfolio summary fields while daily-board timeout and missing day P/L stay operator-safe", () => {
+test("excludes rejected or expired runtime rows unless they are held", () => {
+  const monitoredSymbols = {
+    market_date: "2026-05-22",
+    items: [
+      {
+        symbol: "004150",
+        name: "Hansol Holdings",
+        market: "KRX",
+        monitoring_state: "watching_target_stop",
+        exec_agent_approved: true,
+        exec_monitoring_active: true,
+        status: "expired",
+        target_price: 76000,
+        stop_loss_price: 70000,
+      },
+      {
+        symbol: "033530",
+        name: "Sejong Industrial",
+        market: "KRX",
+        monitoring_state: "idle",
+        status: "rejected",
+        held_position: true,
+        position_quantity: 5,
+        position_average_price: 9200,
+      },
+    ],
+  } satisfies ExecutionRuntimeMonitoredSymbolsResponseDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy,
+    executionStatus: { exec_connected: true, status: "ready" },
+    executionStatusError: null,
+    monitoredSymbols,
+    monitoredSymbolsError: null,
+    numberLocale: "en-US",
+    portfolioState: "fully-synced",
+    summary: null,
+  });
+
+  assert.equal(model.monitoringRows.length, 0);
+  assert.equal(model.holdingRows.length, 1);
+  assert.equal(model.holdingRows[0].symbol, "033530");
+  assert.equal(model.holdingRows[0].values.find((value) => value.key === "quantity")?.value, "5");
+});
+
+test("preserves portfolio summary fields while monitored-symbol timeout and missing day P/L stay operator-safe", () => {
   const rawTimeout =
-    "Timed out after 5.0s while loading /execution/runtime/daily-board?market_date=2026-05-22 from trading-core.";
+    "Timed out after 5.0s while loading /execution/runtime/monitored-symbols?market_date=2026-05-22 from trading-core.";
   const summary = {
     sync: { status: "synced" },
     accounts: [
@@ -673,12 +608,11 @@ test("preserves portfolio summary fields while daily-board timeout and missing d
   } satisfies ExecutionRuntimeStatusResponseDto;
 
   const model = buildDashboardPortfolioOverviewModel({
-    board: null,
-    boardError: rawTimeout,
     copy,
     executionStatus,
     executionStatusError: null,
-    marketDate: "2026-05-22",
+    monitoredSymbols: null,
+    monitoredSymbolsError: rawTimeout,
     numberLocale: "en-US",
     portfolioState: "fully-synced",
     summary,
@@ -688,21 +622,20 @@ test("preserves portfolio summary fields while daily-board timeout and missing d
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
   assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "Today P/L pending");
   assert.equal(model.metrics.find((metric) => metric.key === "held-positions")?.value, "1 holding");
-  assert.equal(model.executionBoardStateLabel, "Today's execution board is updating.");
-  assert.equal(model.buyStateLabel, null);
-  assert.equal(model.sellStateLabel, null);
+  assert.equal(model.monitoringStateLabel, "Monitoring list is updating.");
+  assert.equal(model.holdingStateLabel, null);
+  assert.equal(model.holdingRows.length, 1);
   assert.deepEqual(model.diagnostics, [rawTimeout]);
   assert.doesNotMatch(
     [
       model.contextLabel,
-      model.executionBoardStateLabel,
-      model.buyStateLabel,
-      model.sellStateLabel,
+      model.monitoringStateLabel,
+      model.holdingStateLabel,
       ...model.metrics.map((metric) => metric.value),
     ]
       .filter(Boolean)
       .join("\n"),
-    /Timed out after 5\.0s|trading-core|\/execution\/runtime\/daily-board/,
+    /Timed out after 5\.0s|trading-core|\/execution\/runtime\/monitored-symbols/,
   );
 });
 
@@ -710,10 +643,12 @@ test("ships Korean operator copy for delayed runtime and missing day P/L states"
   const koreanCopy = getDashboardLiveCopy("ko");
 
   assert.equal(copy.dashboardOverview.moreRows, "More");
-  assert.equal(copy.dashboardOverview.monitoringPlan, "Monitoring plan");
+  assert.equal(copy.dashboardOverview.execApprovedMonitoring, "Exec-approved monitoring");
+  assert.equal(copy.dashboardOverview.held, "Held");
   assert.equal(koreanCopy.dashboardOverview.moreRows, "더 보기");
-  assert.equal(koreanCopy.dashboardOverview.monitoringPlan, "모니터링 계획");
+  assert.equal(koreanCopy.dashboardOverview.execApprovedMonitoring, "승인된 exec 모니터링");
+  assert.equal(koreanCopy.dashboardOverview.held, "보유");
   assert.equal(koreanCopy.dashboardOverview.monitoringListUpdating, "모니터링 목록을 불러오는 중입니다.");
-  assert.equal(koreanCopy.dashboardOverview.executionBoardUpdating, "금일 매수/매도 내역을 갱신 중입니다.");
+  assert.equal(koreanCopy.dashboardOverview.noExecApprovedMonitoringRows, "오늘 승인된 exec 모니터링 종목이 없습니다.");
   assert.equal(koreanCopy.portfolioState.dayPnlPending, "금일 손익 집계 대기 중");
 });

@@ -265,7 +265,7 @@ test.describe("dashboard desktop", () => {
     expect(snapshotRequests).toBe(0);
   });
 
-  test("portfolio status card maps exec status and same-day trade rows", async ({ page }) => {
+  test("portfolio status card maps exec-approved monitoring and held rows", async ({ page }) => {
     await page.route("**/api/trading/execution/runtime/status**", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -298,7 +298,14 @@ test.describe("dashboard desktop", () => {
                 totalAssets: { amount: 1000000, currency: "KRW" },
                 pnl: { day: { amount: 12500, currency: "KRW" } },
               },
-              holdings: [{ symbol: "005930", name: "Samsung Electronics", quantity: 5 }],
+              holdings: [
+                {
+                  symbol: "005930",
+                  name: "Samsung Electronics",
+                  quantity: 5,
+                  averagePrice: { amount: 71500, currency: "KRW" },
+                },
+              ],
               recentActivity: [
                 {
                   id: "sell-activity",
@@ -330,8 +337,16 @@ test.describe("dashboard desktop", () => {
               name: "Samsung Electronics",
               market: "KOSPI",
               monitoring_state: "reconciling",
+              exec_agent_approved: true,
+              exec_monitoring_active: true,
+              exec_agent_target_profile: "standard_breakout",
+              exec_agent_target_tag: "short_swing",
               position_side: "long",
               planned_intents: ["target_sell", "stop_sell"],
+              approved_quantity: 5,
+              target_price: 76000,
+              stop_loss_price: 70000,
+              current_price: 71500,
               last_event_at: "2026-04-30T00:04:00Z",
               status_counts: { partial: 1 },
             },
@@ -393,14 +408,21 @@ test.describe("dashboard desktop", () => {
     await expect(portfolioCard.getByText("₩12,500", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Held positions", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("1 holding", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("Today bought", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Exec-approved monitoring", { exact: true })).toBeVisible();
+    const rowStates = portfolioCard.getByLabel("Row states");
+    await expect(rowStates.getByText("Exec-approved", { exact: true })).toBeVisible();
+    await expect(rowStates.getByText("Reconciling", { exact: true })).toBeVisible();
+    await expect(rowStates.getByText("Held", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("standard_breakout / short_swing", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("76,000", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("70,000", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("71,500", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("Today sold", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("SK hynix", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("₩8,000", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("₩71,500", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Today bought", { exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByText("Today sold", { exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByText("SK hynix", { exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByText("₩8,000", { exact: true })).toHaveCount(0);
   });
 
   test("desktop process monitor expands as a floating overlay over dashboard context", async ({ page }) => {
