@@ -15,7 +15,11 @@ function buildMonitoredItems(count: number) {
       name: `Decider ${rowNumber}`,
       market: "KOSPI",
       monitoring_state: "watching_target_stop",
+      exec_agent_approved: true,
+      exec_monitoring_active: true,
       planned_intents: ["buy"],
+      approved_quantity: rowNumber,
+      exec_agent_target_profile: "standard_breakout",
       target_price: 76000 + rowNumber,
       stop_loss_price: 70000 + rowNumber,
       current_price: 71500 + rowNumber,
@@ -59,12 +63,16 @@ async function mockDashboardRuntimeLists(
   {
     boardItems,
     buyCount,
+    holdings,
+    monitoredItems,
     monitoredCount,
     monitoredError = false,
     sellCount,
   }: {
     boardItems?: unknown[];
     buyCount: number;
+    holdings?: unknown[];
+    monitoredItems?: unknown[];
     monitoredCount: number;
     monitoredError?: boolean;
     sellCount: number;
@@ -133,7 +141,7 @@ async function mockDashboardRuntimeLists(
               totalAssets: { amount: 1000000, currency: "KRW" },
               pnl: { day: { amount: 12500, currency: "KRW" } },
             },
-            holdings: [{ symbol: "005930", name: "Samsung Electronics", quantity: 5 }],
+            holdings: holdings ?? [{ symbol: "005930", name: "Samsung Electronics", quantity: 5 }],
             recentActivity: [],
           },
         ],
@@ -166,7 +174,7 @@ async function mockDashboardRuntimeLists(
       contentType: "application/json",
       body: JSON.stringify({
         market_date: "2026-04-30",
-        items: buildMonitoredItems(monitoredCount),
+        items: monitoredItems ?? buildMonitoredItems(monitoredCount),
       }),
     });
   });
@@ -207,13 +215,14 @@ test.describe("dashboard incremental lists", () => {
     await expect(deciderCard.getByText("Decider 6", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByTestId("dashboard-decider-more")).toHaveText("More (2)");
 
-    await expect(portfolioCard.getByTestId("dashboard-today-bought-row")).toHaveCount(5);
+    await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(5);
     await expect(portfolioCard.getByText("Buy 6", { exact: true })).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-bought-more")).toHaveText("More (2)");
+    await expect(portfolioCard.getByText("Decider 6", { exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-more")).toHaveText("More (2)");
 
-    await expect(portfolioCard.getByTestId("dashboard-today-sold-row")).toHaveCount(5);
-    await expect(portfolioCard.getByText("Sell 6", { exact: true })).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-sold-more")).toHaveText("More (1)");
+    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(1);
+    await expect(portfolioCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByTestId("dashboard-held-positions-more")).toHaveCount(0);
 
     const countsBeforeMore = { ...requestCounts };
     await deciderCard.getByTestId("dashboard-decider-more").click();
@@ -221,24 +230,24 @@ test.describe("dashboard incremental lists", () => {
     await expect(deciderCard.getByTestId("dashboard-decider-row")).toHaveCount(7);
     await expect(deciderCard.getByText("Decider 6", { exact: true })).toBeVisible();
     await expect(deciderCard.getByTestId("dashboard-decider-more")).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-bought-row")).toHaveCount(5);
-    await expect(portfolioCard.getByTestId("dashboard-today-sold-row")).toHaveCount(5);
+    await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(5);
+    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(1);
 
     await page.waitForTimeout(250);
     expect(requestCounts).toEqual(countsBeforeMore);
 
-    await portfolioCard.getByTestId("dashboard-today-bought-more").click();
+    await portfolioCard.getByTestId("dashboard-exec-monitoring-more").click();
 
-    await expect(portfolioCard.getByTestId("dashboard-today-bought-row")).toHaveCount(7);
-    await expect(portfolioCard.getByText("Buy 6", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByTestId("dashboard-today-sold-row")).toHaveCount(5);
-    await expect(portfolioCard.getByText("Sell 6", { exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(7);
+    await expect(portfolioCard.getByText("Decider 6", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(1);
   });
 
   test("keeps mobile empty and error states unchanged without More controls", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboardRuntimeLists(page, {
       buyCount: 0,
+      holdings: [],
       monitoredCount: 0,
       monitoredError: true,
       sellCount: 0,
@@ -253,15 +262,15 @@ test.describe("dashboard incremental lists", () => {
     await expect(deciderCard.getByTestId("dashboard-decider-row")).toHaveCount(0);
     await expect(deciderCard.getByTestId("dashboard-decider-more")).toHaveCount(0);
 
-    await expect(portfolioCard.getByText("No bought stocks reported today.", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("No sold stocks reported today.", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByTestId("dashboard-today-bought-row")).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-sold-row")).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-bought-more")).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-sold-more")).toHaveCount(0);
+    await expect(portfolioCard.getByText("Monitoring list is updating.", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("No held positions returned.", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-more")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-held-positions-more")).toHaveCount(0);
   });
 
-  test("shows planned-only portfolio board rows once on mobile", async ({ page }) => {
+  test("shows exec-approved monitoring rows and excludes core-only planned rows on mobile", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboardRuntimeLists(page, {
       boardItems: [
@@ -285,29 +294,43 @@ test.describe("dashboard incremental lists", () => {
         },
       ],
       buyCount: 0,
-      monitoredCount: 1,
+      holdings: [],
+      monitoredCount: 0,
+      monitoredItems: [
+        {
+          symbol: "004150",
+          name: "Hansol Holdings",
+          market: "KOSPI",
+          monitoring_state: "watching_target_stop",
+          exec_agent_approved: true,
+          exec_monitoring_active: true,
+          exec_agent_target_profile: "tactical_2pct",
+          exec_agent_target_tag: "short_swing",
+          approved_quantity: 12,
+          target_price: 76000,
+          stop_loss_price: 70000,
+          current_price: 71500,
+        },
+      ],
       sellCount: 0,
     });
 
     await page.goto("/dashboard");
 
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
-    const planSection = portfolioCard.locator("section").filter({
-      has: page.getByRole("heading", { name: "Monitoring plan", exact: true }),
+    const monitoringSection = portfolioCard.locator("section").filter({
+      has: page.getByRole("heading", { name: "Exec-approved monitoring", exact: true }),
     });
 
-    await expect(planSection).toBeVisible();
-    await expect(planSection.getByTestId("dashboard-monitoring-plan-row")).toHaveCount(1);
-    await expect(planSection.getByText("Samsung Electronics", { exact: true })).toBeVisible();
-    await expect(planSection.getByText("Buy target", { exact: true })).toBeVisible();
-    await expect(planSection.getByText("71,500", { exact: true })).toBeVisible();
-    await expect(planSection.getByText("Sell target", { exact: true })).toBeVisible();
-    await expect(planSection.getByText("76,000", { exact: true })).toBeVisible();
-    await expect(planSection.getByText("Stop-loss", { exact: true })).toBeVisible();
-    await expect(planSection.getByText("70,000", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByRole("heading", { name: "Today bought", exact: true })).toHaveCount(0);
-    await expect(portfolioCard.getByRole("heading", { name: "Today sold", exact: true })).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-bought-row")).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-today-sold-row")).toHaveCount(0);
+    await expect(monitoringSection).toBeVisible();
+    await expect(monitoringSection.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(1);
+    await expect(monitoringSection.getByText("Hansol Holdings", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("Exec-approved", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("Target profile", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("tactical_2pct / short_swing", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("Approved qty", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("12", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Samsung Electronics", { exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(0);
   });
 });

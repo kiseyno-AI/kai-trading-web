@@ -943,6 +943,13 @@ function TradeRowList({
                     {row.marketLabel ? ` · ${row.marketLabel}` : ""}
                   </span>
                 </div>
+                {row.badges?.length ? (
+                  <div className={styles.tradeRowBadges} aria-label={copy.dashboardOverview.rowStates}>
+                    {row.badges.map((badge) => (
+                      <span key={badge}>{badge}</span>
+                    ))}
+                  </div>
+                ) : null}
                 <dl className={styles.tradeValueList}>
                   {row.values.map((value) => (
                     <div key={value.key}>
@@ -987,7 +994,7 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
     <article className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.portfolioStateCard}`}>
       <ComponentTag
         label="dashboard.portfolio-status"
-        api="/api/trading/portfolio/summary + /api/trading/execution/runtime/status + /api/trading/execution/runtime/daily-board"
+        api="/api/trading/portfolio/summary + /api/trading/execution/runtime/status + /api/trading/execution/runtime/monitored-symbols"
       />
 
       <div className={styles.sectionHeaderRow}>
@@ -1008,35 +1015,25 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
       </div>
 
       {model.contextLabel ? <p className={styles.cardContext}>{model.contextLabel}</p> : null}
-      {model.executionBoardStateLabel ? <div className={styles.emptyState}>{model.executionBoardStateLabel}</div> : null}
       <RuntimeDiagnosticsHint copy={copy} diagnostics={model.diagnostics} />
 
       <TradeRowList
         copy={copy}
-        emptyLabel={model.planStateLabel}
-        label={copy.dashboardOverview.monitoringPlan}
-        listId="dashboard-monitoring-plan-list"
+        emptyLabel={model.monitoringStateLabel}
+        label={copy.dashboardOverview.execApprovedMonitoring}
+        listId="dashboard-exec-monitoring-list"
         numberLocale={numberLocale}
-        rows={model.planRows}
-        testId="dashboard-monitoring-plan"
+        rows={model.monitoringRows}
+        testId="dashboard-exec-monitoring"
       />
       <TradeRowList
         copy={copy}
-        emptyLabel={model.buyStateLabel}
-        label={copy.dashboardOverview.todayBought}
-        listId="dashboard-today-bought-list"
+        emptyLabel={model.holdingStateLabel}
+        label={copy.dashboardOverview.heldPositions}
+        listId="dashboard-held-positions-list"
         numberLocale={numberLocale}
-        rows={model.buyRows}
-        testId="dashboard-today-bought"
-      />
-      <TradeRowList
-        copy={copy}
-        emptyLabel={model.sellStateLabel}
-        label={copy.dashboardOverview.todaySold}
-        listId="dashboard-today-sold-list"
-        numberLocale={numberLocale}
-        rows={model.sellRows}
-        testId="dashboard-today-sold"
+        rows={model.holdingRows}
+        testId="dashboard-held-positions"
       />
 
       <Link href="/portfolio" className={styles.signalDeciderDetailLink} aria-label={copy.portfolioState.openDetail}>
@@ -2077,21 +2074,19 @@ export function LiveDashboardClient({
   const portfolioOverviewModel = useMemo(
     () =>
       buildDashboardPortfolioOverviewModel({
-        board: executionRuntimeDailyBoard,
-        boardError: executionRuntimeDailyBoardError,
         copy,
         executionStatus: executionRuntimeStatus,
         executionStatusError: executionRuntimeStatusError,
-        marketDate: executionRuntimeMarketDate,
+        monitoredSymbols: executionRuntimeMonitoredSymbols,
+        monitoredSymbolsError: executionRuntimeMonitoredSymbolsError,
         numberLocale,
         portfolioState: portfolioSummaryState,
         summary: portfolioSummary,
       }),
     [
       copy,
-      executionRuntimeDailyBoard,
-      executionRuntimeDailyBoardError,
-      executionRuntimeMarketDate,
+      executionRuntimeMonitoredSymbols,
+      executionRuntimeMonitoredSymbolsError,
       executionRuntimeStatus,
       executionRuntimeStatusError,
       numberLocale,

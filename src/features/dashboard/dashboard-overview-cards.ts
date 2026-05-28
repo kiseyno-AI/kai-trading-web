@@ -6,15 +6,14 @@ import type {
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeQuantity,
   ExecutionRuntimeStatusResponseDto,
+  PortfolioHoldingDto,
   PortfolioMoneyAmountDto,
-  PortfolioOrderActivityDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
 import {
   buildPortfolioMetricModels,
   formatPortfolioMoney,
   getPortfolioAccounts,
-  getPortfolioActivity,
   getPortfolioHoldings,
   type PortfolioSummaryState,
 } from "@/features/portfolio/portfolio-display";
@@ -63,6 +62,7 @@ export type DashboardDeciderOverviewModel = {
 };
 
 export type DashboardPortfolioTradeRow = {
+  badges?: string[];
   key: string;
   marketLabel: string | null;
   nameLabel: string;
@@ -71,18 +71,15 @@ export type DashboardPortfolioTradeRow = {
 };
 
 export type DashboardPortfolioOverviewModel = {
-  buyRows: DashboardPortfolioTradeRow[];
-  buyStateLabel: string | null;
   contextLabel: string | null;
   diagnostics: string[];
   execConnectionLabel: string;
   execConnectionTone: OverviewTone;
-  executionBoardStateLabel: string | null;
+  holdingRows: DashboardPortfolioTradeRow[];
+  holdingStateLabel: string | null;
   metrics: DashboardOverviewMetric[];
-  planRows: DashboardPortfolioTradeRow[];
-  planStateLabel: string | null;
-  sellRows: DashboardPortfolioTradeRow[];
-  sellStateLabel: string | null;
+  monitoringRows: DashboardPortfolioTradeRow[];
+  monitoringStateLabel: string | null;
   statusLabel: string;
   statusTone: OverviewTone;
 };
@@ -100,6 +97,7 @@ const PLANNED_SELL_INTENTS = [
 ] as const;
 const FILLED_STATUSES = new Set(["filled", "partial"]);
 const NEXT_DAY_STATUSES = new Set(["planned", "accepted", "scheduled", "submitted"]);
+const REJECTED_OR_EXPIRED_RUNTIME_STATUSES = new Set(["expired", "rejected"]);
 
 function normalizeToken(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? "";
@@ -291,44 +289,8 @@ function getDirectIntentTokens(item: Record<string, unknown>) {
   return directIntentKeys.map((key) => normalizeToken(textOrNull(item[key]))).filter(Boolean);
 }
 
-function hasDirectIntent(item: Record<string, unknown>, intentTokens: readonly string[]) {
-  return getDirectIntentTokens(item).some((value) =>
-    intentTokens.some((token) => {
-      const normalizedToken = normalizeToken(token);
-      return value === normalizedToken || value.includes(normalizedToken);
-    }),
-  );
-}
-
 function isFilledExecutionItem(item: ExecutionRuntimeBoardItemDto) {
   return FILLED_STATUSES.has(normalizeToken(item.status));
-}
-
-function hasPartialFillEvidence(item: ExecutionRuntimeBoardItemDto) {
-  const filledQuantity = quantityToNumber(getQuantity(item, ["filled_quantity"]));
-  if (filledQuantity !== null && filledQuantity > 0) return true;
-
-  for (const priceKey of ["avg_fill_price", "trade_price", "fill_price"]) {
-    const price = quantityToNumber(getQuantity(item, [priceKey]));
-    if (price !== null && price > 0) return true;
-  }
-
-  return false;
-}
-
-function isActualExecutionItem(item: ExecutionRuntimeBoardItemDto) {
-  if (!isFilledExecutionItem(item)) return false;
-  if (!hasDirectIntent(item, [...OPEN_BUY_INTENTS, ...SELL_INTENTS])) return false;
-  if (normalizeToken(item.status) === "partial") return hasPartialFillEvidence(item);
-  return true;
-}
-
-function isBuyExecutionItem(item: ExecutionRuntimeBoardItemDto) {
-  return isActualExecutionItem(item) && hasDirectIntent(item, OPEN_BUY_INTENTS);
-}
-
-function isSellExecutionItem(item: ExecutionRuntimeBoardItemDto) {
-  return isActualExecutionItem(item) && hasDirectIntent(item, SELL_INTENTS);
 }
 
 function isNextDayExecutionCandidate(item: ExecutionRuntimeBoardItemDto, boardMarketDate: string | null) {
@@ -486,184 +448,357 @@ function getHeldPositionCount(summary: PortfolioSummaryDto | null | undefined) {
   return getPortfolioHoldings(summary).length;
 }
 
-function findActivityForSymbol(
-  activity: PortfolioOrderActivityDto[],
-  symbol: string,
-  side: "buy" | "sell",
-  marketDate: string | null,
-) {
-  return activity.find((item) => {
-    if (item.symbol !== symbol) return false;
-    if (normalizeToken(item.side) !== side) return false;
-    if (!marketDate) return true;
-    const activityDate = item.updatedAt ?? item.submittedAt ?? null;
-    return activityDate?.startsWith(marketDate) === true;
+function formatQuantity(value: ExecutionRuntimeQuantity | undefined, numberLocale: string, unavailableLabel: string) {
+  const numericValue = quantityToNumber(value);
+  if (numericValue === null) return unavailableLabel;
+
+  return numericValue.toLocaleString(numberLocale, {
+    maximumFractionDigits: 4,
   });
 }
 
-function formatTradeMoney(
-  value: PortfolioMoneyAmountDto | null,
-  fallback: string,
+function getMonitoringStateLabel(
+  state: ExecutionRuntimeMonitoredSymbolDto["monitoring_state"] | null | undefined,
+  copy: DashboardLiveCopy,
 ) {
-  return formatPortfolioMoney(value, fallback);
+  const normalizedState = normalizeToken(state);
+  if (normalizedState === "watching_target_stop") return copy.executionRuntime.monitoringStates.watchingTargetStop;
+  if (normalizedState === "watching_fill") return copy.executionRuntime.monitoringStates.watchingFill;
+  if (normalizedState === "reconciling") return copy.executionRuntime.monitoringStates.reconciling;
+  if (normalizedState === "idle") return copy.executionRuntime.monitoringStates.idle;
+  return humanizeToken(state, copy.executionRuntime.monitoringStates.unknown);
 }
 
-function getPortfolioPlanBuyPrice(item: ExecutionRuntimeBoardItemDto) {
-  return getQuantity(item, [
-    "planned_buy_price",
-    "buy_target_price",
-    "buy_price",
-    "entry_price",
-    "planned_price",
-    "limit_price",
-  ]);
+function getTargetProfileLabel(item: Record<string, unknown>) {
+  const profile =
+    textOrNull(item.exec_agent_target_profile) ??
+    textOrNull(item.target_profile) ??
+    textOrNull(item.targetProfile) ??
+    textOrNull(item.profile);
+  const tag =
+    textOrNull(item.exec_agent_target_tag) ??
+    textOrNull(item.target_tag) ??
+    textOrNull(item.targetTag) ??
+    textOrNull(item.tag);
+
+  if (profile && tag && normalizeToken(profile) !== normalizeToken(tag)) return `${profile} / ${tag}`;
+  return profile ?? tag;
 }
 
-function getPortfolioPlanSellPrice(item: ExecutionRuntimeBoardItemDto) {
-  return getQuantity(item, [
-    "planned_sell_price",
-    "sell_target_price",
-    "take_profit_price",
-    "target_price",
-    "limit_sell_price",
-  ]);
+function getRuntimeStatusTokens(item: Record<string, unknown>) {
+  const directStatusKeys = [
+    "status",
+    "approval_status",
+    "exec_agent_status",
+    "exec_status",
+    "execution_status",
+    "monitoring_status",
+  ];
+  const directStatuses = directStatusKeys.map((key) => normalizeToken(textOrNull(item[key]))).filter(Boolean);
+  const monitoringStatuses = Array.isArray(item.monitoring_statuses)
+    ? item.monitoring_statuses.map((value) => normalizeToken(textOrNull(value))).filter(Boolean)
+    : [];
+  const monitoringStatusCounts =
+    item.monitoring_statuses && typeof item.monitoring_statuses === "object" && !Array.isArray(item.monitoring_statuses)
+      ? Object.entries(item.monitoring_statuses)
+          .filter(([, count]) => typeof count === "number" && count > 0)
+          .map(([status]) => normalizeToken(status))
+      : [];
+
+  return [...directStatuses, ...monitoringStatuses, ...monitoringStatusCounts];
 }
 
-function isPortfolioPlanCandidate(item: ExecutionRuntimeBoardItemDto) {
-  if (isBuyExecutionItem(item) || isSellExecutionItem(item)) return false;
-  if (getPlannedTradeSide(item)) return true;
-  if (textOrNull(item.monitoring_state)) return true;
-  return (
-    getPortfolioPlanBuyPrice(item) !== undefined ||
-    getPortfolioPlanSellPrice(item) !== undefined ||
-    getStopLossPriceWithFallback(item, null) !== undefined
-  );
+function isRejectedOrExpiredRuntimeRow(item: Record<string, unknown>) {
+  return getRuntimeStatusTokens(item).some((status) => REJECTED_OR_EXPIRED_RUNTIME_STATUSES.has(status));
 }
 
-function buildPlanRows({
-  copy,
-  items,
-  numberLocale,
-}: {
-  copy: DashboardOverviewCopy;
-  items: ExecutionRuntimeBoardItemDto[];
-  numberLocale: string;
-}) {
-  const bySymbol = new Map<
-    string,
-    {
-      buyPrice: ExecutionRuntimeQuantity | undefined;
-      item: ExecutionRuntimeBoardItemDto;
-      sellPrice: ExecutionRuntimeQuantity | undefined;
-      stopLossPrice: ExecutionRuntimeQuantity | undefined;
-    }
-  >();
+function isExplicitlyUnapprovedRuntimeRow(item: Record<string, unknown>) {
+  return item.exec_agent_approved === false || item.exec_monitoring_active === false;
+}
 
-  for (const item of items) {
-    if (!isPortfolioPlanCandidate(item)) continue;
+function isExecApprovedMonitoringRow(item: ExecutionRuntimeMonitoredSymbolDto) {
+  return !isExplicitlyUnapprovedRuntimeRow(item) && !isRejectedOrExpiredRuntimeRow(item);
+}
 
-    const current = bySymbol.get(item.symbol);
-    if (!current) {
-      bySymbol.set(item.symbol, {
-        buyPrice: getPortfolioPlanBuyPrice(item),
-        item,
-        sellPrice: getPortfolioPlanSellPrice(item),
-        stopLossPrice: getStopLossPriceWithFallback(item, null),
-      });
-      continue;
-    }
+function getRuntimeHeldQuantity(item: Record<string, unknown>) {
+  return getQuantity(item, ["position_quantity", "held_quantity", "quantity"]);
+}
 
-    current.buyPrice ??= getPortfolioPlanBuyPrice(item);
-    current.sellPrice ??= getPortfolioPlanSellPrice(item);
-    current.stopLossPrice ??= getStopLossPriceWithFallback(item, null);
+function hasRuntimeHeldPosition(item: Record<string, unknown>) {
+  if (item.held_position === true) return true;
+  const quantity = quantityToNumber(getRuntimeHeldQuantity(item));
+  return quantity !== null && quantity > 0;
+}
+
+function isActivePortfolioHolding(holding: PortfolioHoldingDto) {
+  return holding.quantity !== 0;
+}
+
+function getHoldingQuantity(holding: PortfolioHoldingDto) {
+  return typeof holding.quantity === "number" && Number.isFinite(holding.quantity) ? holding.quantity : undefined;
+}
+
+function mergeMoneyAmount(
+  current: PortfolioMoneyAmountDto | null,
+  next: PortfolioMoneyAmountDto | null | undefined,
+) {
+  if (!next) return current;
+  if (!current) return next;
+  if (typeof current.amount !== "number" || !Number.isFinite(current.amount)) return current;
+  if (typeof next.amount !== "number" || !Number.isFinite(next.amount)) return current;
+  const currentCurrency = current.currency ?? "KRW";
+  const nextCurrency = next.currency ?? "KRW";
+  if (currentCurrency !== nextCurrency) return current;
+  return {
+    amount: current.amount + next.amount,
+    currency: currentCurrency,
+  } satisfies PortfolioMoneyAmountDto;
+}
+
+type HoldingSnapshot = {
+  averagePrice: PortfolioMoneyAmountDto | null;
+  lastPrice: PortfolioMoneyAmountDto | null;
+  marketLabel: string | null;
+  marketValue: PortfolioMoneyAmountDto | null;
+  nameLabel: string;
+  quantity: ExecutionRuntimeQuantity | undefined;
+  runtimeItem: ExecutionRuntimeMonitoredSymbolDto | null;
+  symbol: string;
+  unrealizedPnl: PortfolioMoneyAmountDto | null;
+};
+
+function upsertHoldingSnapshot(
+  bySymbol: Map<string, HoldingSnapshot>,
+  snapshot: HoldingSnapshot,
+) {
+  const current = bySymbol.get(snapshot.symbol);
+  if (!current) {
+    bySymbol.set(snapshot.symbol, snapshot);
+    return;
   }
 
-  return Array.from(bySymbol.values()).map(({ buyPrice, item, sellPrice, stopLossPrice }) => ({
-    key: `${item.symbol}-plan`,
-    marketLabel: textOrNull(item.market),
-    nameLabel: textOrNull(item.name) ?? item.symbol,
-    symbol: item.symbol,
-    values: [
-      {
-        key: "buy-target",
-        label: copy.buyPlanPrice,
-        value: formatPrice(buyPrice, numberLocale, copy.unavailable),
-      },
-      {
-        key: "sell-target",
-        label: copy.sellPlanPrice,
-        value: formatPrice(sellPrice, numberLocale, copy.unavailable),
-      },
-      {
-        key: "stop-loss",
-        label: copy.stopLossPrice,
-        value: formatPrice(stopLossPrice, numberLocale, copy.unavailable),
-      },
-    ],
-  }));
+  const currentQuantity = quantityToNumber(current.quantity);
+  const nextQuantity = quantityToNumber(snapshot.quantity);
+  current.quantity =
+    currentQuantity !== null && nextQuantity !== null
+      ? currentQuantity + nextQuantity
+      : current.quantity ?? snapshot.quantity;
+  current.averagePrice ??= snapshot.averagePrice;
+  current.lastPrice ??= snapshot.lastPrice;
+  current.marketLabel ??= snapshot.marketLabel;
+  current.marketValue = mergeMoneyAmount(current.marketValue, snapshot.marketValue);
+  current.nameLabel = current.nameLabel || snapshot.nameLabel;
+  current.runtimeItem ??= snapshot.runtimeItem;
+  current.unrealizedPnl = mergeMoneyAmount(current.unrealizedPnl, snapshot.unrealizedPnl);
 }
 
-function buildBuyRow({
-  copy,
-  item,
-  numberLocale,
-}: {
-  copy: DashboardOverviewCopy;
-  item: ExecutionRuntimeBoardItemDto;
-  numberLocale: string;
-}): DashboardPortfolioTradeRow {
+function buildPortfolioHoldingSnapshots(summary: PortfolioSummaryDto | null | undefined) {
+  const bySymbol = new Map<string, HoldingSnapshot>();
+
+  for (const holding of getPortfolioHoldings(summary)) {
+    const symbol = textOrNull(holding.symbol);
+    if (!symbol || !isActivePortfolioHolding(holding)) continue;
+
+    upsertHoldingSnapshot(bySymbol, {
+      averagePrice: holding.averagePrice ?? null,
+      lastPrice: holding.lastPrice ?? null,
+      marketLabel: textOrNull(holding.market),
+      marketValue: holding.marketValue ?? null,
+      nameLabel: textOrNull(holding.name) ?? symbol,
+      quantity: getHoldingQuantity(holding),
+      runtimeItem: null,
+      symbol,
+      unrealizedPnl: holding.unrealizedPnl ?? null,
+    });
+  }
+
+  return bySymbol;
+}
+
+function buildRuntimeHoldingSnapshot(item: ExecutionRuntimeMonitoredSymbolDto): HoldingSnapshot {
+  const symbol = item.symbol;
   return {
-    key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? item.last_updated_at ?? "buy"}`,
+    averagePrice: getMoneyAmount(item, ["position_average_price", "average_price", "avg_price"]),
+    lastPrice: getMoneyAmount(item, ["current_price", "last_price", "price"]),
     marketLabel: textOrNull(item.market),
-    nameLabel: textOrNull(item.name) ?? item.symbol,
-    symbol: item.symbol,
-    values: [
-      {
-        key: "target",
-        label: copy.targetPrice,
-        value: formatPrice(getTargetPrice(item, null), numberLocale, copy.unavailable),
-      },
-      {
-        key: "stop",
-        label: copy.stopLossPrice,
-        value: formatPrice(getStopLossPriceWithFallback(item, null), numberLocale, copy.unavailable),
-      },
-      {
-        key: "trade",
-        label: copy.tradePrice,
-        value: formatPrice(
-          getQuantity(item, ["trade_price", "avg_fill_price", "fill_price"]),
-          numberLocale,
-          copy.unavailable,
-        ),
-      },
-    ],
+    marketValue: getMoneyAmount(item, ["position_market_value", "market_value"]),
+    nameLabel: textOrNull(item.name) ?? symbol,
+    quantity: getRuntimeHeldQuantity(item),
+    runtimeItem: item,
+    symbol,
+    unrealizedPnl: getMoneyAmount(item, ["position_unrealized_pnl", "unrealized_pnl", "unrealizedPnl"]),
   };
 }
 
-function buildSellRow({
-  activity,
-  copy,
-  item,
+function buildHoldingSnapshots({
+  monitoredItems,
+  summary,
 }: {
-  activity: PortfolioOrderActivityDto | null | undefined;
-  copy: DashboardOverviewCopy;
-  item: ExecutionRuntimeBoardItemDto;
+  monitoredItems: ExecutionRuntimeMonitoredSymbolDto[];
+  summary: PortfolioSummaryDto | null;
+}) {
+  const bySymbol = buildPortfolioHoldingSnapshots(summary);
+
+  for (const item of monitoredItems) {
+    if (!hasRuntimeHeldPosition(item)) continue;
+    upsertHoldingSnapshot(bySymbol, buildRuntimeHoldingSnapshot(item));
+  }
+
+  return bySymbol;
+}
+
+function buildMonitoringRow({
+  copy,
+  holding,
+  item,
+  numberLocale,
+}: {
+  copy: DashboardLiveCopy;
+  holding: HoldingSnapshot | null;
+  item: ExecutionRuntimeMonitoredSymbolDto;
+  numberLocale: string;
 }): DashboardPortfolioTradeRow {
-  const itemMoney = getMoneyAmount(item, ["realized_pnl", "realizedPnl", "realized_profit_loss", "realizedProfitLoss"]);
-  const activityMoney = getMoneyAmount(activity ?? null, ["realizedPnl", "realized_pnl", "realizedProfitLoss"]);
+  const overviewCopy = copy.dashboardOverview;
+  const approvedQuantity = getQuantity(item, ["approved_quantity", "planned_quantity"]);
+  const approvedNotional = getMoneyAmount(item, ["approved_notional"]);
+  const targetProfile = getTargetProfileLabel(item);
+  const stateLabel = getMonitoringStateLabel(item.monitoring_state, copy);
+  const quantity = approvedQuantity ?? holding?.quantity;
+  const quantityLabel = approvedQuantity !== undefined ? overviewCopy.approvedQuantity : overviewCopy.quantity;
+  const values: DashboardOverviewPriceItem[] = [
+    {
+      key: "state",
+      label: overviewCopy.monitoringState,
+      value: stateLabel,
+    },
+    ...(targetProfile
+      ? [
+          {
+            key: "target-profile",
+            label: overviewCopy.targetProfile,
+            value: targetProfile,
+          },
+        ]
+      : []),
+    {
+      key: "current",
+      label: overviewCopy.currentPrice,
+      value: formatPrice(getCurrentPrice(item, null), numberLocale, overviewCopy.unavailable),
+    },
+    {
+      key: "target",
+      label: overviewCopy.targetPrice,
+      value: formatPrice(getTargetPrice(item, null), numberLocale, overviewCopy.unavailable),
+    },
+    {
+      key: "stop",
+      label: overviewCopy.stopLossPrice,
+      value: formatPrice(getStopLossPriceWithFallback(item, null), numberLocale, overviewCopy.unavailable),
+    },
+    {
+      key: "quantity",
+      label: quantityLabel,
+      value: formatQuantity(quantity, numberLocale, overviewCopy.unavailable),
+    },
+    ...(approvedNotional
+      ? [
+          {
+            key: "approved-notional",
+            label: overviewCopy.approvedNotional,
+            value: formatPortfolioMoney(approvedNotional, overviewCopy.unavailable),
+          },
+        ]
+      : []),
+  ];
+
+  if (holding?.averagePrice) {
+    values.push({
+      key: "average-price",
+      label: overviewCopy.averagePrice,
+      value: formatPortfolioMoney(holding.averagePrice, overviewCopy.unavailable),
+    });
+  }
+
   return {
-    key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? item.last_updated_at ?? "sell"}`,
-    marketLabel: textOrNull(item.market),
-    nameLabel: textOrNull(item.name) ?? activity?.symbol ?? item.symbol,
+    badges: [overviewCopy.execApproved, stateLabel, ...(holding ? [overviewCopy.held] : [])],
+    key: `${item.symbol}-monitoring`,
+    marketLabel: textOrNull(item.market) ?? holding?.marketLabel ?? null,
+    nameLabel: textOrNull(item.name) ?? holding?.nameLabel ?? item.symbol,
     symbol: item.symbol,
-    values: [
-      {
-        key: "realized-pnl",
-        label: copy.realizedPnl,
-        value: formatTradeMoney(itemMoney ?? activityMoney, copy.unavailable),
-      },
-    ],
+    values,
+  };
+}
+
+function buildHoldingRow({
+  copy,
+  holding,
+  numberLocale,
+}: {
+  copy: DashboardLiveCopy;
+  holding: HoldingSnapshot;
+  numberLocale: string;
+}): DashboardPortfolioTradeRow {
+  const overviewCopy = copy.dashboardOverview;
+  const runtimeItem = holding.runtimeItem;
+  const runtimeTargetProfile = runtimeItem ? getTargetProfileLabel(runtimeItem) : null;
+  const values: DashboardOverviewPriceItem[] = [
+    {
+      key: "quantity",
+      label: overviewCopy.quantity,
+      value: formatQuantity(holding.quantity, numberLocale, overviewCopy.unavailable),
+    },
+    {
+      key: "average-price",
+      label: overviewCopy.averagePrice,
+      value: formatPortfolioMoney(holding.averagePrice, overviewCopy.unavailable),
+    },
+    {
+      key: "last-price",
+      label: overviewCopy.currentPrice,
+      value: formatPortfolioMoney(holding.lastPrice, overviewCopy.unavailable),
+    },
+    ...(runtimeTargetProfile
+      ? [
+          {
+            key: "target-profile",
+            label: overviewCopy.targetProfile,
+            value: runtimeTargetProfile,
+          },
+        ]
+      : []),
+    ...(runtimeItem
+      ? [
+          {
+            key: "target",
+            label: overviewCopy.targetPrice,
+            value: formatPrice(getTargetPrice(runtimeItem, null), numberLocale, overviewCopy.unavailable),
+          },
+          {
+            key: "stop",
+            label: overviewCopy.stopLossPrice,
+            value: formatPrice(getStopLossPriceWithFallback(runtimeItem, null), numberLocale, overviewCopy.unavailable),
+          },
+        ]
+      : []),
+    {
+      key: "market-value",
+      label: overviewCopy.marketValue,
+      value: formatPortfolioMoney(holding.marketValue, overviewCopy.unavailable),
+    },
+    {
+      key: "unrealized-pnl",
+      label: overviewCopy.unrealizedPnl,
+      value: formatPortfolioMoney(holding.unrealizedPnl, overviewCopy.unavailable),
+    },
+  ];
+
+  return {
+    badges: [overviewCopy.held],
+    key: `${holding.symbol}-holding`,
+    marketLabel: holding.marketLabel,
+    nameLabel: holding.nameLabel,
+    symbol: holding.symbol,
+    values,
   };
 }
 
@@ -844,22 +979,20 @@ export function buildDashboardDeciderOverviewModel({
 }
 
 export function buildDashboardPortfolioOverviewModel({
-  board,
-  boardError,
   copy,
   executionStatus,
   executionStatusError,
-  marketDate,
+  monitoredSymbols,
+  monitoredSymbolsError,
   numberLocale,
   portfolioState,
   summary,
 }: {
-  board: ExecutionRuntimeDailyBoardResponseDto | null;
-  boardError: string | null;
   copy: DashboardLiveCopy;
   executionStatus: ExecutionRuntimeStatusResponseDto | null;
   executionStatusError: string | null;
-  marketDate: string | null;
+  monitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null;
+  monitoredSymbolsError: string | null;
   numberLocale: string;
   portfolioState: PortfolioSummaryState;
   summary: PortfolioSummaryDto | null;
@@ -873,42 +1006,27 @@ export function buildDashboardPortfolioOverviewModel({
   const dayPnlPending = hasPortfolioAccounts && dayPnl?.available !== true;
   const heldPositionCount = getHeldPositionCount(summary);
   const execConnected = executionStatus?.exec_connected === true;
-  const activity = getPortfolioActivity(summary);
-  const boardItems = getBoardItems(board);
-  const buyRows = boardItems
-    .filter(isBuyExecutionItem)
-    .map((item) => buildBuyRow({ copy: overviewCopy, item, numberLocale }));
-  const sellRows = boardItems
-    .filter(isSellExecutionItem)
+  const monitoredItems = monitoredSymbols?.items ?? [];
+  const holdingBySymbol = buildHoldingSnapshots({ monitoredItems, summary });
+  const monitoringRows = monitoredItems
+    .filter((item) => isExecApprovedMonitoringRow(item))
     .map((item) =>
-      buildSellRow({
-        activity: findActivityForSymbol(activity, item.symbol, "sell", marketDate),
-        copy: overviewCopy,
+      buildMonitoringRow({
+        copy,
+        holding: holdingBySymbol.get(item.symbol) ?? null,
         item,
+        numberLocale,
       }),
     );
-  const planRows = buildPlanRows({ copy: overviewCopy, items: boardItems, numberLocale });
-  const hasBoardRuntimeDelay = Boolean(boardError);
-  const executionBoardStateLabel = hasBoardRuntimeDelay
-    ? overviewCopy.executionBoardUpdating
-    : board
-      ? null
-      : overviewCopy.executionBoardUnavailable;
+  const monitoringSymbols = new Set(monitoringRows.map((row) => row.symbol));
+  const holdingRows = Array.from(holdingBySymbol.values())
+    .filter((holding) => !monitoringSymbols.has(holding.symbol))
+    .map((holding) => buildHoldingRow({ copy, holding, numberLocale }));
   const contextLabel = executionStatusError ? overviewCopy.runtimeDataDelayed : null;
-  const diagnostics = compactDiagnostics(executionStatusError, boardError);
+  const diagnostics = compactDiagnostics(executionStatusError, monitoredSymbolsError);
+  const heldSymbolsShownInMonitoring = Array.from(holdingBySymbol.keys()).some((symbol) => monitoringSymbols.has(symbol));
 
   return {
-    buyRows,
-    buyStateLabel:
-      buyRows.length > 0
-        ? null
-        : executionBoardStateLabel
-          ? null
-          : planRows.length > 0
-            ? null
-          : board
-            ? overviewCopy.noBoughtStocks
-            : null,
     contextLabel,
     diagnostics,
     execConnectionLabel: execConnected
@@ -917,7 +1035,6 @@ export function buildDashboardPortfolioOverviewModel({
         ? overviewCopy.execDisconnected
         : overviewCopy.unavailable,
     execConnectionTone: execConnected ? "positive" : "warning",
-    executionBoardStateLabel,
     metrics: [
       {
         key: "exec-connection",
@@ -959,26 +1076,22 @@ export function buildDashboardPortfolioOverviewModel({
         ),
       },
     ],
-    planRows,
-    planStateLabel:
-      planRows.length > 0
+    holdingRows,
+    holdingStateLabel:
+      holdingRows.length > 0 || heldSymbolsShownInMonitoring
         ? null
-        : executionBoardStateLabel || buyRows.length > 0 || sellRows.length > 0
-          ? null
-          : board
-            ? overviewCopy.noMonitoringPlanRows
-            : null,
-    sellRows,
-    sellStateLabel:
-      sellRows.length > 0
+        : summary
+          ? overviewCopy.noHeldPositionRows
+          : overviewCopy.heldPositionsUnavailable,
+    monitoringRows,
+    monitoringStateLabel:
+      monitoringRows.length > 0
         ? null
-        : executionBoardStateLabel
-          ? null
-          : planRows.length > 0
-            ? null
-          : board
-            ? overviewCopy.noSoldStocks
-            : null,
+        : monitoredSymbolsError
+          ? overviewCopy.monitoringListUpdating
+          : monitoredSymbols
+            ? overviewCopy.noExecApprovedMonitoringRows
+            : overviewCopy.monitoredSymbolsUnavailable,
     statusLabel: getPortfolioStatusLabel(portfolioState, copy),
     statusTone: getPortfolioStatusTone(portfolioState),
   };
