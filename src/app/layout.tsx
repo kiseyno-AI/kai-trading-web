@@ -3,6 +3,7 @@ import { Inter, Manrope } from "next/font/google";
 
 import { NavigationLoadingProvider } from "@/components/providers/navigation-loading-provider";
 import { AppStateProvider } from "@/components/providers/app-state-provider";
+import { NavigationFailureBoundary } from "@/components/providers/navigation-failure-boundary";
 import { WebDiagnosticsProvider } from "@/components/providers/web-diagnostics-provider";
 import "./globals.css";
 
@@ -41,7 +42,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <NavigationLoadingProvider>
           <AppStateProvider>
-            <WebDiagnosticsProvider>{children}</WebDiagnosticsProvider>
+            <NavigationFailureBoundary>
+              <WebDiagnosticsProvider>{children}</WebDiagnosticsProvider>
+            </NavigationFailureBoundary>
           </AppStateProvider>
         </NavigationLoadingProvider>
       </body>
