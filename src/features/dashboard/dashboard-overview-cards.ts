@@ -570,6 +570,7 @@ type HoldingSnapshot = {
 function upsertHoldingSnapshot(
   bySymbol: Map<string, HoldingSnapshot>,
   snapshot: HoldingSnapshot,
+  { sumQuantity = true }: { sumQuantity?: boolean } = {},
 ) {
   const current = bySymbol.get(snapshot.symbol);
   if (!current) {
@@ -580,7 +581,7 @@ function upsertHoldingSnapshot(
   const currentQuantity = quantityToNumber(current.quantity);
   const nextQuantity = quantityToNumber(snapshot.quantity);
   current.quantity =
-    currentQuantity !== null && nextQuantity !== null
+    sumQuantity && currentQuantity !== null && nextQuantity !== null
       ? currentQuantity + nextQuantity
       : current.quantity ?? snapshot.quantity;
   current.averagePrice ??= snapshot.averagePrice;
@@ -638,10 +639,13 @@ function buildHoldingSnapshots({
   summary: PortfolioSummaryDto | null;
 }) {
   const bySymbol = buildPortfolioHoldingSnapshots(summary);
+  const portfolioSymbols = new Set(bySymbol.keys());
 
   for (const item of monitoredItems) {
     if (!hasRuntimeHeldPosition(item)) continue;
-    upsertHoldingSnapshot(bySymbol, buildRuntimeHoldingSnapshot(item));
+    upsertHoldingSnapshot(bySymbol, buildRuntimeHoldingSnapshot(item), {
+      sumQuantity: !portfolioSymbols.has(item.symbol),
+    });
   }
 
   return bySymbol;

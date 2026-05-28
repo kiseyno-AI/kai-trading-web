@@ -435,7 +435,7 @@ test("shows actual held positions from the portfolio summary", () => {
   );
 });
 
-test("deduplicates symbols that are both exec-monitored and held", () => {
+test("deduplicates symbols that are both exec-monitored and held without double-counting runtime quantity", () => {
   const summary = {
     sync: { status: "synced" },
     accounts: [
@@ -465,6 +465,7 @@ test("deduplicates symbols that are both exec-monitored and held", () => {
         monitoring_state: "watching_target_stop",
         exec_agent_approved: true,
         exec_monitoring_active: true,
+        position_quantity: 3,
         target_price: 76000,
         stop_loss_price: 70000,
       },
