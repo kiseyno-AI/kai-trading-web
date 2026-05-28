@@ -186,6 +186,8 @@
     "noFavoritesSaved": "No favorites saved.",
     "noFavoritesCopy": "Use the search page to pin core favorites that should stay at the top of My Symbols.",
     "marketPending": "Market pending",
+    "limitedCoverageLabel": "Limited coverage",
+    "limitedCoverageBody": "Outside equity detail coverage. Keep managing it here instead of opening the full symbol detail.",
     "trackedQuoteCoverage": "Tracked Quote Coverage",
     "trackedQuotes": "Tracked quotes",
     "fullTrackedList": "Full tracked list",

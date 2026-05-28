@@ -17,6 +17,7 @@ import {
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
 } from "@/lib/mobile-toolbar-data";
+import { hasSymbolDetailCoverage } from "@/lib/symbol-detail-coverage";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import {
   getTradingApiJsonResult,
@@ -42,6 +43,8 @@ type FavoriteSymbolItem = {
   standard_code: string | null;
   name_ko: string | null;
   market: string | null;
+  instrument_type?: string | null;
+  is_active?: boolean | null;
 };
 
 type FavoriteSymbolsResponse = {
@@ -205,6 +208,14 @@ function buildSymbolHref(symbol: string, favoriteItem?: FavoriteSymbolItem | nul
 
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(symbol)}${query ? `?${query}` : ""}`;
+}
+
+function hasTrackedSymbolDetailCoverage(item: TrackedQuote, favoriteItem?: FavoriteSymbolItem | null) {
+  return hasSymbolDetailCoverage({
+    symbol: item.symbol,
+    market: favoriteItem?.market,
+    instrument_type: favoriteItem?.instrument_type,
+  });
 }
 
 async function loadJson<T>(path: string, label: string, copy: MySymbolsMessages): Promise<LoadResult<T>> {
@@ -379,19 +390,43 @@ export default function MySymbolsPageClient() {
 
           {!favoriteError && favoriteItems.length > 0 ? (
             <div className={styles.favoriteGrid}>
-              {favoriteItems.map((item) => (
-                <Link
-                  key={item.symbol}
-                  href={buildSymbolHref(item.symbol, item)}
-                  className={styles.favoriteCard}
-                >
-                  <div>
-                    <strong>{item.name_ko?.trim() || item.symbol}</strong>
-                    <p>{item.symbol}</p>
-                  </div>
-                  <span>{item.market?.trim() || copy.marketPending}</span>
-                </Link>
-              ))}
+              {favoriteItems.map((item) => {
+                const displayName = item.name_ko?.trim() || item.symbol;
+                const marketLabel = item.market?.trim() || copy.marketPending;
+
+                if (!hasSymbolDetailCoverage(item)) {
+                  return (
+                    <article
+                      key={item.symbol}
+                      className={`${styles.favoriteCard} ${styles.favoriteCardUnsupported}`}
+                      role="group"
+                      aria-label={`${item.symbol} ${displayName} ${copy.limitedCoverageLabel}: ${copy.limitedCoverageBody}`}
+                    >
+                      <div className={styles.favoriteCardHeader}>
+                        <strong>{displayName}</strong>
+                        <span className={styles.favoriteCoverageBadge}>{copy.limitedCoverageLabel}</span>
+                      </div>
+                      <p>{item.symbol}</p>
+                      <p className={`${styles.favoriteCoverageBody} clamp-3`}>{copy.limitedCoverageBody}</p>
+                      <span>{marketLabel}</span>
+                    </article>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={item.symbol}
+                    href={buildSymbolHref(item.symbol, item)}
+                    className={styles.favoriteCard}
+                  >
+                    <div>
+                      <strong>{displayName}</strong>
+                      <p>{item.symbol}</p>
+                    </div>
+                    <span>{marketLabel}</span>
+                  </Link>
+                );
+              })}
             </div>
           ) : null}
         </section>
@@ -418,13 +453,10 @@ export default function MySymbolsPageClient() {
             <div className={styles.trackedList} aria-label={copy.trackedSymbolsFullList}>
               {trackedQuotes.items.map((item) => {
                 const favoriteItem = favoriteBySymbol[normalizeSymbolCode(item.symbol)] ?? null;
+                const isSymbolDetailCovered = hasTrackedSymbolDetailCoverage(item, favoriteItem);
 
-                return (
-                  <Link
-                    key={item.symbol}
-                    href={buildSymbolHref(item.symbol, favoriteItem)}
-                    className={styles.trackedCard}
-                  >
+                const cardContent = (
+                  <>
                     <div className={styles.cardHeader}>
                       <div className={styles.identityBlock}>
                         <strong>{getDisplayName(item, favoriteItem)}</strong>
@@ -434,6 +466,9 @@ export default function MySymbolsPageClient() {
                       <div className={styles.badgeGroup}>
                         {favoriteSymbols.has(normalizeSymbolCode(item.symbol)) ? (
                           <span className={`${styles.badge} ${styles.badgeFavorite}`}>{copy.coreFavorite}</span>
+                        ) : null}
+                        {!isSymbolDetailCovered ? (
+                          <span className={`${styles.badge} ${styles.badgeWarning}`}>{copy.limitedCoverageLabel}</span>
                         ) : null}
                         <span className={`${styles.badge} ${getAvailabilityClassName(item)}`}>
                           {getAvailabilityLabel(item, copy)}
@@ -455,6 +490,10 @@ export default function MySymbolsPageClient() {
                       </span>
                     </div>
 
+                    {!isSymbolDetailCovered ? (
+                      <p className={`${styles.trackedCoverageBody} clamp-3`}>{copy.limitedCoverageBody}</p>
+                    ) : null}
+
                     <dl className={styles.metaGrid}>
                       <div>
                         <dt>{copy.priceFreshness}</dt>
@@ -473,6 +512,29 @@ export default function MySymbolsPageClient() {
                         <dd>{getQuoteSourceLabel(item, copy)}</dd>
                       </div>
                     </dl>
+                  </>
+                );
+
+                if (!isSymbolDetailCovered) {
+                  return (
+                    <article
+                      key={item.symbol}
+                      className={`${styles.trackedCard} ${styles.trackedCardUnsupported}`}
+                      role="group"
+                      aria-label={`${item.symbol} ${getDisplayName(item, favoriteItem)} ${copy.limitedCoverageLabel}: ${copy.limitedCoverageBody}`}
+                    >
+                      {cardContent}
+                    </article>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={item.symbol}
+                    href={buildSymbolHref(item.symbol, favoriteItem)}
+                    className={styles.trackedCard}
+                  >
+                    {cardContent}
                   </Link>
                 );
               })}
