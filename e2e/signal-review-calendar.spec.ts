@@ -1908,6 +1908,7 @@ test("signal review calendar settles unresolved past cells after stored selected
 }) => {
   const delayedHistoricalDateFetch = createDeferred();
   try {
+    await page.setViewportSize({ width: 390, height: 844 });
     await mockSignalReviewCalendar(page, {
       denseFeedbackDates: {
         "2026-05-22": 118,
@@ -1924,7 +1925,7 @@ test("signal review calendar settles unresolved past cells after stored selected
     await expect(page.getByText("월간 커버리지가 부분적으로 로드됨")).toBeVisible();
     await expect(page.getByText("118 월간 결정")).toBeVisible();
     await expect(page.getByRole("heading", { name: "2026-05-22" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: /피드백 표 열기/i }).first()).toHaveAttribute(
       "href",
       /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-22/,
     );
@@ -1936,12 +1937,44 @@ test("signal review calendar settles unresolved past cells after stored selected
     await expect(
       delayedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
     ).toHaveText("부분");
-    await expect(
-      delayedPastCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
-    ).toHaveText("--");
+    await expect(delayedPastCell.locator('[data-calendar-cell-label="count"]')).toBeHidden();
+    await expect(delayedPastCell.locator('[data-calendar-cell-label="action-mix"]')).toBeHidden();
+    await expect(delayedPastCell).toHaveAttribute("aria-label", "2026-05-01 부분");
+    await expect(delayedPastCell).not.toContainText(/부분\s*--\s*부분/);
     await expect(delayedPastCell).not.toContainText("로딩 중");
   } finally {
     delayedHistoricalDateFetch.resolve();
+  }
+});
+
+test("signal review calendar avoids repeated partial fragments in Korean mobile fallback cells", async ({ page }) => {
+  const delayedIssueDateFetch = createDeferred();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockSignalReviewCalendar(page, {
+      denseFeedbackDates: {
+        "2026-05-27": 5,
+      },
+      forceCalendarSummaryFailure: true,
+      feedbackDelays: {
+        "2026-05-08": delayedIssueDateFetch.promise,
+      },
+    });
+
+    await page.goto("/calendar?date=2026-05-27");
+    await page.getByRole("button", { name: "Korean" }).click();
+
+    await expect(page.getByText("월간 커버리지가 부분적으로 로드됨")).toBeVisible();
+    const unresolvedCell = page.locator('[data-calendar-cell="2026-05-08"]');
+    await expect(
+      unresolvedCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
+    ).toHaveText("부분");
+    await expect(unresolvedCell.locator('[data-calendar-cell-label="count"]')).toBeHidden();
+    await expect(unresolvedCell.locator('[data-calendar-cell-label="action-mix"]')).toBeHidden();
+    await expect(unresolvedCell).toHaveAttribute("aria-label", "2026-05-08 부분");
+    await expect(unresolvedCell).not.toContainText(/부분\s*--\s*부분/);
+  } finally {
+    delayedIssueDateFetch.resolve();
   }
 });
 
@@ -1980,7 +2013,7 @@ test("signal review calendar keeps a different month loading while the selected 
     ).toHaveText("RUN");
     await expect(
       delayedPastCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
-    ).toHaveText("...");
+    ).toHaveText("");
     await expect(delayedPastCell).not.toContainText("Partial");
   } finally {
     delayedPreviousMonthFetch.resolve();

@@ -509,9 +509,7 @@ function getCalendarCellDecisionLabel(
 
 function getCompactCalendarCellDecisionLabel(snapshot: CalendarDateSnapshot) {
   if (snapshot.decisionCount > 0) return formatCompactCalendarNumber(snapshot.decisionCount);
-  if (snapshot.status === "empty") return "0";
-  if (snapshot.status === "loading") return "...";
-  return "--";
+  return "";
 }
 
 function getCalendarCellActionMixLabel(
@@ -525,7 +523,26 @@ function getCalendarCellActionMixLabel(
 
 function getCompactCalendarCellActionMixLabel(snapshot: CalendarDateSnapshot, locale: Locale) {
   if (snapshot.decisionCount > 0) return getCompactActionMixLabel(snapshot.actionCounts, locale);
-  return getCompactStatusLabel(snapshot.status, locale);
+  return "";
+}
+
+function getCalendarCellAriaLabel({
+  copy,
+  dateKey,
+  snapshot,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  dateKey: string;
+  snapshot: CalendarDateSnapshot | null;
+}) {
+  if (!snapshot) return dateKey;
+
+  const labels = [dateKey, getStatusLabel(snapshot.status, copy)];
+  if (snapshot.decisionCount > 0) {
+    labels.push(getCalendarCellDecisionLabel(snapshot, copy), getCalendarCellActionMixLabel(snapshot, copy));
+  }
+
+  return Array.from(new Set(labels.filter(Boolean))).join(" ");
 }
 
 function getStatusToneClass(status: DateSnapshotStatus | SignalDeciderFeedbackStatus) {
@@ -1441,7 +1458,7 @@ export default function SignalReviewCalendarPageClient() {
     const compactStatusLabel = snapshot ? getCompactStatusLabel(snapshot.status, locale) : "";
     const compactDecisionLabel = snapshot ? getCompactCalendarCellDecisionLabel(snapshot) : "";
     const compactActionMixLabel = snapshot ? getCompactCalendarCellActionMixLabel(snapshot, locale) : "";
-    const ariaLabel = [day.dateKey, statusLabel, decisionLabel, actionMixLabel].filter(Boolean).join(" ");
+    const ariaLabel = getCalendarCellAriaLabel({ copy, dateKey: day.dateKey, snapshot });
 
     return (
       <button
@@ -1473,7 +1490,10 @@ export default function SignalReviewCalendarPageClient() {
                 {compactStatusLabel}
               </span>
             </span>
-            <strong data-calendar-cell-label="count">
+            <strong
+              data-calendar-cell-label="count"
+              data-calendar-compact-empty={compactDecisionLabel ? undefined : "true"}
+            >
               <span
                 className={styles.dayCellTextFull}
                 data-calendar-cell-label="full"
@@ -1489,7 +1509,10 @@ export default function SignalReviewCalendarPageClient() {
                 {compactDecisionLabel}
               </span>
             </strong>
-            <small data-calendar-cell-label="action-mix">
+            <small
+              data-calendar-cell-label="action-mix"
+              data-calendar-compact-empty={compactActionMixLabel ? undefined : "true"}
+            >
               <span
                 className={styles.dayCellTextFull}
                 data-calendar-cell-label="full"
