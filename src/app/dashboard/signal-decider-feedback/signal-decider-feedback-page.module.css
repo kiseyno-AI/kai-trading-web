@@ -850,10 +850,6 @@
   background: rgba(3, 7, 12, 0.68);
 }
 
-:global(main):has(.dialogBackdrop) {
-  z-index: 90;
-}
-
 .detailDialog {
   width: min(100%, 72rem);
   max-height: min(92dvh, 62rem);

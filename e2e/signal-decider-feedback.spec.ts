@@ -38,6 +38,17 @@ async function expectHorizontalCentersAligned(left: Locator, right: Locator, tol
   expect(Math.abs(leftCenterX - rightCenterX)).toBeLessThanOrEqual(tolerancePx);
 }
 
+async function getActiveElementState(page: Page) {
+  return page.evaluate(() => {
+    const element = document.activeElement as HTMLElement | null;
+
+    return {
+      inDialog: Boolean(element?.closest('[role="dialog"][aria-modal="true"]')),
+      label: (element?.getAttribute("aria-label") || element?.textContent || "").replace(/\s+/g, " ").trim(),
+    };
+  });
+}
+
 async function mockDashboardShell(page: Page, options: MockDashboardShellOptions = {}) {
   let signalDeciderFeedbackRequestCount = 0;
   let shouldFailSignalDeciderFeedback = options.failSignalDeciderFeedback ?? false;
@@ -938,6 +949,133 @@ test("dashboard signal-decider card shows planned board rows and links to the de
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Feature Snapshot Id");
 });
 
+test("signal-decider feedback review dialog traps focus and hides mobile background controls", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockDashboardShell(page);
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27&navContext=calendar");
+  await page.getByRole("button", { name: /Korean/i }).click({ force: true });
+  await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+
+  const openerCard = page.getByTestId("signal-decider-result-card").filter({ hasText: "Samsung Electronics" });
+  const opener = openerCard.locator("button").filter({ hasText: "리뷰" });
+  await opener.scrollIntoViewIfNeeded();
+  await opener.click();
+
+  const dialog = page.getByRole("dialog", { name: /Samsung Electronics/i });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("aria-modal", "true");
+  await expect(dialog.getByRole("button", { name: "닫기" })).toBeFocused();
+
+  const openerSuppression = await opener.evaluate((element) => ({
+    hiddenAncestor: Boolean(element.closest("[aria-hidden='true']")),
+    inertAncestor: Boolean(element.closest("[inert]")),
+  }));
+  const bottomNavSuppression = await page.locator('[data-mobile-nav-item="calendar"]').evaluate((element) => ({
+    ariaHidden: element.getAttribute("aria-hidden"),
+    directInert: element.hasAttribute("inert"),
+    hiddenAncestor: Boolean(element.closest("[aria-hidden='true']")),
+    inertAncestor: Boolean(element.closest("[inert]")),
+  }));
+  expect(openerSuppression).toEqual({ hiddenAncestor: true, inertAncestor: true });
+  expect(bottomNavSuppression).toEqual({
+    ariaHidden: "true",
+    directInert: true,
+    hiddenAncestor: true,
+    inertAncestor: true,
+  });
+
+  const backgroundSuppression = await page.evaluate(() => {
+    const dialogElement = document.querySelector('[role="dialog"][aria-modal="true"]');
+    const describeElement = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      return element
+        ? {
+            ariaHidden: element.getAttribute("aria-hidden"),
+            inert: element.hasAttribute("inert"),
+          }
+        : null;
+    };
+    const outsideLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))
+      .filter((link) => !dialogElement?.contains(link))
+      .map((link) => ({
+        ariaHidden: link.getAttribute("aria-hidden"),
+        directInert: link.hasAttribute("inert"),
+        hiddenAncestor: Boolean(link.closest("[aria-hidden='true']")),
+        inertAncestor: Boolean(link.closest("[inert]")),
+        label: (link.getAttribute("aria-label") || link.textContent || "").replace(/\s+/g, " ").trim(),
+      }));
+
+    return {
+      bottomNav: describeElement("[data-app-chrome-bottom-nav]"),
+      bottomNavFrame: describeElement("[data-app-chrome-bottom-nav-frame]"),
+      header: describeElement("[data-app-chrome-topbar]"),
+      main: describeElement("main"),
+      outsideLinks,
+    };
+  });
+  expect(backgroundSuppression.main).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.header).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.bottomNavFrame).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.bottomNav).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.outsideLinks.length).toBeGreaterThan(0);
+  expect(backgroundSuppression.outsideLinks.some((link) => link.label.includes("캘린더"))).toBe(true);
+  for (const link of backgroundSuppression.outsideLinks) {
+    expect(link.ariaHidden, `${link.label} should be directly aria-hidden`).toBe("true");
+    expect(link.directInert, `${link.label} should be directly inert`).toBe(true);
+    expect(link.hiddenAncestor, `${link.label} should have an aria-hidden ancestor`).toBe(true);
+    expect(link.inertAncestor, `${link.label} should have an inert ancestor`).toBe(true);
+  }
+
+  const ariaSnapshot = await page.ariaSnapshot({ timeout: 5000 });
+  expect(ariaSnapshot).toContain("dialog");
+  expect(ariaSnapshot).toContain("Samsung Electronics");
+  expect(ariaSnapshot).not.toContain("SK hynix");
+  expect(ariaSnapshot).not.toMatch(/link "[^"]*(?:Calendar|캘린더|Dashboard|대시보드)/);
+
+  for (let tabPress = 0; tabPress < 4; tabPress += 1) {
+    await page.keyboard.press("Tab");
+    const activeElementState = await getActiveElementState(page);
+    expect(activeElementState.inDialog).toBe(true);
+    expect(activeElementState.label).not.toContain("SK hynix");
+  }
+
+  await page.keyboard.press("Shift+Tab");
+  const reverseTabState = await getActiveElementState(page);
+  expect(reverseTabState.inDialog).toBe(true);
+  expect(reverseTabState.label).not.toContain("SK hynix");
+
+  await dialog.getByRole("button", { name: "닫기" }).click();
+  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toHaveCount(0);
+  const restoredSuppression = await page.evaluate(() => {
+    const describeElement = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      return element
+        ? {
+            ariaHidden: element.getAttribute("aria-hidden"),
+            inert: element.hasAttribute("inert"),
+          }
+        : null;
+    };
+
+    return {
+      bottomNav: describeElement("[data-app-chrome-bottom-nav]"),
+      bottomNavFrame: describeElement("[data-app-chrome-bottom-nav-frame]"),
+      bottomNavItem: describeElement('[data-mobile-nav-item="calendar"]'),
+      header: describeElement("[data-app-chrome-topbar]"),
+      main: describeElement("main"),
+    };
+  });
+  expect(restoredSuppression).toEqual({
+    bottomNav: { ariaHidden: null, inert: false },
+    bottomNavFrame: { ariaHidden: null, inert: false },
+    bottomNavItem: { ariaHidden: null, inert: false },
+    header: { ariaHidden: null, inert: false },
+    main: { ariaHidden: null, inert: false },
+  });
+  await expect(opener).toBeFocused();
+});
+
 test("signal-decider feedback detail localizes into Korean and keeps English default mode", async ({ page }) => {
   await mockDashboardShell(page);
 
@@ -991,7 +1129,10 @@ test("locale switch does not refetch feedback data or close the detail dialog", 
   const requestCountBeforeLocale = shell.getSignalDeciderFeedbackRequestCount();
   await expect.poll(() => shell.getSignalDeciderFeedbackRequestCount()).toBe(requestCountBeforeLocale);
 
-  await page.getByRole("button", { name: /Korean/i }).dispatchEvent("click");
+  await page
+    .getByTestId("dashboard-header-language-switch")
+    .locator('button[aria-label="Korean"]')
+    .dispatchEvent("click");
 
   await expect(dialog).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");

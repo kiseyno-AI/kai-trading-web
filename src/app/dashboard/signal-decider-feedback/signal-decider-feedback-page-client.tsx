@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
@@ -74,6 +74,14 @@ const ACTION_FILTERS = ["all", "buy", "watch_for_trigger", "avoid_chase", "wait"
 const STATUS_FILTERS = ["all", "with-review", "review-pending", "with-risk"] as const;
 const SORT_MODES = ["priority", "symbol", "confidence", "captured"] as const;
 const GAP_CATEGORY_FILTERS = ["all", ...DECIDER_DATA_GAP_CATEGORIES] as const;
+const DETAIL_DIALOG_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 type ActionFilter = (typeof ACTION_FILTERS)[number];
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 type SortMode = (typeof SORT_MODES)[number];
@@ -765,6 +773,14 @@ function getDataGapEmptyMessage(
   return null;
 }
 
+function getFocusableDetailDialogElements(container: HTMLElement) {
+  return Array.from(container.querySelectorAll<HTMLElement>(DETAIL_DIALOG_FOCUSABLE_SELECTOR)).filter((element) => {
+    if (element.closest("[aria-hidden='true'], [inert]")) return false;
+    const styles = window.getComputedStyle(element);
+    return styles.display !== "none" && styles.visibility !== "hidden";
+  });
+}
+
 function formatConfidenceDelta(value: number | null) {
   if (value === null) return UNKNOWN_LABEL;
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}`;
@@ -870,6 +886,10 @@ export default function SignalDeciderFeedbackPageClient() {
   const [gapCategory, setGapCategory] = useState<GapCategoryFilter>(requestedGapCategory);
   const [gapSymbol, setGapSymbol] = useState(requestedGapSymbol);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const detailDialogRef = useRef<HTMLElement | null>(null);
+  const detailCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const detailOpenerRef = useRef<HTMLElement | null>(null);
+  const shouldRestoreDetailFocusRef = useRef(false);
 
   useEffect(() => {
     setMarketDate(requestedMarketDate);
@@ -1213,23 +1233,92 @@ export default function SignalDeciderFeedbackPageClient() {
       ? copy.calendarContext.breadcrumb.replaceAll("{marketDate}", calendarReturnDate)
       : null;
   const calendarContextNav = isCalendarContext ? DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT : null;
+  const openDetailDialog = useCallback((itemId: string, opener: HTMLElement) => {
+    detailOpenerRef.current = opener;
+    shouldRestoreDetailFocusRef.current = true;
+    setSelectedItemId(itemId);
+  }, []);
+  const closeDetailDialog = useCallback(() => {
+    setSelectedItemId(null);
+  }, []);
+
+  useEffect(() => {
+    if (selectedItem) return;
+    if (!shouldRestoreDetailFocusRef.current) return;
+
+    shouldRestoreDetailFocusRef.current = false;
+    const opener = detailOpenerRef.current;
+    detailOpenerRef.current = null;
+
+    queueMicrotask(() => {
+      if (!opener?.isConnected) return;
+      opener.focus({ preventScroll: true });
+    });
+  }, [selectedItem]);
 
   useEffect(() => {
     if (!selectedItem) return;
 
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelectedItemId(null);
-    };
-
-    window.addEventListener("keydown", closeOnEscape);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
+    queueMicrotask(() => {
+      const dialog = detailDialogRef.current;
+      if (!dialog) return;
+      const initialFocusTarget = detailCloseButtonRef.current ?? getFocusableDetailDialogElements(dialog)[0] ?? dialog;
+      initialFocusTarget.focus({ preventScroll: true });
+    });
+
+    const keepFocusInDialog = (event: KeyboardEvent) => {
+      const dialog = detailDialogRef.current;
+      if (!dialog) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeDetailDialog();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusableElements = getFocusableDetailDialogElements(dialog);
+      const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog.focus({ preventScroll: true });
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!activeElement || !dialog.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus({ preventScroll: true });
+        return;
+      }
+
+      if (event.shiftKey && activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus({ preventScroll: true });
+        return;
+      }
+
+      if (!event.shiftKey && activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus({ preventScroll: true });
+      }
+    };
+
+    document.addEventListener("keydown", keepFocusInDialog, true);
+
     return () => {
-      window.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", keepFocusInDialog, true);
       document.body.style.overflow = previousOverflow;
     };
-  }, [selectedItem]);
+  }, [closeDetailDialog, selectedItem]);
 
   const displayError = useMemo(() => {
     if (error === null) return null;
@@ -1457,7 +1546,11 @@ export default function SignalDeciderFeedbackPageClient() {
             </section>
 
             <footer className={styles.resultFooter}>
-              <button type="button" className={styles.reviewButton} onClick={() => setSelectedItemId(item.id)}>
+              <button
+                type="button"
+                className={styles.reviewButton}
+                onClick={(event) => openDetailDialog(item.id, event.currentTarget)}
+              >
                 {copy.labels.review}
               </button>
             </footer>
@@ -1477,11 +1570,212 @@ export default function SignalDeciderFeedbackPageClient() {
     </div>
   );
 
+  const selectedDetailDialog = selectedItem ? (
+    <div className={styles.dialogBackdrop} onMouseDown={closeDetailDialog}>
+      <section
+        ref={detailDialogRef}
+        className={styles.detailDialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="signal-decider-detail-title"
+        tabIndex={-1}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className={styles.detailHeader}>
+          <div className={styles.detailTitleBlock}>
+            <p className={styles.eyebrow}>{detailCopy.hero}</p>
+            <h2 id="signal-decider-detail-title">
+              {selectedItem.companyName ?? selectedItem.symbol}
+            </h2>
+            <p className={styles.detailSubtitle}>
+              {selectedItem.symbol} · {selectedItem.marketDate || labelsCopy.marketDatePending}
+            </p>
+            <div className={styles.detailBadges}>
+              <span className={`pill ${getActionToneClass(selectedItem.action)}`}>
+                {getLocalizedActionLabel(selectedItem.action, actionCopy)}
+              </span>
+              <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
+                {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
+              </span>
+              <span className={`pill ${getPillToneClass(selectedItem.fiveDayEvaluation.tone)}`}>
+                {getFiveDayEvaluationDisplayLabel(selectedItem.fiveDayEvaluation, evaluationCopy)}
+              </span>
+            </div>
+          </div>
+          <button ref={detailCloseButtonRef} type="button" className={styles.closeButton} onClick={closeDetailDialog}>
+            {detailCopy.close}
+          </button>
+        </header>
+
+        <div className={styles.detailBody}>
+          <aside className={styles.detailSidebar} aria-label={labelsCopy.decisionContext}>
+            <section className={styles.detailGroup}>
+              <div className={styles.detailGroupHeader}>
+                <span>{labelsCopy.decision}</span>
+                <h3>{detailCopy.actionPlan}</h3>
+              </div>
+              <div className={styles.decisionHero}>
+                <strong>
+                  {getLocalizedActionLabel(
+                    selectedItem.nextDayOpenAction !== "unknown" ? selectedItem.nextDayOpenAction : selectedItem.preferredAction,
+                    actionCopy,
+                  )}
+                </strong>
+                <span>
+                  {selectedItem.nextDayOpenAction !== "unknown" ? actionCopy.nextDay : actionCopy.preferred}
+                </span>
+                {selectedItem.expectedReturnPct !== null ? (
+                  <p>
+                    {detailCopy.expectedReturn} {formatExpectedReturnValue(selectedItem.expectedReturnPct)}
+                  </p>
+                ) : null}
+              </div>
+              <dl className={styles.metricList}>
+                <div>
+                  <dt>{labelsCopy.conviction}</dt>
+                  <dd>{formatScore(selectedItem.convictionScore)}</dd>
+                </div>
+                <div>
+                  <dt>{labelsCopy.confidence}</dt>
+                  <dd>{formatScore(selectedItem.confidenceScore)}</dd>
+                </div>
+                {getDecisionPlanRows(selectedItem, actionCopy).map((row) => (
+                  <div key={row.label}>
+                    <dt>{row.label}</dt>
+                    <dd>{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <section className={styles.detailGroup}>
+              <div className={styles.detailGroupHeader}>
+                <span>{labelsCopy.decisionContext}</span>
+                <h3>{detailCopy.context}</h3>
+              </div>
+              <dl className={styles.contextList}>
+                {getRunContextRows(selectedItem, labelsCopy).map((row) => (
+                  <div key={row.label}>
+                    <dt>{row.label}</dt>
+                    <dd>{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          </aside>
+
+          <div className={styles.detailMain}>
+            <section className={`${styles.detailSection} ${styles.thesisSection}`}>
+              <h3>{detailCopy.decisionThesis}</h3>
+              <p>{selectedItem.thesisSummary ?? UNKNOWN_LABEL}</p>
+            </section>
+
+            <section className={`${styles.detailSection} ${styles.reviewDetailSection}`}>
+              <h3>{detailCopy.reviewResult}</h3>
+              <FiveDayEvaluationBlock
+                copy={evaluationCopy}
+                evaluation={selectedItem.fiveDayEvaluation}
+                variant="detail"
+              />
+              <HorizonOutcomeStrip copy={evaluationCopy} item={selectedItem} />
+              {hasReviewData(selectedItem) ? (
+                <>
+                  {hasQualityVerdict(selectedItem) || hasReviewNarrative(selectedItem) ? (
+                    <div className={styles.reviewVerdictBlock}>
+                      {hasQualityVerdict(selectedItem) ? (
+                        <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
+                          {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
+                        </span>
+                      ) : null}
+                      <p>
+                        {selectedItem.reviewConclusion ??
+                          selectedItem.qualityReason ??
+                          getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
+                      </p>
+                      {selectedItem.qualityReason && selectedItem.qualityReason !== selectedItem.reviewConclusion ? (
+                        <p>{selectedItem.qualityReason}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {selectedItem.outcomeHorizons.length > 0 ? (
+                    <div className={styles.outcomeGrid}>
+                      {selectedItem.outcomeHorizons.map((outcome) => (
+                        <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
+                          <span>{outcome.horizon}</span>
+                          <strong>
+                            {formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? reviewCopy.resultEmpty}
+                          </strong>
+                          <p>
+                            {[
+                              outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
+                              outcome.verdict,
+                              outcome.notes,
+                            ]
+                              .filter((part): part is string => hasTextValue(part))
+                              .join(" · ") || reviewCopy.resultEmpty}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : hasOutcomeReview(selectedItem) ? (
+                    <p>
+                      {selectedItem.pathOutcome?.detail ??
+                        selectedItem.pathOutcome?.label ??
+                        selectedItem.intradayPathResult}
+                    </p>
+                  ) : (
+                    <p className={styles.detailEmpty}>{reviewCopy.noRealizedOutcome}</p>
+                  )}
+                </>
+              ) : (
+                <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
+                  <strong>{reviewCopy.pending}</strong>
+                  <p>{reviewCopy.pendingMessage}</p>
+                </div>
+              )}
+            </section>
+
+            <section className={styles.detailSection}>
+              <h3>{isShortTermAgent ? labelsCopy.riskAndDataGaps : detailCopy.risks}</h3>
+              {[...selectedItem.riskFlags, ...selectedItem.dataGapFlags].length > 0 ? (
+                <div className={styles.traceList}>
+                  {[...selectedItem.riskFlags, ...selectedItem.dataGapFlags].map((risk) => (
+                    <div key={risk} className={styles.traceRow}>
+                      <span className="pill warning">{labelsCopy.risks}</span>
+                      <p>{risk}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
+              )}
+            </section>
+
+            <div className={styles.evidenceGrid}>
+              {isShortTermAgent ? (
+                <>
+                  <TraceEntryList title={labelsCopy.supportingEvidence} entries={selectedItem.supportingEvidence} />
+                  <TraceEntryList title={labelsCopy.contextBadges} entries={selectedItem.contextBadges} />
+                </>
+              ) : null}
+              <TraceEntryList title={labelsCopy.factors} entries={selectedItem.factorAttributions} />
+              <TraceEntryList title={labelsCopy.gates} entries={selectedItem.gateResults} />
+              <TraceEntryList title={labelsCopy.upstreamEvidence} entries={selectedItem.upstreamEvidence} />
+              <TraceEntryList title={labelsCopy.traceability} entries={selectedItem.traceability} />
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  ) : null;
+
   return (
     <MobileAppChrome
       chrome={{
         activeNav: isCalendarContext ? "calendar" : "dashboard",
         hrefs: calendarReturnHref ? { calendar: calendarReturnHref } : undefined,
+        modalLayer: selectedDetailDialog,
+        modalOpen: Boolean(selectedItem),
         status: {
           label: displayedMarketDate ? `MD ${displayedMarketDate}` : copy.chrome.marketDatePending,
         },
@@ -1808,203 +2102,6 @@ export default function SignalDeciderFeedbackPageClient() {
 
           {isCalendarContext ? null : feedbackResultsBlock}
         </section>
-
-        {selectedItem ? (
-          <div className={styles.dialogBackdrop} onMouseDown={() => setSelectedItemId(null)}>
-            <section
-              className={styles.detailDialog}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="signal-decider-detail-title"
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <header className={styles.detailHeader}>
-                <div className={styles.detailTitleBlock}>
-                  <p className={styles.eyebrow}>{detailCopy.hero}</p>
-                  <h2 id="signal-decider-detail-title">
-                    {selectedItem.companyName ?? selectedItem.symbol}
-                  </h2>
-                  <p className={styles.detailSubtitle}>
-                    {selectedItem.symbol} · {selectedItem.marketDate || labelsCopy.marketDatePending}
-                  </p>
-                  <div className={styles.detailBadges}>
-                    <span className={`pill ${getActionToneClass(selectedItem.action)}`}>
-                      {getLocalizedActionLabel(selectedItem.action, actionCopy)}
-                    </span>
-                    <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
-                      {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
-                    </span>
-                    <span className={`pill ${getPillToneClass(selectedItem.fiveDayEvaluation.tone)}`}>
-                      {getFiveDayEvaluationDisplayLabel(selectedItem.fiveDayEvaluation, evaluationCopy)}
-                    </span>
-                  </div>
-                </div>
-                <button type="button" className={styles.closeButton} onClick={() => setSelectedItemId(null)}>
-                  {detailCopy.close}
-                </button>
-              </header>
-
-              <div className={styles.detailBody}>
-                <aside className={styles.detailSidebar} aria-label={labelsCopy.decisionContext}>
-                  <section className={styles.detailGroup}>
-                    <div className={styles.detailGroupHeader}>
-                      <span>{labelsCopy.decision}</span>
-                      <h3>{detailCopy.actionPlan}</h3>
-                    </div>
-                    <div className={styles.decisionHero}>
-                      <strong>
-                        {getLocalizedActionLabel(
-                          selectedItem.nextDayOpenAction !== "unknown" ? selectedItem.nextDayOpenAction : selectedItem.preferredAction,
-                          actionCopy,
-                        )}
-                      </strong>
-                      <span>
-                        {selectedItem.nextDayOpenAction !== "unknown" ? actionCopy.nextDay : actionCopy.preferred}
-                      </span>
-                      {selectedItem.expectedReturnPct !== null ? (
-                        <p>
-                          {detailCopy.expectedReturn} {formatExpectedReturnValue(selectedItem.expectedReturnPct)}
-                        </p>
-                      ) : null}
-                    </div>
-                    <dl className={styles.metricList}>
-                      <div>
-                        <dt>{labelsCopy.conviction}</dt>
-                        <dd>{formatScore(selectedItem.convictionScore)}</dd>
-                      </div>
-                      <div>
-                        <dt>{labelsCopy.confidence}</dt>
-                        <dd>{formatScore(selectedItem.confidenceScore)}</dd>
-                      </div>
-                      {getDecisionPlanRows(selectedItem, actionCopy).map((row) => (
-                        <div key={row.label}>
-                          <dt>{row.label}</dt>
-                          <dd>{row.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </section>
-
-                  <section className={styles.detailGroup}>
-                    <div className={styles.detailGroupHeader}>
-                      <span>{labelsCopy.decisionContext}</span>
-                      <h3>{detailCopy.context}</h3>
-                    </div>
-                    <dl className={styles.contextList}>
-                      {getRunContextRows(selectedItem, labelsCopy).map((row) => (
-                        <div key={row.label}>
-                          <dt>{row.label}</dt>
-                          <dd>{row.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </section>
-                </aside>
-
-                <div className={styles.detailMain}>
-                  <section className={`${styles.detailSection} ${styles.thesisSection}`}>
-                    <h3>{detailCopy.decisionThesis}</h3>
-                    <p>{selectedItem.thesisSummary ?? UNKNOWN_LABEL}</p>
-                  </section>
-
-                  <section className={`${styles.detailSection} ${styles.reviewDetailSection}`}>
-                    <h3>{detailCopy.reviewResult}</h3>
-                    <FiveDayEvaluationBlock
-                      copy={evaluationCopy}
-                      evaluation={selectedItem.fiveDayEvaluation}
-                      variant="detail"
-                    />
-                    <HorizonOutcomeStrip copy={evaluationCopy} item={selectedItem} />
-                    {hasReviewData(selectedItem) ? (
-                      <>
-                        {hasQualityVerdict(selectedItem) || hasReviewNarrative(selectedItem) ? (
-                          <div className={styles.reviewVerdictBlock}>
-                              {hasQualityVerdict(selectedItem) ? (
-                                <span className={`pill ${getPillToneClass(selectedItem.qualityTag?.tone)}`}>
-                                  {getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
-                                </span>
-                              ) : null}
-                              <p>
-                                {selectedItem.reviewConclusion ??
-                                  selectedItem.qualityReason ??
-                                  getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
-                              </p>
-                            {selectedItem.qualityReason && selectedItem.qualityReason !== selectedItem.reviewConclusion ? (
-                              <p>{selectedItem.qualityReason}</p>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {selectedItem.outcomeHorizons.length > 0 ? (
-                          <div className={styles.outcomeGrid}>
-                            {selectedItem.outcomeHorizons.map((outcome) => (
-                              <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
-                                <span>{outcome.horizon}</span>
-                                <strong>
-                                  {formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? reviewCopy.resultEmpty}
-                                </strong>
-                                <p>
-                                  {[
-                                    outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
-                                    outcome.verdict,
-                                    outcome.notes,
-                                  ]
-                                    .filter((part): part is string => hasTextValue(part))
-                                    .join(" · ") || reviewCopy.resultEmpty}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : hasOutcomeReview(selectedItem) ? (
-                          <p>
-                            {selectedItem.pathOutcome?.detail ??
-                              selectedItem.pathOutcome?.label ??
-                              selectedItem.intradayPathResult}
-                          </p>
-                        ) : (
-                          <p className={styles.detailEmpty}>{reviewCopy.noRealizedOutcome}</p>
-                        )}
-                      </>
-                    ) : (
-                      <div className={styles.reviewPending} data-testid="signal-decider-review-pending">
-                        <strong>{reviewCopy.pending}</strong>
-                        <p>{reviewCopy.pendingMessage}</p>
-                      </div>
-                    )}
-                  </section>
-
-                  <section className={styles.detailSection}>
-                    <h3>{isShortTermAgent ? labelsCopy.riskAndDataGaps : detailCopy.risks}</h3>
-                    {[...selectedItem.riskFlags, ...selectedItem.dataGapFlags].length > 0 ? (
-                      <div className={styles.traceList}>
-                        {[...selectedItem.riskFlags, ...selectedItem.dataGapFlags].map((risk) => (
-                          <div key={risk} className={styles.traceRow}>
-                            <span className="pill warning">{labelsCopy.risks}</span>
-                            <p>{risk}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className={styles.detailEmpty}>{UNKNOWN_LABEL}</p>
-                    )}
-                  </section>
-
-                  <div className={styles.evidenceGrid}>
-                    {isShortTermAgent ? (
-                      <>
-                        <TraceEntryList title={labelsCopy.supportingEvidence} entries={selectedItem.supportingEvidence} />
-                        <TraceEntryList title={labelsCopy.contextBadges} entries={selectedItem.contextBadges} />
-                      </>
-                    ) : null}
-                    <TraceEntryList title={labelsCopy.factors} entries={selectedItem.factorAttributions} />
-                    <TraceEntryList title={labelsCopy.gates} entries={selectedItem.gateResults} />
-                    <TraceEntryList title={labelsCopy.upstreamEvidence} entries={selectedItem.upstreamEvidence} />
-                    <TraceEntryList title={labelsCopy.traceability} entries={selectedItem.traceability} />
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-        ) : null}
       </div>
     </MobileAppChrome>
   );
