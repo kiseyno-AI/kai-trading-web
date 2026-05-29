@@ -1635,11 +1635,66 @@ test("signal review calendar traps replay dialog focus and restores the mobile o
     inertAncestor: Boolean(element.closest("[inert]")),
   }));
   const bottomNavSuppression = await page.locator('[data-mobile-nav-item="calendar"]').evaluate((element) => ({
+    ariaHidden: element.getAttribute("aria-hidden"),
+    directInert: element.hasAttribute("inert"),
     hiddenAncestor: Boolean(element.closest("[aria-hidden='true']")),
     inertAncestor: Boolean(element.closest("[inert]")),
   }));
   expect(openerSuppression).toEqual({ hiddenAncestor: true, inertAncestor: true });
-  expect(bottomNavSuppression).toEqual({ hiddenAncestor: true, inertAncestor: true });
+  expect(bottomNavSuppression).toEqual({
+    ariaHidden: "true",
+    directInert: true,
+    hiddenAncestor: true,
+    inertAncestor: true,
+  });
+
+  const backgroundSuppression = await page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"][aria-modal="true"]');
+    const describeElement = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      return element
+        ? {
+            ariaHidden: element.getAttribute("aria-hidden"),
+            inert: element.hasAttribute("inert"),
+          }
+        : null;
+    };
+    const outsideLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))
+      .filter((link) => !dialog?.contains(link))
+      .map((link) => ({
+        ariaHidden: link.getAttribute("aria-hidden"),
+        directInert: link.hasAttribute("inert"),
+        hiddenAncestor: Boolean(link.closest("[aria-hidden='true']")),
+        inertAncestor: Boolean(link.closest("[inert]")),
+        label: (link.getAttribute("aria-label") || link.textContent || "").replace(/\s+/g, " ").trim(),
+      }));
+
+    return {
+      bottomNav: describeElement("[data-app-chrome-bottom-nav]"),
+      bottomNavFrame: describeElement("[data-app-chrome-bottom-nav-frame]"),
+      header: describeElement("[data-app-chrome-topbar]"),
+      main: describeElement("main"),
+      outsideLinks,
+    };
+  });
+  expect(backgroundSuppression.main).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.header).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.bottomNavFrame).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.bottomNav).toEqual({ ariaHidden: "true", inert: true });
+  expect(backgroundSuppression.outsideLinks.length).toBeGreaterThan(0);
+  expect(backgroundSuppression.outsideLinks.some((link) => link.label.includes("캘린더"))).toBe(true);
+  for (const link of backgroundSuppression.outsideLinks) {
+    expect(link.ariaHidden, `${link.label} should be directly aria-hidden`).toBe("true");
+    expect(link.directInert, `${link.label} should be directly inert`).toBe(true);
+    expect(link.hiddenAncestor, `${link.label} should have an aria-hidden ancestor`).toBe(true);
+    expect(link.inertAncestor, `${link.label} should have an inert ancestor`).toBe(true);
+  }
+
+  const ariaSnapshot = await page.ariaSnapshot({ timeout: 5000 });
+  expect(ariaSnapshot).toContain("dialog");
+  expect(ariaSnapshot).toContain("비상교육");
+  expect(ariaSnapshot).not.toContain("한국주철관");
+  expect(ariaSnapshot).not.toMatch(/link "[^"]*(?:Calendar|캘린더|Dashboard|대시보드)/);
 
   for (let tabPress = 0; tabPress < 4; tabPress += 1) {
     await page.keyboard.press("Tab");
@@ -1655,6 +1710,32 @@ test("signal review calendar traps replay dialog focus and restores the mobile o
 
   await dialog.getByRole("button", { name: "닫기" }).click();
   await expect(page.getByRole("dialog", { name: /비상교육/ })).toHaveCount(0);
+  const restoredSuppression = await page.evaluate(() => {
+    const describeElement = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      return element
+        ? {
+            ariaHidden: element.getAttribute("aria-hidden"),
+            inert: element.hasAttribute("inert"),
+          }
+        : null;
+    };
+
+    return {
+      bottomNav: describeElement("[data-app-chrome-bottom-nav]"),
+      bottomNavFrame: describeElement("[data-app-chrome-bottom-nav-frame]"),
+      bottomNavItem: describeElement('[data-mobile-nav-item="calendar"]'),
+      header: describeElement("[data-app-chrome-topbar]"),
+      main: describeElement("main"),
+    };
+  });
+  expect(restoredSuppression).toEqual({
+    bottomNav: { ariaHidden: null, inert: false },
+    bottomNavFrame: { ariaHidden: null, inert: false },
+    bottomNavItem: { ariaHidden: null, inert: false },
+    header: { ariaHidden: null, inert: false },
+    main: { ariaHidden: null, inert: false },
+  });
   await expect(opener).toBeFocused();
 });
 

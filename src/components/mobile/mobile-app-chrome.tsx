@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
@@ -57,6 +57,17 @@ type MobileAppChromeProps = {
 };
 
 const EMPTY_HREF_OVERRIDES: AppChromeHrefOverrides = {};
+const MODAL_BACKGROUND_INTERACTIVE_SELECTOR = [
+  "a[href]",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "summary",
+  "[role='button']",
+  "[role='link']",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 function getItemClass(active: boolean) {
   return `${styles.navItem} ${active ? styles.navItemActive : ""}`.trim();
@@ -80,6 +91,49 @@ function useMediaQuery(query: string) {
   }, [query]);
 
   return matches;
+}
+
+function useModalBackgroundInteractiveSuppression(modalOpen: boolean) {
+  useLayoutEffect(() => {
+    if (!modalOpen) return;
+
+    const backgroundRoots = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-app-chrome-main], [data-app-chrome-floating-layer]"),
+    );
+    const touchedElements = new Map<HTMLElement, { ariaHidden: string | null; inert: boolean }>();
+
+    for (const root of backgroundRoots) {
+      const interactiveElements = root.querySelectorAll<HTMLElement>(MODAL_BACKGROUND_INTERACTIVE_SELECTOR);
+
+      for (const element of interactiveElements) {
+        if (element.closest('[role="dialog"][aria-modal="true"]')) continue;
+        if (!touchedElements.has(element)) {
+          touchedElements.set(element, {
+            ariaHidden: element.getAttribute("aria-hidden"),
+            inert: element.hasAttribute("inert"),
+          });
+        }
+        element.setAttribute("aria-hidden", "true");
+        element.setAttribute("inert", "");
+      }
+    }
+
+    return () => {
+      for (const [element, previous] of touchedElements) {
+        if (!element.isConnected) continue;
+        if (previous.ariaHidden === null) {
+          element.removeAttribute("aria-hidden");
+        } else {
+          element.setAttribute("aria-hidden", previous.ariaHidden);
+        }
+        if (previous.inert) {
+          element.setAttribute("inert", "");
+        } else {
+          element.removeAttribute("inert");
+        }
+      }
+    };
+  }, [modalOpen]);
 }
 
 export function MobileAppChromeDesktopRailFooter() {
@@ -128,6 +182,7 @@ export function MobileAppChrome({
   const desktopRailFooter = <MobileAppChromeDesktopRailFooter />;
   const desktopChromeSuppressed = modalOpen || !desktopChromeActive;
   const mobileChromeSuppressed = modalOpen || desktopChromeActive;
+  const floatingLayerSuppressed = modalOpen;
   const toolbarTitle = chrome.title ?? resolvedMetadata?.title;
   const toolbarAction = chrome.toolbarAction ?? resolvedMetadata?.toolbarAction ?? "none";
   const narrowToolbarLayout = chrome.status && chrome.status.priority !== "supplemental" ? "wrap-actions" : undefined;
@@ -175,6 +230,8 @@ export function MobileAppChrome({
     [navItems.length],
   );
 
+  useModalBackgroundInteractiveSuppression(modalOpen);
+
   useEffect(() => {
     if (!activeNav) return;
 
@@ -204,7 +261,9 @@ export function MobileAppChrome({
         aria-current={active ? "page" : undefined}
         data-mobile-nav-item={item.id}
         data-navigation-pending={pending ? "true" : "false"}
-        tabIndex={mobileChromeHiddenTabIndex}
+        aria-hidden={mobileChromeSuppressed ? true : undefined}
+        inert={mobileChromeSuppressed ? true : undefined}
+        tabIndex={mobileChromeSuppressed ? -1 : mobileChromeHiddenTabIndex}
         title={item.label}
         onClick={() => beginNavigation(item.href)}
       >
@@ -228,10 +287,12 @@ export function MobileAppChrome({
         href={item.href}
         prefetch
         className={`${getDesktopItemClass(active)} ${pending ? styles.desktopNavItemPending : ""}`.trim()}
+        aria-hidden={desktopChromeSuppressed ? true : undefined}
         aria-busy={pending || undefined}
         aria-current={active ? "page" : undefined}
         data-navigation-pending={pending ? "true" : "false"}
-        tabIndex={desktopChromeHiddenTabIndex}
+        inert={desktopChromeSuppressed ? true : undefined}
+        tabIndex={desktopChromeSuppressed ? -1 : desktopChromeHiddenTabIndex}
         onClick={() => beginNavigation(item.href)}
       >
         <span className={styles.navIcon} aria-hidden="true">
@@ -319,22 +380,43 @@ export function MobileAppChrome({
         </div>
       </header>
 
-      <main className={styles.main} aria-hidden={modalOpen ? true : undefined} inert={modalOpen ? true : undefined}>
+      <main
+        className={styles.main}
+        aria-hidden={modalOpen ? true : undefined}
+        data-app-chrome-main
+        inert={modalOpen ? true : undefined}
+      >
         {children}
       </main>
 
       <div
         className={styles.bottomNavFrame}
+        data-app-chrome-bottom-nav-frame
         aria-hidden={mobileChromeSuppressed ? true : undefined}
         inert={mobileChromeSuppressed ? true : undefined}
       >
         {bottomMeta ? <div className={styles.mobileMetaRow}>{bottomMeta}</div> : null}
         {bottomAccessory ? <div className={styles.bottomAccessory}>{bottomAccessory}</div> : null}
-        <nav className={styles.bottomNav} style={bottomNavStyle} aria-label={t.mobileChrome.primaryNavigation}>
+        <nav
+          className={styles.bottomNav}
+          style={bottomNavStyle}
+          aria-label={t.mobileChrome.primaryNavigation}
+          aria-hidden={mobileChromeSuppressed ? true : undefined}
+          data-app-chrome-bottom-nav
+          inert={mobileChromeSuppressed ? true : undefined}
+        >
           {navItems.map(renderNavItem)}
         </nav>
       </div>
-      {chrome.floatingLayer}
+      {chrome.floatingLayer ? (
+        <div
+          aria-hidden={floatingLayerSuppressed ? true : undefined}
+          data-app-chrome-floating-layer
+          inert={floatingLayerSuppressed ? true : undefined}
+        >
+          {chrome.floatingLayer}
+        </div>
+      ) : null}
       {chrome.modalLayer}
     </div>
   );
