@@ -9,7 +9,8 @@ PORT=8383
 APP_HEALTH_URL="http://127.0.0.1:${PORT}/trading-web/dashboard"
 DATA_HEALTH_URL="http://127.0.0.1:4181/trading/quotes/tracked"
 TAILNET_HOST="${TAILNET_HOST:-gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net}"
-TAILNET_ENTRYPOINT_URL="${TAILNET_ENTRYPOINT_URL:-https://${TAILNET_HOST}/trading-web}"
+TAILNET_ENTRYPOINT_URL="${TAILNET_ENTRYPOINT_URL:-http://${TAILNET_HOST}/trading-web}"
+RUN_TAILNET_BROWSER_SMOKE="${RUN_TAILNET_BROWSER_SMOKE:-1}"
 
 bump_version() {
   /opt/homebrew/bin/node <<'NODE'
@@ -66,9 +67,11 @@ for _ in {1..30}; do
   if curl -fsS "$APP_HEALTH_URL" >/dev/null 2>&1 && curl -fsS "$DATA_HEALTH_URL" >/dev/null 2>&1; then
     echo "trading-web redeployed on 8383 via launchd"
     echo "canonical Tailnet browser entrypoint: ${TAILNET_ENTRYPOINT_URL}"
-    if [ "${RUN_TAILNET_BROWSER_SMOKE:-0}" = "1" ]; then
+    if [ "$RUN_TAILNET_BROWSER_SMOKE" = "1" ]; then
       PLAYWRIGHT_SKIP_WEB_SERVER=1 TAILNET_ENTRYPOINT_URL="$TAILNET_ENTRYPOINT_URL" \
         /opt/homebrew/bin/npm exec -- playwright test e2e/tailnet-entrypoint.spec.ts --project=chromium
+    else
+      echo "Tailnet browser smoke skipped because RUN_TAILNET_BROWSER_SMOKE=${RUN_TAILNET_BROWSER_SMOKE}"
     fi
     exit 0
   fi

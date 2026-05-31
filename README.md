@@ -209,24 +209,24 @@ Local production serving for the bridge/Tailscale path uses launchd label `com.k
 
 The script installs dependencies when needed, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web`, then restarts the launchd-managed `next start` server on port `8383`.
 
-The canonical Tailnet browser entrypoint is the HTTPS Tailscale Serve/Funnel URL:
+The canonical Tailnet browser entrypoint for operator and QA workflows is the plain HTTP URL:
 
 ```text
-https://gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net/trading-web
+http://gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net/trading-web
 ```
 
-Use the HTTPS URL directly for browser-based QA. The plain HTTP URL is only a redirect hop and should not be published as the canonical start URL for managed Chrome workflows.
+Use that URL as the browser start point even when Tailscale redirects it to HTTPS. The deploy smoke follows the same HTTP entrypoint, fails if Chromium lands on `chrome-error://chromewebdata/`, and checks that loaded `/trading-web/_next/static/...` assets and clicked routes do not return browser-visible failures.
 
 Run the browser-level Tailnet smoke check after a redeploy with:
 
 ```bash
-TAILNET_ENTRYPOINT_URL=https://gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net/trading-web npm run test:e2e:tailnet
+TAILNET_ENTRYPOINT_URL=http://gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net/trading-web npm run test:e2e:tailnet
 ```
 
-To make the redeploy helper run the same Chromium check after the local curl health checks pass:
+The redeploy helper runs the same Chromium check by default after the local curl health checks pass. To skip it during a known browser-tool outage:
 
 ```bash
-RUN_TAILNET_BROWSER_SMOKE=1 /Users/shawn/trading-web/scripts/redeploy-prod-8383.sh
+RUN_TAILNET_BROWSER_SMOKE=0 /Users/shawn/trading-web/scripts/redeploy-prod-8383.sh
 ```
 
 ---
