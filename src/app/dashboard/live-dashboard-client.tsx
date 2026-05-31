@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { useIncrementalList } from "@/components/dashboard/use-incremental-list";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { DocumentRouteLink } from "@/components/navigation/document-route-link";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
@@ -876,9 +877,13 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
 
       <RuntimeDiagnosticsHint copy={copy} diagnostics={model.diagnostics} />
 
-      <Link href={detailHref} className={styles.signalDeciderMoreLink} aria-label={copy.signalDecider.openDetail}>
+      <DocumentRouteLink
+        href={detailHref}
+        className={styles.signalDeciderMoreLink}
+        aria-label={copy.signalDecider.openDetail}
+      >
         {copy.signalDecider.viewDetail}
-      </Link>
+      </DocumentRouteLink>
     </article>
   );
 });

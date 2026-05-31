@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { DocumentRouteLink } from "@/components/navigation/document-route-link";
 import { useAppState } from "@/components/providers/app-state-provider";
 import {
   SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT,
@@ -1561,9 +1562,9 @@ export default function SignalReviewCalendarPageClient() {
           </div>
 
           <div className={styles.heroActions}>
-            <Link href={feedbackListHref} className={styles.secondaryLink}>
+            <DocumentRouteLink href={feedbackListHref} className={styles.secondaryLink}>
               {copy.actions.openFeedback}
-            </Link>
+            </DocumentRouteLink>
             <Link href="/dashboard" className={styles.secondaryLink}>
               {copy.actions.backDashboard}
             </Link>
@@ -1887,9 +1888,9 @@ function MobileDecisionCard({
       </dl>
 
       <footer className={styles.mobileDecisionActions}>
-        <Link href={feedbackHref} className={styles.mobileDecisionLink}>
+        <DocumentRouteLink href={feedbackHref} className={styles.mobileDecisionLink}>
           {copy.actions.openFeedback}
-        </Link>
+        </DocumentRouteLink>
         <button type="button" className={styles.reviewButton} onClick={onReview}>
           {copy.actions.review}
         </button>

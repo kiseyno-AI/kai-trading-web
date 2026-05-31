@@ -886,9 +886,17 @@ test("dashboard signal-decider card shows planned board rows and links to the de
   await processDrawer.getByRole("button", { name: /Close monitor/i }).click();
   await expect(processDrawer).toHaveCount(0);
 
+  await page.evaluate(() => {
+    (window as Window & { __kaiFeedbackNavigationMarker?: string }).__kaiFeedbackNavigationMarker = "client-context";
+  });
   await detailLink.click();
   await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27/);
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as Window & { __kaiFeedbackNavigationMarker?: string }).__kaiFeedbackNavigationMarker ?? null),
+    )
+    .toBeNull();
   await expect(page.getByRole("link", { name: /Back to dashboard/i })).toHaveCount(0);
 
   const samsungCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });

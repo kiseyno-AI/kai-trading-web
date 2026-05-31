@@ -12,25 +12,29 @@ import {
   type ReactNode,
 } from "react";
 
+import { normalizeAppBasePath } from "@/lib/app-base-path";
+
+export type PendingNavigation = {
+  originRouteKey: string;
+  targetRouteKey: string;
+};
+
 type NavigationLoadingContextValue = {
   beginNavigation: (href?: string | URL | null) => void;
   isNavigationPending: boolean;
   isNavigatingTo: (href?: string | URL | null) => boolean;
+  pendingNavigation: PendingNavigation | null;
 };
 
 const NavigationLoadingContext = createContext<NavigationLoadingContextValue>({
   beginNavigation: () => {},
   isNavigationPending: false,
   isNavigatingTo: () => false,
+  pendingNavigation: null,
 });
 
 const FAILSAFE_TIMEOUT_MS = 12_000;
 const ROUTE_CHANGE_EVENT = "navigation-loading:route-change";
-
-type PendingNavigation = {
-  originRouteKey: string;
-  targetRouteKey: string;
-};
 
 function clearTimer(timerRef: { current: number | null }) {
   if (timerRef.current !== null) {
@@ -43,7 +47,16 @@ function resolveInternalRouteKey(href: string | URL | null | undefined) {
   if (typeof window === "undefined" || !href) return null;
 
   try {
-    const targetUrl = href instanceof URL ? href : new URL(href, window.location.href);
+    const basePath = normalizeAppBasePath();
+    const targetHref =
+      typeof href === "string" &&
+      href.startsWith("/") &&
+      basePath &&
+      href !== basePath &&
+      !href.startsWith(`${basePath}/`)
+        ? `${basePath}${href}`
+        : href;
+    const targetUrl = targetHref instanceof URL ? targetHref : new URL(targetHref, window.location.href);
     if (targetUrl.origin !== window.location.origin) return null;
 
     const targetRouteKey = `${targetUrl.pathname}${targetUrl.search}`;
@@ -154,6 +167,7 @@ export function NavigationLoadingProvider({ children }: { children: ReactNode })
       beginNavigation,
       isNavigationPending: pendingNavigation !== null && routeKey === pendingNavigation.originRouteKey,
       isNavigatingTo,
+      pendingNavigation,
     }),
     [beginNavigation, isNavigatingTo, pendingNavigation, routeKey],
   );
