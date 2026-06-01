@@ -360,6 +360,21 @@ function normalizeIdentityText(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function normalizeWarningIdentity(value: string) {
+  return normalizeIdentityText(value).toLowerCase();
+}
+
+function dedupeStringList(values: string[]) {
+  const seen = new Set<string>();
+
+  return values.filter((value) => {
+    const key = normalizeWarningIdentity(value);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function isSymbolLikeName(symbol: string, value: string) {
   const normalizedSymbol = normalizeIdentityText(symbol).toUpperCase();
   const normalizedValue = normalizeIdentityText(value).toUpperCase();
@@ -2132,7 +2147,7 @@ function normalizeFirstHitLabel(status: string | null, rawFirstHit: string | nul
 }
 
 function getWarningsFromEvaluationRecord(record: Record<string, unknown> | null | undefined, ambiguousSameDay: boolean) {
-  const warnings = [
+  const warnings = dedupeStringList([
     ...flattenStringList(record?.data_quality_warnings),
     ...flattenStringList(record?.data_warnings),
     ...flattenStringList(record?.quality_warnings),
@@ -2147,7 +2162,7 @@ function getWarningsFromEvaluationRecord(record: Record<string, unknown> | null 
     ...flattenStringList(record?.missing_dates),
     ...flattenStringList(record?.invalid_reason),
     ...flattenStringList(record?.stale_reason),
-  ].filter((warning, index, all) => all.indexOf(warning) === index);
+  ]);
 
   if (
     ambiguousSameDay &&
@@ -2405,22 +2420,20 @@ function getRiskFlags(payload: AgentFeedbackStoredPayloadDto): string[] {
   const details = isRecord(payload.details) ? payload.details : null;
   const decisionSupport = getRecordValue(details, ["decision_support", "decisionSupport"]);
 
-  return [
+  return dedupeStringList([
     ...flattenStringList(payload.decision_risks),
     ...flattenStringList(payload.risk_flags),
     ...flattenStringList(details?.decision_risks),
     ...flattenStringList(details?.risk_flags),
     ...flattenStringList(decisionSupport?.decision_risks),
-  ].filter((item, index, all) => all.indexOf(item) === index);
+  ]);
 }
 
 function getStringListFromSources(
   sources: Array<Record<string, unknown> | null | undefined>,
   keys: string[],
 ) {
-  return sources
-    .flatMap((source) => keys.flatMap((key) => flattenStringList(source?.[key])))
-    .filter((item, index, all) => all.indexOf(item) === index);
+  return dedupeStringList(sources.flatMap((source) => keys.flatMap((key) => flattenStringList(source?.[key]))));
 }
 
 function getFlagTextFromValue(label: string, value: unknown) {
@@ -2450,7 +2463,7 @@ function getBooleanishFlagEntries(
 }
 
 function getDataGapFlags(sources: Array<Record<string, unknown> | null | undefined>) {
-  return [
+  return dedupeStringList([
     ...getStringListFromSources(sources, [
       "data_gaps",
       "data_gap_flags",
@@ -2542,7 +2555,34 @@ function getDataGapFlags(sources: Array<Record<string, unknown> | null | undefin
         keys: ["price_quality_issue", "price_quality_warning", "missing_price_data", "stale_price_data"],
       },
     ]),
-  ].filter((item, index, all) => all.indexOf(item) === index);
+  ]);
+}
+
+function filterDuplicateRiskAndDataGapFlags({
+  dataGapFlags,
+  dataQualityWarnings,
+  riskFlags,
+}: {
+  dataGapFlags: string[];
+  dataQualityWarnings: string[];
+  riskFlags: string[];
+}) {
+  const dataQualityKeys = new Set(dataQualityWarnings.map(normalizeWarningIdentity));
+  const filteredRiskFlags = dedupeStringList(
+    riskFlags.filter((risk) => !dataQualityKeys.has(normalizeWarningIdentity(risk))),
+  );
+  const riskKeys = new Set(filteredRiskFlags.map(normalizeWarningIdentity));
+  const filteredDataGapFlags = dedupeStringList(
+    dataGapFlags.filter((gap) => {
+      const key = normalizeWarningIdentity(gap);
+      return !dataQualityKeys.has(key) && !riskKeys.has(key);
+    }),
+  );
+
+  return {
+    dataGapFlags: filteredDataGapFlags,
+    riskFlags: filteredRiskFlags,
+  };
 }
 
 function normalizeContextBadgeEntries(sources: Array<Record<string, unknown> | null | undefined>) {
@@ -2974,6 +3014,17 @@ export function normalizeDeciderFeedbackItems(
         "lineage",
       ]).flatMap(normalizeTraceEntries);
       const planSources = [payload, shortTermRecord, details, decisionSupport, itemDetails];
+      const filteredRiskAndDataGaps = filterDuplicateRiskAndDataGapFlags({
+        dataGapFlags: getDataGapFlags([
+          ...planSources,
+          evaluationRecord,
+          outcomeRecord,
+          context,
+          context ? getRecordValue(context, ["symbol_day_context", "symbolDayContext"]) : null,
+        ]),
+        dataQualityWarnings: fiveDayEvaluation.dataQualityWarnings,
+        riskFlags: getRiskFlags(payload),
+      });
       const companyNameCandidates = [
         ...rootSources,
         shortTermRecord,
@@ -3008,14 +3059,8 @@ export function normalizeDeciderFeedbackItems(
             "summary",
           ]),
         supportingEvidence,
-        riskFlags: getRiskFlags(payload),
-        dataGapFlags: getDataGapFlags([
-          ...planSources,
-          evaluationRecord,
-          outcomeRecord,
-          context,
-          context ? getRecordValue(context, ["symbol_day_context", "symbolDayContext"]) : null,
-        ]),
+        riskFlags: filteredRiskAndDataGaps.riskFlags,
+        dataGapFlags: filteredRiskAndDataGaps.dataGapFlags,
         targetPrice: toFiniteNumber(
           payload.target_price ??
             payload.target ??

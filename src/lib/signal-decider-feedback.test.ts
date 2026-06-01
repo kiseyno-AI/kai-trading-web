@@ -1451,6 +1451,61 @@ test("normalizes short-term decider tactical fields and data gaps", () => {
   assert.equal(item.contextBadges.some((badge) => badge.label === "Sector context" && badge.value === "Semiconductor strength"), true);
 });
 
+test("deduplicates short-term data-quality warnings from risk and data-gap flags", () => {
+  const duplicatedWarning = "실시간 호가·스프레드·주문장 깊이가 없어 실행 품질 판단은 다음 장 확인이 필요합니다.";
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-05-29",
+      symbols: [],
+      agent_name: "short-term-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 1 },
+    items: [
+      {
+        id: "short-000430",
+        market_date: "2026-05-29",
+        symbol: "000430",
+        agent: {
+          name: "short-term-decider",
+          run_id: "short-run-2026-05-29",
+        },
+        summary: {},
+        feedback: {
+          role: "short-term-decider",
+          symbol: "000430",
+          market_date: "2026-05-29",
+          short_term_label: "watch_for_trigger",
+          thesis_summary: "Trigger watch depends on next-session execution quality.",
+          risk_flags: [duplicatedWarning, "Gap-up trigger may fade after open"],
+          data_quality_warnings: [duplicatedWarning],
+          five_day_evaluation: {
+            data_quality_warnings: [duplicatedWarning],
+          },
+        },
+        normalized_feedback: null,
+        details: null,
+        context: {
+          symbol_day_context: {
+            company: {
+              name_ko: "대원강업",
+            },
+          },
+        },
+        received_at: "2026-05-29T07:45:00+00:00",
+      },
+    ],
+  });
+
+  const [item] = normalizeDeciderFeedbackItems(response, { agentName: SHORT_TERM_DECIDER_AGENT_NAME });
+
+  assert.ok(item);
+  assert.deepEqual(item.fiveDayEvaluation.dataQualityWarnings, [duplicatedWarning]);
+  assert.deepEqual(item.riskFlags, ["Gap-up trigger may fade after open"]);
+  assert.equal(item.dataGapFlags.includes(duplicatedWarning), false);
+  assert.equal([...item.riskFlags, ...item.dataGapFlags].filter((flag) => flag === duplicatedWarning).length, 0);
+});
+
 test("builds decider data-gap report categories from structured flags and narrative reasons", () => {
   const response = buildFeedbackResponse({
     summary: { count: 3 },
