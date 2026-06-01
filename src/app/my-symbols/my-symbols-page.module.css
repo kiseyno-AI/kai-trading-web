@@ -26,7 +26,9 @@
 .favoriteCard span,
 .sectionMeta,
 .metaGrid dt,
-.notice {
+.notice,
+.mutationStatus,
+.mutationError {
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -187,6 +189,48 @@
   line-height: 1.5;
 }
 
+.favoriteCardActions,
+.trackedCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.removeSymbolButton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(245, 184, 75, 0.34);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--warning);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 14px;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.removeSymbolButton:hover {
+  border-color: rgba(245, 184, 75, 0.58);
+  background: rgba(245, 184, 75, 0.16);
+}
+
+.removeSymbolButton:focus-visible {
+  outline: 2px solid rgba(245, 184, 75, 0.78);
+  outline-offset: 2px;
+}
+
+.removeSymbolButton:active {
+  transform: translateY(1px);
+}
+
+.removeSymbolButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .trackedList {
   display: grid;
   gap: 12px;
@@ -343,9 +387,19 @@
 }
 
 .panelState p,
-.notice {
+.notice,
+.mutationStatus,
+.mutationError {
   color: var(--muted);
   line-height: 1.6;
+}
+
+.mutationStatus {
+  color: var(--warning);
+}
+
+.mutationError {
+  color: var(--negative);
 }
 
 @media (max-width: 900px) {

@@ -95,10 +95,12 @@ async function mockMobileToolbarApis(
   options: {
     favorites?: MockFavoriteSymbol[];
     trackedQuotes?: MockTrackedQuote[];
+    onTrackedSymbolsPost?: (symbols: string[]) => void;
   } = {},
 ) {
   const favorites = options.favorites ?? supportedFavorites;
   const trackedQuotes = options.trackedQuotes ?? supportedTrackedQuotes;
+  let trackedSymbols = trackedQuotes.map((item) => item.symbol);
 
   await page.route("**/api/trading/market/status", async (route) => {
     await route.fulfill({
@@ -118,10 +120,24 @@ async function mockMobileToolbarApis(
     });
   });
   await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+    if (route.request().method() === "POST") {
+      const payload = JSON.parse(route.request().postData() ?? "{}") as { symbols?: string[] };
+      trackedSymbols = Array.isArray(payload.symbols) ? payload.symbols : [];
+      options.onTrackedSymbolsPost?.(trackedSymbols);
+      await route.fulfill({
+        json: {
+          tracked_symbols: trackedSymbols,
+          count: trackedSymbols.length,
+          last_updated_at: "2026-04-21T09:13:00+09:00",
+        },
+      });
+      return;
+    }
+
     await route.fulfill({
       json: {
-        tracked_symbols: trackedQuotes.map((item) => item.symbol),
-        count: trackedQuotes.length,
+        tracked_symbols: trackedSymbols,
+        count: trackedSymbols.length,
         last_updated_at: "2026-04-21T09:12:00+09:00",
       },
     });
@@ -192,10 +208,11 @@ test.describe("my symbols mobile flow", () => {
     await expect(mySymbolsNavItem).toHaveClass(/navItemActive/);
   });
 
-  test("labels unsupported favorites without exposing a symbol detail shortcut", async ({ page }) => {
+  test("removes unsupported favorites without exposing a symbol detail shortcut", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
     });
+    let postedSymbols: string[] | null = null;
     await mockMobileToolbarApis(page, {
       favorites: [
         {
@@ -229,6 +246,9 @@ test.describe("my symbols mobile flow", () => {
           unavailable_reason: "unsupported instrument",
         },
       ],
+      onTrackedSymbolsPost: (symbols) => {
+        postedSymbols = symbols;
+      },
     });
 
     await page.goto("/my-symbols");
@@ -244,7 +264,17 @@ test.describe("my symbols mobile flow", () => {
     await expect(page.getByRole("link", { name: /F70100026/ })).toHaveCount(0);
     await expect(page.locator('a[href*="/dashboard/symbol/F70100026"]')).toHaveCount(0);
 
-    await unsupportedFavorite.click();
+    const removeFavorite = unsupportedFavorite.getByRole("button", {
+      name: /즐겨찾기 제거 F70100026/,
+    });
+    await expect(removeFavorite).toBeVisible();
+    await removeFavorite.click();
+
+    await expect.poll(() => postedSymbols).toEqual([]);
+    await expect(page.getByRole("group", { name: /F70100026.*지원 제한/ })).toHaveCount(0);
+    await expect(favoriteSection.getByText("저장된 즐겨찾기가 없습니다.")).toBeVisible();
+    await expect(page.getByText("아직 추적 중인 종목이 없습니다.")).toBeVisible();
+    await expect(favoriteSection.getByText("F70100026 내 종목에서 제거되었습니다.")).toBeVisible();
     await expect(page).toHaveURL(/\/my-symbols$/);
   });
 

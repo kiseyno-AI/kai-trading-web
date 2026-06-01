@@ -15,17 +15,24 @@ import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/forma
 import {
   MOBILE_TOOLBAR_FAVORITES_PATH,
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
+  MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH,
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
+  warmMobileToolbarViewData,
 } from "@/lib/mobile-toolbar-data";
 import { hasSymbolDetailCoverage } from "@/lib/symbol-detail-coverage";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import {
   getTradingApiJsonResult,
+  invalidateTradingApiCacheByPathPrefix,
   readTradingApiJsonCacheData,
   readTradingApiJsonSnapshot,
   seedTradingApiJsonSnapshot,
 } from "@/lib/trading-api-cache";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
+import {
+  normalizeTrackedSymbolCode,
+  removeTrackedSymbol,
+} from "@/lib/tracked-symbols-client";
 import type { Locale } from "@/types/trading-api";
 
 import styles from "./my-symbols-page.module.css";
@@ -102,7 +109,7 @@ function hasNumber(value: number | null | undefined): value is number {
 }
 
 function normalizeSymbolCode(value: string) {
-  return value.trim().toUpperCase();
+  return normalizeTrackedSymbolCode(value);
 }
 
 function getNumberLocale(locale: Locale) {
@@ -267,6 +274,9 @@ export default function MySymbolsPageClient() {
     () => readTradingApiJsonSnapshot<TrackedQuotesResponse>(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH) ?? DEFAULT_TRACKED_QUOTES,
   );
   const [trackedError, setTrackedError] = useState<string | null>(null);
+  const [favoriteMutationSymbol, setFavoriteMutationSymbol] = useState<string | null>(null);
+  const [favoriteMutationStatus, setFavoriteMutationStatus] = useState<string | null>(null);
+  const [favoriteMutationError, setFavoriteMutationError] = useState<string | null>(null);
   const [loading, setLoading] = useState(
     () =>
       readTradingApiJsonSnapshot<CoreMarketStatus>(MOBILE_TOOLBAR_MARKET_STATUS_PATH) === null &&
@@ -299,6 +309,7 @@ export default function MySymbolsPageClient() {
       setFavoriteError(favoriteResult.error);
       setTrackedQuotes((current) => trackedResult.data ?? current);
       setTrackedError(trackedResult.error);
+      setFavoriteMutationError(null);
       setLoading(false);
     };
 
@@ -322,6 +333,44 @@ export default function MySymbolsPageClient() {
   );
   const marketBadgeLabel = getMarketBadgeLabel(marketStatus, copy);
   const marketStateLabel = getMarketStateLabel(marketStatus.state, copy);
+
+  const handleRemoveTrackedSymbol = async (symbolInput: string) => {
+    const symbol = normalizeSymbolCode(symbolInput);
+    setFavoriteMutationSymbol(symbol);
+    setFavoriteMutationStatus(null);
+    setFavoriteMutationError(null);
+
+    try {
+      const result = await removeTrackedSymbol(symbol);
+      if (!result.ok) {
+        const message =
+          result.phase === "refresh"
+            ? `${copy.favoriteRemoveBlocked} HTTP ${result.status}`
+            : `${copy.favoriteRemoveFailed} HTTP ${result.status}`;
+        setFavoriteMutationError(message);
+        return;
+      }
+
+      invalidateTradingApiCacheByPathPrefix([
+        MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH,
+        MOBILE_TOOLBAR_FAVORITES_PATH,
+        MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
+      ]);
+      setFavoriteItems((currentItems) =>
+        currentItems.filter((currentItem) => normalizeSymbolCode(currentItem.symbol) !== symbol),
+      );
+      setTrackedQuotes((currentQuotes) => ({
+        ...currentQuotes,
+        items: currentQuotes.items.filter((currentItem) => normalizeSymbolCode(currentItem.symbol) !== symbol),
+      }));
+      setFavoriteMutationStatus(`${symbol} ${copy.favoriteRemovedSuffix}`);
+      void warmMobileToolbarViewData("symbols");
+    } catch {
+      setFavoriteMutationError(copy.favoriteRemoveFailed);
+    } finally {
+      setFavoriteMutationSymbol(null);
+    }
+  };
 
   return (
     <MobileAppChrome
@@ -395,6 +444,8 @@ export default function MySymbolsPageClient() {
                 const marketLabel = item.market?.trim() || copy.marketPending;
 
                 if (!hasSymbolDetailCoverage(item)) {
+                  const normalizedSymbol = normalizeSymbolCode(item.symbol);
+                  const isRemovingFavorite = favoriteMutationSymbol === normalizedSymbol;
                   return (
                     <article
                       key={item.symbol}
@@ -409,6 +460,17 @@ export default function MySymbolsPageClient() {
                       <p>{item.symbol}</p>
                       <p className={`${styles.favoriteCoverageBody} clamp-3`}>{copy.limitedCoverageBody}</p>
                       <span>{marketLabel}</span>
+                      <div className={styles.favoriteCardActions}>
+                        <button
+                          type="button"
+                          className={styles.removeSymbolButton}
+                          onClick={() => void handleRemoveTrackedSymbol(item.symbol)}
+                          disabled={favoriteMutationSymbol !== null}
+                          aria-label={`${copy.removeFavoriteAction} ${item.symbol} ${displayName}`}
+                        >
+                          {isRemovingFavorite ? copy.removingFavorite : copy.removeFavorite}
+                        </button>
+                      </div>
                     </article>
                   );
                 }
@@ -428,6 +490,12 @@ export default function MySymbolsPageClient() {
                 );
               })}
             </div>
+          ) : null}
+          {favoriteMutationStatus ? (
+            <p className={styles.mutationStatus} role="status">{favoriteMutationStatus}</p>
+          ) : null}
+          {favoriteMutationError ? (
+            <p className={styles.mutationError} role="alert">{favoriteMutationError}</p>
           ) : null}
         </section>
 
@@ -516,6 +584,8 @@ export default function MySymbolsPageClient() {
                 );
 
                 if (!isSymbolDetailCovered) {
+                  const normalizedSymbol = normalizeSymbolCode(item.symbol);
+                  const isRemovingTrackedSymbol = favoriteMutationSymbol === normalizedSymbol;
                   return (
                     <article
                       key={item.symbol}
@@ -524,6 +594,17 @@ export default function MySymbolsPageClient() {
                       aria-label={`${item.symbol} ${getDisplayName(item, favoriteItem)} ${copy.limitedCoverageLabel}: ${copy.limitedCoverageBody}`}
                     >
                       {cardContent}
+                      <div className={styles.trackedCardActions}>
+                        <button
+                          type="button"
+                          className={styles.removeSymbolButton}
+                          onClick={() => void handleRemoveTrackedSymbol(item.symbol)}
+                          disabled={favoriteMutationSymbol !== null}
+                          aria-label={`${copy.removeTrackedAction} ${item.symbol} ${getDisplayName(item, favoriteItem)}`}
+                        >
+                          {isRemovingTrackedSymbol ? copy.removingFavorite : copy.removeFavorite}
+                        </button>
+                      </div>
                     </article>
                   );
                 }
