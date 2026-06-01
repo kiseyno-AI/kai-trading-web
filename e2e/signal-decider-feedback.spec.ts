@@ -7,6 +7,8 @@ type SignalDeciderFeedbackMode = "normal" | "empty";
 type MockDashboardShellOptions = {
   eodFreshnessDelayMs?: number;
   feedbackDelayMs?: number;
+  feedbackHoldAgentName?: "signal-decider" | "short-term-decider";
+  feedbackHoldUntil?: Promise<void>;
   failEodFreshness?: boolean;
   failSignalDeciderFeedback?: boolean;
   failSignalDeciderFeedbackRequestNumber?: number;
@@ -313,6 +315,10 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
 
     if (hasMarketDate && isSignalDeciderRead) {
       signalDeciderFeedbackRequestCount += 1;
+    }
+
+    if (hasMarketDate && agentName === options.feedbackHoldAgentName && options.feedbackHoldUntil) {
+      await options.feedbackHoldUntil;
     }
 
     if (hasMarketDate && options.feedbackDelayMs) {
@@ -1988,23 +1994,44 @@ test("signal-decider feedback shows one no-pair notice when comparison count is 
   await expect(resultCards.first()).toContainText("Decision");
 });
 
-test("shared decider feedback route names the selected short-term agent while loading in Korean", async ({ page }) => {
+test("shared decider feedback route keeps short-term data-gap summary loading in Korean", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
   });
+  let releaseShortTermFeedback = () => {};
+  const shortTermFeedbackReady = new Promise<void>((resolve) => {
+    releaseShortTermFeedback = resolve;
+  });
   await mockDashboardShell(page, {
-    feedbackDelayMs: 3_000,
+    feedbackHoldAgentName: "short-term-decider",
+    feedbackHoldUntil: shortTermFeedbackReady,
   });
 
-  await page.goto("/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-05-08&navContext=calendar");
+  try {
+    await page.goto("/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-05-08&navContext=calendar");
 
-  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
-  await expect(page.getByRole("link", { name: "단기 디사이더" })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(page.getByRole("link", { name: "단기 디사이더" })).toHaveAttribute("aria-current", "page");
+
+    const report = page.getByTestId("decider-data-gaps-report");
+    await expect(report).toContainText("단기 디사이더 피드백을 불러오는 중...");
+    await expect(report).not.toContainText("시그널 디사이더 피드백을 불러오는 중...");
+    await expect(report.getByTestId("decider-data-gap-total-rows")).toContainText(/전체 피드백 행\s*…/);
+    await expect(report.getByTestId("decider-data-gap-rows-with-gaps")).toContainText(/데이터 갭 포함 행\s*…/);
+    await expect(report.getByTestId("decider-data-gap-top-categories")).toContainText(/상위 갭 카테고리\s*…/);
+    await expect(report.getByTestId("decider-data-gap-trend")).toContainText(/추세\s*…/);
+    await expect(report).not.toContainText(/전체 피드백 행\s*0/);
+    await expect(report).not.toContainText(/데이터 갭 포함 행\s*0/);
+    await expect(report).not.toContainText("감지 없음");
+    await expect(report).not.toContainText("이전 날짜 없음");
+    await expect(page.locator("body")).toContainText("단기 디사이더 피드백을 불러오는 중...");
+  } finally {
+    releaseShortTermFeedback();
+  }
 
   const report = page.getByTestId("decider-data-gaps-report");
-  await expect(report).toContainText("단기 디사이더 피드백을 불러오는 중...");
-  await expect(report).not.toContainText("시그널 디사이더 피드백을 불러오는 중...");
-  await expect(page.locator("body")).toContainText("단기 디사이더 피드백을 불러오는 중...");
+  await expect(report.getByTestId("decider-data-gap-total-rows")).toContainText(/전체 피드백 행\s*2/);
 });
 
 test("shared decider feedback route uses selected-agent empty copy for both decider tabs", async ({ page }) => {
