@@ -642,7 +642,9 @@
 .trendingTabs button {
   display: grid;
   gap: 0.18rem;
+  min-width: 0;
   min-height: 3.4rem;
+  overflow: hidden;
   border: 1px solid var(--search-panel-border-soft);
   border-radius: var(--radius-md);
   background: rgba(3, 7, 13, 0.62);
@@ -661,18 +663,29 @@
 }
 
 .trendingTabs span {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   font-size: 0.74rem;
   font-weight: 900;
   letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .trendingTabs small {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: var(--search-text-meta);
   font-size: 0.58rem;
   font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.14;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  text-wrap: balance;
+  white-space: normal;
 }
 
 .trendingList {

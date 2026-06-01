@@ -104,6 +104,45 @@ async function expectFirstTabTargetVisible(page: Page) {
   expect(activeTarget.rect?.height ?? 0).toBeGreaterThan(0);
 }
 
+async function stubEmptySearchData(page: Page) {
+  await page.route("**/api/trading/market/status", async (route) => {
+    await route.fulfill({
+      json: {
+        is_open: false,
+        server_time: "2026-05-30T00:01:00+09:00",
+        state: "CLOSED",
+      },
+    });
+  });
+  await page.route("**/api/trading/symbols/favorites", async (route) => {
+    await route.fulfill({ json: { count: 0, items: [] } });
+  });
+  await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+    await route.fulfill({
+      json: {
+        count: 0,
+        last_updated_at: "2026-05-30T00:01:00+09:00",
+        tracked_symbols: [],
+      },
+    });
+  });
+  await page.route("**/api/trading/symbols/search?**", async (route) => {
+    await route.fulfill({ json: { count: 0, items: [], query: "" } });
+  });
+  await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+    await route.fulfill({
+      json: {
+        as_of: "2026-05-30T00:01:00+09:00",
+        items: [],
+        market: "KRX",
+        source: "kis",
+        status: "ok",
+        summary: { item_count: 0 },
+      },
+    });
+  });
+}
+
 test.describe("search terminal mobile", () => {
   test("renders mobile terminal chrome and bottom tabs", async ({ page }) => {
     await page.goto("/search");
@@ -120,6 +159,75 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByLabel(/Search suggestions/i)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
     await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
+  });
+
+  test("contains trending tab captions inside narrow mobile tabs", async ({ page }) => {
+    await stubEmptySearchData(page);
+    await page.goto("/search");
+
+    const trendingSection = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: /Trending Symbols/i }) })
+      .first();
+    await expect(trendingSection.getByRole("tab", { name: /Live KIS ranks/i })).toBeVisible();
+
+    const captionMetrics = await trendingSection.evaluate((section) =>
+      Array.from(section.querySelectorAll<HTMLElement>("[role='tab']")).flatMap((tab) => {
+        const caption = tab.querySelector<HTMLElement>("small");
+        if (!caption) return [];
+
+        const tabRect = tab.getBoundingClientRect();
+        const captionRect = caption.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(caption);
+        const lineCount = new Set(
+          Array.from(range.getClientRects())
+            .filter((rect) => rect.width > 0 && rect.height > 0)
+            .map((rect) => Math.round(rect.top)),
+        ).size;
+        range.detach();
+
+        return [
+          {
+            captionBottom: Math.round(captionRect.bottom),
+            captionLeft: Math.round(captionRect.left),
+            captionRight: Math.round(captionRect.right),
+            captionTop: Math.round(captionRect.top),
+            clientHeight: caption.clientHeight,
+            clientWidth: caption.clientWidth,
+            lineCount,
+            scrollHeight: caption.scrollHeight,
+            scrollWidth: caption.scrollWidth,
+            tabBottom: Math.round(tabRect.bottom),
+            tabLeft: Math.round(tabRect.left),
+            tabRight: Math.round(tabRect.right),
+            tabTop: Math.round(tabRect.top),
+            text: caption.innerText.trim().replace(/\s+/g, " "),
+          },
+        ];
+      }),
+    );
+
+    expect(captionMetrics.map((metric) => metric.text)).toEqual([
+      "Live KIS ranks",
+      "One-day movers",
+      "Five-day movers",
+      "Twenty-day movers",
+    ]);
+    expect(
+      captionMetrics.filter((metric) => {
+        const clipsInline = metric.scrollWidth > metric.clientWidth + 1;
+        const clipsBlock = metric.scrollHeight > metric.clientHeight + 1;
+        const crossesTabBounds =
+          metric.captionLeft < metric.tabLeft - 1 ||
+          metric.captionRight > metric.tabRight + 1 ||
+          metric.captionTop < metric.tabTop - 1 ||
+          metric.captionBottom > metric.tabBottom + 1;
+        const wrapsPastTwoLines = metric.lineCount > 2;
+
+        return clipsInline || clipsBlock || crossesTabBounds || wrapsPastTwoLines;
+      }),
+    ).toEqual([]);
   });
 
   test("trending rows scroll clear of the mobile bottom nav", async ({ page }) => {
