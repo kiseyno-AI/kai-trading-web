@@ -709,6 +709,7 @@ export default function SearchPageClient() {
           }
 
           const mappedItems = await enrichTrendingItemsWithSymbolMeta(mapRealtimeTrendingItems(result.data, copy));
+          if (!active) return;
           setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
           setTrendingResultCount(result.data.summary?.item_count ?? mappedItems.length);
           setTrendingMeta(`${result.data.status.toUpperCase()} · ${formatTrendingStatusDate(result.data.as_of)}`);
@@ -723,6 +724,7 @@ export default function SearchPageClient() {
         }
 
         const mappedItems = await enrichTrendingItemsWithSymbolMeta(mapStoredTrendingItems(result.data, trendingMode, copy));
+        if (!active) return;
         setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
         setTrendingResultCount(result.data.summary?.count ?? mappedItems.length);
         setTrendingMeta(
