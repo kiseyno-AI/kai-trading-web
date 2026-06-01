@@ -406,19 +406,28 @@ test.describe("dashboard desktop", () => {
     await expect(portfolioCard.getByText("₩1,000,000", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Today P/L", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("₩12,500", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("Held positions", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("1 holding", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("Exec-approved monitoring", { exact: true })).toBeVisible();
-    const rowStates = portfolioCard.getByLabel("Row states");
+    const accountMetric = portfolioCard.locator('[data-portfolio-metric="account-holdings"]');
+    await expect(accountMetric.getByText("Account portfolio holdings", { exact: true })).toBeVisible();
+    await expect(accountMetric.getByText("1 holding", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Exec-approved runtime monitoring", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Runtime held-position monitoring", { exact: true })).toBeVisible();
+    const monitoringSection = portfolioCard.locator("section").filter({
+      has: page.getByRole("heading", { name: "Exec-approved runtime monitoring", exact: true }),
+    });
+    const accountSection = portfolioCard.locator("section").filter({
+      has: page.getByRole("heading", { name: "Account portfolio holdings", exact: true }),
+    });
+    const rowStates = monitoringSection.getByLabel("Row states");
     await expect(rowStates.getByText("Exec-approved", { exact: true })).toBeVisible();
     await expect(rowStates.getByText("Reconciling", { exact: true })).toBeVisible();
-    await expect(rowStates.getByText("Held", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("standard_breakout / short_swing", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("76,000", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("70,000", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("71,500", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("₩71,500", { exact: true })).toBeVisible();
+    await expect(rowStates.getByText("Account held", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("standard_breakout / short_swing", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("76,000", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("70,000", { exact: true })).toBeVisible();
+    await expect(monitoringSection.getByText("71,500", { exact: true })).toBeVisible();
+    await expect(accountSection.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(accountSection.getByText("₩71,500", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Today bought", { exact: true })).toHaveCount(0);
     await expect(portfolioCard.getByText("Today sold", { exact: true })).toHaveCount(0);
     await expect(portfolioCard.getByText("SK hynix", { exact: true })).toHaveCount(0);

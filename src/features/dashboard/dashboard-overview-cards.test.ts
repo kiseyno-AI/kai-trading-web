@@ -361,7 +361,8 @@ test("shows exec-approved monitoring rows from runtime monitored symbols with ta
   });
 
   assert.equal(model.monitoringRows.length, 1);
-  assert.equal(model.holdingRows.length, 0);
+  assert.equal(model.accountHoldingRows.length, 0);
+  assert.equal(model.runtimeHoldingRows.length, 0);
   assert.deepEqual(model.monitoringRows[0].badges, ["Exec-approved", "Watching target/stop"]);
   assert.deepEqual(
     model.monitoringRows[0].values.map((value) => [value.label, value.value]),
@@ -377,7 +378,7 @@ test("shows exec-approved monitoring rows from runtime monitored symbols with ta
   );
 });
 
-test("shows actual held positions from the portfolio summary", () => {
+test("shows actual account holdings from the portfolio summary", () => {
   const summary = {
     sync: { status: "synced" },
     accounts: [
@@ -419,12 +420,13 @@ test("shows actual held positions from the portfolio summary", () => {
   assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
   assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "₩12,500");
-  assert.equal(model.metrics.find((metric) => metric.key === "held-positions")?.value, "1 holding");
+  assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
   assert.equal(model.monitoringRows.length, 0);
-  assert.equal(model.holdingRows.length, 1);
-  assert.deepEqual(model.holdingRows[0].badges, ["Held"]);
+  assert.equal(model.accountHoldingRows.length, 1);
+  assert.equal(model.runtimeHoldingRows.length, 0);
+  assert.deepEqual(model.accountHoldingRows[0].badges, ["Account held"]);
   assert.deepEqual(
-    model.holdingRows[0].values.map((value) => [value.label, value.value]),
+    model.accountHoldingRows[0].values.map((value) => [value.label, value.value]),
     [
       ["Quantity", "3"],
       ["Average price", "₩71,000"],
@@ -435,7 +437,7 @@ test("shows actual held positions from the portfolio summary", () => {
   );
 });
 
-test("deduplicates symbols that are both exec-monitored and held without double-counting runtime quantity", () => {
+test("keeps account holdings separate from exec-monitored symbols without double-counting runtime quantity", () => {
   const summary = {
     sync: { status: "synced" },
     accounts: [
@@ -484,10 +486,12 @@ test("deduplicates symbols that are both exec-monitored and held without double-
   });
 
   assert.equal(model.monitoringRows.length, 1);
-  assert.equal(model.holdingRows.length, 0);
-  assert.deepEqual(model.monitoringRows[0].badges, ["Exec-approved", "Watching target/stop", "Held"]);
+  assert.equal(model.accountHoldingRows.length, 1);
+  assert.equal(model.runtimeHoldingRows.length, 0);
+  assert.deepEqual(model.monitoringRows[0].badges, ["Exec-approved", "Watching target/stop", "Account held"]);
   assert.equal(model.monitoringRows[0].values.find((value) => value.key === "quantity")?.value, "3");
   assert.equal(model.monitoringRows[0].values.find((value) => value.key === "average-price")?.value, "₩71,000");
+  assert.equal(model.accountHoldingRows[0].values.find((value) => value.key === "quantity")?.value, "3");
 });
 
 test("keeps first-card planned rows while excluding core-only planned rows from the second card", () => {
@@ -529,7 +533,8 @@ test("keeps first-card planned rows while excluding core-only planned rows from 
   assert.equal(deciderModel.rows.length, 1);
   assert.equal(deciderModel.rows[0].symbol, "005930");
   assert.equal(portfolioModel.monitoringRows.length, 0);
-  assert.equal(portfolioModel.holdingRows.length, 0);
+  assert.equal(portfolioModel.accountHoldingRows.length, 0);
+  assert.equal(portfolioModel.runtimeHoldingRows.length, 0);
   assert.equal(portfolioModel.monitoringStateLabel, "No exec-approved monitoring symbols returned for today.");
 });
 
@@ -573,9 +578,11 @@ test("excludes rejected or expired runtime rows unless they are held", () => {
   });
 
   assert.equal(model.monitoringRows.length, 0);
-  assert.equal(model.holdingRows.length, 1);
-  assert.equal(model.holdingRows[0].symbol, "033530");
-  assert.equal(model.holdingRows[0].values.find((value) => value.key === "quantity")?.value, "5");
+  assert.equal(model.accountHoldingRows.length, 0);
+  assert.equal(model.runtimeHoldingRows.length, 1);
+  assert.equal(model.runtimeHoldingRows[0].symbol, "033530");
+  assert.deepEqual(model.runtimeHoldingRows[0].badges, ["Runtime held"]);
+  assert.equal(model.runtimeHoldingRows[0].values.find((value) => value.key === "quantity")?.value, "5");
 });
 
 test("preserves portfolio summary fields while monitored-symbol timeout and missing day P/L stay operator-safe", () => {
@@ -621,16 +628,18 @@ test("preserves portfolio summary fields while monitored-symbol timeout and miss
   assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
   assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "Today P/L pending");
-  assert.equal(model.metrics.find((metric) => metric.key === "held-positions")?.value, "1 holding");
+  assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
   assert.equal(model.monitoringStateLabel, "Monitoring list is updating.");
-  assert.equal(model.holdingStateLabel, null);
-  assert.equal(model.holdingRows.length, 1);
+  assert.equal(model.accountHoldingStateLabel, null);
+  assert.equal(model.accountHoldingRows.length, 1);
+  assert.equal(model.runtimeHoldingStateLabel, "Monitoring list is updating.");
   assert.deepEqual(model.diagnostics, [rawTimeout]);
   assert.doesNotMatch(
     [
       model.contextLabel,
       model.monitoringStateLabel,
-      model.holdingStateLabel,
+      model.accountHoldingStateLabel,
+      model.runtimeHoldingStateLabel,
       ...model.metrics.map((metric) => metric.value),
     ]
       .filter(Boolean)
@@ -643,12 +652,18 @@ test("ships Korean operator copy for delayed runtime and missing day P/L states"
   const koreanCopy = getDashboardLiveCopy("ko");
 
   assert.equal(copy.dashboardOverview.moreRows, "More");
-  assert.equal(copy.dashboardOverview.execApprovedMonitoring, "Exec-approved monitoring");
-  assert.equal(copy.dashboardOverview.held, "Held");
+  assert.equal(copy.dashboardOverview.accountHoldings, "Account portfolio holdings");
+  assert.equal(copy.dashboardOverview.execApprovedMonitoring, "Exec-approved runtime monitoring");
+  assert.equal(copy.dashboardOverview.accountHeld, "Account held");
+  assert.equal(copy.dashboardOverview.runtimeHeld, "Runtime held");
   assert.equal(koreanCopy.dashboardOverview.moreRows, "더 보기");
-  assert.equal(koreanCopy.dashboardOverview.execApprovedMonitoring, "승인된 exec 모니터링");
-  assert.equal(koreanCopy.dashboardOverview.held, "보유");
+  assert.equal(koreanCopy.dashboardOverview.accountHoldings, "계좌 포트폴리오 보유");
+  assert.equal(koreanCopy.dashboardOverview.execApprovedMonitoring, "승인된 exec 런타임 모니터링");
+  assert.equal(koreanCopy.dashboardOverview.accountHeld, "계좌 보유");
+  assert.equal(koreanCopy.dashboardOverview.runtimeHeld, "런타임 보유");
   assert.equal(koreanCopy.dashboardOverview.monitoringListUpdating, "모니터링 목록을 불러오는 중입니다.");
   assert.equal(koreanCopy.dashboardOverview.noExecApprovedMonitoringRows, "오늘 승인된 exec 모니터링 종목이 없습니다.");
+  assert.equal(koreanCopy.dashboardOverview.runtimeHeldPositions, "런타임 보유 포지션 모니터링");
+  assert.equal(koreanCopy.portfolioState.openDetail, "계좌 포트폴리오 열기");
   assert.equal(koreanCopy.portfolioState.dayPnlPending, "금일 손익 집계 대기 중");
 });

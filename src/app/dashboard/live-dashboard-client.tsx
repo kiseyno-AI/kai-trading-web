@@ -1024,6 +1024,15 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
 
       <TradeRowList
         copy={copy}
+        emptyLabel={model.accountHoldingStateLabel}
+        label={copy.dashboardOverview.accountHoldings}
+        listId="dashboard-account-holdings-list"
+        numberLocale={numberLocale}
+        rows={model.accountHoldingRows}
+        testId="dashboard-account-holdings"
+      />
+      <TradeRowList
+        copy={copy}
         emptyLabel={model.monitoringStateLabel}
         label={copy.dashboardOverview.execApprovedMonitoring}
         listId="dashboard-exec-monitoring-list"
@@ -1033,12 +1042,12 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
       />
       <TradeRowList
         copy={copy}
-        emptyLabel={model.holdingStateLabel}
-        label={copy.dashboardOverview.heldPositions}
-        listId="dashboard-held-positions-list"
+        emptyLabel={model.runtimeHoldingStateLabel}
+        label={copy.dashboardOverview.runtimeHeldPositions}
+        listId="dashboard-runtime-held-positions-list"
         numberLocale={numberLocale}
-        rows={model.holdingRows}
-        testId="dashboard-held-positions"
+        rows={model.runtimeHoldingRows}
+        testId="dashboard-runtime-held-positions"
       />
 
       <Link href="/portfolio" className={styles.signalDeciderDetailLink} aria-label={copy.portfolioState.openDetail}>

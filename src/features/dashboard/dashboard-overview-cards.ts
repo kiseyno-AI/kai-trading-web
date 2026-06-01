@@ -71,15 +71,17 @@ export type DashboardPortfolioTradeRow = {
 };
 
 export type DashboardPortfolioOverviewModel = {
+  accountHoldingRows: DashboardPortfolioTradeRow[];
+  accountHoldingStateLabel: string | null;
   contextLabel: string | null;
   diagnostics: string[];
   execConnectionLabel: string;
   execConnectionTone: OverviewTone;
-  holdingRows: DashboardPortfolioTradeRow[];
-  holdingStateLabel: string | null;
   metrics: DashboardOverviewMetric[];
   monitoringRows: DashboardPortfolioTradeRow[];
   monitoringStateLabel: string | null;
+  runtimeHoldingRows: DashboardPortfolioTradeRow[];
+  runtimeHoldingStateLabel: string | null;
   statusLabel: string;
   statusTone: OverviewTone;
 };
@@ -631,21 +633,11 @@ function buildRuntimeHoldingSnapshot(item: ExecutionRuntimeMonitoredSymbolDto): 
   };
 }
 
-function buildHoldingSnapshots({
-  monitoredItems,
-  summary,
-}: {
-  monitoredItems: ExecutionRuntimeMonitoredSymbolDto[];
-  summary: PortfolioSummaryDto | null;
-}) {
-  const bySymbol = buildPortfolioHoldingSnapshots(summary);
-  const portfolioSymbols = new Set(bySymbol.keys());
-
+function buildRuntimeHoldingSnapshots(monitoredItems: ExecutionRuntimeMonitoredSymbolDto[]) {
+  const bySymbol = new Map<string, HoldingSnapshot>();
   for (const item of monitoredItems) {
     if (!hasRuntimeHeldPosition(item)) continue;
-    upsertHoldingSnapshot(bySymbol, buildRuntimeHoldingSnapshot(item), {
-      sumQuantity: !portfolioSymbols.has(item.symbol),
-    });
+    upsertHoldingSnapshot(bySymbol, buildRuntimeHoldingSnapshot(item));
   }
 
   return bySymbol;
@@ -654,11 +646,13 @@ function buildHoldingSnapshots({
 function buildMonitoringRow({
   copy,
   holding,
+  holdingBadgeLabel,
   item,
   numberLocale,
 }: {
   copy: DashboardLiveCopy;
   holding: HoldingSnapshot | null;
+  holdingBadgeLabel?: string | null;
   item: ExecutionRuntimeMonitoredSymbolDto;
   numberLocale: string;
 }): DashboardPortfolioTradeRow {
@@ -724,7 +718,7 @@ function buildMonitoringRow({
   }
 
   return {
-    badges: [overviewCopy.execApproved, stateLabel, ...(holding ? [overviewCopy.held] : [])],
+    badges: [overviewCopy.execApproved, stateLabel, ...(holding && holdingBadgeLabel ? [holdingBadgeLabel] : [])],
     key: `${item.symbol}-monitoring`,
     marketLabel: textOrNull(item.market) ?? holding?.marketLabel ?? null,
     nameLabel: textOrNull(item.name) ?? holding?.nameLabel ?? item.symbol,
@@ -734,10 +728,12 @@ function buildMonitoringRow({
 }
 
 function buildHoldingRow({
+  badgeLabel,
   copy,
   holding,
   numberLocale,
 }: {
+  badgeLabel: string;
   copy: DashboardLiveCopy;
   holding: HoldingSnapshot;
   numberLocale: string;
@@ -797,7 +793,7 @@ function buildHoldingRow({
   ];
 
   return {
-    badges: [overviewCopy.held],
+    badges: [badgeLabel],
     key: `${holding.symbol}-holding`,
     marketLabel: holding.marketLabel,
     nameLabel: holding.nameLabel,
@@ -1011,26 +1007,49 @@ export function buildDashboardPortfolioOverviewModel({
   const heldPositionCount = getHeldPositionCount(summary);
   const execConnected = executionStatus?.exec_connected === true;
   const monitoredItems = monitoredSymbols?.items ?? [];
-  const holdingBySymbol = buildHoldingSnapshots({ monitoredItems, summary });
+  const accountHoldingBySymbol = buildPortfolioHoldingSnapshots(summary);
+  const runtimeHoldingBySymbol = buildRuntimeHoldingSnapshots(monitoredItems);
   const monitoringRows = monitoredItems
     .filter((item) => isExecApprovedMonitoringRow(item))
-    .map((item) =>
-      buildMonitoringRow({
+    .map((item) => {
+      const accountHolding = accountHoldingBySymbol.get(item.symbol) ?? null;
+      const runtimeHolding = runtimeHoldingBySymbol.get(item.symbol) ?? null;
+      const holding = accountHolding ?? runtimeHolding;
+      const holdingBadgeLabel = accountHolding
+        ? overviewCopy.accountHeld
+        : runtimeHolding
+          ? overviewCopy.runtimeHeld
+          : null;
+
+      return buildMonitoringRow({
         copy,
-        holding: holdingBySymbol.get(item.symbol) ?? null,
+        holding,
+        holdingBadgeLabel,
         item,
         numberLocale,
-      }),
-    );
+      });
+    });
   const monitoringSymbols = new Set(monitoringRows.map((row) => row.symbol));
-  const holdingRows = Array.from(holdingBySymbol.values())
+  const accountHoldingRows = Array.from(accountHoldingBySymbol.values()).map((holding) =>
+    buildHoldingRow({ badgeLabel: overviewCopy.accountHeld, copy, holding, numberLocale }),
+  );
+  const runtimeHoldingRows = Array.from(runtimeHoldingBySymbol.values())
     .filter((holding) => !monitoringSymbols.has(holding.symbol))
-    .map((holding) => buildHoldingRow({ copy, holding, numberLocale }));
-  const contextLabel = executionStatusError ? overviewCopy.runtimeDataDelayed : null;
+    .map((holding) => buildHoldingRow({ badgeLabel: overviewCopy.runtimeHeld, copy, holding, numberLocale }));
+  const contextLabel = [
+    copy.portfolioState.dashboardContext,
+    executionStatusError ? overviewCopy.runtimeDataDelayed : null,
+  ].filter(Boolean).join(" ");
   const diagnostics = compactDiagnostics(executionStatusError, monitoredSymbolsError);
-  const heldSymbolsShownInMonitoring = Array.from(holdingBySymbol.keys()).some((symbol) => monitoringSymbols.has(symbol));
 
   return {
+    accountHoldingRows,
+    accountHoldingStateLabel:
+      accountHoldingRows.length > 0
+        ? null
+        : summary
+          ? overviewCopy.noAccountHoldingRows
+          : overviewCopy.accountHoldingsUnavailable,
     contextLabel,
     diagnostics,
     execConnectionLabel: execConnected
@@ -1068,8 +1087,8 @@ export function buildDashboardPortfolioOverviewModel({
               : metricFallback,
       },
       {
-        key: "held-positions",
-        label: overviewCopy.heldPositions,
+        key: "account-holdings",
+        label: overviewCopy.accountHoldings,
         tone: "neutral",
         value: formatCount(
           heldPositionCount,
@@ -1080,13 +1099,6 @@ export function buildDashboardPortfolioOverviewModel({
         ),
       },
     ],
-    holdingRows,
-    holdingStateLabel:
-      holdingRows.length > 0 || heldSymbolsShownInMonitoring
-        ? null
-        : summary
-          ? overviewCopy.noHeldPositionRows
-          : overviewCopy.heldPositionsUnavailable,
     monitoringRows,
     monitoringStateLabel:
       monitoringRows.length > 0
@@ -1096,6 +1108,15 @@ export function buildDashboardPortfolioOverviewModel({
           : monitoredSymbols
             ? overviewCopy.noExecApprovedMonitoringRows
             : overviewCopy.monitoredSymbolsUnavailable,
+    runtimeHoldingRows,
+    runtimeHoldingStateLabel:
+      runtimeHoldingRows.length > 0
+        ? null
+        : monitoredSymbolsError
+          ? overviewCopy.monitoringListUpdating
+          : monitoredSymbols
+            ? overviewCopy.noRuntimeHeldPositionRows
+            : overviewCopy.runtimeHeldPositionsUnavailable,
     statusLabel: getPortfolioStatusLabel(portfolioState, copy),
     statusTone: getPortfolioStatusTone(portfolioState),
   };
