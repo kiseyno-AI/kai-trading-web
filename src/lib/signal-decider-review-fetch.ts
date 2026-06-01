@@ -51,8 +51,14 @@ export async function getSignalDeciderReviewJson<T>(
   }
 
   let response: Response;
+  let parsedBody: unknown = null;
   try {
     response = await fetch(resolveTradingApiClientPath(path), requestInit);
+    const responseText = await response.text();
+
+    if (responseText) {
+      parsedBody = JSON.parse(responseText) as T;
+    }
   } catch (error) {
     if (timeoutMs !== null && isAbortError(error)) {
       throw new Error(`Timed out after ${formatTimeoutDuration(timeoutMs)} while loading ${path}.`);
@@ -63,13 +69,6 @@ export async function getSignalDeciderReviewJson<T>(
     if (timeoutId !== null) {
       globalThis.clearTimeout(timeoutId);
     }
-  }
-
-  const responseText = await response.text();
-  let parsedBody: unknown = null;
-
-  if (responseText) {
-    parsedBody = JSON.parse(responseText) as T;
   }
 
   if (!response.ok) {
