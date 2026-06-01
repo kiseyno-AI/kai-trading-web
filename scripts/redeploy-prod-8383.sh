@@ -10,8 +10,13 @@ PORT=8383
 APP_HEALTH_URL="http://127.0.0.1:${PORT}/trading-web/dashboard"
 DATA_HEALTH_URL="http://127.0.0.1:4181/trading/quotes/tracked"
 TAILNET_HOST="${TAILNET_HOST:-gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net}"
-TAILNET_ENTRYPOINT_URL="${TAILNET_ENTRYPOINT_URL:-http://${TAILNET_HOST}/trading-web}"
+TAILNET_ENTRYPOINT_URL="${TAILNET_ENTRYPOINT_URL:-https://${TAILNET_HOST}/trading-web}"
+TAILNET_BROWSER_ENTRYPOINT_URL="${TAILNET_BROWSER_ENTRYPOINT_URL:-$TAILNET_ENTRYPOINT_URL}"
 RUN_TAILNET_BROWSER_SMOKE="${RUN_TAILNET_BROWSER_SMOKE:-1}"
+
+if [[ "$TAILNET_BROWSER_ENTRYPOINT_URL" == http://*.ts.net/* ]]; then
+  TAILNET_BROWSER_ENTRYPOINT_URL="https://${TAILNET_BROWSER_ENTRYPOINT_URL#http://}"
+fi
 
 resolve_build_version() {
   /opt/homebrew/bin/node <<'NODE'
@@ -76,9 +81,12 @@ for _ in {1..30}; do
   CSS_HREF=$(curl -fsS "$APP_HEALTH_URL" 2>/dev/null | grep -oE 'href="[^"]+\.css[^"]*"' | head -n 1 | sed -E 's/^href="([^"]+)"/\1/' || true)
   if [ -n "$CSS_HREF" ] && curl -fsS "http://127.0.0.1:${PORT}${CSS_HREF}" >/dev/null 2>&1 && curl -fsS "$DATA_HEALTH_URL" >/dev/null 2>&1; then
     echo "trading-web redeployed on 8383 via launchd"
-    echo "canonical Tailnet browser entrypoint: ${TAILNET_ENTRYPOINT_URL}"
+    echo "canonical Tailnet browser entrypoint: ${TAILNET_BROWSER_ENTRYPOINT_URL}"
+    if [ "$TAILNET_BROWSER_ENTRYPOINT_URL" != "$TAILNET_ENTRYPOINT_URL" ]; then
+      echo "normalized Tailnet browser entrypoint from ${TAILNET_ENTRYPOINT_URL}"
+    fi
     if [ "$RUN_TAILNET_BROWSER_SMOKE" = "1" ]; then
-      PLAYWRIGHT_SKIP_WEB_SERVER=1 TAILNET_ENTRYPOINT_URL="$TAILNET_ENTRYPOINT_URL" \
+      PLAYWRIGHT_SKIP_WEB_SERVER=1 TAILNET_ENTRYPOINT_URL="$TAILNET_BROWSER_ENTRYPOINT_URL" \
         /opt/homebrew/bin/npm exec -- playwright test e2e/tailnet-entrypoint.spec.ts --project=chromium
     else
       echo "Tailnet browser smoke skipped because RUN_TAILNET_BROWSER_SMOKE=${RUN_TAILNET_BROWSER_SMOKE}"
