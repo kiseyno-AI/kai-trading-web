@@ -27,6 +27,23 @@ function buildMonitoredItems(count: number) {
   });
 }
 
+function buildRuntimeHeldItems(count: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const rowNumber = index + 1;
+    return {
+      symbol: `H${rowNumber.toString().padStart(4, "0")}`,
+      name: `Runtime Held ${rowNumber}`,
+      market: "KOSPI",
+      monitoring_state: "idle",
+      status: "expired",
+      held_position: true,
+      position_quantity: rowNumber,
+      position_average_price: 71000 + rowNumber,
+      current_price: 71500 + rowNumber,
+    };
+  });
+}
+
 function buildBoardItems({ buyCount, sellCount }: { buyCount: number; sellCount: number }) {
   const buyItems = Array.from({ length: buyCount }, (_, index) => {
     const rowNumber = index + 1;
@@ -220,9 +237,10 @@ test.describe("dashboard incremental lists", () => {
     await expect(portfolioCard.getByText("Decider 6", { exact: true })).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-more")).toHaveText("More (2)");
 
-    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(1);
+    await expect(portfolioCard.getByTestId("dashboard-account-holdings-row")).toHaveCount(1);
     await expect(portfolioCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByTestId("dashboard-held-positions-more")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-account-holdings-more")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-runtime-held-positions-row")).toHaveCount(0);
 
     const countsBeforeMore = { ...requestCounts };
     await deciderCard.getByTestId("dashboard-decider-more").click();
@@ -231,7 +249,7 @@ test.describe("dashboard incremental lists", () => {
     await expect(deciderCard.getByText("Decider 6", { exact: true })).toBeVisible();
     await expect(deciderCard.getByTestId("dashboard-decider-more")).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(5);
-    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(1);
+    await expect(portfolioCard.getByTestId("dashboard-account-holdings-row")).toHaveCount(1);
 
     await page.waitForTimeout(250);
     expect(requestCounts).toEqual(countsBeforeMore);
@@ -240,7 +258,52 @@ test.describe("dashboard incremental lists", () => {
 
     await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(7);
     await expect(portfolioCard.getByText("Decider 6", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(1);
+    await expect(portfolioCard.getByTestId("dashboard-account-holdings-row")).toHaveCount(1);
+  });
+
+  test("distinguishes account portfolio holdings from many runtime held rows", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockDashboardRuntimeLists(page, {
+      buyCount: 0,
+      holdings: [
+        { symbol: "033530", name: "SJG세종", quantity: 2 },
+        { symbol: "003070", name: "코디", quantity: 1 },
+      ],
+      monitoredCount: 0,
+      monitoredItems: buildRuntimeHeldItems(37),
+      sellCount: 0,
+    });
+
+    await page.goto("/dashboard");
+
+    const portfolioCard = getPrimaryInsightCard(page, /포트폴리오 상태/);
+    const accountMetric = portfolioCard.locator('[data-portfolio-metric="account-holdings"]');
+    await expect(accountMetric.getByText("계좌 포트폴리오 보유", { exact: true })).toBeVisible();
+    await expect(accountMetric.getByText("2 보유", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("런타임 보유 포지션 모니터링", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("승인된 exec 런타임 모니터링", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("계좌 지표와 보유 행은 포트폴리오 요약 기준이며", { exact: false })).toBeVisible();
+
+    const accountSection = portfolioCard.locator("section").filter({
+      has: page.getByRole("heading", { name: "계좌 포트폴리오 보유", exact: true }),
+    });
+    const runtimeSection = portfolioCard.locator("section").filter({
+      has: page.getByRole("heading", { name: "런타임 보유 포지션 모니터링", exact: true }),
+    });
+
+    await expect(accountSection.getByTestId("dashboard-account-holdings-row")).toHaveCount(2);
+    await expect(accountSection.getByText("SJG세종", { exact: true })).toBeVisible();
+    await expect(accountSection.getByText("코디", { exact: true })).toBeVisible();
+    await expect(runtimeSection.getByTestId("dashboard-runtime-held-positions-row")).toHaveCount(5);
+    await expect(runtimeSection.getByText("Runtime Held 1", { exact: true })).toBeVisible();
+    await expect(runtimeSection.getByText("SJG세종", { exact: true })).toHaveCount(0);
+    await expect(runtimeSection.getByTestId("dashboard-runtime-held-positions-more")).toHaveText("더 보기 (32)");
+    await expect(portfolioCard.getByRole("link", { name: "계좌 포트폴리오 열기" })).toHaveAttribute(
+      "href",
+      "/portfolio",
+    );
   });
 
   test("keeps mobile empty and error states unchanged without More controls", async ({ page }) => {
@@ -262,12 +325,14 @@ test.describe("dashboard incremental lists", () => {
     await expect(deciderCard.getByTestId("dashboard-decider-row")).toHaveCount(0);
     await expect(deciderCard.getByTestId("dashboard-decider-more")).toHaveCount(0);
 
-    await expect(portfolioCard.getByText("Monitoring list is updating.", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("No held positions returned.", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Monitoring list is updating.", { exact: true })).toHaveCount(2);
+    await expect(portfolioCard.getByText("No account portfolio holdings returned.", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-account-holdings-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-runtime-held-positions-row")).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-more")).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-held-positions-more")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-account-holdings-more")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-runtime-held-positions-more")).toHaveCount(0);
   });
 
   test("shows exec-approved monitoring rows and excludes core-only planned rows on mobile", async ({ page }) => {
@@ -319,7 +384,7 @@ test.describe("dashboard incremental lists", () => {
 
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
     const monitoringSection = portfolioCard.locator("section").filter({
-      has: page.getByRole("heading", { name: "Exec-approved monitoring", exact: true }),
+      has: page.getByRole("heading", { name: "Exec-approved runtime monitoring", exact: true }),
     });
 
     await expect(monitoringSection).toBeVisible();
@@ -331,6 +396,7 @@ test.describe("dashboard incremental lists", () => {
     await expect(monitoringSection.getByText("Approved qty", { exact: true })).toBeVisible();
     await expect(monitoringSection.getByText("12", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Samsung Electronics", { exact: true })).toHaveCount(0);
-    await expect(portfolioCard.getByTestId("dashboard-held-positions-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-account-holdings-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-runtime-held-positions-row")).toHaveCount(0);
   });
 });
