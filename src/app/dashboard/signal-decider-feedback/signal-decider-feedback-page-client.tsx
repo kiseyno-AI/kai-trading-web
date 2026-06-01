@@ -87,6 +87,7 @@ type ActionFilter = (typeof ACTION_FILTERS)[number];
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 type SortMode = (typeof SORT_MODES)[number];
 type GapCategoryFilter = (typeof GAP_CATEGORY_FILTERS)[number];
+type FeedbackLoadState = "idle" | "loading" | "ready" | "error";
 type FeedbackErrorSource = "feedback" | "marketDate" | "generic";
 type DetailedFeedbackError = { message: string; source: FeedbackErrorSource };
 type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | DetailedFeedbackError;
@@ -294,7 +295,7 @@ function formatActionMix(actionCounts: Record<SignalDeciderAction, number>, acti
 }
 
 function getSignalDeciderSummaryStatusLabel(
-  loadState: "idle" | "loading" | "ready" | "error",
+  loadState: FeedbackLoadState,
   status: SignalDeciderFeedbackStatus,
   statusCopy: SignalDeciderStatusCopy,
   summaryCopy: SignalDeciderSummaryCopy,
@@ -315,7 +316,7 @@ function getSignalDeciderSummaryStatusLabel(
 }
 
 function getSignalDeciderSummaryNumericValue(
-  loadState: "idle" | "loading" | "ready" | "error",
+  loadState: FeedbackLoadState,
   value: number,
   unavailableLabel: string,
 ) {
@@ -324,13 +325,18 @@ function getSignalDeciderSummaryNumericValue(
 }
 
 function getSignalDeciderSummaryActionMix(
-  loadState: "idle" | "loading" | "ready" | "error",
+  loadState: FeedbackLoadState,
   actionCounts: Record<SignalDeciderAction, number>,
   actionCopy: SignalDeciderActionCopy,
   unavailableLabel: string,
 ) {
   if (loadState === "error") return unavailableLabel;
   return loadState === "ready" ? formatActionMix(actionCounts, actionCopy) : CARD_LOADING_LABEL;
+}
+
+function getLoadStateGatedValue(loadState: FeedbackLoadState, readyValue: string, unavailableLabel: string) {
+  if (loadState === "error") return unavailableLabel;
+  return loadState === "ready" ? readyValue : CARD_LOADING_LABEL;
 }
 
 function getSignalDeciderNoDataMessage({
@@ -886,9 +892,7 @@ export default function SignalDeciderFeedbackPageClient() {
   const [previousFeedback, setPreviousFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [progress, setProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [error, setError] = useState<FeedbackError | null>(null);
-  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(
-    requestedMarketDate ? "loading" : "idle",
-  );
+  const [loadState, setLoadState] = useState<FeedbackLoadState>(requestedMarketDate ? "loading" : "idle");
   const [query, setQuery] = useState(requestedFeedbackQuery);
   const [actionFilter, setActionFilter] = useState<ActionFilter>(requestedActionFilter);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(requestedStatusFilter);
@@ -1251,6 +1255,31 @@ export default function SignalDeciderFeedbackPageClient() {
       ? copy.calendarContext.breadcrumb.replaceAll("{marketDate}", calendarReturnDate)
       : null;
   const calendarContextNav = isCalendarContext ? DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT : null;
+  const dataGapSummaryUnavailableLabel = statusCopy.unavailable;
+  const dataGapTotalRows = getLoadStateGatedValue(
+    loadState,
+    dataGapReport.totalFeedbackRows.toLocaleString("en-US"),
+    dataGapSummaryUnavailableLabel,
+  );
+  const dataGapRowsWithGaps = getLoadStateGatedValue(
+    loadState,
+    `${dataGapReport.rowsWithDataGaps.toLocaleString("en-US")}${
+      dataGapReport.totalFeedbackRows > 0
+        ? ` · ${Math.round(dataGapReport.gapRowRatio * 100).toLocaleString("en-US")}%`
+        : ""
+    }`,
+    dataGapSummaryUnavailableLabel,
+  );
+  const dataGapTopCategories = getLoadStateGatedValue(
+    loadState,
+    formatTopDataGapCategories(dataGapReport, dataGapCopy),
+    dataGapSummaryUnavailableLabel,
+  );
+  const dataGapTrend = getLoadStateGatedValue(
+    loadState,
+    formatDataGapTrend(dataGapReport.trend, dataGapCopy.summary),
+    dataGapSummaryUnavailableLabel,
+  );
   const openDetailDialog = useCallback((itemId: string, opener: HTMLElement) => {
     detailOpenerRef.current = opener;
     shouldRestoreDetailFocusRef.current = true;
@@ -1979,58 +2008,55 @@ export default function SignalDeciderFeedbackPageClient() {
             </header>
 
             <div className={styles.dataGapSummaryGrid}>
-              <div className={styles.summaryCard}>
+              <div className={styles.summaryCard} data-testid="decider-data-gap-total-rows">
                 <span>{dataGapCopy.summary.totalRows}</span>
-                <strong>{dataGapReport.totalFeedbackRows.toLocaleString("en-US")}</strong>
+                <strong>{dataGapTotalRows}</strong>
               </div>
-              <div className={styles.summaryCard}>
+              <div className={styles.summaryCard} data-testid="decider-data-gap-rows-with-gaps">
                 <span>{dataGapCopy.summary.rowsWithGaps}</span>
-                <strong>
-                  {dataGapReport.rowsWithDataGaps.toLocaleString("en-US")}
-                  {dataGapReport.totalFeedbackRows > 0
-                    ? ` · ${Math.round(dataGapReport.gapRowRatio * 100).toLocaleString("en-US")}%`
-                    : ""}
-                </strong>
+                <strong>{dataGapRowsWithGaps}</strong>
               </div>
-              <div className={styles.summaryCard}>
+              <div className={styles.summaryCard} data-testid="decider-data-gap-top-categories">
                 <span>{dataGapCopy.summary.topCategories}</span>
-                <strong>{formatTopDataGapCategories(dataGapReport, dataGapCopy)}</strong>
+                <strong>{dataGapTopCategories}</strong>
               </div>
-              <div className={styles.summaryCard}>
+              <div className={styles.summaryCard} data-testid="decider-data-gap-trend">
                 <span>{dataGapCopy.summary.trend}</span>
-                <strong>{formatDataGapTrend(dataGapReport.trend, dataGapCopy.summary)}</strong>
+                <strong>{dataGapTrend}</strong>
               </div>
             </div>
 
-            <div className={styles.dataGapControls} aria-label={dataGapCopy.filters.label}>
-              <label>
-                <span>{dataGapCopy.filters.category}</span>
-                <select value={gapCategory} onChange={(event) => setGapCategory(event.target.value as GapCategoryFilter)}>
-                  <option value="all">{dataGapCopy.filters.allCategories}</option>
-                  {DECIDER_DATA_GAP_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {getDataGapCategoryLabel(category, dataGapCopy.categories)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{dataGapCopy.filters.symbol}</span>
-                <select value={validGapSymbol} onChange={(event) => setGapSymbol(event.target.value)}>
-                  <option value="all">{dataGapCopy.filters.allSymbols}</option>
-                  {dataGapReport.symbolSummaries.map((summaryItem) => (
-                    <option key={summaryItem.symbol} value={summaryItem.symbol}>
-                      {summaryItem.companyName ? `${summaryItem.companyName} · ${summaryItem.symbol}` : summaryItem.symbol}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            {loadState === "ready" ? (
+              <div className={styles.dataGapControls} aria-label={dataGapCopy.filters.label}>
+                <label>
+                  <span>{dataGapCopy.filters.category}</span>
+                  <select value={gapCategory} onChange={(event) => setGapCategory(event.target.value as GapCategoryFilter)}>
+                    <option value="all">{dataGapCopy.filters.allCategories}</option>
+                    {DECIDER_DATA_GAP_CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {getDataGapCategoryLabel(category, dataGapCopy.categories)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>{dataGapCopy.filters.symbol}</span>
+                  <select value={validGapSymbol} onChange={(event) => setGapSymbol(event.target.value)}>
+                    <option value="all">{dataGapCopy.filters.allSymbols}</option>
+                    {dataGapReport.symbolSummaries.map((summaryItem) => (
+                      <option key={summaryItem.symbol} value={summaryItem.symbol}>
+                        {summaryItem.companyName ? `${summaryItem.companyName} · ${summaryItem.symbol}` : summaryItem.symbol}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
 
             {loadState === "loading" ? (
               <div className={styles.emptyState}>{feedbackLoadingMessage}</div>
             ) : loadState === "error" ? (
-              <div className={styles.emptyState}>{dataGapCopy.empty.noFeedback}</div>
+              <div className={styles.emptyState}>{displayError ?? feedbackErrorMessage}</div>
             ) : dataGapDisplayState === "has-data-gaps" ? (
               <>
                 <div className={styles.dataGapCategoryCards} aria-label={dataGapCopy.table.category}>
