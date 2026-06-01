@@ -552,7 +552,7 @@ test.describe("search terminal desktop", () => {
     await expect(quickSection.getByRole("button", { name: /035420|NAVER/i })).toHaveCount(0);
   });
 
-  test("Q3 labels unsupported favorites before detail navigation and preserves supported favorite navigation", async ({
+  test("Q3 removes unsupported favorites before detail navigation and preserves supported favorite navigation", async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -567,41 +567,59 @@ test.describe("search terminal desktop", () => {
         },
       });
     });
+    const favoriteItems = [
+      {
+        symbol: "F70100026",
+        standard_code: null,
+        name_ko: "한투글로벌넥스트웨이브1(A)",
+        market: "KOSPI",
+        instrument_type: "fund",
+        is_active: true,
+        sort_order: 0,
+        favorited_at: "2026-05-23T06:30:00+09:00",
+      },
+      {
+        symbol: "005930",
+        standard_code: "KR7005930003",
+        name_ko: "삼성전자",
+        market: "KOSPI",
+        instrument_type: "stock",
+        is_active: true,
+        sort_order: 1,
+        favorited_at: "2026-04-14T13:35:00+09:00",
+      },
+    ];
+    let trackedSymbols = favoriteItems.map((item) => item.symbol);
+    let postedSymbols: string[] | null = null;
     await page.route("**/api/trading/symbols/favorites", async (route) => {
+      const items = favoriteItems.filter((item) => trackedSymbols.includes(item.symbol));
       await route.fulfill({
         json: {
-          count: 2,
-          items: [
-            {
-              symbol: "F70100026",
-              standard_code: null,
-              name_ko: "한투글로벌넥스트웨이브1(A)",
-              market: "KOSPI",
-              instrument_type: "fund",
-              is_active: true,
-              sort_order: 0,
-              favorited_at: "2026-05-23T06:30:00+09:00",
-            },
-            {
-              symbol: "005930",
-              standard_code: "KR7005930003",
-              name_ko: "삼성전자",
-              market: "KOSPI",
-              instrument_type: "stock",
-              is_active: true,
-              sort_order: 1,
-              favorited_at: "2026-04-14T13:35:00+09:00",
-            },
-          ],
+          count: items.length,
+          items,
         },
       });
     });
     await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      if (route.request().method() === "POST") {
+        const payload = JSON.parse(route.request().postData() ?? "{}") as { symbols?: string[] };
+        postedSymbols = Array.isArray(payload.symbols) ? payload.symbols : [];
+        trackedSymbols = postedSymbols;
+        await route.fulfill({
+          json: {
+            tracked_symbols: trackedSymbols,
+            count: trackedSymbols.length,
+            last_updated_at: "2026-04-14T16:01:00+09:00",
+          },
+        });
+        return;
+      }
+
       await route.fulfill({
         json: {
-          tracked_symbols: [],
-          count: 0,
-          last_updated_at: null,
+          tracked_symbols: trackedSymbols,
+          count: trackedSymbols.length,
+          last_updated_at: "2026-04-14T16:00:00+09:00",
         },
       });
     });
@@ -639,7 +657,17 @@ test.describe("search terminal desktop", () => {
     await expect(unsupportedFavorite).toBeVisible();
     await expect(unsupportedFavorite).toContainText("지원 제한");
     await expect(unsupportedFavorite).toContainText("주식 상세 커버리지 밖");
-    await expect(quickSection.getByRole("button", { name: /F70100026/ })).toHaveCount(0);
+    await expect(quickSection.locator('a[href*="/dashboard/symbol/F70100026"]')).toHaveCount(0);
+
+    const removeUnsupportedFavorite = unsupportedFavorite.getByRole("button", {
+      name: /즐겨찾기 제거 F70100026/,
+    });
+    await expect(removeUnsupportedFavorite).toBeVisible();
+    await removeUnsupportedFavorite.click();
+
+    await expect.poll(() => postedSymbols).toEqual(["005930"]);
+    await expect(quickSection.getByRole("group", { name: /F70100026.*지원 제한/ })).toHaveCount(0);
+    await expect(quickSection.getByText("F70100026 핵심 즐겨찾기에서 제거되었습니다.")).toBeVisible();
 
     const supportedFavorite = quickSection.getByRole("button", { name: /005930.*삼성전자/ });
     await expect(supportedFavorite).toBeVisible();

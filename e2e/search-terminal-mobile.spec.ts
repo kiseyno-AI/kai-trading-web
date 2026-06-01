@@ -469,7 +469,8 @@ test.describe("search terminal mobile", () => {
     await expect(unsupportedFavorite).toBeVisible();
     await expect(unsupportedFavorite).toContainText("지원 제한");
     await expect(unsupportedFavorite).toContainText("주식 상세 커버리지 밖");
-    await expect(quickSection.getByRole("button", { name: /F70100026/ })).toHaveCount(0);
+    await expect(quickSection.locator('a[href*="/dashboard/symbol/F70100026"]')).toHaveCount(0);
+    await expect(unsupportedFavorite.getByRole("button", { name: /즐겨찾기 제거 F70100026/ })).toBeVisible();
 
     const [cardBox, viewport] = await Promise.all([
       unsupportedFavorite.boundingBox(),

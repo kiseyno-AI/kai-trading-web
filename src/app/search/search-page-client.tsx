@@ -24,6 +24,7 @@ import {
   MOBILE_TOOLBAR_FAVORITES_PATH,
   MOBILE_TOOLBAR_INITIAL_TRENDING_LIMIT,
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
+  MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH,
   MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
   warmMobileToolbarViewData,
 } from "@/lib/mobile-toolbar-data";
@@ -46,6 +47,12 @@ import {
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
+import {
+  getTrackedSymbols,
+  normalizeTrackedSymbolCode,
+  replaceTrackedSymbols,
+  type TrackedSymbolsResponse,
+} from "@/lib/tracked-symbols-client";
 
 import styles from "./search-page.module.css";
 
@@ -74,12 +81,6 @@ type FavoriteSymbolItem = {
 type FavoriteSymbolsResponse = {
   count: number;
   items: FavoriteSymbolItem[];
-};
-
-type TrackedSymbolsResponse = {
-  tracked_symbols: string[];
-  count: number;
-  last_updated_at: string | null;
 };
 
 type CoreMarketStatus = {
@@ -247,7 +248,7 @@ function PanelUnavailable({ message, label }: { message: string; label: string }
 }
 
 function normalizeSymbolCode(value: string) {
-  return value.trim().toUpperCase();
+  return normalizeTrackedSymbolCode(value);
 }
 
 function normalizeSearchItem(item: {
@@ -897,7 +898,7 @@ export default function SearchPageClient() {
     setFavoriteError(null);
 
     try {
-      const currentResult = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols");
+      const currentResult = await getTrackedSymbols();
       if (!currentResult.ok) {
         setTrackedSymbolsError(`${copy.errors.favoriteUpdatesUnavailable} HTTP ${currentResult.status}`);
         setFavoriteError(`${copy.errors.favoriteSaveBlocked} HTTP ${currentResult.status}`);
@@ -907,21 +908,15 @@ export default function SearchPageClient() {
       setTrackedSymbolsError(null);
 
       const nextSymbols = [symbol, ...currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol)];
-      const result = await getJson<TrackedSymbolsResponse>("/api/trading/scanner/tracked-symbols", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ symbols: nextSymbols }),
-      });
+      const result = await replaceTrackedSymbols(nextSymbols);
 
       if (!result.ok) {
         setFavoriteError(`${copy.errors.favoriteSaveFailed} HTTP ${result.status}`);
         return;
       }
       invalidateTradingApiCacheByPathPrefix([
-        "/api/trading/scanner/tracked-symbols",
-        "/api/trading/symbols/favorites",
+        MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH,
+        MOBILE_TOOLBAR_FAVORITES_PATH,
         MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
       ]);
       setTrackedSymbolsError(null);
@@ -950,6 +945,64 @@ export default function SearchPageClient() {
       window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
     } catch {
       setFavoriteError(copy.errors.favoriteSaveFailed);
+    } finally {
+      setFavoriteSavingSymbol(null);
+    }
+  };
+
+  const handleRemoveFavorite = async (item: SymbolSearchItem) => {
+    const symbol = normalizeSymbolCode(item.symbol);
+    setFavoriteSavingSymbol(symbol);
+    setFavoriteStatus(null);
+    setFavoriteError(null);
+
+    try {
+      const currentResult = await getTrackedSymbols();
+      if (!currentResult.ok) {
+        setTrackedSymbolsError(`${copy.errors.favoriteUpdatesUnavailable} HTTP ${currentResult.status}`);
+        setFavoriteError(`${copy.errors.favoriteRemoveBlocked} HTTP ${currentResult.status}`);
+        return;
+      }
+
+      const currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
+      const nextSymbols = currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol);
+      setTrackedSymbolsError(null);
+
+      const result = await replaceTrackedSymbols(nextSymbols);
+      if (!result.ok) {
+        setFavoriteError(`${copy.errors.favoriteRemoveFailed} HTTP ${result.status}`);
+        return;
+      }
+
+      invalidateTradingApiCacheByPathPrefix([
+        MOBILE_TOOLBAR_TRACKED_SYMBOLS_PATH,
+        MOBILE_TOOLBAR_FAVORITES_PATH,
+        MOBILE_TOOLBAR_TRACKED_QUOTES_PATH,
+      ]);
+      setTrackedSymbolsError(null);
+      setFavoriteListError(null);
+      setFavoriteItems((currentItems) =>
+        currentItems.filter((currentItem) => normalizeSymbolCode(currentItem.symbol) !== symbol),
+      );
+      setFavoriteStatus(`${symbol} ${copy.quickAccess.removedSuffix}`);
+
+      let refreshedFavorites: JsonResult<FavoriteSymbolsResponse>;
+      try {
+        refreshedFavorites = await getJson<FavoriteSymbolsResponse>(MOBILE_TOOLBAR_FAVORITES_PATH);
+      } catch {
+        setFavoriteError(copy.errors.favoriteRemoveRefreshFailed);
+        return;
+      }
+
+      if (!refreshedFavorites.ok) {
+        setFavoriteError(`${copy.errors.favoriteRemoveRefreshFailed} HTTP ${refreshedFavorites.status}`);
+        return;
+      }
+
+      setFavoriteItems(refreshedFavorites.data.items.map(normalizeSearchItem).slice(0, 4));
+      void warmMobileToolbarViewData("search");
+    } catch {
+      setFavoriteError(copy.errors.favoriteRemoveFailed);
     } finally {
       setFavoriteSavingSymbol(null);
     }
@@ -1081,6 +1134,7 @@ export default function SearchPageClient() {
                 const isSymbolDetailCovered = hasSymbolDetailCoverage(item);
 
                 if (!isSymbolDetailCovered) {
+                  const isRemovingFavorite = favoriteSavingSymbol === item.symbol;
                   return (
                     <article
                       key={item.symbol}
@@ -1098,6 +1152,15 @@ export default function SearchPageClient() {
                           {copy.quickAccess.limitedCoverageBody}
                         </small>
                       </span>
+                      <button
+                        type="button"
+                        className={styles.quickCardRemoveButton}
+                        onClick={() => void handleRemoveFavorite(item)}
+                        disabled={favoriteSavingSymbol !== null}
+                        aria-label={`${copy.quickAccess.removeFavorite} ${item.symbol} ${item.name_ko}`}
+                      >
+                        {isRemovingFavorite ? copy.status.removing : copy.quickAccess.remove}
+                      </button>
                     </article>
                   );
                 }
@@ -1222,9 +1285,9 @@ export default function SearchPageClient() {
                 document.body,
               )
             : null}
-          {favoriteStatus ? <p className={styles.favoriteStatus}>{favoriteStatus}</p> : null}
+          {favoriteStatus ? <p className={styles.favoriteStatus} role="status">{favoriteStatus}</p> : null}
           {trackedSymbolsError ? <p className={styles.favoriteError}>{trackedSymbolsError}</p> : null}
-          {favoriteError && !favoriteDialogOpen ? <p className={styles.favoriteError}>{favoriteError}</p> : null}
+          {favoriteError && !favoriteDialogOpen ? <p className={styles.favoriteError} role="alert">{favoriteError}</p> : null}
         </section>
 
         <section className={styles.trendingPanel}>
