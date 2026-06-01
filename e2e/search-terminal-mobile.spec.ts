@@ -872,6 +872,134 @@ test.describe("search terminal mobile", () => {
     await expect(trendingSection.getByText("005930", { exact: true })).toHaveCount(0);
   });
 
+  test("labels ETF trending rows without opening unsupported symbol detail", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        json: {
+          state: "OPEN",
+          is_open: true,
+          server_time: "2026-04-14T09:00:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({ json: { count: 0, items: [] } });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const query = requestUrl.searchParams.get("q") ?? "";
+      const items =
+        query === "252670"
+          ? [
+              {
+                symbol: "252670",
+                standard_code: "KR7252670005",
+                name_ko: "KODEX 200선물인버스2X",
+                market: "KRX",
+                instrument_type: "etf",
+              },
+            ]
+          : query === "005930"
+            ? [
+                {
+                  symbol: "005930",
+                  standard_code: "KR7005930003",
+                  name_ko: "삼성전자",
+                  market: "KOSPI",
+                  instrument_type: "stock",
+                },
+              ]
+            : [];
+
+      await route.fulfill({
+        json: {
+          query,
+          count: items.length,
+          items,
+        },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00+09:00",
+          market: "KRX",
+          summary: { item_count: 2 },
+          items: [
+            {
+              symbol: "252670",
+              name: "KODEX 200선물인버스2X",
+              market: "KRX",
+              price: 2140,
+              change_pct: 1.82,
+              best_rank: 1,
+              source_count: 1,
+              sources: [
+                {
+                  source: "volume-rank",
+                  source_label: "volume-rank",
+                  rank: 1,
+                  metric: { name: "volume", value: 1290000, unit: "shares" },
+                },
+              ],
+            },
+            {
+              symbol: "005930",
+              name: "삼성전자",
+              market: "KOSPI",
+              price: 71500,
+              change_pct: 0.84,
+              best_rank: 2,
+              source_count: 1,
+              sources: [
+                {
+                  source: "fluctuation",
+                  source_label: "fluctuation",
+                  rank: 2,
+                  metric: { name: "change_pct", value: 0.84, unit: "percent" },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const trendingSection = page.locator("section").filter({ has: page.getByRole("heading", { name: "인기 종목" }) }).first();
+    const unsupportedProduct = trendingSection.getByRole("group", { name: /252670.*지원 제한/ });
+    await expect(unsupportedProduct).toBeVisible();
+    await expect(unsupportedProduct).toContainText("KODEX 200선물인버스2X");
+    await expect(unsupportedProduct).toContainText("지원 제한");
+    await expect(unsupportedProduct).toContainText("주식 상세 커버리지 밖");
+    await expect(trendingSection.getByRole("button", { name: /252670/ })).toHaveCount(0);
+
+    await unsupportedProduct.click();
+    expect(new URL(page.url()).pathname).toBe("/search");
+
+    const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(horizontalOverflow).toBeLessThanOrEqual(1);
+
+    const supportedStock = trendingSection.getByRole("button", { name: /삼성전자.*005930/ });
+    await expect(supportedStock).toBeVisible();
+    await Promise.all([page.waitForURL(/\/dashboard\/symbol\/005930\?.*navContext=search/), supportedStock.click()]);
+  });
+
   test("clears stale Q4 rows and shrinks the reserved height after a smaller source result set", async ({ page }) => {
     let releaseStoredTrending = () => {};
 

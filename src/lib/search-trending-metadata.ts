@@ -14,6 +14,7 @@ export type RealtimeTrendingSource = {
   metric: RealtimeTrendingMetric;
   market?: string | null;
   market_code?: string | null;
+  instrument_type?: string | null;
 };
 
 export type RealtimeTrendingItem = {
@@ -21,6 +22,7 @@ export type RealtimeTrendingItem = {
   name?: string | null;
   market?: string | null;
   market_code?: string | null;
+  instrument_type?: string | null;
   price?: number | null;
   change?: number | null;
   change_pct?: number | null;
