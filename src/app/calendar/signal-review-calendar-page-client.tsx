@@ -60,6 +60,7 @@ const UNKNOWN_LABEL = "[확인 필요]";
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const ACTION_KEYS = ["buy", "wait", "reject", "unknown"] as const satisfies readonly SignalDeciderAction[];
 const DAY_MS = 86_400_000;
+const SIGNAL_REVIEW_READ_TIMEOUT_MS = 12_000;
 const DETAIL_DIALOG_FOCUSABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",
@@ -626,9 +627,10 @@ function getSelectedDateDisplayStatus({
     ) {
       return selectedSnapshot.status;
     }
-    if (!selectedSnapshot || selectedSnapshot.status === "loading") {
-      return summary.status === "waiting" ? "loading" : summary.status;
+    if (summary.status === "running" || summary.status === "partial" || summary.status === "needs-review") {
+      return summary.status;
     }
+    if (!selectedSnapshot || selectedSnapshot.status === "loading") return summary.status;
     return "empty";
   }
 
@@ -661,7 +663,7 @@ function getSelectedDateEmptyStateMessage({
   if (displayStatus === "unavailable" && selectedError) {
     return selectedError;
   }
-  if (displayStatus === "loading" || displayStatus === "running" || displayStatus === "waiting") {
+  if (displayStatus === "loading" || displayStatus === "running") {
     return copy.states.loadingSelected;
   }
   return copy.states.emptySelected;
@@ -1007,7 +1009,9 @@ export default function SignalReviewCalendarPageClient() {
 
     const loadLatestDate = async () => {
       try {
-        const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
+        const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>("/api/trading/eod/freshness", {
+          timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS,
+        });
         if (!active) return;
         const resolvedDate = getAgentFeedbackProgressMarketDate(freshness) ?? todayKey;
         setSelectedDate(resolvedDate);
@@ -1057,6 +1061,7 @@ export default function SignalReviewCalendarPageClient() {
       try {
         const calendarSummary = await getSignalDeciderReviewJson<SignalDeciderCalendarSummaryResponse>(
           monthSummaryPath,
+          { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
         );
         if (!active) return;
 
@@ -1100,6 +1105,7 @@ export default function SignalReviewCalendarPageClient() {
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate: day.dateKey,
             }),
+            { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
           );
           const selectedFeedback = selectSignalDeciderFeedbackResponse({
             cached: cachedSnapshot,
@@ -1163,6 +1169,7 @@ export default function SignalReviewCalendarPageClient() {
 
       const selectedProgressPromise = getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
         `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(selectedDate)}`,
+        { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
       ).catch(() => null);
       const reviewDatePath = `${SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH}?${buildReviewDateQuery({
         marketDate: selectedDate,
@@ -1170,7 +1177,9 @@ export default function SignalReviewCalendarPageClient() {
 
       try {
         const [reviewDateResponse] = await Promise.all([
-          getSignalDeciderReviewJson<SignalDeciderReviewDateResponse>(reviewDatePath),
+          getSignalDeciderReviewJson<SignalDeciderReviewDateResponse>(reviewDatePath, {
+            timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS,
+          }),
         ]);
         const feedback = buildSignalDeciderFeedbackListFromReviewDateResponse({
           response: reviewDateResponse,
@@ -1206,6 +1215,7 @@ export default function SignalReviewCalendarPageClient() {
                 limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
                 marketDate: selectedDate,
               }),
+              { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
             ),
           ]);
           const progress = await selectedProgressPromise;
@@ -1369,7 +1379,7 @@ export default function SignalReviewCalendarPageClient() {
         if (
           currentSnapshotUnresolved &&
           selectedSnapshot.decisionCount <= 0 &&
-          (selectedSummary.status === "running" || selectedSummary.status === "waiting")
+          selectedSummary.status === "running"
         ) {
           return current;
         }
@@ -1591,8 +1601,11 @@ export default function SignalReviewCalendarPageClient() {
               </div>
             </header>
 
-            <div className={styles.monthStateRow}>
-              <span className={`${styles.dayStatus} ${monthLoadState === "partial" ? styles.warningTone : styles.neutralTone}`}>
+            <div className={styles.monthStateRow} data-testid="calendar-month-state">
+              <span
+                className={`${styles.dayStatus} ${monthLoadState === "partial" ? styles.warningTone : styles.neutralTone}`}
+                data-testid="calendar-month-status"
+              >
                 {monthLoadState === "loading"
                   ? copy.states.loadingMonth
                   : monthLoadState === "partial"

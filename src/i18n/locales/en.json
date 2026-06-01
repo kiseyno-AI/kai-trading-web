@@ -492,7 +492,8 @@
       "partial": "Partial",
       "needsReview": "Needs review",
       "waiting": "Waiting",
-      "loading": "Loading"
+      "loading": "Loading",
+      "unavailable": "Unavailable"
     },
     "labels": {
       "status": "Status",

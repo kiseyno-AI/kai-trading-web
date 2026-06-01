@@ -2109,7 +2109,7 @@ test("signal review calendar keeps a different month loading while the selected 
   }
 });
 
-test("signal review calendar keeps zero-row selected-date summary running while the month snapshot is unresolved", async ({
+test("signal review calendar settles zero-row selected-date summary while the month snapshot is unresolved", async ({
   page,
 }) => {
   const delayedMonthSummary = createDeferred();
@@ -2118,7 +2118,6 @@ test("signal review calendar keeps zero-row selected-date summary running while 
     const requestHits = await mockSignalReviewCalendar(page, {
       calendarSummaryDelay: delayedMonthSummary.promise,
       forceCalendarSummaryFailure: true,
-      runningProgressDates: ["2026-05-26"],
     });
 
     await page.goto("/calendar?date=2026-05-26");
@@ -2130,14 +2129,14 @@ test("signal review calendar keeps zero-row selected-date summary running while 
     const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-26" }) });
     await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
       "data-selected-date-status",
-      "running",
+      "empty",
     );
-    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("로딩 중");
-    await expect(selectedPanel.locator("div").filter({ hasText: /^액션 믹스\s*대기$/ }).locator("strong")).toHaveText(
-      "대기",
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("행 없음");
+    await expect(selectedPanel.locator("div").filter({ hasText: /^액션 믹스\s*행 없음$/ }).locator("strong")).toHaveText(
+      "행 없음",
     );
-    await expect(selectedPanel).toContainText("선택한 날짜의 결정을 불러오는 중...");
-    await expect(selectedPanel).not.toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
+    await expect(selectedPanel).toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
+    await expect(selectedPanel).not.toContainText("선택한 날짜의 결정을 불러오는 중...");
 
     delayedMonthSummary.resolve();
 
@@ -2416,6 +2415,43 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   );
   expect(compactCalendarLabels.some((label) => ["대85", "대76", "대90", "대+"].includes(label))).toBe(false);
   await expectNarrowMobileLabelsContained(page);
+});
+
+test("signal review calendar wraps partial month status on 390px mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-05-08": 111,
+    },
+    forceCalendarSummaryFailure: true,
+    timeoutFeedbackDates: ["2026-05-09"],
+  });
+
+  await page.goto("/calendar?date=2026-05-08");
+
+  const monthStatus = page.getByTestId("calendar-month-status");
+  await expect(monthStatus).toHaveText("Month loaded with partial coverage");
+  const statusFit = await monthStatus.evaluate((element) => {
+    const parent = element.closest<HTMLElement>("[data-testid='calendar-month-state']");
+    const rect = element.getBoundingClientRect();
+    const parentRect = parent?.getBoundingClientRect();
+
+    return {
+      crossesParent:
+        parentRect !== undefined &&
+        (rect.left < parentRect.left - 1 ||
+          rect.right > parentRect.right + 1 ||
+          rect.top < parentRect.top - 1 ||
+          rect.bottom > parentRect.bottom + 1),
+      horizontalClip: element.scrollWidth > element.clientWidth + 1,
+      text: element.textContent?.trim() ?? "",
+    };
+  });
+  expect(statusFit).toEqual({
+    crossesParent: false,
+    horizontalClip: false,
+    text: "Month loaded with partial coverage",
+  });
 });
 
 test("signal review calendar keeps month cells and replay rows above the mobile bottom nav", async ({ page }) => {

@@ -492,7 +492,8 @@
       "partial": "부분",
       "needsReview": "확인 필요",
       "waiting": "대기",
-      "loading": "로딩 중"
+      "loading": "로딩 중",
+      "unavailable": "사용 불가"
     },
     "labels": {
       "status": "상태",

@@ -137,15 +137,23 @@
 
 .monthStateRow {
   justify-content: space-between;
+  min-width: 0;
   padding: 0.72rem 0.8rem;
   border: 1px solid rgba(134, 162, 194, 0.16);
   border-radius: 0.5rem;
   background: rgba(3, 7, 13, 0.48);
 }
 
+.monthStateRow .dayStatus {
+  flex: 1 1 12rem;
+}
+
 .monthStateRow strong {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--text-strong);
   font-size: 0.82rem;
+  text-align: right;
 }
 
 .weekHeader,
@@ -823,6 +831,26 @@
 
   .panel {
     padding: 0.82rem;
+  }
+
+  .monthStateRow {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .monthStateRow .dayStatus {
+    flex-basis: min(100%, 12rem);
+    justify-content: center;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-align: center;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .monthStateRow strong {
+    flex: 1 1 8rem;
+    text-align: left;
   }
 
   .tableWrap {

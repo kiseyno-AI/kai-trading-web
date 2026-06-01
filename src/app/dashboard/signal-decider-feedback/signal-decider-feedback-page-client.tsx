@@ -70,6 +70,7 @@ import styles from "./signal-decider-feedback-page.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
 const CARD_LOADING_LABEL = "…";
+const SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS = 12_000;
 const ACTION_FILTERS = ["all", "buy", "watch_for_trigger", "avoid_chase", "wait", "reject", "unknown"] as const;
 const STATUS_FILTERS = ["all", "with-review", "review-pending", "with-risk"] as const;
 const SORT_MODES = ["priority", "symbol", "confidence", "captured"] as const;
@@ -316,7 +317,9 @@ function getSignalDeciderSummaryStatusLabel(
 function getSignalDeciderSummaryNumericValue(
   loadState: "idle" | "loading" | "ready" | "error",
   value: number,
+  unavailableLabel: string,
 ) {
+  if (loadState === "error") return unavailableLabel;
   return loadState === "ready" ? value.toLocaleString("en-US") : CARD_LOADING_LABEL;
 }
 
@@ -324,7 +327,9 @@ function getSignalDeciderSummaryActionMix(
   loadState: "idle" | "loading" | "ready" | "error",
   actionCounts: Record<SignalDeciderAction, number>,
   actionCopy: SignalDeciderActionCopy,
+  unavailableLabel: string,
 ) {
+  if (loadState === "error") return unavailableLabel;
   return loadState === "ready" ? formatActionMix(actionCounts, actionCopy) : CARD_LOADING_LABEL;
 }
 
@@ -950,7 +955,9 @@ export default function SignalDeciderFeedbackPageClient() {
 
     const loadFallbackMarketDate = async () => {
       try {
-        const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>("/api/trading/eod/freshness");
+        const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>("/api/trading/eod/freshness", {
+          timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS,
+        });
         if (!active) return;
         const resolvedMarketDate = getAgentFeedbackProgressMarketDate(freshness);
         if (!resolvedMarketDate) {
@@ -1008,6 +1015,7 @@ export default function SignalDeciderFeedbackPageClient() {
           limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
           marketDate,
         }),
+        { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
       ).catch(() => null);
 
       const previousMarketDate = getPreviousBusinessMarketDate(marketDate);
@@ -1020,6 +1028,7 @@ export default function SignalDeciderFeedbackPageClient() {
                 limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
                 marketDate: previousMarketDate,
               }),
+              { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
             ).catch(() => null)
           : Promise.resolve(null);
 
@@ -1039,9 +1048,11 @@ export default function SignalDeciderFeedbackPageClient() {
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate,
             }),
+            { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
           ),
           getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
             `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(marketDate)}`,
+            { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
           ).catch(() => null),
         ]);
         if (!active) return;
@@ -1825,7 +1836,13 @@ export default function SignalDeciderFeedbackPageClient() {
           <div className={styles.summaryGrid}>
             <div className={styles.summaryCard}>
               <span>{labelsCopy.status}</span>
-              <strong className={getStatusToneClass(loadState === "ready" ? summary.status : "running")}>
+              <strong
+                className={
+                  loadState === "error"
+                    ? styles.warningTone
+                    : getStatusToneClass(loadState === "ready" ? summary.status : "running")
+                }
+              >
                 {getSignalDeciderSummaryStatusLabel(
                   loadState,
                   summary.status,
@@ -1843,15 +1860,30 @@ export default function SignalDeciderFeedbackPageClient() {
             </div>
             <div className={styles.summaryCard}>
               <span>{labelsCopy.results}</span>
-              <strong>{getSignalDeciderSummaryNumericValue(loadState, summary.resultCount)}</strong>
+              <strong>
+                {getSignalDeciderSummaryNumericValue(loadState, summary.resultCount, statusCopy.unavailable)}
+              </strong>
             </div>
             <div className={styles.summaryCard}>
               <span>{labelsCopy.actionMix}</span>
-              <strong>{getSignalDeciderSummaryActionMix(loadState, summary.actionCounts, actionCopy)}</strong>
+              <strong>
+                {getSignalDeciderSummaryActionMix(
+                  loadState,
+                  summary.actionCounts,
+                  actionCopy,
+                  statusCopy.unavailable,
+                )}
+              </strong>
             </div>
             <div className={styles.summaryCard}>
               <span>{labelsCopy.comparisons}</span>
-              <strong>{loadState === "ready" ? comparisonCount.toLocaleString("en-US") : CARD_LOADING_LABEL}</strong>
+              <strong>
+                {loadState === "ready"
+                  ? comparisonCount.toLocaleString("en-US")
+                  : loadState === "error"
+                    ? statusCopy.unavailable
+                    : CARD_LOADING_LABEL}
+              </strong>
             </div>
           </div>
 
