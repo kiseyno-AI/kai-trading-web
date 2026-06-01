@@ -2705,6 +2705,75 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.equal(fullyCompletedModel.totalCount, 24);
 });
 
+test("localizes raw partial pipeline reasons in the Korean process monitor model", () => {
+  const copy = getDashboardLiveCopy("ko");
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "idle",
+    numberLocale: "ko-KR",
+    piotroskiMarketDate: null,
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "ko-KR",
+    pipelineStatus: null,
+    scoringMarketDate: null,
+  });
+  const pipelineStatus = buildPipelineStatus({
+    market_date: "2026-06-01",
+    status: "running",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    total_stages: 24,
+    display_completed_stages: 20,
+    current_stage: "market_risk_filter",
+    stages: {
+      market_risk_filter: {
+        ...buildPipelineStageDto("partial", 20, 24),
+        label: "KIS market-risk filter compute",
+        details: {
+          rows_persisted: 20,
+          expected_rows: 24,
+          progress_source: "stored_rows",
+          reason: "row_count_partial_above_min_coverage",
+          missing_count: 1,
+          missing_symbols_sample: ["175140"],
+        },
+      },
+    },
+  });
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards: [],
+    copy,
+    eodStageCards: [],
+    filteringCardModel,
+    numberLocale: "ko-KR",
+    patchDate: "2026-06-01",
+    pipelineStatus,
+    scoringCardModel,
+  });
+  const currentStage = model.pipeline.currentStage;
+  const primaryStageText = [
+    currentStage?.label,
+    currentStage?.progressLabel,
+    currentStage?.progressSourceLabel,
+    currentStage?.reason,
+  ].join(" ");
+
+  assert.equal(currentStage?.key, "market_risk_filter");
+  assert.equal(currentStage?.progressLabel, "20 / 24");
+  assert.equal(currentStage?.progressSourceLabel, copy.processMonitor.sourceLabels.storedRows);
+  assert.match(primaryStageText, /누락 종목 1개: 175140/);
+  assert.doesNotMatch(primaryStageText, /row_count_partial_above_min_coverage/);
+  assert.doesNotMatch(primaryStageText, /Missing 1 symbol/i);
+  assert.doesNotMatch(primaryStageText, /stored rows/i);
+});
+
 test("keeps the full daily process monitor completed from latest available data when today is empty", () => {
   const copy = getDashboardLiveCopy("en");
   const freshness = {

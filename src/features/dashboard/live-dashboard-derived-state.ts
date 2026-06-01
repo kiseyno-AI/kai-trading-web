@@ -18,6 +18,8 @@ import {
   buildDailyPipelineTimelineModel,
   isDailyPipelineStatusRunning,
   normalizeDailyPipelineStatusToken,
+  type DailyPipelineProgressSource,
+  type DailyPipelineStageModel,
   type DailyPipelineTimelineModel,
 } from "@/lib/eod-pipeline-status";
 import {
@@ -2002,6 +2004,216 @@ function buildProcessMonitorProgressLabel(completedCount: number, totalCount: nu
   return `${completedCount.toLocaleString(numberLocale)} / ${totalCount.toLocaleString(numberLocale)}`;
 }
 
+type PipelineMissingSymbolsDetail = {
+  count: number;
+  matchedText: string;
+  symbols: string[];
+};
+
+const PIPELINE_MISSING_SYMBOLS_REASON_PATTERN = /\bMissing\s+([\d,]+)\s+symbols?(?::\s*([^.;]+))?\.?/i;
+const RAW_PIPELINE_REASON_TOKEN_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)+$/i;
+const PIPELINE_STAGE_REASON_COPY_KEYS = {
+  row_count_partial_above_min_coverage: "rowCountPartialAboveMinCoverage",
+} as const satisfies Record<string, keyof DashboardLiveCopy["processMonitor"]["stageReasons"]>;
+
+const GENERATED_PIPELINE_REASON_COPY_KEYS = new Map<
+  string,
+  keyof DashboardLiveCopy["processMonitor"]["stageReasons"]
+>([
+  ["Blocked by an upstream prerequisite.", "blockedByUpstream"],
+  ["Running from live run metadata; stored rows are still 0.", "runningWithZeroStoredRows"],
+  ["Running from live run metadata.", "runningLiveMetadata"],
+  ["Completed from stored row evidence.", "completedStoredRows"],
+  ["Completed from pipeline metadata.", "completedMetadata"],
+  ["Completed partially or with reported errors.", "partialReportedErrors"],
+  ["Pipeline metadata reports an interrupted or failed stage.", "failedMetadata"],
+  ["Skipped by pipeline metadata.", "skippedMetadata"],
+  ["No expected rows for this stage.", "noExpectedRows"],
+  ["Waiting to start after dependencies complete.", "waitingDependencies"],
+]);
+
+function formatCopyTemplate(template: string, values: Record<string, string>) {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.split(`{${key}}`).join(value),
+    template,
+  );
+}
+
+function withTerminalPeriod(value: string) {
+  return /[.!?。]$/.test(value) ? value : `${value}.`;
+}
+
+function parsePipelineMissingSymbolsDetail(reason: string): PipelineMissingSymbolsDetail | null {
+  const match = reason.match(PIPELINE_MISSING_SYMBOLS_REASON_PATTERN);
+  if (!match) return null;
+
+  const count = parseProcessMonitorNumber(match[1]);
+  if (!hasNumber(count) || count <= 0) return null;
+
+  const symbols = (match[2] ?? "")
+    .split(/[,\s]+/)
+    .map((symbol) => symbol.trim())
+    .filter(Boolean);
+
+  return {
+    count,
+    matchedText: match[0],
+    symbols,
+  };
+}
+
+function formatPipelineMissingSymbolsReason(
+  detail: PipelineMissingSymbolsDetail,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+) {
+  const template = detail.symbols.length > 0
+    ? copy.processMonitor.stageReasons.missingSymbols
+    : copy.processMonitor.stageReasons.missingSymbolsWithoutSample;
+
+  return formatCopyTemplate(template, {
+    count: detail.count.toLocaleString(numberLocale),
+    plural: detail.count === 1 ? "" : "s",
+    symbols: detail.symbols.join(", "),
+  });
+}
+
+function normalizePipelineReasonToken(reason: string) {
+  return reason
+    .trim()
+    .replace(/[.!?。]+$/g, "")
+    .toLowerCase();
+}
+
+function stripMissingSymbolsReason(reason: string, missingSymbols: PipelineMissingSymbolsDetail | null) {
+  if (!missingSymbols) return reason.trim();
+
+  return reason
+    .replace(missingSymbols.matchedText, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[.;]\s*$/g, "")
+    .trim();
+}
+
+function getLocalizedGeneratedPipelineReason(reason: string, copy: DashboardLiveCopy) {
+  const exactCopyKey = GENERATED_PIPELINE_REASON_COPY_KEYS.get(reason);
+  if (exactCopyKey) return copy.processMonitor.stageReasons[exactCopyKey];
+
+  const blockedMatch = reason.match(/^Blocked by (.+)\.$/);
+  if (blockedMatch?.[1]) {
+    return formatCopyTemplate(copy.processMonitor.stageReasons.blockedBy, {
+      dependencies: blockedMatch[1],
+    });
+  }
+
+  const runningZeroRowsMatch = reason.match(/^(.+)\. Running from live run metadata; stored rows are still 0\.$/);
+  if (runningZeroRowsMatch?.[1]) {
+    return formatCopyTemplate(copy.processMonitor.stageReasons.runningActivityWithZeroStoredRows, {
+      activity: runningZeroRowsMatch[1],
+    });
+  }
+
+  return null;
+}
+
+function formatPipelineStageReason(reason: string, copy: DashboardLiveCopy, numberLocale: string) {
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) return trimmedReason;
+
+  const missingSymbols = parsePipelineMissingSymbolsDetail(trimmedReason);
+  const reasonWithoutMissingSymbols = stripMissingSymbolsReason(trimmedReason, missingSymbols);
+  const normalizedReasonToken = normalizePipelineReasonToken(reasonWithoutMissingSymbols);
+  const tokenCopyKey =
+    PIPELINE_STAGE_REASON_COPY_KEYS[normalizedReasonToken as keyof typeof PIPELINE_STAGE_REASON_COPY_KEYS];
+  const parts: string[] = [];
+
+  if (tokenCopyKey) {
+    parts.push(copy.processMonitor.stageReasons[tokenCopyKey]);
+  } else if (RAW_PIPELINE_REASON_TOKEN_PATTERN.test(reasonWithoutMissingSymbols)) {
+    parts.push(copy.processMonitor.stageReasons.unmappedBackendReason);
+  } else {
+    const localizedGeneratedReason = getLocalizedGeneratedPipelineReason(reasonWithoutMissingSymbols, copy);
+    if (localizedGeneratedReason) {
+      parts.push(localizedGeneratedReason);
+    } else if (reasonWithoutMissingSymbols) {
+      parts.push(reasonWithoutMissingSymbols);
+    }
+  }
+
+  if (missingSymbols) {
+    parts.push(formatPipelineMissingSymbolsReason(missingSymbols, copy, numberLocale));
+  }
+
+  return parts.length > 0 ? parts.map(withTerminalPeriod).join(" ") : trimmedReason;
+}
+
+function getPipelineProgressSourceLabel(source: DailyPipelineProgressSource, copy: DashboardLiveCopy) {
+  switch (source) {
+    case "live_run_metadata":
+      return copy.processMonitor.sourceLabels.liveRunMetadata;
+    case "stored_rows":
+      return copy.processMonitor.sourceLabels.storedRows;
+    case "fallback_inference":
+      return copy.processMonitor.sourceLabels.fallbackInference;
+  }
+}
+
+function formatPipelineStageProgressLabel(
+  stage: DailyPipelineStageModel,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+) {
+  if (
+    stage.progressSource === "stored_rows" &&
+    hasNumber(stage.rowsPersisted) &&
+    hasNumber(stage.expectedRows) &&
+    stage.rowsPersisted > stage.expectedRows
+  ) {
+    return formatCopyTemplate(copy.processMonitor.progressLabels.storedRowsCount, {
+      count: stage.rowsPersisted.toLocaleString(numberLocale),
+    });
+  }
+
+  return stage.progressLabel;
+}
+
+function getPipelineStageStatusLabel(status: DailyPipelineStageModel["status"], copy: DashboardLiveCopy) {
+  return copy.processMonitor.stageStatuses[status] ?? status;
+}
+
+function localizeDailyPipelineStageModel(
+  stage: DailyPipelineStageModel,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): DailyPipelineStageModel {
+  return {
+    ...stage,
+    statusLabel: getPipelineStageStatusLabel(stage.status, copy),
+    progressLabel: formatPipelineStageProgressLabel(stage, copy, numberLocale),
+    progressSourceLabel: getPipelineProgressSourceLabel(stage.progressSource, copy),
+    reason: formatPipelineStageReason(stage.reason, copy, numberLocale),
+  };
+}
+
+function localizeDailyPipelineTimelineModel(
+  pipeline: DailyPipelineTimelineModel,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+): DailyPipelineTimelineModel {
+  const stages = pipeline.stages.map((stage) => localizeDailyPipelineStageModel(stage, copy, numberLocale));
+  const currentStage = pipeline.currentStage
+    ? (stages.find((stage) => stage.key === pipeline.currentStage?.key) ?? null)
+    : null;
+
+  return {
+    ...pipeline,
+    statusLabel: getPipelineStageStatusLabel(pipeline.status, copy),
+    currentStage,
+    stages,
+  };
+}
+
 function hasPositiveProcessMetric(metrics: readonly ProcessMonitorMetric[], key: string) {
   const metric = metrics.find((item) => item.key === key);
   const count = parseProcessMonitorNumber(metric?.value);
@@ -2241,7 +2453,11 @@ export function buildProcessMonitorModel({
   pipelineStatus?: EodPipelineStatusResponseDto | null;
   scoringCardModel: ScoringCardModel;
 }): ProcessMonitorModel {
-  const pipeline = buildDailyPipelineTimelineModel(pipelineStatus, numberLocale);
+  const pipeline = localizeDailyPipelineTimelineModel(
+    buildDailyPipelineTimelineModel(pipelineStatus, numberLocale),
+    copy,
+    numberLocale,
+  );
   const groups = [
     buildProcessMonitorGroup(
       "patch",
