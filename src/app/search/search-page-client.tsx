@@ -108,6 +108,7 @@ type StoredTrendingItem = {
   symbol: string;
   name_ko?: string | null;
   market?: string | null;
+  instrument_type?: string | null;
   market_date?: string | null;
   trend_direction?: string | null;
   metric?: TrendingMetric | null;
@@ -364,6 +365,7 @@ function mapRealtimeTrendingItems(response: RealtimeTrendingResponse, copy: Sear
       standard_code: "",
       name_ko: name,
       market,
+      instrument_type: item.instrument_type ?? primarySource?.instrument_type ?? null,
     });
 
     return {
@@ -396,6 +398,7 @@ function mapStoredTrendingItems(
       standard_code: "",
       name_ko: name,
       market,
+      instrument_type: item.instrument_type ?? null,
     });
     const { metricLabel, sourceLabel } = resolveStoredTrendingLabels(mode, copy);
 
@@ -412,6 +415,43 @@ function mapStoredTrendingItems(
       changePct: item.price?.change_pct ?? item.metric?.value ?? null,
       price: getTrendingPrice(item),
       searchItem,
+    };
+  });
+}
+
+async function enrichTrendingItemsWithSymbolMeta(items: TrendingDisplayItem[]) {
+  const symbolsNeedingMeta = Array.from(
+    new Set(items.filter((item) => !item.searchItem.instrument_type).map((item) => item.symbol)),
+  );
+
+  if (symbolsNeedingMeta.length === 0) return items;
+
+  const metaEntries = await Promise.all(
+    symbolsNeedingMeta.map(async (symbol) => {
+      try {
+        const result = await getJson<SymbolSearchResponse>(
+          `/api/trading/symbols/search?q=${encodeURIComponent(symbol)}&limit=5`,
+        );
+        if (!result.ok) return null;
+
+        const exactMatch = result.data.items.map(normalizeSearchItem).find((item) => item.symbol === symbol) ?? null;
+        return exactMatch ? ([symbol, exactMatch] as const) : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const metaBySymbol = new Map(metaEntries.filter((entry): entry is readonly [string, SymbolSearchItem] => entry !== null));
+
+  if (metaBySymbol.size === 0) return items;
+
+  return items.map((item) => {
+    const symbolMeta = metaBySymbol.get(item.symbol);
+    if (!symbolMeta) return item;
+
+    return {
+      ...item,
+      searchItem: symbolMeta,
     };
   });
 }
@@ -668,7 +708,8 @@ export default function SearchPageClient() {
             return;
           }
 
-          const mappedItems = mapRealtimeTrendingItems(result.data, copy);
+          const mappedItems = await enrichTrendingItemsWithSymbolMeta(mapRealtimeTrendingItems(result.data, copy));
+          if (!active) return;
           setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
           setTrendingResultCount(result.data.summary?.item_count ?? mappedItems.length);
           setTrendingMeta(`${result.data.status.toUpperCase()} · ${formatTrendingStatusDate(result.data.as_of)}`);
@@ -682,7 +723,8 @@ export default function SearchPageClient() {
           return;
         }
 
-        const mappedItems = mapStoredTrendingItems(result.data, trendingMode, copy);
+        const mappedItems = await enrichTrendingItemsWithSymbolMeta(mapStoredTrendingItems(result.data, trendingMode, copy));
+        if (!active) return;
         setTrendingItems(mappedItems.slice(0, trendingVisibleLimit));
         setTrendingResultCount(result.data.summary?.count ?? mappedItems.length);
         setTrendingMeta(
@@ -1218,6 +1260,35 @@ export default function SearchPageClient() {
           >
             {trendingItems.map((item) => {
               const isSelected = selected?.symbol === item.symbol;
+              const isSymbolDetailCovered = hasSymbolDetailCoverage(item.searchItem);
+
+              if (!isSymbolDetailCovered) {
+                return (
+                  <article
+                    key={item.symbol}
+                    className={`${styles.trendingRow} ${styles.trendingRowUnsupported}`}
+                    role="group"
+                    aria-label={`${item.symbol} ${item.name} ${copy.quickAccess.limitedCoverageLabel}: ${copy.quickAccess.limitedCoverageBody}`}
+                  >
+                    <span className={styles.trendingRank}>#{item.rank ?? UNKNOWN}</span>
+                    <span className={styles.trendingIdentity}>
+                      <strong className="clamp-3">{item.name}</strong>
+                      <small className="clamp-3">{item.symbol}</small>
+                    </span>
+                    <span className={styles.trendingMetric}>
+                      <strong className={getTrendingMetricClass(item)}>{formatTrendingMetric(item, numberLocale)}</strong>
+                      <small className="clamp-3">
+                        {item.metricLabel} · {item.sourceLabel} · {item.market}
+                      </small>
+                      <small className={`${styles.trendingCoverageBody} clamp-3`}>
+                        <span className={styles.quickCoverageBadge}>{copy.quickAccess.limitedCoverageLabel}</span>
+                        {copy.quickAccess.limitedCoverageBody}
+                      </small>
+                    </span>
+                  </article>
+                );
+              }
+
               return (
                 <button
                   key={item.symbol}

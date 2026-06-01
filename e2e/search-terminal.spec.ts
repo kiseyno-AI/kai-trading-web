@@ -232,10 +232,12 @@ test.describe("search terminal desktop", () => {
   test("does not request blank search and reuses session cache after reload", async ({ page }) => {
     const requestCounts = {
       favorites: 0,
+      metadataSearch: 0,
       tracked: 0,
       search: 0,
       trending: 0,
     };
+    const interactiveSearchQueries: Array<string | null> = [];
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       requestCounts.favorites += 1;
@@ -266,7 +268,12 @@ test.describe("search terminal desktop", () => {
     await page.route("**/api/trading/symbols/search?**", async (route) => {
       const requestUrl = new URL(route.request().url());
       const query = requestUrl.searchParams.get("q");
-      requestCounts.search += 1;
+      if (requestUrl.searchParams.get("limit") === "5") {
+        requestCounts.metadataSearch += 1;
+      } else {
+        interactiveSearchQueries.push(query);
+        requestCounts.search += 1;
+      }
       await route.fulfill({
         json: {
           query: query ?? "",
@@ -326,19 +333,23 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toHaveCount(0);
     await expect.poll(() => requestCounts).toEqual({
       favorites: 1,
+      metadataSearch: 1,
       tracked: 1,
       search: 0,
       trending: 1,
     });
+    expect(interactiveSearchQueries).toEqual([]);
 
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
     await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await expect.poll(() => requestCounts).toEqual({
       favorites: 1,
+      metadataSearch: 1,
       tracked: 1,
       search: 1,
       trending: 1,
     });
+    expect(interactiveSearchQueries).toEqual(["005930"]);
 
     await page.reload();
 
@@ -347,10 +358,12 @@ test.describe("search terminal desktop", () => {
     await page.waitForTimeout(500);
     expect(requestCounts).toEqual({
       favorites: 1,
+      metadataSearch: 1,
       tracked: 1,
       search: 1,
       trending: 1,
     });
+    expect(interactiveSearchQueries).toEqual(["005930"]);
   });
 
   test("keeps the search screen composed when quick access API is unavailable", async ({ page }) => {
