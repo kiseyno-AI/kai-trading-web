@@ -50,6 +50,7 @@ import {
 import {
   getTrackedSymbols,
   normalizeTrackedSymbolCode,
+  removeTrackedSymbol,
   replaceTrackedSymbols,
   type TrackedSymbolsResponse,
 } from "@/lib/tracked-symbols-client";
@@ -957,19 +958,14 @@ export default function SearchPageClient() {
     setFavoriteError(null);
 
     try {
-      const currentResult = await getTrackedSymbols();
-      if (!currentResult.ok) {
-        setTrackedSymbolsError(`${copy.errors.favoriteUpdatesUnavailable} HTTP ${currentResult.status}`);
-        setFavoriteError(`${copy.errors.favoriteRemoveBlocked} HTTP ${currentResult.status}`);
-        return;
-      }
-
-      const currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
-      const nextSymbols = currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol);
-      setTrackedSymbolsError(null);
-
-      const result = await replaceTrackedSymbols(nextSymbols);
+      const result = await removeTrackedSymbol(symbol);
       if (!result.ok) {
+        if (result.phase === "refresh") {
+          setTrackedSymbolsError(`${copy.errors.favoriteUpdatesUnavailable} HTTP ${result.status}`);
+          setFavoriteError(`${copy.errors.favoriteRemoveBlocked} HTTP ${result.status}`);
+          return;
+        }
+
         setFavoriteError(`${copy.errors.favoriteRemoveFailed} HTTP ${result.status}`);
         return;
       }

@@ -30,9 +30,8 @@ import {
 } from "@/lib/trading-api-cache";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
-  getTrackedSymbols,
   normalizeTrackedSymbolCode,
-  replaceTrackedSymbols,
+  removeTrackedSymbol,
 } from "@/lib/tracked-symbols-client";
 import type { Locale } from "@/types/trading-api";
 
@@ -342,18 +341,13 @@ export default function MySymbolsPageClient() {
     setFavoriteMutationError(null);
 
     try {
-      const currentResult = await getTrackedSymbols();
-      if (!currentResult.ok) {
-        setFavoriteMutationError(`${copy.favoriteRemoveBlocked} HTTP ${currentResult.status}`);
-        return;
-      }
-
-      const currentTrackedSymbols = currentResult.data.tracked_symbols.map(normalizeSymbolCode);
-      const nextSymbols = currentTrackedSymbols.filter((currentSymbol) => currentSymbol !== symbol);
-      const result = await replaceTrackedSymbols(nextSymbols);
-
+      const result = await removeTrackedSymbol(symbol);
       if (!result.ok) {
-        setFavoriteMutationError(`${copy.favoriteRemoveFailed} HTTP ${result.status}`);
+        const message =
+          result.phase === "refresh"
+            ? `${copy.favoriteRemoveBlocked} HTTP ${result.status}`
+            : `${copy.favoriteRemoveFailed} HTTP ${result.status}`;
+        setFavoriteMutationError(message);
         return;
       }
 
