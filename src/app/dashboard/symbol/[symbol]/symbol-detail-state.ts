@@ -42,10 +42,13 @@ export const SYMBOL_DETAIL_SEARCH_NAV_CONTEXT = "search";
 export const SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT = "signal-decider-feedback";
 export const SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT = "calendar";
 export const SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT = "piotroski";
+export const SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE = "decider-feedback";
+export const SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE = SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT;
 export const SYMBOL_DETAIL_SEARCH_QUERY_PARAM = "q";
 export const SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM = "feedbackAction";
 export const SYMBOL_DETAIL_FEEDBACK_SORT_PARAM = "feedbackSort";
 export const SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM = "feedbackNavContext";
+export const SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM = "feedbackRoute";
 
 export type SymbolDetailNavContext =
   | typeof SYMBOL_DETAIL_MY_SYMBOLS_NAV_CONTEXT
@@ -53,6 +56,10 @@ export type SymbolDetailNavContext =
   | typeof SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT
   | typeof SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT
   | typeof SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT;
+
+export type SymbolDetailFeedbackReturnRoute =
+  | typeof SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE
+  | typeof SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE;
 
 export const SYMBOL_DETAIL_MODES: SymbolDetailModeDefinition[] = [
   {
@@ -125,6 +132,15 @@ export function resolveSymbolDetailNavContext(value: string | null | undefined):
     value === SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT ||
     value === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT ||
     value === SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT
+    ? value
+    : null;
+}
+
+export function resolveSymbolDetailFeedbackReturnRoute(
+  value: string | null | undefined,
+): SymbolDetailFeedbackReturnRoute | null {
+  return value === SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE ||
+    value === SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE
     ? value
     : null;
 }

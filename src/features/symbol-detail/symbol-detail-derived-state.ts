@@ -1,11 +1,13 @@
 import {
   SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
   SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
   type AggregateContextLoadState,
   type DisclosureSectionState,
+  type SymbolDetailFeedbackReturnRoute,
   type SymbolDetailMode,
   type SymbolDetailNavContext,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
@@ -679,6 +681,7 @@ export function buildSymbolRouteQuery(
   feedbackAgent: string | null = null,
   feedbackStatusFilter: string | null = null,
   feedbackNavContext: string | null = null,
+  feedbackReturnRoute: SymbolDetailFeedbackReturnRoute | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -734,6 +737,10 @@ export function buildSymbolRouteQuery(
 
   if (feedbackNavContext) {
     params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM, feedbackNavContext);
+  }
+
+  if (feedbackReturnRoute) {
+    params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM, feedbackReturnRoute);
   }
 
   return params.toString();

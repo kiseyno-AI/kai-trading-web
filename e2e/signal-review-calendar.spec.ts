@@ -1923,7 +1923,7 @@ test("calendar-sourced feedback symbol detail returns to the selected feedback d
   const symbolLink = waitCard.getByRole("link", { name: /한진중공업홀딩스.*003480/ });
   await expect(symbolLink).toHaveAttribute(
     "href",
-    /\/dashboard\/symbol\/003480\?.*marketDate=2026-05-06.*navContext=signal-decider-feedback/,
+    /\/dashboard\/symbol\/003480\?.*marketDate=2026-05-06.*navContext=signal-decider-feedback.*feedbackNavContext=calendar.*feedbackRoute=signal-decider-feedback/,
   );
 
   await symbolLink.click();
@@ -1931,12 +1931,13 @@ test("calendar-sourced feedback symbol detail returns to the selected feedback d
   const feedbackReturnLink = page.getByRole("link", { name: /피드백으로 돌아가기/i });
   await expect(feedbackReturnLink).toHaveAttribute(
     "href",
-    /\/dashboard\/decider-feedback\?(?=.*marketDate=2026-05-06)(?=.*agent=signal-decider)/,
+    /\/dashboard\/signal-decider-feedback\?(?=.*marketDate=2026-05-06)(?=.*navContext=calendar)/,
   );
   await expect(page.getByRole("link", { name: /대시보드로 돌아가기/i })).toHaveCount(0);
 
   await feedbackReturnLink.click();
-  await expect(page).toHaveURL(/\/dashboard\/decider-feedback\?(?=.*marketDate=2026-05-06)(?=.*agent=signal-decider)/);
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?(?=.*marketDate=2026-05-06)(?=.*navContext=calendar)/);
+  await expect(page.getByRole("heading", { name: /^시그널 디사이더 피드백$/i })).toBeVisible();
   await expect(page.getByText("MD 2026-05-06").first()).toBeVisible();
   await expect(page.getByRole("article", { name: /한진중공업홀딩스 .*피드백/i })).toBeVisible();
 });

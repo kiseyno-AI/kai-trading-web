@@ -12,6 +12,7 @@ import {
   buildDeciderFeedbackComparisons,
   buildDeciderFeedbackHref,
   buildDeciderFeedbackPath,
+  buildSignalDeciderFeedbackHref,
   buildSignalDeciderFeedbackPath,
   buildSignalDeciderFeedbackSummary,
   buildCalendarSummaryQuery,
@@ -1375,6 +1376,16 @@ test("builds shared decider feedback paths with agent-specific API params and ro
       statusFilter: "with-risk",
     }),
     "/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-28&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence",
+  );
+  assert.equal(
+    buildSignalDeciderFeedbackHref("2026-05-06", {
+      actionFilter: "wait",
+      navContext: "calendar",
+      query: "한진",
+      sortMode: "captured",
+      statusFilter: "with-risk",
+    }),
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-06&navContext=calendar&q=%ED%95%9C%EC%A7%84&feedbackAction=wait&feedbackStatus=with-risk&feedbackSort=captured",
   );
 });
 

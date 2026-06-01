@@ -8,12 +8,14 @@ import {
   createSymbolMetaResetToken,
   getSymbolDetailSectionVisibility,
   resolveSymbolDetailActiveNav,
+  resolveSymbolDetailFeedbackReturnRoute,
   resolveSymbolDetailMode,
   resolveSymbolDetailModeFromPathname,
   resolveSymbolDetailNavContext,
   shouldFetchSymbolMeta,
   SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
   SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
@@ -108,6 +110,10 @@ export function useSymbolDetailData({
   const feedbackAgent = useMemo(() => searchParams.get("agent"), [searchParams]);
   const feedbackStatusFilter = useMemo(() => searchParams.get("feedbackStatus"), [searchParams]);
   const feedbackNavContext = useMemo(() => searchParams.get(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM), [searchParams]);
+  const feedbackReturnRoute = useMemo(
+    () => resolveSymbolDetailFeedbackReturnRoute(searchParams.get(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM)),
+    [searchParams],
+  );
   const symbolDetailActiveNav = resolveSymbolDetailActiveNav(navContext);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
@@ -443,11 +449,13 @@ export function useSymbolDetailData({
         feedbackAgent,
         feedbackStatusFilter,
         feedbackNavContext,
+        feedbackReturnRoute,
       ),
     [
       feedbackActionFilter,
       feedbackAgent,
       feedbackNavContext,
+      feedbackReturnRoute,
       feedbackSortMode,
       feedbackStatusFilter,
       fsDiv,
@@ -535,6 +543,7 @@ export function useSymbolDetailData({
     feedbackActionFilter,
     feedbackAgent,
     feedbackNavContext,
+    feedbackReturnRoute,
     feedbackSortMode,
     feedbackStatusFilter,
     routeQueryString,

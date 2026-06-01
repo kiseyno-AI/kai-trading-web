@@ -9,11 +9,15 @@ import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
 import {
   SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
+  SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE,
   SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
   SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
+  SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE,
+  type SymbolDetailFeedbackReturnRoute,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
@@ -624,6 +628,7 @@ function buildSymbolHref(
     agentName: DeciderAgentName;
     actionFilter: ActionFilter;
     feedbackNavContext: string | null;
+    feedbackReturnRoute: SymbolDetailFeedbackReturnRoute;
     query: string;
     sortMode: SortMode;
     statusFilter: StatusFilter;
@@ -642,6 +647,7 @@ function buildSymbolHref(
   if (context.feedbackNavContext) {
     params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM, context.feedbackNavContext);
   }
+  params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM, context.feedbackReturnRoute);
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
 }
@@ -1428,6 +1434,9 @@ export default function SignalDeciderFeedbackPageClient() {
                   actionFilter,
                   agentName: activeAgent,
                   feedbackNavContext: calendarContextNav,
+                  feedbackReturnRoute: isSharedRoute
+                    ? SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE
+                    : SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE,
                   query,
                   sortMode,
                   statusFilter,

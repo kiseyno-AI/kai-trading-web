@@ -499,7 +499,19 @@ test("preserves My Symbols navigation context in symbol detail subroutes only wh
   };
   const searchQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-04-10", null, "search", "삼성"));
   const feedbackQuery = new URLSearchParams(
-    buildSymbolRouteQuery(meta, "2026-05-06", null, "signal-decider-feedback", "한진", "wait", "captured"),
+    buildSymbolRouteQuery(
+      meta,
+      "2026-05-06",
+      null,
+      "signal-decider-feedback",
+      "한진",
+      "wait",
+      "captured",
+      "signal-decider",
+      "with-risk",
+      "calendar",
+      "signal-decider-feedback",
+    ),
   );
   const mySymbolsQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-04-10", null, "my-symbols"));
   const piotroskiQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-05-08", null, "piotroski"));
@@ -521,7 +533,11 @@ test("preserves My Symbols navigation context in symbol detail subroutes only wh
   assert.equal(feedbackQuery.get("navContext"), "signal-decider-feedback");
   assert.equal(feedbackQuery.get("q"), "한진");
   assert.equal(feedbackQuery.get("feedbackAction"), "wait");
+  assert.equal(feedbackQuery.get("agent"), "signal-decider");
+  assert.equal(feedbackQuery.get("feedbackStatus"), "with-risk");
   assert.equal(feedbackQuery.get("feedbackSort"), "captured");
+  assert.equal(feedbackQuery.get("feedbackNavContext"), "calendar");
+  assert.equal(feedbackQuery.get("feedbackRoute"), "signal-decider-feedback");
   assert.equal(piotroskiQuery.get("marketDate"), "2026-05-08");
   assert.equal(piotroskiQuery.get("navContext"), "piotroski");
   assert.equal(
