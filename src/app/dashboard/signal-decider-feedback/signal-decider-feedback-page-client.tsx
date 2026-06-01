@@ -1205,6 +1205,8 @@ export default function SignalDeciderFeedbackPageClient() {
     comparisonFeedback === null
       ? copy.comparison.unavailable
       : copy.comparison.empty.replaceAll("{agentLabel}", activeAgentLabel);
+  const shouldShowGlobalComparisonNotice =
+    loadState === "ready" && summary.items.length > 0 && (comparisonFeedback === null || comparisonCount === 0);
   const visibleItems = useMemo(
     () =>
       filterAndSortItems({
@@ -1418,7 +1420,7 @@ export default function SignalDeciderFeedbackPageClient() {
 
             {comparison ? (
               <ComparisonRow actionCopy={actionCopy} comparison={comparison} copy={copy.comparison} />
-            ) : (
+            ) : shouldShowGlobalComparisonNotice ? null : (
               <section className={styles.comparisonRow} data-testid="decider-comparison-empty">
                 <div className={styles.resultSectionHeader}>
                   <span>{copy.comparison.title}</span>
@@ -1886,6 +1888,21 @@ export default function SignalDeciderFeedbackPageClient() {
               </strong>
             </div>
           </div>
+
+          {shouldShowGlobalComparisonNotice ? (
+            <section
+              className={`${styles.comparisonRow} ${styles.comparisonNotice}`}
+              data-testid="decider-comparison-global-notice"
+              role="note"
+              aria-label={copy.comparison.title}
+            >
+              <div className={styles.resultSectionHeader}>
+                <span>{copy.comparison.title}</span>
+                <strong className="pill neutral">{copy.comparison.noPair}</strong>
+              </div>
+              <p>{noComparisonMessage}</p>
+            </section>
+          ) : null}
 
           <form className={styles.controls} aria-label={labelsCopy.filters} onSubmit={handleMarketDateSubmit}>
             <label>

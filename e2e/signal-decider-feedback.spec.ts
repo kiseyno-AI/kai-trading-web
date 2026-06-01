@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const now = "2026-04-27T16:30:00+09:00";
 
+type SignalDeciderFeedbackMode = "normal" | "empty";
 type MockDashboardShellOptions = {
   eodFreshnessDelayMs?: number;
   feedbackDelayMs?: number;
@@ -9,8 +10,8 @@ type MockDashboardShellOptions = {
   failSignalDeciderFeedback?: boolean;
   failSignalDeciderFeedbackRequestNumber?: number;
   failShortTermDeciderFeedback?: boolean;
+  shortTermDeciderFeedbackMode?: SignalDeciderFeedbackMode;
 };
-type SignalDeciderFeedbackMode = "normal" | "empty";
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -339,6 +340,25 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
         contentType: "application/json",
         body: JSON.stringify({
           detail: "temporary feedback outage",
+        }),
+      });
+      return;
+    }
+
+    if (hasMarketDate && isShortTermDeciderRead && options.shortTermDeciderFeedbackMode === "empty") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          request: {
+            market_date: marketDate,
+            symbols: [],
+            agent_name: "short-term-decider",
+            limit: 200,
+          },
+          summary: {
+            count: 0,
+          },
+          items: [],
         }),
       });
       return;
@@ -1918,6 +1938,47 @@ test("shared decider feedback route loads short-term decider rows and comparison
   await expect(samsungCard).toContainText("External news · 2 recent");
   await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Cross-decider comparison");
   await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Signal action");
+});
+
+test("signal-decider feedback lifts unavailable comparison warning out of result cards", async ({ page }) => {
+  await mockDashboardShell(page, {
+    failShortTermDeciderFeedback: true,
+  });
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+
+  const resultCards = page.getByTestId("signal-decider-result-card");
+  await expect(resultCards).toHaveCount(2);
+
+  const notice = page.getByTestId("decider-comparison-global-notice");
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText("Cross-decider comparison");
+  await expect(notice).toContainText("No pair");
+
+  const unavailableCopy =
+    "Comparison is unavailable because the opposite-decider feedback read failed or has not returned.";
+  await expect(page.getByText(unavailableCopy, { exact: true })).toHaveCount(1);
+  await expect(page.getByTestId("decider-comparison-empty")).toHaveCount(0);
+  await expect(resultCards.first()).toContainText("Momentum and fundamentals align for a tactical next-day setup.");
+});
+
+test("signal-decider feedback shows one no-pair notice when comparison count is zero", async ({ page }) => {
+  await mockDashboardShell(page, {
+    shortTermDeciderFeedbackMode: "empty",
+  });
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
+
+  const resultCards = page.getByTestId("signal-decider-result-card");
+  await expect(resultCards).toHaveCount(2);
+
+  const emptyCopy = "No matching opposite-decider output is stored for this symbol/date while viewing Signal Decider.";
+  const notice = page.getByTestId("decider-comparison-global-notice");
+  await expect(notice).toContainText("Cross-decider comparison");
+  await expect(notice).toContainText(emptyCopy);
+  await expect(page.getByText(emptyCopy, { exact: true })).toHaveCount(1);
+  await expect(page.getByTestId("decider-comparison-empty")).toHaveCount(0);
+  await expect(resultCards.first()).toContainText("Decision");
 });
 
 test("shared decider feedback route names the selected short-term agent while loading in Korean", async ({ page }) => {
