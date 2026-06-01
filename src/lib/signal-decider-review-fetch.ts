@@ -12,13 +12,59 @@ function getJsonErrorMessage(parsedBody: unknown) {
   return null;
 }
 
-export async function getSignalDeciderReviewJson<T>(path: string): Promise<T> {
-  const response = await fetch(resolveTradingApiClientPath(path), {
+function formatTimeoutDuration(timeoutMs: number) {
+  if (timeoutMs >= 1000) return `${(timeoutMs / 1000).toFixed(1)}s`;
+  return `${timeoutMs}ms`;
+}
+
+function isAbortError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
+}
+
+export async function getSignalDeciderReviewJson<T>(
+  path: string,
+  options: { timeoutMs?: number } = {},
+): Promise<T> {
+  const timeoutMs =
+    typeof options.timeoutMs === "number" && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+      ? Math.trunc(options.timeoutMs)
+      : null;
+  const abortController = timeoutMs === null ? null : new AbortController();
+  const requestInit: RequestInit = {
     cache: "no-store",
     headers: {
       Accept: "application/json",
     },
-  });
+  };
+  let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+  if (abortController && timeoutMs !== null) {
+    requestInit.signal = abortController.signal;
+    timeoutId = globalThis.setTimeout(() => {
+      abortController.abort();
+    }, timeoutMs);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(resolveTradingApiClientPath(path), requestInit);
+  } catch (error) {
+    if (timeoutMs !== null && isAbortError(error)) {
+      throw new Error(`Timed out after ${formatTimeoutDuration(timeoutMs)} while loading ${path}.`);
+    }
+
+    throw error;
+  } finally {
+    if (timeoutId !== null) {
+      globalThis.clearTimeout(timeoutId);
+    }
+  }
+
   const responseText = await response.text();
   let parsedBody: unknown = null;
 
