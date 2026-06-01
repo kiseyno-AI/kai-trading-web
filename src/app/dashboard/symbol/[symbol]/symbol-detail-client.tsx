@@ -33,20 +33,22 @@ import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
+import {
+  buildDeciderFeedbackHref,
+  buildSignalDeciderFeedbackHref,
+} from "@/lib/signal-decider-feedback";
 
 import { FactorSnapshotSection } from "./factor-snapshot-section";
 import { SymbolHistoryChart } from "./symbol-history-chart";
 import styles from "./symbol-detail.module.css";
 import {
   SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT,
-  SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
   SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
-  SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_MODES,
-  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
+  SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE,
   type SymbolDetailMode,
 } from "./symbol-detail-state";
 
@@ -97,6 +99,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     feedbackActionFilter,
     feedbackAgent,
     feedbackNavContext,
+    feedbackReturnRoute,
     feedbackSortMode,
     feedbackStatusFilter,
     routeQueryString,
@@ -144,16 +147,25 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     }
 
     if (navContext === SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT) {
-      const params = new URLSearchParams();
-      if (marketDate) params.set("marketDate", marketDate);
-      if (searchContextQuery) params.set(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, searchContextQuery);
-      if (feedbackActionFilter) params.set(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, feedbackActionFilter);
-      if (feedbackAgent) params.set("agent", feedbackAgent);
-      if (feedbackStatusFilter) params.set("feedbackStatus", feedbackStatusFilter);
-      if (feedbackSortMode) params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, feedbackSortMode);
-      if (feedbackNavContext) params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, feedbackNavContext);
-      const queryString = params.toString();
-      return `/dashboard/decider-feedback${queryString ? `?${queryString}` : ""}`;
+      if (feedbackReturnRoute === SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE) {
+        return buildSignalDeciderFeedbackHref(marketDate, {
+          actionFilter: feedbackActionFilter,
+          navContext: feedbackNavContext,
+          query: searchContextQuery,
+          sortMode: feedbackSortMode,
+          statusFilter: feedbackStatusFilter,
+        });
+      }
+
+      return buildDeciderFeedbackHref({
+        actionFilter: feedbackActionFilter,
+        agentName: feedbackAgent,
+        marketDate,
+        navContext: feedbackNavContext,
+        query: searchContextQuery,
+        sortMode: feedbackSortMode,
+        statusFilter: feedbackStatusFilter,
+      });
     }
 
     if (navContext === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT && marketDate) {

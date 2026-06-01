@@ -2794,16 +2794,28 @@ export function resolveDeciderFeedbackNavContext(value: string | null | undefine
 export function buildSignalDeciderFeedbackHref(
   marketDate: string | null | undefined,
   {
+    actionFilter,
     navContext,
+    query,
+    sortMode,
+    statusFilter,
   }: {
+    actionFilter?: string | null;
     navContext?: string | null;
+    query?: string | null;
+    sortMode?: string | null;
+    statusFilter?: string | null;
   } = {},
 ) {
   const params = new URLSearchParams();
   if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
   if (hasTextValue(navContext)) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, navContext.trim());
-  const query = params.toString();
-  return `${SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}${query ? `?${query}` : ""}`;
+  if (hasTextValue(query)) params.set("q", query.trim());
+  if (hasTextValue(actionFilter) && actionFilter !== "all") params.set("feedbackAction", actionFilter.trim());
+  if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
+  if (hasTextValue(sortMode) && sortMode !== "priority") params.set("feedbackSort", sortMode.trim());
+  const queryString = params.toString();
+  return `${SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}${queryString ? `?${queryString}` : ""}`;
 }
 
 export function buildDeciderFeedbackHref({
