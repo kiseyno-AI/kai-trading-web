@@ -4,6 +4,12 @@ import { memo, useMemo } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { UnitRefreshFrame } from "@/components/ui/unit-refresh-frame";
+import {
+  formatFactorSnapshotStatusLabel,
+  formatFactorSnapshotTokenLabel,
+  formatQualityCalculationLabel,
+  formatQualityComponentLabel,
+} from "@/features/symbol-detail/factor-snapshot-display";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import {
   buildFactorQualitySummary,
@@ -88,23 +94,6 @@ type FactorCardBuildContext = {
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
-}
-
-function humanizeToken(copy: SymbolDetailCopy, value: string | null | undefined, fallback = copy.common.unavailable) {
-  if (!value) return fallback;
-
-  const normalized = value.trim();
-  const knownLabels: Partial<Record<string, string>> = copy.factors.metricStatusLabels;
-  const knownLabel = knownLabels[normalized];
-
-  if (knownLabel) {
-    return knownLabel;
-  }
-
-  return normalized
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function formatIsoDateLabel(value: string | null | undefined, fallback: string) {
@@ -193,21 +182,6 @@ function uniqueNotes(notes: Array<string | null | undefined>) {
   return Array.from(new Set(notes.filter((note): note is string => Boolean(note && note.trim().length > 0))));
 }
 
-function getLocalizedFactorStatusLabel(copy: SymbolDetailCopy, statusCode: string) {
-  const normalized = statusCode.trim();
-  const knownLabels: Partial<Record<string, string>> = copy.factors.factorStatusLabels;
-  const knownLabel = knownLabels[normalized];
-
-  if (knownLabel) {
-    return knownLabel;
-  }
-
-  return normalized
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function getFamilyTitle(copy: SymbolDetailCopy, family: FactorFamilyId, usesUnifiedValue = false) {
   switch (family) {
     case "momentum":
@@ -263,7 +237,7 @@ function buildUnavailableCardModel(copy: SymbolDetailCopy, result: AnyFactorFami
     status: result.ok ? { code: "missing_row", tone: "neutral" } : { code: "unavailable", tone: "warning" },
     body: result.ok
       ? copy.factors.missingBody
-      : `${copy.factors.unavailableBody} ${result.error ?? copy.common.unavailable}.`,
+      : `${copy.factors.unavailableBody} ${formatFactorSnapshotTokenLabel(copy, result.error, copy.common.unavailable)}.`,
     metrics: [
       { label: copy.factors.metricEntries, value: String(entries) },
       {
@@ -274,7 +248,7 @@ function buildUnavailableCardModel(copy: SymbolDetailCopy, result: AnyFactorFami
     quality: null,
     notes: uniqueNotes([
       result.ok ? copy.factors.missingRowNote : null,
-      !result.ok ? `${copy.factors.missingRowErrorPrefix} ${result.error ?? copy.common.unavailable}` : null,
+      !result.ok ? `${copy.factors.missingRowErrorPrefix} ${formatFactorSnapshotTokenLabel(copy, result.error, copy.common.unavailable)}` : null,
     ]),
     meta: buildCardMeta(copy, result),
   };
@@ -328,7 +302,7 @@ function buildMomentumCardModel(
     notes: uniqueNotes([
       item.has_sufficient_history
         ? copy.factors.momentumNoteHistoryReady
-        : insufficientHistoryReason ?? copy.factors.momentumNoteHistoryMissing,
+        : formatFactorSnapshotTokenLabel(copy, insufficientHistoryReason, copy.factors.momentumNoteHistoryMissing),
       item.is_price_above_ma120 ? copy.factors.momentumNotePriceAboveMa : copy.factors.momentumNotePriceBelowMa,
       item.is_ma60_above_ma120 ? copy.factors.momentumNoteMa60Above : copy.factors.momentumNoteMa60Below,
       item.is_recent_overheated
@@ -405,9 +379,9 @@ function buildLowRiskCardModel(
           ? copy.factors.liquidityFloorFailed
           : copy.factors.liquidityFloorPending,
       `${item.history_days_available} ${copy.factors.metricHistoryDays}`,
-      item.low_risk_classification ? humanizeToken(copy, item.low_risk_classification) : null,
+      item.low_risk_classification ? formatFactorSnapshotTokenLabel(copy, item.low_risk_classification) : null,
       resolveLowRiskTradingValueStatus(item)
-        ? `${copy.factors.tradingValueStatusPrefix}: ${humanizeToken(copy, resolveLowRiskTradingValueStatus(item), copy.factors.unavailableValueStatus)}`
+        ? `${copy.factors.tradingValueStatusPrefix}: ${formatFactorSnapshotTokenLabel(copy, resolveLowRiskTradingValueStatus(item), copy.factors.unavailableValueStatus)}`
         : null,
     ]),
     meta: buildCardMeta(copy, result),
@@ -456,7 +430,7 @@ function buildBetaCardModel(
     ],
     quality: null,
     notes: uniqueNotes([
-      item.low_beta_classification ? humanizeToken(copy, item.low_beta_classification) : null,
+      item.low_beta_classification ? formatFactorSnapshotTokenLabel(copy, item.low_beta_classification) : null,
       `${item.history_days_available} ${copy.factors.metricHistoryDays}`,
       item.benchmark_market ? `${item.benchmark_market} ${copy.factors.benchmarkMarketContext}` : null,
     ]),
@@ -511,7 +485,7 @@ function buildValueComponentNotes(
     [copy.factors.metricLabelEvToEbitda, statuses.evToEbitda],
   ] as const;
 
-  return hints.map(([label, status]) => (status ? `${label}: ${humanizeToken(copy, status)}` : null));
+  return hints.map(([label, status]) => (status ? `${label}: ${formatFactorSnapshotTokenLabel(copy, status)}` : null));
 }
 
 function buildQualityProgressLabel(copy: SymbolDetailCopy, quality: FactorQualitySummary) {
@@ -519,7 +493,9 @@ function buildQualityProgressLabel(copy: SymbolDetailCopy, quality: FactorQualit
     return copy.factors.componentCoverageUnavailable;
   }
 
-  return `${formatQualityCount(quality.componentsUsed)} used / ${formatQualityCount(quality.componentsPossible)} possible`;
+  return copy.factors.qualityCoverageTemplate
+    .replace("%used%", formatQualityCount(quality.componentsUsed, copy.common.unavailable))
+    .replace("%possible%", formatQualityCount(quality.componentsPossible, copy.common.unavailable));
 }
 
 function buildQualitySummaryText(copy: SymbolDetailCopy, quality: FactorQualitySummary) {
@@ -540,22 +516,29 @@ function buildQualityModel(
 ): FactorQualityModel | null {
   const quality = buildFactorQualitySummary(item, options);
   if (!quality) return null;
+  const calculationLabel = formatQualityCalculationLabel(copy, quality.calculationState);
+  const statusLabel = formatFactorSnapshotTokenLabel(copy, quality.statusCode, copy.factors.metricStatusUnavailable);
 
   return {
-    calculationLabel: quality.calculationLabel,
+    calculationLabel,
     componentNotes: quality.componentStatuses.map(
-      (component) => `${component.label}: ${component.statusLabel}`,
+      (component) =>
+        `${formatQualityComponentLabel(copy, component.key, component.label)}: ${formatFactorSnapshotTokenLabel(
+          copy,
+          component.status,
+          copy.factors.metricStatusUnavailable,
+        )}`,
     ),
     metrics: [
-      { label: copy.factors.metricQualityScore, value: formatQualityScore(quality.score) },
-      { label: copy.factors.metricQualityPercentile, value: formatQualityScore(quality.percentile) },
-      { label: copy.factors.metricQualityRank, value: formatQualityRank(quality.rank) },
-      { label: copy.factors.metricScoreStatus, value: quality.statusLabel },
-      { label: copy.factors.metricPossibleComponents, value: formatQualityCount(quality.componentsPossible) },
-      { label: copy.factors.metricUsedComponents, value: formatQualityCount(quality.componentsUsed) },
-      { label: copy.factors.metricCalculation, value: quality.calculationLabel },
+      { label: copy.factors.metricQualityScore, value: formatQualityScore(quality.score, copy.common.unavailable) },
+      { label: copy.factors.metricQualityPercentile, value: formatQualityScore(quality.percentile, copy.common.unavailable) },
+      { label: copy.factors.metricQualityRank, value: formatQualityRank(quality.rank, copy.factors.metricRankUnavailable) },
+      { label: copy.factors.metricScoreStatus, value: statusLabel },
+      { label: copy.factors.metricPossibleComponents, value: formatQualityCount(quality.componentsPossible, copy.common.unavailable) },
+      { label: copy.factors.metricUsedComponents, value: formatQualityCount(quality.componentsUsed, copy.common.unavailable) },
+      { label: copy.factors.metricCalculation, value: calculationLabel },
     ],
-    statusLabel: quality.statusLabel,
+    statusLabel,
     summary: buildQualitySummaryText(copy, quality),
     title: copy.factors.qualityHeaderTitle,
     tone: quality.tone,
@@ -613,7 +596,7 @@ function buildValueCardModel(
             label: copy.factors.valueMetricUnifiedPercentile,
             value: formatFactorScore(item.unified_value_percentile, copy.common.unavailable),
           },
-          { label: copy.factors.metricOverallStatus, value: getLocalizedFactorStatusLabel(copy, status.code) },
+          { label: copy.factors.metricOverallStatus, value: formatFactorSnapshotStatusLabel(copy, status.code) },
           {
             label: copy.factors.valueMetricLegacyValueScore,
             value: formatFactorScore(item.value_score, copy.common.unavailable),
@@ -638,10 +621,10 @@ function buildValueCardModel(
       quality ? `${quality.title}: ${quality.calculationLabel}` : null,
       ...componentNotes,
       item.unified_value_status
-        ? `${copy.factors.valueUnifiedStatusLabel}: ${humanizeToken(copy, item.unified_value_status, copy.factors.unavailableValueStatus)}`
+        ? `${copy.factors.valueUnifiedStatusLabel}: ${formatFactorSnapshotTokenLabel(copy, item.unified_value_status, copy.factors.unavailableValueStatus)}`
         : null,
       item.value_status
-        ? `${copy.factors.valueLegacyStatusLabel}: ${humanizeToken(copy, item.value_status, copy.factors.unavailableValueStatus)}`
+        ? `${copy.factors.valueLegacyStatusLabel}: ${formatFactorSnapshotTokenLabel(copy, item.value_status, copy.factors.unavailableValueStatus)}`
         : null,
     ]),
     meta: buildCardMeta(copy, result),
@@ -706,7 +689,7 @@ function buildAdvancedValueCardModel(
             label: copy.factors.metricRank,
             value: formatRank(item.unified_value_rank, copy.factors.metricRankUnavailable),
           },
-          { label: copy.factors.metricOverallStatus, value: getLocalizedFactorStatusLabel(copy, status.code) },
+          { label: copy.factors.metricOverallStatus, value: formatFactorSnapshotStatusLabel(copy, status.code) },
           {
             label: copy.factors.advancedValueMetricComponentScore,
             value: formatFactorScore(item.advanced_value_score, copy.common.unavailable),
@@ -740,10 +723,10 @@ function buildAdvancedValueCardModel(
       quality ? `${quality.title}: ${quality.calculationLabel}` : null,
       ...componentNotes,
       item.unified_value_status
-        ? `${copy.factors.valueUnifiedStatusLabel}: ${humanizeToken(copy, item.unified_value_status, copy.factors.unavailableValueStatus)}`
+        ? `${copy.factors.valueUnifiedStatusLabel}: ${formatFactorSnapshotTokenLabel(copy, item.unified_value_status, copy.factors.unavailableValueStatus)}`
         : null,
       item.advanced_value_classification
-        ? `${copy.factors.advancedValueClassificationLabel}: ${humanizeToken(copy, item.advanced_value_classification, copy.factors.unavailableValueStatus)}`
+        ? `${copy.factors.advancedValueClassificationLabel}: ${formatFactorSnapshotTokenLabel(copy, item.advanced_value_classification, copy.factors.unavailableValueStatus)}`
         : null,
     ]),
     meta: buildCardMeta(copy, result),
@@ -918,7 +901,7 @@ export const FactorSnapshotSection = memo(function FactorSnapshotSection({
                   <p className={`clamp-3 ${styles.factorFamilySubtitle}`}>{card.subtitle}</p>
                 </div>
                 <span className={`pill ${card.status.tone}`}>
-                  {getLocalizedFactorStatusLabel(copy, card.status.code)}
+                  {formatFactorSnapshotStatusLabel(copy, card.status.code)}
                 </span>
               </div>
 
