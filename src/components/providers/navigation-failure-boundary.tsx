@@ -3,6 +3,7 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
+import { useNavigationLoading, type PendingNavigation } from "@/components/providers/navigation-loading-provider";
 import { withAppBasePath } from "@/lib/app-base-path";
 import { logWebDiagnostic } from "@/lib/web-diagnostics";
 
@@ -11,10 +12,12 @@ import styles from "./navigation-failure-boundary.module.css";
 type NavigationFailureKind = "chunk-load" | "render";
 
 type NavigationFailure = {
+  attemptedRouteKey?: string;
   kind: NavigationFailureKind;
   message: string;
   routeKey: string;
   source?: string;
+  sourceRouteKey?: string;
 };
 
 type NavigationFailureBoundaryState = {
@@ -126,6 +129,19 @@ function buildRenderFailure(reason: unknown): NavigationFailure {
   };
 }
 
+function attachNavigationAttempt(failure: NavigationFailure, pendingNavigation: PendingNavigation | null) {
+  const currentRouteKey = getBrowserRouteKey();
+  const sourceRouteKey = pendingNavigation?.originRouteKey ?? failure.sourceRouteKey ?? failure.routeKey;
+  const attemptedRouteKey = pendingNavigation?.targetRouteKey ?? failure.attemptedRouteKey ?? failure.routeKey;
+
+  return {
+    ...failure,
+    attemptedRouteKey,
+    routeKey: currentRouteKey,
+    sourceRouteKey,
+  };
+}
+
 function getResourceFailure(event: Event) {
   const target = event.target;
 
@@ -151,7 +167,7 @@ function NavigationRecoveryShell({
 }: {
   failure: NavigationFailure;
   onReload: () => void;
-  onRetry: () => void;
+  onRetry: (failure: NavigationFailure) => void;
 }) {
   const panelRef = useRef<HTMLElement>(null);
   const dashboardHref = withAppBasePath("/dashboard");
@@ -159,6 +175,8 @@ function NavigationRecoveryShell({
   const portfolioHref = withAppBasePath("/portfolio");
   const calendarHref = withAppBasePath("/calendar");
   const failureLabel = failure.kind === "chunk-load" ? "Static route chunk failed to load" : "Route render failed";
+  const sourceRouteKey = failure.sourceRouteKey ?? failure.routeKey;
+  const attemptedRouteKey = failure.attemptedRouteKey ?? failure.routeKey;
 
   useEffect(() => {
     panelRef.current?.focus();
@@ -205,7 +223,7 @@ function NavigationRecoveryShell({
           </p>
 
           <div className={styles.actions}>
-            <button className={styles.primaryAction} type="button" onClick={onRetry}>
+            <button className={styles.primaryAction} type="button" onClick={() => onRetry(failure)}>
               Retry route
             </button>
             <button className={styles.secondaryAction} type="button" onClick={onReload}>
@@ -218,8 +236,12 @@ function NavigationRecoveryShell({
 
           <dl className={styles.routeMeta}>
             <div>
-              <dt>Current route</dt>
-              <dd>{failure.routeKey}</dd>
+              <dt>Source route</dt>
+              <dd>{sourceRouteKey}</dd>
+            </div>
+            <div>
+              <dt>Attempted route</dt>
+              <dd>{attemptedRouteKey}</dd>
             </div>
             <div>
               <dt>Failure</dt>
@@ -234,14 +256,30 @@ function NavigationRecoveryShell({
 
 export function NavigationFailureBoundary({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { pendingNavigation } = useNavigationLoading();
   const [globalFailure, setGlobalFailure] = useState<NavigationFailure | null>(null);
   const [resetToken, setResetToken] = useState(0);
+  const pendingNavigationRef = useRef(pendingNavigation);
 
-  const recover = useCallback(() => {
-    setGlobalFailure(null);
-    setResetToken((current) => current + 1);
-    router.refresh();
-  }, [router]);
+  useEffect(() => {
+    pendingNavigationRef.current = pendingNavigation;
+  }, [pendingNavigation]);
+
+  const recover = useCallback(
+    (failure?: NavigationFailure) => {
+      const attemptedRouteKey = failure?.attemptedRouteKey ?? globalFailure?.attemptedRouteKey ?? null;
+      setGlobalFailure(null);
+      setResetToken((current) => current + 1);
+
+      if (attemptedRouteKey && attemptedRouteKey !== getBrowserRouteKey()) {
+        window.location.assign(attemptedRouteKey);
+        return;
+      }
+
+      router.refresh();
+    },
+    [globalFailure?.attemptedRouteKey, router],
+  );
 
   const reload = useCallback(() => {
     window.location.reload();
@@ -254,12 +292,17 @@ export function NavigationFailureBoundary({ children }: { children: ReactNode })
       message: failure.message,
       route: failure.routeKey,
       source: failure.source,
+      sourceRoute: failure.sourceRouteKey,
+      attemptedRoute: failure.attemptedRouteKey,
     });
   }, []);
 
   const handleBoundaryError = useCallback(
     (error: unknown, errorInfo: ErrorInfo) => {
-      const failure = buildChunkLoadFailure(error) ?? buildRenderFailure(error);
+      const failure = attachNavigationAttempt(
+        buildChunkLoadFailure(error) ?? buildRenderFailure(error),
+        pendingNavigationRef.current,
+      );
       reportFailure(
         {
           ...failure,
@@ -273,7 +316,10 @@ export function NavigationFailureBoundary({ children }: { children: ReactNode })
 
   const renderFallback = useCallback(
     (error: unknown) => {
-      const failure = buildChunkLoadFailure(error) ?? buildRenderFailure(error);
+      const failure = attachNavigationAttempt(
+        buildChunkLoadFailure(error) ?? buildRenderFailure(error),
+        pendingNavigationRef.current,
+      );
       return <NavigationRecoveryShell failure={failure} onReload={reload} onRetry={recover} />;
     },
     [recover, reload],
@@ -286,8 +332,9 @@ export function NavigationFailureBoundary({ children }: { children: ReactNode })
       if (!failure) return;
 
       event.preventDefault();
-      reportFailure(failure, "window-error");
-      setGlobalFailure(failure);
+      const failureWithAttempt = attachNavigationAttempt(failure, pendingNavigationRef.current);
+      reportFailure(failureWithAttempt, "window-error");
+      setGlobalFailure(failureWithAttempt);
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -296,8 +343,9 @@ export function NavigationFailureBoundary({ children }: { children: ReactNode })
       if (!failure) return;
 
       event.preventDefault();
-      reportFailure(failure, "rejection");
-      setGlobalFailure(failure);
+      const failureWithAttempt = attachNavigationAttempt(failure, pendingNavigationRef.current);
+      reportFailure(failureWithAttempt, "rejection");
+      setGlobalFailure(failureWithAttempt);
     };
 
     window.addEventListener("error", handleWindowError, true);
