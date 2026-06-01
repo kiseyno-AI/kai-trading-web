@@ -396,6 +396,10 @@ function hasOutcomeReview(item: SignalDeciderFeedbackItem) {
   return item.outcomeHorizons.length > 0 || item.pathOutcome !== null || hasTextValue(item.intradayPathResult);
 }
 
+function hasRiskOrDataGap(item: SignalDeciderFeedbackItem) {
+  return item.riskFlags.length > 0 || item.dataGapFlags.length > 0 || item.fiveDayEvaluation.dataQualityWarnings.length > 0;
+}
+
 function hasReviewData(item: SignalDeciderFeedbackItem) {
   return hasQualityVerdict(item) || hasOutcomeReview(item);
 }
@@ -657,7 +661,7 @@ function filterAndSortItems({
       statusFilter === "all" ||
       (statusFilter === "with-review" && hasReviewData(item)) ||
       (statusFilter === "review-pending" && !hasReviewData(item)) ||
-      (statusFilter === "with-risk" && (item.riskFlags.length > 0 || item.dataGapFlags.length > 0));
+      (statusFilter === "with-risk" && hasRiskOrDataGap(item));
     if (!matchesStatus) return false;
     if (!normalizedQuery) return true;
 
@@ -673,6 +677,7 @@ function filterAndSortItems({
       item.invalidationCondition,
       ...item.riskFlags,
       ...item.dataGapFlags,
+      ...item.fiveDayEvaluation.dataQualityWarnings,
       ...item.supportingEvidence.map((entry) => `${entry.label} ${entry.value ?? ""}`),
       ...item.contextBadges.map((entry) => `${entry.label} ${entry.value ?? ""}`),
       ...item.factorAttributions.map((entry) => `${entry.label} ${entry.value ?? ""}`),

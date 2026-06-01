@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const now = "2026-04-27T16:30:00+09:00";
+const duplicateShortTermWarning = "실시간 호가·스프레드·주문장 깊이가 없어 실행 품질 판단은 다음 장 확인이 필요합니다.";
 
 type SignalDeciderFeedbackMode = "normal" | "empty";
 type MockDashboardShellOptions = {
@@ -421,7 +422,11 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
                 invalidation_condition: "Avoid if it gaps above target before entry",
                 suggested_holding_period: "1-3 sessions",
                 supporting_evidence: ["Opening range held", { label: "Flow", summary: "Foreign flow positive" }],
-                risk_flags: ["Avoid chase after gap-up open"],
+                risk_flags: ["Avoid chase after gap-up open", duplicateShortTermWarning],
+                data_quality_warnings: [duplicateShortTermWarning],
+                five_day_evaluation: {
+                  data_quality_warnings: [duplicateShortTermWarning],
+                },
                 missing_factor_score: true,
                 turnover_liquidity_anomaly: "Turnover spike versus 20d average",
                 recent_external_news_count: 2,
@@ -1934,6 +1939,8 @@ test("shared decider feedback route loads short-term decider rows and comparison
   await expect(samsungCard).toContainText("Avoid if it gaps above target before entry");
   await expect(samsungCard).toContainText("Risk & Data Gaps");
   await expect(samsungCard).toContainText("Missing factor score");
+  await expect(samsungCard.getByText(duplicateShortTermWarning, { exact: true })).toHaveCount(1);
+  await expect(samsungCard.getByTestId("short-term-risk-data-gaps").getByText(duplicateShortTermWarning)).toHaveCount(0);
   await expect(samsungCard).toContainText("Context badges");
   await expect(samsungCard).toContainText("External news · 2 recent");
   await expect(samsungCard.getByTestId("decider-comparison-row")).toContainText("Cross-decider comparison");
