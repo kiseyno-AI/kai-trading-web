@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-const tailnetEntrypointUrl = process.env.TAILNET_ENTRYPOINT_URL?.trim() ?? "";
+import { normalizeTailnetBrowserEntrypointUrl } from "../src/lib/tailnet-entrypoint";
+
+const configuredTailnetEntrypointUrl = process.env.TAILNET_ENTRYPOINT_URL?.trim() ?? "";
+const tailnetEntrypointUrl = normalizeTailnetBrowserEntrypointUrl(configuredTailnetEntrypointUrl);
 
 type StaticAssetResponse = {
   status: number;
@@ -29,7 +32,7 @@ function formatStaticAssetFailures(responses: StaticAssetResponse[], failures: S
 
 test.describe("Tailnet browser entrypoint", () => {
   test.skip(
-    !tailnetEntrypointUrl,
+    !configuredTailnetEntrypointUrl,
     "Set TAILNET_ENTRYPOINT_URL to the canonical Tailnet browser URL before running this smoke check.",
   );
 
@@ -40,6 +43,11 @@ test.describe("Tailnet browser entrypoint", () => {
 
   test("lands Chromium on the dashboard shell", async ({ page }) => {
     test.setTimeout(120_000);
+    const normalizedEntrypoint = new URL(tailnetEntrypointUrl);
+
+    if (normalizedEntrypoint.hostname.endsWith(".ts.net")) {
+      expect(normalizedEntrypoint.protocol, "Tailnet browser smoke must start from direct HTTPS").toBe("https:");
+    }
 
     const staticAssetResponses: StaticAssetResponse[] = [];
     const staticAssetFailures: StaticAssetFailure[] = [];
