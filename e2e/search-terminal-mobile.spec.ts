@@ -1653,14 +1653,16 @@ test.describe("search terminal mobile", () => {
               ma_120: 66500,
               momentum_12_1: 0.18,
               return_5d: 0.024,
-              has_sufficient_history: true,
+              has_sufficient_history: false,
               is_price_above_ma120: true,
               is_ma60_above_ma120: true,
               is_recent_overheated: false,
               momentum_rank: 12,
               momentum_percentile: 0.92,
-              is_momentum_eligible: true,
-              factor_payload: {},
+              is_momentum_eligible: false,
+              factor_payload: {
+                insufficient_history_reason: "requires_at_least_253_stored_trading_bars",
+              },
               captured_at: `${marketDate}T16:20:00+09:00`,
             },
           ],
@@ -1681,7 +1683,7 @@ test.describe("search terminal mobile", () => {
             volatility_60d: 0.12,
             volatility_120d: 0.15,
             max_drawdown_120d: -0.18,
-            avg_trading_value_20d: 125000000,
+            avg_trading_value_20d: 0,
             volatility_60d_rank: 10,
             volatility_120d_rank: 15,
             max_drawdown_120d_rank: 9,
@@ -1690,12 +1692,16 @@ test.describe("search terminal mobile", () => {
             volatility_120d_percentile: 0.88,
             max_drawdown_120d_percentile: 0.9,
             liquidity_percentile: 0.55,
-            passes_liquidity_floor: true,
+            passes_liquidity_floor: null,
             low_risk_score: 0.71,
             low_risk_classification: "eligible",
             is_low_risk_eligible: true,
             history_days_available: 250,
-            factor_payload: {},
+            factor_payload: {
+              metric_statuses: {
+                avg_trading_value_20d: "needs_confirmation",
+              },
+            },
             captured_at: `${marketDate}T16:20:00+09:00`,
           },
         },
@@ -1761,13 +1767,17 @@ test.describe("search terminal mobile", () => {
             unified_value_rank: 34,
             unified_value_percentile: 0.9,
             unified_value_status: "scored",
-            quality_score: 0.714,
-            quality_rank: 88,
-            quality_percentile: 0.76,
-            quality_status: "scored_partial",
-            components_possible: 6,
-            components_used: 5,
-            is_quality_score_complete: false,
+            quality_score: null,
+            quality_rank: null,
+            quality_percentile: null,
+            quality_status: "unavailable",
+            components_possible: null,
+            components_used: null,
+            is_quality_score_complete: null,
+            quality_component_statuses: {
+              roe: "available",
+              gross_profit_to_assets: "Missing Depreciation And Amortization",
+            },
             factor_payload: {},
             captured_at: `${marketDate}T16:20:00+09:00`,
           },
@@ -1830,6 +1840,17 @@ test.describe("search terminal mobile", () => {
     await expect(page.locator("#factor-snapshot")).toContainText("5 / 5 팩터 준비됨");
     await expect(page.locator("#factor-snapshot")).toContainText("적용 기준일");
     await expect(page.locator("#factor-snapshot")).toContainText("2026.05.22");
+    await expect(page.locator("#factor-snapshot")).toContainText("종합 판단 대기");
+    await expect(page.locator("#factor-snapshot")).toContainText("히스토리 부족");
+    await expect(page.locator("#factor-snapshot")).toContainText("산출 불가");
+    await expect(page.locator("#factor-snapshot")).toContainText("순위 미산출");
+    await expect(page.locator("#factor-snapshot")).toContainText("감가상각 데이터 대기");
+    await expect(page.locator("#factor-snapshot")).not.toContainText("requires_at_least_253_stored_trading_bars");
+    await expect(page.locator("#factor-snapshot")).not.toContainText("Calculation unavailable");
+    await expect(page.locator("#factor-snapshot")).not.toContainText("Unavailable");
+    await expect(page.locator("#factor-snapshot")).not.toContainText("Unranked");
+    await expect(page.locator("#factor-snapshot")).not.toContainText("Missing Depreciation And Amortization");
+    await expect(page.locator("#factor-snapshot")).not.toContainText("예약된 슬롯");
     await expect(page.locator("#freshness")).toContainText("2026-05-22");
     expect(priceBarEndDates).toContain(latestDate);
     expect(priceBarEndDates).not.toContain(weekendDate);
