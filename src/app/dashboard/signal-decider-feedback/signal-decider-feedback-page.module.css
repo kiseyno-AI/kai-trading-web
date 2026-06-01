@@ -577,6 +577,11 @@
   line-height: 1.5;
 }
 
+.comparisonNotice {
+  border-color: rgba(88, 139, 255, 0.24);
+  background: rgba(0, 82, 255, 0.11);
+}
+
 .comparisonGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
