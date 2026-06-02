@@ -49,6 +49,25 @@ NODE
 NEW_VERSION=$(resolve_build_version)
 echo "resolved trading-web build version ${NEW_VERSION}"
 
+if [ ! -f "$SERVICE_PLIST" ]; then
+  echo "launchd plist not found: $SERVICE_PLIST" >&2
+  exit 1
+fi
+
+/bin/launchctl bootout "$SERVICE_TARGET" >/dev/null 2>&1 || true
+sleep 2
+
+PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
+if [ -n "$PIDS" ]; then
+  echo "$PIDS" | xargs kill -TERM || true
+  sleep 2
+fi
+PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
+if [ -n "$PIDS" ]; then
+  echo "$PIDS" | xargs kill -KILL || true
+  sleep 2
+fi
+
 if [ -f package-lock.json ]; then
   /opt/homebrew/bin/npm install
 fi
@@ -92,25 +111,6 @@ fi
 CSS_ASSET=$(find "${NEXT_DIST_DIR}/static/css" -maxdepth 1 -type f -name '*.css' | sort | head -n 1 || true)
 if [ -z "$CSS_ASSET" ]; then
   echo "build sanity check failed: no CSS assets found under ${NEXT_DIST_DIR}/static/css" >&2
-  exit 1
-fi
-
-/bin/launchctl bootout "$SERVICE_TARGET" >/dev/null 2>&1 || true
-sleep 2
-
-PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
-if [ -n "$PIDS" ]; then
-  echo "$PIDS" | xargs kill -TERM || true
-  sleep 2
-fi
-PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
-if [ -n "$PIDS" ]; then
-  echo "$PIDS" | xargs kill -KILL || true
-  sleep 2
-fi
-
-if [ ! -f "$SERVICE_PLIST" ]; then
-  echo "launchd plist not found: $SERVICE_PLIST" >&2
   exit 1
 fi
 
