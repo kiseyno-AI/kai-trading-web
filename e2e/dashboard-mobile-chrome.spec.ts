@@ -581,7 +581,7 @@ test.describe("dashboard mobile chrome", () => {
     const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
-    await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
+    await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
     await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
   });
 
@@ -1663,7 +1663,7 @@ test.describe("dashboard desktop process monitor canonical truth", () => {
     const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
-    await expect(canonicalPipeline).toContainText(/fallback inference|fallback 추론/);
+    await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
     await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
   });
 
