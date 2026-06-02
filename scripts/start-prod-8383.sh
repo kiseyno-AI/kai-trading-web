@@ -3,7 +3,12 @@ set -euo pipefail
 cd /Users/shawn/trading-web
 
 export NEXT_DIST_DIR="${NEXT_DIST_DIR:-.next-prod-8383}"
-if [[ "$NEXT_DIST_DIR" == ".next" || "$NEXT_DIST_DIR" == "./.next" ]]; then
+
+is_shared_next_dist_dir() {
+  /opt/homebrew/bin/node -e 'const path = require("path"); const raw = process.argv[1] ?? ""; process.exit(path.resolve(process.cwd(), raw.trim()) === path.resolve(process.cwd(), ".next") ? 0 : 1);' "$1"
+}
+
+if is_shared_next_dist_dir "$NEXT_DIST_DIR"; then
   echo "refusing to serve the 8383 production runtime from shared dist dir: $NEXT_DIST_DIR" >&2
   exit 1
 fi

@@ -80,12 +80,16 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
   assert.match(packageJson.scripts?.["test:e2e:tailnet"] ?? "", /TAILNET_ENTRYPOINT_URL=\$\{TAILNET_ENTRYPOINT_URL:-https:\/\/gangseunghyeon-uiui-macmini-1\.tail1d831c\.ts\.net\/trading-web\}/);
   assert.match(redeployScript, /TAILNET_ENTRYPOINT_URL="\$\{TAILNET_ENTRYPOINT_URL:-https:\/\/\$\{TAILNET_HOST\}\/trading-web\}"/);
   assert.match(redeployScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
+  assert.match(redeployScript, /is_shared_next_dist_dir\(\)/);
+  assert.match(redeployScript, /path\.resolve\(process\.cwd\(\), raw\.trim\(\)\) === path\.resolve\(process\.cwd\(\), "\.next"\)/);
   assert.match(redeployScript, /required-server-files\.json/);
   assert.match(redeployScript, /app HTML asset path sanity check failed/);
   assert.match(redeployScript, /TAILNET_BROWSER_ENTRYPOINT_URL/);
   assert.match(redeployScript, /RAW_TAILNET_BROWSER_ENTRYPOINT_URL/);
   assert.match(redeployScript, /normalized Tailnet browser entrypoint from .+ to /);
   assert.match(startScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
+  assert.match(startScript, /is_shared_next_dist_dir\(\)/);
+  assert.match(startScript, /path\.resolve\(process\.cwd\(\), raw\.trim\(\)\) === path\.resolve\(process\.cwd\(\), "\.next"\)/);
   assert.match(startScript, /APP_VERSION_FILE="\$\{NEXT_DIST_DIR\}\/APP_VERSION"/);
   assert.match(productionSection, new RegExp(DEFAULT_TAILNET_BROWSER_ENTRYPOINT_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(productionSection, /\.next-prod-8383/);
