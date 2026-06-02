@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { normalizeTailnetBrowserEntrypointUrl } from "../src/lib/tailnet-entrypoint";
+import {
+  formatTailnetBrowserNavigationEntrypoint,
+  resolveTailnetBrowserNavigationEntrypoint,
+} from "../src/lib/tailnet-entrypoint";
 
-const configuredTailnetEntrypointUrl = process.env.TAILNET_ENTRYPOINT_URL?.trim() ?? "";
-const tailnetEntrypointUrl = normalizeTailnetBrowserEntrypointUrl(configuredTailnetEntrypointUrl);
+const tailnetEntrypoint = resolveTailnetBrowserNavigationEntrypoint(process.env);
+const tailnetBrowserNavigationUrl = tailnetEntrypoint.navigationUrl;
+const tailnetEntrypointReport = formatTailnetBrowserNavigationEntrypoint(tailnetEntrypoint);
 
 type StaticAssetResponse = {
   status: number;
@@ -32,8 +36,8 @@ function formatStaticAssetFailures(responses: StaticAssetResponse[], failures: S
 
 test.describe("Tailnet browser entrypoint", () => {
   test.skip(
-    !configuredTailnetEntrypointUrl,
-    "Set TAILNET_ENTRYPOINT_URL to the canonical Tailnet browser URL before running this smoke check.",
+    !tailnetBrowserNavigationUrl,
+    "Set TAILNET_BROWSER_ENTRYPOINT_URL or TAILNET_ENTRYPOINT_URL to the canonical Tailnet browser URL before running this smoke check.",
   );
 
   test.use({
@@ -43,7 +47,9 @@ test.describe("Tailnet browser entrypoint", () => {
 
   test("lands Chromium on the dashboard shell", async ({ page }) => {
     test.setTimeout(120_000);
-    const normalizedEntrypoint = new URL(tailnetEntrypointUrl);
+    process.stdout.write(`${tailnetEntrypointReport}\n`);
+
+    const normalizedEntrypoint = new URL(tailnetBrowserNavigationUrl);
 
     if (normalizedEntrypoint.hostname.endsWith(".ts.net")) {
       expect(normalizedEntrypoint.protocol, "Tailnet browser smoke must start from direct HTTPS").toBe("https:");
@@ -75,21 +81,23 @@ test.describe("Tailnet browser entrypoint", () => {
     let response: Awaited<ReturnType<typeof page.goto>>;
 
     try {
-      response = await page.goto(tailnetEntrypointUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: 45_000,
+      response = await test.step(tailnetEntrypointReport, async () => {
+        return page.goto(tailnetBrowserNavigationUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 45_000,
+        });
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Tailnet browser entrypoint did not load: ${tailnetEntrypointUrl}\nCurrent URL: ${page.url()}\n${message}`,
+        `Tailnet browser entrypoint did not load.\n${tailnetEntrypointReport}\nCurrent URL: ${page.url()}\n${message}`,
       );
     }
 
     await expect(page, `Tailnet entrypoint landed on Chrome error page: ${page.url()}`).not.toHaveURL(
       /chrome-error:\/\/chromewebdata/,
     );
-    expect(response, `No browser response returned for ${tailnetEntrypointUrl}`).not.toBeNull();
+    expect(response, `No browser response returned.\n${tailnetEntrypointReport}`).not.toBeNull();
     expect(response?.status(), `Unexpected Tailnet entrypoint status for ${page.url()}`).toBeLessThan(400);
     await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(
       /Trading Command Surface|트레이딩 커맨드 서피스/,

@@ -215,7 +215,7 @@ The canonical Tailnet browser entrypoint for operator and QA workflows is the di
 https://gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net/trading-web
 ```
 
-Use the HTTPS URL directly as the browser start point for operator, QA, cron, and OpenClaw-managed Chrome workflows. The plain HTTP endpoint is only a redirect hop and is not the canonical browser start URL. The deploy smoke normalizes stale HTTP Tailnet values to the HTTPS URL before launching Chromium, fails if Chromium lands on `chrome-error://chromewebdata/`, and checks that loaded `/trading-web/_next/static/...` assets and clicked routes do not return browser-visible failures.
+Use the HTTPS URL directly as the browser start point for operator, QA, cron, and OpenClaw-managed Chrome workflows. The plain HTTP endpoint is only a redirect hop and is not the canonical browser start URL. The deploy smoke accepts either `TAILNET_BROWSER_ENTRYPOINT_URL` or `TAILNET_ENTRYPOINT_URL`, normalizes stale HTTP Tailnet values to the HTTPS navigation URL before launching Chromium, reports the recovered URL in test output, fails if Chromium lands on `chrome-error://chromewebdata/`, and checks that loaded `/trading-web/_next/static/...` assets and clicked routes do not return browser-visible failures.
 
 Run the browser-level Tailnet smoke check after a redeploy with:
 

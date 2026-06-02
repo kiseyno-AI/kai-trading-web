@@ -12,6 +12,7 @@ DATA_HEALTH_URL="http://127.0.0.1:4181/trading/quotes/tracked"
 TAILNET_HOST="${TAILNET_HOST:-gangseunghyeon-uiui-macmini-1.tail1d831c.ts.net}"
 TAILNET_ENTRYPOINT_URL="${TAILNET_ENTRYPOINT_URL:-https://${TAILNET_HOST}/trading-web}"
 TAILNET_BROWSER_ENTRYPOINT_URL="${TAILNET_BROWSER_ENTRYPOINT_URL:-$TAILNET_ENTRYPOINT_URL}"
+RAW_TAILNET_BROWSER_ENTRYPOINT_URL="$TAILNET_BROWSER_ENTRYPOINT_URL"
 RUN_TAILNET_BROWSER_SMOKE="${RUN_TAILNET_BROWSER_SMOKE:-1}"
 
 if [[ "$TAILNET_BROWSER_ENTRYPOINT_URL" == http://*.ts.net/* ]]; then
@@ -82,8 +83,8 @@ for _ in {1..30}; do
   if [ -n "$CSS_HREF" ] && curl -fsS "http://127.0.0.1:${PORT}${CSS_HREF}" >/dev/null 2>&1 && curl -fsS "$DATA_HEALTH_URL" >/dev/null 2>&1; then
     echo "trading-web redeployed on 8383 via launchd"
     echo "canonical Tailnet browser entrypoint: ${TAILNET_BROWSER_ENTRYPOINT_URL}"
-    if [ "$TAILNET_BROWSER_ENTRYPOINT_URL" != "$TAILNET_ENTRYPOINT_URL" ]; then
-      echo "normalized Tailnet browser entrypoint from ${TAILNET_ENTRYPOINT_URL}"
+    if [ "$TAILNET_BROWSER_ENTRYPOINT_URL" != "$RAW_TAILNET_BROWSER_ENTRYPOINT_URL" ]; then
+      echo "normalized Tailnet browser entrypoint from ${RAW_TAILNET_BROWSER_ENTRYPOINT_URL} to ${TAILNET_BROWSER_ENTRYPOINT_URL}"
     fi
     if [ "$RUN_TAILNET_BROWSER_SMOKE" = "1" ]; then
       PLAYWRIGHT_SKIP_WEB_SERVER=1 TAILNET_ENTRYPOINT_URL="$TAILNET_BROWSER_ENTRYPOINT_URL" \
