@@ -207,7 +207,9 @@ Local production serving for the bridge/Tailscale path uses launchd label `com.k
 /Users/shawn/trading-web/scripts/redeploy-prod-8383.sh
 ```
 
-The script installs dependencies when needed, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web` and the isolated production dist directory `NEXT_DIST_DIR=.next-prod-8383`, then restarts the launchd-managed `next start` server on port `8383`. Normal developer and agent builds such as `npx next build --webpack` continue to write to `.next`, so validation builds cannot overwrite the live 8383 production artifacts.
+The script installs dependencies when needed, stops the launchd-managed `next start` server on port `8383`, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web` and the isolated production dist directory `NEXT_DIST_DIR=.next-prod-8383`, then starts the service again. Normal developer and agent builds such as `npx next build --webpack` continue to write to `.next`, so validation builds cannot overwrite the live 8383 production artifacts.
+
+Do not build into the dist directory that a live `next start` process is currently serving. Next can read partially rewritten React Server Component manifests during the build and then fail requests with `Could not find the module ... in the React Client Manifest`. For production redeploys, use `scripts/redeploy-prod-8383.sh` as-is, because it intentionally stops port `8383` before running `next build --webpack` and only restarts after the new build passes sanity checks.
 
 The start helper also exports `NEXT_DIST_DIR=.next-prod-8383` before `next start`. The redeploy helper validates `required-server-files.json`, refuses to use the shared `.next` directory for the 8383 runtime, and checks that served app-shell HTML under `/trading-web` references `/trading-web/_next/static/...` assets instead of root `/_next/static/...` URLs.
 
