@@ -27,6 +27,13 @@ function isNextStaticAssetUrl(url: string) {
   }
 }
 
+function buildExpectedStaticAssetPathPrefix(entrypointUrl: string) {
+  const pathname = new URL(entrypointUrl).pathname;
+  const basePath = pathname.replace(/\/dashboard\/?$/, "").replace(/\/$/, "");
+
+  return `${basePath}/_next/static/`.replace(/^\/\//, "/");
+}
+
 function formatStaticAssetFailures(responses: StaticAssetResponse[], failures: StaticAssetFailure[]) {
   return [
     ...responses.filter(({ status }) => status >= 400).map(({ status, url }) => `HTTP ${status} ${url}`),
@@ -99,6 +106,18 @@ test.describe("Tailnet browser entrypoint", () => {
     );
     expect(response, `No browser response returned.\n${tailnetEntrypointReport}`).not.toBeNull();
     expect(response?.status(), `Unexpected Tailnet entrypoint status for ${page.url()}`).toBeLessThan(400);
+
+    const expectedStaticAssetPathPrefix = buildExpectedStaticAssetPathPrefix(tailnetBrowserNavigationUrl);
+    if (expectedStaticAssetPathPrefix !== "/_next/static/") {
+      const documentHtml = await response!.text();
+      expect(documentHtml, "Tailnet app shell must not reference root Next static assets").not.toMatch(
+        /\b(?:src|href)="\/_next\/static\//,
+      );
+      expect(documentHtml, "Tailnet app shell should reference basePath-prefixed Next static assets").toContain(
+        `"${expectedStaticAssetPathPrefix}`,
+      );
+    }
+
     await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(
       /Trading Command Surface|트레이딩 커맨드 서피스/,
     );

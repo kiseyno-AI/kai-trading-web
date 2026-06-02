@@ -73,14 +73,21 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
     scripts?: Record<string, string>;
   };
   const redeployScript = fs.readFileSync(path.join(repoRoot, "scripts/redeploy-prod-8383.sh"), "utf8");
+  const startScript = fs.readFileSync(path.join(repoRoot, "scripts/start-prod-8383.sh"), "utf8");
   const readme = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
   const productionSection = readme.slice(readme.indexOf("## Production serve on port 8383"));
 
   assert.match(packageJson.scripts?.["test:e2e:tailnet"] ?? "", /TAILNET_ENTRYPOINT_URL=\$\{TAILNET_ENTRYPOINT_URL:-https:\/\/gangseunghyeon-uiui-macmini-1\.tail1d831c\.ts\.net\/trading-web\}/);
   assert.match(redeployScript, /TAILNET_ENTRYPOINT_URL="\$\{TAILNET_ENTRYPOINT_URL:-https:\/\/\$\{TAILNET_HOST\}\/trading-web\}"/);
+  assert.match(redeployScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
+  assert.match(redeployScript, /required-server-files\.json/);
+  assert.match(redeployScript, /app HTML asset path sanity check failed/);
   assert.match(redeployScript, /TAILNET_BROWSER_ENTRYPOINT_URL/);
   assert.match(redeployScript, /RAW_TAILNET_BROWSER_ENTRYPOINT_URL/);
   assert.match(redeployScript, /normalized Tailnet browser entrypoint from .+ to /);
+  assert.match(startScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
+  assert.match(startScript, /APP_VERSION_FILE="\$\{NEXT_DIST_DIR\}\/APP_VERSION"/);
   assert.match(productionSection, new RegExp(DEFAULT_TAILNET_BROWSER_ENTRYPOINT_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(productionSection, /\.next-prod-8383/);
   assert.equal(productionSection.includes(legacyHttpEntrypointUrl), false);
 });

@@ -201,13 +201,15 @@ npm run test:e2e:ui
 
 ## Production serve on port 8383
 
-Local production serving for the bridge/Tailscale path uses launchd label `com.kiseyno.trading-web` and this helper script:
+Local production serving for the bridge/Tailscale path uses launchd label `com.kiseyno.trading-web-8383` and this helper script:
 
 ```bash
 /Users/shawn/trading-web/scripts/redeploy-prod-8383.sh
 ```
 
-The script installs dependencies when needed, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web`, then restarts the launchd-managed `next start` server on port `8383`.
+The script installs dependencies when needed, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web` and the isolated production dist directory `NEXT_DIST_DIR=.next-prod-8383`, then restarts the launchd-managed `next start` server on port `8383`. Normal developer and agent builds such as `npx next build --webpack` continue to write to `.next`, so validation builds cannot overwrite the live 8383 production artifacts.
+
+The start helper also exports `NEXT_DIST_DIR=.next-prod-8383` before `next start`. The redeploy helper validates `required-server-files.json`, refuses to use the shared `.next` directory for the 8383 runtime, and checks that served app-shell HTML under `/trading-web` references `/trading-web/_next/static/...` assets instead of root `/_next/static/...` URLs.
 
 The canonical Tailnet browser entrypoint for operator and QA workflows is the direct HTTPS Tailscale Serve URL:
 

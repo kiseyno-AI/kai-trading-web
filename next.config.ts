@@ -7,6 +7,7 @@ const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = buildNextConfig(
   {
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+    NEXT_DIST_DIR: process.env.NEXT_DIST_DIR,
   },
   configDirectory,
 );
