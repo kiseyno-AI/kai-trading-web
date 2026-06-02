@@ -20,7 +20,11 @@ if [[ "$TAILNET_BROWSER_ENTRYPOINT_URL" == http://*.ts.net/* ]]; then
   TAILNET_BROWSER_ENTRYPOINT_URL="https://${TAILNET_BROWSER_ENTRYPOINT_URL#http://}"
 fi
 
-if [[ "$NEXT_DIST_DIR" == ".next" || "$NEXT_DIST_DIR" == "./.next" ]]; then
+is_shared_next_dist_dir() {
+  /opt/homebrew/bin/node -e 'const path = require("path"); const raw = process.argv[1] ?? ""; process.exit(path.resolve(process.cwd(), raw.trim()) === path.resolve(process.cwd(), ".next") ? 0 : 1);' "$1"
+}
+
+if is_shared_next_dist_dir "$NEXT_DIST_DIR"; then
   echo "refusing to build the 8383 production runtime into shared dist dir: $NEXT_DIST_DIR" >&2
   exit 1
 fi
