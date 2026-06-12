@@ -2272,6 +2272,34 @@ test("maps a running market risk pipeline stage to the filtering row before read
   assert.match(marketRiskStage?.note ?? "", /filtering market risk/);
 });
 
+test("keeps filter result errors ahead of completed non-running pipeline stages", () => {
+  const copy = getDashboardLiveCopy("en");
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    pipelineStatus: buildPipelineStatus({
+      market_date: "2026-06-12",
+      status: "completed",
+      stages: {
+        market_risk_filter: buildPipelineStageDto("completed", 2_802, 2_802),
+      },
+    }),
+    marketRiskStatus: null,
+    marketRiskStatusError: "Market risk results unavailable",
+    marketRiskStatusLoadState: "error",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-06-12",
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const marketRiskStage = filteringCardModel.stages.find((stage) => stage.key === "kis-risk");
+
+  assert.equal(marketRiskStage?.status, "needs-review");
+  assert.equal(marketRiskStage?.statusTone, "warning");
+  assert.equal(marketRiskStage?.statusLabel, copy.piotroski.needsReview);
+  assert.equal(marketRiskStage?.note, "Market risk results unavailable");
+});
+
 test("maps pending scoring stages to waiting while daily process is running", () => {
   const copy = getDashboardLiveCopy("en");
   const scoringCardModel = buildScoringCardModel({

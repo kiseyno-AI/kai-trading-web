@@ -1003,12 +1003,12 @@ function getFilteringStageStatus(
   isDailyProcessRunning: boolean,
 ): FilteringStageStatus {
   if (isRunningPipelineStage(pipelineStage)) return "loading";
+  if (loadState === "error") return "needs-review";
   if (isCompletedPipelineStage(pipelineStage)) return "completed";
   if (isProblemPipelineStageStatus(normalizePipelineStageStatus(pipelineStage))) return "needs-review";
   if (hasNumber(pipelineStage?.failed) && pipelineStage.failed > 0) return "needs-review";
 
   if (loadState === "ready") return "completed";
-  if (loadState === "error") return "needs-review";
   if (isDailyProcessRunning && requestedMarketDate) return "waiting";
   return requestedMarketDate ? "pending" : "waiting";
 }
