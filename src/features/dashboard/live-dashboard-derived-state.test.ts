@@ -3621,6 +3621,91 @@ test("keeps the active summarizer row running when top-level feedback summary sa
   ]);
 });
 
+test("shows completed capped summarizer roles as fully complete while later roles continue", () => {
+  const copy = getDashboardLiveCopy("en");
+  const progress = {
+    request: {
+      market_date: "2026-06-12",
+      symbols: null,
+      expected_agents: [
+        "eod-summarizer",
+        "technical-summarizer",
+        "fundamental-summarizer",
+        "short-term-decider",
+        "signal-decider",
+      ],
+    },
+    summary: {
+      run_id: "feedback-cycle-2026-06-12-role-cap",
+      run_status: "running",
+      run_table_status: "running",
+      cycle_status: "running",
+      is_live: true,
+      run_started_at: "2026-06-12T16:44:32+09:00",
+      run_completed_at: null,
+      current_role: "short-term-decider",
+      completed_roles: ["eod-summarizer", "technical-summarizer", "fundamental-summarizer"],
+      remaining_roles: ["short-term-decider", "signal-decider"],
+      parallel_per_role: 5,
+      latest_feedback_at: "2026-06-12T19:46:46+09:00",
+      seconds_since_last_feedback: 120,
+      stalled_threshold_seconds: 300,
+      total_symbols: 232,
+      processed_symbols: 232,
+      completed_symbols: 99,
+      in_progress_symbols: 133,
+      pending_symbols: 0,
+      progress_ratio: 0.73,
+      progress_percent: 73.23,
+      failed_items: 1,
+      completed_feedback_count: 620,
+      expected_feedback_count: 848,
+      role_progress: {
+        "eod-summarizer": {
+          status: "completed",
+          completed_symbols: 232,
+          total_symbols: 232,
+          progress_percent: 100,
+        },
+        "technical-summarizer": {
+          status: "partial",
+          completed_symbols: 187,
+          total_symbols: 232,
+          pending_symbols: 45,
+          progress_percent: 80.6,
+        },
+        "fundamental-summarizer": {
+          status: "partial",
+          completed_symbols: 163,
+          total_symbols: 232,
+          pending_symbols: 69,
+          progress_percent: 70.26,
+        },
+        "short-term-decider": {
+          status: "pending",
+          completed_symbols: 38,
+          total_symbols: 232,
+          failed_items: 1,
+          progress_percent: 16.81,
+        },
+      },
+    },
+    result: null,
+  };
+
+  const roleCards = buildAgentRoleCards(progress, copy, "en-US");
+  const technicalRole = roleCards.find((role) => role.role === "technical-summarizer");
+  const fundamentalRole = roleCards.find((role) => role.role === "fundamental-summarizer");
+  const shortTermRole = roleCards.find((role) => role.role === "short-term-decider");
+
+  assert.equal(technicalRole?.status, "completed");
+  assert.equal(technicalRole?.progressLabel, "100.00%");
+  assert.equal(fundamentalRole?.status, "completed");
+  assert.equal(fundamentalRole?.progressLabel, "100.00%");
+  assert.equal(shortTermRole?.status, "running");
+  assert.equal(shortTermRole?.progressLabel, "16.81%");
+});
+
 test("preserves role-specific completed counts when the overall feedback cycle is completed", () => {
   const copy = getDashboardLiveCopy("en");
   const progress = {

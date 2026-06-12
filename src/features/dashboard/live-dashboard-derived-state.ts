@@ -3986,6 +3986,25 @@ function getAgentRoleSnapshotCount(snapshot: AgentRoleProgressSnapshot | null | 
   return snapshot?.completedCount ?? snapshot?.progressCount ?? null;
 }
 
+function getAgentRoleTotalCount(
+  status: AgentRoleStatus,
+  snapshot: AgentRoleProgressSnapshot | null | undefined,
+  progress: AgentFeedbackProgressResponseDto | null,
+) {
+  const snapshotCount = getAgentRoleSnapshotCount(snapshot);
+  if (
+    status === "completed" &&
+    hasNumber(snapshotCount) &&
+    (!hasNumber(snapshot?.failedCount) || snapshot.failedCount <= 0)
+  ) {
+    return snapshotCount;
+  }
+
+  if (hasNumber(snapshot?.totalCount)) return snapshot.totalCount;
+  if (snapshot && status === "completed") return snapshotCount;
+  return progress?.summary?.total_symbols;
+}
+
 function buildAgentRoleMetrics(
   progress: AgentFeedbackProgressResponseDto | null,
   status: AgentRoleStatus,
@@ -3996,13 +4015,8 @@ function buildAgentRoleMetrics(
 ): AgentRoleMetric[] {
   if (!isAgentFeedbackProgressRunning(progress)) return [];
 
-  const hasRoleSnapshot = snapshot !== null && snapshot !== undefined;
   const progressPercent = getAgentRoleProgressPercent(progress, status, roleCompletedCount, snapshot);
-  const totalCount = hasNumber(snapshot?.totalCount)
-    ? snapshot.totalCount
-    : hasRoleSnapshot && status === "completed"
-      ? getAgentRoleSnapshotCount(snapshot)
-      : progress?.summary?.total_symbols;
+  const totalCount = getAgentRoleTotalCount(status, snapshot, progress);
   const failedCount = hasNumber(snapshot?.failedCount) ? snapshot.failedCount : progress?.summary?.failed_items;
   const metricCompletedCount =
     roleCompletedCount ??
@@ -4393,13 +4407,13 @@ function getAgentRoleProgressPercent(
   completedCount: number | null | undefined,
   snapshot: AgentRoleProgressSnapshot | null | undefined,
 ) {
+  if (status === "completed") return 100;
+  if (status === "pending") return 0;
+
   if (hasNumber(snapshot?.progressPercent)) return snapshot.progressPercent;
 
   const snapshotCountedPercent = getAgentProgressPercentFromCounts(snapshot?.progressCount, snapshot?.totalCount);
   if (snapshotCountedPercent !== null) return snapshotCountedPercent;
-
-  if (status === "completed") return 100;
-  if (status === "pending") return 0;
 
   const totalSymbols = progress?.summary.total_symbols ?? null;
   const countedPercent = getAgentProgressPercentFromCounts(completedCount, totalSymbols);
