@@ -2224,6 +2224,54 @@ test("maps pending filtering stages to waiting when daily process is running", (
   assert.equal(filteringCardModel.stages[1]?.filteredCountLabel, copy.piotroski.waiting);
 });
 
+test("maps a running market risk pipeline stage to the filtering row before ready filter results", () => {
+  const copy = getDashboardLiveCopy("en");
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    pipelineStatus: buildPipelineStatus({
+      market_date: "2026-06-12",
+      status: "running",
+      current_stage: "market_risk_filter",
+      stages: {
+        signal_features: buildPipelineStageDto("completed", 2_802, 2_802),
+        market_risk_filter: {
+          ...buildPipelineStageDto("running", 0, 2_802),
+          current_activity: "filtering market risk",
+        },
+      },
+    }),
+    marketRiskStatus: {
+      market_date: "2026-06-12",
+      summary: {
+        entries: 2_802,
+        requested_symbol: null,
+        matched_symbols: [],
+        missing_symbols: [],
+        passed_count: 320,
+        watchlist_count: 28,
+        failed_count: 0,
+      },
+      items: [],
+    },
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "ready",
+    numberLocale: "en-US",
+    piotroskiMarketDate: "2026-06-12",
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const piotroskiStage = filteringCardModel.stages.find((stage) => stage.key === "piotroski");
+  const marketRiskStage = filteringCardModel.stages.find((stage) => stage.key === "kis-risk");
+
+  assert.equal(piotroskiStage?.status, "waiting");
+  assert.equal(marketRiskStage?.status, "loading");
+  assert.equal(marketRiskStage?.statusLabel, copy.piotroski.loading);
+  assert.equal(marketRiskStage?.filteredCountLabel, "0 / 2,802");
+  assert.equal(marketRiskStage?.metrics[0]?.value, "0 / 2,802");
+  assert.match(marketRiskStage?.note ?? "", /filtering market risk/);
+});
+
 test("maps pending scoring stages to waiting while daily process is running", () => {
   const copy = getDashboardLiveCopy("en");
   const scoringCardModel = buildScoringCardModel({
@@ -2240,6 +2288,49 @@ test("maps pending scoring stages to waiting while daily process is running", ()
     copy.scoring.statuses.waiting,
   ]);
   assert.equal(scoringCardModel.stages[0]?.note, copy.scoring.notes.waiting);
+});
+
+test("maps a running non-filter pipeline stage to its card row before ready result data", () => {
+  const copy = getDashboardLiveCopy("en");
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: buildPipelineStatus({
+      market_date: "2026-06-12",
+      status: "running",
+      current_stage: "momentum_factors",
+      stages: {
+        market_risk_filter: buildPipelineStageDto("completed", 2_802, 2_802),
+        momentum_factors: {
+          ...buildPipelineStageDto("running", 18, 2_802),
+          current_activity: "ranking momentum factors",
+        },
+      },
+    }),
+    scoringMarketDate: "2026-06-12",
+    scoringMomentumFactors: {
+      market_date: "2026-06-12",
+      requested_market_date: "2026-06-12",
+      resolved_market_date: "2026-06-12",
+      is_latest_fallback: false,
+      summary: {
+        entries: 2_802,
+        requested_symbols: [],
+        matched_symbols: [],
+        missing_symbols: [],
+        ranked_symbols: 320,
+        eligible_symbols: 320,
+      },
+      items: [],
+    } as EodMomentumFactorsResponseDto,
+    scoringMomentumFactorsLoadState: "ready",
+  });
+  const momentumStage = scoringCardModel.stages.find((stage) => stage.key === "momentum");
+
+  assert.equal(momentumStage?.status, "loading");
+  assert.equal(momentumStage?.statusLabel, copy.scoring.statuses.running);
+  assert.equal(momentumStage?.progressLabel, "18 / 2,802");
+  assert.match(momentumStage?.note ?? "", /ranking momentum factors/);
 });
 
 test("keeps EOD and filtering visible while scoring is checking and makes feedback wait", () => {
