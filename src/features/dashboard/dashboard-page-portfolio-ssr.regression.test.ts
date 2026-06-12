@@ -15,3 +15,17 @@ test(
   },
 );
 
+test("TC-DASH-540-02 dashboard SSR renders a shell without waiting on trading API reads", () => {
+  const pageSource = readFileSync(new URL("../../app/dashboard/page.tsx", import.meta.url), "utf8");
+
+  assert.equal(
+    pageSource.includes("fetchServerTradingApiJson"),
+    false,
+    "dashboard page should not await upstream trading API reads before first HTML",
+  );
+  assert.equal(
+    pageSource.includes('from "next/headers"'),
+    false,
+    "dashboard page should not need request headers for server-side trading API reads",
+  );
+});
