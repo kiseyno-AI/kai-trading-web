@@ -43,7 +43,7 @@ function getDashboardShellPayload() {
     market: {
       state: "OFFLINE PLACEHOLDER",
       is_open: false,
-      server_time: now,
+      server_time: null,
     } satisfies CoreMarketStatus,
     tracked: {
       market_state: "offline-placeholder",
