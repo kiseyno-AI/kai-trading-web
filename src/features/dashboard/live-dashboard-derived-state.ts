@@ -998,11 +998,17 @@ function getFilterMarketDateNote(
 
 function getFilteringStageStatus(
   loadState: FilteringStageLoadState,
+  pipelineStage: EodPipelineStageDto | null | undefined,
   requestedMarketDate: string | null,
   isDailyProcessRunning: boolean,
 ): FilteringStageStatus {
-  if (loadState === "ready") return "completed";
+  if (isRunningPipelineStage(pipelineStage)) return "loading";
   if (loadState === "error") return "needs-review";
+  if (isCompletedPipelineStage(pipelineStage)) return "completed";
+  if (isProblemPipelineStageStatus(normalizePipelineStageStatus(pipelineStage))) return "needs-review";
+  if (hasNumber(pipelineStage?.failed) && pipelineStage.failed > 0) return "needs-review";
+
+  if (loadState === "ready") return "completed";
   if (isDailyProcessRunning && requestedMarketDate) return "waiting";
   return requestedMarketDate ? "pending" : "waiting";
 }
@@ -1029,6 +1035,7 @@ function buildFilteringStageStatusModel({
   copy,
   displayMarketDate,
   loadState,
+  pipelineStage,
   requestedMarketDate,
   stageUnavailableMessage,
   stagePendingForDateMessage,
@@ -1040,6 +1047,7 @@ function buildFilteringStageStatusModel({
   copy: DashboardLiveCopy;
   displayMarketDate: string | null;
   loadState: FilteringStageLoadState;
+  pipelineStage: EodPipelineStageDto | null | undefined;
   requestedMarketDate: string | null;
   stageUnavailableMessage: string;
   stagePendingForDateMessage: string;
@@ -1048,11 +1056,16 @@ function buildFilteringStageStatusModel({
   isLatestFallback: boolean;
   isDailyProcessRunning: boolean;
 }) {
-  const status = getFilteringStageStatus(loadState, requestedMarketDate, isDailyProcessRunning);
+  const status = getFilteringStageStatus(loadState, pipelineStage, requestedMarketDate, isDailyProcessRunning);
   const statusLabel = getFilteringStageStatusLabel(status, copy);
   const statusTone = getFilteringStageStatusTone(status);
   const note =
-    loadState === "error"
+    status === "loading"
+      ? (() => {
+          const activityLabel = getPipelineActivityLabel(pipelineStage);
+          return activityLabel ? `${copy.piotroski.loading} · ${activityLabel}` : copy.piotroski.loading;
+        })()
+      : loadState === "error"
       ? stageError ?? stageUnavailableMessage
       : loadState === "ready"
         ? getFilterMarketDateNote(requestedMarketDate, displayMarketDate, isLatestFallback, copy)
@@ -1096,6 +1109,7 @@ function getFinalFilteredSymbolCount({
 function buildPiotroskiFilteringStageModel({
   copy,
   numberLocale,
+  pipelineStage,
   piotroskiStatus,
   piotroskiStatusError,
   piotroskiStatusLoadState,
@@ -1104,6 +1118,7 @@ function buildPiotroskiFilteringStageModel({
 }: {
   copy: DashboardLiveCopy;
   numberLocale: string;
+  pipelineStage: EodPipelineStageDto | null | undefined;
   piotroskiStatus: EodPiotroskiFilterResultsResponseDto | null;
   piotroskiStatusError: string | null;
   piotroskiStatusLoadState: FilteringStageLoadState;
@@ -1116,6 +1131,7 @@ function buildPiotroskiFilteringStageModel({
     copy,
     displayMarketDate,
     loadState: piotroskiStatusLoadState,
+    pipelineStage,
     requestedMarketDate: marketDateResolution.requestedMarketDate,
     stageUnavailableMessage: copy.piotroski.unavailable,
     stagePendingForDateMessage: copy.piotroski.pendingForDate,
@@ -1130,7 +1146,11 @@ function buildPiotroskiFilteringStageModel({
     statusModel.status === "waiting" &&
     marketDateResolution.requestedMarketDate !== null
   );
-  const filteredCountLabel = isWaitingFromRunning ? copy.piotroski.waiting : rawFilteredCountLabel;
+  const filteredCountLabel = isWaitingFromRunning
+    ? copy.piotroski.waiting
+    : statusModel.status === "loading"
+      ? getFilteringPipelineProgressLabel(pipelineStage, rawFilteredCountLabel, copy, numberLocale)
+      : rawFilteredCountLabel;
 
   return {
     key: "piotroski",
@@ -1155,6 +1175,7 @@ function buildMarketRiskFilteringStageModel({
   marketRiskStatusError,
   marketRiskStatusLoadState,
   numberLocale,
+  pipelineStage,
   requestedMarketDate,
   isDailyProcessRunning,
 }: {
@@ -1163,6 +1184,7 @@ function buildMarketRiskFilteringStageModel({
   marketRiskStatusError: string | null;
   marketRiskStatusLoadState: FilteringStageLoadState;
   numberLocale: string;
+  pipelineStage: EodPipelineStageDto | null | undefined;
   requestedMarketDate: string | null;
   isDailyProcessRunning: boolean;
 }): FilteringStageModel {
@@ -1172,6 +1194,7 @@ function buildMarketRiskFilteringStageModel({
     copy,
     displayMarketDate,
     loadState: marketRiskStatusLoadState,
+    pipelineStage,
     requestedMarketDate: marketDateResolution.requestedMarketDate,
     stageUnavailableMessage: copy.marketRisk.unavailable,
     stagePendingForDateMessage: copy.marketRisk.pendingForDate,
@@ -1186,7 +1209,11 @@ function buildMarketRiskFilteringStageModel({
     statusModel.status === "waiting" &&
     marketDateResolution.requestedMarketDate !== null
   );
-  const filteredCountLabel = isWaitingFromRunning ? copy.piotroski.waiting : rawFilteredCountLabel;
+  const filteredCountLabel = isWaitingFromRunning
+    ? copy.piotroski.waiting
+    : statusModel.status === "loading"
+      ? getFilteringPipelineProgressLabel(pipelineStage, rawFilteredCountLabel, copy, numberLocale)
+      : rawFilteredCountLabel;
 
   return {
     key: "kis-risk",
@@ -1230,14 +1257,16 @@ export function buildFilteringCardModel({
   piotroskiStatusError: string | null;
   piotroskiStatusLoadState: FilteringStageLoadState;
 }): FilteringCardModel {
+  const isDailyProcessRunning = isDailyPipelineRunning(pipelineStatus);
   const piotroskiStage = buildPiotroskiFilteringStageModel({
     copy,
     numberLocale,
+    pipelineStage: getPipelineStage(pipelineStatus ?? null, "piotroski_filter"),
     piotroskiStatus,
     piotroskiStatusError,
     piotroskiStatusLoadState,
     piotroskiMarketDate,
-    isDailyProcessRunning: isDailyPipelineRunning(pipelineStatus),
+    isDailyProcessRunning,
   });
   const marketRiskStage = buildMarketRiskFilteringStageModel({
     copy,
@@ -1245,7 +1274,8 @@ export function buildFilteringCardModel({
     marketRiskStatusError,
     marketRiskStatusLoadState,
     numberLocale,
-    isDailyProcessRunning: isDailyPipelineRunning(pipelineStatus),
+    pipelineStage: getPipelineStage(pipelineStatus ?? null, "market_risk_filter"),
+    isDailyProcessRunning,
     requestedMarketDate: piotroskiMarketDate,
   });
   const finalFilteredCountLabel = formatEodSymbolCount(
@@ -1296,6 +1326,24 @@ export function maskFilteringCardModelAsWaiting(
 
 export function isFilteringCardChecking(model: FilteringCardModel) {
   return model.stages.some((stage) => stage.status === "loading");
+}
+
+function getFilteringPipelineProgressLabel(
+  pipelineStage: EodPipelineStageDto | null | undefined,
+  fallbackLabel: string,
+  copy: DashboardLiveCopy,
+  numberLocale: string,
+) {
+  const processedCount = pipelineStage?.processed;
+  const totalCount = pipelineStage?.total;
+
+  if (hasNumber(processedCount) && hasNumber(totalCount)) {
+    return buildProcessMonitorProgressLabel(processedCount, totalCount, numberLocale);
+  }
+  if (hasNumber(processedCount)) return processedCount.toLocaleString(numberLocale);
+  if (hasNumber(totalCount)) return `0 / ${totalCount.toLocaleString(numberLocale)}`;
+
+  return fallbackLabel === UNKNOWN_LABEL ? copy.piotroski.loading : fallbackLabel;
 }
 
 function getScoringStageLabel(stageKey: ScoringStageKey, copy: DashboardLiveCopy) {
@@ -1940,10 +1988,10 @@ export function getDailyProcessDependencyWaitState({
   pipelineStatus: EodPipelineStatusResponseDto | null;
   scoringCardModel: ScoringCardModel;
 }) {
-  const waitForFiltering = isEodProcessChecking(pipelineStatus, eodStageCards);
-  const filteringChecking = !waitForFiltering && isFilteringCardChecking(filteringCardModel);
-  const waitForScoring = waitForFiltering || filteringChecking;
-  const scoringChecking = !waitForScoring && isScoringCardChecking(scoringCardModel);
+  const filteringChecking = isFilteringCardChecking(filteringCardModel);
+  const scoringChecking = isScoringCardChecking(scoringCardModel);
+  const waitForFiltering = !filteringChecking && !scoringChecking && isEodProcessChecking(pipelineStatus, eodStageCards);
+  const waitForScoring = !scoringChecking && (waitForFiltering || filteringChecking);
 
   return {
     filteringChecking,
