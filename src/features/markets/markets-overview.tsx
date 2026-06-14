@@ -99,6 +99,12 @@ export function MarketsOverview() {
             label={t.markets.backToDashboard}
           />
           <ActionCard
+            href="/markets/crypto"
+            title={t.markets.cryptoTitle}
+            body={t.markets.cryptoOverviewCopy}
+            label={t.markets.openCryptoMarkets}
+          />
+          <ActionCard
             href="/my-symbols"
             title={t.mobileChrome.mySymbols}
             body={t.markets.mySymbolsCopy}

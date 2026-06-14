@@ -1853,7 +1853,7 @@ test("signal-decider detail resolves feedback gateway timeouts into an explicit 
   await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-29");
 
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
-  await expect(page.getByRole("main").getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i)).toBeVisible();
+  await expect(page.getByRole("main").getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i).first()).toBeVisible();
   await expect(page.getByText("Loading Signal Decider feedback...")).toHaveCount(0);
   await expect(page.getByText("Unavailable").first()).toBeVisible();
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);

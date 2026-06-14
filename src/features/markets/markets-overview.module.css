@@ -158,6 +158,13 @@
   gap: 0.8rem;
 }
 
+.pillGroup {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
 .actionCard {
   display: grid;
   gap: 0.55rem;
@@ -185,6 +192,52 @@
 .previewCard {
   display: grid;
   gap: 0.55rem;
+}
+
+.detailRows {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.detailRows div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.45rem;
+}
+
+.detailRows dt,
+.detailRows dd {
+  margin: 0;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.detailRows dt {
+  color: var(--muted-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.detailRows dd {
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.cardMeta {
+  margin: 0;
+  color: var(--muted-soft);
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .previewCard div {

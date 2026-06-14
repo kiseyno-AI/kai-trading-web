@@ -109,6 +109,8 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/execution/runtime/monitored-symbols` | `/execution/runtime/monitored-symbols` | optional `market_date`, optional `refresh` |
 | `GET` | `/api/trading/execution/runtime/daily-board` | `/execution/runtime/daily-board` | optional `market_date`, optional `refresh` |
 | `GET` | `/api/trading/execution/runtime/symbols/{symbol}` | `/execution/runtime/symbols/{symbol}` | optional `market_date`, optional `refresh` |
+| `GET` | `/api/trading/execution/runtime/crypto/readiness` | `/execution/runtime/crypto/readiness` | optional `refresh`, optional `venue`, optional `quoteCurrency` |
+| `GET` | `/api/trading/crypto/markets/overview` | `/crypto/markets/overview` | optional `refresh`, optional `venue`, optional `quoteCurrency` |
 | `GET` | `/api/trading/eod/freshness` | `/eod/freshness` | — |
 | `GET` | `/api/trading/eod/momentum-factors` | `/eod/momentum-factors` | `market_date`, repeatable inspect `symbols`, optional `limit` |
 | `GET` | `/api/trading/eod/low-risk-factors` | `/eod/low-risk-factors` | `market_date`, optional `symbol`, optional `limit` |
@@ -171,6 +173,7 @@ Client screens use `src/lib/trading-api-cache.ts` for cacheable same-origin BFF 
 | `/dashboard/symbol/[symbol]/disclosure-coverage/[receiptNo]` | DART disclosure report detail; opens from S7 disclosure rows and streams `/disclosures/dart/filings/document?rcept_no=...` through the BFF |
 | `/dashboard/symbol/[symbol]/system-freshness` | Stitch System Freshness Detail; reuses `/eod/freshness` and quote provenance |
 | `/markets` | Markets overview (client data via adapter / mock) |
+| `/markets/crypto` | Read-only crypto market/runtime readiness through the same-origin BFF; missing upstream rows render pending/unavailable and no order controls are exposed |
 | `/bots` | Automation overview (mock-heavy today) |
 | `/search` | Stitch terminal search entry backed by `/api/trading/symbols/search`; selected rows poll `/api/trading/quotes/{symbol}` and Q4 trending reads `/scanner/realtime-trending` plus stored `/scanner/trending-stocks` periods |
 | `/kis-dashboard` | Alternate KIS-oriented dashboard experiment |

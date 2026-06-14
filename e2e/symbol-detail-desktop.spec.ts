@@ -1075,7 +1075,7 @@ test.describe("symbol detail desktop", () => {
       has: page.getByText("Low risk", { exact: true }),
     });
     await expect(lowRiskCard).toContainText("Unavailable");
-    await expect(lowRiskCard).toContainText("HTTP 503");
+    await expect(lowRiskCard).toContainText(/HTTP 503/i);
 
     const betaCard = factorSection.locator("article").filter({
       has: page.getByText("Beta", { exact: true }),

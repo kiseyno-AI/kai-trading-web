@@ -34,6 +34,28 @@ test.describe("smoke", () => {
     await expect(page.getByRole("heading", { name: /^Markets$/i })).toBeVisible();
   });
 
+  test("crypto markets shell renders pending read-only state", async ({ page }) => {
+    await page.route("**/api/trading/crypto/markets/overview**", async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "crypto market overview pending" }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/crypto/readiness**", async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "crypto runtime readiness pending" }),
+      });
+    });
+
+    await page.goto("/markets/crypto");
+    await expect(page.getByRole("heading", { name: /^Crypto Markets$/i })).toBeVisible();
+    await expect(page.getByText("No crypto rows are available.")).toBeVisible();
+    await expect(page.getByText("Not exposed", { exact: true })).toBeVisible();
+  });
+
   test("bots shell renders", async ({ page }) => {
     await page.goto("/bots");
     await expect(page.getByRole("heading", { name: /Automation Control/i })).toBeVisible();
