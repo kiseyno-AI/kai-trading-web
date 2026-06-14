@@ -1,5 +1,9 @@
 export type Locale = "en" | "ko";
 
+export type AssetClassDto = "equity" | "crypto" | "cash" | "fx" | "unknown" | (string & {});
+export type VenueDto = "KRX" | "KIS" | "UPBIT" | (string & {});
+export type QuoteCurrencyDto = "KRW" | "USD" | "USDT" | (string & {});
+
 export type ApiEnvelope<T> = {
   data: T;
   meta: {
@@ -22,6 +26,9 @@ export type SearchSuggestionDto = {
   label: string;
   type: "market" | "bot" | "signal" | "route";
   route: string;
+  assetClass?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
 };
 
 export type MetricDto = {
@@ -70,6 +77,9 @@ export type WatchItemDto = {
   price: number | null;
   change: number | null;
   available?: boolean;
+  assetClass?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
 };
 
 export type InsightRowDto = {
@@ -104,6 +114,9 @@ export type MarketSpotlightDto = {
   trend: string;
   volume: string;
   change: string;
+  assetClass?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
 };
 
 export type MarketsOverviewDto = {
@@ -155,6 +168,9 @@ export type PortfolioHoldingDto = {
   symbol: string;
   name?: string | null;
   market?: string | null;
+  assetClass?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
   quantity?: number | null;
   averagePrice?: PortfolioMoneyAmountDto | null;
   lastPrice?: PortfolioMoneyAmountDto | null;
@@ -277,6 +293,11 @@ export type ExecutionRuntimeBoardItemDto = Record<string, unknown> & {
   symbol: string;
   name?: string | null;
   market?: string | null;
+  assetClass?: AssetClassDto | null;
+  asset_class?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
+  quote_currency?: QuoteCurrencyDto | null;
   intent?: string | null;
   status: ExecutionRuntimeBoardStatus;
   monitoring_state?: ExecutionRuntimeMonitoringState | null;
@@ -349,6 +370,11 @@ export type ExecutionRuntimeMonitoredSymbolDto = Record<string, unknown> & {
   symbol: string;
   name?: string | null;
   market?: string | null;
+  assetClass?: AssetClassDto | null;
+  asset_class?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
+  quote_currency?: QuoteCurrencyDto | null;
   monitoring_state: ExecutionRuntimeMonitoringState;
   position_side?: string | null;
   planned_intents?: string[] | null;
@@ -407,6 +433,11 @@ export type ExecutionRuntimeSymbolDetailResponseDto = {
   symbol: string;
   name?: string | null;
   market?: string | null;
+  assetClass?: AssetClassDto | null;
+  asset_class?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
+  quote_currency?: QuoteCurrencyDto | null;
   planning?: Record<string, unknown> | null;
   monitoring?: {
     state?: ExecutionRuntimeMonitoringState | null;
@@ -427,6 +458,134 @@ export type ExecutionRuntimeSymbolDetailResponseDto = {
       traceability?: Record<string, unknown> | null;
     }
   > | null;
+};
+
+export type CryptoMarketDataStatus =
+  | "available"
+  | "pending"
+  | "unavailable"
+  | "stale"
+  | "degraded"
+  | string;
+
+export type CryptoReadinessStatus =
+  | "ready"
+  | "paper_ready"
+  | "pending"
+  | "unavailable"
+  | "degraded"
+  | "blocked"
+  | string;
+
+export type CryptoMarketRequestDto = {
+  assetClass?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
+  refresh?: boolean | null;
+};
+
+export type CryptoMarketSummaryDto = Record<string, unknown> & {
+  itemsTotal?: number | null;
+  available?: number | null;
+  pending?: number | null;
+  unavailable?: number | null;
+  stale?: number | null;
+  items_total?: number | null;
+};
+
+export type CryptoMarketRowDto = Record<string, unknown> & {
+  id?: string | null;
+  symbol?: string | null;
+  ticker?: string | null;
+  name?: string | null;
+  displayName?: string | null;
+  display_name?: string | null;
+  assetClass?: AssetClassDto | null;
+  asset_class?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  exchange?: VenueDto | null;
+  baseCurrency?: string | null;
+  base_currency?: string | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
+  quote_currency?: QuoteCurrencyDto | null;
+  lastPrice?: ExecutionRuntimeQuantity | PortfolioMoneyAmountDto | null;
+  last_price?: ExecutionRuntimeQuantity | PortfolioMoneyAmountDto | null;
+  changePercent24h?: number | null;
+  change_percent_24h?: number | null;
+  volume24h?: ExecutionRuntimeQuantity | PortfolioMoneyAmountDto | null;
+  volume_24h?: ExecutionRuntimeQuantity | PortfolioMoneyAmountDto | null;
+  marketStatus?: CryptoMarketDataStatus | null;
+  market_status?: CryptoMarketDataStatus | null;
+  dataStatus?: CryptoMarketDataStatus | null;
+  data_status?: CryptoMarketDataStatus | null;
+  source?: string | null;
+  asOf?: string | null;
+  as_of?: string | null;
+  updatedAt?: string | null;
+  updated_at?: string | null;
+};
+
+export type CryptoMarketOverviewResponseDto = {
+  request?: CryptoMarketRequestDto | null;
+  summary?: CryptoMarketSummaryDto | null;
+  asOf?: string | null;
+  as_of?: string | null;
+  items?: CryptoMarketRowDto[] | null;
+  notices?: string[] | null;
+};
+
+export type CryptoRuntimeReadinessSummaryDto = Record<string, unknown> & {
+  itemsTotal?: number | null;
+  ready?: number | null;
+  paperReady?: number | null;
+  pending?: number | null;
+  unavailable?: number | null;
+  blocked?: number | null;
+  items_total?: number | null;
+  paper_ready?: number | null;
+};
+
+export type CryptoRuntimeReadinessRowDto = Record<string, unknown> & {
+  id?: string | null;
+  symbol?: string | null;
+  ticker?: string | null;
+  name?: string | null;
+  displayName?: string | null;
+  display_name?: string | null;
+  assetClass?: AssetClassDto | null;
+  asset_class?: AssetClassDto | null;
+  venue?: VenueDto | null;
+  exchange?: VenueDto | null;
+  baseCurrency?: string | null;
+  base_currency?: string | null;
+  quoteCurrency?: QuoteCurrencyDto | null;
+  quote_currency?: QuoteCurrencyDto | null;
+  mode?: ExecutionRuntimeMode | null;
+  readiness?: CryptoReadinessStatus | null;
+  status?: CryptoReadinessStatus | null;
+  marketDataConnected?: boolean | null;
+  market_data_connected?: boolean | null;
+  websocketConnected?: boolean | null;
+  websocket_connected?: boolean | null;
+  paperTradingEnabled?: boolean | null;
+  paper_trading_enabled?: boolean | null;
+  liveTradingEnabled?: boolean | null;
+  live_trading_enabled?: boolean | null;
+  lastHeartbeatAt?: string | null;
+  last_heartbeat_at?: string | null;
+  updatedAt?: string | null;
+  updated_at?: string | null;
+  issues?: ExecutionRuntimeIssueDto[] | string[] | null;
+};
+
+export type CryptoRuntimeReadinessResponseDto = {
+  request?: CryptoMarketRequestDto | null;
+  runtime?: ExecutionRuntimeStatusResponseDto | null;
+  summary?: CryptoRuntimeReadinessSummaryDto | null;
+  asOf?: string | null;
+  as_of?: string | null;
+  items?: CryptoRuntimeReadinessRowDto[] | null;
+  notices?: string[] | null;
 };
 
 export type BotCommandRequestDto = {

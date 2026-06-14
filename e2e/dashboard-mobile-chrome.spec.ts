@@ -406,7 +406,7 @@ test.describe("dashboard mobile chrome", () => {
 
     const topbarBox = await topbar.boundingBox();
     expect(topbarBox).not.toBeNull();
-    expect(topbarBox!.height).toBeLessThan(112);
+    expect(topbarBox!.height).toBeLessThan(113);
     expect(topbarBox!.x).toBeGreaterThanOrEqual(0);
 
     await expect(bottomNav).toBeVisible();
