@@ -123,7 +123,10 @@ function getRowKey(row: CryptoMarketRowDto | CryptoRuntimeReadinessRowDto) {
   const record = row as Record<string, unknown>;
   const symbol = getRecordStringValue(record, ["symbol", "ticker", "instrument"]);
   const venue = getRecordStringValue(record, ["venue", "exchange"]);
-  return `${venue ?? "crypto"}:${symbol ?? getRecordStringValue(record, ["id"]) ?? "readiness"}`.toUpperCase();
+  const baseCurrency = getRecordStringValue(record, ["baseCurrency", "base_currency"]);
+  const quoteCurrency = getRecordStringValue(record, ["quoteCurrency", "quote_currency"]);
+  const pair = baseCurrency && quoteCurrency ? `${baseCurrency}/${quoteCurrency}` : null;
+  return `${venue ?? "crypto"}:${symbol ?? getRecordStringValue(record, ["id"]) ?? pair ?? "readiness"}`.toUpperCase();
 }
 
 function getAssetClass(row: CryptoMarketRowDto | CryptoRuntimeReadinessRowDto | null) {

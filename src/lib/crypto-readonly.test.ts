@@ -75,3 +75,44 @@ test("crypto read-only model merges market and readiness rows without fake fallb
     ],
   );
 });
+
+test("crypto read-only model keeps base and quote keyed readiness rows distinct", () => {
+  const model = buildCryptoReadOnlySurfaceModel({
+    marketOverview: {
+      ok: true,
+      data: {
+        items: [],
+      },
+    },
+    runtimeReadiness: {
+      ok: true,
+      data: {
+        items: [
+          {
+            baseCurrency: "BTC",
+            paperTradingEnabled: true,
+            quoteCurrency: "KRW",
+            readiness: "paper_ready",
+            venue: "UPBIT",
+          },
+          {
+            baseCurrency: "ETH",
+            paperTradingEnabled: false,
+            quoteCurrency: "KRW",
+            readiness: "pending",
+            venue: "UPBIT",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(model.rows.length, 2);
+  assert.deepEqual(
+    model.rows.map((row) => [row.key, row.pairLabel, row.readinessLabel, row.paperStatusLabel]),
+    [
+      ["UPBIT:BTC/KRW", "BTC/KRW", "paper_ready", "Paper enabled"],
+      ["UPBIT:ETH/KRW", "ETH/KRW", "pending", "Paper disabled"],
+    ],
+  );
+});
