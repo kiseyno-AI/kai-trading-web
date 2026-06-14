@@ -250,6 +250,9 @@ test("crypto read-only model merges BTC and ETH strategy plus paper runtime rows
   assert.equal(model.paperSource.state, "ready");
   assert.equal(model.rows.length, 2);
   assert.equal(model.strategyPaperRows.length, 2);
+  const btcRow = model.strategyPaperRows.find((row) => row.key === "UPBIT:BTC/KRW");
+  assert.equal(btcRow?.provider, "core");
+  assert.equal(btcRow?.paperProviderLabel, "UPBIT");
   assert.deepEqual(
     model.strategyPaperRows.map((row) => [
       row.key,

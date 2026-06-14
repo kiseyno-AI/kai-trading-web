@@ -454,7 +454,7 @@ export function buildCryptoReadOnlySurfaceModel({
       paperRuntimeLabel: getPaperRuntimeLabel(pair.paper),
       pairLabel: getPairLabel(primaryRow),
       paperStatusLabel: getPaperStatusLabel(paperStateRow),
-      provider: getProvider(primaryRow),
+      provider: getProvider(pair.strategy ?? primaryRow),
       quoteCurrency: getQuoteCurrency(primaryRow),
       readinessLabel: pair.readiness ? getReadinessLabel(pair.readiness) : getPaperRuntimeLabel(pair.paper),
       riskTierLabel: getStrategyLabel(pair.strategy, ["riskTier", "risk_tier"]),
