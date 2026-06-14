@@ -42,6 +42,13 @@ test.describe("smoke", () => {
         body: JSON.stringify({ message: "crypto market overview pending" }),
       });
     });
+    await page.route("**/api/trading/crypto/strategies/overview**", async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "crypto strategy overview pending" }),
+      });
+    });
     await page.route("**/api/trading/execution/runtime/crypto/readiness**", async (route) => {
       await route.fulfill({
         status: 404,
@@ -49,11 +56,138 @@ test.describe("smoke", () => {
         body: JSON.stringify({ message: "crypto runtime readiness pending" }),
       });
     });
+    await page.route("**/api/trading/execution/runtime/crypto/paper**", async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "crypto paper runtime pending" }),
+      });
+    });
 
     await page.goto("/markets/crypto");
     await expect(page.getByRole("heading", { name: /^Crypto Markets$/i })).toBeVisible();
     await expect(page.getByText("No crypto rows are available.")).toBeVisible();
+    await expect(page.getByText("No crypto strategy or paper runtime rows are available.")).toBeVisible();
     await expect(page.getByText("Not exposed", { exact: true })).toBeVisible();
+  });
+
+  test("crypto markets shell renders BTC and ETH strategy and paper runtime rows", async ({ page }) => {
+    await page.route("**/api/trading/crypto/markets/overview**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            {
+              assetClass: "crypto",
+              lastPrice: 95000000,
+              name: "Bitcoin",
+              quoteCurrency: "KRW",
+              symbol: "BTC/KRW",
+              venue: "UPBIT",
+            },
+            {
+              assetClass: "crypto",
+              lastPrice: 4900000,
+              name: "Ethereum",
+              quoteCurrency: "KRW",
+              symbol: "ETH/KRW",
+              venue: "UPBIT",
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/crypto/strategies/overview**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            {
+              assetClass: "crypto",
+              momentumScore: 72,
+              provider: "core",
+              readiness: "ready",
+              riskTier: "moderate",
+              strategyName: "BTC weekend momentum",
+              symbol: "KRW-BTC",
+              trendState: "uptrend",
+              venue: "UPBIT",
+              volatilityTier: "medium",
+            },
+            {
+              assetClass: "crypto",
+              momentumScore: 51,
+              provider: "core",
+              readiness: "pending",
+              riskTier: "high",
+              strategyName: "ETH range watch",
+              symbol: "KRW-ETH",
+              trendState: "range",
+              venue: "UPBIT",
+              volatilityTier: "high",
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/crypto/readiness**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            {
+              paperTradingEnabled: true,
+              readiness: "paper_ready",
+              symbol: "KRW-BTC",
+              venue: "UPBIT",
+            },
+            {
+              paperTradingEnabled: false,
+              readiness: "pending",
+              symbol: "KRW-ETH",
+              venue: "UPBIT",
+            },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/crypto/paper**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [
+            {
+              activePaperJobCount: 1,
+              lastHeartbeatAt: "2026-06-14T09:15:00Z",
+              mode: "paper",
+              openPaperOrderCount: 0,
+              paperRuntimeState: "paper_ready",
+              paperTradingEnabled: true,
+              provider: "UPBIT",
+              symbol: "KRW-BTC",
+              venue: "UPBIT",
+            },
+            {
+              activePaperJobCount: 0,
+              mode: "paper",
+              openPaperOrderCount: 0,
+              paperRuntimeState: "pending",
+              paperTradingEnabled: false,
+              provider: "UPBIT",
+              symbol: "KRW-ETH",
+              venue: "UPBIT",
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/markets/crypto");
+    await expect(page.getByRole("heading", { name: /^Crypto Markets$/i })).toBeVisible();
+    await expect(page.getByText("BTC weekend momentum")).toBeVisible();
+    await expect(page.getByText("ETH range watch")).toBeVisible();
+    await expect(page.getByText("paper_ready").first()).toBeVisible();
+    await expect(page.getByText("No web controls").first()).toBeVisible();
   });
 
   test("bots shell renders", async ({ page }) => {
