@@ -23,23 +23,31 @@ export function CryptoMarketsOverview() {
     () =>
       buildCryptoReadOnlySurfaceModel({
         marketOverview: cryptoResult.data?.marketOverview,
+        paperRuntime: cryptoResult.data?.paperRuntime,
         runtimeReadiness: cryptoResult.data?.runtimeReadiness,
+        strategyOverview: cryptoResult.data?.strategyOverview,
       }),
     [cryptoResult.data],
   );
   const hasRows = model.rows.length > 0;
+  const hasStrategyPaperRows = model.strategyPaperRows.length > 0;
   const rowStateLabel = cryptoResult.isInitialLoading
     ? t.markets.cryptoLoading
     : hasRows
       ? `${model.rows.length.toLocaleString()} ${t.markets.cryptoRowsReady}`
       : t.markets.cryptoNoRows;
+  const strategyPaperStateLabel = cryptoResult.isInitialLoading
+    ? t.markets.cryptoLoading
+    : hasStrategyPaperRows
+      ? `${model.strategyPaperRows.length.toLocaleString()} ${t.markets.cryptoStrategyPaperRowsReady}`
+      : t.markets.cryptoNoStrategyPaperRows;
 
   return (
     <div className={styles.page}>
       <section className={`${styles.panel} ${styles.heroPanel}`}>
         <ComponentTag
           label="markets.crypto"
-          api="/api/trading/crypto/markets/overview + /api/trading/execution/runtime/crypto/readiness"
+          api="/api/trading/crypto/markets/overview + /api/trading/crypto/strategies/overview + /api/trading/execution/runtime/crypto/readiness + /api/trading/execution/runtime/crypto/paper"
         />
         <p className={styles.eyebrow}>{t.markets.cryptoEyebrow}</p>
         <h1>{t.markets.cryptoTitle}</h1>
@@ -53,9 +61,19 @@ export function CryptoMarketsOverview() {
             <small>{t.markets.cryptoMarketOverviewPath}</small>
           </div>
           <div>
+            <span>{t.markets.cryptoStrategyOverview}</span>
+            <strong>{model.strategySource.label}</strong>
+            <small>{t.markets.cryptoStrategyOverviewPath}</small>
+          </div>
+          <div>
             <span>{t.markets.cryptoRuntimeReadiness}</span>
             <strong>{model.readinessSource.label}</strong>
             <small>{t.markets.cryptoRuntimeReadinessPath}</small>
+          </div>
+          <div>
+            <span>{t.markets.cryptoPaperRuntime}</span>
+            <strong>{model.paperSource.label}</strong>
+            <small>{t.markets.cryptoPaperRuntimePath}</small>
           </div>
           <div>
             <span>{t.markets.cryptoOrderControls}</span>
@@ -82,7 +100,9 @@ export function CryptoMarketsOverview() {
           </div>
           <div className={styles.pillGroup}>
             <span className={getPillClass(model.marketSource.state)}>{model.marketSource.label}</span>
+            <span className={getPillClass(model.strategySource.state)}>{model.strategySource.label}</span>
             <span className={getPillClass(model.readinessSource.state)}>{model.readinessSource.label}</span>
+            <span className={getPillClass(model.paperSource.state)}>{model.paperSource.label}</span>
           </div>
         </div>
         <p className={styles.panelCopy}>{t.markets.cryptoEndpointStateCopy}</p>
@@ -92,11 +112,136 @@ export function CryptoMarketsOverview() {
             {t.markets.cryptoMarketOverview}: {model.marketSource.detail}
           </p>
         ) : null}
+        {model.strategySource.detail ? (
+          <p className={styles.notice}>
+            {t.markets.cryptoStrategyOverview}: {model.strategySource.detail}
+          </p>
+        ) : null}
         {model.readinessSource.detail ? (
           <p className={styles.notice}>
             {t.markets.cryptoRuntimeReadiness}: {model.readinessSource.detail}
           </p>
         ) : null}
+        {model.paperSource.detail ? (
+          <p className={styles.notice}>
+            {t.markets.cryptoPaperRuntime}: {model.paperSource.detail}
+          </p>
+        ) : null}
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.sectionHead}>
+          <div>
+            <p className={styles.eyebrow}>{t.markets.cryptoStrategyPaperTitle}</p>
+            <h2>{strategyPaperStateLabel}</h2>
+          </div>
+          <span className={`pill ${hasStrategyPaperRows ? "info" : "neutral"}`}>
+            {hasStrategyPaperRows ? t.markets.available : t.markets.pending}
+          </span>
+        </div>
+        <p className={styles.panelCopy}>{t.markets.cryptoStrategyPaperCopy}</p>
+
+        {hasStrategyPaperRows ? (
+          <div className={styles.previewGrid}>
+            {model.strategyPaperRows.map((row) => (
+              <article key={`strategy-paper-${row.key}`} className={styles.previewCard}>
+                <strong>{row.pairLabel}</strong>
+                <p>{row.name ?? t.markets.cryptoNamePending}</p>
+                <dl className={styles.detailRows}>
+                  <div>
+                    <dt>{t.markets.cryptoAssetClass}</dt>
+                    <dd>{row.assetClass}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoVenue}</dt>
+                    <dd>{row.venue}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoProvider}</dt>
+                    <dd>{row.provider}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoMode}</dt>
+                    <dd>{row.modeLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoStrategyName}</dt>
+                    <dd>{row.strategyNameLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoStrategyReadiness}</dt>
+                    <dd>{row.strategyReadinessLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoTrendState}</dt>
+                    <dd>{row.trendStateLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoMomentumScore}</dt>
+                    <dd>{row.momentumScoreLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoVolatilityTier}</dt>
+                    <dd>{row.volatilityTierLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoRiskTier}</dt>
+                    <dd>{row.riskTierLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoTargetLevel}</dt>
+                    <dd>{row.targetLevelLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoInvalidationLevel}</dt>
+                    <dd>{row.invalidationLevelLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoStrategyReasons}</dt>
+                    <dd>{row.strategyReasonLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoPaperRuntimeState}</dt>
+                    <dd>{row.paperRuntimeLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoPaperProvider}</dt>
+                    <dd>{row.paperProviderLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoPaperMode}</dt>
+                    <dd>{row.paperModeLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoPaperHeartbeat}</dt>
+                    <dd>{row.paperHeartbeatLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoPaperOrders}</dt>
+                    <dd>{row.paperOpenOrdersLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoPaperJobs}</dt>
+                    <dd>{row.paperActiveJobsLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoPaperIssues}</dt>
+                    <dd>{row.paperIssuesLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoLiveControls}</dt>
+                    <dd>{row.liveControlsLabel}</dd>
+                  </div>
+                </dl>
+                <p className={styles.cardMeta}>
+                  {t.markets.cryptoUpdatedAt}: {row.updatedAtLabel}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.notice}>{t.markets.cryptoNoStrategyPaperRowsCopy}</p>
+        )}
       </section>
 
       <section className={styles.panel}>
@@ -128,6 +273,10 @@ export function CryptoMarketsOverview() {
                   <div>
                     <dt>{t.markets.cryptoVenue}</dt>
                     <dd>{row.venue}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.markets.cryptoProvider}</dt>
+                    <dd>{row.provider}</dd>
                   </div>
                   <div>
                     <dt>{t.markets.cryptoQuoteCurrency}</dt>
