@@ -1484,6 +1484,9 @@ export function LiveDashboardClient({
   const numberLocale = getNumberLocale(locale);
   const agentProgressStatusLabels = useMemo(() => getAgentProgressStatusLabels(copy), [copy]);
   const agentRoleStatusLabels = useMemo(() => getAgentRoleStatusLabels(copy), [copy]);
+  const [processMonitorDrawerOpen, setProcessMonitorDrawerOpen] = useState(false);
+  const [processMonitorDrawerClosing, setProcessMonitorDrawerClosing] = useState(false);
+  const processMonitorDrawerCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     agentFeedbackProgress,
     agentFeedbackProgressError,
@@ -1539,15 +1542,14 @@ export function LiveDashboardClient({
     initialExecutionRuntimeStatus,
     initialExecutionRuntimeMonitoredSymbols,
     initialExecutionRuntimeDailyBoard,
+  }, {
+    processMonitorOpen: processMonitorDrawerOpen,
   });
   const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
   const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
   const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
   const [fundamentalsUpdatesExpanded, setFundamentalsUpdatesExpanded] = useState(false);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
-  const [processMonitorDrawerOpen, setProcessMonitorDrawerOpen] = useState(false);
-  const [processMonitorDrawerClosing, setProcessMonitorDrawerClosing] = useState(false);
-  const processMonitorDrawerCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const agentFeedbackProgressRef = useRef(agentFeedbackProgress);
 
   useEffect(() => {
