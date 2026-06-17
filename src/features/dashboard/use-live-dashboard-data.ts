@@ -83,6 +83,7 @@ import type {
 const TRACKED_QUOTES_RETRY_DELAYS_MS = [5_000, 15_000, 30_000] as const;
 const FILTERING_FALLBACK_REVALIDATE_DELAY_MS = 5_000;
 const EXECUTION_RUNTIME_POLL_MS = 15_000;
+const EOD_PIPELINE_STATUS_MONITOR_POLL_MS = 2_000;
 const EOD_PIPELINE_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 10_000] as const;
 
 type DashboardTimeoutApi = {
@@ -235,7 +236,11 @@ export function useLiveDashboardData({
   initialExecutionRuntimeStatus,
   initialExecutionRuntimeMonitoredSymbols,
   initialExecutionRuntimeDailyBoard,
-}: LiveDashboardClientProps) {
+}: LiveDashboardClientProps, {
+  processMonitorOpen = false,
+}: {
+  processMonitorOpen?: boolean;
+} = {}) {
   const initialPipelineRequestMarketDate = getDashboardProcessRequestMarketDate(
     initialFreshness?.today?.trade_date,
     initialMarket.server_time,
@@ -890,10 +895,12 @@ export function useLiveDashboardData({
       clearTimer();
       timer = window.setTimeout(
         loadPipelineStatus,
-        getEodPipelineStatusPollDelayMsWithTransientErrors({
-          pipelineStatus: nextPipelineStatus,
-          timeoutErrorCount,
-        }),
+        processMonitorOpen
+          ? EOD_PIPELINE_STATUS_MONITOR_POLL_MS
+          : getEodPipelineStatusPollDelayMsWithTransientErrors({
+              pipelineStatus: nextPipelineStatus,
+              timeoutErrorCount,
+            }),
       );
     }
 
@@ -975,7 +982,7 @@ export function useLiveDashboardData({
       inFlightRequest?.abort();
       inFlightLatestCompletedRequest?.abort();
     };
-  }, [freshness, latestCompletedPipelineStatusPath, pipelineRequestMarketDate, pipelineStatusPath]);
+  }, [freshness, latestCompletedPipelineStatusPath, pipelineRequestMarketDate, pipelineStatusPath, processMonitorOpen]);
 
   useEffect(() => {
     let active = true;

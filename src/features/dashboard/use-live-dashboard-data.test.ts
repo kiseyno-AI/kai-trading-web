@@ -140,6 +140,43 @@ test("loads pipeline status with a request timeout signal and quiet transient er
   );
 });
 
+test("uses one pipeline status polling owner with a 2s monitor-open cadence", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.match(source, /const EOD_PIPELINE_STATUS_MONITOR_POLL_MS = 2_000;/);
+  assert.match(source, /processMonitorOpen = false/);
+  assert.match(
+    source,
+    /processMonitorOpen\s*\?\s*EOD_PIPELINE_STATUS_MONITOR_POLL_MS\s*:\s*getEodPipelineStatusPollDelayMsWithTransientErrors\({\s*pipelineStatus: nextPipelineStatus,\s*timeoutErrorCount,\s*}\)/,
+  );
+  assert.match(
+    source,
+    /\}, \[freshness, latestCompletedPipelineStatusPath, pipelineRequestMarketDate, pipelineStatusPath, processMonitorOpen\]\);/,
+  );
+  assert.equal((source.match(/getJsonNoCache<EodPipelineStatusResponseDto>\(pipelineStatusPath/g) ?? []).length, 1);
+});
+
+test("wires daily process drawer open state to restart and stop fast pipeline polling", () => {
+  const sourcePath = new URL("../../app/dashboard/live-dashboard-client.tsx", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.match(
+    source,
+    /const \[processMonitorDrawerOpen, setProcessMonitorDrawerOpen\] = useState\(false\);[\s\S]*?useLiveDashboardData\(/,
+  );
+  assert.match(source, /processMonitorOpen: processMonitorDrawerOpen/);
+  assert.match(
+    source,
+    /setProcessMonitorDrawerClosing\(false\);\s*setProcessMonitorDrawerOpen\(true\);/,
+  );
+  assert.match(
+    source,
+    /setProcessMonitorDrawerOpen\(false\);\s*setProcessMonitorDrawerClosing\(true\);/,
+  );
+  assert.doesNotMatch(source, /processMonitorOpen: processMonitorDrawerMounted/);
+});
+
 test("loads dashboard signal-decider progress and feedback without the generic cached timeout helper", () => {
   const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
   const source = readFileSync(sourcePath, "utf8");
