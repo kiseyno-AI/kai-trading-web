@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   hasResponseForRequestedMarketDate,
   isEodPipelineStatusTransientError,
+  getEodPipelineStatusMonitorAwarePollDelayMs,
   getEodPipelineStatusPollDelayMsWithTransientErrors,
 } from "./use-live-dashboard-data";
 
@@ -113,6 +114,69 @@ test("uses a longer retry delay only for transient pipeline status errors", () =
   );
 });
 
+test("keeps monitor-open polling fast only while transient pipeline status polling is healthy", () => {
+  const runningStatus = {
+    market_date: "2026-04-30",
+    status: "running",
+    stage_order: ["price_collection"],
+    stages: {
+      price_collection: {
+        status: "running",
+        processed: 1,
+        total: 10,
+        failed: 0,
+      },
+    },
+  } satisfies Parameters<typeof getEodPipelineStatusMonitorAwarePollDelayMs>[0]["pipelineStatus"];
+
+  const idleStatus = {
+    market_date: "2026-04-30",
+    status: "completed",
+    stage_order: ["price_collection"],
+    stages: {
+      price_collection: {
+        status: "completed",
+        processed: 10,
+        total: 10,
+        failed: 0,
+      },
+    },
+  } satisfies Parameters<typeof getEodPipelineStatusMonitorAwarePollDelayMs>[0]["pipelineStatus"];
+
+  assert.equal(
+    getEodPipelineStatusMonitorAwarePollDelayMs({
+      pipelineStatus: idleStatus,
+      processMonitorOpen: true,
+      timeoutErrorCount: 0,
+    }),
+    2_000,
+  );
+  assert.equal(
+    getEodPipelineStatusMonitorAwarePollDelayMs({
+      pipelineStatus: runningStatus,
+      processMonitorOpen: false,
+      timeoutErrorCount: 0,
+    }),
+    1_000,
+  );
+  assert.equal(
+    getEodPipelineStatusMonitorAwarePollDelayMs({
+      pipelineStatus: runningStatus,
+      processMonitorOpen: true,
+      timeoutErrorCount: 2,
+    }),
+    5_000,
+  );
+  assert.equal(
+    getEodPipelineStatusMonitorAwarePollDelayMs({
+      pipelineStatus: runningStatus,
+      processMonitorOpen: true,
+      timeoutErrorCount: 3,
+    }),
+    10_000,
+  );
+});
+
 test("loads pipeline status with a request timeout signal and quiet transient error handling", () => {
   const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
   const source = readFileSync(sourcePath, "utf8");
@@ -136,7 +200,7 @@ test("loads pipeline status with a request timeout signal and quiet transient er
   );
   assert.match(
     source,
-    /getEodPipelineStatusPollDelayMsWithTransientErrors\({\s*pipelineStatus: nextPipelineStatus,\s*timeoutErrorCount,\s*}\)/,
+    /getEodPipelineStatusMonitorAwarePollDelayMs\({\s*pipelineStatus: nextPipelineStatus,\s*processMonitorOpen,\s*timeoutErrorCount,\s*}\)/,
   );
 });
 
@@ -148,7 +212,7 @@ test("uses one pipeline status polling owner with a 2s monitor-open cadence", ()
   assert.match(source, /processMonitorOpen = false/);
   assert.match(
     source,
-    /processMonitorOpen\s*\?\s*EOD_PIPELINE_STATUS_MONITOR_POLL_MS\s*:\s*getEodPipelineStatusPollDelayMsWithTransientErrors\({\s*pipelineStatus: nextPipelineStatus,\s*timeoutErrorCount,\s*}\)/,
+    /getEodPipelineStatusMonitorAwarePollDelayMs\({\s*pipelineStatus: nextPipelineStatus,\s*processMonitorOpen,\s*timeoutErrorCount,\s*}\)/,
   );
   assert.match(
     source,

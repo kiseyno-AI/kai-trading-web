@@ -152,6 +152,31 @@ export function getEodPipelineStatusPollDelayMsWithTransientErrors({
   return Math.max(baseDelayMs, EOD_PIPELINE_STATUS_RETRY_DELAYS_MS[retryIndex]);
 }
 
+export function getEodPipelineStatusMonitorAwarePollDelayMs({
+  pipelineStatus,
+  processMonitorOpen,
+  timeoutErrorCount,
+}: {
+  pipelineStatus: EodPipelineStatusResponseDto | null;
+  processMonitorOpen: boolean;
+  timeoutErrorCount: number;
+}) {
+  const transientAwareDelayMs = getEodPipelineStatusPollDelayMsWithTransientErrors({
+    pipelineStatus,
+    timeoutErrorCount,
+  });
+
+  if (!processMonitorOpen) {
+    return transientAwareDelayMs;
+  }
+
+  if (timeoutErrorCount <= 0) {
+    return EOD_PIPELINE_STATUS_MONITOR_POLL_MS;
+  }
+
+  return Math.max(EOD_PIPELINE_STATUS_MONITOR_POLL_MS, transientAwareDelayMs);
+}
+
 async function getJsonNoCache<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
   const response = await fetch(resolveTradingApiClientPath(path), {
     cache: "no-store",
@@ -895,12 +920,11 @@ export function useLiveDashboardData({
       clearTimer();
       timer = window.setTimeout(
         loadPipelineStatus,
-        processMonitorOpen
-          ? EOD_PIPELINE_STATUS_MONITOR_POLL_MS
-          : getEodPipelineStatusPollDelayMsWithTransientErrors({
-              pipelineStatus: nextPipelineStatus,
-              timeoutErrorCount,
-            }),
+        getEodPipelineStatusMonitorAwarePollDelayMs({
+          pipelineStatus: nextPipelineStatus,
+          processMonitorOpen,
+          timeoutErrorCount,
+        }),
       );
     }
 
