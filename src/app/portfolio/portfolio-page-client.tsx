@@ -8,6 +8,7 @@ import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
 import type { DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
+import { EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_CLIENT_PATH } from "@/lib/execution-runtime";
 import { formatDisplayTimestamp } from "@/lib/format";
 import { PORTFOLIO_SUMMARY_PATH } from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
@@ -17,8 +18,9 @@ import {
   seedTradingApiJsonSnapshot,
   type TradingApiJsonResult,
 } from "@/lib/trading-api-cache";
-import type { PortfolioSummaryDto } from "@/types/trading-api";
+import type { PortfolioRiskSnapshotDto, PortfolioSummaryDto } from "@/types/trading-api";
 import {
+  buildPortfolioRiskSnapshotModel,
   buildPortfolioSectionStates,
   buildPortfolioMetricModels,
   classifyPortfolioSummaryFailure,
@@ -31,8 +33,10 @@ import {
   getPortfolioLastSyncedAt,
   getPortfolioNoticeMessages,
   getPortfolioSyncMessage,
+  resolvePortfolioRiskSnapshotState,
   resolvePortfolioSummaryState,
   type PortfolioMetricId,
+  type PortfolioRiskSnapshotState,
   type PortfolioSectionId,
   type PortfolioSectionState,
   type PortfolioSummaryFailureKind,
@@ -102,6 +106,7 @@ function StateNotice({
 }
 
 type PortfolioSummaryFailure = Extract<TradingApiJsonResult<PortfolioSummaryDto>, { ok: false }>;
+type PortfolioRiskSnapshotFailure = Extract<TradingApiJsonResult<PortfolioRiskSnapshotDto>, { ok: false }>;
 
 function getHttpFailureDetail(result: PortfolioSummaryFailure) {
   const detail = result.message ? `: ${result.message}` : "";
@@ -132,6 +137,30 @@ function getPortfolioFailure(result: PortfolioSummaryFailure, copy: PortfolioCop
   };
 }
 
+function getPortfolioRiskFailure(result: PortfolioRiskSnapshotFailure, copy: PortfolioCopy): PortfolioFailure {
+  const kind = classifyPortfolioSummaryFailure(result);
+  const httpDetail = getHttpFailureDetail(result);
+
+  if (kind === "endpoint-pending") {
+    return {
+      kind,
+      message: `${copy.risk.errors.endpointPending} ${httpDetail}`,
+    };
+  }
+
+  if (kind === "not-configured") {
+    return {
+      kind,
+      message: result.message ? `${copy.risk.errors.configMissing} ${result.message}` : copy.risk.errors.configMissing,
+    };
+  }
+
+  return {
+    kind,
+    message: `${copy.risk.errors.upstreamUnavailable} ${httpDetail}`,
+  };
+}
+
 function getPortfolioStatusLabel(state: PortfolioSummaryState, summary: PortfolioSummaryDto | null, copy: PortfolioCopy) {
   if (state === "loading") return copy.loading;
   if (state === "endpoint-pending") return copy.statusEndpointPending;
@@ -143,6 +172,23 @@ function getPortfolioStatusLabel(state: PortfolioSummaryState, summary: Portfoli
   if (state === "partial-data") return humanizeToken(summary?.sync?.status, copy.statusPartialData);
 
   return humanizeToken(summary?.sync?.status, copy.statusFullySynced);
+}
+
+function getPortfolioRiskStatusLabel(
+  state: PortfolioRiskSnapshotState,
+  sourceStatusKey: string | null | undefined,
+  copy: PortfolioCopy,
+) {
+  if (state === "loading") return copy.loading;
+  if (state === "endpoint-pending") return copy.risk.statusEndpointPending;
+  if (state === "invalid-response") return copy.statusInvalidResponse;
+  if (state === "not-configured") return copy.statusNotConfigured;
+  if (state === "upstream-unavailable") return copy.statusUpstreamUnavailable;
+  if (state === "unavailable") return copy.risk.statusUnavailable;
+  if (state === "stale-sync") return humanizeToken(sourceStatusKey, copy.risk.statusStale);
+  if (state === "partial-data") return humanizeToken(sourceStatusKey, copy.risk.statusPartial);
+
+  return humanizeToken(sourceStatusKey, copy.risk.statusReady);
 }
 
 function getPortfolioToolbarStatusTone(state: PortfolioSummaryState): DashboardToolbarStatusTone {
@@ -190,6 +236,19 @@ function getMetricValueFallback(state: PortfolioSummaryState, copy: PortfolioCop
   return copy.fieldNotReported;
 }
 
+function getRiskFieldFallback(state: PortfolioRiskSnapshotState, copy: PortfolioCopy) {
+  if (state === "loading") return copy.loading;
+  if (state === "endpoint-pending") return copy.fieldEndpointPending;
+  if (state === "invalid-response") return copy.fieldInvalidResponse;
+  if (state === "not-configured") return copy.fieldNotConfigured;
+  if (state === "upstream-unavailable") return copy.fieldUpstreamUnavailable;
+  if (state === "stale-sync") return copy.fieldStale;
+  if (state === "partial-data") return copy.fieldPartial;
+  if (state === "unavailable") return copy.unavailable;
+
+  return copy.fieldNotReported;
+}
+
 function getFieldFallback(state: PortfolioSectionState, copy: PortfolioCopy) {
   if (state === "loading") return copy.loading;
   if (state === "endpoint-pending") return copy.fieldEndpointPending;
@@ -211,6 +270,19 @@ function getTimestampFallback(state: PortfolioSummaryState | PortfolioSectionSta
   if (state === "upstream-unavailable") return copy.fieldUpstreamUnavailable;
   if (state === "stale-sync") return copy.timestampMissingStale;
   if (state === "partial-data") return copy.timestampMissingPartial;
+
+  return copy.timestampMissing;
+}
+
+function getRiskTimestampFallback(state: PortfolioRiskSnapshotState, copy: PortfolioCopy) {
+  if (state === "loading") return copy.loading;
+  if (state === "endpoint-pending") return copy.fieldEndpointPending;
+  if (state === "invalid-response") return copy.fieldInvalidResponse;
+  if (state === "not-configured") return copy.fieldNotConfigured;
+  if (state === "upstream-unavailable") return copy.fieldUpstreamUnavailable;
+  if (state === "stale-sync") return copy.timestampMissingStale;
+  if (state === "partial-data") return copy.timestampMissingPartial;
+  if (state === "unavailable") return copy.timestampMissing;
 
   return copy.timestampMissing;
 }
@@ -256,6 +328,75 @@ function getPortfolioStateNotice(
   return null;
 }
 
+function getPortfolioRiskStateNotice(
+  state: PortfolioRiskSnapshotState,
+  failureMessage: string | null,
+  sourceMessage: string | null,
+  copy: PortfolioCopy,
+) {
+  if (state === "loading") {
+    return { body: copy.risk.loadingBody, title: copy.risk.loadingTitle, tone: "loading" as const };
+  }
+
+  if (state === "endpoint-pending") {
+    return {
+      body: failureMessage ?? copy.risk.endpointPendingBody,
+      title: copy.risk.endpointPendingTitle,
+      tone: "warning" as const,
+    };
+  }
+
+  if (state === "invalid-response") {
+    return {
+      body: failureMessage ?? copy.risk.invalidResponseBody,
+      title: copy.risk.invalidResponseTitle,
+      tone: "warning" as const,
+    };
+  }
+
+  if (state === "not-configured") {
+    return {
+      body: failureMessage ?? copy.risk.notConfiguredBody,
+      title: copy.risk.notConfiguredTitle,
+      tone: "warning" as const,
+    };
+  }
+
+  if (state === "upstream-unavailable") {
+    return {
+      body: failureMessage ?? copy.risk.upstreamUnavailableBody,
+      title: copy.risk.upstreamUnavailableTitle,
+      tone: "warning" as const,
+    };
+  }
+
+  if (state === "unavailable") {
+    return {
+      body: sourceMessage ?? copy.risk.unavailableBody,
+      title: copy.risk.unavailableTitle,
+      tone: "warning" as const,
+    };
+  }
+
+  if (state === "stale-sync") {
+    return {
+      body: sourceMessage ?? copy.risk.staleBody,
+      title: copy.risk.staleTitle,
+      tone: "warning" as const,
+    };
+  }
+
+  if (state === "partial-data") {
+    return {
+      body: sourceMessage ?? copy.risk.partialBody,
+      title: copy.risk.partialTitle,
+      tone: "warning" as const,
+    };
+  }
+
+  return null;
+}
+
 function getBlockingSectionNotice(
   state: PortfolioSectionState,
   failureMessage: string | null,
@@ -273,6 +414,16 @@ function getBlockingSectionNotice(
   }
 
   return null;
+}
+
+function isPortfolioRiskBlockingState(state: PortfolioRiskSnapshotState) {
+  return (
+    state === "loading" ||
+    state === "endpoint-pending" ||
+    state === "invalid-response" ||
+    state === "not-configured" ||
+    state === "upstream-unavailable"
+  );
 }
 
 function getSectionStatusLabel(state: PortfolioSectionState, copy: PortfolioCopy) {
@@ -305,9 +456,15 @@ export default function PortfolioPageClient() {
   const { t } = useAppState();
   const copy = t.portfolio;
   const initialSummary = readTradingApiJsonSnapshot<PortfolioSummaryDto>(PORTFOLIO_SUMMARY_PATH);
+  const initialRiskSnapshot = readTradingApiJsonSnapshot<PortfolioRiskSnapshotDto>(
+    EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_CLIENT_PATH,
+  );
   const [summary, setSummary] = useState<PortfolioSummaryDto | null>(() => initialSummary);
+  const [riskSnapshot, setRiskSnapshot] = useState<PortfolioRiskSnapshotDto | null>(() => initialRiskSnapshot);
   const [loading, setLoading] = useState(() => initialSummary === null);
+  const [riskLoading, setRiskLoading] = useState(() => initialRiskSnapshot === null);
   const [failure, setFailure] = useState<PortfolioFailure | null>(null);
+  const [riskFailure, setRiskFailure] = useState<PortfolioFailure | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -353,6 +510,50 @@ export default function PortfolioPageClient() {
     };
   }, [copy]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPortfolioRiskSnapshot = async () => {
+      try {
+        const result = await getTradingApiJsonResult<PortfolioRiskSnapshotDto>(
+          resolveTradingApiClientPath(EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_CLIENT_PATH),
+        );
+
+        if (cancelled) return;
+
+        if (!result.ok) {
+          setRiskFailure(getPortfolioRiskFailure(result, copy));
+          setRiskSnapshot(null);
+          setRiskLoading(false);
+          return;
+        }
+
+        if (!result.data || typeof result.data !== "object") {
+          setRiskFailure({ kind: "invalid-response", message: copy.risk.errors.emptyResponse });
+          setRiskSnapshot(null);
+          setRiskLoading(false);
+          return;
+        }
+
+        seedTradingApiJsonSnapshot(EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_CLIENT_PATH, result.data);
+        setRiskSnapshot(result.data);
+        setRiskFailure(null);
+        setRiskLoading(false);
+      } catch {
+        if (!cancelled) {
+          setRiskFailure({ kind: "upstream-unavailable", message: copy.risk.errors.upstreamUnavailable });
+          setRiskLoading(false);
+        }
+      }
+    };
+
+    void loadPortfolioRiskSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [copy]);
+
   const accounts = getPortfolioAccounts(summary);
   const holdings = getPortfolioHoldings(summary);
   const allocations = getPortfolioAllocations(summary);
@@ -363,19 +564,38 @@ export default function PortfolioPageClient() {
     loading,
     summary,
   });
+  const riskState = resolvePortfolioRiskSnapshotState({
+    error: riskFailure?.message,
+    failureKind: riskFailure?.kind,
+    loading: riskLoading,
+    snapshot: riskSnapshot,
+  });
   const sectionStates = useMemo(() => buildPortfolioSectionStates(summary, portfolioState), [portfolioState, summary]);
   const metrics = useMemo(
     () => buildPortfolioMetricModels(summary, getMetricValueFallback(portfolioState, copy)),
     [copy, portfolioState, summary],
   );
+  const riskModel = useMemo(
+    () => buildPortfolioRiskSnapshotModel(riskSnapshot, getRiskFieldFallback(riskState, copy)),
+    [copy, riskSnapshot, riskState],
+  );
   const lastSyncedAt = getPortfolioLastSyncedAt(summary);
   const lastSyncedLabel = formatDisplayTimestamp(lastSyncedAt, getTimestampFallback(portfolioState, copy));
   const statusLabel = getPortfolioStatusLabel(portfolioState, summary, copy);
+  const riskStatusLabel = getPortfolioRiskStatusLabel(riskState, riskModel.sourceStatusKey, copy);
+  const riskGeneratedAtLabel = formatDisplayTimestamp(riskModel.generatedAt, getRiskTimestampFallback(riskState, copy));
   const accountCountLabel = `${accounts.length} ${accounts.length === 1 ? copy.account : copy.accounts}`;
   const holdingCountLabel = `${holdings.length} ${holdings.length === 1 ? copy.holding : copy.holdings}`;
   const syncMessage = getPortfolioSyncMessage(summary);
   const noticeMessages = getPortfolioNoticeMessages(summary, portfolioState);
   const portfolioNotice = getPortfolioStateNotice(portfolioState, failure?.message ?? null, syncMessage, copy);
+  const riskNotice = getPortfolioRiskStateNotice(
+    riskState,
+    riskFailure?.message ?? null,
+    riskModel.sourceMessage,
+    copy,
+  );
+  const riskBlocking = isPortfolioRiskBlockingState(riskState);
   const accountSectionState = sectionStates.accounts;
   const holdingsSectionState = sectionStates.holdings;
   const allocationSectionState = sectionStates.allocation;
@@ -459,6 +679,172 @@ export default function PortfolioPageClient() {
           {noticeMessages.map((notice, index) => (
             <p key={`${notice}-${index}`} className={styles.notice}>{notice}</p>
           ))}
+        </section>
+
+        <section className={styles.panel}>
+          <ComponentTag
+            label="portfolio.risk-snapshot"
+            api={EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_CLIENT_PATH}
+          />
+          <div className={styles.sectionHeader}>
+            <div>
+              <p className={styles.sectionEyebrow}>{copy.risk.eyebrow}</p>
+              <h2 className={styles.sectionTitle}>{copy.risk.title}</h2>
+            </div>
+            <span className={styles.sectionMeta}>{riskStatusLabel}</span>
+          </div>
+
+          {riskBlocking && riskNotice ? (
+            <StateNotice title={riskNotice.title} body={riskNotice.body} tone={riskNotice.tone} />
+          ) : (
+            <>
+              {riskNotice ? <StateNotice title={riskNotice.title} body={riskNotice.body} tone={riskNotice.tone} /> : null}
+              {riskModel.notices.map((notice, index) => (
+                <p key={`${notice}-${index}`} className={styles.notice}>{notice}</p>
+              ))}
+
+              <div className={styles.riskSummaryGrid} aria-label={copy.risk.summaryLabel}>
+                <article className={styles.summaryCard}>
+                  <span>{copy.risk.source}</span>
+                  <strong className={styles.summaryValue}>{riskModel.sourceLabel}</strong>
+                  <small>{riskModel.modeLabel}</small>
+                </article>
+                <article className={styles.summaryCard}>
+                  <span>{copy.risk.freshness}</span>
+                  <strong className={styles.summaryValue}>{riskGeneratedAtLabel}</strong>
+                  <small>{riskStatusLabel}</small>
+                </article>
+                <article className={styles.summaryCard}>
+                  <span>{copy.risk.openHoldings}</span>
+                  <strong className={styles.summaryValue}>{riskModel.openHoldingCountLabel}</strong>
+                  <small>{riskModel.totalMarketValueLabel}</small>
+                </article>
+                <article className={styles.summaryCard}>
+                  <span>{copy.risk.openOrders}</span>
+                  <strong className={styles.summaryValue}>{riskModel.openOrderCountLabel}</strong>
+                  <small>{riskModel.openOrderNotionalLabel}</small>
+                </article>
+                <article className={styles.summaryCard}>
+                  <span>{copy.risk.staleWarnings}</span>
+                  <strong className={styles.summaryValue}>{riskModel.staleWarningCountLabel}</strong>
+                  <small>{copy.risk.positionsAndOrders}</small>
+                </article>
+                <article className={styles.summaryCard}>
+                  <span>{copy.risk.missingMetadata}</span>
+                  <strong className={styles.summaryValue}>{riskModel.missingMetadataCountLabel}</strong>
+                  <small>{copy.risk.stopAndMetadata}</small>
+                </article>
+              </div>
+
+              <div className={styles.riskSplitGrid}>
+                <article className={styles.riskBlock}>
+                  <div>
+                    <p className={styles.sectionEyebrow}>{copy.risk.exposuresEyebrow}</p>
+                    <h3>{copy.risk.topExposuresTitle}</h3>
+                  </div>
+                  {riskModel.topExposures.length === 0 ? (
+                    <EmptyState title={copy.risk.emptyExposuresTitle} body={copy.risk.emptyExposuresBody} />
+                  ) : (
+                    <div className={styles.riskList} aria-label={copy.risk.topExposuresLabel}>
+                      {riskModel.topExposures.map((row) => (
+                        <div key={row.key} className={styles.riskRow}>
+                          <div>
+                            <strong>{row.nameLabel}</strong>
+                            <p>{row.symbol}{row.marketLabel ? ` · ${row.marketLabel}` : ""}</p>
+                          </div>
+                          <dl className={styles.riskMetricRow}>
+                            <div>
+                              <dt>{copy.risk.allocation}</dt>
+                              <dd>{row.allocationLabel}</dd>
+                            </div>
+                            <div>
+                              <dt>{copy.risk.notional}</dt>
+                              <dd>{row.notionalLabel}</dd>
+                            </div>
+                            <div>
+                              <dt>{copy.quantity}</dt>
+                              <dd>{row.quantityLabel}</dd>
+                            </div>
+                          </dl>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+
+                <article className={styles.riskBlock}>
+                  <div>
+                    <p className={styles.sectionEyebrow}>{copy.risk.ordersEyebrow}</p>
+                    <h3>{copy.risk.openOrderExposureTitle}</h3>
+                  </div>
+                  {riskModel.topOpenOrders.length === 0 ? (
+                    <EmptyState title={copy.risk.emptyOrdersTitle} body={copy.risk.emptyOrdersBody} />
+                  ) : (
+                    <div className={styles.riskList} aria-label={copy.risk.openOrdersLabel}>
+                      {riskModel.topOpenOrders.map((row) => (
+                        <div key={row.key} className={styles.riskRow}>
+                          <div>
+                            <strong>{row.symbol}</strong>
+                            <p>{row.sideLabel} · {row.statusLabel}</p>
+                          </div>
+                          <dl className={styles.riskMetricRow}>
+                            <div>
+                              <dt>{copy.quantity}</dt>
+                              <dd>{row.quantityLabel}</dd>
+                            </div>
+                            <div>
+                              <dt>{copy.risk.notional}</dt>
+                              <dd>{row.notionalLabel}</dd>
+                            </div>
+                          </dl>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </div>
+
+              <div className={styles.riskSplitGrid}>
+                <article className={styles.riskBlock}>
+                  <div>
+                    <p className={styles.sectionEyebrow}>{copy.risk.warningsEyebrow}</p>
+                    <h3>{copy.risk.concentrationWarningsTitle}</h3>
+                  </div>
+                  {riskModel.concentrationWarnings.length === 0 ? (
+                    <EmptyState title={copy.risk.noConcentrationWarningsTitle} body={copy.risk.noConcentrationWarningsBody} />
+                  ) : (
+                    <div className={styles.warningList} aria-label={copy.risk.concentrationWarningsLabel}>
+                      {riskModel.concentrationWarnings.map((warning) => (
+                        <div key={warning.key} className={styles.warningRow}>
+                          <strong>{warning.symbol ? `${warning.symbol} · ${warning.label}` : warning.label}</strong>
+                          {warning.detail ? <p>{warning.detail}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+
+                <article className={styles.riskBlock}>
+                  <div>
+                    <p className={styles.sectionEyebrow}>{copy.risk.warningsEyebrow}</p>
+                    <h3>{copy.risk.staleWarningsTitle}</h3>
+                  </div>
+                  {riskModel.staleWarnings.length === 0 ? (
+                    <EmptyState title={copy.risk.noStaleWarningsTitle} body={copy.risk.noStaleWarningsBody} />
+                  ) : (
+                    <div className={styles.warningList} aria-label={copy.risk.staleWarningsLabel}>
+                      {riskModel.staleWarnings.map((warning) => (
+                        <div key={warning.key} className={styles.warningRow}>
+                          <strong>{warning.symbol ? `${warning.symbol} · ${warning.label}` : warning.label}</strong>
+                          {warning.detail ? <p>{warning.detail}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </div>
+            </>
+          )}
         </section>
 
         <section className={styles.panel}>
