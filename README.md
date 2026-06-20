@@ -109,6 +109,7 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/execution/runtime/monitored-symbols` | `/execution/runtime/monitored-symbols` | optional `market_date`, optional `refresh` |
 | `GET` | `/api/trading/execution/runtime/daily-board` | `/execution/runtime/daily-board` | optional `market_date`, optional `refresh` |
 | `GET` | `/api/trading/execution/runtime/symbols/{symbol}` | `/execution/runtime/symbols/{symbol}` | optional `market_date`, optional `refresh` |
+| `GET` | `/api/trading/execution/runtime/portfolio-risk-snapshot` | `/execution/runtime/portfolio-risk-snapshot` | optional `refresh` |
 | `GET` | `/api/trading/execution/runtime/crypto/readiness` | `/execution/runtime/crypto/readiness` | optional `refresh`, optional `venue`, optional `quoteCurrency` |
 | `GET` | `/api/trading/execution/runtime/crypto/paper` | `/execution/runtime/crypto/paper` | optional `refresh`, optional `venue`, optional `quoteCurrency`, optional `provider` |
 | `GET` | `/api/trading/crypto/markets/overview` | `/crypto/markets/overview` | optional `refresh`, optional `venue`, optional `quoteCurrency` |

@@ -107,10 +107,65 @@ async function mockPortfolioSummary(page: Page) {
   });
 }
 
+async function mockPortfolioRiskSnapshot(page: Page) {
+  await page.route("**/api/trading/execution/runtime/portfolio-risk-snapshot", async (route) => {
+    await route.fulfill({
+      json: {
+        generated_at: "2026-04-21T09:12:00+09:00",
+        mode: "paper",
+        source: "execution_positions",
+        source_status: "ready",
+        open_holding_count: 1,
+        total_market_value_krw: "858000",
+        top_position_concentration: [
+          {
+            symbol: "005930",
+            name: "Samsung Electronics",
+            market: "KOSPI",
+            market_value_krw: "858000",
+            portfolio_weight_pct: "6.86",
+            quantity: 12,
+          },
+        ],
+        open_order_summary: {
+          open_order_count: 1,
+          total_open_order_notional_krw: "715000",
+        },
+        open_orders: [
+          {
+            broker_order_id: "order-1",
+            symbol: "005930",
+            side: "buy",
+            status: "submitted",
+            remaining_quantity: 10,
+            notional_krw: "715000",
+          },
+        ],
+        concentration_warnings: [
+          {
+            symbol: "005930",
+            message: "Top symbol is within the configured concentration limit.",
+          },
+        ],
+        stale_open_order_warnings: [],
+        stale_local_position_warnings: [],
+        missing_stop_metadata_count: 0,
+      },
+    });
+  });
+}
+
+async function mockPortfolioRiskEndpointPending(page: Page) {
+  await page.route("**/api/trading/execution/runtime/portfolio-risk-snapshot", async (route) => {
+    await route.fulfill({ status: 404, json: { detail: "not implemented" } });
+  });
+}
+
 test.describe("portfolio mobile route", () => {
   test("bottom toolbar opens the portfolio assets screen", async ({ page }) => {
     await mockSearchShellApis(page);
     await mockPortfolioSummary(page);
+    await mockPortfolioRiskSnapshot(page);
 
     await page.goto("/search");
     await expect(page.getByRole("heading", { name: "Quick Access" })).toBeVisible();
@@ -118,21 +173,25 @@ test.describe("portfolio mobile route", () => {
     await page.getByRole("link", { name: "Assets", exact: true }).click();
 
     await expect(page).toHaveURL(/\/portfolio$/);
-    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
     await expect(page.getByText("KIS Main Account")).toBeVisible();
-    await expect(page.getByText("Samsung Electronics")).toBeVisible();
+    await expect(page.getByLabel("Holdings list").getByText("Samsung Electronics")).toBeVisible();
     await expect(page.getByLabel("Portfolio summary metrics").getByText("₩12,500,000")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio risk snapshot" })).toBeVisible();
+    await expect(page.getByLabel("Portfolio risk snapshot metrics").getByText("₩858,000")).toBeVisible();
+    await expect(page.getByLabel("Top open orders by notional").getByText("₩715,000")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Recent orders and executions" })).toBeVisible();
   });
 
   test("shows unavailable state when aggregate summary endpoint is pending", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({ status: 404, json: { detail: "not implemented" } });
     });
 
     await page.goto("/portfolio");
 
-    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
     await expect(page.getByText("Aggregate portfolio summary endpoint is not available yet. HTTP 404").first()).toBeVisible();
     await expect(page.getByText("Aggregate endpoint pending.").first()).toBeVisible();
     await expect(page.getByText("No accounts in portfolio summary.")).toHaveCount(0);
@@ -140,6 +199,7 @@ test.describe("portfolio mobile route", () => {
   });
 
   test("separates upstream configuration and connectivity failures", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({
         status: 500,
@@ -164,6 +224,7 @@ test.describe("portfolio mobile route", () => {
   });
 
   test("resolves aggregate summary gateway timeouts into an explicit unavailable state", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({
         status: 504,
@@ -176,13 +237,14 @@ test.describe("portfolio mobile route", () => {
 
     await page.goto("/portfolio");
 
-    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
     await expect(page.getByText("Trading-core portfolio API unreachable.").first()).toBeVisible();
     await expect(page.getByText("Trading-core portfolio upstream is unavailable. HTTP 504").first()).toBeVisible();
     await expect(page.getByText("Loading the aggregate portfolio summary from trading-core...")).toHaveCount(0);
   });
 
   test("keeps connected empty holdings separate from unavailable summary", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({
         json: {
@@ -225,6 +287,7 @@ test.describe("portfolio mobile route", () => {
   });
 
   test("surfaces stale sync while still rendering returned holdings", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({
         json: {
@@ -275,6 +338,7 @@ test.describe("portfolio mobile route", () => {
   });
 
   test("keeps returned sections visible when the portfolio summary is partial", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
     await page.route("**/api/trading/portfolio/summary", async (route) => {
       await route.fulfill({
         json: {

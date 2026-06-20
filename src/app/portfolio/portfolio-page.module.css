@@ -87,10 +87,17 @@
 }
 
 .summaryGrid,
-.accountGrid {
+.accountGrid,
+.riskSummaryGrid,
+.riskSplitGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
+}
+
+.summaryGrid,
+.accountGrid,
+.riskSummaryGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .summaryCard,
@@ -98,7 +105,8 @@
 .holdingCard,
 .activityCard,
 .emptyState,
-.errorState {
+.errorState,
+.riskBlock {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-low);
@@ -213,17 +221,97 @@
 .accountGrid,
 .holdingList,
 .allocationList,
-.activityList {
+.activityList,
+.riskList,
+.warningList {
   display: grid;
   gap: 0.65rem;
 }
 
 .accountCard,
 .holdingCard,
-.activityCard {
+.activityCard,
+.riskBlock {
   display: grid;
   gap: 0.85rem;
   padding: 0.88rem;
+}
+
+.riskBlock {
+  align-content: start;
+}
+
+.riskBlock h3 {
+  margin-top: 0.14rem;
+  color: var(--text-strong);
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.riskRow,
+.warningRow {
+  min-width: 0;
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.76rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(13, 18, 32, 0.2);
+}
+
+.riskRow {
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  align-items: start;
+}
+
+.riskRow > div,
+.warningRow {
+  min-width: 0;
+}
+
+.riskRow strong,
+.warningRow strong {
+  overflow-wrap: anywhere;
+  color: var(--text-strong);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.riskRow p,
+.warningRow p {
+  margin-top: 0.18rem;
+  overflow-wrap: anywhere;
+  color: var(--muted-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.riskMetricRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.riskMetricRow div {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.riskMetricRow dt {
+  color: var(--muted-soft);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.riskMetricRow dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-strong);
+  font-size: 0.76rem;
+  font-weight: 900;
 }
 
 .cardHeader {
@@ -317,7 +405,9 @@
   .summaryGrid,
   .accountGrid,
   .syncGrid,
-  .metaGrid {
+  .metaGrid,
+  .riskSummaryGrid,
+  .riskMetricRow {
     grid-template-columns: 1fr;
   }
 
@@ -325,7 +415,8 @@
     font-size: 2.05rem;
   }
 
-  .allocationRow {
+  .allocationRow,
+  .riskRow {
     grid-template-columns: 1fr;
   }
 }
@@ -344,6 +435,14 @@
   }
 
   .accountGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .riskSummaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .riskSplitGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

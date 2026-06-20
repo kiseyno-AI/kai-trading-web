@@ -507,7 +507,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(assetsLink).toHaveAttribute("href", "/portfolio");
     await page.goto("/portfolio");
 
-    await expect(page.getByRole("heading", { name: "Portfolio" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
 
     const bottomNav = page.getByRole("navigation", { name: /^(Primary|기본 내비게이션)$/i });
     await expect(bottomNav).toBeVisible();

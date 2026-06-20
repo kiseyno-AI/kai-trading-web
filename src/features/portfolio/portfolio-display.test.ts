@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildPortfolioRiskSnapshotModel,
   buildPortfolioSectionStates,
   buildPortfolioMetricModels,
   classifyPortfolioSummaryFailure,
@@ -12,9 +13,10 @@ import {
   getPortfolioLastSyncedAt,
   getPortfolioNoticeMessages,
   getPortfolioSyncMessage,
+  resolvePortfolioRiskSnapshotState,
   resolvePortfolioSummaryState,
 } from "./portfolio-display";
-import type { PortfolioSummaryDto } from "@/types/trading-api";
+import type { PortfolioRiskSnapshotDto, PortfolioSummaryDto } from "@/types/trading-api";
 
 test("formats backend money display values before raw numeric fallbacks", () => {
   assert.equal(formatPortfolioMoney({ amount: 1000, currency: "KRW", display: "₩1,000 settled" }), "₩1,000 settled");
@@ -349,4 +351,157 @@ test("suppresses only the notice actually rendered in the degraded sync banner",
     "Tax lots are still pending.",
     "KIS balance sync is older than the latest market session.",
   ]);
+});
+
+test("builds a populated portfolio risk snapshot from exec-style snake-case fields", () => {
+  const snapshot: PortfolioRiskSnapshotDto = {
+    generated_at: "2026-06-20T01:00:00Z",
+    mode: "live",
+    source: "execution_positions",
+    source_status: "ready",
+    open_holding_count: 3,
+    total_market_value_krw: "2500000.0000",
+    top_position_concentration: [
+      {
+        symbol: "005930",
+        name: "Samsung Electronics",
+        market: "KOSPI",
+        market_value_krw: "1100000.0000",
+        portfolio_weight_pct: "44.0000",
+        quantity: 12,
+      },
+      {
+        symbol: "000660",
+        name: "SK Hynix",
+        market_value_krw: "625000.0000",
+        portfolio_weight_pct: "25.0000",
+        quantity: 4,
+      },
+    ],
+    open_order_summary: {
+      open_order_count: 2,
+      total_open_order_notional_krw: "1500000.0000",
+    },
+    open_orders: [
+      {
+        broker_order_id: "order-1",
+        symbol: "005930",
+        side: "buy",
+        status: "submitted",
+        remaining_quantity: 10,
+        notional_krw: "715000.0000",
+      },
+    ],
+    concentration_warnings: [
+      {
+        symbol: "005930",
+        code: "top_symbol_concentration",
+        message: "Top symbol exceeds configured concentration threshold.",
+      },
+    ],
+    stale_open_order_warnings: [{ symbol: "068270", reason: "older_than_max_age" }],
+    stale_local_position_warnings: [{ symbol: "035420", reason: "missing_last_reconciled_at" }],
+    missing_stop_metadata_count: 3,
+  };
+
+  assert.equal(resolvePortfolioRiskSnapshotState({ snapshot }), "ready");
+
+  const model = buildPortfolioRiskSnapshotModel(snapshot);
+
+  assert.equal(model.sourceLabel, "execution_positions");
+  assert.equal(model.modeLabel, "Live");
+  assert.equal(model.generatedAt, "2026-06-20T01:00:00Z");
+  assert.equal(model.openHoldingCountLabel, "3");
+  assert.equal(model.totalMarketValueLabel, "₩2,500,000");
+  assert.equal(model.openOrderCountLabel, "2");
+  assert.equal(model.openOrderNotionalLabel, "₩1,500,000");
+  assert.equal(model.staleWarningCountLabel, "2");
+  assert.equal(model.missingMetadataCountLabel, "3");
+  assert.deepEqual(model.topExposures.map((row) => row.symbol), ["005930", "000660"]);
+  assert.equal(model.topExposures[0]?.allocationLabel, "44.00%");
+  assert.equal(model.topOpenOrders[0]?.notionalLabel, "₩715,000");
+  assert.equal(model.concentrationWarnings[0]?.label, "Top symbol exceeds configured concentration threshold.");
+});
+
+test("preserves KRW currency for normalized risk fields on USD quote rows", () => {
+  const snapshot: PortfolioRiskSnapshotDto = {
+    source_status: "ready",
+    top_position_concentration: [
+      {
+        symbol: "AAPL",
+        quoteCurrency: "USD",
+        market_value_krw: "715000",
+        portfolio_weight_pct: "12.5000",
+        quantity: 3,
+      },
+    ],
+    open_orders: [
+      {
+        broker_order_id: "usd-row-order",
+        symbol: "AAPL",
+        quoteCurrency: "USD",
+        side: "buy",
+        status: "submitted",
+        remaining_quantity: 3,
+        notional_krw: "715000",
+      },
+    ],
+  };
+
+  const model = buildPortfolioRiskSnapshotModel(snapshot);
+
+  assert.equal(model.topExposures[0]?.notionalLabel, "₩715,000");
+  assert.equal(model.topOpenOrders[0]?.notionalLabel, "₩715,000");
+});
+
+test("keeps partial portfolio risk rows visible when metadata is incomplete", () => {
+  const snapshot: PortfolioRiskSnapshotDto = {
+    generatedAt: "2026-06-20T01:05:00Z",
+    mode: "paper",
+    sourceStatus: "partial",
+    sourceMessage: "Broker account values are delayed.",
+    topHoldings: [
+      {
+        symbol: "KRW-BTC",
+        venue: "UPBIT",
+        totalExposure: { amount: 1500000, currency: "KRW" },
+        allocationPercent: 18.5,
+        base_quantity: "0.01",
+      },
+    ],
+    missingStopMetadataWarnings: [
+      { symbol: "KRW-BTC", type: "missing_stop_metadata", reason: "monitoring stop metadata absent" },
+    ],
+  };
+
+  assert.equal(resolvePortfolioRiskSnapshotState({ snapshot }), "partial-data");
+
+  const model = buildPortfolioRiskSnapshotModel(snapshot);
+
+  assert.equal(model.sourceMessage, "Broker account values are delayed.");
+  assert.equal(model.topExposures[0]?.symbol, "KRW-BTC");
+  assert.equal(model.topExposures[0]?.notionalLabel, "₩1,500,000");
+  assert.equal(model.missingMetadataCountLabel, "1");
+});
+
+test("marks unavailable portfolio risk snapshots without collapsing the portfolio summary state", () => {
+  const unavailableSnapshot: PortfolioRiskSnapshotDto = {
+    available: false,
+    source: "execution_positions",
+    source_failed: "broker account snapshot unavailable",
+    as_of: "2026-06-20T01:10:00Z",
+  };
+
+  assert.equal(resolvePortfolioRiskSnapshotState({ snapshot: unavailableSnapshot }), "unavailable");
+  assert.equal(
+    buildPortfolioRiskSnapshotModel(unavailableSnapshot).sourceMessage,
+    "broker account snapshot unavailable",
+  );
+  assert.equal(
+    resolvePortfolioRiskSnapshotState({
+      failureKind: "endpoint-pending",
+      snapshot: null,
+    }),
+    "endpoint-pending",
+  );
 });
