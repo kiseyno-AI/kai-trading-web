@@ -423,6 +423,37 @@ test("builds a populated portfolio risk snapshot from exec-style snake-case fiel
   assert.equal(model.concentrationWarnings[0]?.label, "Top symbol exceeds configured concentration threshold.");
 });
 
+test("preserves KRW currency for normalized risk fields on USD quote rows", () => {
+  const snapshot: PortfolioRiskSnapshotDto = {
+    source_status: "ready",
+    top_position_concentration: [
+      {
+        symbol: "AAPL",
+        quoteCurrency: "USD",
+        market_value_krw: "715000",
+        portfolio_weight_pct: "12.5000",
+        quantity: 3,
+      },
+    ],
+    open_orders: [
+      {
+        broker_order_id: "usd-row-order",
+        symbol: "AAPL",
+        quoteCurrency: "USD",
+        side: "buy",
+        status: "submitted",
+        remaining_quantity: 3,
+        notional_krw: "715000",
+      },
+    ],
+  };
+
+  const model = buildPortfolioRiskSnapshotModel(snapshot);
+
+  assert.equal(model.topExposures[0]?.notionalLabel, "₩715,000");
+  assert.equal(model.topOpenOrders[0]?.notionalLabel, "₩715,000");
+});
+
 test("keeps partial portfolio risk rows visible when metadata is incomplete", () => {
   const snapshot: PortfolioRiskSnapshotDto = {
     generatedAt: "2026-06-20T01:05:00Z",

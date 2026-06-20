@@ -296,8 +296,17 @@ function coercePortfolioRiskMoney(
   return display ? { amount: null, currency, display } : null;
 }
 
+function getRiskMoneyFieldCurrency(key: string, fallbackCurrency: string) {
+  return key.endsWith("_krw") ? "KRW" : fallbackCurrency;
+}
+
 function getRiskMoneyField(record: Record<string, unknown>, keys: string[], fallbackCurrency = "KRW") {
-  return coercePortfolioRiskMoney(getRecordValue(record, keys), fallbackCurrency);
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    return coercePortfolioRiskMoney(record[key], getRiskMoneyFieldCurrency(key, fallbackCurrency));
+  }
+
+  return null;
 }
 
 function getRiskRowCurrency(row: Record<string, unknown>) {
