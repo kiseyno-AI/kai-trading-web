@@ -109,6 +109,10 @@
     scroll-padding-bottom: var(--mobile-bottom-content-buffer);
     -webkit-overflow-scrolling: touch;
   }
+
+  .surface[data-mobile-content-scroll="contained"][data-mobile-bottom-accessory="present"] .main {
+    height: calc(100dvh - var(--mobile-bottom-chrome-height) - var(--mobile-bottom-content-buffer));
+  }
 }
 
 .bottomNavFrame {
