@@ -94,34 +94,30 @@ type SelectedDateDisplayStatus = DateSnapshotStatus | SignalDeciderFeedbackStatu
 
 const EMPTY_ACTION_COUNTS = { buy: 0, wait: 0, reject: 0, watch_for_trigger: 0, avoid_chase: 0, unknown: 0 } as const;
 
-const COMPACT_STATUS_LABELS = {
+type CompactCalendarCellStatus = DateSnapshotStatus | "waiting";
+
+const COMPACT_CALENDAR_CELL_STATUS_LABELS = {
   en: {
-    completed: "OK",
     empty: "NO",
     future: "FUT",
     loading: "LOAD",
-    "needs-review": "CHK",
     partial: "PART",
     reviewed: "OK",
-    running: "RUN",
     stored: "SET",
     unavailable: "ERR",
     waiting: "WAIT",
   },
   ko: {
-    completed: "완료",
     empty: "없음",
     future: "미래",
     loading: "로딩",
-    "needs-review": "확인",
     partial: "부분",
     reviewed: "완료",
-    running: "중",
     stored: "저장",
     unavailable: "불가",
     waiting: "대기",
   },
-} as const satisfies Record<Locale, Record<DateSnapshotStatus | SignalDeciderFeedbackStatus, string>>;
+} as const satisfies Record<Locale, Record<CompactCalendarCellStatus, string>>;
 
 const COMPACT_ACTION_LABELS = {
   en: {
@@ -450,8 +446,8 @@ function formatCompactCalendarNumber(value: number) {
   return value.toLocaleString("en-US");
 }
 
-function getCompactStatusLabel(status: DateSnapshotStatus | SignalDeciderFeedbackStatus, locale: Locale) {
-  return COMPACT_STATUS_LABELS[locale][status];
+function getCompactStatusLabel(status: CompactCalendarCellStatus, locale: Locale) {
+  return COMPACT_CALENDAR_CELL_STATUS_LABELS[locale][status];
 }
 
 function getCompactActionMixLabel(actionCounts: Record<SignalDeciderAction, number>, locale: Locale) {
