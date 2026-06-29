@@ -44,6 +44,30 @@ test("blocks non-equity instrument types even when the symbol shape is numeric",
   );
 });
 
+test("blocks visible ETF product names before instrument metadata enrichment", () => {
+  assert.equal(
+    hasSymbolDetailCoverage({
+      symbol: "252670",
+      market: "KOSPI",
+      name_ko: "KODEX 200선물인버스2X",
+      instrument_type: null,
+    }),
+    false,
+  );
+});
+
+test("allows supported stock names when instrument metadata is still absent", () => {
+  assert.equal(
+    hasSymbolDetailCoverage({
+      symbol: "005930",
+      market: "KOSPI",
+      name_ko: "삼성전자",
+      instrument_type: null,
+    }),
+    true,
+  );
+});
+
 test("blocks unsupported non-KRX style symbols before symbol detail navigation", () => {
   assert.equal(hasSymbolDetailCoverage({ symbol: "AAPL", market: "NASDAQ", instrument_type: "equity" }), false);
 });
