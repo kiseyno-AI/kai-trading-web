@@ -809,7 +809,11 @@
     },
     "errors": {
       "marketDateUnavailable": "{agentLabel} market date is unavailable.",
-      "feedbackUnavailable": "{agentLabel} feedback is unavailable."
+      "feedbackUnavailable": "{agentLabel} feedback is unavailable.",
+      "feedbackReadTimeout": "{agentLabel} feedback read timed out. Retry this market date; this is a temporary Core read issue, not confirmed no-feedback.",
+      "dataGapReadTimeout": "Data-gap aggregation is unavailable because {agentLabel} feedback timed out. Retry this market date before treating it as no-feedback.",
+      "retry": "Retry",
+      "diagnostics": "Diagnostics"
     }
   },
   "markets": {

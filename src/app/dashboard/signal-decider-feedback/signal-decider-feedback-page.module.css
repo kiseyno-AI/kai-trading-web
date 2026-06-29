@@ -822,6 +822,54 @@
   line-height: 1.55;
 }
 
+.emptyStateMessage {
+  margin: 0;
+}
+
+.errorRetryButton {
+  width: auto;
+  min-height: 2.25rem;
+  margin-top: 0.8rem;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(88, 139, 255, 0.34);
+  border-radius: 0.5rem;
+  background: rgba(0, 82, 255, 0.16);
+  color: var(--text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.errorRetryButton:hover,
+.errorRetryButton:focus-visible {
+  border-color: rgba(88, 139, 255, 0.52);
+  background: rgba(0, 82, 255, 0.26);
+}
+
+.errorDiagnostics {
+  margin-top: 0.72rem;
+  color: var(--muted-soft);
+  font-size: 0.76rem;
+}
+
+.errorDiagnostics summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.errorDiagnostics code {
+  display: block;
+  margin-top: 0.45rem;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .symbolLink:hover,
 .agentTab:hover,
 .reviewButton:hover,
@@ -840,7 +888,9 @@
 .controls button:focus-visible,
 .dataGapControls select:focus-visible,
 .reviewButton:focus-visible,
-.closeButton:focus-visible {
+.closeButton:focus-visible,
+.errorRetryButton:focus-visible,
+.errorDiagnostics summary:focus-visible {
   outline: 2px solid rgba(88, 139, 255, 0.88);
   outline-offset: 2px;
 }
