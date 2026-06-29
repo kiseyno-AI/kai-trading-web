@@ -2100,13 +2100,47 @@ test("signal review calendar keeps a different month loading while the selected 
     ).toHaveText("Loading");
     await expect(
       delayedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
-    ).toHaveText("RUN");
+    ).toHaveText("LOAD");
     await expect(
       delayedPastCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
     ).toHaveText("");
     await expect(delayedPastCell).not.toContainText("Partial");
+    await expect(delayedPastCell).not.toContainText("RUN");
   } finally {
     delayedPreviousMonthFetch.resolve();
+  }
+});
+
+test("signal review calendar labels unresolved month loading cells as loading instead of run", async ({ page }) => {
+  const delayedMonthSummary = createDeferred();
+  const delayedSelectedDateFetch = createDeferred();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockSignalReviewCalendar(page, {
+      calendarSummaryDelay: delayedMonthSummary.promise,
+      feedbackDelays: {
+        "2026-05-26": delayedSelectedDateFetch.promise,
+      },
+    });
+
+    await page.goto("/calendar?date=2026-05-26");
+    await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+    await expect(page.getByTestId("calendar-month-status")).toHaveText("Loading decision dates");
+    await expect(page.getByText("0 month decisions")).toBeVisible();
+
+    const unresolvedPastCell = page.locator('[data-calendar-cell="2026-05-01"]');
+    await expect(
+      unresolvedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
+    ).toHaveText("Loading");
+    await expect(
+      unresolvedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
+    ).toHaveText("LOAD");
+    await expect(unresolvedPastCell.locator('[data-calendar-cell-label="count"]')).toBeHidden();
+    await expect(unresolvedPastCell.locator('[data-calendar-cell-label="action-mix"]')).toBeHidden();
+    await expect(unresolvedPastCell).not.toContainText("RUN");
+  } finally {
+    delayedMonthSummary.resolve();
+    delayedSelectedDateFetch.resolve();
   }
 });
 
