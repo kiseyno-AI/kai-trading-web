@@ -36,8 +36,8 @@ async function openProcessMonitorDrawer(page: Page) {
   return drawer;
 }
 
-async function expectAllVisibleProcessMonitorTriggersMirrorCanonical(page: Page) {
-  const processBars = page.getByRole("button", { name: /Open process monitor|프로세스 모니터 열기/i });
+async function expectProcessMonitorTriggersMirrorCanonical(page: Page) {
+  const processBars = page.locator("button[data-process-monitor-status]");
   const count = await processBars.count();
   expect(count).toBeGreaterThan(0);
 
@@ -655,14 +655,14 @@ test.describe("dashboard mobile chrome", () => {
 
     await page.goto("/dashboard");
 
-    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
+    await expectProcessMonitorTriggersMirrorCanonical(page);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
-    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
+    await expectProcessMonitorTriggersMirrorCanonical(page);
   });
 
   test("mobile process monitor keeps grouped progress primary when full pipeline is fallback-only", async ({ page }) => {
@@ -685,13 +685,15 @@ test.describe("dashboard mobile chrome", () => {
     await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
   });
 
-  test("expanded mobile process monitor keeps a single close arrow and dismisses from outside click", async ({ page }) => {
+  test("expanded mobile process monitor keeps a single close arrow and dismisses from the close control", async ({
+    page,
+  }) => {
     let pipelineStatus: "running" | "completed" = "running";
     await mockDashboardProcessStatusApis(page, () => pipelineStatus);
 
     await page.goto("/dashboard");
 
-    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+    const processBar = page.locator('[data-app-chrome-bottom-nav-frame] button[data-process-monitor-status]').first();
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer).toBeVisible();
 
@@ -706,7 +708,7 @@ test.describe("dashboard mobile chrome", () => {
     const collapseButton = processDrawer.getByRole("button", { name: /Close monitor/i });
     await expect(collapseButton.locator('[data-process-monitor-collapse-icon="down"]')).toBeVisible();
     await expect.poll(() => collapseButton.evaluate((button) => button.children.length)).toBe(1);
-    await page.mouse.click(8, 8);
+    await collapseButton.click();
     await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "closing");
     await expect
       .poll(() => processDrawer.evaluate((element) => getComputedStyle(element).animationName).catch(() => ""))
@@ -724,14 +726,31 @@ test.describe("dashboard mobile chrome", () => {
     }
   });
 
-  test("mobile process monitor opens above the toolbar as a floating half-height sheet", async ({ page }) => {
+  test("mobile process monitor takes over the viewport and suppresses bottom chrome", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/dashboard");
 
-    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
-    const bottomNav = page.getByRole("navigation", { name: /Primary/i });
+    const processBar = page.locator('[data-app-chrome-bottom-nav-frame] button[data-process-monitor-status]').first();
+    const bottomNavFrame = page.locator("[data-app-chrome-bottom-nav-frame]");
+    const bottomNav = page.locator("[data-app-chrome-bottom-nav]");
     const processDrawer = await openProcessMonitorDrawer(page);
     await waitForProcessMonitorDrawerLayout(processDrawer);
-    const [viewport, drawerBox, processBarBox, bottomNavBox, backdropAlpha] = await Promise.all([
+
+    await expect(bottomNavFrame).toHaveAttribute("aria-hidden", "true");
+    await expect(bottomNavFrame).toHaveAttribute("inert", "");
+    await expect(bottomNav).toHaveAttribute("aria-hidden", "true");
+    await expect(bottomNav).toHaveAttribute("inert", "");
+    await expect
+      .poll(() =>
+        processBar.evaluate((trigger) => ({
+          hiddenByChrome: trigger.closest('[aria-hidden="true"]') !== null,
+          inertByChrome: trigger.closest("[inert]") !== null,
+        })),
+      )
+      .toEqual({ hiddenByChrome: true, inertByChrome: true });
+    await expect(processDrawer.locator('[data-pipeline-stage]').first()).toBeVisible();
+
+    const [viewport, drawerBox, processBarBox, bottomNavBox, backdropAlpha, hitTest, scrollContract] = await Promise.all([
       page.viewportSize(),
       processDrawer.boundingBox(),
       processBar.boundingBox(),
@@ -741,6 +760,35 @@ test.describe("dashboard mobile chrome", () => {
         const backgroundColor = backdrop ? window.getComputedStyle(backdrop).backgroundColor : "";
         const match = backgroundColor.match(/rgba?\([^,]+,[^,]+,[^,]+,\s*([0-9.]+)\)/);
         return match ? Number(match[1]) : 1;
+      }),
+      page.evaluate(() => {
+        const drawer = document.querySelector("#dashboard-process-monitor-drawer");
+        const bottomChrome = document.querySelector("[data-app-chrome-bottom-nav-frame]");
+        const bottomChromeRect = bottomChrome?.getBoundingClientRect();
+
+        if (!drawer || !bottomChromeRect) {
+          return { drawerContainsBottomChromePoint: false };
+        }
+
+        const target = document.elementFromPoint(
+          bottomChromeRect.left + bottomChromeRect.width / 2,
+          bottomChromeRect.top + bottomChromeRect.height / 2,
+        );
+
+        return { drawerContainsBottomChromePoint: target ? drawer.contains(target) : false };
+      }),
+      processDrawer.evaluate((drawer) => {
+        const drawerBody = drawer.querySelector<HTMLElement>('[class*="processMonitorDrawerBody"]');
+        const pipelineList = drawer.querySelector<HTMLElement>('[class*="pipelineTimelineList"]');
+        const drawerBodyStyle = drawerBody ? window.getComputedStyle(drawerBody) : null;
+        const pipelineListStyle = pipelineList ? window.getComputedStyle(pipelineList) : null;
+
+        return {
+          drawerBodyCanScroll: drawerBody ? drawerBody.scrollHeight > drawerBody.clientHeight : false,
+          drawerBodyOverflowY: drawerBodyStyle?.overflowY ?? null,
+          pipelineListCanScroll: pipelineList ? pipelineList.scrollHeight > pipelineList.clientHeight : false,
+          pipelineListOverflowY: pipelineListStyle?.overflowY ?? null,
+        };
       }),
     ]);
 
@@ -753,11 +801,18 @@ test.describe("dashboard mobile chrome", () => {
       throw new Error("Expected mobile process monitor and toolbar to have layout boxes.");
     }
 
-    expect(backdropAlpha).toBeLessThan(0.5);
-    expect(drawerBox.y).toBeGreaterThan(36);
-    expect(drawerBox.height).toBeLessThanOrEqual(viewport.height * 0.52);
-    expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(processBarBox.y + 2);
-    expect(processBarBox.y + processBarBox.height).toBeLessThanOrEqual(bottomNavBox.y + 12);
+    expect(backdropAlpha).toBeGreaterThanOrEqual(0.7);
+    expect(drawerBox.x).toBeLessThanOrEqual(1);
+    expect(drawerBox.y).toBeLessThanOrEqual(1);
+    expect(drawerBox.width).toBeGreaterThanOrEqual(viewport.width - 2);
+    expect(drawerBox.height).toBeGreaterThanOrEqual(viewport.height - 2);
+    expect(getOverlapArea(drawerBox, processBarBox)).toBeGreaterThan(processBarBox.width * processBarBox.height * 0.95);
+    expect(getOverlapArea(drawerBox, bottomNavBox)).toBeGreaterThan(bottomNavBox.width * bottomNavBox.height * 0.95);
+    expect(hitTest.drawerContainsBottomChromePoint).toBe(true);
+    expect(scrollContract.drawerBodyOverflowY).toBe("auto");
+    expect(scrollContract.drawerBodyCanScroll).toBe(true);
+    expect(scrollContract.pipelineListOverflowY).toBe("visible");
+    expect(scrollContract.pipelineListCanScroll).toBe(false);
 
     await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "open");
     await expect
@@ -1757,14 +1812,14 @@ test.describe("dashboard desktop process monitor canonical truth", () => {
 
     await page.goto("/dashboard");
 
-    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
+    await expectProcessMonitorTriggersMirrorCanonical(page);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
     await expect(canonicalPipeline).toContainText(/Partial|부분 완료/);
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
-    await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
+    await expectProcessMonitorTriggersMirrorCanonical(page);
   });
 
   test("desktop process monitor renders oversized stored-row evidence without an impossible ratio", async ({ page }) => {

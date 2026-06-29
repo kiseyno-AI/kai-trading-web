@@ -1475,18 +1475,24 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
           </div>
         </div>
 
-        <ProcessMonitorPrimarySummary copy={copy} model={model} />
-        <DailyPipelineTimeline copy={copy} pipeline={model.pipeline} summarySource={model.summarySource} />
+        <div className={styles.processMonitorDrawerBody}>
+          <ProcessMonitorPrimarySummary copy={copy} model={model} />
+          <DailyPipelineTimeline copy={copy} pipeline={model.pipeline} summarySource={model.summarySource} />
 
-        {children ? (
-          <div className={`${styles.integrityGrid} ${styles.processMonitorDetailCards} ${styles.processMonitorCardsGrid}`}>{children}</div>
-        ) : null}
-        {patchDate ? (
-          <div className={styles.processMonitorPatchDate} aria-label={copy.processMonitor.patchDate}>
-            <span>{copy.processMonitor.patchDate}</span>
-            <strong>{patchDate}</strong>
-          </div>
-        ) : null}
+          {children ? (
+            <div
+              className={`${styles.integrityGrid} ${styles.processMonitorDetailCards} ${styles.processMonitorCardsGrid}`}
+            >
+              {children}
+            </div>
+          ) : null}
+          {patchDate ? (
+            <div className={styles.processMonitorPatchDate} aria-label={copy.processMonitor.patchDate}>
+              <span>{copy.processMonitor.patchDate}</span>
+              <strong>{patchDate}</strong>
+            </div>
+          ) : null}
+        </div>
       </section>
     </div>
   );
@@ -2274,7 +2280,7 @@ export function LiveDashboardClient({
     processMonitorDrawerMounted,
   ]);
 
-  const processMonitorFloatingLayer = processMonitorDrawerMounted ? (
+  const processMonitorModalLayer = processMonitorDrawerMounted ? (
     <ProcessMonitorDrawer
       copy={copy}
       model={processMonitorModel}
@@ -2321,7 +2327,8 @@ export function LiveDashboardClient({
           />
         ),
         contentScrollMode: "contained",
-        floatingLayer: processMonitorFloatingLayer,
+        modalLayer: processMonitorModalLayer,
+        modalOpen: dialogOpen,
         status: { label: marketBadgeLabel, tone: marketBadgeTone },
       }}
     >
