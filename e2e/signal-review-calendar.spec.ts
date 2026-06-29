@@ -21,6 +21,7 @@ type SignalReviewCalendarMockOptions = {
   timeoutReviewDateDates?: string[];
   forceFreshnessFailure?: boolean;
   forceCalendarSummaryFailure?: boolean;
+  calendarSummaryFailureStatus?: number;
 };
 
 type SignalReviewCalendarRequestHits = {
@@ -894,12 +895,16 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     await options.calendarSummaryDelay;
 
     if (options.forceCalendarSummaryFailure) {
+      const status = options.calendarSummaryFailureStatus ?? 502;
       await route.fulfill({
-        status: 502,
+        status,
         contentType: "application/json",
         body: JSON.stringify({
-          error: "Core calendar summary unavailable",
-          message: "Fallback needed for compact month query.",
+          error: status === 504 ? "Upstream request timed out" : "Core calendar summary unavailable",
+          message:
+            status === 504
+              ? "Timed out after 5.0s while loading /agent-context/feedback/calendar from trading-core."
+              : "Fallback needed for compact month query.",
         }),
       });
       return;
@@ -2230,6 +2235,53 @@ test("signal review calendar keeps no-date current-month loading cells out of ru
     ).toHaveCount(0);
   } finally {
     delayedMonthSummary.resolve();
+  }
+});
+
+test("signal review calendar keeps timed-out current-month fallback cells out of run state", async ({ page }) => {
+  const delayedFallbackFeedback = createDeferred();
+  try {
+    await page.clock.setFixedTime(new Date("2026-06-29T09:00:00+09:00"));
+    await page.setViewportSize({ width: 390, height: 844 });
+    const requestHits = await mockSignalReviewCalendar(page, {
+      calendarSummaryFailureStatus: 504,
+      feedbackDelays: Object.fromEntries(
+        listMonthDates("2026-06").map((date) => [date, delayedFallbackFeedback.promise]),
+      ),
+      forceCalendarSummaryFailure: true,
+      forceFreshnessFailure: true,
+      runningProgressDates: ["2026-06-29"],
+    });
+
+    await page.goto("/calendar");
+    await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "June 2026" })).toBeVisible();
+    await expect(page.getByTestId("calendar-month-status")).toHaveText("Loading decision dates");
+    await expect(page.getByText("0 month decisions")).toBeVisible();
+    await expect.poll(async () => requestHits.calendarSummary).toBe(1);
+    await expect.poll(async () => requestHits.feedback).toBeGreaterThan(0);
+
+    const firstPastCell = page.locator('[data-calendar-cell="2026-06-01"]');
+    await expect(
+      firstPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
+    ).toHaveText("Loading");
+    await expect(
+      firstPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
+    ).toHaveText("LOAD");
+    await expect(firstPastCell.locator('[data-calendar-cell-label="count"]')).toBeHidden();
+    await expect(firstPastCell.locator('[data-calendar-cell-label="action-mix"]')).toBeHidden();
+    await expect(firstPastCell).not.toContainText("RUN");
+
+    const selectedTodayCell = page.locator('[data-calendar-cell="2026-06-29"]');
+    await expect(
+      selectedTodayCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
+    ).toHaveText("LOAD");
+    await expect(selectedTodayCell).not.toContainText("RUN");
+    await expect(
+      page.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]', { hasText: "RUN" }),
+    ).toHaveCount(0);
+  } finally {
+    delayedFallbackFeedback.resolve();
   }
 });
 

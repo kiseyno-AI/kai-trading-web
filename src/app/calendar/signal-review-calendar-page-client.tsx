@@ -446,8 +446,16 @@ function formatCompactCalendarNumber(value: number) {
   return value.toLocaleString("en-US");
 }
 
-function getCompactStatusLabel(status: CompactCalendarCellStatus, locale: Locale) {
-  return COMPACT_CALENDAR_CELL_STATUS_LABELS[locale][status];
+function getCalendarCellStatusLabelKey(status: DateSnapshotStatus | SignalDeciderFeedbackStatus): CompactCalendarCellStatus {
+  // Calendar cells do not carry live process evidence; route-level running state stays conservative here.
+  if (status === "running") return "loading";
+  if (status === "completed") return "reviewed";
+  if (status === "needs-review") return "partial";
+  return status;
+}
+
+function getCompactStatusLabel(status: DateSnapshotStatus | SignalDeciderFeedbackStatus, locale: Locale) {
+  return COMPACT_CALENDAR_CELL_STATUS_LABELS[locale][getCalendarCellStatusLabelKey(status)];
 }
 
 function getCompactActionMixLabel(actionCounts: Record<SignalDeciderAction, number>, locale: Locale) {
