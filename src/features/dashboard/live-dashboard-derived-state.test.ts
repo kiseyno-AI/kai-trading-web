@@ -2758,6 +2758,53 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.equal(model.completedCount, 15);
   assert.equal(model.totalCount, 24);
 
+  const blockedTopLevelOnlyPipelineStatus = buildPipelineStatus({
+    status: "blocked",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    stages: {},
+    total_stages: CANONICAL_EOD_PIPELINE_STAGE_ORDER.length,
+    display_completed_stages: 0,
+  });
+  const blockedTopLevelOnlyModel = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+    patchDate: "2026-04-27",
+    pipelineStatus: blockedTopLevelOnlyPipelineStatus,
+    scoringCardModel,
+  });
+  assert.deepEqual(blockedTopLevelOnlyModel.groups.map((group) => group.status), [
+    "completed",
+    "completed",
+    "completed",
+    "completed",
+  ]);
+  assert.equal(blockedTopLevelOnlyModel.pipeline.hasLiveStatus, true);
+  assert.equal(blockedTopLevelOnlyModel.pipeline.status, "blocked");
+  assert.equal(blockedTopLevelOnlyModel.pipeline.currentStage, null);
+  assert.equal(
+    blockedTopLevelOnlyModel.pipeline.stages.every(
+      (stage) =>
+        stage.progressSource === "fallback_inference" &&
+        stage.sourceStatus === null &&
+        stage.startedAt === null &&
+        stage.updatedAt === null &&
+        stage.completedAt === null &&
+        stage.rowsPersisted === null &&
+        stage.expectedRows === null &&
+        stage.sourceRunIds.length === 0,
+    ),
+    true,
+  );
+  assert.equal(blockedTopLevelOnlyModel.status, "partial");
+  assert.equal(blockedTopLevelOnlyModel.statusLabel, copy.processMonitor.statuses.partial);
+  assert.equal(blockedTopLevelOnlyModel.summarySource, "canonical-pipeline");
+  assert.equal(blockedTopLevelOnlyModel.progressLabel, "0 / 24");
+  assert.equal(blockedTopLevelOnlyModel.completedCount, 0);
+  assert.equal(blockedTopLevelOnlyModel.totalCount, 24);
+
   const pendingTopLevelModel = buildProcessMonitorModel({
     agentRoleCards,
     copy,

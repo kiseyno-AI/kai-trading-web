@@ -2493,7 +2493,14 @@ function getCanonicalPipelineProcessStatus(pipeline: DailyPipelineTimelineModel)
 
 function shouldUseCanonicalPipelineSummary(pipeline: DailyPipelineTimelineModel) {
   if (!pipeline.hasLiveStatus) return false;
-  if (pipeline.status === "running" || pipeline.status === "failed" || pipeline.status === "partial") return true;
+  if (
+    pipeline.status === "running" ||
+    pipeline.status === "failed" ||
+    pipeline.status === "blocked" ||
+    pipeline.status === "partial"
+  ) {
+    return true;
+  }
   if (pipeline.currentStage) return true;
   return pipeline.stages.some(hasCanonicalPipelineStageEvidence);
 }
