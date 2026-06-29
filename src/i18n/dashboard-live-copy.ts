@@ -331,12 +331,14 @@ const dashboardLiveCopy = {
       drawerDescription: "Full pipeline / Patch / Filter / Scoring / Agent Feedback",
       fullPipelineEyebrow: "Full daily pipeline",
       fullPipelineTitle: "Canonical daily pipeline status",
+      primaryStatusTitle: "Primary process status",
       currentStageTitle: "Current stage",
       noCurrentStage: "No live stage reported",
       noCurrentStageDetail: "The pipeline status endpoint did not report an active stage. Missing stages below are fallback inference, not stored-row evidence.",
       close: "Close monitor",
       progress: "Progress",
       progressSource: "Progress source",
+      summaryBasis: "Basis",
       dependencies: "Dependencies",
       blockingDependencies: "Blocking dependencies",
       failedBlockingDependencies: "Failed blockers",
@@ -354,6 +356,10 @@ const dashboardLiveCopy = {
       },
       progressLabels: {
         storedRowsCount: "{count} stored rows",
+      },
+      summarySources: {
+        canonicalPipeline: "Full-stage progress",
+        groupedRollup: "Group progress",
       },
       stageReasons: {
         rowCountPartialAboveMinCoverage: "Stored row coverage is below the minimum threshold.",
@@ -872,12 +878,14 @@ const dashboardLiveCopy = {
       drawerDescription: "전체 파이프라인 / 패치 / 필터 / 스코어링 / 에이전트 피드백",
       fullPipelineEyebrow: "전체 일별 파이프라인",
       fullPipelineTitle: "표준 일별 파이프라인 상태",
+      primaryStatusTitle: "기본 프로세스 상태",
       currentStageTitle: "현재 단계",
       noCurrentStage: "라이브 단계 미보고",
       noCurrentStageDetail: "파이프라인 상태 엔드포인트가 활성 단계를 보고하지 않았습니다. 아래 누락 단계는 저장 행 근거가 아니라 대체 추론입니다.",
       close: "모니터 닫기",
       progress: "진행",
       progressSource: "진행 근거",
+      summaryBasis: "기준",
       dependencies: "의존 단계",
       blockingDependencies: "차단 의존 단계",
       failedBlockingDependencies: "실패 차단 단계",
@@ -895,6 +903,10 @@ const dashboardLiveCopy = {
       },
       progressLabels: {
         storedRowsCount: "저장 행 {count}개",
+      },
+      summarySources: {
+        canonicalPipeline: "전체 단계 진행",
+        groupedRollup: "그룹 진행",
       },
       stageReasons: {
         rowCountPartialAboveMinCoverage: "저장 행 커버리지가 최소 기준보다 부족합니다.",

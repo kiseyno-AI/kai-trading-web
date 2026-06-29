@@ -2462,6 +2462,19 @@ function hasCanonicalPipelineProgressGap(pipeline: DailyPipelineTimelineModel) {
   return pipeline.completedCount < pipeline.totalCount;
 }
 
+function hasCanonicalPipelineStageEvidence(stage: DailyPipelineTimelineModel["stages"][number]) {
+  return Boolean(
+    stage.progressSource !== "fallback_inference" ||
+    stage.sourceStatus ||
+    stage.startedAt ||
+    stage.updatedAt ||
+    stage.completedAt ||
+    hasNumber(stage.rowsPersisted) ||
+    hasNumber(stage.expectedRows) ||
+    stage.sourceRunIds.length > 0,
+  );
+}
+
 function getCanonicalPipelineProcessStatus(pipeline: DailyPipelineTimelineModel): ProcessMonitorStatus {
   if (pipeline.status === "failed") return "error";
   if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
@@ -2479,7 +2492,17 @@ function getCanonicalPipelineProcessStatus(pipeline: DailyPipelineTimelineModel)
 }
 
 function shouldUseCanonicalPipelineSummary(pipeline: DailyPipelineTimelineModel) {
-  return pipeline.hasLiveStatus;
+  if (!pipeline.hasLiveStatus) return false;
+  if (
+    pipeline.status === "running" ||
+    pipeline.status === "failed" ||
+    pipeline.status === "blocked" ||
+    pipeline.status === "partial"
+  ) {
+    return true;
+  }
+  if (pipeline.currentStage) return true;
+  return pipeline.stages.some(hasCanonicalPipelineStageEvidence);
 }
 
 export function buildProcessMonitorModel({

@@ -2758,6 +2758,53 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.equal(model.completedCount, 15);
   assert.equal(model.totalCount, 24);
 
+  const blockedTopLevelOnlyPipelineStatus = buildPipelineStatus({
+    status: "blocked",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    stages: {},
+    total_stages: CANONICAL_EOD_PIPELINE_STAGE_ORDER.length,
+    display_completed_stages: 0,
+  });
+  const blockedTopLevelOnlyModel = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "en-US",
+    patchDate: "2026-04-27",
+    pipelineStatus: blockedTopLevelOnlyPipelineStatus,
+    scoringCardModel,
+  });
+  assert.deepEqual(blockedTopLevelOnlyModel.groups.map((group) => group.status), [
+    "completed",
+    "completed",
+    "completed",
+    "completed",
+  ]);
+  assert.equal(blockedTopLevelOnlyModel.pipeline.hasLiveStatus, true);
+  assert.equal(blockedTopLevelOnlyModel.pipeline.status, "blocked");
+  assert.equal(blockedTopLevelOnlyModel.pipeline.currentStage, null);
+  assert.equal(
+    blockedTopLevelOnlyModel.pipeline.stages.every(
+      (stage) =>
+        stage.progressSource === "fallback_inference" &&
+        stage.sourceStatus === null &&
+        stage.startedAt === null &&
+        stage.updatedAt === null &&
+        stage.completedAt === null &&
+        stage.rowsPersisted === null &&
+        stage.expectedRows === null &&
+        stage.sourceRunIds.length === 0,
+    ),
+    true,
+  );
+  assert.equal(blockedTopLevelOnlyModel.status, "partial");
+  assert.equal(blockedTopLevelOnlyModel.statusLabel, copy.processMonitor.statuses.partial);
+  assert.equal(blockedTopLevelOnlyModel.summarySource, "canonical-pipeline");
+  assert.equal(blockedTopLevelOnlyModel.progressLabel, "0 / 24");
+  assert.equal(blockedTopLevelOnlyModel.completedCount, 0);
+  assert.equal(blockedTopLevelOnlyModel.totalCount, 24);
+
   const pendingTopLevelModel = buildProcessMonitorModel({
     agentRoleCards,
     copy,
@@ -2822,6 +2869,150 @@ test("uses canonical pipeline progress when grouped process monitor rollup is co
   assert.equal(fullyCompletedModel.progressLabel, "24 / 24");
   assert.equal(fullyCompletedModel.completedCount, 24);
   assert.equal(fullyCompletedModel.totalCount, 24);
+});
+
+test("keeps fallback-only canonical pipeline progress secondary to grouped process evidence", () => {
+  const copy = getDashboardLiveCopy("ko");
+  const completedFreshnessStage = {
+    status: "ready",
+    symbols_total: 2802,
+    symbols_succeeded: 2802,
+    symbols_failed: 0,
+  };
+  const eodStageCards = [
+    buildEodStageCard(
+      "price",
+      copy.stage.price,
+      completedFreshnessStage,
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      false,
+      null,
+      copy,
+      "ko-KR",
+    ),
+    buildEodStageCard(
+      "technical",
+      copy.stage.technical,
+      completedFreshnessStage,
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      false,
+      null,
+      copy,
+      "ko-KR",
+    ),
+    buildEodStageCard(
+      "action",
+      copy.stage.action,
+      completedFreshnessStage,
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      false,
+      null,
+      copy,
+      "ko-KR",
+    ),
+    buildEodStageCard(
+      "fundamentals",
+      copy.stage.fundamentals,
+      completedFreshnessStage,
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      "2026-06-29",
+      false,
+      null,
+      copy,
+      "ko-KR",
+    ),
+  ];
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: "KIS risk timeout",
+    marketRiskStatusLoadState: "error",
+    numberLocale: "ko-KR",
+    piotroskiMarketDate: "2026-06-29",
+    piotroskiStatus: null,
+    piotroskiStatusError: "Piotroski timeout",
+    piotroskiStatusLoadState: "error",
+  });
+  const pipelineStatus = buildPipelineStatus({
+    market_date: null,
+    status: "pending",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    stages: {},
+    total_stages: 24,
+    display_completed_stages: 0,
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "ko-KR",
+    pipelineStatus,
+    scoringMarketDate: "2026-06-29",
+  });
+  const agentRoleCards = [
+    {
+      role: "eod-summarizer",
+      label: copy.agentFeedback.roles.eod,
+      status: "pending" as const,
+      progressPercent: 0,
+      progressLabel: "0 / 2,802",
+      metrics: [],
+      detailHref: null,
+    },
+    {
+      role: "technical-summarizer",
+      label: copy.agentFeedback.roles.technical,
+      status: "pending" as const,
+      progressPercent: 0,
+      progressLabel: "0 / 2,802",
+      metrics: [],
+      detailHref: null,
+    },
+    {
+      role: "fundamental-summarizer",
+      label: copy.agentFeedback.roles.fundamental,
+      status: "pending" as const,
+      progressPercent: 0,
+      progressLabel: "0 / 2,802",
+      metrics: [],
+      detailHref: null,
+    },
+  ];
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards,
+    copy,
+    eodStageCards,
+    filteringCardModel,
+    numberLocale: "ko-KR",
+    patchDate: "2026-06-29",
+    pipelineStatus,
+    scoringCardModel,
+  });
+
+  assert.equal(model.pipeline.hasLiveStatus, true);
+  assert.equal(model.pipeline.currentStage, null);
+  assert.equal(model.pipeline.progressLabel, "0 / 24");
+  assert.equal(model.pipeline.stages.every((stage) => stage.progressSource === "fallback_inference"), true);
+  assert.equal(model.summarySource, "grouped-rollup");
+  assert.equal(model.status, "error");
+  assert.equal(model.statusLabel, copy.processMonitor.statuses.error);
+  assert.equal(model.currentGroupLabel, copy.processMonitor.groups.filter);
+  assert.equal(model.currentStepLabel, copy.operational.piotroskiSectionTitle);
+  assert.equal(model.progressLabel, "4 / 12");
+  assert.equal(model.completedCount, 4);
+  assert.equal(model.totalCount, 12);
+  assert.deepEqual(model.groups.map((group) => group.status), ["completed", "error", "pending", "pending"]);
+  assert.equal(model.groups[0]?.steps.find((step) => step.key === "price")?.progressLabel, "2,802 / 2,802");
 });
 
 test("localizes raw partial pipeline reasons in the Korean process monitor model", () => {
