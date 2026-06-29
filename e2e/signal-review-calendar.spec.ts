@@ -19,6 +19,7 @@ type SignalReviewCalendarMockOptions = {
   runningProgressDates?: string[];
   timeoutFeedbackDates?: string[];
   timeoutReviewDateDates?: string[];
+  forceFreshnessFailure?: boolean;
   forceCalendarSummaryFailure?: boolean;
 };
 
@@ -863,6 +864,18 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
   };
 
   await page.route("**/api/trading/eod/freshness", async (route) => {
+    if (options.forceFreshnessFailure) {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Upstream request timed out",
+          message: "Timed out after 5.0s while loading /eod/freshness from trading-core.",
+        }),
+      });
+      return;
+    }
+
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -2183,6 +2196,40 @@ test("signal review calendar labels unresolved month loading cells as loading in
   } finally {
     delayedMonthSummary.resolve();
     delayedSelectedDateFetch.resolve();
+  }
+});
+
+test("signal review calendar keeps no-date current-month loading cells out of run state", async ({ page }) => {
+  const delayedMonthSummary = createDeferred();
+  try {
+    await page.clock.setFixedTime(new Date("2026-06-29T09:00:00+09:00"));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockSignalReviewCalendar(page, {
+      calendarSummaryDelay: delayedMonthSummary.promise,
+      forceFreshnessFailure: true,
+    });
+
+    await page.goto("/calendar");
+    await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "June 2026" })).toBeVisible();
+    await expect(page.getByTestId("calendar-month-status")).toHaveText("Loading decision dates");
+    await expect(page.getByText("0 month decisions")).toBeVisible();
+
+    const unresolvedPastCell = page.locator('[data-calendar-cell="2026-06-01"]');
+    await expect(
+      unresolvedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
+    ).toHaveText("Loading");
+    await expect(
+      unresolvedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
+    ).toHaveText("LOAD");
+    await expect(unresolvedPastCell.locator('[data-calendar-cell-label="count"]')).toBeHidden();
+    await expect(unresolvedPastCell.locator('[data-calendar-cell-label="action-mix"]')).toBeHidden();
+    await expect(unresolvedPastCell).not.toContainText("RUN");
+    await expect(
+      page.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]', { hasText: "RUN" }),
+    ).toHaveCount(0);
+  } finally {
+    delayedMonthSummary.resolve();
   }
 });
 
