@@ -385,6 +385,49 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   expect(processBarGapToBottomNav).toBeLessThanOrEqual(12);
 }
 
+async function mockDashboardUnavailableApis(page: Page) {
+  await page.route("**/api/trading/**", async (route) => {
+    await route.fulfill({
+      status: 504,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "Gateway Timeout",
+      }),
+    });
+  });
+}
+
+async function expectMainScrollportClearsBottomChrome(page: Page) {
+  const metrics = await page.locator("[data-app-chrome-main]").evaluate((main) => {
+    const bottomChrome = document.querySelector("[data-app-chrome-bottom-nav-frame]");
+
+    if (!(main instanceof HTMLElement) || !(bottomChrome instanceof HTMLElement)) {
+      return null;
+    }
+
+    const mainRect = main.getBoundingClientRect();
+    const bottomChromeRect = bottomChrome.getBoundingClientRect();
+    const mainStyle = window.getComputedStyle(main);
+
+    return {
+      bottomChromeTop: bottomChromeRect.top,
+      clearance: bottomChromeRect.top - mainRect.bottom,
+      mainBottom: mainRect.bottom,
+      mainClientHeight: main.clientHeight,
+      mainOverflowY: mainStyle.overflowY,
+      mainScrollHeight: main.scrollHeight,
+    };
+  });
+
+  if (!metrics) {
+    throw new Error("Expected Dashboard main scrollport and bottom chrome to be rendered.");
+  }
+
+  expect(metrics.mainOverflowY).toBe("auto");
+  expect(metrics.mainScrollHeight).toBeGreaterThan(metrics.mainClientHeight);
+  expect(metrics.clearance).toBeGreaterThanOrEqual(20);
+}
+
 async function openEodStatusCard(page: Page) {
   const processDrawer = await openProcessMonitorDrawer(page);
   const eodStatusCard = processDrawer.locator("article").filter({ hasText: "EOD Status" });
@@ -441,6 +484,27 @@ test.describe("dashboard mobile chrome", () => {
     await expect(routeContent.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
 
     await expectMobileContentClearsBottomChrome(page, routeContent);
+  });
+
+  test("unavailable Portfolio status content clears fixed mobile process chrome", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockDashboardUnavailableApis(page);
+    await page.goto("/dashboard");
+
+    const portfolioCard = page.locator("article").filter({
+      has: page.getByRole("heading", { name: /Portfolio status/i }),
+    });
+    const diagnosticsHint = portfolioCard.getByText("Diagnostics available", { exact: true });
+    const openPortfolioLink = portfolioCard.getByRole("link", { name: /Open account portfolio/i });
+
+    await expect(page.getByRole("button", { name: /Open process monitor/i }).first()).toBeVisible();
+    await expect(portfolioCard).toBeVisible();
+    await expect(portfolioCard).toContainText(/Portfolio status/i);
+    await expect(diagnosticsHint).toBeVisible();
+    await expect(openPortfolioLink).toBeVisible();
+    await expectMainScrollportClearsBottomChrome(page);
+    await expectMobileContentClearsBottomChrome(page, diagnosticsHint);
+    await expectMobileContentClearsBottomChrome(page, openPortfolioLink);
   });
 
   test("monitored symbol prices use one compact mobile line", async ({ page }) => {

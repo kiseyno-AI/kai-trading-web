@@ -33,6 +33,15 @@ test("centralizes mobile floating offsets in the shared shell css", () => {
   assert.doesNotMatch(dashboardCss, /mobile-floating-status-offset,\s*calc\([^)]*safe-area-inset-bottom/);
 });
 
+test("contained mobile content leaves a gutter above fixed bottom accessories", () => {
+  const css = readFileSync(cssPath, "utf8");
+
+  assert.match(
+    css,
+    /\.surface\[data-mobile-content-scroll="contained"\]\[data-mobile-bottom-accessory="present"\]\s*\.main\s*\{[^}]*height:\s*calc\(100dvh - var\(--mobile-bottom-chrome-height\) - var\(--mobile-bottom-content-buffer\)\);/s,
+  );
+});
+
 test("desktop rail keeps metadata and navigation scrollable at fixed desktop widths", () => {
   const css = readFileSync(cssPath, "utf8");
 

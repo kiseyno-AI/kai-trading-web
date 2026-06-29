@@ -2288,6 +2288,7 @@ export function LiveDashboardClient({
             onOpen={openProcessMonitorDrawer}
           />
         ),
+        contentScrollMode: "contained",
         floatingLayer: processMonitorFloatingLayer,
         status: { label: marketBadgeLabel, tone: marketBadgeTone },
       }}
