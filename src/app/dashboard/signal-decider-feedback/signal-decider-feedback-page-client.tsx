@@ -195,6 +195,50 @@ function hasFeedbackErrorSource(error: FeedbackError | null, source: FeedbackErr
   return typeof error === "object" && error !== null && error.source === source;
 }
 
+function isFeedbackReadTimeoutError(error: FeedbackError | null) {
+  return hasFeedbackErrorSource(error, "feedback") && /timed out|timeout/i.test(error.message);
+}
+
+function getFeedbackErrorDiagnosticDetail(error: FeedbackError | null) {
+  return typeof error === "object" && error !== null ? error.message : null;
+}
+
+function FeedbackErrorState({
+  copy,
+  message,
+  onRetry,
+  rawDetail,
+}: {
+  copy: SignalDeciderFeedbackCopy["errors"];
+  message: string;
+  onRetry?: () => void;
+  rawDetail?: string | null;
+}) {
+  return (
+    <div className={styles.emptyState} data-testid="feedback-error-state">
+      <p className={styles.emptyStateMessage} data-testid="feedback-error-primary">
+        {message}
+      </p>
+      {onRetry ? (
+        <button
+          type="button"
+          className={styles.errorRetryButton}
+          data-testid="feedback-error-retry"
+          onClick={onRetry}
+        >
+          {copy.retry}
+        </button>
+      ) : null}
+      {rawDetail ? (
+        <details className={styles.errorDiagnostics} data-testid="feedback-error-diagnostics">
+          <summary>{copy.diagnostics}</summary>
+          <code>{rawDetail}</code>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function formatSignedPercent(value: number | null) {
   if (value === null) return null;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -906,6 +950,7 @@ export default function SignalDeciderFeedbackPageClient() {
   const [gapCategory, setGapCategory] = useState<GapCategoryFilter>(requestedGapCategory);
   const [gapSymbol, setGapSymbol] = useState(requestedGapSymbol);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const detailDialogRef = useRef<HTMLElement | null>(null);
   const detailCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const detailOpenerRef = useRef<HTMLElement | null>(null);
@@ -1118,7 +1163,7 @@ export default function SignalDeciderFeedbackPageClient() {
     return () => {
       active = false;
     };
-  }, [activeAgent, comparisonAgent, marketDate]);
+  }, [activeAgent, comparisonAgent, marketDate, retryNonce]);
 
   const summary = useMemo(
     () => buildDeciderFeedbackSummary({ agentName: activeAgent, feedback, marketDate, progress, previewLimit: 5 }),
@@ -1253,6 +1298,10 @@ export default function SignalDeciderFeedbackPageClient() {
   const feedbackErrorMessage = formatDeciderAgentCopy(summaryCopy.error, activeAgentLabel);
   const feedbackUnavailableMessage = formatDeciderAgentCopy(copy.errors.feedbackUnavailable, activeAgentLabel);
   const marketDateUnavailableMessage = formatDeciderAgentCopy(copy.errors.marketDateUnavailable, activeAgentLabel);
+  const feedbackReadTimeoutMessage = formatDeciderAgentCopy(copy.errors.feedbackReadTimeout, activeAgentLabel);
+  const dataGapReadTimeoutMessage = formatDeciderAgentCopy(copy.errors.dataGapReadTimeout, activeAgentLabel);
+  const feedbackErrorDiagnosticDetail = getFeedbackErrorDiagnosticDetail(error);
+  const canRetryFeedbackRead = hasFeedbackErrorSource(error, "feedback") && Boolean(marketDate);
   const calendarReturnDate = displayedMarketDate ?? marketDate ?? requestedMarketDate;
   const calendarReturnHref =
     isCalendarContext && calendarReturnDate ? `/calendar?date=${encodeURIComponent(calendarReturnDate)}` : null;
@@ -1377,10 +1426,20 @@ export default function SignalDeciderFeedbackPageClient() {
     if (error === null) return null;
     if (error === "feedbackUnavailable") return feedbackUnavailableMessage;
     if (error === "marketDateUnavailable") return marketDateUnavailableMessage;
+    if (isFeedbackReadTimeoutError(error)) return feedbackReadTimeoutMessage;
     if (error.source === "feedback") return `${feedbackUnavailableMessage} ${error.message}`;
     if (error.source === "marketDate") return `${marketDateUnavailableMessage} ${error.message}`;
     return error.message;
-  }, [error, feedbackUnavailableMessage, marketDateUnavailableMessage]);
+  }, [error, feedbackReadTimeoutMessage, feedbackUnavailableMessage, marketDateUnavailableMessage]);
+
+  const dataGapDisplayError = useMemo(() => {
+    if (isFeedbackReadTimeoutError(error)) return dataGapReadTimeoutMessage;
+    return displayError;
+  }, [dataGapReadTimeoutMessage, displayError, error]);
+
+  const handleRetryFeedbackRead = useCallback(() => {
+    setRetryNonce((value) => value + 1);
+  }, []);
 
   function handleMarketDateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1410,7 +1469,12 @@ export default function SignalDeciderFeedbackPageClient() {
   const feedbackResultsBlock = loadState === "loading" ? (
     <div className={styles.emptyState}>{feedbackLoadingMessage}</div>
   ) : loadState === "error" ? (
-    <div className={styles.emptyState}>{displayError ?? feedbackErrorMessage}</div>
+    <FeedbackErrorState
+      copy={copy.errors}
+      message={displayError ?? feedbackErrorMessage}
+      onRetry={canRetryFeedbackRead ? handleRetryFeedbackRead : undefined}
+      rawDetail={isFeedbackReadTimeoutError(error) ? feedbackErrorDiagnosticDetail : null}
+    />
   ) : visibleItems.length > 0 ? (
     <div className={styles.resultsList} aria-label={copy.labels.results}>
       {visibleItems.map((item) => {
@@ -2065,7 +2129,12 @@ export default function SignalDeciderFeedbackPageClient() {
             {loadState === "loading" ? (
               <div className={styles.emptyState}>{feedbackLoadingMessage}</div>
             ) : loadState === "error" ? (
-              <div className={styles.emptyState}>{displayError ?? feedbackErrorMessage}</div>
+              <FeedbackErrorState
+                copy={copy.errors}
+                message={dataGapDisplayError ?? feedbackErrorMessage}
+                onRetry={canRetryFeedbackRead ? handleRetryFeedbackRead : undefined}
+                rawDetail={isFeedbackReadTimeoutError(error) ? feedbackErrorDiagnosticDetail : null}
+              />
             ) : dataGapDisplayState === "has-data-gaps" ? (
               <>
                 <div className={styles.dataGapCategoryCards} aria-label={dataGapCopy.table.category}>

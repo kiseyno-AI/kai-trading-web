@@ -809,7 +809,11 @@
     },
     "errors": {
       "marketDateUnavailable": "{agentLabel} 시장일자를 사용할 수 없습니다.",
-      "feedbackUnavailable": "{agentLabel} 피드백을 사용할 수 없습니다."
+      "feedbackUnavailable": "{agentLabel} 피드백을 사용할 수 없습니다.",
+      "feedbackReadTimeout": "{agentLabel} 피드백 조회 시간이 초과되었습니다. 선택한 시장일자를 다시 시도하세요. 임시 Core 조회 지연이며 피드백 없음으로 확정된 상태가 아닙니다.",
+      "dataGapReadTimeout": "{agentLabel} 피드백 조회 시간이 초과되어 데이터 갭 집계를 사용할 수 없습니다. 피드백 없음으로 판단하기 전에 선택한 시장일자를 다시 시도하세요.",
+      "retry": "다시 시도",
+      "diagnostics": "진단"
     }
   },
   "markets": {

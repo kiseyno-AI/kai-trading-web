@@ -1877,6 +1877,48 @@ test("calendar-sourced mobile feedback shows decision rows before data-gap diagn
   expect(firstDecisionBox!.y).toBeLessThan(dataGapBox!.y);
 });
 
+test("calendar-sourced mobile feedback timeout keeps Core detail in diagnostics", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    forceCalendarSummaryFailure: true,
+    runningProgressDates: ["2026-05-26"],
+    timeoutFeedbackDates: ["2026-05-26"],
+  });
+
+  await page.goto("/calendar?date=2026-05-26");
+  await page.getByRole("button", { name: /Korean/i }).click();
+  await page.getByRole("link", { name: /피드백 표 열기/i }).first().click();
+
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-26&navContext=calendar$/);
+  await expect(
+    page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-05-26 / 피드백"),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "캘린더로 돌아가기" })).toHaveAttribute(
+    "href",
+    "/calendar?date=2026-05-26",
+  );
+
+  const primaryFeedbackError = page.getByTestId("feedback-error-primary").first();
+  await expect(primaryFeedbackError).toContainText("시그널 디사이더 피드백 조회 시간이 초과되었습니다.");
+  await expect(primaryFeedbackError).toContainText("피드백 없음으로 확정된 상태가 아닙니다.");
+  await expect(primaryFeedbackError).not.toContainText("/agent-context/feedback");
+  await expect(page.getByTestId("feedback-error-retry").first()).toHaveText("다시 시도");
+
+  const dataGapReport = page.getByTestId("decider-data-gaps-report");
+  await expect(dataGapReport.getByTestId("feedback-error-primary")).toContainText(
+    "피드백 조회 시간이 초과되어 데이터 갭 집계를 사용할 수 없습니다.",
+  );
+  await expect(dataGapReport.getByTestId("feedback-error-primary")).not.toContainText("/agent-context/feedback");
+  await expect(dataGapReport.getByTestId("decider-data-gap-total-rows").locator("strong")).toHaveText("사용 불가");
+  await expect(dataGapReport).not.toContainText("피드백 행이 없어 데이터 갭 집계를 실행할 수 없습니다.");
+
+  const diagnostics = page.getByTestId("feedback-error-diagnostics").first();
+  await diagnostics.locator("summary").click();
+  await expect(diagnostics).toContainText(
+    "Timed out after 5.0s while loading /agent-context/feedback from trading-core.",
+  );
+});
+
 test("feedback table link keeps the selected calendar date in navigation", async ({ page }) => {
   await mockSignalReviewCalendar(page, {
     denseFeedbackDates: {

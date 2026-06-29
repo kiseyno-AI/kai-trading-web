@@ -1853,7 +1853,20 @@ test("signal-decider detail resolves feedback gateway timeouts into an explicit 
   await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-29");
 
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
-  await expect(page.getByRole("main").getByText(/Timed out after 5\.0s while loading \/agent-context\/feedback/i).first()).toBeVisible();
+  const feedbackErrorState = page
+    .getByTestId("feedback-error-state")
+    .filter({ hasText: "Signal Decider feedback read timed out" });
+  const primaryFeedbackError = feedbackErrorState.getByTestId("feedback-error-primary");
+  await expect(primaryFeedbackError).toContainText(
+    "Signal Decider feedback read timed out. Retry this market date; this is a temporary Core read issue, not confirmed no-feedback.",
+  );
+  await expect(primaryFeedbackError).not.toContainText("/agent-context/feedback");
+  await expect(feedbackErrorState.getByTestId("feedback-error-retry")).toBeVisible();
+  const diagnostics = feedbackErrorState.getByTestId("feedback-error-diagnostics");
+  await diagnostics.locator("summary").click();
+  await expect(diagnostics).toContainText(
+    "Timed out after 5.0s while loading /agent-context/feedback from trading-core.",
+  );
   await expect(page.getByText("Loading Signal Decider feedback...")).toHaveCount(0);
   await expect(page.getByText("Unavailable").first()).toBeVisible();
   await expect(page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i })).toHaveCount(0);
