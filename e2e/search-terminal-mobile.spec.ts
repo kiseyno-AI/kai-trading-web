@@ -909,7 +909,7 @@ test.describe("search terminal mobile", () => {
                 standard_code: "KR7252670005",
                 name_ko: "KODEX 200선물인버스2X",
                 market: "KRX",
-                instrument_type: "etf",
+                instrument_type: null,
               },
             ]
           : query === "005930"
