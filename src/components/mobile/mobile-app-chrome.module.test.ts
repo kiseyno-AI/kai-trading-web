@@ -24,13 +24,31 @@ test("reserves shared mobile bottom chrome in main padding for every route", () 
   );
 });
 
-test("centralizes mobile floating offsets in the shared shell css", () => {
+test("process monitor modal no longer depends on the mobile floating chrome offset", () => {
   const shellCss = readFileSync(cssPath, "utf8");
   const dashboardCss = readFileSync(join(repoRoot, "src/app/dashboard/live-dashboard-client.module.css"), "utf8");
+  const dashboardSource = readFileSync(join(repoRoot, "src/app/dashboard/live-dashboard-client.tsx"), "utf8");
 
   assert.match(shellCss, /--mobile-floating-status-offset:\s*calc\(var\(--mobile-bottom-chrome-height\) \+ 0\.75rem\);/);
-  assert.match(dashboardCss, /var\(--mobile-floating-status-offset\)/);
+  assert.doesNotMatch(dashboardCss, /var\(--mobile-floating-status-offset\)/);
   assert.doesNotMatch(dashboardCss, /mobile-floating-status-offset,\s*calc\([^)]*safe-area-inset-bottom/);
+  assert.match(dashboardSource, /const processMonitorModalLayer = processMonitorDrawerMounted \?/);
+  assert.match(dashboardSource, /modalLayer:\s*processMonitorModalLayer,/);
+  assert.match(dashboardSource, /modalOpen:\s*dialogOpen,/);
+  assert.doesNotMatch(dashboardSource, /processMonitorFloatingLayer/);
+  assert.doesNotMatch(dashboardSource, /floatingLayer:\s*processMonitor/);
+  assert.match(
+    dashboardCss,
+    /\.processMonitorDrawerBackdrop\s*\{[^}]*inset:\s*0;[^}]*align-items:\s*stretch;[^}]*padding:\s*0;[^}]*backdrop-filter:\s*blur\(10px\);/s,
+  );
+  assert.match(
+    dashboardCss,
+    /\.processMonitorDrawer\s*\{[^}]*height:\s*100dvh;[^}]*display:\s*flex;[^}]*overflow:\s*hidden;/s,
+  );
+  assert.match(
+    dashboardCss,
+    /\.processMonitorDrawerBody\s*\{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;/s,
+  );
 });
 
 test("contained mobile content leaves a gutter above fixed bottom accessories", () => {
