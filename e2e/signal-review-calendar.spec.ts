@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { expectMobileContentClearsBottomChrome } from "./mobile-bottom-chrome";
 
@@ -1517,6 +1517,45 @@ async function expectNarrowMobileLabelsContained(page: Page) {
   expect(overflowingLabels).toEqual([]);
 }
 
+async function expectCompactCalendarStatusFillsCell(cell: Locator, text: string) {
+  const statusPill = cell.locator('[data-calendar-cell-label="status"]');
+  const compactToken = statusPill.locator('[data-calendar-label-variant="compact"]');
+
+  await expect(compactToken).toHaveText(text);
+  await expect(compactToken).toBeVisible();
+
+  const metrics = await statusPill.evaluate((element) => {
+    const cellElement = element.closest<HTMLElement>("[data-calendar-cell]");
+    const token = element.querySelector<HTMLElement>('[data-calendar-label-variant="compact"]');
+    const cellRect = cellElement?.getBoundingClientRect();
+    const cellStyle = cellElement ? window.getComputedStyle(cellElement) : null;
+    const statusRect = element.getBoundingClientRect();
+    const tokenRect = token?.getBoundingClientRect();
+    const cellHorizontalInset =
+      (Number.parseFloat(cellStyle?.paddingLeft ?? "0") || 0) +
+      (Number.parseFloat(cellStyle?.paddingRight ?? "0") || 0) +
+      (Number.parseFloat(cellStyle?.borderLeftWidth ?? "0") || 0) +
+      (Number.parseFloat(cellStyle?.borderRightWidth ?? "0") || 0);
+
+    return {
+      cellContentWidth: Math.max(0, (cellRect?.width ?? 0) - cellHorizontalInset),
+      cellWidth: cellRect?.width ?? 0,
+      statusScrollWidth: element.scrollWidth,
+      statusWidth: statusRect.width,
+      tokenClientWidth: token?.clientWidth ?? 0,
+      tokenHeight: tokenRect?.height ?? 0,
+      tokenScrollWidth: token?.scrollWidth ?? 0,
+      tokenWidth: tokenRect?.width ?? 0,
+    };
+  });
+
+  expect(metrics.statusWidth).toBeGreaterThanOrEqual(metrics.cellContentWidth - 1);
+  expect(metrics.statusScrollWidth).toBeLessThanOrEqual(Math.ceil(metrics.statusWidth) + 1);
+  expect(metrics.tokenScrollWidth).toBeLessThanOrEqual(metrics.tokenClientWidth + 1);
+  expect(metrics.tokenWidth).toBeGreaterThanOrEqual(14);
+  expect(metrics.tokenHeight).toBeGreaterThanOrEqual(9);
+}
+
 async function expectMobileToolbarRouteContextContained(
   page: Page,
   {
@@ -2238,19 +2277,19 @@ test("signal review calendar keeps no-date current-month loading cells out of ru
   }
 });
 
-test("signal review calendar keeps timed-out current-month fallback cells out of run state", async ({ page }) => {
+test("signal review calendar keeps timed-out current-month fallback cells scannable on mobile", async ({ page }) => {
   const delayedFallbackFeedback = createDeferred();
   try {
     await page.clock.setFixedTime(new Date("2026-06-29T09:00:00+09:00"));
     await page.setViewportSize({ width: 390, height: 844 });
+    const juneDates = listMonthDates("2026-06");
     const requestHits = await mockSignalReviewCalendar(page, {
       calendarSummaryFailureStatus: 504,
-      feedbackDelays: Object.fromEntries(
-        listMonthDates("2026-06").map((date) => [date, delayedFallbackFeedback.promise]),
-      ),
+      feedbackDelays: Object.fromEntries(juneDates.map((date) => [date, delayedFallbackFeedback.promise])),
       forceCalendarSummaryFailure: true,
       forceFreshnessFailure: true,
       runningProgressDates: ["2026-06-29"],
+      timeoutFeedbackDates: juneDates,
     });
 
     await page.goto("/calendar");
@@ -2268,6 +2307,7 @@ test("signal review calendar keeps timed-out current-month fallback cells out of
     await expect(
       firstPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
     ).toHaveText("LOAD");
+    await expectCompactCalendarStatusFillsCell(firstPastCell, "LOAD");
     await expect(firstPastCell.locator('[data-calendar-cell-label="count"]')).toBeHidden();
     await expect(firstPastCell.locator('[data-calendar-cell-label="action-mix"]')).toBeHidden();
     await expect(firstPastCell).not.toContainText("RUN");
@@ -2276,10 +2316,28 @@ test("signal review calendar keeps timed-out current-month fallback cells out of
     await expect(
       selectedTodayCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
     ).toHaveText("LOAD");
+    await expectCompactCalendarStatusFillsCell(selectedTodayCell, "LOAD");
     await expect(selectedTodayCell).not.toContainText("RUN");
     await expect(
       page.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]', { hasText: "RUN" }),
     ).toHaveCount(0);
+
+    delayedFallbackFeedback.resolve();
+
+    await expect(page.getByTestId("calendar-month-status")).toHaveText("Calendar scan unavailable");
+    await expect(firstPastCell).toHaveAttribute("aria-label", /2026-06-01 Unavailable/);
+    await expectCompactCalendarStatusFillsCell(firstPastCell, "ERR");
+    await expect(selectedTodayCell).toHaveAttribute("aria-label", /2026-06-29 Unavailable/);
+    await expectCompactCalendarStatusFillsCell(selectedTodayCell, "ERR");
+
+    await page.getByRole("button", { name: "Korean" }).click();
+    await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+    await expect(page.getByTestId("calendar-month-status")).toHaveText("캘린더 스캔 사용 불가");
+    await expect(firstPastCell).toHaveAttribute("aria-label", /2026-06-01 사용 불가/);
+    await expectCompactCalendarStatusFillsCell(firstPastCell, "불가");
+    await expect(selectedTodayCell).toHaveAttribute("aria-label", /2026-06-29 사용 불가/);
+    await expectCompactCalendarStatusFillsCell(selectedTodayCell, "불가");
+    await expectNarrowMobileLabelsContained(page);
   } finally {
     delayedFallbackFeedback.resolve();
   }
