@@ -1072,38 +1072,7 @@ type ProcessMonitorTriggerSummary = {
   statusLabel: string;
 };
 
-function hasIncompleteCanonicalPipeline(pipeline: DailyPipelineTimelineModel) {
-  return (
-    pipeline.completedCount < pipeline.totalCount ||
-    pipeline.stages.some((stage) => stage.status !== "completed" && stage.status !== "skipped")
-  );
-}
-
-function getCanonicalPipelineProcessMonitorStatus(pipeline: DailyPipelineTimelineModel): ProcessMonitorStatus {
-  if (pipeline.status === "failed") return "error";
-  if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
-  if (pipeline.status === "running") return "running";
-  if (pipeline.status === "pending") {
-    return pipeline.completedCount > 0 && pipeline.completedCount < pipeline.totalCount ? "partial" : "pending";
-  }
-  if (pipeline.status === "completed" && hasIncompleteCanonicalPipeline(pipeline)) return "partial";
-  return "completed";
-}
-
-function getProcessMonitorTriggerSummary(
-  model: ProcessMonitorModel,
-  copy: DashboardLiveCopy,
-): ProcessMonitorTriggerSummary {
-  if (model.pipeline.hasLiveStatus) {
-    const status = getCanonicalPipelineProcessMonitorStatus(model.pipeline);
-    return {
-      progressLabel: model.pipeline.progressLabel,
-      source: "canonical-pipeline",
-      status,
-      statusLabel: copy.processMonitor.statuses[status],
-    };
-  }
-
+function getProcessMonitorTriggerSummary(model: ProcessMonitorModel): ProcessMonitorTriggerSummary {
   return {
     progressLabel: model.progressLabel,
     source: model.summarySource,
@@ -1145,7 +1114,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
   placement,
   onOpen,
 }: ProcessMonitorTriggerProps) {
-  const triggerSummary = getProcessMonitorTriggerSummary(model, copy);
+  const triggerSummary = getProcessMonitorTriggerSummary(model);
   const currentLabel = getProcessMonitorCurrentLabel(model, copy, triggerSummary);
   const showLoadingSummary = placement === "mobile" && triggerSummary.status === "running";
   const summaryLabel = showLoadingSummary ? triggerSummary.statusLabel : triggerSummary.progressLabel;
@@ -1200,6 +1169,22 @@ function getPipelineStatusTone(status: DailyPipelineStageStatus) {
   return "neutral";
 }
 
+function getProcessMonitorSummaryTone(status: ProcessMonitorStatus) {
+  if (status === "completed") return "positive";
+  if (status === "error") return "negative";
+  if (status === "partial" || status === "retry") return "warning";
+  return "neutral";
+}
+
+function getProcessMonitorSummarySourceLabel(
+  source: ProcessMonitorModel["summarySource"],
+  copy: DashboardLiveCopy,
+) {
+  return source === "canonical-pipeline"
+    ? copy.processMonitor.summarySources.canonicalPipeline
+    : copy.processMonitor.summarySources.groupedRollup;
+}
+
 function formatPipelineDependencyList(
   dependencies: DailyPipelineStageModel["dependencies"],
   copy: DashboardLiveCopy,
@@ -1222,11 +1207,13 @@ function formatPipelineRunIds(runIds: DailyPipelineStageModel["sourceRunIds"]) {
 type DailyPipelineTimelineProps = {
   copy: DashboardLiveCopy;
   pipeline: DailyPipelineTimelineModel;
+  summarySource: ProcessMonitorModel["summarySource"];
 };
 
 const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
   copy,
   pipeline,
+  summarySource,
 }: DailyPipelineTimelineProps) {
   const currentStage = pipeline.currentStage;
   const currentStatus = currentStage?.status ?? pipeline.status;
@@ -1238,7 +1225,11 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
   const currentReason = currentStage?.reason ?? copy.processMonitor.noCurrentStageDetail;
 
   return (
-    <section className={styles.pipelineTimelinePanel} aria-label={copy.processMonitor.fullPipelineTitle}>
+    <section
+      className={styles.pipelineTimelinePanel}
+      data-pipeline-summary-priority={summarySource === "canonical-pipeline" ? "primary" : "secondary"}
+      aria-label={copy.processMonitor.fullPipelineTitle}
+    >
       <div className={styles.pipelineTimelineHeader}>
         <div>
           <p className={styles.sectionEyebrow}>{copy.processMonitor.fullPipelineEyebrow}</p>
@@ -1387,6 +1378,46 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
   );
 });
 
+type ProcessMonitorPrimarySummaryProps = {
+  copy: DashboardLiveCopy;
+  model: ProcessMonitorModel;
+};
+
+const ProcessMonitorPrimarySummary = memo(function ProcessMonitorPrimarySummary({
+  copy,
+  model,
+}: ProcessMonitorPrimarySummaryProps) {
+  const summary = getProcessMonitorTriggerSummary(model);
+  const currentLabel = getProcessMonitorCurrentLabel(model, copy, summary);
+
+  return (
+    <section
+      className={styles.processMonitorPrimarySummary}
+      data-process-summary-source={summary.source}
+      aria-label={copy.processMonitor.primaryStatusTitle}
+    >
+      <div className={styles.processMonitorPrimarySummaryHeader}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.processMonitor.primaryStatusTitle}</p>
+          <h3 className={styles.processMonitorPrimarySummaryTitle}>{currentLabel}</h3>
+        </div>
+        <span className={`pill ${getProcessMonitorSummaryTone(summary.status)}`}>{summary.statusLabel}</span>
+      </div>
+
+      <dl className={styles.processMonitorPrimarySummaryGrid}>
+        <div>
+          <dt>{copy.processMonitor.progress}</dt>
+          <dd>{summary.progressLabel}</dd>
+        </div>
+        <div>
+          <dt>{copy.processMonitor.summaryBasis}</dt>
+          <dd>{getProcessMonitorSummarySourceLabel(summary.source, copy)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+});
+
 type ProcessMonitorDrawerProps = {
   children?: ReactNode;
   copy: DashboardLiveCopy;
@@ -1444,7 +1475,8 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
           </div>
         </div>
 
-        <DailyPipelineTimeline copy={copy} pipeline={model.pipeline} />
+        <ProcessMonitorPrimarySummary copy={copy} model={model} />
+        <DailyPipelineTimeline copy={copy} pipeline={model.pipeline} summarySource={model.summarySource} />
 
         {children ? (
           <div className={`${styles.integrityGrid} ${styles.processMonitorDetailCards} ${styles.processMonitorCardsGrid}`}>{children}</div>

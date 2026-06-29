@@ -13,7 +13,7 @@ const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트
 const yesLabel = /Yes|예/;
 
 type FilteringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
-type MockPipelineStatus = "running" | "completed" | "partial";
+type MockPipelineStatus = "running" | "completed" | "partial" | "fallback-pending";
 type MockPipelineStageOverride = (stageKey: string) => Record<string, unknown> | null;
 
 async function expectFilteringStageStatusIcon(stage: Locator, status: FilteringStageStatus, label: string) {
@@ -198,6 +198,22 @@ async function mockDashboardProcessStatusApis(
   });
   await page.route("**/api/trading/eod/pipeline/status**", async (route) => {
     const status = getPipelineStatus();
+
+    if (status === "fallback-pending") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: null,
+          status: "pending",
+          stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+          stages: {},
+          total_stages: 24,
+          display_completed_stages: 0,
+        }),
+      });
+      return;
+    }
+
     const partialCompletedStageKeys = new Set([
       "master_refresh",
       "pykrx_universe_refresh",
@@ -647,6 +663,26 @@ test.describe("dashboard mobile chrome", () => {
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
     await expectAllVisibleProcessMonitorTriggersMirrorCanonical(page);
+  });
+
+  test("mobile process monitor keeps grouped progress primary when full pipeline is fallback-only", async ({ page }) => {
+    await mockDashboardProcessStatusApis(page, () => "fallback-pending");
+
+    await page.goto("/dashboard");
+
+    const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+    await expect(processBar).toHaveAttribute("data-process-summary-source", "grouped-rollup");
+    await expect(processBar).not.toContainText(/0\s*\/\s*24/);
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const primarySummary = processDrawer.getByLabel(/Primary process status/i);
+    const canonicalPipeline = processDrawer.getByLabel(/Canonical daily pipeline status|표준 일별 파이프라인 상태/);
+
+    await expect(primarySummary).toHaveAttribute("data-process-summary-source", "grouped-rollup");
+    await expect(primarySummary).toContainText("Group progress");
+    await expect(primarySummary).not.toContainText(/0\s*\/\s*24/);
+    await expect(canonicalPipeline).toContainText(/0\s*\/\s*24/);
+    await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
   });
 
   test("expanded mobile process monitor keeps a single close arrow and dismisses from outside click", async ({ page }) => {
