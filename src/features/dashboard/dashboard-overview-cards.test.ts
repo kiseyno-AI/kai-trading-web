@@ -585,8 +585,10 @@ test("excludes rejected or expired runtime rows unless they are held", () => {
   assert.equal(model.runtimeHoldingRows[0].values.find((value) => value.key === "quantity")?.value, "5");
 });
 
-test("preserves portfolio summary fields while monitored-symbol timeout and missing day P/L stay operator-safe", () => {
-  const rawTimeout =
+test("preserves portfolio summary fields while runtime timeouts keep row states operator-safe", () => {
+  const runtimeStatusTimeout =
+    "Timed out after 5.0s while loading /execution/runtime/status from trading-core.";
+  const monitoredSymbolsTimeout =
     "Timed out after 5.0s while loading /execution/runtime/monitored-symbols?market_date=2026-05-22 from trading-core.";
   const summary = {
     sync: { status: "synced" },
@@ -617,9 +619,9 @@ test("preserves portfolio summary fields while monitored-symbol timeout and miss
   const model = buildDashboardPortfolioOverviewModel({
     copy,
     executionStatus,
-    executionStatusError: null,
+    executionStatusError: runtimeStatusTimeout,
     monitoredSymbols: null,
-    monitoredSymbolsError: rawTimeout,
+    monitoredSymbolsError: monitoredSymbolsTimeout,
     numberLocale: "en-US",
     portfolioState: "fully-synced",
     summary,
@@ -629,11 +631,14 @@ test("preserves portfolio summary fields while monitored-symbol timeout and miss
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
   assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "Today P/L pending");
   assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
-  assert.equal(model.monitoringStateLabel, "Monitoring list is updating.");
+  assert.equal(model.contextLabel?.includes("Runtime data is delayed."), true);
+  assert.equal(model.monitoringStateLabel, "Monitored symbols unavailable.");
   assert.equal(model.accountHoldingStateLabel, null);
   assert.equal(model.accountHoldingRows.length, 1);
-  assert.equal(model.runtimeHoldingStateLabel, "Monitoring list is updating.");
-  assert.deepEqual(model.diagnostics, [rawTimeout]);
+  assert.equal(model.runtimeHoldingStateLabel, "Runtime held positions unavailable.");
+  assert.deepEqual(model.diagnostics, [runtimeStatusTimeout, monitoredSymbolsTimeout]);
+  assert.notEqual(model.monitoringStateLabel, "Monitoring list is updating.");
+  assert.notEqual(model.runtimeHoldingStateLabel, "Monitoring list is updating.");
   assert.doesNotMatch(
     [
       model.contextLabel,
@@ -644,7 +649,7 @@ test("preserves portfolio summary fields while monitored-symbol timeout and miss
     ]
       .filter(Boolean)
       .join("\n"),
-    /Timed out after 5\.0s|trading-core|\/execution\/runtime\/monitored-symbols/,
+    /Timed out after 5\.0s|trading-core|\/execution\/runtime\/(?:status|monitored-symbols)/,
   );
 });
 

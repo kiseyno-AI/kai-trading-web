@@ -325,7 +325,9 @@ test.describe("dashboard incremental lists", () => {
     await expect(deciderCard.getByTestId("dashboard-decider-row")).toHaveCount(0);
     await expect(deciderCard.getByTestId("dashboard-decider-more")).toHaveCount(0);
 
-    await expect(portfolioCard.getByText("Monitoring list is updating.", { exact: true })).toHaveCount(2);
+    await expect(portfolioCard.getByText("Monitored symbols unavailable.", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Runtime held positions unavailable.", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Monitoring list is updating.", { exact: true })).toHaveCount(0);
     await expect(portfolioCard.getByText("No account portfolio holdings returned.", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-account-holdings-row")).toHaveCount(0);

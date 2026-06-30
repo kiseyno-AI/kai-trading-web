@@ -1036,9 +1036,10 @@ export function buildDashboardPortfolioOverviewModel({
   const runtimeHoldingRows = Array.from(runtimeHoldingBySymbol.values())
     .filter((holding) => !monitoringSymbols.has(holding.symbol))
     .map((holding) => buildHoldingRow({ badgeLabel: overviewCopy.runtimeHeld, copy, holding, numberLocale }));
+  const hasRuntimeDataDelay = Boolean(executionStatusError || monitoredSymbolsError);
   const contextLabel = [
     copy.portfolioState.dashboardContext,
-    executionStatusError ? overviewCopy.runtimeDataDelayed : null,
+    hasRuntimeDataDelay ? overviewCopy.runtimeDataDelayed : null,
   ].filter(Boolean).join(" ");
   const diagnostics = compactDiagnostics(executionStatusError, monitoredSymbolsError);
 
@@ -1104,7 +1105,7 @@ export function buildDashboardPortfolioOverviewModel({
       monitoringRows.length > 0
         ? null
         : monitoredSymbolsError
-          ? overviewCopy.monitoringListUpdating
+          ? overviewCopy.monitoredSymbolsUnavailable
           : monitoredSymbols
             ? overviewCopy.noExecApprovedMonitoringRows
             : overviewCopy.monitoredSymbolsUnavailable,
@@ -1113,7 +1114,7 @@ export function buildDashboardPortfolioOverviewModel({
       runtimeHoldingRows.length > 0
         ? null
         : monitoredSymbolsError
-          ? overviewCopy.monitoringListUpdating
+          ? overviewCopy.runtimeHeldPositionsUnavailable
           : monitoredSymbols
             ? overviewCopy.noRuntimeHeldPositionRows
             : overviewCopy.runtimeHeldPositionsUnavailable,
