@@ -1037,6 +1037,7 @@ export function buildDashboardPortfolioOverviewModel({
     .filter((holding) => !monitoringSymbols.has(holding.symbol))
     .map((holding) => buildHoldingRow({ badgeLabel: overviewCopy.runtimeHeld, copy, holding, numberLocale }));
   const hasRuntimeDataDelay = Boolean(executionStatusError || monitoredSymbolsError);
+  const runtimeRowsUnavailable = hasRuntimeDataDelay || !monitoredSymbols;
   const contextLabel = [
     copy.portfolioState.dashboardContext,
     hasRuntimeDataDelay ? overviewCopy.runtimeDataDelayed : null,
@@ -1104,20 +1105,16 @@ export function buildDashboardPortfolioOverviewModel({
     monitoringStateLabel:
       monitoringRows.length > 0
         ? null
-        : monitoredSymbolsError
+        : runtimeRowsUnavailable
           ? overviewCopy.monitoredSymbolsUnavailable
-          : monitoredSymbols
-            ? overviewCopy.noExecApprovedMonitoringRows
-            : overviewCopy.monitoredSymbolsUnavailable,
+          : overviewCopy.noExecApprovedMonitoringRows,
     runtimeHoldingRows,
     runtimeHoldingStateLabel:
       runtimeHoldingRows.length > 0
         ? null
-        : monitoredSymbolsError
+        : runtimeRowsUnavailable
           ? overviewCopy.runtimeHeldPositionsUnavailable
-          : monitoredSymbols
-            ? overviewCopy.noRuntimeHeldPositionRows
-            : overviewCopy.runtimeHeldPositionsUnavailable,
+          : overviewCopy.noRuntimeHeldPositionRows,
     statusLabel: getPortfolioStatusLabel(portfolioState, copy),
     statusTone: getPortfolioStatusTone(portfolioState),
   };

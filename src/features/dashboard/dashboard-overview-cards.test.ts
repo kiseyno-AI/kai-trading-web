@@ -653,6 +653,63 @@ test("preserves portfolio summary fields while runtime timeouts keep row states 
   );
 });
 
+test("marks portfolio runtime rows unavailable when status times out with an empty monitored-symbol payload", () => {
+  const runtimeStatusTimeout =
+    "Timed out after 5.0s while loading /execution/runtime/status from trading-core.";
+  const monitoredSymbols = {
+    market_date: "2026-05-22",
+    items: [],
+  } satisfies ExecutionRuntimeMonitoredSymbolsResponseDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy,
+    executionStatus: null,
+    executionStatusError: runtimeStatusTimeout,
+    monitoredSymbols,
+    monitoredSymbolsError: null,
+    numberLocale: "en-US",
+    portfolioState: "upstream-unavailable",
+    summary: null,
+  });
+
+  assert.equal(model.contextLabel?.includes("Runtime data is delayed."), true);
+  assert.equal(model.monitoringRows.length, 0);
+  assert.equal(model.runtimeHoldingRows.length, 0);
+  assert.equal(model.monitoringStateLabel, "Monitored symbols unavailable.");
+  assert.equal(model.runtimeHoldingStateLabel, "Runtime held positions unavailable.");
+  assert.notEqual(model.monitoringStateLabel, "Monitoring list is updating.");
+  assert.notEqual(model.runtimeHoldingStateLabel, "Monitoring list is updating.");
+  assert.notEqual(model.monitoringStateLabel, "No exec-approved monitoring symbols returned for today.");
+  assert.notEqual(model.runtimeHoldingStateLabel, "No runtime held positions returned.");
+  assert.deepEqual(model.diagnostics, [runtimeStatusTimeout]);
+});
+
+test("uses Korean unavailable copy for portfolio runtime rows after runtime timeout", () => {
+  const koreanCopy = getDashboardLiveCopy("ko");
+  const runtimeStatusTimeout =
+    "Timed out after 5.0s while loading /execution/runtime/status from trading-core.";
+  const monitoredSymbols = {
+    market_date: "2026-05-22",
+    items: [],
+  } satisfies ExecutionRuntimeMonitoredSymbolsResponseDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy: koreanCopy,
+    executionStatus: null,
+    executionStatusError: runtimeStatusTimeout,
+    monitoredSymbols,
+    monitoredSymbolsError: null,
+    numberLocale: "ko-KR",
+    portfolioState: "upstream-unavailable",
+    summary: null,
+  });
+
+  assert.equal(model.monitoringStateLabel, "모니터링 종목을 사용할 수 없습니다.");
+  assert.equal(model.runtimeHoldingStateLabel, "런타임 보유 포지션을 사용할 수 없습니다.");
+  assert.notEqual(model.monitoringStateLabel, "모니터링 목록을 불러오는 중입니다.");
+  assert.notEqual(model.runtimeHoldingStateLabel, "모니터링 목록을 불러오는 중입니다.");
+});
+
 test("ships Korean operator copy for delayed runtime and missing day P/L states", () => {
   const koreanCopy = getDashboardLiveCopy("ko");
 
