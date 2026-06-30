@@ -84,6 +84,7 @@ async function mockDashboardRuntimeLists(
     monitoredItems,
     monitoredCount,
     monitoredError = false,
+    runtimeStatusError = false,
     sellCount,
   }: {
     boardItems?: unknown[];
@@ -92,6 +93,7 @@ async function mockDashboardRuntimeLists(
     monitoredItems?: unknown[];
     monitoredCount: number;
     monitoredError?: boolean;
+    runtimeStatusError?: boolean;
     sellCount: number;
   },
 ) {
@@ -167,6 +169,15 @@ async function mockDashboardRuntimeLists(
   });
   await page.route("**/api/trading/execution/runtime/status**", async (route) => {
     requestCounts.runtimeStatus += 1;
+    if (runtimeStatusError) {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "runtime status unavailable" }),
+      });
+      return;
+    }
+
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -335,6 +346,31 @@ test.describe("dashboard incremental lists", () => {
     await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-more")).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-account-holdings-more")).toHaveCount(0);
     await expect(portfolioCard.getByTestId("dashboard-runtime-held-positions-more")).toHaveCount(0);
+  });
+
+  test("keeps Korean portfolio runtime sections unavailable after runtime endpoint timeouts", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockDashboardRuntimeLists(page, {
+      buyCount: 0,
+      holdings: [],
+      monitoredCount: 0,
+      monitoredError: true,
+      runtimeStatusError: true,
+      sellCount: 0,
+    });
+
+    await page.goto("/dashboard");
+
+    const portfolioCard = getPrimaryInsightCard(page, /포트폴리오 상태/);
+
+    await expect(portfolioCard.getByText("모니터링 종목을 사용할 수 없습니다.", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("런타임 보유 포지션을 사용할 수 없습니다.", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("모니터링 목록을 불러오는 중입니다.", { exact: true })).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-exec-monitoring-row")).toHaveCount(0);
+    await expect(portfolioCard.getByTestId("dashboard-runtime-held-positions-row")).toHaveCount(0);
   });
 
   test("shows exec-approved monitoring rows and excludes core-only planned rows on mobile", async ({ page }) => {
