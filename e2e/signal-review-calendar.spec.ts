@@ -2422,9 +2422,23 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
     await expect(
       selectedPanel.locator("div").filter({ hasText: /^액션 믹스\s*사용 불가$/ }).locator("strong"),
     ).toHaveText("사용 불가");
-    await expect(selectedPanel).toContainText("총 결정");
-    await expect(selectedPanel).toContainText("0");
-    await expect(selectedPanel).toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
+    await expect(
+      selectedPanel.locator("div").filter({ hasText: /^총 결정\s*사용 불가$/ }).locator("strong"),
+    ).toHaveText("사용 불가");
+    await expect(
+      selectedPanel.locator("div").filter({ hasText: /^리뷰된 행\s*사용 불가$/ }).locator("strong"),
+    ).toHaveText("사용 불가");
+    await expect(
+      selectedPanel.locator("div").filter({ hasText: /^5D 목표 \/ 손절\s*사용 불가$/ }).locator("strong"),
+    ).toHaveText("사용 불가");
+    await expect(
+      selectedPanel.locator("div").filter({ hasText: /^5D 대기 상태\s*사용 불가$/ }).locator("strong"),
+    ).toHaveText("사용 불가");
+    await expect(
+      selectedPanel.locator("div").filter({ hasText: /^단기 기간\s*사용 불가$/ }).locator("strong"),
+    ).toHaveText("사용 불가");
+    await expect(selectedPanel).toContainText("선택한 날짜 리뷰를 불러오지 못했습니다.");
+    await expect(selectedPanel).not.toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
     await expect(selectedPanel).not.toContainText("로딩 중");
     await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveAttribute(
       "href",

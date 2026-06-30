@@ -655,6 +655,65 @@ function getSelectedDateActionMixLabel({
   return getStatusLabel(displayStatus, copy);
 }
 
+function isSelectedDateMetricUnavailable(displayStatus: SelectedDateDisplayStatus) {
+  return displayStatus === "unavailable";
+}
+
+function getSelectedDateCountMetricLabel({
+  copy,
+  count,
+  displayStatus,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  count: number;
+  displayStatus: SelectedDateDisplayStatus;
+}) {
+  if (isSelectedDateMetricUnavailable(displayStatus)) return copy.status.unavailable;
+  return count.toLocaleString("en-US");
+}
+
+function getSelectedDatePrimaryHorizonMetricLabel({
+  copy,
+  counts,
+  displayStatus,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  counts: ReturnType<typeof getPrimaryHorizonCounts>;
+  displayStatus: SelectedDateDisplayStatus;
+}) {
+  if (isSelectedDateMetricUnavailable(displayStatus)) return copy.status.unavailable;
+
+  return `${copy.outcomes.target} ${counts.target} · ${copy.outcomes.stop} ${counts.stop} · ${copy.outcomes.unresolved} ${counts.unresolved}`;
+}
+
+function getSelectedDatePendingHorizonMetricLabel({
+  copy,
+  counts,
+  displayStatus,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  counts: ReturnType<typeof getPrimaryHorizonCounts>;
+  displayStatus: SelectedDateDisplayStatus;
+}) {
+  if (isSelectedDateMetricUnavailable(displayStatus)) return copy.status.unavailable;
+
+  return `${copy.horizons.pendingMaturity} ${counts.pending} · ${copy.horizons.insufficientData} ${counts.insufficient} · ${copy.horizons.notComputed} ${counts.notComputed}`;
+}
+
+function getSelectedDateShorterHorizonMetricLabel({
+  copy,
+  count,
+  displayStatus,
+}: {
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"];
+  count: number;
+  displayStatus: SelectedDateDisplayStatus;
+}) {
+  if (isSelectedDateMetricUnavailable(displayStatus)) return copy.status.unavailable;
+
+  return copy.horizons.shorterComputed.replaceAll("{count}", count.toLocaleString("en-US"));
+}
+
 function getSelectedDateEmptyStateMessage({
   copy,
   displayStatus,
@@ -666,6 +725,9 @@ function getSelectedDateEmptyStateMessage({
 }) {
   if (displayStatus === "unavailable" && selectedError) {
     return selectedError;
+  }
+  if (displayStatus === "unavailable") {
+    return copy.states.selectedUnavailable;
   }
   if (displayStatus === "loading" || displayStatus === "running") {
     return copy.states.loadingSelected;
@@ -1343,6 +1405,31 @@ export default function SignalReviewCalendarPageClient() {
     displayStatus: selectedDisplayStatus,
     summary: selectedSummary,
   });
+  const selectedResultCountLabel = getSelectedDateCountMetricLabel({
+    copy,
+    count: selectedSummary.resultCount,
+    displayStatus: selectedDisplayStatus,
+  });
+  const selectedReviewCountLabel = getSelectedDateCountMetricLabel({
+    copy,
+    count: reviewCount,
+    displayStatus: selectedDisplayStatus,
+  });
+  const selectedPrimaryHorizonMetricLabel = getSelectedDatePrimaryHorizonMetricLabel({
+    copy,
+    counts: primaryHorizonCounts,
+    displayStatus: selectedDisplayStatus,
+  });
+  const selectedPendingHorizonMetricLabel = getSelectedDatePendingHorizonMetricLabel({
+    copy,
+    counts: primaryHorizonCounts,
+    displayStatus: selectedDisplayStatus,
+  });
+  const selectedShorterHorizonMetricLabel = getSelectedDateShorterHorizonMetricLabel({
+    copy,
+    count: shorterHorizonComputedCount,
+    displayStatus: selectedDisplayStatus,
+  });
   const selectedEmptyStateMessage = getSelectedDateEmptyStateMessage({
     copy,
     displayStatus: selectedDisplayStatus,
@@ -1648,7 +1735,7 @@ export default function SignalReviewCalendarPageClient() {
             <div className={styles.summaryGrid}>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.total}</span>
-                <strong>{selectedSummary.resultCount.toLocaleString("en-US")}</strong>
+                <strong>{selectedResultCountLabel}</strong>
               </div>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.actionMix}</span>
@@ -1656,30 +1743,19 @@ export default function SignalReviewCalendarPageClient() {
               </div>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.reviewed}</span>
-                <strong>{reviewCount.toLocaleString("en-US")}</strong>
+                <strong>{selectedReviewCountLabel}</strong>
               </div>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.primary5d}</span>
-                <strong>
-                  {copy.outcomes.target} {primaryHorizonCounts.target} · {copy.outcomes.stop} {primaryHorizonCounts.stop} ·{" "}
-                  {copy.outcomes.unresolved} {primaryHorizonCounts.unresolved}
-                </strong>
+                <strong>{selectedPrimaryHorizonMetricLabel}</strong>
               </div>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.pendingMaturity}</span>
-                <strong>
-                  {copy.horizons.pendingMaturity} {primaryHorizonCounts.pending} · {copy.horizons.insufficientData}{" "}
-                  {primaryHorizonCounts.insufficient} · {copy.horizons.notComputed} {primaryHorizonCounts.notComputed}
-                </strong>
+                <strong>{selectedPendingHorizonMetricLabel}</strong>
               </div>
               <div className={styles.summaryCard}>
                 <span>{copy.summary.shorterHorizons}</span>
-                <strong>
-                  {copy.horizons.shorterComputed.replaceAll(
-                    "{count}",
-                    shorterHorizonComputedCount.toLocaleString("en-US"),
-                  )}
-                </strong>
+                <strong>{selectedShorterHorizonMetricLabel}</strong>
               </div>
             </div>
 
