@@ -627,8 +627,7 @@ function getSelectedDateDisplayStatus({
     if (
       selectedSnapshot?.status === "empty" ||
       selectedSnapshot?.status === "future" ||
-      selectedSnapshot?.status === "partial" ||
-      selectedSnapshot?.status === "unavailable"
+      selectedSnapshot?.status === "partial"
     ) {
       return selectedSnapshot.status;
     }

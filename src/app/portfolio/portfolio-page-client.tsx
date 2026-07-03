@@ -108,56 +108,49 @@ function StateNotice({
 type PortfolioSummaryFailure = Extract<TradingApiJsonResult<PortfolioSummaryDto>, { ok: false }>;
 type PortfolioRiskSnapshotFailure = Extract<TradingApiJsonResult<PortfolioRiskSnapshotDto>, { ok: false }>;
 
-function getHttpFailureDetail(result: PortfolioSummaryFailure) {
-  const detail = result.message ? `: ${result.message}` : "";
-  return `HTTP ${result.status}${detail}`;
-}
-
 function getPortfolioFailure(result: PortfolioSummaryFailure, copy: PortfolioCopy): PortfolioFailure {
   const kind = classifyPortfolioSummaryFailure(result);
-  const httpDetail = getHttpFailureDetail(result);
 
   if (kind === "endpoint-pending") {
     return {
       kind,
-      message: `${copy.errors.endpointPending} ${httpDetail}`,
+      message: copy.errors.endpointPending,
     };
   }
 
   if (kind === "not-configured") {
     return {
       kind,
-      message: result.message ? `${copy.errors.configMissing} ${result.message}` : copy.errors.configMissing,
+      message: copy.errors.configMissing,
     };
   }
 
   return {
     kind,
-    message: `${copy.errors.upstreamUnavailable} ${httpDetail}`,
+    message: copy.errors.upstreamUnavailable,
   };
 }
 
 function getPortfolioRiskFailure(result: PortfolioRiskSnapshotFailure, copy: PortfolioCopy): PortfolioFailure {
   const kind = classifyPortfolioSummaryFailure(result);
-  const httpDetail = getHttpFailureDetail(result);
 
   if (kind === "endpoint-pending") {
     return {
       kind,
-      message: `${copy.risk.errors.endpointPending} ${httpDetail}`,
+      message: copy.risk.errors.endpointPending,
     };
   }
 
   if (kind === "not-configured") {
     return {
       kind,
-      message: result.message ? `${copy.risk.errors.configMissing} ${result.message}` : copy.risk.errors.configMissing,
+      message: copy.risk.errors.configMissing,
     };
   }
 
   return {
     kind,
-    message: `${copy.risk.errors.upstreamUnavailable} ${httpDetail}`,
+    message: copy.risk.errors.upstreamUnavailable,
   };
 }
 

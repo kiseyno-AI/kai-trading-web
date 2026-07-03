@@ -505,3 +505,15 @@ test("marks unavailable portfolio risk snapshots without collapsing the portfoli
     "endpoint-pending",
   );
 });
+
+test("keeps raw portfolio risk upstream diagnostics out of primary source messages", () => {
+  const unavailableSnapshot: PortfolioRiskSnapshotDto = {
+    available: false,
+    source: "execution_positions",
+    source_failed: "Timed out after 5.0s while loading /execution/runtime/portfolio-risk-snapshot from trading-core.",
+    as_of: "2026-06-20T01:10:00Z",
+  };
+
+  assert.equal(resolvePortfolioRiskSnapshotState({ snapshot: unavailableSnapshot }), "unavailable");
+  assert.equal(buildPortfolioRiskSnapshotModel(unavailableSnapshot).sourceMessage, null);
+});
