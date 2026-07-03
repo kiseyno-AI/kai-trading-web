@@ -43,6 +43,7 @@ export type DashboardOverviewPriceItem = {
 
 export type DashboardDeciderRow = {
   compactPriceLine?: string;
+  detailHref: string;
   intentLabel?: string | null;
   key: string;
   marketLabel: string | null;
@@ -194,6 +195,37 @@ function formatPrice(
 
 function formatCompactPriceLine(prices: DashboardOverviewPriceItem[]) {
   return prices.map((price) => `${price.label} ${price.value}`).join(" · ");
+}
+
+function buildRecommendationDetailHref({
+  marketDate,
+  marketLabel,
+  nameLabel,
+  symbol,
+}: {
+  marketDate: string | null;
+  marketLabel: string | null;
+  nameLabel: string;
+  symbol: string;
+}) {
+  const params = new URLSearchParams();
+  const forwardableName = textOrNull(nameLabel);
+  const forwardableMarket = textOrNull(marketLabel);
+
+  if (forwardableName && forwardableName !== symbol) {
+    params.set("name", forwardableName);
+  }
+
+  if (forwardableMarket) {
+    params.set("market", forwardableMarket);
+  }
+
+  if (marketDate) {
+    params.set("marketDate", marketDate);
+  }
+
+  const query = params.toString();
+  return `/dashboard/symbol/${encodeURIComponent(symbol)}/action-summary${query ? `?${query}` : ""}`;
 }
 
 function getTrackedQuoteBySymbol(tracked: CoreTrackedQuotesResponse | null | undefined) {
@@ -360,11 +392,21 @@ function buildClosedMarketDeciderRow({
   item: ExecutionRuntimeBoardItemDto;
   numberLocale: string;
 }): DashboardDeciderRow {
+  const marketLabel = textOrNull(item.market);
+  const nameLabel = textOrNull(item.name) ?? item.symbol;
+  const sourceMarketDate = boardMarketDate ?? currentMarketDate;
+
   return {
+    detailHref: buildRecommendationDetailHref({
+      marketDate: sourceMarketDate,
+      marketLabel,
+      nameLabel,
+      symbol: item.symbol,
+    }),
     intentLabel: getPlannedTradeIntentLabel(item, boardMarketDate, currentMarketDate, copy),
     key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? index}`,
-    marketLabel: textOrNull(item.market),
-    nameLabel: textOrNull(item.name) ?? item.symbol,
+    marketLabel,
+    nameLabel,
     prices: [
       {
         key: "stop-loss",
@@ -831,9 +873,12 @@ export function buildDashboardDeciderOverviewModel({
   const diagnostics = compactDiagnostics(monitoredSymbolsError, boardError, trackedError);
 
   if (market.is_open) {
+    const sourceMarketDate = monitoredSymbols?.market_date ?? getDatePart(market.server_time);
     const rows = (monitoredSymbols?.items ?? []).map((item) => {
       const supportingBoardItem = findSupportingBoardItem(item.symbol, boardBySymbol);
       const quote = quoteBySymbol.get(item.symbol);
+      const marketLabel = textOrNull(item.market) ?? textOrNull(quote?.market_state);
+      const nameLabel = getItemName(item, quote);
       const stopLossPrice = getStopLossPriceWithFallback(item, supportingBoardItem);
       const targetPrice = getTargetPrice(item, supportingBoardItem);
       const currentPrice = getCurrentPrice(item, quote);
@@ -857,9 +902,15 @@ export function buildDashboardDeciderOverviewModel({
 
       return {
         compactPriceLine: formatCompactPriceLine(compactPrices),
+        detailHref: buildRecommendationDetailHref({
+          marketDate: sourceMarketDate,
+          marketLabel,
+          nameLabel,
+          symbol: item.symbol,
+        }),
         key: item.symbol,
-        marketLabel: textOrNull(item.market) ?? textOrNull(quote?.market_state),
-        nameLabel: getItemName(item, quote),
+        marketLabel,
+        nameLabel,
         prices: [
           {
             key: "stop-loss",

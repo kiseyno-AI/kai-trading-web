@@ -171,6 +171,10 @@ test.describe("dashboard desktop", () => {
     const deciderCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });
     await expect(deciderCard).toHaveCount(1);
     await expect(deciderCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByRole("link", { name: /Review rationale: Samsung Electronics 005930/i })).toHaveAttribute(
+      "href",
+      "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-28",
+    );
     await expect(deciderCard.getByText("Stop-loss", { exact: true })).toBeVisible();
     await expect(deciderCard.getByText("Target", { exact: true })).toBeVisible();
     await expect(deciderCard.getByText("Current price", { exact: true })).toBeVisible();

@@ -832,31 +832,33 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
             data-testid="dashboard-decider-list"
           >
             {incrementalRows.visibleItems.map((row) => (
-              <div
-                key={row.key}
-                className={styles.overviewSymbolRow}
-                role="listitem"
-                data-testid="dashboard-decider-row"
-              >
-                <div className={styles.overviewSymbolIdentity}>
-                  <strong>{row.nameLabel}</strong>
-                  <span>
-                    {[row.symbol, row.marketLabel, row.intentLabel].filter(Boolean).join(" · ")}
-                  </span>
-                </div>
-                {row.compactPriceLine ? (
-                  <p className={styles.overviewCompactPriceLine} title={row.compactPriceLine}>
-                    {row.compactPriceLine}
-                  </p>
-                ) : null}
-                <dl className={styles.overviewValueGrid}>
-                  {row.prices.map((price) => (
-                    <div key={price.key}>
-                      <dt>{price.label}</dt>
-                      <dd>{price.value}</dd>
-                    </div>
-                  ))}
-                </dl>
+              <div key={row.key} role="listitem" data-testid="dashboard-decider-row">
+                <Link
+                  href={row.detailHref}
+                  className={styles.overviewSymbolRow}
+                  aria-label={`${copy.dashboardOverview.reviewRationale}: ${row.nameLabel} ${row.symbol}`}
+                >
+                  <div className={styles.overviewSymbolIdentity}>
+                    <strong>{row.nameLabel}</strong>
+                    <span>
+                      {[row.symbol, row.marketLabel, row.intentLabel].filter(Boolean).join(" · ")}
+                    </span>
+                  </div>
+                  {row.compactPriceLine ? (
+                    <p className={styles.overviewCompactPriceLine} title={row.compactPriceLine}>
+                      {row.compactPriceLine}
+                    </p>
+                  ) : null}
+                  <dl className={styles.overviewValueGrid}>
+                    {row.prices.map((price) => (
+                      <div key={price.key}>
+                        <dt>{price.label}</dt>
+                        <dd>{price.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <span className={styles.overviewRowActionLabel}>{copy.dashboardOverview.reviewRationale}</span>
+                </Link>
               </div>
             ))}
           </div>
