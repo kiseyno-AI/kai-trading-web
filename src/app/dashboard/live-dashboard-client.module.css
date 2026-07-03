@@ -847,6 +847,19 @@
   background: rgba(3, 7, 13, 0.64);
 }
 
+.overviewSymbolRow {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.overviewSymbolRow:hover {
+  border-color: rgba(88, 139, 255, 0.38);
+  background: rgba(8, 24, 46, 0.72);
+}
+
 .overviewSymbolIdentity {
   min-width: 0;
   display: grid;
@@ -939,6 +952,21 @@
   font-size: 0.8rem;
   font-weight: 800;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.overviewRowActionLabel {
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.28rem 0.52rem;
+  border: 1px solid rgba(88, 139, 255, 0.3);
+  border-radius: 0.45rem;
+  color: var(--text-strong);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
@@ -2058,6 +2086,7 @@
 .detailButton:focus-visible,
 .inlineToggleButton:focus-visible,
 .incrementalListMoreButton:focus-visible,
+.overviewSymbolRow:focus-visible,
 .pipelineInspectLinks a:focus-visible,
 .processMonitorBar:focus-visible,
 .processMonitorDrawerCollapseButton:focus-visible,

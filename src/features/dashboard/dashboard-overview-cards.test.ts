@@ -86,6 +86,10 @@ test("builds market-open decider rows from monitored symbols without per-symbol 
     ],
   );
   assert.equal(model.rows[0].compactPriceLine, "Stop 70,000 · Target 76,000 · Now 71,500");
+  assert.equal(
+    model.rows[0].detailHref,
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22",
+  );
 });
 
 test("builds compact market-open decider price line with current-price fallback", () => {
@@ -219,6 +223,10 @@ test("shows planned buy and sell rows when closed-market process is partial with
   assert.equal(model.rows.length, 2);
   assert.equal(model.rows[0].intentLabel, "Planned buy today");
   assert.equal(model.rows[1].intentLabel, "Planned sell today");
+  assert.equal(
+    model.rows[0].detailHref,
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22",
+  );
   assert.doesNotMatch([model.statusLabel, model.emptyLabel, model.contextLabel].filter(Boolean).join("\n"), /running|진행 중/i);
 });
 
@@ -300,6 +308,7 @@ test("builds closed-market next-day exec rows with close prices when the daily p
         target_price: 184000,
         stop_loss_price: 174000,
         market_close_price: 179500,
+        source_market_date: "2026-05-21",
         target_trade_date: "2026-05-25",
       },
     ],
@@ -324,6 +333,10 @@ test("builds closed-market next-day exec rows with close prices when the daily p
       ["Target", "184,000"],
       ["Close price", "179,500"],
     ],
+  );
+  assert.equal(
+    model.rows[0].detailHref,
+    "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21",
   );
 });
 
