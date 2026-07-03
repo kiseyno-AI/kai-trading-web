@@ -2,8 +2,16 @@ import type { MessageTree } from "@/i18n/messages";
 import type { NavItemDto, SearchSuggestionDto } from "@/types/trading-api";
 
 export const APP_SHELL_ROUTE_KEYS = ["dashboard", "search", "portfolio", "calendar", "markets", "bots"] as const;
-export const FULL_PAGE_CHROME_ROUTE_KEYS = ["dashboard", "search", "calendar", "portfolio", "symbols"] as const;
-export const MARKETS_ROUTE_CHROME_ROUTE_KEYS = [...FULL_PAGE_CHROME_ROUTE_KEYS, "markets", "bots"] as const;
+export const FULL_PAGE_CHROME_ROUTE_KEYS = [
+  "dashboard",
+  "search",
+  "calendar",
+  "portfolio",
+  "symbols",
+  "markets",
+  "bots",
+] as const;
+export const MARKETS_ROUTE_CHROME_ROUTE_KEYS = FULL_PAGE_CHROME_ROUTE_KEYS;
 
 export type AppChromeRouteKey = (typeof APP_SHELL_ROUTE_KEYS)[number] | "symbols";
 export type FullPageChromeRouteKey = (typeof FULL_PAGE_CHROME_ROUTE_KEYS)[number];

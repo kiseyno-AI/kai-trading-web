@@ -12,23 +12,32 @@ import {
 } from "./app-chrome-routes";
 import { resolveMobileAppChromeMetadata } from "./mobile-app-chrome-route-metadata";
 
-test("full-screen MobileAppChrome route keys contain only the five dedicated destinations", () => {
-  assert.deepEqual(FULL_PAGE_CHROME_ROUTE_KEYS, ["dashboard", "search", "calendar", "portfolio", "symbols"]);
+test("full-screen MobileAppChrome route keys expose all supported shell destinations", () => {
+  assert.deepEqual(FULL_PAGE_CHROME_ROUTE_KEYS, [
+    "dashboard",
+    "search",
+    "calendar",
+    "portfolio",
+    "symbols",
+    "markets",
+    "bots",
+  ]);
   const navItems = buildAppChromeNavItems(messages.en, FULL_PAGE_CHROME_ROUTE_KEYS);
   const navIds = navItems.map((item) => item.id);
 
   assert.deepEqual(navIds, FULL_PAGE_CHROME_ROUTE_KEYS);
-  assert.deepEqual(navIds.includes("markets"), false);
-  assert.equal(navItems.length, 5);
+  assert.equal(navItems.length, 7);
+  assert.equal(navItems.find((item) => item.id === "markets")?.href, "/markets");
+  assert.equal(navItems.find((item) => item.id === "bots")?.href, "/bots");
 });
 
-test("Markets route chrome can include the full-page destinations plus Markets and Bots", () => {
+test("Markets route chrome uses the same canonical full-screen destinations", () => {
   const navItems = buildAppChromeNavItems(messages.en, MARKETS_ROUTE_CHROME_ROUTE_KEYS);
   const navIds = navItems.map((item) => item.id);
 
   assert.deepEqual(
     navIds,
-    ["dashboard", "search", "calendar", "portfolio", "symbols", "markets", "bots"],
+    FULL_PAGE_CHROME_ROUTE_KEYS,
   );
 });
 
