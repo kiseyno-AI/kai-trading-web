@@ -394,7 +394,7 @@ function buildClosedMarketDeciderRow({
 }): DashboardDeciderRow {
   const marketLabel = textOrNull(item.market);
   const nameLabel = textOrNull(item.name) ?? item.symbol;
-  const sourceMarketDate = boardMarketDate ?? currentMarketDate;
+  const sourceMarketDate = textOrNull(item.source_market_date) ?? boardMarketDate ?? currentMarketDate;
 
   return {
     detailHref: buildRecommendationDetailHref({

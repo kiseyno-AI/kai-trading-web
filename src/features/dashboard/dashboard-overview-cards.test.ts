@@ -308,6 +308,7 @@ test("builds closed-market next-day exec rows with close prices when the daily p
         target_price: 184000,
         stop_loss_price: 174000,
         market_close_price: 179500,
+        source_market_date: "2026-05-21",
         target_trade_date: "2026-05-25",
       },
     ],
@@ -335,7 +336,7 @@ test("builds closed-market next-day exec rows with close prices when the daily p
   );
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-22",
+    "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21",
   );
 });
 
