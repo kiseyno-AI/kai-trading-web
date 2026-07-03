@@ -1667,6 +1667,24 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await expect(samsungRow).toContainText("Target hit intraday first");
 });
 
+test("signal review calendar desktop rail does not label the month as market status", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-07-02": 1,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-07-02");
+
+  await expect(page.getByRole("heading", { name: "July 2026" })).toBeVisible();
+
+  const railMarketStatus = page.locator('section[aria-label="Market status"]');
+  await expect(railMarketStatus).toBeVisible();
+  await expect(railMarketStatus).toContainText("Market status pending");
+  await expect(railMarketStatus).not.toContainText("July 2026");
+});
+
 test("signal review calendar Today button recomputes the post-midnight KST current date", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-07-02T23:55:00+09:00"));
   await page.setViewportSize({ width: 390, height: 844 });
