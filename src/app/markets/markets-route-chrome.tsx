@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
-import { MARKETS_ROUTE_CHROME_ROUTE_KEYS } from "@/lib/app-chrome-routes";
 import { useAppState } from "@/components/providers/app-state-provider";
 
 type MarketsRouteChromeProps = {
@@ -31,7 +30,6 @@ export function MarketsRouteChrome({ children, variant = "overview" }: MarketsRo
     <MobileAppChrome
       chrome={{
         activeNav: "markets",
-        navRouteKeys: MARKETS_ROUTE_CHROME_ROUTE_KEYS,
         title,
         subtitle,
         status: {
