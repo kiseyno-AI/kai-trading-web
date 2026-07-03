@@ -1518,6 +1518,10 @@ export default function SignalReviewCalendarPageClient() {
     router.push(`/calendar?date=${encodeURIComponent(dateKey)}`);
   }
 
+  function handleSelectToday() {
+    handleSelectDate(getTodayDateKey());
+  }
+
   function handleMonthChange(delta: number) {
     setMonthKey((value) => addMonths(value, delta));
   }
@@ -1695,7 +1699,7 @@ export default function SignalReviewCalendarPageClient() {
                 <button type="button" onClick={() => handleMonthChange(-1)} aria-label={copy.actions.previousMonth}>
                   ←
                 </button>
-                <button type="button" onClick={() => handleSelectDate(todayKey)}>
+                <button type="button" onClick={handleSelectToday}>
                   {copy.actions.today}
                 </button>
                 <button type="button" onClick={() => handleMonthChange(1)} aria-label={copy.actions.nextMonth}>

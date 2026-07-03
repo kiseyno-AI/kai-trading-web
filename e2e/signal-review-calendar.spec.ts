@@ -1667,8 +1667,8 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await expect(samsungRow).toContainText("Target hit intraday first");
 });
 
-test("signal review calendar treats the post-midnight KST current date as selectable", async ({ page }) => {
-  await page.clock.setFixedTime(new Date("2026-07-03T00:34:00+09:00"));
+test("signal review calendar Today button recomputes the post-midnight KST current date", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-02T23:55:00+09:00"));
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page);
 
@@ -1678,13 +1678,18 @@ test("signal review calendar treats the post-midnight KST current date as select
   await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "July 2026" })).toBeVisible();
 
+  const mountedTodayCell = page.locator('[data-calendar-cell="2026-07-02"]');
+  await expect(mountedTodayCell).toBeVisible();
+  await expect(mountedTodayCell).toBeEnabled();
+  await expect(mountedTodayCell).not.toHaveAttribute("aria-label", /미래/);
+
+  await page.clock.setFixedTime(new Date("2026-07-03T00:34:00+09:00"));
+
   const kstTodayCell = page.locator('[data-calendar-cell="2026-07-03"]');
   await expect(kstTodayCell).toBeVisible();
-  await expect(kstTodayCell).toBeEnabled();
-  await expect(kstTodayCell).not.toHaveAttribute("aria-label", /미래/);
   await expect(
     kstTodayCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
-  ).toHaveText("행 없음");
+  ).toHaveText("미래");
 
   await page.getByRole("button", { name: "오늘" }).click();
 
