@@ -2444,6 +2444,21 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
       "href",
       /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-26&navContext=calendar$/,
     );
+
+    await page.getByRole("link", { name: /피드백 표 열기/i }).click();
+    await expect(page).toHaveURL(
+      /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-26&navContext=calendar$/,
+    );
+    await expect(
+      page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-05-26 / 피드백"),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "캘린더로 돌아가기" })).toHaveAttribute(
+      "href",
+      "/calendar?date=2026-05-26",
+    );
+    await expect(page.getByTestId("feedback-error-primary").first()).toContainText(
+      "시그널 디사이더 피드백 조회 시간이 초과되었습니다.",
+    );
   } finally {
     unavailableDateFetch.resolve();
   }
