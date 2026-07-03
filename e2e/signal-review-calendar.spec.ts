@@ -1670,7 +1670,11 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
 test("signal review calendar Today button recomputes the post-midnight KST current date", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-07-02T23:55:00+09:00"));
   await page.setViewportSize({ width: 390, height: 844 });
-  await mockSignalReviewCalendar(page);
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-07-03": 1,
+    },
+  });
 
   await page.goto("/calendar?date=2026-07-02");
   await page.getByRole("button", { name: "Korean" }).click();
@@ -1686,16 +1690,24 @@ test("signal review calendar Today button recomputes the post-midnight KST curre
   await page.clock.setFixedTime(new Date("2026-07-03T00:34:00+09:00"));
 
   const kstTodayCell = page.locator('[data-calendar-cell="2026-07-03"]');
+  const kstTodayStatus = kstTodayCell.locator(
+    '[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]',
+  );
+  const kstTodayCount = kstTodayCell.locator(
+    '[data-calendar-cell-label="count"] [data-calendar-label-variant="full"]',
+  );
   await expect(kstTodayCell).toBeVisible();
-  await expect(
-    kstTodayCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
-  ).toHaveText("미래");
+  await expect(kstTodayStatus).toHaveText("미래");
 
   await page.getByRole("button", { name: "오늘" }).click();
 
   await expect(page).toHaveURL(/\/calendar\?date=2026-07-03/);
+  await expect(kstTodayCell).toBeEnabled();
   await expect(kstTodayCell).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("link", { name: "피드백 표 열기" })).toHaveAttribute(
+  await expect(kstTodayCell).not.toHaveAttribute("aria-label", /미래/);
+  await expect(kstTodayStatus).toHaveText("저장됨");
+  await expect(kstTodayCount).toHaveText("1 개 결정");
+  await expect(page.getByRole("link", { name: "피드백 표 열기" }).first()).toHaveAttribute(
     "href",
     "/dashboard/signal-decider-feedback?marketDate=2026-07-03&navContext=calendar",
   );

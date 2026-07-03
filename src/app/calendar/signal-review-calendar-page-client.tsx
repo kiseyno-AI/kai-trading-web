@@ -1021,7 +1021,7 @@ export default function SignalReviewCalendarPageClient() {
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
   const requestedDateKey = parseCompactDateValue(requestedDate);
-  const todayKey = useMemo(() => getTodayDateKey(), []);
+  const [todayKey, setTodayKey] = useState(() => getTodayDateKey());
   const initialDate = requestedDateKey;
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   const [monthKey, setMonthKey] = useState(getMonthKey(initialDate ?? todayKey));
@@ -1519,7 +1519,9 @@ export default function SignalReviewCalendarPageClient() {
   }
 
   function handleSelectToday() {
-    handleSelectDate(getTodayDateKey());
+    const nextTodayKey = getTodayDateKey();
+    setTodayKey((current) => (current === nextTodayKey ? current : nextTodayKey));
+    handleSelectDate(nextTodayKey);
   }
 
   function handleMonthChange(delta: number) {
