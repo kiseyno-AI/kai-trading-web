@@ -154,10 +154,12 @@
 }
 
 .processMonitorBar[data-process-monitor-status="partial"],
+.processMonitorBar[data-process-monitor-status="degraded"],
 .processMonitorBar[data-process-monitor-status="retry"] {
   border-color: rgba(227, 176, 74, 0.3);
 }
 
+.processMonitorBar[data-process-monitor-status="unavailable"],
 .processMonitorBar[data-process-monitor-status="error"] {
   border-color: rgba(255, 179, 182, 0.36);
 }
@@ -693,11 +695,13 @@
 }
 
 .processMonitorSummary[data-process-status="partial"],
+.processMonitorSummary[data-process-status="degraded"],
 .processMonitorSummary[data-process-status="retry"] {
   border-color: rgba(227, 176, 74, 0.3);
   color: var(--text-strong);
 }
 
+.processMonitorSummary[data-process-status="unavailable"],
 .processMonitorSummary[data-process-status="error"] {
   border-color: rgba(255, 179, 182, 0.34);
   color: var(--negative);

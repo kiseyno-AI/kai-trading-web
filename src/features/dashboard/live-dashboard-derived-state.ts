@@ -88,6 +88,7 @@ import type {
   ProcessMonitorGroup,
   ProcessMonitorMetric,
   ProcessMonitorModel,
+  ProcessMonitorPipelineAvailability,
   ProcessMonitorStatus,
   ProcessMonitorStep,
   ScoringCardModel,
@@ -2035,8 +2036,10 @@ function getProcessMonitorStatusProgressPercent(status: ProcessMonitorStatus) {
       return 70;
     case "running":
       return 40;
+    case "degraded":
     case "retry":
       return 25;
+    case "unavailable":
     case "pending":
     case "error":
       return 0;
@@ -2399,7 +2402,9 @@ function buildAgentProcessMonitorStep(role: AgentRoleCard, copy: DashboardLiveCo
 }
 
 function getProcessMonitorAggregateStatus(steps: readonly ProcessMonitorStep[]): ProcessMonitorStatus {
+  if (steps.some((step) => step.status === "unavailable")) return "unavailable";
   if (steps.some((step) => step.status === "error")) return "error";
+  if (steps.some((step) => step.status === "degraded")) return "degraded";
   if (steps.some((step) => step.status === "retry")) return "retry";
   if (steps.some((step) => step.status === "running")) return "running";
   if (steps.some((step) => step.status === "partial")) return "partial";
@@ -2409,7 +2414,9 @@ function getProcessMonitorAggregateStatus(steps: readonly ProcessMonitorStep[]):
 
 function getProcessMonitorCurrentStep(steps: readonly ProcessMonitorStep[]) {
   return (
+    steps.find((step) => step.status === "unavailable") ??
     steps.find((step) => step.status === "error") ??
+    steps.find((step) => step.status === "degraded") ??
     steps.find((step) => step.status === "retry") ??
     steps.find((step) => step.status === "running") ??
     steps.find((step) => step.status === "partial") ??
@@ -2475,6 +2482,10 @@ function hasCanonicalPipelineStageEvidence(stage: DailyPipelineTimelineModel["st
   );
 }
 
+function hasFallbackOnlyCanonicalPipelineStages(pipeline: DailyPipelineTimelineModel) {
+  return pipeline.stages.length > 0 && pipeline.stages.every((stage) => !hasCanonicalPipelineStageEvidence(stage));
+}
+
 function getCanonicalPipelineProcessStatus(pipeline: DailyPipelineTimelineModel): ProcessMonitorStatus {
   if (pipeline.status === "failed") return "error";
   if (pipeline.status === "blocked" || pipeline.status === "partial") return "partial";
@@ -2505,23 +2516,85 @@ function shouldUseCanonicalPipelineSummary(pipeline: DailyPipelineTimelineModel)
   return pipeline.stages.some(hasCanonicalPipelineStageEvidence);
 }
 
+function formatProcessMonitorReadIssue(prefix: string, error: string | null | undefined) {
+  const message = error?.trim();
+  return message ? `${prefix}: ${message}` : prefix;
+}
+
+function buildProcessMonitorPipelineAvailability({
+  copy,
+  freshnessError,
+  marketError,
+  pipeline,
+  pipelineStatusError,
+}: {
+  copy: DashboardLiveCopy;
+  freshnessError: string | null;
+  marketError: string | null;
+  pipeline: DailyPipelineTimelineModel;
+  pipelineStatusError: string | null;
+}): ProcessMonitorPipelineAvailability {
+  const readIssue =
+    pipelineStatusError
+      ? formatProcessMonitorReadIssue(copy.processMonitor.readIssues.pipelineStatus, pipelineStatusError)
+      : freshnessError
+        ? formatProcessMonitorReadIssue(copy.processMonitor.readIssues.freshness, freshnessError)
+        : marketError
+          ? formatProcessMonitorReadIssue(copy.processMonitor.readIssues.marketStatus, marketError)
+          : null;
+
+  if (!readIssue) {
+    return {
+      status: "available",
+      statusLabel: "",
+      title: "",
+      reason: null,
+      hideFallbackStages: false,
+    };
+  }
+
+  const hideFallbackStages = hasFallbackOnlyCanonicalPipelineStages(pipeline);
+  const status = shouldUseCanonicalPipelineSummary(pipeline) ? "degraded" : "unavailable";
+  const detail =
+    status === "degraded"
+      ? copy.processMonitor.pipelineStatusDegradedDetail
+      : copy.processMonitor.pipelineStatusUnavailableDetail;
+
+  return {
+    status,
+    statusLabel: getProcessMonitorStatusLabel(status, copy),
+    title:
+      status === "degraded"
+        ? copy.processMonitor.pipelineStatusDegraded
+        : copy.processMonitor.pipelineStatusUnavailable,
+    reason: `${detail} ${readIssue}`,
+    hideFallbackStages,
+  };
+}
+
 export function buildProcessMonitorModel({
   agentRoleCards,
   copy,
   eodStageCards,
   filteringCardModel,
+  freshnessError = null,
+  marketError = null,
   numberLocale,
   patchDate = null,
   pipelineStatus = null,
+  pipelineStatusError = null,
   scoringCardModel,
 }: {
   agentRoleCards: AgentRoleCard[];
   copy: DashboardLiveCopy;
   eodStageCards: readonly EodStageCard[];
   filteringCardModel: FilteringCardModel;
+  freshnessError?: string | null;
+  marketError?: string | null;
   numberLocale: string;
   patchDate?: string | null;
   pipelineStatus?: EodPipelineStatusResponseDto | null;
+  pipelineStatusError?: string | null;
   scoringCardModel: ScoringCardModel;
 }): ProcessMonitorModel {
   const pipeline = localizeDailyPipelineTimelineModel(
@@ -2529,6 +2602,13 @@ export function buildProcessMonitorModel({
     copy,
     numberLocale,
   );
+  const pipelineAvailability = buildProcessMonitorPipelineAvailability({
+    copy,
+    freshnessError,
+    marketError,
+    pipeline,
+    pipelineStatusError,
+  });
   const groups = [
     buildProcessMonitorGroup(
       "patch",
@@ -2572,25 +2652,49 @@ export function buildProcessMonitorModel({
   const groupedCompletedCount = groups.reduce((sum, group) => sum + group.completedCount, 0);
   const groupedTotalCount = groups.reduce((sum, group) => sum + group.totalCount, 0);
   const canonicalPipelineStatus = getCanonicalPipelineProcessStatus(pipeline);
-  const useCanonicalPipelineSummary = shouldUseCanonicalPipelineSummary(pipeline);
-  const status = useCanonicalPipelineSummary ? canonicalPipelineStatus : groupedStatus;
-  const completedCount = useCanonicalPipelineSummary ? pipeline.completedCount : groupedCompletedCount;
-  const totalCount = useCanonicalPipelineSummary ? pipeline.totalCount : groupedTotalCount;
-  const progressLabel = useCanonicalPipelineSummary
-    ? pipeline.progressLabel
-    : buildProcessMonitorProgressLabel(completedCount, totalCount, numberLocale);
-  const progressPercent = useCanonicalPipelineSummary
-    ? pipeline.progressPercent
-    : totalCount > 0
-      ? clampAgentProgressPercent((completedCount / totalCount) * 100)
-      : 0;
-  const currentGroup =
-    groups.find((group) => group.status === "error") ??
-    groups.find((group) => group.status === "retry") ??
-    groups.find((group) => group.status === "running") ??
-    groups.find((group) => group.status === "partial") ??
-    groups.find((group) => group.status === "pending") ??
-    null;
+  const hasUnavailablePipelineStatus = pipelineAvailability.status === "unavailable";
+  const useCanonicalPipelineSummary =
+    pipelineAvailability.status !== "available" || shouldUseCanonicalPipelineSummary(pipeline);
+  const status =
+    pipelineAvailability.status !== "available"
+      ? pipelineAvailability.status
+      : useCanonicalPipelineSummary
+        ? canonicalPipelineStatus
+        : groupedStatus;
+  const completedCount = hasUnavailablePipelineStatus
+    ? 0
+    : useCanonicalPipelineSummary
+      ? pipeline.completedCount
+      : groupedCompletedCount;
+  const totalCount = hasUnavailablePipelineStatus
+    ? 0
+    : useCanonicalPipelineSummary
+      ? pipeline.totalCount
+      : groupedTotalCount;
+  const progressLabel = hasUnavailablePipelineStatus
+    ? copy.processMonitor.progressLabels.unavailable
+    : useCanonicalPipelineSummary
+      ? pipeline.progressLabel
+      : buildProcessMonitorProgressLabel(completedCount, totalCount, numberLocale);
+  const progressPercent = hasUnavailablePipelineStatus
+    ? 0
+    : useCanonicalPipelineSummary
+      ? pipeline.progressPercent
+      : totalCount > 0
+        ? clampAgentProgressPercent((completedCount / totalCount) * 100)
+        : 0;
+  const currentGroup = pipelineAvailability.status !== "available"
+    ? null
+    : (
+        groups.find((group) => group.status === "unavailable") ??
+        groups.find((group) => group.status === "error") ??
+        groups.find((group) => group.status === "degraded") ??
+        groups.find((group) => group.status === "retry") ??
+        groups.find((group) => group.status === "running") ??
+        groups.find((group) => group.status === "partial") ??
+        groups.find((group) => group.status === "pending") ??
+        null
+      );
 
   return {
     status,
@@ -2603,6 +2707,7 @@ export function buildProcessMonitorModel({
     patchDate: resolveNormalizedPresenterDate(patchDate),
     currentGroupLabel: currentGroup?.label ?? null,
     currentStepLabel: currentGroup?.currentStepLabel ?? null,
+    pipelineAvailability,
     pipeline,
     groups,
   };

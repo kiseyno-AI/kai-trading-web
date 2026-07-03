@@ -50,6 +50,13 @@ test("continues to reuse non-fallback snapshots that resolve to the requested ma
 test("detects transient EOD pipeline status timeout failures", () => {
   assert.equal(isEodPipelineStatusTransientError(new Error("HTTP 504 from /api/trading/eod/pipeline/status")), true);
   assert.equal(isEodPipelineStatusTransientError(new Error("EOD pipeline status request timed out after 1000ms.")), true);
+  assert.equal(
+    isEodPipelineStatusTransientError(
+      Object.assign(new Error("signal is aborted without reason"), { name: "AbortError" }),
+    ),
+    true,
+  );
+  assert.equal(isEodPipelineStatusTransientError(new Error("The operation was aborted.")), true);
   assert.equal(isEodPipelineStatusTransientError(new Error("HTTP 502 from /api/trading/eod/pipeline/status")), false);
   assert.equal(isEodPipelineStatusTransientError(new Error("Unexpected parse error")), false);
   assert.equal(isEodPipelineStatusTransientError("string-error"), false);
@@ -194,6 +201,9 @@ test("loads pipeline status with a request timeout signal and quiet transient er
     /signal: latestCompletedRequestTimeout\.signal/,
   );
   assert.match(source, /isEodPipelineStatusTransientError\(pipelineStatusError\)/);
+  assert.match(source, /const \[pipelineStatusError, setPipelineStatusError\] = useState<string \| null>/);
+  assert.match(source, /setPipelineStatusError\(getDashboardLoadErrorMessage\(pipelineStatusError\)\);/);
+  assert.match(source, /pipelineStatusError,/);
   assert.match(
     source,
     /console\.warn\(\s*["']Dashboard EOD pipeline status load timed out, continuing to retry["']\s*,/,

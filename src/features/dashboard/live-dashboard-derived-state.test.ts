@@ -3015,6 +3015,116 @@ test("keeps fallback-only canonical pipeline progress secondary to grouped proce
   assert.equal(model.groups[0]?.steps.find((step) => step.key === "price")?.progressLabel, "2,802 / 2,802");
 });
 
+test("marks fallback-only pipeline status unavailable when the status read fails", () => {
+  const copy = getDashboardLiveCopy("en");
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "idle",
+    numberLocale: "en-US",
+    piotroskiMarketDate: null,
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: null,
+    scoringMarketDate: null,
+  });
+  const pipelineStatus = buildPipelineStatus({
+    market_date: null,
+    status: "pending",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    stages: {},
+    total_stages: 24,
+    display_completed_stages: 0,
+  });
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards: [],
+    copy,
+    eodStageCards: [],
+    filteringCardModel,
+    numberLocale: "en-US",
+    pipelineStatus,
+    pipelineStatusError: "HTTP 504 for /api/trading/eod/pipeline/status",
+    scoringCardModel,
+  });
+
+  assert.equal(model.status, "unavailable");
+  assert.equal(model.statusLabel, copy.processMonitor.statuses.unavailable);
+  assert.equal(model.summarySource, "canonical-pipeline");
+  assert.equal(model.progressLabel, copy.processMonitor.progressLabels.unavailable);
+  assert.equal(model.completedCount, 0);
+  assert.equal(model.totalCount, 0);
+  assert.equal(model.currentGroupLabel, null);
+  assert.equal(model.currentStepLabel, null);
+  assert.equal(model.pipeline.progressLabel, "0 / 24");
+  assert.equal(model.pipeline.stages.every((stage) => stage.progressSource === "fallback_inference"), true);
+  assert.equal(model.pipelineAvailability.status, "unavailable");
+  assert.equal(model.pipelineAvailability.hideFallbackStages, true);
+  assert.match(model.pipelineAvailability.reason ?? "", /Pipeline status read unavailable/);
+});
+
+test("marks pipeline status degraded when a refresh fails but previous stage evidence exists", () => {
+  const copy = getDashboardLiveCopy("en");
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "idle",
+    numberLocale: "en-US",
+    piotroskiMarketDate: null,
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const pipelineStatus = buildPipelineStatus({
+    status: "running",
+    stage_order: [...CANONICAL_EOD_PIPELINE_STAGE_ORDER],
+    stages: {
+      price_collection: {
+        status: "running",
+        processed: 4,
+        total: 10,
+        failed: 0,
+        current_step: "price_collection",
+      },
+    },
+    current_stage: "price_collection",
+    total_stages: 24,
+    display_completed_stages: 0,
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringMarketDate: "2026-04-21",
+  });
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards: [],
+    copy,
+    eodStageCards: [],
+    filteringCardModel,
+    numberLocale: "en-US",
+    pipelineStatus,
+    pipelineStatusError: "signal is aborted without reason",
+    scoringCardModel,
+  });
+
+  assert.equal(model.status, "degraded");
+  assert.equal(model.statusLabel, copy.processMonitor.statuses.degraded);
+  assert.equal(model.progressLabel, "0 / 24");
+  assert.equal(model.pipeline.currentStage?.key, "price_collection");
+  assert.equal(model.pipelineAvailability.status, "degraded");
+  assert.equal(model.pipelineAvailability.hideFallbackStages, false);
+  assert.match(model.pipelineAvailability.reason ?? "", /Pipeline status refresh is degraded/);
+});
+
 test("localizes raw partial pipeline reasons in the Korean process monitor model", () => {
   const copy = getDashboardLiveCopy("ko");
   const filteringCardModel = buildFilteringCardModel({

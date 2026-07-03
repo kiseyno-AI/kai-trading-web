@@ -128,8 +128,9 @@ function getJson<T>(path: string): Promise<T> {
 
 export function isEodPipelineStatusTransientError(error: unknown) {
   if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError") return true;
   const message = error.message.toLowerCase();
-  return message.includes("timed out") || message.includes("http 504");
+  return message.includes("timed out") || message.includes("http 504") || message.includes("aborted");
 }
 
 export function getEodPipelineStatusPollDelayMsWithTransientErrors({
@@ -277,10 +278,14 @@ export function useLiveDashboardData({
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(initialFreshness);
+  const [freshnessError, setFreshnessError] = useState<string | null>(initialFreshness ? null : initialError);
   const [fundamentalsStatus, setFundamentalsStatus] = useState<DartFundamentalsDailyInspectResponseDto | null>(
     initialFundamentalsStatus,
   );
   const [pipelineStatus, setPipelineStatus] = useState<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
+  const [pipelineStatusError, setPipelineStatusError] = useState<string | null>(
+    initialPipelineStatus ? null : initialError,
+  );
   const pipelineStatusRef = useRef<EodPipelineStatusResponseDto | null>(initialPipelineStatus);
   const pipelineStatusRequestDateRef = useRef<string | null>(initialPipelineRequestMarketDate);
   const marketServerTimeRef = useRef<string | null>(initialMarket.server_time ?? null);
@@ -582,6 +587,7 @@ export function useLiveDashboardData({
           pipelineStatusRequestDateRef.current = nextRequestMarketDate;
           pipelineStatusRef.current = null;
           setPipelineStatus(null);
+          setPipelineStatusError(null);
         }
         setMarket(marketData);
         seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, marketData);
@@ -619,11 +625,14 @@ export function useLiveDashboardData({
           pipelineStatusRequestDateRef.current = nextRequestMarketDate;
           pipelineStatusRef.current = null;
           setPipelineStatus(null);
+          setPipelineStatusError(null);
         }
         setFreshness(data);
+        setFreshnessError(null);
       } catch (freshnessError) {
         console.error("Dashboard freshness load failed", freshnessError);
         if (!active) return;
+        setFreshnessError(getDashboardLoadErrorMessage(freshnessError));
         setFreshness((current) => current);
       }
     };
@@ -973,6 +982,7 @@ export function useLiveDashboardData({
         pipelineStatusRequestDateRef.current = pipelineRequestMarketDate;
         pipelineStatusRef.current = data;
         setPipelineStatus(data);
+        setPipelineStatusError(null);
         scheduleNextLoad(data, pipelineStatusTimeoutErrorCount);
       } catch (pipelineStatusError) {
         const isTransientError = isEodPipelineStatusTransientError(pipelineStatusError);
@@ -989,6 +999,7 @@ export function useLiveDashboardData({
           console.error("Dashboard EOD pipeline status load failed", pipelineStatusError);
         }
         if (!active) return;
+        setPipelineStatusError(getDashboardLoadErrorMessage(pipelineStatusError));
         scheduleNextLoad(pipelineStatusRef.current, pipelineStatusTimeoutErrorCount);
       } finally {
         currentRequestTimeout.clear();
@@ -1216,6 +1227,9 @@ export function useLiveDashboardData({
     executionRuntimeMonitoredSymbolsError,
     executionRuntimeStatus,
     executionRuntimeStatusError,
+    freshness,
+    freshnessError,
+    fundamentalsStatus,
     market,
     marketRiskStatus: filteringMarketDate ? marketRiskStatus : null,
     marketRiskStatusError: filteringMarketDate ? marketRiskStatusError : null,
@@ -1225,6 +1239,7 @@ export function useLiveDashboardData({
     piotroskiStatusError: filteringMarketDate ? piotroskiStatusError : null,
     piotroskiStatusLoadState: filteringMarketDate ? piotroskiStatusLoadState : "idle",
     pipelineStatus,
+    pipelineStatusError,
     portfolioSummary,
     portfolioSummaryError,
     portfolioSummaryLoadState,
@@ -1244,7 +1259,5 @@ export function useLiveDashboardData({
     signalDeciderFeedbackError: agentProgressMarketDate ? signalDeciderFeedbackError : null,
     tracked,
     trackedError,
-    freshness,
-    fundamentalsStatus,
   };
 }

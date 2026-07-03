@@ -196,7 +196,25 @@ export type ScoringCardModel = {
   stages: ScoringStageModel[];
 };
 
-export type ProcessMonitorStatus = "completed" | "pending" | "running" | "partial" | "error" | "retry";
+export type ProcessMonitorStatus =
+  | "completed"
+  | "pending"
+  | "running"
+  | "partial"
+  | "error"
+  | "retry"
+  | "degraded"
+  | "unavailable";
+
+export type ProcessMonitorPipelineAvailabilityStatus = "available" | "degraded" | "unavailable";
+
+export type ProcessMonitorPipelineAvailability = {
+  status: ProcessMonitorPipelineAvailabilityStatus;
+  statusLabel: string;
+  title: string;
+  reason: string | null;
+  hideFallbackStages: boolean;
+};
 
 export type ProcessMonitorMetric = {
   key: string;
@@ -241,6 +259,7 @@ export type ProcessMonitorModel = {
   patchDate: string | null;
   currentGroupLabel: string | null;
   currentStepLabel: string | null;
+  pipelineAvailability: ProcessMonitorPipelineAvailability;
   pipeline: DailyPipelineTimelineModel;
   groups: ProcessMonitorGroup[];
 };
