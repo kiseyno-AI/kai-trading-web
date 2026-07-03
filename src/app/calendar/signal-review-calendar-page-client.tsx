@@ -617,12 +617,13 @@ function getSelectedDateDisplayStatus({
   selectedSnapshot: CalendarDateSnapshot | null;
   summary: SignalDeciderFeedbackSummaryModel;
 }): SelectedDateDisplayStatus {
-  if (loadState === "loading") return "loading";
+  if (loadState === "loading") return selectedSnapshot?.status === "unavailable" ? "unavailable" : "loading";
   if (loadState === "error") return "unavailable";
   if (loadState === "idle") return summary.status;
+  if (selectedError) return "unavailable";
+  if (selectedSnapshot?.status === "unavailable") return "unavailable";
 
   if (summary.resultCount <= 0) {
-    if (selectedError) return "unavailable";
     if (
       selectedSnapshot?.status === "empty" ||
       selectedSnapshot?.status === "future" ||
@@ -650,6 +651,7 @@ function getSelectedDateActionMixLabel({
   displayStatus: SelectedDateDisplayStatus;
   summary: SignalDeciderFeedbackSummaryModel;
 }) {
+  if (isSelectedDateMetricUnavailable(displayStatus)) return copy.status.unavailable;
   if (summary.resultCount > 0) return getActionMixLabel(summary.actionCounts, copy);
   if (displayStatus === "loading" || displayStatus === "running") return copy.status.pending;
   return getStatusLabel(displayStatus, copy);

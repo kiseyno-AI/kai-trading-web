@@ -2464,6 +2464,46 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
   }
 });
 
+test("signal review calendar hides fallback row counts when selected-date review times out", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-05-27": 5,
+    },
+    timeoutReviewDateDates: ["2026-05-27"],
+  });
+
+  await page.goto("/calendar?date=2026-05-27");
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-27" }) });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "unavailable",
+  );
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("Unavailable");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^Total decisions\s*Unavailable$/ }).locator("strong"),
+  ).toHaveText("Unavailable");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^Action mix\s*Unavailable$/ }).locator("strong"),
+  ).toHaveText("Unavailable");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^Reviewed rows\s*Unavailable$/ }).locator("strong"),
+  ).toHaveText("Unavailable");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^5D target \/ stop\s*Unavailable$/ }).locator("strong"),
+  ).toHaveText("Unavailable");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^5D pending state\s*Unavailable$/ }).locator("strong"),
+  ).toHaveText("Unavailable");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^Shorter horizons\s*Unavailable$/ }).locator("strong"),
+  ).toHaveText("Unavailable");
+  await expect(selectedPanel).not.toContainText("Total decisions5");
+  await expect(selectedPanel).not.toContainText("Reviewed rows0");
+  await expect(selectedPanel).not.toContainText(/pending maturity 0/i);
+});
+
 test("signal review calendar separates pending replay state from available rationale and diagnostic risks", async ({
   page,
 }) => {
