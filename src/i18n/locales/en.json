@@ -174,6 +174,7 @@
     "connectivityUnavailableSuffix": "unavailable. Check trading-core connectivity.",
     "favoriteFeedUnavailable": "Favorite feed unavailable",
     "trackedFeedUnavailable": "Tracked feed unavailable",
+    "countUnavailable": "Count unavailable",
     "symbolsPinnedFromSearch": "Symbols pinned from search",
     "currentlyAvailable": "currently available",
     "lastRefresh": "Last refresh",
