@@ -208,6 +208,146 @@ test.describe("my symbols mobile flow", () => {
     await expect(mySymbolsNavItem).toHaveClass(/navItemActive/);
   });
 
+  test("marks summary counts unavailable when tracked and favorite feeds fail", async ({ page }) => {
+    await page.addInitScript(() => {
+      const now = Date.now();
+      const staleTrackedQuotes = {
+        market_state: "OPEN",
+        as_of: "2026-04-21T09:12:00+09:00",
+        items: [
+          {
+            symbol: "005930",
+            company_name: "Samsung Electronics",
+            price: 71500,
+            change: 700,
+            change_pct: 0.99,
+            volume: 120000,
+            turnover: 8580000000,
+            as_of: "2026-04-21T09:12:00+09:00",
+            market_state: "OPEN",
+            source: "kis",
+            fallback: false,
+            is_live: true,
+            available: true,
+            trade_date: "2026-04-21",
+            cached_at: "2026-04-21T09:12:00+09:00",
+            unavailable_reason: null,
+          },
+          {
+            symbol: "000660",
+            company_name: "SK hynix",
+            price: 183400,
+            change: -1200,
+            change_pct: -0.65,
+            volume: 94000,
+            turnover: 17239600000,
+            as_of: "2026-04-21T09:12:00+09:00",
+            market_state: "OPEN",
+            source: "db_cache",
+            fallback: true,
+            is_live: false,
+            available: true,
+            trade_date: "2026-04-21",
+            cached_at: "2026-04-21T09:12:00+09:00",
+            unavailable_reason: null,
+          },
+          {
+            symbol: "035420",
+            company_name: "NAVER",
+            price: 211000,
+            change: 0,
+            change_pct: 0,
+            volume: 64000,
+            turnover: 13504000000,
+            as_of: "2026-04-21T09:12:00+09:00",
+            market_state: "OPEN",
+            source: "kis",
+            fallback: false,
+            is_live: true,
+            available: true,
+            trade_date: "2026-04-21",
+            cached_at: "2026-04-21T09:12:00+09:00",
+            unavailable_reason: null,
+          },
+          {
+            symbol: "051910",
+            company_name: "LG Chem",
+            price: null,
+            change: null,
+            change_pct: null,
+            volume: null,
+            turnover: null,
+            as_of: null,
+            market_state: "UNKNOWN",
+            source: "kis",
+            fallback: false,
+            is_live: false,
+            available: false,
+            trade_date: null,
+            cached_at: null,
+            unavailable_reason: "timeout",
+          },
+        ],
+      };
+
+      window.sessionStorage.setItem(
+        "kai.trading-api.cache.v1",
+        JSON.stringify({
+          "SNAPSHOT GET /api/trading/quotes/tracked": {
+            cachedAt: now,
+            expiresAt: now + 60_000,
+            data: staleTrackedQuotes,
+          },
+        }),
+      );
+    });
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        json: {
+          state: "OPEN",
+          is_open: true,
+          server_time: "2026-04-21T09:12:00+09:00",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({ status: 504, json: { error: "favorites unavailable" } });
+    });
+    await page.route("**/api/trading/quotes/tracked", async (route) => {
+      await route.fulfill({ status: 504, json: { error: "tracked unavailable" } });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({ json: { tracked_symbols: [], count: 0, last_updated_at: null } });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-21T09:12:00+09:00",
+          market: "KRX",
+          summary: {
+            item_count: 0,
+          },
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/my-symbols");
+
+    const hero = page.locator("section").filter({ has: page.getByRole("heading", { name: "My Symbols" }) }).first();
+    const trackedSection = page.locator("section").filter({ has: page.getByRole("heading", { name: "Full tracked list" }) });
+
+    await expect(page.getByText("Tracked symbols unavailable. HTTP 504")).toBeVisible();
+    await expect(page.getByText("Favorite symbols unavailable. HTTP 504")).toBeVisible();
+    await expect(hero.getByText("Count unavailable")).toHaveCount(2);
+    await expect(trackedSection.getByText("Count unavailable")).toBeVisible();
+    await expect(hero.getByText("4", { exact: true })).toHaveCount(0);
+    await expect(hero.getByText("3 currently available")).toHaveCount(0);
+    await expect(trackedSection.getByText("4 tracked")).toHaveCount(0);
+  });
+
   test("removes unsupported favorites without exposing a symbol detail shortcut", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));

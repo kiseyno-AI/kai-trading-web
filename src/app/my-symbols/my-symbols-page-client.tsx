@@ -327,6 +327,11 @@ export default function MySymbolsPageClient() {
   const trackedCount = trackedQuotes.items.length;
   const availableTrackedCount = trackedQuotes.items.filter((item) => item.available).length;
   const favoriteCount = favoriteItems.length;
+  const favoriteCountLabel = favoriteError ? copy.countUnavailable : favoriteCount.toLocaleString(numberLocale);
+  const trackedCountLabel = trackedError ? copy.countUnavailable : trackedCount.toLocaleString(numberLocale);
+  const availableTrackedSummary = trackedError
+    ? copy.trackedFeedUnavailable
+    : `${availableTrackedCount.toLocaleString(numberLocale)} ${copy.currentlyAvailable}`;
   const lastRefreshLabel = formatDisplayTimestamp(
     trackedQuotes.as_of ?? marketStatus.server_time,
     loading ? copy.loading : copy.waitingForFirstRefresh,
@@ -392,13 +397,13 @@ export default function MySymbolsPageClient() {
           <div className={styles.summaryGrid}>
             <article className={styles.summaryCard}>
               <span>{copy.coreFavoritesSummary}</span>
-              <strong>{favoriteCount}</strong>
+              <strong>{favoriteCountLabel}</strong>
               <small>{favoriteError ? copy.favoriteFeedUnavailable : copy.symbolsPinnedFromSearch}</small>
             </article>
             <article className={styles.summaryCard}>
               <span>{copy.trackedQuotes}</span>
-              <strong>{trackedCount}</strong>
-              <small>{trackedError ? copy.trackedFeedUnavailable : `${availableTrackedCount} ${copy.currentlyAvailable}`}</small>
+              <strong>{trackedCountLabel}</strong>
+              <small>{availableTrackedSummary}</small>
             </article>
             <article className={styles.summaryCard}>
               <span>{copy.lastRefresh}</span>
@@ -425,7 +430,7 @@ export default function MySymbolsPageClient() {
               <p className={styles.sectionEyebrow}>{copy.coreFavorites}</p>
               <h2 className={styles.sectionTitle}>{copy.pinnedSymbols}</h2>
             </div>
-            <span className={styles.sectionMeta}>{favoriteCount} {copy.saved}</span>
+            <span className={styles.sectionMeta}>{favoriteError ? copy.countUnavailable : `${favoriteCount.toLocaleString(numberLocale)} ${copy.saved}`}</span>
           </div>
 
           {favoriteError ? <PanelUnavailable message={favoriteError} copy={copy} /> : null}
@@ -505,7 +510,7 @@ export default function MySymbolsPageClient() {
               <p className={styles.sectionEyebrow}>{copy.trackedQuoteCoverage}</p>
               <h2 className={styles.sectionTitle}>{copy.fullTrackedList}</h2>
             </div>
-            <span className={styles.sectionMeta}>{trackedCount} {copy.tracked}</span>
+            <span className={styles.sectionMeta}>{trackedError ? copy.countUnavailable : `${trackedCount.toLocaleString(numberLocale)} ${copy.tracked}`}</span>
           </div>
 
           {trackedError ? <PanelUnavailable message={trackedError} copy={copy} /> : null}
