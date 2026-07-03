@@ -181,6 +181,12 @@ test.describe("dashboard desktop", () => {
     await expect(deciderCard.getByText("Errors", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Open the full My Symbols screen/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
+    await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
+    const desktopLanguageSwitch = page.getByTestId("dashboard-desktop-rail-language-switch");
+    await expect(desktopLanguageSwitch).toBeVisible();
+    await expect(desktopLanguageSwitch.getByRole("button", { name: /English/i })).toBeVisible();
+    await expect(desktopLanguageSwitch.getByRole("button", { name: /Korean/i })).toBeVisible();
+    await expect(page.getByTestId("dashboard-desktop-rail-language-switch")).toHaveCount(1);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer.getByRole("heading", { name: /Daily Data Fetch/i })).toBeVisible();
@@ -193,12 +199,6 @@ test.describe("dashboard desktop", () => {
     await expect(processDrawer.getByRole("heading", { name: /KIS Risk/i })).toBeVisible();
     await expect(processDrawer.getByRole("link", { name: /Open the factor scoring workspace/i })).toBeVisible();
     await expect(processDrawer.getByRole("link", { name: /Open the full Piotroski filter pass list/i })).toBeVisible();
-    await expect(page.locator('[aria-label="Release version"]:visible')).toContainText(RELEASE_VERSION_LABEL);
-    const desktopLanguageSwitch = page.getByTestId("dashboard-desktop-rail-language-switch");
-    await expect(desktopLanguageSwitch).toBeVisible();
-    await expect(desktopLanguageSwitch.getByRole("button", { name: /English/i })).toBeVisible();
-    await expect(desktopLanguageSwitch.getByRole("button", { name: /Korean/i })).toBeVisible();
-    await expect(page.getByTestId("dashboard-desktop-rail-language-switch")).toHaveCount(1);
 
     await expect(page.getByRole("heading", { name: /Layer sync events/i })).toHaveCount(0);
     await expect(page.getByText(/Real-Time Audit Feed/i)).toHaveCount(0);

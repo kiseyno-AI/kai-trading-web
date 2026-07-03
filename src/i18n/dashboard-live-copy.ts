@@ -335,6 +335,14 @@ const dashboardLiveCopy = {
       currentStageTitle: "Current stage",
       noCurrentStage: "No live stage reported",
       noCurrentStageDetail: "The pipeline status endpoint did not report an active stage. Missing stages below are fallback inference, not stored-row evidence.",
+      pipelineStatusUnavailable: "Pipeline status unavailable",
+      pipelineStatusDegraded: "Pipeline status degraded",
+      pipelineStatusUnavailableDetail:
+        "Pipeline status or prerequisite dashboard reads are unavailable. Fallback-inferred pending stages are hidden until status evidence recovers.",
+      pipelineStatusDegradedDetail:
+        "Pipeline status refresh is degraded. Showing last available process evidence while the dashboard retries.",
+      fallbackStagesHidden:
+        "Fallback-inferred stage rows are hidden while pipeline status evidence is unavailable.",
       close: "Close monitor",
       progress: "Progress",
       progressSource: "Progress source",
@@ -353,9 +361,11 @@ const dashboardLiveCopy = {
         liveRunMetadata: "Live run metadata",
         storedRows: "Stored row count",
         fallbackInference: "Fallback inference",
+        unavailable: "Unavailable",
       },
       progressLabels: {
         storedRowsCount: "{count} stored rows",
+        unavailable: "Unavailable",
       },
       summarySources: {
         canonicalPipeline: "Full-stage progress",
@@ -394,6 +404,11 @@ const dashboardLiveCopy = {
         scoring: "Scoring",
         agentFeedback: "Agent Feedback",
       },
+      readIssues: {
+        pipelineStatus: "Pipeline status read unavailable",
+        freshness: "Freshness read unavailable",
+        marketStatus: "Market status read unavailable",
+      },
       statuses: {
         completed: "Completed",
         pending: "Pending",
@@ -401,6 +416,8 @@ const dashboardLiveCopy = {
         partial: "Partial",
         error: "Error",
         retry: "Retry",
+        degraded: "Degraded",
+        unavailable: "Unavailable",
         blocked: "Blocked",
         failed: "Failed",
         skipped: "Skipped",
@@ -882,6 +899,14 @@ const dashboardLiveCopy = {
       currentStageTitle: "현재 단계",
       noCurrentStage: "라이브 단계 미보고",
       noCurrentStageDetail: "파이프라인 상태 엔드포인트가 활성 단계를 보고하지 않았습니다. 아래 누락 단계는 저장 행 근거가 아니라 대체 추론입니다.",
+      pipelineStatusUnavailable: "파이프라인 상태 확인 불가",
+      pipelineStatusDegraded: "파이프라인 상태 지연",
+      pipelineStatusUnavailableDetail:
+        "파이프라인 상태 또는 선행 대시보드 조회를 사용할 수 없습니다. 상태 근거가 복구될 때까지 대체 추론 대기 단계는 숨깁니다.",
+      pipelineStatusDegradedDetail:
+        "파이프라인 상태 갱신이 지연되었습니다. 대시보드가 재시도하는 동안 마지막으로 확인된 프로세스 근거를 표시합니다.",
+      fallbackStagesHidden:
+        "파이프라인 상태 근거를 사용할 수 없는 동안 대체 추론 단계 행은 숨겨집니다.",
       close: "모니터 닫기",
       progress: "진행",
       progressSource: "진행 근거",
@@ -900,9 +925,11 @@ const dashboardLiveCopy = {
         liveRunMetadata: "라이브 실행 기준",
         storedRows: "저장 행 기준",
         fallbackInference: "대체 추론 기준",
+        unavailable: "확인 불가",
       },
       progressLabels: {
         storedRowsCount: "저장 행 {count}개",
+        unavailable: "확인 불가",
       },
       summarySources: {
         canonicalPipeline: "전체 단계 진행",
@@ -941,6 +968,11 @@ const dashboardLiveCopy = {
         scoring: "스코어링",
         agentFeedback: "에이전트 피드백",
       },
+      readIssues: {
+        pipelineStatus: "파이프라인 상태 조회 불가",
+        freshness: "신선도 조회 불가",
+        marketStatus: "시장 상태 조회 불가",
+      },
       statuses: {
         completed: "완료",
         pending: "대기",
@@ -948,6 +980,8 @@ const dashboardLiveCopy = {
         partial: "부분 완료",
         error: "오류",
         retry: "재시도",
+        degraded: "지연",
+        unavailable: "확인 불가",
         blocked: "차단",
         failed: "실패",
         skipped: "건너뜀",

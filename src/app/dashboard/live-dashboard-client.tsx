@@ -1086,6 +1086,10 @@ function getProcessMonitorCurrentLabel(
   copy: DashboardLiveCopy,
   triggerSummary: ProcessMonitorTriggerSummary,
 ) {
+  if (model.pipelineAvailability.status !== "available") {
+    return model.pipelineAvailability.title;
+  }
+
   if (triggerSummary.source === "canonical-pipeline") {
     if (model.pipeline.currentStage) {
       return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
@@ -1171,8 +1175,8 @@ function getPipelineStatusTone(status: DailyPipelineStageStatus) {
 
 function getProcessMonitorSummaryTone(status: ProcessMonitorStatus) {
   if (status === "completed") return "positive";
-  if (status === "error") return "negative";
-  if (status === "partial" || status === "retry") return "warning";
+  if (status === "error" || status === "unavailable") return "negative";
+  if (status === "partial" || status === "retry" || status === "degraded") return "warning";
   return "neutral";
 }
 
@@ -1207,22 +1211,47 @@ function formatPipelineRunIds(runIds: DailyPipelineStageModel["sourceRunIds"]) {
 type DailyPipelineTimelineProps = {
   copy: DashboardLiveCopy;
   pipeline: DailyPipelineTimelineModel;
+  pipelineAvailability: ProcessMonitorModel["pipelineAvailability"];
   summarySource: ProcessMonitorModel["summarySource"];
 };
 
 const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
   copy,
   pipeline,
+  pipelineAvailability,
   summarySource,
 }: DailyPipelineTimelineProps) {
   const currentStage = pipeline.currentStage;
+  const availabilityStatus = pipelineAvailability.status;
+  const availabilityActive = availabilityStatus !== "available";
   const currentStatus = currentStage?.status ?? pipeline.status;
-  const currentStatusLabel = currentStage
+  const currentStatusBadge = availabilityActive ? availabilityStatus : currentStatus;
+  const currentStatusLabel = availabilityActive
+    ? pipelineAvailability.statusLabel
+    : currentStage
     ? getPipelineStatusLabel(currentStage.status, copy)
     : pipeline.hasLiveStatus
       ? getPipelineStatusLabel(pipeline.status, copy)
       : copy.processMonitor.noCurrentStage;
-  const currentReason = currentStage?.reason ?? copy.processMonitor.noCurrentStageDetail;
+  const currentReason = availabilityActive
+    ? (pipelineAvailability.reason ?? copy.processMonitor.pipelineStatusUnavailableDetail)
+    : currentStage?.reason ?? copy.processMonitor.noCurrentStageDetail;
+  const currentStageLabel = availabilityActive
+    ? pipelineAvailability.title
+    : currentStage
+      ? currentStage.label
+      : copy.processMonitor.noCurrentStage;
+  const currentStatusTone = availabilityStatus === "degraded" || availabilityStatus === "unavailable"
+    ? getProcessMonitorSummaryTone(availabilityStatus)
+    : getPipelineStatusTone(currentStatus);
+  const progressLabel =
+    pipelineAvailability.status === "unavailable"
+      ? copy.processMonitor.progressLabels.unavailable
+      : pipeline.progressLabel;
+  const progressSourceLabel =
+    availabilityActive && !currentStage
+      ? copy.processMonitor.sourceLabels.unavailable
+      : currentStage?.progressSourceLabel ?? copy.processMonitor.sourceLabels.fallbackInference;
 
   return (
     <section
@@ -1234,13 +1263,11 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
         <div>
           <p className={styles.sectionEyebrow}>{copy.processMonitor.fullPipelineEyebrow}</p>
           <h3 className={styles.pipelineTimelineTitle}>{copy.processMonitor.currentStageTitle}</h3>
-          <p className={styles.pipelineTimelineCurrent}>
-            {currentStage ? currentStage.label : copy.processMonitor.noCurrentStage}
-          </p>
+          <p className={styles.pipelineTimelineCurrent}>{currentStageLabel}</p>
         </div>
         <span
-          className={`pill ${getPipelineStatusTone(currentStatus)}`}
-          data-pipeline-status-badge={currentStatus}
+          className={`pill ${currentStatusTone}`}
+          data-pipeline-status-badge={currentStatusBadge}
         >
           {currentStatusLabel}
         </span>
@@ -1249,7 +1276,7 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
       <div className={styles.pipelineSummaryGrid}>
         <div>
           <span>{copy.processMonitor.progress}</span>
-          <strong>{pipeline.progressLabel}</strong>
+          <strong>{progressLabel}</strong>
         </div>
         <div>
           <span>{copy.operational.marketDate}</span>
@@ -1257,123 +1284,129 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
         </div>
         <div>
           <span>{copy.processMonitor.progressSource}</span>
-          <strong>{currentStage?.progressSourceLabel ?? copy.processMonitor.sourceLabels.fallbackInference}</strong>
+          <strong>{progressSourceLabel}</strong>
         </div>
       </div>
 
       <p className={styles.pipelineCurrentReason}>{currentReason}</p>
 
-      <div className={styles.pipelineTimelineList} role="list" aria-label={copy.processMonitor.stageOrder}>
-        {pipeline.stages.map((stage) => {
-          const dependencyList = formatPipelineDependencyList(stage.dependencies, copy);
-          const blockingList = formatPipelineDependencyList(stage.blockingDependencies, copy);
-          const failedBlockingList = formatPipelineDependencyList(stage.failedBlockingDependencies, copy);
-          const runIds = formatPipelineRunIds(stage.sourceRunIds);
-          const statusLabel = getPipelineStatusLabel(stage.status, copy);
+      {pipelineAvailability.hideFallbackStages ? (
+        <p className={styles.pipelineCurrentReason} data-pipeline-fallback-hidden="true">
+          {copy.processMonitor.fallbackStagesHidden}
+        </p>
+      ) : (
+        <div className={styles.pipelineTimelineList} role="list" aria-label={copy.processMonitor.stageOrder}>
+          {pipeline.stages.map((stage) => {
+            const dependencyList = formatPipelineDependencyList(stage.dependencies, copy);
+            const blockingList = formatPipelineDependencyList(stage.blockingDependencies, copy);
+            const failedBlockingList = formatPipelineDependencyList(stage.failedBlockingDependencies, copy);
+            const runIds = formatPipelineRunIds(stage.sourceRunIds);
+            const statusLabel = getPipelineStatusLabel(stage.status, copy);
 
-          return (
-            <section
-              key={stage.key}
-              className={styles.pipelineStageRow}
-              data-pipeline-stage={stage.key}
-              data-pipeline-stage-status={stage.status}
-              role="listitem"
-              aria-label={`${stage.order}. ${stage.label} ${statusLabel}`}
-            >
-              <div className={styles.pipelineStageHeader}>
-                <span className={styles.pipelineStageIndex}>{stage.order}</span>
-                <div className={styles.pipelineStageTitleBlock}>
-                  <strong>{stage.label}</strong>
-                  <span>{stage.key}</span>
-                </div>
-                <span
-                  className={`pill ${getPipelineStatusTone(stage.status)}`}
-                  data-pipeline-status-badge={stage.status}
-                >
-                  {statusLabel}
-                </span>
-              </div>
-
-              <div
-                className={styles.pipelineProgressTrack}
-                role="progressbar"
-                aria-label={`${stage.label} ${copy.processMonitor.progress}`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={stage.progressPercent}
-                aria-valuetext={stage.progressLabel}
+            return (
+              <section
+                key={stage.key}
+                className={styles.pipelineStageRow}
+                data-pipeline-stage={stage.key}
+                data-pipeline-stage-status={stage.status}
+                role="listitem"
+                aria-label={`${stage.order}. ${stage.label} ${statusLabel}`}
               >
-                <i style={{ width: `${stage.progressPercent}%` }} />
-              </div>
-
-              <dl className={styles.pipelineStageMeta}>
-                <div>
-                  <dt>{copy.processMonitor.progress}</dt>
-                  <dd>{stage.progressLabel}</dd>
+                <div className={styles.pipelineStageHeader}>
+                  <span className={styles.pipelineStageIndex}>{stage.order}</span>
+                  <div className={styles.pipelineStageTitleBlock}>
+                    <strong>{stage.label}</strong>
+                    <span>{stage.key}</span>
+                  </div>
+                  <span
+                    className={`pill ${getPipelineStatusTone(stage.status)}`}
+                    data-pipeline-status-badge={stage.status}
+                  >
+                    {statusLabel}
+                  </span>
                 </div>
-                <div>
-                  <dt>{copy.processMonitor.progressSource}</dt>
-                  <dd>{stage.progressSourceLabel}</dd>
-                </div>
-                {dependencyList ? (
-                  <div>
-                    <dt>{copy.processMonitor.dependencies}</dt>
-                    <dd>{dependencyList}</dd>
-                  </div>
-                ) : null}
-                {blockingList ? (
-                  <div>
-                    <dt>{copy.processMonitor.blockingDependencies}</dt>
-                    <dd>{blockingList}</dd>
-                  </div>
-                ) : null}
-                {failedBlockingList ? (
-                  <div>
-                    <dt>{copy.processMonitor.failedBlockingDependencies}</dt>
-                    <dd>{failedBlockingList}</dd>
-                  </div>
-                ) : null}
-                {runIds ? (
-                  <div>
-                    <dt>{copy.processMonitor.sourceRuns}</dt>
-                    <dd>{runIds}</dd>
-                  </div>
-                ) : null}
-                {stage.startedAt ? (
-                  <div>
-                    <dt>{copy.processMonitor.started}</dt>
-                    <dd>{formatDisplayTimestamp(stage.startedAt, stage.startedAt)}</dd>
-                  </div>
-                ) : null}
-                {stage.updatedAt ? (
-                  <div>
-                    <dt>{copy.processMonitor.updated}</dt>
-                    <dd>{formatDisplayTimestamp(stage.updatedAt, stage.updatedAt)}</dd>
-                  </div>
-                ) : null}
-                {stage.completedAt ? (
-                  <div>
-                    <dt>{copy.processMonitor.completedAt}</dt>
-                    <dd>{formatDisplayTimestamp(stage.completedAt, stage.completedAt)}</dd>
-                  </div>
-                ) : null}
-              </dl>
 
-              <p className={styles.pipelineStageReason}>{stage.reason}</p>
-
-              {stage.inspectLinks.length > 0 ? (
-                <div className={styles.pipelineInspectLinks} aria-label={copy.processMonitor.inspectLinks}>
-                  {stage.inspectLinks.map((link) => (
-                    <Link key={`${stage.key}:${link.href}`} href={link.href}>
-                      {link.label}
-                    </Link>
-                  ))}
+                <div
+                  className={styles.pipelineProgressTrack}
+                  role="progressbar"
+                  aria-label={`${stage.label} ${copy.processMonitor.progress}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={stage.progressPercent}
+                  aria-valuetext={stage.progressLabel}
+                >
+                  <i style={{ width: `${stage.progressPercent}%` }} />
                 </div>
-              ) : null}
-            </section>
-          );
-        })}
-      </div>
+
+                <dl className={styles.pipelineStageMeta}>
+                  <div>
+                    <dt>{copy.processMonitor.progress}</dt>
+                    <dd>{stage.progressLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{copy.processMonitor.progressSource}</dt>
+                    <dd>{stage.progressSourceLabel}</dd>
+                  </div>
+                  {dependencyList ? (
+                    <div>
+                      <dt>{copy.processMonitor.dependencies}</dt>
+                      <dd>{dependencyList}</dd>
+                    </div>
+                  ) : null}
+                  {blockingList ? (
+                    <div>
+                      <dt>{copy.processMonitor.blockingDependencies}</dt>
+                      <dd>{blockingList}</dd>
+                    </div>
+                  ) : null}
+                  {failedBlockingList ? (
+                    <div>
+                      <dt>{copy.processMonitor.failedBlockingDependencies}</dt>
+                      <dd>{failedBlockingList}</dd>
+                    </div>
+                  ) : null}
+                  {runIds ? (
+                    <div>
+                      <dt>{copy.processMonitor.sourceRuns}</dt>
+                      <dd>{runIds}</dd>
+                    </div>
+                  ) : null}
+                  {stage.startedAt ? (
+                    <div>
+                      <dt>{copy.processMonitor.started}</dt>
+                      <dd>{formatDisplayTimestamp(stage.startedAt, stage.startedAt)}</dd>
+                    </div>
+                  ) : null}
+                  {stage.updatedAt ? (
+                    <div>
+                      <dt>{copy.processMonitor.updated}</dt>
+                      <dd>{formatDisplayTimestamp(stage.updatedAt, stage.updatedAt)}</dd>
+                    </div>
+                  ) : null}
+                  {stage.completedAt ? (
+                    <div>
+                      <dt>{copy.processMonitor.completedAt}</dt>
+                      <dd>{formatDisplayTimestamp(stage.completedAt, stage.completedAt)}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+
+                <p className={styles.pipelineStageReason}>{stage.reason}</p>
+
+                {stage.inspectLinks.length > 0 ? (
+                  <div className={styles.pipelineInspectLinks} aria-label={copy.processMonitor.inspectLinks}>
+                    {stage.inspectLinks.map((link) => (
+                      <Link key={`${stage.key}:${link.href}`} href={link.href}>
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 });
@@ -1477,7 +1510,12 @@ const ProcessMonitorDrawer = memo(function ProcessMonitorDrawer({
 
         <div className={styles.processMonitorDrawerBody}>
           <ProcessMonitorPrimarySummary copy={copy} model={model} />
-          <DailyPipelineTimeline copy={copy} pipeline={model.pipeline} summarySource={model.summarySource} />
+          <DailyPipelineTimeline
+            copy={copy}
+            pipeline={model.pipeline}
+            pipelineAvailability={model.pipelineAvailability}
+            summarySource={model.summarySource}
+          />
 
           {children ? (
             <div
@@ -1537,6 +1575,7 @@ export function LiveDashboardClient({
     executionRuntimeStatus,
     executionRuntimeStatusError,
     freshness,
+    freshnessError,
     fundamentalsStatus,
     latestSignalDeciderFeedback,
     market,
@@ -1548,6 +1587,7 @@ export function LiveDashboardClient({
     piotroskiStatusError,
     piotroskiStatusLoadState,
     pipelineStatus,
+    pipelineStatusError,
     portfolioSummary,
     portfolioSummaryError,
     portfolioSummaryLoadState,
@@ -2071,9 +2111,12 @@ export function LiveDashboardClient({
         copy,
         eodStageCards,
         filteringCardModel,
+        freshnessError,
+        marketError,
         numberLocale,
         patchDate: primaryLatestCycleDate,
         pipelineStatus,
+        pipelineStatusError,
         scoringCardModel,
       }),
     [
@@ -2081,8 +2124,11 @@ export function LiveDashboardClient({
       copy,
       eodStageCards,
       filteringCardModel,
+      freshnessError,
+      marketError,
       numberLocale,
       pipelineStatus,
+      pipelineStatusError,
       primaryLatestCycleDate,
       scoringCardModel,
     ],

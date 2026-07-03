@@ -748,7 +748,9 @@ test.describe("dashboard mobile chrome", () => {
         })),
       )
       .toEqual({ hiddenByChrome: true, inertByChrome: true });
-    await expect(processDrawer.locator('[data-pipeline-stage]').first()).toBeVisible();
+    await expect(
+      processDrawer.locator('[data-pipeline-stage], [data-pipeline-fallback-hidden="true"]').first(),
+    ).toBeVisible();
 
     const [viewport, drawerBox, processBarBox, bottomNavBox, backdropAlpha, hitTest, scrollContract] = await Promise.all([
       page.viewportSize(),
@@ -780,13 +782,16 @@ test.describe("dashboard mobile chrome", () => {
       processDrawer.evaluate((drawer) => {
         const drawerBody = drawer.querySelector<HTMLElement>('[class*="processMonitorDrawerBody"]');
         const pipelineList = drawer.querySelector<HTMLElement>('[class*="pipelineTimelineList"]');
+        const fallbackHiddenNotice = drawer.querySelector<HTMLElement>('[data-pipeline-fallback-hidden="true"]');
         const drawerBodyStyle = drawerBody ? window.getComputedStyle(drawerBody) : null;
         const pipelineListStyle = pipelineList ? window.getComputedStyle(pipelineList) : null;
 
         return {
           drawerBodyCanScroll: drawerBody ? drawerBody.scrollHeight > drawerBody.clientHeight : false,
           drawerBodyOverflowY: drawerBodyStyle?.overflowY ?? null,
+          fallbackHiddenNoticeVisible: fallbackHiddenNotice ? fallbackHiddenNotice.offsetParent !== null : false,
           pipelineListCanScroll: pipelineList ? pipelineList.scrollHeight > pipelineList.clientHeight : false,
+          pipelineListExists: Boolean(pipelineList),
           pipelineListOverflowY: pipelineListStyle?.overflowY ?? null,
         };
       }),
@@ -811,8 +816,12 @@ test.describe("dashboard mobile chrome", () => {
     expect(hitTest.drawerContainsBottomChromePoint).toBe(true);
     expect(scrollContract.drawerBodyOverflowY).toBe("auto");
     expect(scrollContract.drawerBodyCanScroll).toBe(true);
-    expect(scrollContract.pipelineListOverflowY).toBe("visible");
-    expect(scrollContract.pipelineListCanScroll).toBe(false);
+    if (scrollContract.pipelineListExists) {
+      expect(scrollContract.pipelineListOverflowY).toBe("visible");
+      expect(scrollContract.pipelineListCanScroll).toBe(false);
+    } else {
+      expect(scrollContract.fallbackHiddenNoticeVisible).toBe(true);
+    }
 
     await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "open");
     await expect
