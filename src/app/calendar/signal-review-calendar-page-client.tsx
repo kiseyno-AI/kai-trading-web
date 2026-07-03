@@ -60,6 +60,7 @@ const UNKNOWN_LABEL = "[확인 필요]";
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const ACTION_KEYS = ["buy", "wait", "reject", "unknown"] as const satisfies readonly SignalDeciderAction[];
 const DAY_MS = 86_400_000;
+const PRODUCT_DATE_TIME_ZONE = "Asia/Seoul";
 const SIGNAL_REVIEW_READ_TIMEOUT_MS = 12_000;
 const DETAIL_DIALOG_FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -290,8 +291,18 @@ function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function getTodayDateKey() {
-  return formatDateKey(new Date());
+function getTodayDateKey(now = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: PRODUCT_DATE_TIME_ZONE,
+    year: "numeric",
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
 }
 
 function getMonthKey(dateKey: string) {
@@ -1010,7 +1021,7 @@ export default function SignalReviewCalendarPageClient() {
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
   const requestedDateKey = parseCompactDateValue(requestedDate);
-  const todayKey = useMemo(() => getTodayDateKey(), []);
+  const [todayKey, setTodayKey] = useState(() => getTodayDateKey());
   const initialDate = requestedDateKey;
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   const [monthKey, setMonthKey] = useState(getMonthKey(initialDate ?? todayKey));
@@ -1507,6 +1518,12 @@ export default function SignalReviewCalendarPageClient() {
     router.push(`/calendar?date=${encodeURIComponent(dateKey)}`);
   }
 
+  function handleSelectToday() {
+    const nextTodayKey = getTodayDateKey();
+    setTodayKey((current) => (current === nextTodayKey ? current : nextTodayKey));
+    handleSelectDate(nextTodayKey);
+  }
+
   function handleMonthChange(delta: number) {
     setMonthKey((value) => addMonths(value, delta));
   }
@@ -1684,7 +1701,7 @@ export default function SignalReviewCalendarPageClient() {
                 <button type="button" onClick={() => handleMonthChange(-1)} aria-label={copy.actions.previousMonth}>
                   ←
                 </button>
-                <button type="button" onClick={() => setMonthKey(getMonthKey(todayKey))}>
+                <button type="button" onClick={handleSelectToday}>
                   {copy.actions.today}
                 </button>
                 <button type="button" onClick={() => handleMonthChange(1)} aria-label={copy.actions.nextMonth}>

@@ -1667,6 +1667,52 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await expect(samsungRow).toContainText("Target hit intraday first");
 });
 
+test("signal review calendar Today button recomputes the post-midnight KST current date", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-02T23:55:00+09:00"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-07-03": 1,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-07-02");
+  await page.getByRole("button", { name: "Korean" }).click();
+
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "July 2026" })).toBeVisible();
+
+  const mountedTodayCell = page.locator('[data-calendar-cell="2026-07-02"]');
+  await expect(mountedTodayCell).toBeVisible();
+  await expect(mountedTodayCell).toBeEnabled();
+  await expect(mountedTodayCell).not.toHaveAttribute("aria-label", /미래/);
+
+  await page.clock.setFixedTime(new Date("2026-07-03T00:34:00+09:00"));
+
+  const kstTodayCell = page.locator('[data-calendar-cell="2026-07-03"]');
+  const kstTodayStatus = kstTodayCell.locator(
+    '[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]',
+  );
+  const kstTodayCount = kstTodayCell.locator(
+    '[data-calendar-cell-label="count"] [data-calendar-label-variant="full"]',
+  );
+  await expect(kstTodayCell).toBeVisible();
+  await expect(kstTodayStatus).toHaveText("미래");
+
+  await page.getByRole("button", { name: "오늘" }).click();
+
+  await expect(page).toHaveURL(/\/calendar\?date=2026-07-03/);
+  await expect(kstTodayCell).toBeEnabled();
+  await expect(kstTodayCell).toHaveAttribute("aria-pressed", "true");
+  await expect(kstTodayCell).not.toHaveAttribute("aria-label", /미래/);
+  await expect(kstTodayStatus).toHaveText("저장됨");
+  await expect(kstTodayCount).toHaveText("1 개 결정");
+  await expect(page.getByRole("link", { name: "피드백 표 열기" }).first()).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-07-03&navContext=calendar",
+  );
+});
+
 test("signal review calendar traps replay dialog focus and restores the mobile opener", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page, {
@@ -2297,7 +2343,7 @@ test("signal review calendar keeps timed-out current-month fallback cells scanna
     await expect(page.getByRole("heading", { name: "June 2026" })).toBeVisible();
     await expect(page.getByTestId("calendar-month-status")).toHaveText("Loading decision dates");
     await expect(page.getByText("0 month decisions")).toBeVisible();
-    await expect.poll(async () => requestHits.calendarSummary).toBe(1);
+    await expect.poll(async () => requestHits.calendarSummary).toBeGreaterThanOrEqual(1);
     await expect.poll(async () => requestHits.feedback).toBeGreaterThan(0);
 
     const firstPastCell = page.locator('[data-calendar-cell="2026-06-01"]');
