@@ -10,6 +10,7 @@ import type {
   PortfolioRiskWarningDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 
 export type PortfolioMetricId = "total-assets" | "day-pnl" | "unrealized-pnl" | "cash-buying-power";
 
@@ -604,7 +605,8 @@ function getPortfolioRiskSourceStatusKey(snapshot: PortfolioRiskSnapshotDto | nu
 
 function getPortfolioRiskSourceMessage(snapshot: PortfolioRiskSnapshotDto | null | undefined) {
   if (!isRecord(snapshot)) return null;
-  return getTextField(snapshot, ["sourceMessage", "source_message", "sourceFailed", "source_failed", "message", "detail"]);
+  const sourceMessage = getTextField(snapshot, ["sourceMessage", "source_message", "sourceFailed", "source_failed", "message", "detail"]);
+  return sourceMessage ? getUserFacingErrorMessage(sourceMessage, "") || null : null;
 }
 
 function hasPortfolioRiskData(snapshot: PortfolioRiskSnapshotDto | null | undefined) {

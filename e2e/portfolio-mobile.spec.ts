@@ -192,8 +192,9 @@ test.describe("portfolio mobile route", () => {
     await page.goto("/portfolio");
 
     await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
-    await expect(page.getByText("Aggregate portfolio summary endpoint is not available yet. HTTP 404").first()).toBeVisible();
+    await expect(page.getByText("Aggregate portfolio summary endpoint is not available yet.").first()).toBeVisible();
     await expect(page.getByText("Aggregate endpoint pending.").first()).toBeVisible();
+    await expect(page.getByText("HTTP 404")).toHaveCount(0);
     await expect(page.getByText("No accounts in portfolio summary.")).toHaveCount(0);
     await expect(page.getByText("No holdings reported yet.")).toHaveCount(0);
   });
@@ -220,7 +221,8 @@ test.describe("portfolio mobile route", () => {
     await page.reload();
 
     await expect(page.getByText("Trading-core portfolio API unreachable.").first()).toBeVisible();
-    await expect(page.getByText("Trading-core portfolio upstream is unavailable. HTTP 502").first()).toBeVisible();
+    await expect(page.getByText("Trading-core portfolio upstream is unavailable.").first()).toBeVisible();
+    await expect(page.getByText("HTTP 502")).toHaveCount(0);
   });
 
   test("resolves aggregate summary gateway timeouts into an explicit unavailable state", async ({ page }) => {
@@ -239,8 +241,33 @@ test.describe("portfolio mobile route", () => {
 
     await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
     await expect(page.getByText("Trading-core portfolio API unreachable.").first()).toBeVisible();
-    await expect(page.getByText("Trading-core portfolio upstream is unavailable. HTTP 504").first()).toBeVisible();
+    await expect(page.getByText("Trading-core portfolio upstream is unavailable.").first()).toBeVisible();
+    await expect(page.getByText("HTTP 504")).toHaveCount(0);
+    await expect(page.getByText("Timed out after")).toHaveCount(0);
+    await expect(page.getByText("/portfolio/summary")).toHaveCount(0);
     await expect(page.getByText("Loading the aggregate portfolio summary from trading-core...")).toHaveCount(0);
+  });
+
+  test("keeps raw runtime risk snapshot diagnostics out of visible unavailable copy", async ({ page }) => {
+    await mockPortfolioSummary(page);
+    await page.route("**/api/trading/execution/runtime/portfolio-risk-snapshot", async (route) => {
+      await route.fulfill({
+        json: {
+          available: false,
+          source: "execution_positions",
+          source_failed: "Timed out after 5.0s while loading /execution/runtime/portfolio-risk-snapshot from trading-core.",
+          as_of: "2026-06-20T01:10:00Z",
+        },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    await expect(page.getByRole("heading", { name: "Portfolio risk snapshot" })).toBeVisible();
+    await expect(page.getByText("Risk snapshot unavailable.")).toBeVisible();
+    await expect(page.getByText("Execution runtime did not return usable portfolio risk data.")).toBeVisible();
+    await expect(page.getByText("Timed out after")).toHaveCount(0);
+    await expect(page.getByText("/execution/runtime/portfolio-risk-snapshot")).toHaveCount(0);
   });
 
   test("keeps connected empty holdings separate from unavailable summary", async ({ page }) => {

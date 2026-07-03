@@ -33,6 +33,7 @@ import {
   normalizeTrackedSymbolCode,
   removeTrackedSymbol,
 } from "@/lib/tracked-symbols-client";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 import type { Locale } from "@/types/trading-api";
 
 import styles from "./my-symbols-page.module.css";
@@ -165,7 +166,8 @@ function getDisplayName(item: TrackedQuote, favoriteItem?: FavoriteSymbolItem | 
 
 function getQuoteSourceLabel(item: TrackedQuote, copy: MySymbolsMessages) {
   if (!item.available) {
-    return item.unavailable_reason ? `${copy.quoteUnavailable} · ${item.unavailable_reason}` : copy.quoteUnavailable;
+    const unavailableReason = getUserFacingErrorMessage(item.unavailable_reason, "");
+    return unavailableReason ? `${copy.quoteUnavailable} · ${unavailableReason}` : copy.quoteUnavailable;
   }
   if (!item.fallback) {
     return item.is_live ? copy.liveKisQuote : item.source;
@@ -231,7 +233,7 @@ async function loadJson<T>(path: string, label: string, copy: MySymbolsMessages)
     if (!result.ok) {
       return {
         data: null,
-        error: `${label} ${copy.httpUnavailableSuffix} ${result.status}`,
+        error: `${label} ${copy.httpUnavailableSuffix}`,
       };
     }
 
@@ -555,7 +557,7 @@ export default function MySymbolsPageClient() {
                         <span className={getChangeClassName(item.change_pct)}>
                           {item.available
                             ? `${formatSignedPercent(item.change_pct, copy.unavailable)} · ${formatSignedNumber(item.change, copy.unavailable, locale)}`
-                            : item.unavailable_reason ?? copy.noFreshQuoteSource}
+                            : getUserFacingErrorMessage(item.unavailable_reason, copy.noFreshQuoteSource)}
                         </span>
                       </div>
                       <span className={styles.updatedAt}>

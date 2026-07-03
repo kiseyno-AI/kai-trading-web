@@ -339,8 +339,9 @@ test.describe("my symbols mobile flow", () => {
     const hero = page.locator("section").filter({ has: page.getByRole("heading", { name: "My Symbols" }) }).first();
     const trackedSection = page.locator("section").filter({ has: page.getByRole("heading", { name: "Full tracked list" }) });
 
-    await expect(page.getByText("Tracked symbols unavailable. HTTP 504")).toBeVisible();
-    await expect(page.getByText("Favorite symbols unavailable. HTTP 504")).toBeVisible();
+    await expect(page.getByText("Tracked symbols unavailable.")).toBeVisible();
+    await expect(page.getByText("Favorite symbols unavailable.")).toBeVisible();
+    await expect(page.getByText("HTTP 504")).toHaveCount(0);
     await expect(hero.getByText("Count unavailable")).toHaveCount(2);
     await expect(trackedSection.getByText("Count unavailable")).toBeVisible();
     await expect(hero.getByText("4", { exact: true })).toHaveCount(0);

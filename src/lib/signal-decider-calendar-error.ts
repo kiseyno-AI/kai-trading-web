@@ -1,3 +1,5 @@
+import { isRawUpstreamDiagnosticMessage } from "./user-facing-errors";
+
 const REVIEW_ENDPOINT_PATTERN = /\bagent-context\/feedback\b(?:\/[^\s"]*)?/i;
 
 function isDependencyGapWarning(value: string): boolean {
@@ -15,7 +17,7 @@ function isDependencyGapWarning(value: string): boolean {
 
 function isReviewBackendError(value: string): boolean {
   const normalized = value.toLowerCase();
-  return REVIEW_ENDPOINT_PATTERN.test(normalized) || normalized.includes("timed out after") || normalized.includes("trading-core");
+  return REVIEW_ENDPOINT_PATTERN.test(normalized) || isRawUpstreamDiagnosticMessage(value);
 }
 
 export function getUserFacingSelectedDateReviewError({
