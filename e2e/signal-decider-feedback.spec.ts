@@ -6,6 +6,8 @@ const duplicateShortTermWarning = "실시간 호가·스프레드·주문장 깊
 type SignalDeciderFeedbackMode = "normal" | "empty";
 type MockDashboardShellOptions = {
   eodFreshnessDelayMs?: number;
+  eodFreshnessFailureDetail?: string;
+  eodFreshnessFailureStatus?: number;
   feedbackDelayMs?: number;
   feedbackHoldAgentName?: "signal-decider" | "short-term-decider";
   feedbackHoldUntil?: Promise<void>;
@@ -137,10 +139,10 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
 
     if (options.failEodFreshness) {
       await route.fulfill({
-        status: 503,
+        status: options.eodFreshnessFailureStatus ?? 503,
         contentType: "application/json",
         body: JSON.stringify({
-          detail: "freshness temporarily unavailable",
+          detail: options.eodFreshnessFailureDetail ?? "freshness temporarily unavailable",
         }),
       });
       return;
@@ -1906,6 +1908,37 @@ test("signal-decider detail preserves market-date context for fallback freshness
   await expect(page.locator("body")).toContainText("Signal Decider market date is unavailable.");
   await expect(page.locator("body")).toContainText("freshness temporarily unavailable");
   await expect(page.locator("body")).not.toContainText("Signal Decider feedback is unavailable.");
+});
+
+test("signal-decider detail sanitizes fallback freshness timeout copy", async ({ page }) => {
+  const rawFreshnessTimeout = "Timed out after 5.0s while loading /eod/freshness from trading-core.";
+  await page.addInitScript(() => {
+    window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+  });
+  await mockDashboardShell(page, {
+    eodFreshnessFailureDetail: rawFreshnessTimeout,
+    eodFreshnessFailureStatus: 504,
+    failEodFreshness: true,
+  });
+
+  await page.goto("/dashboard/signal-decider-feedback");
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  const feedbackErrorState = page.getByTestId("feedback-error-state").first();
+  const primaryError = feedbackErrorState.getByTestId("feedback-error-primary");
+  await expect(primaryError).toHaveText("시그널 디사이더 시장일자를 사용할 수 없습니다.");
+  await expect(primaryError).not.toContainText("/eod/freshness");
+  await expect(primaryError).not.toContainText("Timed out after");
+  await expect(primaryError).not.toContainText("HTTP 504");
+  await expect(primaryError).not.toContainText("from trading-core");
+  const dataGapError = page
+    .getByTestId("decider-data-gaps-report")
+    .getByTestId("feedback-error-primary");
+  await expect(dataGapError).toHaveText("시그널 디사이더 시장일자를 사용할 수 없습니다.");
+  await expect(dataGapError).not.toContainText("/eod/freshness");
+  await expect(dataGapError).not.toContainText("Timed out after");
+  await expect(dataGapError).not.toContainText("HTTP 504");
+  await expect(dataGapError).not.toContainText("from trading-core");
 });
 
 test("dashboard signal-decider card retries after a transient completed-run feedback error", async ({ page }) => {

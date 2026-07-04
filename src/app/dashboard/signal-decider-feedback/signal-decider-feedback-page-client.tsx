@@ -64,6 +64,7 @@ import {
   writeSignalDeciderFeedbackCache,
 } from "@/lib/signal-decider-feedback-cache";
 import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
@@ -201,6 +202,11 @@ function isFeedbackReadTimeoutError(error: FeedbackError | null) {
 
 function getFeedbackErrorDiagnosticDetail(error: FeedbackError | null) {
   return typeof error === "object" && error !== null ? error.message : null;
+}
+
+function formatDetailedFeedbackErrorMessage(baseMessage: string, rawMessage: string) {
+  const detail = getUserFacingErrorMessage(rawMessage, "");
+  return detail ? `${baseMessage} ${detail}` : baseMessage;
 }
 
 function FeedbackErrorState({
@@ -1031,6 +1037,7 @@ export default function SignalDeciderFeedbackPageClient() {
       } catch (freshnessError) {
         if (!active) return;
         if (cachedLatest) return;
+        console.warn("Signal decider feedback market date freshness load failed", freshnessError);
         setLoadState("error");
         setError(getFeedbackError(freshnessError, "marketDate", "marketDateUnavailable"));
       }
@@ -1427,8 +1434,12 @@ export default function SignalDeciderFeedbackPageClient() {
     if (error === "feedbackUnavailable") return feedbackUnavailableMessage;
     if (error === "marketDateUnavailable") return marketDateUnavailableMessage;
     if (isFeedbackReadTimeoutError(error)) return feedbackReadTimeoutMessage;
-    if (error.source === "feedback") return `${feedbackUnavailableMessage} ${error.message}`;
-    if (error.source === "marketDate") return `${marketDateUnavailableMessage} ${error.message}`;
+    if (error.source === "feedback") {
+      return formatDetailedFeedbackErrorMessage(feedbackUnavailableMessage, error.message);
+    }
+    if (error.source === "marketDate") {
+      return formatDetailedFeedbackErrorMessage(marketDateUnavailableMessage, error.message);
+    }
     return error.message;
   }, [error, feedbackReadTimeoutMessage, feedbackUnavailableMessage, marketDateUnavailableMessage]);
 

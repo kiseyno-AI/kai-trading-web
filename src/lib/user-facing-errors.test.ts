@@ -6,6 +6,7 @@ import { getUserFacingErrorMessage, isRawUpstreamDiagnosticMessage } from "./use
 test("detects raw upstream diagnostics that should stay out of primary UI copy", () => {
   assert.equal(isRawUpstreamDiagnosticMessage("HTTP 504: Timed out after 5.0s while loading /portfolio/summary from trading-core."), true);
   assert.equal(isRawUpstreamDiagnosticMessage("Timed out after 5.0s while loading /agent-context/feedback?limit=200 from trading-core."), true);
+  assert.equal(isRawUpstreamDiagnosticMessage("Timed out after 5.0s while loading /eod/freshness from trading-core."), true);
   assert.equal(isRawUpstreamDiagnosticMessage("Runtime failed while reading /execution/runtime/portfolio-risk-snapshot."), true);
 });
 
