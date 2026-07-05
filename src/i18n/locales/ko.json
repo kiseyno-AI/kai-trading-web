@@ -377,8 +377,8 @@
         "detail": "계좌 전체 추정 평가액"
       },
       "dayPnl": {
-        "label": "오늘 손익",
-        "detail": "세션 손익"
+        "label": "주간 손익",
+        "detail": "최근 7일 총자산 변화"
       },
       "unrealizedPnl": {
         "label": "미실현 손익",

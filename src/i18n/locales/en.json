@@ -377,8 +377,8 @@
         "detail": "Estimated equity across accounts"
       },
       "dayPnl": {
-        "label": "Today P/L",
-        "detail": "Session profit and loss"
+        "label": "Weekly P/L",
+        "detail": "Total asset change over the last 7 days"
       },
       "unrealizedPnl": {
         "label": "Unrealized P/L",

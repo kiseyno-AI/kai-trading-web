@@ -300,7 +300,7 @@ test.describe("dashboard desktop", () => {
               status: "synced",
               summary: {
                 totalAssets: { amount: 1000000, currency: "KRW" },
-                pnl: { day: { amount: 12500, currency: "KRW" } },
+                pnl: { day: { amount: 12500, currency: "KRW" }, week: { amount: -600000, currency: "KRW" } },
               },
               holdings: [
                 {
@@ -408,8 +408,8 @@ test.describe("dashboard desktop", () => {
     await expect(portfolioCard.getByText("Connected", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Total assets", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("₩1,000,000", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("Today P/L", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("₩12,500", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Weekly P/L", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("-₩600,000", { exact: true })).toBeVisible();
     const accountMetric = portfolioCard.locator('[data-portfolio-metric="account-holdings"]');
     await expect(accountMetric.getByText("Account portfolio holdings", { exact: true })).toBeVisible();
     await expect(accountMetric.getByText("1 holding", { exact: true })).toBeVisible();

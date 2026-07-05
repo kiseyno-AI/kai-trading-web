@@ -401,7 +401,7 @@ test("shows actual account holdings from the portfolio summary", () => {
         status: "synced",
         summary: {
           totalAssets: { amount: 1_000_000, currency: "KRW" },
-          pnl: { day: { amount: 12_500, currency: "KRW" } },
+          pnl: { day: { amount: 12_500, currency: "KRW" }, week: { amount: -600_000, currency: "KRW" } },
         },
         holdings: [
           {
@@ -432,7 +432,7 @@ test("shows actual account holdings from the portfolio summary", () => {
 
   assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
-  assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "₩12,500");
+  assert.equal(model.metrics.find((metric) => metric.key === "week-pnl")?.value, "-₩600,000");
   assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
   assert.equal(model.monitoringRows.length, 0);
   assert.equal(model.accountHoldingRows.length, 1);
@@ -448,6 +448,45 @@ test("shows actual account holdings from the portfolio summary", () => {
       ["Unrealized P/L", "₩4,500"],
     ],
   );
+});
+
+test("keeps portfolio asset snapshot weekly pnl ahead of exec weekly realized pnl", () => {
+  const summary = {
+    sync: { status: "synced" },
+    accounts: [
+      {
+        id: "account-1",
+        label: "Primary",
+        status: "synced",
+        summary: {
+          totalAssets: { amount: 1_000_000, currency: "KRW" },
+          pnl: { week: { amount: -600_000, currency: "KRW" } },
+        },
+      },
+    ],
+  } satisfies PortfolioSummaryDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy,
+    executionStatus: {
+      exec_connected: true,
+      status: "ready",
+      weekly_pnl: {
+        weekly_realized_pnl: "-29070.0000",
+        pnl_method: "fifo_internal_fills",
+      },
+    },
+    executionStatusError: null,
+    monitoredSymbols: { market_date: "2026-05-22", items: [] },
+    monitoredSymbolsError: null,
+    numberLocale: "en-US",
+    portfolioState: "fully-synced",
+    summary,
+  });
+
+  const weekPnl = model.metrics.find((metric) => metric.key === "week-pnl");
+  assert.equal(weekPnl?.value, "-₩600,000");
+  assert.equal(weekPnl?.tone, "negative");
 });
 
 test("keeps account holdings separate from exec-monitored symbols without double-counting runtime quantity", () => {
@@ -642,7 +681,7 @@ test("preserves portfolio summary fields while runtime timeouts keep row states 
 
   assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
-  assert.equal(model.metrics.find((metric) => metric.key === "day-pnl")?.value, "Today P/L pending");
+  assert.equal(model.metrics.find((metric) => metric.key === "week-pnl")?.value, "Weekly P/L pending");
   assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
   assert.equal(model.contextLabel?.includes("Runtime data is delayed."), true);
   assert.equal(model.monitoringStateLabel, "Monitored symbols unavailable.");
@@ -740,5 +779,5 @@ test("ships Korean operator copy for delayed runtime and missing day P/L states"
   assert.equal(koreanCopy.dashboardOverview.noExecApprovedMonitoringRows, "오늘 승인된 exec 모니터링 종목이 없습니다.");
   assert.equal(koreanCopy.dashboardOverview.runtimeHeldPositions, "런타임 보유 포지션 모니터링");
   assert.equal(koreanCopy.portfolioState.openDetail, "계좌 포트폴리오 열기");
-  assert.equal(koreanCopy.portfolioState.dayPnlPending, "금일 손익 집계 대기 중");
+  assert.equal(koreanCopy.portfolioState.dayPnlPending, "주간 손익 집계 대기 중");
 });

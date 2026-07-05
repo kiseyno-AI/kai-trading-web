@@ -42,6 +42,7 @@ test("builds multi-account summary metrics without assuming one account", () => 
           buyingPower: { amount: 2_500_000, currency: "KRW" },
           pnl: {
             day: { amount: 120_000, currency: "KRW" },
+            week: { amount: -600_000, currency: "KRW" },
             unrealized: { amount: -80_000, currency: "KRW" },
           },
         },
@@ -54,6 +55,7 @@ test("builds multi-account summary metrics without assuming one account", () => 
           cash: { amount: 1_000_000, currency: "KRW" },
           pnl: {
             day: { amount: 30_000, currency: "KRW" },
+            week: { amount: -50_000, currency: "KRW" },
             total: { amount: 40_000, currency: "KRW" },
           },
         },
@@ -64,8 +66,8 @@ test("builds multi-account summary metrics without assuming one account", () => 
   const metrics = buildPortfolioMetricModels(summary);
 
   assert.equal(metrics.find((metric) => metric.id === "total-assets")?.value, "₩15,000,000");
-  assert.equal(metrics.find((metric) => metric.id === "day-pnl")?.value, "₩150,000");
-  assert.equal(metrics.find((metric) => metric.id === "day-pnl")?.tone, "positive");
+  assert.equal(metrics.find((metric) => metric.id === "week-pnl")?.value, "-₩650,000");
+  assert.equal(metrics.find((metric) => metric.id === "week-pnl")?.tone, "negative");
   assert.equal(metrics.find((metric) => metric.id === "unrealized-pnl")?.value, "-₩40,000");
   assert.equal(metrics.find((metric) => metric.id === "unrealized-pnl")?.tone, "negative");
   assert.equal(metrics.find((metric) => metric.id === "cash-buying-power")?.value, "₩3,500,000");
