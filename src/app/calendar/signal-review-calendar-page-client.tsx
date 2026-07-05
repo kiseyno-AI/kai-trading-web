@@ -61,6 +61,7 @@ const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const ACTION_KEYS = ["buy", "wait", "reject", "unknown"] as const satisfies readonly SignalDeciderAction[];
 const DAY_MS = 86_400_000;
 const PRODUCT_DATE_TIME_ZONE = "Asia/Seoul";
+const PRODUCT_DATE_REFRESH_INTERVAL_MS = 60_000;
 const SIGNAL_REVIEW_READ_TIMEOUT_MS = 12_000;
 const DETAIL_DIALOG_FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -1044,6 +1045,20 @@ export default function SignalReviewCalendarPageClient() {
     () => buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT }),
     [feedbackDate],
   );
+
+  useEffect(() => {
+    const refreshTodayKey = () => {
+      const nextTodayKey = getTodayDateKey();
+      setTodayKey((current) => (current === nextTodayKey ? current : nextTodayKey));
+    };
+
+    refreshTodayKey();
+    const intervalId = window.setInterval(refreshTodayKey, PRODUCT_DATE_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
