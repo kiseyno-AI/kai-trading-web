@@ -523,6 +523,84 @@ test.describe("dashboard mobile chrome", () => {
     await expectMobileContentClearsBottomChrome(page, openPortfolioLink);
   });
 
+  test("collapsed Korean dashboard diagnostics do not expose raw runtime timeouts to assistive tech", async ({ page }) => {
+    const runtimeStatusTimeout =
+      "Timed out after 5.0s while loading /execution/runtime/status from trading-core. HTTP 504";
+    const monitoredSymbolsTimeout =
+      "Timed out after 5.0s while loading /execution/runtime/monitored-symbols?market_date=2026-04-16 from trading-core. HTTP 504";
+    const dailyBoardTimeout =
+      "Timed out after 5.0s while loading /execution/runtime/daily-board?market_date=2026-04-16 from trading-core. HTTP 504";
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockDashboardProcessStatusApis(page, () => "running");
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          sync: { status: "synced" },
+          accounts: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/status**", async (route) => {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: runtimeStatusTimeout }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/monitored-symbols**", async (route) => {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: monitoredSymbolsTimeout }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/daily-board**", async (route) => {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: dailyBoardTimeout }),
+      });
+    });
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+
+    await page.goto("/dashboard");
+
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(page.getByRole("heading", { name: "포트폴리오 상태" })).toBeVisible();
+
+    const diagnosticHints = page.locator("#dashboard-freshness [data-diagnostic-detail]");
+    await expect(diagnosticHints.first()).toBeVisible();
+    const diagnosticHintCount = await diagnosticHints.count();
+    expect(diagnosticHintCount).toBeGreaterThanOrEqual(2);
+
+    const diagnosticDetails = await diagnosticHints.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("data-diagnostic-detail") ?? "").join("\n"),
+    );
+    expect(diagnosticDetails).toContain(runtimeStatusTimeout);
+    expect(diagnosticDetails).toContain(monitoredSymbolsTimeout);
+    expect(diagnosticDetails).toContain(dailyBoardTimeout);
+
+    for (let index = 0; index < diagnosticHintCount; index += 1) {
+      const hint = diagnosticHints.nth(index);
+      await expect(hint).toHaveText("진단 정보 있음");
+      await expect(hint).toHaveAccessibleName("진단 정보 있음");
+      await expect(hint).not.toHaveAttribute("title", /./);
+    }
+
+    const ariaSnapshot = await page.ariaSnapshot({ timeout: 5000 });
+    expect(ariaSnapshot).toContain("진단 정보 있음");
+    expect(ariaSnapshot).not.toContain("Timed out after 5.0s");
+    expect(ariaSnapshot).not.toContain("/execution/runtime/status");
+    expect(ariaSnapshot).not.toContain("/execution/runtime/monitored-symbols");
+    expect(ariaSnapshot).not.toContain("/execution/runtime/daily-board");
+    expect(ariaSnapshot).not.toContain("HTTP 504");
+    expect(ariaSnapshot).not.toContain("trading-core");
+  });
+
   test("monitored symbol prices use one compact mobile line", async ({ page }) => {
     const pipelineStatus: "running" | "completed" = "completed";
     await mockDashboardProcessStatusApis(page, () => pipelineStatus);

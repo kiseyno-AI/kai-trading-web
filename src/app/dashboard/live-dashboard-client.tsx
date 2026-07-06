@@ -900,10 +900,16 @@ function RuntimeDiagnosticsHint({
   if (diagnostics.length === 0) return null;
 
   const diagnosticText = diagnostics.join("\n");
+  const diagnosticsLabel = copy.dashboardOverview.diagnosticsAvailable;
 
   return (
-    <span className={styles.runtimeDiagnosticHint} data-diagnostic-detail={diagnosticText} title={diagnosticText}>
-      {copy.dashboardOverview.diagnosticsAvailable}
+    <span
+      aria-label={diagnosticsLabel}
+      className={styles.runtimeDiagnosticHint}
+      data-diagnostic-detail={diagnosticText}
+      data-diagnostic-label={diagnosticsLabel}
+    >
+      {diagnosticsLabel}
     </span>
   );
 }
