@@ -1052,9 +1052,9 @@ export function buildDashboardPortfolioOverviewModel({
   const metricFallback = getPortfolioMetricFallback(portfolioState, copy);
   const portfolioMetrics = buildPortfolioMetricModels(summary, metricFallback);
   const totalAssets = portfolioMetrics.find((metric) => metric.id === "total-assets");
-  const dayPnl = portfolioMetrics.find((metric) => metric.id === "day-pnl");
+  const weekPnl = portfolioMetrics.find((metric) => metric.id === "week-pnl");
   const hasPortfolioAccounts = getPortfolioAccounts(summary).length > 0;
-  const dayPnlPending = hasPortfolioAccounts && dayPnl?.available !== true;
+  const weekPnlPending = hasPortfolioAccounts && weekPnl?.available !== true;
   const heldPositionCount = getHeldPositionCount(summary);
   const execConnected = executionStatus?.exec_connected === true;
   const monitoredItems = monitoredSymbols?.items ?? [];
@@ -1129,13 +1129,13 @@ export function buildDashboardPortfolioOverviewModel({
         value: totalAssets?.value ?? metricFallback,
       },
       {
-        key: "day-pnl",
+        key: "week-pnl",
         label: copy.portfolioState.metrics.dayPnl,
-        tone: dayPnlPending ? "neutral" : dayPnl?.tone ?? "neutral",
+        tone: weekPnlPending ? "neutral" : weekPnl?.tone ?? "neutral",
         value:
-          dayPnl?.available === true
-            ? dayPnl.value
-            : dayPnlPending
+          weekPnl?.available === true
+            ? weekPnl.value
+            : weekPnlPending
               ? copy.portfolioState.dayPnlPending
               : metricFallback,
       },

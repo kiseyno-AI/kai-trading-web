@@ -65,7 +65,7 @@ function humanizeToken(value: string | null | undefined, fallback: string) {
 
 function getMetricCopy(id: PortfolioMetricId, copy: PortfolioCopy) {
   if (id === "total-assets") return copy.metrics.totalAssets;
-  if (id === "day-pnl") return copy.metrics.dayPnl;
+  if (id === "week-pnl") return copy.metrics.dayPnl;
   if (id === "unrealized-pnl") return copy.metrics.unrealizedPnl;
   return copy.metrics.cashBuyingPower;
 }

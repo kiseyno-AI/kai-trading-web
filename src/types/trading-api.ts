@@ -151,8 +151,15 @@ export type PortfolioPnlDto = {
   realized?: PortfolioMoneyAmountDto | null;
   unrealized?: PortfolioMoneyAmountDto | null;
   total?: PortfolioMoneyAmountDto | null;
+  week?: PortfolioMoneyAmountDto | null;
   dayPercent?: number | null;
   totalPercent?: number | null;
+  weekPercent?: number | null;
+  weekWindow?: {
+    lookbackDays?: number | null;
+    baselineCapturedAt?: string | null;
+    currentCapturedAt?: string | null;
+  } | null;
 };
 
 export type PortfolioAccountSummaryDto = {
@@ -400,6 +407,21 @@ export type ExecutionRuntimeIssueDto = Record<string, unknown> & {
   message?: string | null;
 };
 
+export type ExecutionRuntimeWeeklyPnlDto = Record<string, unknown> & {
+  week_start?: string | null;
+  week_end_exclusive?: string | null;
+  weekly_realized_pnl?: string | number | null;
+  weekly_buy_notional?: string | number | null;
+  weekly_sell_notional?: string | number | null;
+  matched_sell_quantity?: number | null;
+  unmatched_sell_quantity?: number | null;
+  closed_trade_count?: number | null;
+  win_count?: number | null;
+  loss_count?: number | null;
+  breakeven_count?: number | null;
+  pnl_method?: string | null;
+};
+
 export type ExecutionRuntimeStatusResponseDto = Record<string, unknown> & {
   status: ExecutionRuntimeStatusValue;
   mode?: ExecutionRuntimeMode | null;
@@ -414,6 +436,7 @@ export type ExecutionRuntimeStatusResponseDto = Record<string, unknown> & {
   issues?: ExecutionRuntimeIssueDto[] | null;
   core_integration_mode?: string | null;
   delegate_execution?: boolean | null;
+  weekly_pnl?: ExecutionRuntimeWeeklyPnlDto | null;
 };
 
 export type ExecutionRuntimeBoardStatus =

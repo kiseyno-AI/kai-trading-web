@@ -12,7 +12,7 @@ import type {
 } from "@/types/trading-api";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 
-export type PortfolioMetricId = "total-assets" | "day-pnl" | "unrealized-pnl" | "cash-buying-power";
+export type PortfolioMetricId = "total-assets" | "week-pnl" | "unrealized-pnl" | "cash-buying-power";
 
 export type PortfolioMetricModel = {
   id: PortfolioMetricId;
@@ -647,8 +647,8 @@ function getTotalAssets(account: PortfolioAccountDto) {
   return account.summary?.totalAssets ?? account.summary?.totalEquity ?? null;
 }
 
-function getDayPnl(account: PortfolioAccountDto) {
-  return account.summary?.pnl?.day ?? null;
+function getWeekPnl(account: PortfolioAccountDto) {
+  return account.summary?.pnl?.week ?? null;
 }
 
 function getUnrealizedPnl(account: PortfolioAccountDto) {
@@ -964,7 +964,7 @@ export function buildPortfolioMetricModels(
 ): PortfolioMetricModel[] {
   const accounts = getPortfolioAccounts(summary);
   const totalAssets = mergeMoneyAmounts(accounts.map(getTotalAssets));
-  const dayPnl = mergeMoneyAmounts(accounts.map(getDayPnl));
+  const weekPnl = mergeMoneyAmounts(accounts.map(getWeekPnl));
   const unrealizedPnl = mergeMoneyAmounts(accounts.map(getUnrealizedPnl));
   const buyingPower = mergeMoneyAmounts(accounts.map(getBuyingPower));
 
@@ -976,10 +976,10 @@ export function buildPortfolioMetricModels(
       available: totalAssets !== null,
     },
     {
-      id: "day-pnl",
-      value: formatPortfolioMoney(dayPnl, fallback),
-      tone: getMoneyTone(dayPnl),
-      available: dayPnl !== null,
+      id: "week-pnl",
+      value: formatPortfolioMoney(weekPnl, fallback),
+      tone: getMoneyTone(weekPnl),
+      available: weekPnl !== null,
     },
     {
       id: "unrealized-pnl",
