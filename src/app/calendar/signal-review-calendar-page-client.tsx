@@ -46,7 +46,10 @@ import {
   writeSignalDeciderFeedbackCache,
 } from "@/lib/signal-decider-feedback-cache";
 import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
-import { getUserFacingSelectedDateReviewError } from "@/lib/signal-decider-calendar-error";
+import {
+  getUserFacingSelectedDateReviewError,
+  shouldSuppressSelectedDateReviewFallbackError,
+} from "@/lib/signal-decider-calendar-error";
 import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
@@ -1318,20 +1321,22 @@ export default function SignalReviewCalendarPageClient() {
             fetched: feedback,
           });
           const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedSnapshot.progress) : progress;
+          const selectedReviewError =
+            error instanceof Error
+              ? shouldSuppressSelectedDateReviewFallbackError({ errorMessage: error.message, devMode })
+                ? null
+                : getUserFacingSelectedDateReviewError({
+                    errorMessage: error.message,
+                    selectedUnavailable,
+                    devMode,
+                  })
+              : selectedUnavailable;
           setSelectedFeedback(selectedFeedback);
           setSelectedProgress(selectedProgress);
           setSelectedDataDate(selectedDate);
           setProgressUnavailable(selectedProgress === null);
           setSelectedLoadState("ready");
-          setSelectedError(
-            error instanceof Error
-                ? getUserFacingSelectedDateReviewError({
-                  errorMessage: error.message,
-                  selectedUnavailable,
-                  devMode,
-                })
-              : selectedUnavailable,
-          );
+          setSelectedError(selectedReviewError);
           if (selectedFeedback === feedback) {
             writeSignalDeciderFeedbackCache({
               feedback,
@@ -1427,6 +1432,7 @@ export default function SignalReviewCalendarPageClient() {
     selectedSnapshot,
     summary: selectedSummary,
   });
+  const selectedDateUnavailable = isSelectedDateMetricUnavailable(selectedDisplayStatus);
   const selectedActionMixLabel = getSelectedDateActionMixLabel({
     copy,
     displayStatus: selectedDisplayStatus,
@@ -1791,11 +1797,13 @@ export default function SignalReviewCalendarPageClient() {
               </div>
             </div>
 
-            {progressUnavailable && selectedDisplayLoadState === "ready" ? (
+            {progressUnavailable && selectedDisplayLoadState === "ready" && !selectedDateUnavailable ? (
               <div className={styles.inlineNotice}>{copy.states.progressUnavailable}</div>
             ) : null}
 
-            {selectedDisplayLoadState === "loading" ? (
+            {selectedDateUnavailable ? (
+              <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
+            ) : selectedDisplayLoadState === "loading" ? (
               <div className={styles.emptyState}>{copy.states.loadingSelected}</div>
             ) : selectedDisplayLoadState === "error" ? (
               <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>
@@ -1843,7 +1851,9 @@ export default function SignalReviewCalendarPageClient() {
             </div>
           </header>
 
-          {selectedDisplayLoadState === "loading" ? (
+          {selectedDateUnavailable ? (
+            <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
+          ) : selectedDisplayLoadState === "loading" ? (
             <div className={styles.emptyState}>{copy.states.loadingSelected}</div>
           ) : selectedDisplayLoadState === "error" ? (
             <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>

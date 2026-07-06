@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getUserFacingSelectedDateReviewError } from "./signal-decider-calendar-error";
+import {
+  getUserFacingSelectedDateReviewError,
+  shouldSuppressSelectedDateReviewFallbackError,
+} from "./signal-decider-calendar-error";
 
 const selectedUnavailable = "Selected date review is unavailable.";
 
@@ -43,4 +46,23 @@ test("returns raw error text in dev mode for unknown messages", () => {
   });
 
   assert.equal(mapped, "Unexpected schema mismatch");
+});
+
+test("suppresses dependency-gap review warnings after fallback rows succeed", () => {
+  const suppressed = shouldSuppressSelectedDateReviewFallbackError({
+    errorMessage:
+      "Calendar index is not a dedicated Core contract yet. This page uses the real generic signal-decider feedback read for each visible date, while a dedicated calendar/replay endpoint is still a dependency gap.",
+    devMode: false,
+  });
+
+  assert.equal(suppressed, true);
+});
+
+test("keeps timeout review errors visible after fallback attempts", () => {
+  const suppressed = shouldSuppressSelectedDateReviewFallbackError({
+    errorMessage: "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+    devMode: false,
+  });
+
+  assert.equal(suppressed, false);
 });

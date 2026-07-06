@@ -15,6 +15,7 @@ type SignalReviewCalendarMockOptions = {
   mixedHorizonDate?: string;
   pendingRationaleDate?: string;
   pendingWaitDate?: string;
+  reviewDateDelays?: Partial<Record<string, Promise<void>>>;
   reviewDateErrorMessages?: Partial<Record<string, string>>;
   runningProgressDates?: string[];
   timeoutFeedbackDates?: string[];
@@ -934,7 +935,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       });
       return;
     }
-    await options.feedbackDelays?.[marketDate];
+    await (options.reviewDateDelays?.[marketDate] ?? options.feedbackDelays?.[marketDate]);
     if (options.timeoutReviewDateDates?.includes(marketDate)) {
       await route.fulfill({
         status: 504,
@@ -2559,6 +2560,42 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
   }
 });
 
+test("signal review calendar settles selected-date body and review rows when month fallback is unavailable", async ({
+  page,
+}) => {
+  const pendingSelectedReview = createDeferred();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockSignalReviewCalendar(page, {
+      forceCalendarSummaryFailure: true,
+      reviewDateDelays: {
+        "2026-05-26": pendingSelectedReview.promise,
+      },
+      timeoutFeedbackDates: ["2026-05-26"],
+    });
+
+    await page.goto("/calendar?date=2026-05-26");
+    await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+
+    const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-26" }) });
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+      "data-selected-date-status",
+      "unavailable",
+    );
+    await expect(selectedPanel).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+    await expect(selectedPanel).not.toContainText("Loading selected-date decisions...");
+
+    const reviewRowsSection = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "Selected-date decisions" }) });
+    await expect(reviewRowsSection).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+    await expect(reviewRowsSection).not.toContainText("Loading selected-date decisions...");
+    await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
+  } finally {
+    pendingSelectedReview.resolve();
+  }
+});
+
 test("signal review calendar hides fallback row counts when selected-date review times out", async ({ page }) => {
   await mockSignalReviewCalendar(page, {
     denseFeedbackDates: {
@@ -2597,6 +2634,15 @@ test("signal review calendar hides fallback row counts when selected-date review
   await expect(selectedPanel).not.toContainText("Total decisions5");
   await expect(selectedPanel).not.toContainText("Reviewed rows0");
   await expect(selectedPanel).not.toContainText(/pending maturity 0/i);
+  await expect(selectedPanel).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+  await expect(selectedPanel).not.toContainText("Loading selected-date decisions...");
+
+  const reviewRowsSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Selected-date decisions" }) });
+  await expect(reviewRowsSection).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+  await expect(reviewRowsSection).not.toContainText("Loading selected-date decisions...");
+  await expect(reviewRowsSection).not.toContainText("Dense Regression");
 });
 
 test("signal review calendar separates pending replay state from available rationale and diagnostic risks", async ({

@@ -35,3 +35,14 @@ export function getUserFacingSelectedDateReviewError({
   if (!devMode && isDependencyGapWarning(normalizedError)) return selectedUnavailable;
   return normalizedError;
 }
+
+export function shouldSuppressSelectedDateReviewFallbackError({
+  errorMessage,
+  devMode,
+}: {
+  errorMessage: string;
+  devMode: boolean;
+}) {
+  const normalizedError = errorMessage.trim();
+  return !devMode && normalizedError.length > 0 && isDependencyGapWarning(normalizedError);
+}
