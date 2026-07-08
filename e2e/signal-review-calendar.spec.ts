@@ -13,6 +13,7 @@ type SignalReviewCalendarMockOptions = {
   issue672Date?: string;
   issue623Date?: string;
   mixedHorizonDate?: string;
+  pendingReplayWindowDate?: string;
   pendingRationaleDate?: string;
   pendingWaitDate?: string;
   reviewDateDelays?: Partial<Record<string, Promise<void>>>;
@@ -95,6 +96,63 @@ function hasReviewEvidence(item: SignalReviewCalendarFeedbackItem) {
   );
 }
 
+function buildPendingReplayWindowFeedbackItems(date: string): SignalReviewCalendarFeedbackItem[] {
+  return [
+    { companyName: "한섬", horizon: 1, remainingDays: 1, symbol: "020000" },
+    { companyName: "오성첨단소재", horizon: 3, remainingDays: 2, symbol: "052420" },
+    { companyName: "카카오", horizon: 5, remainingDays: 3, symbol: "035720" },
+  ].map((row) => ({
+    id: `pending-replay-window-${row.horizon}d`,
+    market_date: date,
+    symbol: row.symbol,
+    agent: {
+      name: "signal-decider",
+      run_id: `feedback-cycle-${date}`,
+    },
+    summary: {},
+    feedback: {
+      role: "signal-decider",
+      symbol: row.symbol,
+      market_date: date,
+      preferred_action: "wait",
+      next_day_open_action: "wait",
+      confidence_score_10: 6,
+      conviction_score_10: 5,
+      thesis_summary: `${row.horizon}D replay window is still pending.`,
+      policy_version: "decider-policy-2026.07",
+      evaluation: {
+        review_conclusion: `Replay review is pending for the ${row.horizon}-day window.`,
+        quality_reason:
+          row.horizon === 1
+            ? `The ${row.horizon}-day replay window is not mature yet.`
+            : `The requested ${row.horizon}-day replay window is not fully observed yet, so the review remains provisional.`,
+        realized_results: {
+          [`${row.horizon}d`]: {
+            status: "pending_maturity",
+            notes: `The ${row.horizon}-day replay window is not mature yet.`,
+            trading_days_remaining: row.remainingDays,
+          },
+        },
+      },
+      five_day_evaluation: {
+        evaluation_status: "pending_evaluation_window",
+        evaluation_status_reason: "not_mature",
+        trading_days_remaining: row.horizon === 5 ? row.remainingDays : 3,
+      },
+    },
+    normalized_feedback: null,
+    details: null,
+    context: {
+      symbol_day_context: {
+        company: {
+          name_ko: row.companyName,
+        },
+      },
+    },
+    received_at: `${date}T07:45:00+00:00`,
+  }));
+}
+
 function listMonthDates(month: string) {
   const [yearString, monthString] = month.split("-", 2);
   const year = Number(yearString);
@@ -144,6 +202,10 @@ function buildMockFeedbackItemsForDate(
       },
       received_at: `${date}T07:45:00+00:00`,
     }));
+  }
+
+  if (options.pendingReplayWindowDate === date) {
+    return buildPendingReplayWindowFeedbackItems(date);
   }
 
   if (options.pendingRationaleDate === date) {
@@ -964,6 +1026,8 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
         ? 1
         : options.issue705Date === marketDate
           ? 2
+        : options.pendingReplayWindowDate === marketDate
+          ? 3
         : options.identityFallbackDate === marketDate || options.issue623Date === marketDate
           ? 3
         : marketDate === "2026-04-27"
@@ -976,7 +1040,8 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
         options.mixedHorizonDate === marketDate ||
         options.issue705Date === marketDate ||
         options.identityFallbackDate === marketDate ||
-        options.issue623Date === marketDate);
+        options.issue623Date === marketDate ||
+        options.pendingReplayWindowDate === marketDate);
     const runStatus = hasRunningProgress ? "running" : isCompletedReviewDate ? "completed" : "pending";
 
     await route.fulfill({
@@ -1998,6 +2063,58 @@ test("calendar opens the feedback table in Korean locale", async ({ page }) => {
   await expect(page.getByText("액션 믹스")).toBeVisible();
   await expect(page.getByRole("form", { name: "디사이더 피드백 필터" }).getByText("검색")).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Signal-decider feedback");
+});
+
+test("calendar-sourced Korean feedback localizes pending replay-window review copy", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    pendingReplayWindowDate: "2026-05-12",
+  });
+
+  await page.goto("/calendar?date=2026-05-12");
+  await page.getByRole("button", { name: /Korean/i }).click();
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+
+  await page.getByRole("link", { name: /피드백 표 열기/i }).first().click();
+
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-12&navContext=calendar$/);
+  await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+
+  const pendingRows = [
+    { companyName: "한섬", horizon: 1 },
+    { companyName: "오성첨단소재", horizon: 3 },
+    { companyName: "카카오", horizon: 5 },
+  ];
+
+  for (const row of pendingRows) {
+    const card = page.getByRole("article", {
+      name: new RegExp(`${row.companyName}.*시그널 디사이더 피드백`),
+    });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(`${row.horizon}일 리플레이 기간 리뷰가 아직 대기 중입니다.`);
+  }
+
+  await expect(page.getByRole("article", { name: /한섬.*시그널 디사이더 피드백/ })).toContainText(
+    "1일 리플레이 기간이 아직 성숙하지 않았습니다.",
+  );
+  await expect(page.getByRole("article", { name: /오성첨단소재.*시그널 디사이더 피드백/ })).toContainText(
+    "요청한 3일 리플레이 기간이 아직 완전히 관측되지 않아 리뷰는 잠정 상태입니다.",
+  );
+  await expect(page.getByRole("article", { name: /카카오.*시그널 디사이더 피드백/ })).toContainText(
+    "요청한 5일 리플레이 기간이 아직 완전히 관측되지 않아 리뷰는 잠정 상태입니다.",
+  );
+
+  await expect(page.locator("body")).not.toContainText("Replay review is pending for the");
+  await expect(page.locator("body")).not.toContainText("not fully observed yet");
+  await expect(page.locator("body")).not.toContainText("replay window is not mature yet");
+
+  const firstCard = page.getByRole("article", { name: /한섬.*시그널 디사이더 피드백/ });
+  await firstCard.getByRole("button", { name: "리뷰" }).click();
+  const dialog = page.getByRole("dialog", { name: /한섬/ });
+  await expect(dialog).toContainText("1일 리플레이 기간 리뷰가 아직 대기 중입니다.");
+  await expect(dialog).toContainText("1일 리플레이 기간이 아직 성숙하지 않았습니다.");
+  await expect(dialog).not.toContainText("Replay review is pending for the");
+  await expect(dialog).not.toContainText("replay window is not mature yet");
 });
 
 test("calendar-sourced mobile feedback shows decision rows before data-gap diagnostics", async ({ page }) => {
