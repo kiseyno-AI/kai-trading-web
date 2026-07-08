@@ -8,8 +8,6 @@ export const FULL_PAGE_CHROME_ROUTE_KEYS = [
   "calendar",
   "portfolio",
   "symbols",
-  "markets",
-  "bots",
 ] as const;
 export const MARKETS_ROUTE_CHROME_ROUTE_KEYS = FULL_PAGE_CHROME_ROUTE_KEYS;
 
