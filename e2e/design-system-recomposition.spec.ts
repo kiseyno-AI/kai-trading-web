@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.describe("KAI design-system recomposition", () => {
   test("shared shell uses the blue financial terminal tokens", async ({ page }) => {
-    await page.goto("/markets");
+    await page.goto("/dashboard");
 
     const tokens = await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
@@ -24,10 +24,10 @@ test.describe("KAI design-system recomposition", () => {
       surface: "#101c2e",
       text: "#d6e2f2",
     });
-    const marketsNavItem = page.locator('aside[aria-label="Desktop navigation"] a[href="/markets"]');
-    await expect(marketsNavItem).toBeVisible();
-    await expect(marketsNavItem).toHaveAttribute("aria-current", "page");
-    await expect(marketsNavItem).toHaveCSS("box-shadow", /rgb\(0, 82, 255\)|rgba\(0, 82, 255/);
+    const dashboardNavItem = page.locator('aside[aria-label="Desktop navigation"] a[href="/dashboard"]');
+    await expect(dashboardNavItem).toBeVisible();
+    await expect(dashboardNavItem).toHaveAttribute("aria-current", "page");
+    await expect(dashboardNavItem).toHaveCSS("box-shadow", /rgb\(0, 82, 255\)|rgba\(0, 82, 255/);
   });
 
   test("major surfaces expose the unified state and panel primitives", async ({ page }) => {
