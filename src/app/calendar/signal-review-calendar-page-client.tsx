@@ -847,6 +847,14 @@ function getLocalizedPendingReviewText(
     return `${pendingHorizonMatch[1]}D ${copy.horizons.pendingMaturity}`;
   }
 
+  const provisionalHorizonMatch =
+    /^(?:the\s+)?requested (\d+)[-\s]?day replay window is not fully observed yet, so the review remains provisional\.?$/.exec(
+      normalized,
+    );
+  if (provisionalHorizonMatch?.[1]) {
+    return copy.states.replayWindowProvisional.replaceAll("{days}", provisionalHorizonMatch[1]);
+  }
+
   if (
     normalized === "pending maturity" ||
     normalized === "pending_maturity" ||

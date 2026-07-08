@@ -264,7 +264,61 @@ function getDecisionQualityDisplayLabel(item: SignalDeciderFeedbackItem, reviewC
   return getDecisionQualityLabel(item) ?? reviewCopy.pending;
 }
 
-function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
+function getReplayWindowDayCount(value: string) {
+  const dayMatch = /(\d+)[-\s]?day/i.exec(value);
+  return dayMatch?.[1] ?? null;
+}
+
+function formatReviewCopyTemplate(template: string, dayCount: string) {
+  return template.replaceAll("{days}", dayCount);
+}
+
+function getLocalizedReplayWindowReviewText(value: string, copy: SignalDeciderReviewCopy) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  const lower = normalized.toLowerCase();
+  const dayCount = getReplayWindowDayCount(normalized);
+
+  if (dayCount && /^replay review is pending for the \d+[-\s]?day window\.?$/i.test(normalized)) {
+    return formatReviewCopyTemplate(copy.replayReviewPendingWindow, dayCount);
+  }
+
+  if (
+    dayCount &&
+    /^(?:the\s+)?requested \d+[-\s]?day replay window is not fully observed yet, so the review remains provisional\.?$/i.test(
+      normalized,
+    )
+  ) {
+    return formatReviewCopyTemplate(copy.replayWindowProvisional, dayCount);
+  }
+
+  if (dayCount && /^(?:the\s+)?\d+[-\s]?day replay window is not mature yet\.?$/i.test(normalized)) {
+    return formatReviewCopyTemplate(copy.replayWindowNotMature, dayCount);
+  }
+
+  if (lower === "replay review is pending" || lower === "replay review is pending.") {
+    return copy.replayReviewPending;
+  }
+
+  if (
+    lower === "pending maturity" ||
+    lower === "pending_maturity" ||
+    lower === "not mature" ||
+    lower === "not_mature"
+  ) {
+    return copy.replayWindowPendingMaturity;
+  }
+
+  return value;
+}
+
+function getOptionalLocalizedReplayWindowReviewText(
+  value: string | null | undefined,
+  copy: SignalDeciderReviewCopy,
+) {
+  return hasTextValue(value) ? getLocalizedReplayWindowReviewText(value, copy) : null;
+}
+
+function formatOutcomeSummary(item: SignalDeciderFeedbackItem, copy: SignalDeciderReviewCopy) {
   if (item.outcomeHorizons.length === 0) {
     return item.pathOutcome?.label ?? item.intradayPathResult ?? UNKNOWN_LABEL;
   }
@@ -272,7 +326,10 @@ function formatOutcomeSummary(item: SignalDeciderFeedbackItem) {
   return item.outcomeHorizons
     .slice(0, 2)
     .map((outcome) => {
-      const result = formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? outcome.notes;
+      const result =
+        formatSignedPercent(outcome.returnPct) ??
+        getOptionalLocalizedReplayWindowReviewText(outcome.verdict, copy) ??
+        getOptionalLocalizedReplayWindowReviewText(outcome.notes, copy);
       return result ? `${outcome.horizon} ${result}` : outcome.horizon;
     })
     .join(" · ");
@@ -648,14 +705,16 @@ function getReviewStateRows(item: SignalDeciderFeedbackItem, copy: SignalDecider
       label: copy.verdict,
       value: hasQualityVerdict(item) ? getDecisionQualityDisplayLabel(item, copy) : copy.pending,
     },
-    { label: copy.outcome, value: hasOutcomeReview(item) ? formatOutcomeSummary(item) : copy.pending },
+    { label: copy.outcome, value: hasOutcomeReview(item) ? formatOutcomeSummary(item, copy) : copy.pending },
   ];
 }
 
-function getReviewNotes(item: SignalDeciderFeedbackItem) {
-  return [item.reviewConclusion, item.qualityReason].filter(
-    (note, index, notes): note is string => hasTextValue(note) && notes.indexOf(note) === index,
-  );
+function getReviewNotes(item: SignalDeciderFeedbackItem, copy: SignalDeciderReviewCopy) {
+  return [item.reviewConclusion, item.qualityReason]
+    .map((note) => getOptionalLocalizedReplayWindowReviewText(note, copy))
+    .filter(
+      (note, index, notes): note is string => hasTextValue(note) && notes.indexOf(note) === index,
+    );
 }
 
 function getTraceContextValue(item: SignalDeciderFeedbackItem, countCopy: SignalDeciderCountCopy) {
@@ -1490,7 +1549,7 @@ export default function SignalDeciderFeedbackPageClient() {
     <div className={styles.resultsList} aria-label={copy.labels.results}>
       {visibleItems.map((item) => {
         const reviewStateRows = getReviewStateRows(item, reviewCopy);
-        const reviewNotes = getReviewNotes(item);
+        const reviewNotes = getReviewNotes(item, reviewCopy);
         const supportContextRows = getSupportContextRows(item, labelsCopy, countCopy);
         const comparison = comparisonByKey.get(getDeciderFeedbackComparisonKey(item));
         const riskAndGapFlags = [...item.riskFlags, ...item.dataGapFlags];
@@ -1701,6 +1760,13 @@ export default function SignalDeciderFeedbackPageClient() {
     </div>
   );
 
+  const selectedReviewConclusion = selectedItem
+    ? getOptionalLocalizedReplayWindowReviewText(selectedItem.reviewConclusion, reviewCopy)
+    : null;
+  const selectedQualityReason = selectedItem
+    ? getOptionalLocalizedReplayWindowReviewText(selectedItem.qualityReason, reviewCopy)
+    : null;
+
   const selectedDetailDialog = selectedItem ? (
     <div className={styles.dialogBackdrop} onMouseDown={closeDetailDialog}>
       <section
@@ -1819,34 +1885,39 @@ export default function SignalDeciderFeedbackPageClient() {
                         </span>
                       ) : null}
                       <p>
-                        {selectedItem.reviewConclusion ??
-                          selectedItem.qualityReason ??
+                        {selectedReviewConclusion ??
+                          selectedQualityReason ??
                           getDecisionQualityDisplayLabel(selectedItem, reviewCopy)}
                       </p>
-                      {selectedItem.qualityReason && selectedItem.qualityReason !== selectedItem.reviewConclusion ? (
-                        <p>{selectedItem.qualityReason}</p>
+                      {selectedQualityReason && selectedQualityReason !== selectedReviewConclusion ? (
+                        <p>{selectedQualityReason}</p>
                       ) : null}
                     </div>
                   ) : null}
                   {selectedItem.outcomeHorizons.length > 0 ? (
                     <div className={styles.outcomeGrid}>
-                      {selectedItem.outcomeHorizons.map((outcome) => (
-                        <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
-                          <span>{outcome.horizon}</span>
-                          <strong>
-                            {formatSignedPercent(outcome.returnPct) ?? outcome.verdict ?? reviewCopy.resultEmpty}
-                          </strong>
-                          <p>
-                            {[
-                              outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
-                              outcome.verdict,
-                              outcome.notes,
-                            ]
-                              .filter((part): part is string => hasTextValue(part))
-                              .join(" · ") || reviewCopy.resultEmpty}
-                          </p>
-                        </div>
-                      ))}
+                      {selectedItem.outcomeHorizons.map((outcome) => {
+                        const outcomeVerdict = getOptionalLocalizedReplayWindowReviewText(outcome.verdict, reviewCopy);
+                        const outcomeNotes = getOptionalLocalizedReplayWindowReviewText(outcome.notes, reviewCopy);
+
+                        return (
+                          <div key={`${outcome.horizon}-${outcome.verdict ?? ""}`} className={styles.outcomeCard}>
+                            <span>{outcome.horizon}</span>
+                            <strong>
+                              {formatSignedPercent(outcome.returnPct) ?? outcomeVerdict ?? reviewCopy.resultEmpty}
+                            </strong>
+                            <p>
+                              {[
+                                outcome.realizedPrice !== null ? `Price ₩${formatPrice(outcome.realizedPrice)}` : null,
+                                outcomeVerdict,
+                                outcomeNotes,
+                              ]
+                                .filter((part): part is string => hasTextValue(part))
+                                .join(" · ") || reviewCopy.resultEmpty}
+                            </p>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : hasOutcomeReview(selectedItem) ? (
                     <p>
