@@ -63,6 +63,7 @@ type SymbolSearchItem = {
   name_ko: string;
   market: string;
   instrument_type: string | null;
+  source?: "degraded-direct-open";
 };
 
 type SymbolSearchResponse = {
@@ -186,6 +187,8 @@ type QuoteResponse = {
 type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const UNKNOWN = UNKNOWN_SYMBOL_META;
+const DEGRADED_DIRECT_OPEN_SOURCE = "degraded-direct-open";
+const DIRECT_OPEN_SYMBOL_CODE = /^\d{6}$/;
 const SEARCH_SUGGESTIONS_ID = "search-symbol-suggestions";
 const QUICK_ACCESS_STATUS_ID = "quick-access-status";
 const FAVORITE_DIALOG_ID = "favorite-symbol-dialog";
@@ -266,6 +269,36 @@ function normalizeSearchItem(item: {
     market: normalizeSymbolMetaSeedValue(item.market ?? ""),
     instrument_type: getForwardableSymbolMetaSeedValue(item.instrument_type ?? ""),
   };
+}
+
+function buildDegradedDirectOpenItem(query: string): SymbolSearchItem | null {
+  const trimmedQuery = query.trim();
+  const symbol = normalizeSymbolCode(trimmedQuery);
+
+  if (symbol !== trimmedQuery || !DIRECT_OPEN_SYMBOL_CODE.test(symbol)) return null;
+
+  const item: SymbolSearchItem = {
+    symbol,
+    standard_code: UNKNOWN,
+    name_ko: UNKNOWN,
+    market: "KRX",
+    instrument_type: null,
+    source: DEGRADED_DIRECT_OPEN_SOURCE,
+  };
+
+  return hasSymbolDetailCoverage(item) ? item : null;
+}
+
+function getSearchItemDisplayName(item: SymbolSearchItem, copy: SearchPageCopy) {
+  return item.source === DEGRADED_DIRECT_OPEN_SOURCE ? copy.results.degradedDirectOpen : item.name_ko;
+}
+
+function isDegradedDirectOpenItem(item: SymbolSearchItem | null) {
+  return item?.source === DEGRADED_DIRECT_OPEN_SOURCE;
+}
+
+function getValidatedSymbolMasterItem(item: SymbolSearchItem | null) {
+  return isDegradedDirectOpenItem(item) ? null : item;
 }
 
 function getTrendingEndpoint(mode: TrendingMode, limit: number) {
@@ -798,13 +831,15 @@ export default function SearchPageClient() {
   }, [selected]);
 
   const getValidatedFavoriteItem = (symbol: string) =>
-    (selected?.symbol === symbol ? selected : null) ??
+    getValidatedSymbolMasterItem(selected?.symbol === symbol ? selected : null) ??
     favoriteSearchItems.find((currentItem) => currentItem.symbol === symbol) ??
     items.find((currentItem) => currentItem.symbol === symbol) ??
     null;
 
   const trimmedQuery = query.trim();
-  const searchSuggestions = trimmedQuery ? items.slice(0, 6) : [];
+  const degradedDirectOpenItem = searchError ? buildDegradedDirectOpenItem(trimmedQuery) : null;
+  const searchResultItems = degradedDirectOpenItem ? [degradedDirectOpenItem] : items;
+  const searchSuggestions = trimmedQuery ? searchResultItems.slice(0, 6) : [];
   const resultTitle = trimmedQuery
     ? locale === "ko"
       ? `"${trimmedQuery}" ${copy.results.resultPrefix}`
@@ -1055,6 +1090,7 @@ export default function SearchPageClient() {
                 {searchSuggestions.map((item) => {
                   const isSelected = selected?.symbol === item.symbol;
                   const searchSuggestionBadge = getSearchSuggestionBadge({ symbol: item.symbol, market: item.market });
+                  const itemDisplayName = getSearchItemDisplayName(item, copy);
                   return (
                     <Link
                       key={item.symbol}
@@ -1074,7 +1110,7 @@ export default function SearchPageClient() {
                       </span>
                       <span className={styles.resultIdentity}>
                         <strong className="clamp-3">{item.symbol}</strong>
-                        <span className="clamp-3">{item.name_ko}</span>
+                        <span className="clamp-3">{itemDisplayName}</span>
                       </span>
                       <small className="clamp-3">{item.market}</small>
                     </Link>
@@ -1396,7 +1432,8 @@ export default function SearchPageClient() {
             <div>
               <span aria-hidden="true">=</span>
               <h2>
-                {query.trim() ? `${resultTitle} · ` : `${copy.results.title} `}({items.length} {copy.results.foundSuffix})
+                {query.trim() ? `${resultTitle} · ` : `${copy.results.title} `}({searchResultItems.length}{" "}
+                {copy.results.foundSuffix})
               </h2>
             </div>
             <div>
@@ -1420,9 +1457,10 @@ export default function SearchPageClient() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
+                {searchResultItems.map((item) => {
                   const isSelected = selected?.symbol === item.symbol;
                   const canShowSelectedQuote = isSelected && quote;
+                  const itemDisplayName = getSearchItemDisplayName(item, copy);
                   return (
                     <tr key={item.symbol} className={isSelected ? styles.selectedRow : undefined}>
                       <td>
@@ -1431,7 +1469,7 @@ export default function SearchPageClient() {
                         </button>
                       </td>
                       <td>
-                        <span className="clamp-3">{item.name_ko}</span>
+                        <span className="clamp-3">{itemDisplayName}</span>
                       </td>
                       <td>{canShowSelectedQuote && hasNumber(quote.price) ? formatPrice(quote.price) : UNKNOWN}</td>
                       <td className={canShowSelectedQuote ? getChangeClass(quote.change_pct) : styles.neutralText}>
@@ -1455,7 +1493,7 @@ export default function SearchPageClient() {
                 })}
               </tbody>
             </table>
-            {items.length === 0 && !searchError ? (
+            {searchResultItems.length === 0 && !searchError ? (
               <div className={styles.emptyState}>
                 <strong>{copy.results.emptyTitle}</strong>
                 <p className="clamp-3">{copy.results.emptyBody}</p>

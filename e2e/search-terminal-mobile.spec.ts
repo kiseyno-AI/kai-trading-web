@@ -560,6 +560,78 @@ test.describe("search terminal mobile", () => {
     await expect.poll(() => searchRequests).toEqual(["005930"]);
   });
 
+  test("offers a direct symbol-detail open when exact mobile symbol search times out", async ({ page }) => {
+    const searchRequests: string[] = [];
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      await route.fulfill({
+        json: {
+          is_open: false,
+          server_time: "2026-05-30T00:01:00+09:00",
+          state: "CLOSED",
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/favorites", async (route) => {
+      await route.fulfill({ json: { count: 0, items: [] } });
+    });
+    await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+      await route.fulfill({
+        json: {
+          tracked_symbols: [],
+          count: 0,
+          last_updated_at: null,
+        },
+      });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const query = new URL(route.request().url()).searchParams.get("q") ?? "";
+      searchRequests.push(query);
+
+      await route.fulfill({
+        status: 504,
+        json: { detail: "symbol lookup timed out" },
+      });
+    });
+    await page.route("**/api/trading/scanner/realtime-trending?**", async (route) => {
+      await route.fulfill({
+        json: {
+          status: "ok",
+          source: "kis",
+          as_of: "2026-04-14T09:00:00Z",
+          market: "KRX",
+          summary: {
+            item_count: 0,
+          },
+          items: [],
+        },
+      });
+    });
+
+    await page.goto("/search");
+    const searchInput = page.getByLabel(/Search markets, symbols, or analysis/i);
+    await searchInput.fill("005930");
+
+    await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
+    let directOpen = page.getByRole("link", { name: /005930.*Direct open by symbol code/i }).first();
+    await expect(directOpen).toBeVisible();
+    await expect(directOpen).toHaveAttribute(
+      "href",
+      /\/dashboard\/symbol\/005930\?.*navContext=search.*q=005930/,
+    );
+
+    await searchInput.fill("F70100026");
+    await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
+    await expect(page.locator('a[href*="/dashboard/symbol/F70100026"]')).toHaveCount(0);
+
+    await searchInput.fill("005930");
+    directOpen = page.getByRole("link", { name: /005930.*Direct open by symbol code/i }).first();
+    await expect(directOpen).toBeVisible();
+    expect(searchRequests).toEqual(["005930", "F70100026", "005930"]);
+
+    await Promise.all([page.waitForURL(/\/dashboard\/symbol\/005930\?.*navContext=search.*q=005930/), directOpen.click()]);
+  });
+
   test("keeps mobile search content visible when quick access API is unavailable", async ({ page }) => {
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({
