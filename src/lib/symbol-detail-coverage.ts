@@ -20,11 +20,19 @@ const SUPPORTED_SYMBOL_DETAIL_INSTRUMENT_TYPES = new Set([
 const UNSUPPORTED_PRODUCT_NAME_PREFIXES = ["KODEX", "TIGER", "KBSTAR", "KOSEF", "HANARO", "ARIRANG", "TIMEFOLIO"];
 const UNSUPPORTED_PRODUCT_NAME_WEAK_PREFIXES = ["ACE", "RISE", "SOL", "FOCUS", "1Q"];
 const UNSUPPORTED_PRODUCT_NAME_HINTS = ["ETF", "ETN", "INVERSE", "LEVERAGE", "FUTURES", "2X"];
+// Degraded direct opens have no symbol-master metadata, so known product codes need an explicit guard.
+const UNSUPPORTED_DEGRADED_DIRECT_OPEN_SYMBOLS = new Set([
+  "252670",
+]);
 
 function normalizeCoverageToken(value: string | null | undefined) {
   const trimmed = value?.trim().toUpperCase();
   if (!trimmed || trimmed === "-" || trimmed === "[확인 필요]") return null;
   return trimmed;
+}
+
+function normalizeCoverageSymbol(value: string | null | undefined) {
+  return normalizeCoverageToken(value)?.replace(/[^A-Z0-9]/g, "") ?? "";
 }
 
 function normalizeInstrumentType(value: string | null | undefined) {
@@ -64,7 +72,7 @@ function hasUnsupportedProductName(item: SymbolDetailCoverageInput) {
 }
 
 export function hasSymbolDetailCoverage(item: SymbolDetailCoverageInput) {
-  const symbol = normalizeCoverageToken(item.symbol)?.replace(/[^A-Z0-9]/g, "") ?? "";
+  const symbol = normalizeCoverageSymbol(item.symbol);
   if (!KRX_SYMBOL_DETAIL_SYMBOL.test(symbol)) return false;
 
   if (hasUnsupportedProductName(item)) {
@@ -77,4 +85,13 @@ export function hasSymbolDetailCoverage(item: SymbolDetailCoverageInput) {
   }
 
   return hasSupportedMarketHint(item.market);
+}
+
+export function hasDegradedDirectOpenSymbolDetailCoverage(item: SymbolDetailCoverageInput) {
+  const symbol = normalizeCoverageSymbol(item.symbol);
+  if (UNSUPPORTED_DEGRADED_DIRECT_OPEN_SYMBOLS.has(symbol)) {
+    return false;
+  }
+
+  return hasSymbolDetailCoverage(item);
 }

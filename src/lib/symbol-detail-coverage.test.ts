@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { hasSymbolDetailCoverage } from "./symbol-detail-coverage";
+import { UNKNOWN_SYMBOL_META } from "./symbol-meta";
+import { hasDegradedDirectOpenSymbolDetailCoverage, hasSymbolDetailCoverage } from "./symbol-detail-coverage";
 
 test("allows supported domestic equity favorite symbols into symbol detail", () => {
   assert.equal(
@@ -65,6 +66,30 @@ test("allows supported stock names when instrument metadata is still absent", ()
       instrument_type: null,
     }),
     true,
+  );
+});
+
+test("keeps degraded direct open coverage for supported numeric equity lookups", () => {
+  assert.equal(
+    hasDegradedDirectOpenSymbolDetailCoverage({
+      symbol: "005930",
+      market: "KRX",
+      name_ko: UNKNOWN_SYMBOL_META,
+      instrument_type: null,
+    }),
+    true,
+  );
+});
+
+test("blocks known unsupported product codes during degraded direct opens", () => {
+  assert.equal(
+    hasDegradedDirectOpenSymbolDetailCoverage({
+      symbol: "252670",
+      market: "KRX",
+      name_ko: UNKNOWN_SYMBOL_META,
+      instrument_type: null,
+    }),
+    false,
   );
 });
 
