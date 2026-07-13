@@ -583,10 +583,18 @@ export function resolveSymbolDetailEffectiveMarketDate({
   }
   if (waitForFreshness) return null;
 
+  if (latestStoredMarketDate) {
+    const boundedLatestStoredMarketDate = clampMarketDateToProductDate(latestStoredMarketDate, productMarketDate);
+    if (boundedLatestStoredMarketDate === productMarketDate && latestStoredMarketDate > productMarketDate) {
+      return boundedLatestStoredMarketDate;
+    }
+
+    return productIsoDate ?? defaultMarketDate;
+  }
+
   return (
-    productIsoDate ??
-    clampMarketDateToProductDate(latestStoredMarketDate, productMarketDate) ??
     clampMarketDateToProductDate(quoteTradeDate, productMarketDate) ??
+    productIsoDate ??
     defaultMarketDate
   );
 }

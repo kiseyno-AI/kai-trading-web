@@ -222,6 +222,37 @@ test("bounds implicit symbol-detail dates to the KST product date before midnigh
   );
 });
 
+test("falls back to the quote trade date when freshness has no latest stored date on non-trading product dates", () => {
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness: null,
+      marketState: "WEEKEND",
+      quoteTradeDate: "2026-05-22",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-05-22",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness: {
+        today: {
+          trade_date: "2026-05-24",
+          eod_status: "pending",
+        },
+        latest: {},
+      },
+      marketState: "WEEKEND",
+      quoteTradeDate: "2026-05-22",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-05-22",
+  );
+});
+
 test("advances implicit symbol-detail dates after KST midnight on trading weekdays", () => {
   const freshness = {
     today: {
