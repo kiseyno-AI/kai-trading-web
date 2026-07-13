@@ -109,6 +109,42 @@ test("Markets route chrome relies on the canonical full-screen route key set", (
   assert.doesNotMatch(source, /navRouteKeys:\s*MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
 });
 
+test("MobileAppChrome app routes do not override the primary full-screen route set", () => {
+  const requiredChromeRoutes = [
+    "src/app/calendar/signal-review-calendar-page-client.tsx",
+    "src/app/dashboard/live-dashboard-client.tsx",
+    "src/app/dashboard/signal-decider-feedback/signal-decider-feedback-page-client.tsx",
+    "src/app/dashboard/symbol/[symbol]/symbol-detail-client.tsx",
+    "src/app/markets/markets-route-chrome.tsx",
+    "src/app/my-symbols/my-symbols-page-client.tsx",
+    "src/app/portfolio/portfolio-page-client.tsx",
+    "src/app/search/search-page-client.tsx",
+  ];
+  const forbiddenOverrides = [
+    { label: "navRouteKeys", pattern: /\bnavRouteKeys\b/ },
+    { label: "APP_SHELL_ROUTE_KEYS", pattern: /\bAPP_SHELL_ROUTE_KEYS\b/ },
+    { label: "MARKETS_ROUTE_CHROME_ROUTE_KEYS", pattern: /\bMARKETS_ROUTE_CHROME_ROUTE_KEYS\b/ },
+  ];
+  const chromeRouteFiles = collectFiles(appRoot, (path) => path.endsWith(".tsx"))
+    .filter((path) => readFileSync(path, "utf8").includes("<MobileAppChrome"))
+    .map((path) => relative(repoRoot, path))
+    .sort();
+
+  for (const route of requiredChromeRoutes) {
+    assert.ok(chromeRouteFiles.includes(route), route);
+  }
+
+  const offenders = chromeRouteFiles.flatMap((route) => {
+    const source = readFileSync(join(repoRoot, route), "utf8");
+
+    return forbiddenOverrides
+      .filter(({ pattern }) => pattern.test(source))
+      .map(({ label }) => `${route}:${label}`);
+  });
+
+  assert.deepEqual(offenders, []);
+});
+
 test("full-screen routes use the shared chrome metadata model for representative pages", () => {
   const representativeRoutes = [
     "src/app/calendar/signal-review-calendar-page-client.tsx",
