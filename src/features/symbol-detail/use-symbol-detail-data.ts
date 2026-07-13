@@ -224,11 +224,20 @@ export function useSymbolDetailData({
       resolveSymbolDetailEffectiveMarketDate({
         defaultMarketDate,
         freshness: freshnessBasis,
+        marketState: marketStatus?.state ?? quote?.market_state,
         quoteTradeDate: quote?.trade_date,
         requestedMarketDate,
         waitForFreshness: waitForFreshnessBasis,
       }),
-    [defaultMarketDate, freshnessBasis, quote?.trade_date, requestedMarketDate, waitForFreshnessBasis],
+    [
+      defaultMarketDate,
+      freshnessBasis,
+      marketStatus?.state,
+      quote?.market_state,
+      quote?.trade_date,
+      requestedMarketDate,
+      waitForFreshnessBasis,
+    ],
   );
   const currentMarketDate = useMemo(
     () => resolveSymbolDetailCurrentMarketDate(freshnessBasis, marketStatus, defaultMarketDate),

@@ -24,6 +24,7 @@ import {
   buildTechnicalAnalysisSectionModel,
   buildTechnicalFreshnessDate,
   formatQuoteUnavailableReasonLabel,
+  getCurrentSeoulMarketDate,
   getMarketOpenState,
   isClosedSessionMarketState,
   pickSelectedBarTradeDate,
@@ -183,6 +184,102 @@ test("resolves implicit symbol-detail market date from latest stored freshness w
       waitForFreshness: false,
     }),
     "2026-05-23",
+  );
+});
+
+test("uses the KST product date across the symbol-detail midnight boundary", () => {
+  assert.equal(getCurrentSeoulMarketDate(new Date("2026-07-13T23:59:59+09:00")), "2026-07-13");
+  assert.equal(getCurrentSeoulMarketDate(new Date("2026-07-14T00:00:00+09:00")), "2026-07-14");
+});
+
+test("bounds implicit symbol-detail dates to the KST product date before midnight", () => {
+  const freshness = {
+    today: {
+      trade_date: "2026-07-14",
+      eod_status: "pending",
+    },
+    latest: {
+      price_trade_date: "2026-07-14",
+      technical_market_date: "2026-07-14",
+      action_market_date: "2026-07-14",
+    },
+  };
+
+  assert.equal(
+    resolveSymbolDetailCurrentMarketDate(freshness, { state: "CLOSED", is_open: false }, "2026-07-13"),
+    "2026-07-13",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-07-13",
+      freshness,
+      marketState: "CLOSED",
+      quoteTradeDate: "2026-07-14",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-07-13",
+  );
+});
+
+test("falls back to the quote trade date when freshness has no latest stored date on non-trading product dates", () => {
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness: null,
+      marketState: "WEEKEND",
+      quoteTradeDate: "2026-05-22",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-05-22",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness: {
+        today: {
+          trade_date: "2026-05-24",
+          eod_status: "pending",
+        },
+        latest: {},
+      },
+      marketState: "WEEKEND",
+      quoteTradeDate: "2026-05-22",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-05-22",
+  );
+});
+
+test("advances implicit symbol-detail dates after KST midnight on trading weekdays", () => {
+  const freshness = {
+    today: {
+      trade_date: "2026-07-13",
+      eod_status: "completed",
+    },
+    latest: {
+      price_trade_date: "2026-07-13",
+      technical_market_date: "2026-07-13",
+      action_market_date: "2026-07-13",
+    },
+  };
+
+  assert.equal(
+    resolveSymbolDetailCurrentMarketDate(freshness, { state: "PREOPEN", is_open: false }, "2026-07-14"),
+    "2026-07-14",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-07-14",
+      freshness,
+      marketState: "PREOPEN",
+      quoteTradeDate: "2026-07-13",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-07-14",
   );
 });
 

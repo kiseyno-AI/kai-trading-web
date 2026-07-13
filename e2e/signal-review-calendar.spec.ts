@@ -24,6 +24,8 @@ type SignalReviewCalendarMockOptions = {
   forceFreshnessFailure?: boolean;
   forceCalendarSummaryFailure?: boolean;
   calendarSummaryFailureStatus?: number;
+  freshnessLatestDate?: string;
+  freshnessTodayDate?: string;
 };
 
 type SignalReviewCalendarRequestHits = {
@@ -944,10 +946,10 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       contentType: "application/json",
       body: JSON.stringify({
         today: {
-          trade_date: "2026-04-27",
+          trade_date: options.freshnessTodayDate ?? "2026-04-27",
         },
         latest: {
-          price_trade_date: "2026-04-27",
+          price_trade_date: options.freshnessLatestDate ?? "2026-04-27",
         },
       }),
     });
@@ -1780,6 +1782,41 @@ test("signal review calendar does not disable the initial post-midnight KST curr
   await expect(kstTodayStatus).not.toHaveText("미래");
   await expect(kstTodayStatus).toHaveText("저장됨");
   await expect(kstTodayCount).toHaveText("1 개 결정");
+});
+
+test("signal review calendar keeps bare loads pinned before KST midnight", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-13T23:57:00+09:00"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-07-13": 1,
+      "2026-07-14": 1,
+    },
+    freshnessLatestDate: "2026-07-14",
+    freshnessTodayDate: "2026-07-14",
+  });
+
+  await page.goto("/calendar");
+  await page.getByRole("button", { name: "Korean" }).click();
+
+  await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "July 2026" })).toBeVisible();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-07-13$/);
+
+  const kstTodayCell = page.locator('[data-calendar-cell="2026-07-13"]');
+  const tomorrowCell = page.locator('[data-calendar-cell="2026-07-14"]');
+  await expect(kstTodayCell).toBeVisible();
+  await expect(kstTodayCell).toBeEnabled();
+  await expect(kstTodayCell).toHaveAttribute("aria-pressed", "true");
+  await expect(kstTodayCell).not.toHaveAttribute("aria-label", /미래/);
+  await expect(tomorrowCell).toBeDisabled();
+  await expect(
+    tomorrowCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
+  ).toHaveText("미래");
+  await expect(page.getByRole("link", { name: "피드백 표 열기" }).first()).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-07-13&navContext=calendar",
+  );
 });
 
 test("signal review calendar refreshes the mounted post-midnight KST current date", async ({ page }) => {

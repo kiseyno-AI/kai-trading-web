@@ -4,6 +4,7 @@ import type {
   AgentFeedbackStoredItemDto,
   AgentFeedbackStoredPayloadDto,
 } from "@/types/trading-api";
+import { getCurrentProductMarketDate } from "@/lib/product-market-date";
 
 export const SIGNAL_DECIDER_AGENT_NAME = "signal-decider";
 export const SHORT_TERM_DECIDER_AGENT_NAME = "short-term-decider";
@@ -1850,13 +1851,6 @@ function buildHorizonEvaluations({
   return SIGNAL_DECIDER_REVIEW_HORIZON_DAYS.map((day) => byDay.get(day) ?? buildEmptyHorizonEvaluation(day));
 }
 
-function formatLocalDateOnly(date = new Date()) {
-  const year = String(date.getFullYear()).padStart(4, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function parseUtcDateOnly(value: string | null | undefined) {
   const normalized = normalizeMarketDate(value);
   if (!normalized || !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
@@ -1929,7 +1923,7 @@ function getFiveDayTradingDaysRemaining({
   ]);
   if (availableTradingDays !== null) return Math.max(0, requiredTradingDays - availableTradingDays);
 
-  const referenceDate = normalizeMarketDate(evaluationReferenceDate) ?? formatLocalDateOnly();
+  const referenceDate = normalizeMarketDate(evaluationReferenceDate) ?? getCurrentProductMarketDate();
   const normalizedMarketDate = normalizeMarketDate(marketDate);
   if (!normalizedMarketDate || !referenceDate) return null;
   const elapsedTradingDays = countLikelyTradingDaysAfterMarketDate(normalizedMarketDate, referenceDate);
