@@ -19,6 +19,12 @@ import {
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
 import {
+  clampMarketDateToProductDate,
+  getCurrentProductMarketDate,
+  isWeekendProductMarketDate,
+  normalizeProductMarketDate,
+} from "@/lib/product-market-date";
+import {
   getPresenterAvailabilityTone,
   getPresenterFreshnessTone,
   resolvePresenterDate,
@@ -431,23 +437,13 @@ export function normalizeHighlightMetrics(highlights: unknown) {
 }
 
 export function getCurrentSeoulMarketDate(now = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(now);
-  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
-  const month = parts.find((part) => part.type === "month")?.value ?? "01";
-  const day = parts.find((part) => part.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
+  return getCurrentProductMarketDate(now);
 }
 
 function normalizeIsoDate(value: unknown) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+  const normalized = normalizeProductMarketDate(value);
+  if (typeof value !== "string" || !normalized) return null;
+  return value.trim() === normalized ? normalized : null;
 }
 
 function readIsoDatePrefix(value: unknown) {
@@ -526,22 +522,44 @@ export function resolveSymbolDetailCurrentMarketDate(
   defaultMarketDate: string,
 ) {
   return (
+    normalizeIsoDate(defaultMarketDate) ??
     normalizeIsoDate(freshness?.today?.trade_date) ??
     readIsoDatePrefix(marketStatus?.server_time) ??
-    normalizeIsoDate(defaultMarketDate) ??
     defaultMarketDate
   );
+}
+
+function isNonTradingStoredDateFallbackState(value: string | null | undefined) {
+  const state = normalizeMarketCode(value);
+  return state === "WEEKEND" || state === "HOLIDAY" || state === "MARKET_HOLIDAY";
+}
+
+function shouldUseLatestStoredMarketDate({
+  latestStoredMarketDate,
+  marketState,
+  productMarketDate,
+}: {
+  latestStoredMarketDate: string;
+  marketState?: string | null;
+  productMarketDate: string;
+}) {
+  if (latestStoredMarketDate === productMarketDate) return true;
+  if (latestStoredMarketDate > productMarketDate) return false;
+
+  return isWeekendProductMarketDate(productMarketDate) || isNonTradingStoredDateFallbackState(marketState);
 }
 
 export function resolveSymbolDetailEffectiveMarketDate({
   defaultMarketDate,
   freshness,
+  marketState,
   quoteTradeDate,
   requestedMarketDate,
   waitForFreshness,
 }: {
   defaultMarketDate: string;
   freshness: EodFreshnessResponseDto | null;
+  marketState?: string | null;
   quoteTradeDate: string | null | undefined;
   requestedMarketDate: string | null;
   waitForFreshness: boolean;
@@ -550,11 +568,27 @@ export function resolveSymbolDetailEffectiveMarketDate({
   if (explicitMarketDate) return explicitMarketDate;
   if (requestedMarketDate) return requestedMarketDate;
 
+  const productIsoDate = normalizeIsoDate(defaultMarketDate);
+  const productMarketDate = normalizeProductMarketDate(defaultMarketDate) ?? defaultMarketDate;
   const latestStoredMarketDate = resolveSymbolDetailLatestStoredMarketDate(freshness);
-  if (latestStoredMarketDate) return latestStoredMarketDate;
+  if (
+    latestStoredMarketDate &&
+    shouldUseLatestStoredMarketDate({
+      latestStoredMarketDate,
+      marketState,
+      productMarketDate,
+    })
+  ) {
+    return latestStoredMarketDate;
+  }
   if (waitForFreshness) return null;
 
-  return normalizeIsoDate(quoteTradeDate) ?? normalizeIsoDate(defaultMarketDate) ?? defaultMarketDate;
+  return (
+    productIsoDate ??
+    clampMarketDateToProductDate(latestStoredMarketDate, productMarketDate) ??
+    clampMarketDateToProductDate(quoteTradeDate, productMarketDate) ??
+    defaultMarketDate
+  );
 }
 
 export function buildSymbolDetailMarketDateBasisCopy({
