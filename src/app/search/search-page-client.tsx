@@ -35,7 +35,7 @@ import {
   normalizeSymbolMetaSeedValue,
 } from "@/lib/symbol-meta";
 import { getSearchSuggestionBadge } from "@/lib/search-suggestion-badge";
-import { hasSymbolDetailCoverage } from "@/lib/symbol-detail-coverage";
+import { hasDegradedDirectOpenSymbolDetailCoverage, hasSymbolDetailCoverage } from "@/lib/symbol-detail-coverage";
 import {
   getTradingApiJsonResult,
   invalidateTradingApiCacheByPathPrefix,
@@ -286,7 +286,7 @@ function buildDegradedDirectOpenItem(query: string): SymbolSearchItem | null {
     source: DEGRADED_DIRECT_OPEN_SOURCE,
   };
 
-  return hasSymbolDetailCoverage(item) ? item : null;
+  return hasDegradedDirectOpenSymbolDetailCoverage(item) ? item : null;
 }
 
 function getSearchItemDisplayName(item: SymbolSearchItem, copy: SearchPageCopy) {
