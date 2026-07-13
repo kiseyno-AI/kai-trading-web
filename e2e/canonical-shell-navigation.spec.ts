@@ -1,5 +1,20 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const expectedFullPageChromeNavIds = ["dashboard", "search", "calendar", "portfolio", "symbols"];
+const fullPageMobileRoutes = [
+  { label: "dashboard", path: "/dashboard" },
+  { label: "search", path: "/search" },
+  { label: "calendar", path: "/calendar" },
+  { label: "portfolio", path: "/portfolio" },
+  { label: "my symbols", path: "/my-symbols" },
+  {
+    label: "symbol detail",
+    path: "/dashboard/symbol/005930?name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10",
+  },
+  { label: "feedback", path: "/dashboard/signal-decider-feedback" },
+  { label: "markets route chrome", path: "/markets" },
+];
+
 async function expectNoHorizontalOverflow(page: Page) {
   const metrics = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
@@ -7,6 +22,26 @@ async function expectNoHorizontalOverflow(page: Page) {
   }));
 
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+}
+
+async function expectFullPageMobileBottomNav(page: Page, routeLabel: string) {
+  const primaryNav = page.getByRole("navigation", { name: /^Primary$/i });
+  await expect(primaryNav, `${routeLabel} primary mobile nav`).toBeVisible();
+  await expect(primaryNav.getByRole("link"), `${routeLabel} primary mobile nav count`).toHaveCount(5);
+
+  const navIds = await primaryNav.locator("[data-mobile-nav-item]").evaluateAll((items) =>
+    items.map((item) => item.getAttribute("data-mobile-nav-item")),
+  );
+
+  expect(navIds, `${routeLabel} primary mobile nav ids`).toEqual(expectedFullPageChromeNavIds);
+  await expect(primaryNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Markets", exact: true })).toHaveCount(0);
+  await expect(primaryNav.getByRole("link", { name: "Bots", exact: true })).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
 }
 
 test.describe("canonical shell navigation", () => {
@@ -25,20 +60,13 @@ test.describe("canonical shell navigation", () => {
     await expect(desktopNav.getByRole("link", { name: "Bots", exact: true })).toHaveCount(0);
   });
 
-  test("mobile bottom nav keeps full-page chrome scoped to primary destinations", async ({ page }) => {
+  test("mobile bottom nav keeps full-page chrome routes scoped to primary destinations", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/dashboard");
 
-    const primaryNav = page.getByRole("navigation", { name: /^Primary$/i });
-    await expect(primaryNav.getByRole("link")).toHaveCount(5);
-    await expect(primaryNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
-    await expect(primaryNav.getByRole("link", { name: "Markets", exact: true })).toHaveCount(0);
-    await expect(primaryNav.getByRole("link", { name: "Bots", exact: true })).toHaveCount(0);
-    await expectNoHorizontalOverflow(page);
+    for (const route of fullPageMobileRoutes) {
+      await page.goto(route.path);
+      await expectFullPageMobileBottomNav(page, route.label);
+    }
   });
 
   test("AppShell workspace sidebar still exposes Markets and Bots", async ({ page }) => {
