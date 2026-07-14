@@ -485,6 +485,24 @@ function getPortfolioStatusTone(state: PortfolioSummaryState): OverviewTone {
   return "neutral";
 }
 
+function isPortfolioSummaryBlockingState(state: PortfolioSummaryState) {
+  return (
+    state === "loading" ||
+    state === "endpoint-pending" ||
+    state === "invalid-response" ||
+    state === "not-configured" ||
+    state === "upstream-unavailable"
+  );
+}
+
+function getPortfolioAvailabilityContext(state: PortfolioSummaryState, copy: DashboardLiveCopy) {
+  if (state === "loading") return copy.portfolioState.loadingSummary;
+  if (isPortfolioSummaryBlockingState(state)) return copy.portfolioState.unavailable;
+  if (state === "partial-data" || state === "stale-sync") return copy.portfolioState.degradedSummary;
+  if (state === "connected-empty") return copy.portfolioState.emptySummary;
+  return null;
+}
+
 function getHeldPositionCount(summary: PortfolioSummaryDto | null | undefined) {
   if (!summary) return null;
   const accounts = getPortfolioAccounts(summary);
@@ -1036,6 +1054,7 @@ export function buildDashboardPortfolioOverviewModel({
   monitoredSymbols,
   monitoredSymbolsError,
   numberLocale,
+  portfolioSummaryError = null,
   portfolioState,
   summary,
 }: {
@@ -1045,20 +1064,25 @@ export function buildDashboardPortfolioOverviewModel({
   monitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null;
   monitoredSymbolsError: string | null;
   numberLocale: string;
+  portfolioSummaryError?: string | null;
   portfolioState: PortfolioSummaryState;
   summary: PortfolioSummaryDto | null;
 }): DashboardPortfolioOverviewModel {
   const overviewCopy = copy.dashboardOverview;
   const metricFallback = getPortfolioMetricFallback(portfolioState, copy);
-  const portfolioMetrics = buildPortfolioMetricModels(summary, metricFallback);
+  const shouldRenderPortfolioSummaryValues = !isPortfolioSummaryBlockingState(portfolioState);
+  const displaySummary = shouldRenderPortfolioSummaryValues ? summary : null;
+  const portfolioMetrics = buildPortfolioMetricModels(displaySummary, metricFallback);
   const totalAssets = portfolioMetrics.find((metric) => metric.id === "total-assets");
   const weekPnl = portfolioMetrics.find((metric) => metric.id === "week-pnl");
-  const hasPortfolioAccounts = getPortfolioAccounts(summary).length > 0;
+  const hasPortfolioAccounts = getPortfolioAccounts(displaySummary).length > 0;
   const weekPnlPending = hasPortfolioAccounts && weekPnl?.available !== true;
-  const heldPositionCount = getHeldPositionCount(summary);
+  const heldPositionCount = shouldRenderPortfolioSummaryValues ? getHeldPositionCount(summary) : null;
   const execConnected = executionStatus?.exec_connected === true;
   const monitoredItems = monitoredSymbols?.items ?? [];
-  const accountHoldingBySymbol = buildPortfolioHoldingSnapshots(summary);
+  const accountHoldingBySymbol = shouldRenderPortfolioSummaryValues
+    ? buildPortfolioHoldingSnapshots(summary)
+    : new Map<string, HoldingSnapshot>();
   const runtimeHoldingBySymbol = buildRuntimeHoldingSnapshots(monitoredItems);
   const monitoringRows = monitoredItems
     .filter((item) => isExecApprovedMonitoringRow(item))
@@ -1091,16 +1115,17 @@ export function buildDashboardPortfolioOverviewModel({
   const runtimeRowsUnavailable = hasRuntimeDataDelay || !monitoredSymbols;
   const contextLabel = [
     copy.portfolioState.dashboardContext,
+    getPortfolioAvailabilityContext(portfolioState, copy),
     hasRuntimeDataDelay ? overviewCopy.runtimeDataDelayed : null,
   ].filter(Boolean).join(" ");
-  const diagnostics = compactDiagnostics(executionStatusError, monitoredSymbolsError);
+  const diagnostics = compactDiagnostics(portfolioSummaryError, executionStatusError, monitoredSymbolsError);
 
   return {
     accountHoldingRows,
     accountHoldingStateLabel:
       accountHoldingRows.length > 0
         ? null
-        : summary
+        : displaySummary
           ? overviewCopy.noAccountHoldingRows
           : overviewCopy.accountHoldingsUnavailable,
     contextLabel,
@@ -1125,13 +1150,13 @@ export function buildDashboardPortfolioOverviewModel({
       {
         key: "total-assets",
         label: copy.portfolioState.metrics.totalAssets,
-        tone: totalAssets?.tone ?? "neutral",
+        tone: shouldRenderPortfolioSummaryValues ? totalAssets?.tone ?? "neutral" : "warning",
         value: totalAssets?.value ?? metricFallback,
       },
       {
         key: "week-pnl",
         label: copy.portfolioState.metrics.dayPnl,
-        tone: weekPnlPending ? "neutral" : weekPnl?.tone ?? "neutral",
+        tone: shouldRenderPortfolioSummaryValues ? weekPnlPending ? "neutral" : weekPnl?.tone ?? "neutral" : "warning",
         value:
           weekPnl?.available === true
             ? weekPnl.value
@@ -1142,7 +1167,7 @@ export function buildDashboardPortfolioOverviewModel({
       {
         key: "account-holdings",
         label: overviewCopy.accountHoldings,
-        tone: "neutral",
+        tone: shouldRenderPortfolioSummaryValues ? "neutral" : "warning",
         value: formatCount(
           heldPositionCount,
           copy.portfolioState.holding,

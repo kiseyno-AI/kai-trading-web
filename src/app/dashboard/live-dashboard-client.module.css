@@ -2392,6 +2392,10 @@
   color: var(--negative);
 }
 
+.warningText {
+  color: var(--warning);
+}
+
 @media (max-width: 520px) {
   .eodStageCard[data-status="running"] .eodStageTop {
     grid-template-columns: minmax(0, 1fr);

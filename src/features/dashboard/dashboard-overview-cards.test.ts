@@ -450,6 +450,91 @@ test("shows actual account holdings from the portfolio summary", () => {
   );
 });
 
+test("masks cached portfolio summary values when the latest summary refresh is unavailable", () => {
+  const summaryRefreshError = "trading-core portfolio API is unavailable.";
+  const cachedSummary = {
+    sync: { status: "synced" },
+    accounts: [
+      {
+        id: "cached-account",
+        label: "Cached account",
+        status: "synced",
+        summary: {
+          totalAssets: { amount: 9_200_000, currency: "KRW" },
+          pnl: { week: { amount: 125_000, currency: "KRW" } },
+        },
+        holdings: [],
+      },
+    ],
+  } satisfies PortfolioSummaryDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy,
+    executionStatus: { exec_connected: true, status: "ready" },
+    executionStatusError: null,
+    monitoredSymbols: { market_date: "2026-05-22", items: [] },
+    monitoredSymbolsError: null,
+    numberLocale: "en-US",
+    portfolioSummaryError: summaryRefreshError,
+    portfolioState: "upstream-unavailable",
+    summary: cachedSummary,
+  });
+
+  assert.equal(model.statusLabel, "Unavailable");
+  assert.equal(model.statusTone, "warning");
+  assert.equal(model.contextLabel?.includes(copy.portfolioState.unavailable), true);
+  assert.deepEqual(model.diagnostics, [summaryRefreshError]);
+  assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "Unavailable");
+  assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.tone, "warning");
+  assert.equal(model.metrics.find((metric) => metric.key === "week-pnl")?.value, "Unavailable");
+  assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "Unavailable");
+  assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.tone, "warning");
+  assert.equal(model.accountHoldingRows.length, 0);
+  assert.equal(model.accountHoldingStateLabel, "Account portfolio holdings unavailable.");
+});
+
+test("keeps explicitly stale portfolio summaries visible with degraded dashboard labeling", () => {
+  const staleSummary = {
+    sync: { status: "stale", message: "KIS balance sync is older than the latest market session." },
+    accounts: [
+      {
+        id: "stale-account",
+        label: "Stale account",
+        status: "stale",
+        summary: {
+          totalAssets: { amount: 1_000_000, currency: "KRW" },
+        },
+        holdings: [
+          {
+            symbol: "005930",
+            name: "Samsung Electronics",
+            quantity: 3,
+          },
+        ],
+      },
+    ],
+  } satisfies PortfolioSummaryDto;
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy,
+    executionStatus: { exec_connected: true, status: "ready" },
+    executionStatusError: null,
+    monitoredSymbols: { market_date: "2026-05-22", items: [] },
+    monitoredSymbolsError: null,
+    numberLocale: "en-US",
+    portfolioState: "stale-sync",
+    summary: staleSummary,
+  });
+
+  assert.equal(model.statusLabel, "Stale/degraded");
+  assert.equal(model.statusTone, "warning");
+  assert.equal(model.contextLabel?.includes(copy.portfolioState.degradedSummary), true);
+  assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
+  assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
+  assert.equal(model.accountHoldingRows.length, 1);
+  assert.equal(model.accountHoldingStateLabel, null);
+});
+
 test("keeps portfolio asset snapshot weekly pnl ahead of exec weekly realized pnl", () => {
   const summary = {
     sync: { status: "synced" },
