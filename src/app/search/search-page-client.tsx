@@ -13,6 +13,7 @@ import { SurfaceState } from "@/components/ui/surface-state";
 import { getSearchPageCopy, type SearchPageCopy } from "@/i18n/search-page-copy";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
+import { getKnownSymbolSearchFallbacks } from "@/lib/search-known-symbol-fallbacks";
 import {
   resolveKisMetricPresentation,
   resolveKisSourceLabel,
@@ -63,7 +64,7 @@ type SymbolSearchItem = {
   name_ko: string;
   market: string;
   instrument_type: string | null;
-  source?: "degraded-direct-open";
+  source?: "degraded-direct-open" | "degraded-known-symbol";
 };
 
 type SymbolSearchResponse = {
@@ -188,6 +189,7 @@ type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const UNKNOWN = UNKNOWN_SYMBOL_META;
 const DEGRADED_DIRECT_OPEN_SOURCE = "degraded-direct-open";
+const DEGRADED_KNOWN_SYMBOL_SOURCE = "degraded-known-symbol";
 const DIRECT_OPEN_SYMBOL_CODE = /^\d{6}$/;
 const SEARCH_SUGGESTIONS_ID = "search-symbol-suggestions";
 const QUICK_ACCESS_STATUS_ID = "quick-access-status";
@@ -289,16 +291,30 @@ function buildDegradedDirectOpenItem(query: string): SymbolSearchItem | null {
   return hasDegradedDirectOpenSymbolDetailCoverage(item) ? item : null;
 }
 
+function buildDegradedKnownSymbolItems(query: string): SymbolSearchItem[] {
+  return getKnownSymbolSearchFallbacks(query).map((item) => ({
+    ...normalizeSearchItem(item),
+    source: DEGRADED_KNOWN_SYMBOL_SOURCE,
+  }));
+}
+
+function buildDegradedSearchItems(query: string): SymbolSearchItem[] {
+  const directOpenItem = buildDegradedDirectOpenItem(query);
+  if (directOpenItem) return [directOpenItem];
+
+  return buildDegradedKnownSymbolItems(query).filter(hasDegradedDirectOpenSymbolDetailCoverage);
+}
+
 function getSearchItemDisplayName(item: SymbolSearchItem, copy: SearchPageCopy) {
   return item.source === DEGRADED_DIRECT_OPEN_SOURCE ? copy.results.degradedDirectOpen : item.name_ko;
 }
 
-function isDegradedDirectOpenItem(item: SymbolSearchItem | null) {
-  return item?.source === DEGRADED_DIRECT_OPEN_SOURCE;
+function isDegradedSearchItem(item: SymbolSearchItem | null) {
+  return item?.source === DEGRADED_DIRECT_OPEN_SOURCE || item?.source === DEGRADED_KNOWN_SYMBOL_SOURCE;
 }
 
 function getValidatedSymbolMasterItem(item: SymbolSearchItem | null) {
-  return isDegradedDirectOpenItem(item) ? null : item;
+  return isDegradedSearchItem(item) ? null : item;
 }
 
 function getTrendingEndpoint(mode: TrendingMode, limit: number) {
@@ -837,8 +853,8 @@ export default function SearchPageClient() {
     null;
 
   const trimmedQuery = query.trim();
-  const degradedDirectOpenItem = searchError ? buildDegradedDirectOpenItem(trimmedQuery) : null;
-  const searchResultItems = degradedDirectOpenItem ? [degradedDirectOpenItem] : items;
+  const degradedSearchItems = searchError ? buildDegradedSearchItems(trimmedQuery) : [];
+  const searchResultItems = degradedSearchItems.length > 0 ? degradedSearchItems : items;
   const searchSuggestions = trimmedQuery ? searchResultItems.slice(0, 6) : [];
   const resultTitle = trimmedQuery
     ? locale === "ko"

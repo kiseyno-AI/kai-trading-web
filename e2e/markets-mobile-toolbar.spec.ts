@@ -75,7 +75,7 @@ test("markets mobile toolbar keeps route context and controls legible at 320px",
   });
 
   await page.getByRole("button", { name: "Korean" }).click();
-  await expect(page.getByRole("heading", { name: "마켓" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "마켓", exact: true })).toBeVisible();
   await expectToolbarChromeContained(page, {
     status: "마켓 데이터 대기 중",
     subtitle: "마켓 상태와 스크리닝",

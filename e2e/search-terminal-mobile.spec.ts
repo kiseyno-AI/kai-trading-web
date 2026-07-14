@@ -560,7 +560,7 @@ test.describe("search terminal mobile", () => {
     await expect.poll(() => searchRequests).toEqual(["005930"]);
   });
 
-  test("offers a direct symbol-detail open when exact mobile symbol search times out", async ({ page }) => {
+  test("offers degraded symbol-detail opens when mobile symbol search times out", async ({ page }) => {
     const searchRequests: string[] = [];
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -628,12 +628,27 @@ test.describe("search terminal mobile", () => {
     await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
     await expect(page.locator('a[href*="/dashboard/symbol/252670"]')).toHaveCount(0);
 
+    await searchInput.fill("삼성");
+    await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
+    const knownFallback = page.getByRole("link", { name: /005930.*삼성전자/i }).first();
+    await expect(knownFallback).toBeVisible();
+    await expect(knownFallback).toHaveAttribute(
+      "href",
+      /\/dashboard\/symbol\/005930\?(?=.*name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90)(?=.*market=KOSPI)(?=.*standardCode=KR7005930003)(?=.*navContext=search)(?=.*q=%EC%82%BC%EC%84%B1)/,
+    );
+
     await searchInput.fill("005930");
     directOpen = page.getByRole("link", { name: /005930.*Direct open by symbol code/i }).first();
     await expect(directOpen).toBeVisible();
-    expect(searchRequests).toEqual(["005930", "F70100026", "252670", "005930"]);
+    expect(searchRequests).toEqual(["005930", "F70100026", "252670", "삼성", "005930"]);
 
-    await Promise.all([page.waitForURL(/\/dashboard\/symbol\/005930\?.*navContext=search.*q=005930/), directOpen.click()]);
+    await searchInput.fill("삼성");
+    const routeFallback = page.getByRole("link", { name: /005930.*삼성전자/i }).first();
+    await expect(routeFallback).toBeVisible();
+    await Promise.all([
+      page.waitForURL(/\/dashboard\/symbol\/005930\?.*navContext=search.*q=%EC%82%BC%EC%84%B1/),
+      routeFallback.click(),
+    ]);
   });
 
   test("keeps mobile search content visible when quick access API is unavailable", async ({ page }) => {
