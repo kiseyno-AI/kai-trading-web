@@ -2188,6 +2188,7 @@ export function LiveDashboardClient({
         monitoredSymbols: executionRuntimeMonitoredSymbols,
         monitoredSymbolsError: executionRuntimeMonitoredSymbolsError,
         numberLocale,
+        portfolioSummaryError,
         portfolioState: portfolioSummaryState,
         summary: portfolioSummary,
       }),
@@ -2199,6 +2200,7 @@ export function LiveDashboardClient({
       executionRuntimeStatusError,
       numberLocale,
       portfolioSummary,
+      portfolioSummaryError,
       portfolioSummaryState,
     ],
   );
