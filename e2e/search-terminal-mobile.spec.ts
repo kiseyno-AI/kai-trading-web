@@ -563,6 +563,9 @@ test.describe("search terminal mobile", () => {
   test("offers degraded symbol-detail opens when mobile symbol search times out", async ({ page }) => {
     const searchRequests: string[] = [];
 
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
     await page.route("**/api/trading/market/status", async (route) => {
       await route.fulfill({
         json: {
@@ -609,27 +612,32 @@ test.describe("search terminal mobile", () => {
     });
 
     await page.goto("/search");
-    const searchInput = page.getByLabel(/Search markets, symbols, or analysis/i);
-    await searchInput.fill("005930");
+    const searchInput = page.getByLabel(/마켓, 종목 또는 분석 검색/i);
+    await searchInput.fill("123456");
 
-    await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
-    let directOpen = page.getByRole("link", { name: /005930.*Direct open by symbol code/i }).first();
+    await expect(page.getByText(/검색 엔드포인트를 사용할 수 없습니다\..*HTTP 504/i).first()).toBeVisible();
+    let directOpen = page.getByRole("link", { name: /123456.*코드 직접 열기.*종목 정보 미확인/i }).first();
     await expect(directOpen).toBeVisible();
     await expect(directOpen).toHaveAttribute(
       "href",
-      /\/dashboard\/symbol\/005930\?.*navContext=search.*q=005930/,
+      /\/dashboard\/symbol\/123456\?.*navContext=search.*q=123456/,
     );
+    await expect(directOpen).not.toContainText("KRX");
+    const directOpenHref = (await directOpen.getAttribute("href")) ?? "";
+    expect(directOpenHref).not.toContain("market=");
+    expect(directOpenHref).not.toContain("standardCode=");
+    expect(directOpenHref).not.toContain("name=");
 
     await searchInput.fill("F70100026");
-    await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
+    await expect(page.getByText(/검색 엔드포인트를 사용할 수 없습니다\..*HTTP 504/i).first()).toBeVisible();
     await expect(page.locator('a[href*="/dashboard/symbol/F70100026"]')).toHaveCount(0);
 
     await searchInput.fill("252670");
-    await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
+    await expect(page.getByText(/검색 엔드포인트를 사용할 수 없습니다\..*HTTP 504/i).first()).toBeVisible();
     await expect(page.locator('a[href*="/dashboard/symbol/252670"]')).toHaveCount(0);
 
     await searchInput.fill("삼성");
-    await expect(page.getByText(/Search endpoint unavailable\..*HTTP 504/i).first()).toBeVisible();
+    await expect(page.getByText(/검색 엔드포인트를 사용할 수 없습니다\..*HTTP 504/i).first()).toBeVisible();
     const knownFallback = page.getByRole("link", { name: /005930.*삼성전자/i }).first();
     await expect(knownFallback).toBeVisible();
     await expect(knownFallback).toHaveAttribute(
@@ -637,10 +645,10 @@ test.describe("search terminal mobile", () => {
       /\/dashboard\/symbol\/005930\?(?=.*name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90)(?=.*market=KOSPI)(?=.*standardCode=KR7005930003)(?=.*navContext=search)(?=.*q=%EC%82%BC%EC%84%B1)/,
     );
 
-    await searchInput.fill("005930");
-    directOpen = page.getByRole("link", { name: /005930.*Direct open by symbol code/i }).first();
+    await searchInput.fill("123456");
+    directOpen = page.getByRole("link", { name: /123456.*코드 직접 열기.*종목 정보 미확인/i }).first();
     await expect(directOpen).toBeVisible();
-    expect(searchRequests).toEqual(["005930", "F70100026", "252670", "삼성", "005930"]);
+    expect(searchRequests).toEqual(["123456", "F70100026", "252670", "삼성", "123456"]);
 
     await searchInput.fill("삼성");
     const routeFallback = page.getByRole("link", { name: /005930.*삼성전자/i }).first();

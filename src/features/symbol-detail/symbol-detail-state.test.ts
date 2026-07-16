@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildInitialSymbolMeta,
   getSymbolDetailSectionVisibility,
   resolveSymbolDetailActiveNav,
   resolveSymbolDetailMode,
@@ -40,6 +41,31 @@ test("resolves symbol detail navigation context without defaulting to My Symbols
   assert.equal(resolveSymbolDetailNavContext("markets"), null);
   assert.equal(resolveSymbolDetailNavContext(null), null);
   assert.equal(resolveSymbolDetailActiveNav(null), null);
+});
+
+test("does not seed unverified symbol metadata when direct-open URLs only preserve search context", () => {
+  assert.equal(
+    buildInitialSymbolMeta("123456", {
+      name: null,
+      market: null,
+      standardCode: null,
+    }),
+    null,
+  );
+
+  assert.deepEqual(
+    buildInitialSymbolMeta("005930", {
+      name: "삼성전자",
+      market: "KOSPI",
+      standardCode: "KR7005930003",
+    }),
+    {
+      symbol: "005930",
+      name_ko: "삼성전자",
+      market: "KOSPI",
+      standard_code: "KR7005930003",
+    },
+  );
 });
 
 test("keeps section visibility stable for overview and each detail mode", () => {
