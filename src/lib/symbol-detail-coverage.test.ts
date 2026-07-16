@@ -73,7 +73,7 @@ test("keeps degraded direct open coverage for supported numeric equity lookups",
   assert.equal(
     hasDegradedDirectOpenSymbolDetailCoverage({
       symbol: "005930",
-      market: "KRX",
+      market: UNKNOWN_SYMBOL_META,
       name_ko: UNKNOWN_SYMBOL_META,
       instrument_type: null,
     }),
@@ -85,7 +85,7 @@ test("blocks known unsupported product codes during degraded direct opens", () =
   assert.equal(
     hasDegradedDirectOpenSymbolDetailCoverage({
       symbol: "252670",
-      market: "KRX",
+      market: UNKNOWN_SYMBOL_META,
       name_ko: UNKNOWN_SYMBOL_META,
       instrument_type: null,
     }),

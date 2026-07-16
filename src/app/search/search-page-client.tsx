@@ -13,7 +13,6 @@ import { SurfaceState } from "@/components/ui/surface-state";
 import { getSearchPageCopy, type SearchPageCopy } from "@/i18n/search-page-copy";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
-import { getKnownSymbolSearchFallbacks } from "@/lib/search-known-symbol-fallbacks";
 import {
   resolveKisMetricPresentation,
   resolveKisSourceLabel,
@@ -30,13 +29,9 @@ import {
   warmMobileToolbarViewData,
 } from "@/lib/mobile-toolbar-data";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
-import {
-  UNKNOWN_SYMBOL_META,
-  getForwardableSymbolMetaSeedValue,
-  normalizeSymbolMetaSeedValue,
-} from "@/lib/symbol-meta";
+import { UNKNOWN_SYMBOL_META, normalizeSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import { getSearchSuggestionBadge } from "@/lib/search-suggestion-badge";
-import { hasDegradedDirectOpenSymbolDetailCoverage, hasSymbolDetailCoverage } from "@/lib/symbol-detail-coverage";
+import { hasSymbolDetailCoverage } from "@/lib/symbol-detail-coverage";
 import {
   getTradingApiJsonResult,
   invalidateTradingApiCacheByPathPrefix,
@@ -45,10 +40,6 @@ import {
   seedTradingApiJsonSnapshot,
 } from "@/lib/trading-api-cache";
 import {
-  SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
-  SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
-} from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
-import {
   getTrackedSymbols,
   normalizeTrackedSymbolCode,
   removeTrackedSymbol,
@@ -56,16 +47,15 @@ import {
   type TrackedSymbolsResponse,
 } from "@/lib/tracked-symbols-client";
 
+import {
+  buildDegradedSearchItems,
+  buildSearchSymbolHref,
+  getValidatedSymbolMasterItem,
+  isDegradedDirectOpenSearchItem,
+  normalizeSearchItem,
+  type SymbolSearchItem,
+} from "./search-symbol-routing";
 import styles from "./search-page.module.css";
-
-type SymbolSearchItem = {
-  symbol: string;
-  standard_code: string;
-  name_ko: string;
-  market: string;
-  instrument_type: string | null;
-  source?: "degraded-direct-open" | "degraded-known-symbol";
-};
 
 type SymbolSearchResponse = {
   query: string;
@@ -188,9 +178,6 @@ type QuoteResponse = {
 type JsonResult<T> = { ok: true; data: T } | { ok: false; status: number };
 
 const UNKNOWN = UNKNOWN_SYMBOL_META;
-const DEGRADED_DIRECT_OPEN_SOURCE = "degraded-direct-open";
-const DEGRADED_KNOWN_SYMBOL_SOURCE = "degraded-known-symbol";
-const DIRECT_OPEN_SYMBOL_CODE = /^\d{6}$/;
 const SEARCH_SUGGESTIONS_ID = "search-symbol-suggestions";
 const QUICK_ACCESS_STATUS_ID = "quick-access-status";
 const FAVORITE_DIALOG_ID = "favorite-symbol-dialog";
@@ -217,24 +204,6 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<JsonResult<
   return getTradingApiJsonResult<T>(resolveTradingApiClientPath(path), init);
 }
 
-function buildSymbolHref(item: SymbolSearchItem, query: string) {
-  const params = new URLSearchParams();
-  const name = getForwardableSymbolMetaSeedValue(item.name_ko);
-  const market = getForwardableSymbolMetaSeedValue(item.market);
-  const standardCode = getForwardableSymbolMetaSeedValue(item.standard_code);
-  const normalizedQuery = query.trim();
-
-  if (name) params.set("name", name);
-  if (market) params.set("market", market);
-  if (standardCode) params.set("standardCode", standardCode);
-  params.set(SYMBOL_DETAIL_NAV_CONTEXT_PARAM, SYMBOL_DETAIL_SEARCH_NAV_CONTEXT);
-  if (normalizedQuery) {
-    params.set("q", normalizedQuery);
-  }
-  const queryString = params.toString();
-  return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${queryString ? `?${queryString}` : ""}`;
-}
-
 function getChangeClass(value: number | null | undefined) {
   if (!hasNumber(value)) return styles.neutralText;
   return value >= 0 ? styles.positiveText : styles.negativeText;
@@ -257,64 +226,12 @@ function normalizeSymbolCode(value: string) {
   return normalizeTrackedSymbolCode(value);
 }
 
-function normalizeSearchItem(item: {
-  symbol: string;
-  standard_code?: string | null;
-  name_ko?: string | null;
-  market?: string | null;
-  instrument_type?: string | null;
-}): SymbolSearchItem {
-  return {
-    symbol: normalizeSymbolCode(item.symbol),
-    standard_code: normalizeSymbolMetaSeedValue(item.standard_code ?? ""),
-    name_ko: normalizeSymbolMetaSeedValue(item.name_ko ?? item.symbol),
-    market: normalizeSymbolMetaSeedValue(item.market ?? ""),
-    instrument_type: getForwardableSymbolMetaSeedValue(item.instrument_type ?? ""),
-  };
-}
-
-function buildDegradedDirectOpenItem(query: string): SymbolSearchItem | null {
-  const trimmedQuery = query.trim();
-  const symbol = normalizeSymbolCode(trimmedQuery);
-
-  if (symbol !== trimmedQuery || !DIRECT_OPEN_SYMBOL_CODE.test(symbol)) return null;
-
-  const item: SymbolSearchItem = {
-    symbol,
-    standard_code: UNKNOWN,
-    name_ko: UNKNOWN,
-    market: "KRX",
-    instrument_type: null,
-    source: DEGRADED_DIRECT_OPEN_SOURCE,
-  };
-
-  return hasDegradedDirectOpenSymbolDetailCoverage(item) ? item : null;
-}
-
-function buildDegradedKnownSymbolItems(query: string): SymbolSearchItem[] {
-  return getKnownSymbolSearchFallbacks(query).map((item) => ({
-    ...normalizeSearchItem(item),
-    source: DEGRADED_KNOWN_SYMBOL_SOURCE,
-  }));
-}
-
-function buildDegradedSearchItems(query: string): SymbolSearchItem[] {
-  const directOpenItem = buildDegradedDirectOpenItem(query);
-  if (directOpenItem) return [directOpenItem];
-
-  return buildDegradedKnownSymbolItems(query).filter(hasDegradedDirectOpenSymbolDetailCoverage);
-}
-
 function getSearchItemDisplayName(item: SymbolSearchItem, copy: SearchPageCopy) {
-  return item.source === DEGRADED_DIRECT_OPEN_SOURCE ? copy.results.degradedDirectOpen : item.name_ko;
+  return isDegradedDirectOpenSearchItem(item) ? copy.results.degradedDirectOpen : item.name_ko;
 }
 
-function isDegradedSearchItem(item: SymbolSearchItem | null) {
-  return item?.source === DEGRADED_DIRECT_OPEN_SOURCE || item?.source === DEGRADED_KNOWN_SYMBOL_SOURCE;
-}
-
-function getValidatedSymbolMasterItem(item: SymbolSearchItem | null) {
-  return isDegradedSearchItem(item) ? null : item;
+function getSearchItemMetaLabel(item: SymbolSearchItem, copy: SearchPageCopy) {
+  return isDegradedDirectOpenSearchItem(item) ? copy.results.degradedDirectOpenMeta : item.market;
 }
 
 function getTrendingEndpoint(mode: TrendingMode, limit: number) {
@@ -907,7 +824,7 @@ export default function SearchPageClient() {
     setQuote(null);
     setSelected(item);
     if (options?.navigate) {
-      const href = buildSymbolHref(item, query);
+      const href = buildSearchSymbolHref(item, query);
       beginNavigation(href);
       router.push(href);
     }
@@ -1107,10 +1024,11 @@ export default function SearchPageClient() {
                   const isSelected = selected?.symbol === item.symbol;
                   const searchSuggestionBadge = getSearchSuggestionBadge({ symbol: item.symbol, market: item.market });
                   const itemDisplayName = getSearchItemDisplayName(item, copy);
+                  const itemMetaLabel = getSearchItemMetaLabel(item, copy);
                   return (
                     <Link
                       key={item.symbol}
-                      href={buildSymbolHref(item, query)}
+                      href={buildSearchSymbolHref(item, query)}
                       className={`${styles.searchSuggestion} ${isSelected ? styles.searchSuggestionActive : ""}`.trim()}
                       onClick={() => handleSelect(item)}
                     >
@@ -1128,7 +1046,7 @@ export default function SearchPageClient() {
                         <strong className="clamp-3">{item.symbol}</strong>
                         <span className="clamp-3">{itemDisplayName}</span>
                       </span>
-                      <small className="clamp-3">{item.market}</small>
+                      <small className="clamp-3">{itemMetaLabel}</small>
                     </Link>
                   );
                 })}
@@ -1477,6 +1395,7 @@ export default function SearchPageClient() {
                   const isSelected = selected?.symbol === item.symbol;
                   const canShowSelectedQuote = isSelected && quote;
                   const itemDisplayName = getSearchItemDisplayName(item, copy);
+                  const itemMetaLabel = getSearchItemMetaLabel(item, copy);
                   return (
                     <tr key={item.symbol} className={isSelected ? styles.selectedRow : undefined}>
                       <td>
@@ -1493,7 +1412,7 @@ export default function SearchPageClient() {
                       </td>
                       <td>{UNKNOWN}</td>
                       <td>
-                        <span className={styles.coverageBadge}>{item.market}</span>
+                        <span className={styles.coverageBadge}>{itemMetaLabel}</span>
                       </td>
                       <td>
                         <span className={styles.freshnessCell}>
@@ -1502,7 +1421,7 @@ export default function SearchPageClient() {
                         </span>
                       </td>
                       <td>
-                        <Link href={buildSymbolHref(item, query)}>{copy.results.open}</Link>
+                        <Link href={buildSearchSymbolHref(item, query)}>{copy.results.open}</Link>
                       </td>
                     </tr>
                   );
