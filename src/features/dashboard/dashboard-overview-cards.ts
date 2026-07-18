@@ -17,6 +17,7 @@ import {
   getPortfolioHoldings,
   type PortfolioSummaryState,
 } from "@/features/portfolio/portfolio-display";
+import { buildSignalDeciderFeedbackHref } from "@/lib/signal-decider-feedback";
 import type {
   CoreMarketStatus,
   CoreTrackedQuote,
@@ -46,6 +47,7 @@ export type DashboardDeciderRow = {
   detailHref: string;
   intentLabel?: string | null;
   key: string;
+  marketDate: string | null;
   marketLabel: string | null;
   nameLabel: string;
   prices: DashboardOverviewPriceItem[];
@@ -54,6 +56,7 @@ export type DashboardDeciderRow = {
 
 export type DashboardDeciderOverviewModel = {
   contextLabel: string | null;
+  detailMarketDate: string | null;
   diagnostics: string[];
   emptyLabel: string | null;
   mode: "market-open" | "closed-completed" | "closed-in-progress" | "closed-planned";
@@ -226,6 +229,24 @@ function buildRecommendationDetailHref({
 
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(symbol)}/action-summary${query ? `?${query}` : ""}`;
+}
+
+function getRowsDetailMarketDate(rows: readonly DashboardDeciderRow[]) {
+  return rows.find((row) => textOrNull(row.marketDate))?.marketDate ?? null;
+}
+
+export function buildDashboardDeciderMoreHref({
+  fallbackHref,
+  model,
+}: {
+  fallbackHref: string;
+  model: Pick<DashboardDeciderOverviewModel, "detailMarketDate" | "rows">;
+}) {
+  if (model.rows.length > 0 && model.detailMarketDate) {
+    return buildSignalDeciderFeedbackHref(model.detailMarketDate);
+  }
+
+  return fallbackHref;
 }
 
 function getTrackedQuoteBySymbol(tracked: CoreTrackedQuotesResponse | null | undefined) {
@@ -405,6 +426,7 @@ function buildClosedMarketDeciderRow({
     }),
     intentLabel: getPlannedTradeIntentLabel(item, boardMarketDate, currentMarketDate, copy),
     key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? index}`,
+    marketDate: sourceMarketDate,
     marketLabel,
     nameLabel,
     prices: [
@@ -927,6 +949,7 @@ export function buildDashboardDeciderOverviewModel({
           symbol: item.symbol,
         }),
         key: item.symbol,
+        marketDate: sourceMarketDate,
         marketLabel,
         nameLabel,
         prices: [
@@ -958,6 +981,7 @@ export function buildDashboardDeciderOverviewModel({
 
     return {
       contextLabel: marketOpenContext,
+      detailMarketDate: getRowsDetailMarketDate(rows),
       diagnostics,
       emptyLabel:
         rows.length > 0
@@ -975,6 +999,7 @@ export function buildDashboardDeciderOverviewModel({
   if (processStatus === "running") {
     return {
       contextLabel: null,
+      detailMarketDate: null,
       diagnostics,
       emptyLabel: overviewCopy.processInProgress,
       mode: "closed-in-progress",
@@ -1000,6 +1025,7 @@ export function buildDashboardDeciderOverviewModel({
 
     return {
       contextLabel: rows.length > 0 ? overviewCopy.plannedTradesContext : null,
+      detailMarketDate: getRowsDetailMarketDate(rows),
       diagnostics,
       emptyLabel:
         rows.length > 0
@@ -1031,6 +1057,7 @@ export function buildDashboardDeciderOverviewModel({
     contextLabel: hasBoardRuntimeDelay
       ? `${overviewCopy.marketClosedCompletedContext} ${overviewCopy.executionBoardUpdating}`
       : overviewCopy.marketClosedCompletedContext,
+    detailMarketDate: getRowsDetailMarketDate(rows),
     diagnostics,
     emptyLabel:
       rows.length > 0
