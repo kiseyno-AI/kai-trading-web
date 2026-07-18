@@ -216,6 +216,26 @@ export function readLatestSignalDeciderFeedbackCache({
     .sort((left, right) => right.cachedAt - left.cachedAt)[0] ?? null;
 }
 
+export function readLatestSignalDeciderFeedbackCacheByMarketDate({
+  now = Date.now(),
+  storage,
+}: {
+  now?: number;
+  storage?: CacheStorage | null;
+} = {}) {
+  const targetStorage = getStorage(storage);
+  if (!targetStorage) return null;
+
+  return readIndex(targetStorage)
+    .marketDates.map((marketDate) => readSignalDeciderFeedbackCache(marketDate, { now, storage: targetStorage }))
+    .filter((entry): entry is SignalDeciderFeedbackCacheEntry => entry !== null)
+    .filter((entry) => getSignalDeciderFeedbackStoredRowCount(entry.feedback) > 0)
+    .sort((left, right) => {
+      const marketDateOrder = right.marketDate.localeCompare(left.marketDate);
+      return marketDateOrder !== 0 ? marketDateOrder : right.cachedAt - left.cachedAt;
+    })[0] ?? null;
+}
+
 export function readSignalDeciderFeedbackCacheForMonth(
   monthKey: string,
   {

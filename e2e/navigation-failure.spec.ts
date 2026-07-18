@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const configuredBasePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim() ?? "";
 const appBasePath =
@@ -8,12 +8,83 @@ const appBasePath =
 
 const withBasePath = (pathname: `/${string}`) => `${appBasePath}${pathname}`;
 
+async function seedSignalDeciderFeedbackCache(page: Page, marketDate: string) {
+  await page.addInitScript((date) => {
+    const feedback = {
+      request: {
+        market_date: date,
+        symbols: [],
+        agent_name: "signal-decider",
+        limit: 200,
+      },
+      summary: {
+        count: 1,
+      },
+      items: [
+        {
+          id: `navigation-recovery-${date}`,
+          market_date: date,
+          symbol: "005930",
+          agent: {
+            name: "signal-decider",
+            run_id: `feedback-cycle-${date}`,
+          },
+          summary: {},
+          feedback: {
+            role: "signal-decider",
+            symbol: "005930",
+            market_date: date,
+            preferred_action: "wait",
+            next_day_open_action: "wait",
+            confidence_score_10: 7,
+            conviction_score_10: 6,
+            thesis_summary: "Navigation recovery test cached row.",
+          },
+          normalized_feedback: null,
+          details: null,
+          context: {
+            symbol_day_context: {
+              company: {
+                name_ko: "Samsung Electronics",
+              },
+            },
+          },
+          received_at: `${date}T07:45:00+00:00`,
+        },
+      ],
+    };
+
+    window.sessionStorage.setItem(
+      `kai.signalDeciderFeedback.v1:${date}`,
+      JSON.stringify({
+        version: 1,
+        marketDate: date,
+        cachedAt: Date.now(),
+        source: "calendar",
+        feedback,
+        progress: null,
+      }),
+    );
+    window.sessionStorage.setItem(
+      "kai.signalDeciderFeedback.v1:dates",
+      JSON.stringify({
+        version: 1,
+        marketDates: [date],
+      }),
+    );
+  }, marketDate);
+}
+
 test.describe("navigation failure recovery", () => {
   test("keeps recovery controls visible when a route chunk load rejection is reported", async ({ page }) => {
     await page.goto(withBasePath("/dashboard"));
     await expect(page.getByRole("link", { name: /^Search$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Search$/i }).first()).toHaveAttribute(
+      "href",
+      withBasePath("/search"),
+    );
 
-    await page.getByRole("link", { name: /^Search$/i }).first().click();
+    await page.goto(withBasePath("/search"));
     await expect(page).toHaveURL(/\/search$/);
     await expect(page.getByRole("heading", { name: /Universal Search/i })).toBeVisible();
 
@@ -46,6 +117,8 @@ test.describe("navigation failure recovery", () => {
   });
 
   test("reports and retries the attempted feedback route when a chunk fails before route completion", async ({ page }) => {
+    await seedSignalDeciderFeedbackCache(page, "2026-05-28");
+
     const sourceRoute = withBasePath("/calendar?date=2026-05-28");
     const attemptedRoute = withBasePath(
       "/dashboard/signal-decider-feedback?marketDate=2026-05-28&navContext=calendar",

@@ -39,6 +39,7 @@ import {
   type SignalDeciderQualityTone,
 } from "@/lib/signal-decider-feedback";
 import {
+  readLatestSignalDeciderFeedbackCacheByMarketDate,
   readSignalDeciderFeedbackCache,
   readSignalDeciderFeedbackCacheForMonth,
   selectSignalDeciderFeedbackResponse,
@@ -1029,6 +1030,7 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedFeedback, setSelectedFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [selectedProgress, setSelectedProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [selectedDataDate, setSelectedDataDate] = useState<string | null>(null);
+  const [latestUsableFeedbackDate, setLatestUsableFeedbackDate] = useState<string | null>(null);
   const [selectedLoadState, setSelectedLoadState] = useState<DetailLoadState>(initialDate ? "loading" : "idle");
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [progressUnavailable, setProgressUnavailable] = useState(false);
@@ -1039,10 +1041,24 @@ export default function SignalReviewCalendarPageClient() {
   const copy = t.signalReview;
   const selectedUnavailable = copy.states.selectedUnavailable;
   const feedbackDate = useMemo(() => parseCompactDateValue(selectedDate), [selectedDate]);
-  const feedbackListHref = useMemo(
-    () => buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT }),
-    [feedbackDate],
-  );
+  const refreshLatestUsableFeedbackDate = useCallback(() => {
+    const latestEntry = readLatestSignalDeciderFeedbackCacheByMarketDate();
+    const nextLatestDate = latestEntry?.marketDate ?? null;
+    setLatestUsableFeedbackDate((current) => (current === nextLatestDate ? current : nextLatestDate));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    queueMicrotask(() => {
+      if (!active) return;
+      refreshLatestUsableFeedbackDate();
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [refreshLatestUsableFeedbackDate]);
 
   useEffect(() => {
     const refreshTodayKey = () => {
@@ -1178,12 +1194,13 @@ export default function SignalReviewCalendarPageClient() {
             fetched: feedback,
           });
           if (selectedFeedback === feedback) {
-            writeSignalDeciderFeedbackCache({
+            const wroteCache = writeSignalDeciderFeedbackCache({
               feedback,
               marketDate: day.dateKey,
               progress: null,
               source: "calendar",
             });
+            if (wroteCache) refreshLatestUsableFeedbackDate();
           }
           return buildDateSnapshot(day.dateKey, selectedFeedback);
         } catch (error) {
@@ -1216,7 +1233,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [copy.states.unavailableMonth, monthKey, todayKey]);
+  }, [copy.states.unavailableMonth, monthKey, refreshLatestUsableFeedbackDate, todayKey]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -1265,12 +1282,13 @@ export default function SignalReviewCalendarPageClient() {
         setSelectedLoadState("ready");
         setSelectedError(null);
         if (selectedFeedback === feedback) {
-          writeSignalDeciderFeedbackCache({
+          const wroteCache = writeSignalDeciderFeedbackCache({
             feedback,
             marketDate: selectedDate,
             progress: selectedProgress,
             source: "calendar",
           });
+          if (wroteCache) refreshLatestUsableFeedbackDate();
         }
       } catch (error) {
         try {
@@ -1308,12 +1326,13 @@ export default function SignalReviewCalendarPageClient() {
           setSelectedLoadState("ready");
           setSelectedError(selectedReviewError);
           if (selectedFeedback === feedback) {
-            writeSignalDeciderFeedbackCache({
+            const wroteCache = writeSignalDeciderFeedbackCache({
               feedback,
               marketDate: selectedDate,
               progress,
               source: "calendar",
             });
+            if (wroteCache) refreshLatestUsableFeedbackDate();
           }
           return;
         } catch (fallbackError) {
@@ -1357,7 +1376,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [selectedUnavailable, devMode, selectedDate]);
+  }, [selectedUnavailable, devMode, refreshLatestUsableFeedbackDate, selectedDate]);
 
   const calendarDays = useMemo(() => buildCalendarDays(monthKey, todayKey), [monthKey, todayKey]);
   const selectedDataMatchesDate = selectedDate !== null && selectedDataDate === selectedDate;
@@ -1438,6 +1457,39 @@ export default function SignalReviewCalendarPageClient() {
     displayStatus: selectedDisplayStatus,
     selectedError,
   });
+  const selectedFeedbackNavigationBlocked =
+    !feedbackDate ||
+    selectedDisplayLoadState === "idle" ||
+    selectedDisplayLoadState === "loading" ||
+    (selectedDateUnavailable && selectedSummary.items.length === 0);
+  const latestUsableFeedbackCtaDate =
+    selectedFeedbackNavigationBlocked && latestUsableFeedbackDate && latestUsableFeedbackDate !== feedbackDate
+      ? latestUsableFeedbackDate
+      : null;
+  const feedbackCtaHref = selectedFeedbackNavigationBlocked
+    ? latestUsableFeedbackCtaDate
+      ? buildSignalDeciderFeedbackHref(latestUsableFeedbackCtaDate, {
+          navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
+        })
+      : null
+    : buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT });
+  const feedbackCtaState = selectedFeedbackNavigationBlocked
+    ? latestUsableFeedbackCtaDate
+      ? "latest"
+      : "disabled"
+    : "selected";
+  const feedbackCtaLabel =
+    feedbackCtaState === "latest"
+      ? copy.actions.openLatestFeedback
+      : feedbackCtaState === "disabled"
+        ? copy.actions.feedbackUnavailable
+        : copy.actions.openFeedback;
+  const feedbackCtaNotice =
+    feedbackCtaState === "latest" && latestUsableFeedbackCtaDate
+      ? copy.states.openLatestFeedback.replaceAll("{marketDate}", latestUsableFeedbackCtaDate)
+      : feedbackCtaState === "disabled"
+        ? copy.states.feedbackTableUnavailable
+        : null;
 
   useEffect(() => {
     let active = true;
@@ -1670,13 +1722,37 @@ export default function SignalReviewCalendarPageClient() {
             <p className={styles.pageCopy}>{copy.heroCopy}</p>
           </div>
 
-          <div className={styles.heroActions}>
-            <DocumentRouteLink href={feedbackListHref} className={styles.secondaryLink}>
-              {copy.actions.openFeedback}
-            </DocumentRouteLink>
-            <Link href="/dashboard" className={styles.secondaryLink}>
-              {copy.actions.backDashboard}
-            </Link>
+          <div className={styles.heroActionStack}>
+            <div className={styles.heroActions}>
+              {feedbackCtaHref ? (
+                <DocumentRouteLink
+                  href={feedbackCtaHref}
+                  className={styles.secondaryLink}
+                  data-calendar-feedback-cta-state={feedbackCtaState}
+                  data-testid="calendar-feedback-cta"
+                >
+                  {feedbackCtaLabel}
+                </DocumentRouteLink>
+              ) : (
+                <button
+                  type="button"
+                  className={`${styles.secondaryLink} ${styles.disabledSecondaryLink}`}
+                  data-calendar-feedback-cta-state={feedbackCtaState}
+                  data-testid="calendar-feedback-cta"
+                  disabled
+                >
+                  {feedbackCtaLabel}
+                </button>
+              )}
+              <Link href="/dashboard" className={styles.secondaryLink}>
+                {copy.actions.backDashboard}
+              </Link>
+            </div>
+            {feedbackCtaNotice ? (
+              <p className={styles.feedbackRecoveryNotice} data-testid="calendar-feedback-recovery-notice">
+                {feedbackCtaNotice}
+              </p>
+            ) : null}
           </div>
         </section>
 

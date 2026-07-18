@@ -37,6 +37,7 @@ import {
 } from "./signal-decider-feedback";
 import {
   readLatestSignalDeciderFeedbackCache,
+  readLatestSignalDeciderFeedbackCacheByMarketDate,
   readSignalDeciderFeedbackCache,
   selectSignalDeciderFeedbackResponse,
   writeSignalDeciderFeedbackCache,
@@ -2657,6 +2658,48 @@ test("caches same-date dashboard feedback for clicked-through review surfaces", 
   assert.equal(cached?.feedback.summary.count, 2);
   assert.equal(cached?.progress?.summary.run_id, "run-1");
   assert.equal(readLatestSignalDeciderFeedbackCache({ now: 2000, storage })?.marketDate, "2026-04-27");
+});
+
+test("resolves the latest usable cache entry by market date for calendar recovery", () => {
+  const storage = buildMemoryStorage();
+  const progress = buildProgress();
+  const buildDatedFeedback = (marketDate: string) =>
+    buildFeedbackResponse({
+      request: {
+        market_date: marketDate,
+        symbols: [],
+        agent_name: "signal-decider",
+        limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+      },
+      items: buildFeedbackResponse().items.map((item) => ({
+        ...item,
+        market_date: marketDate,
+        feedback: {
+          ...item.feedback,
+          market_date: marketDate,
+        },
+      })),
+    });
+
+  writeSignalDeciderFeedbackCache({
+    feedback: buildDatedFeedback("2026-04-29"),
+    marketDate: "2026-04-29",
+    now: 1000,
+    progress,
+    source: "calendar",
+    storage,
+  });
+  writeSignalDeciderFeedbackCache({
+    feedback: buildDatedFeedback("2026-04-26"),
+    marketDate: "2026-04-26",
+    now: 3000,
+    progress,
+    source: "calendar",
+    storage,
+  });
+
+  assert.equal(readLatestSignalDeciderFeedbackCache({ now: 3500, storage })?.marketDate, "2026-04-26");
+  assert.equal(readLatestSignalDeciderFeedbackCacheByMarketDate({ now: 3500, storage })?.marketDate, "2026-04-29");
 });
 
 test("does not replace cached stored rows with a contradictory empty direct read", () => {

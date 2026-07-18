@@ -5,6 +5,7 @@ import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome, type MobileAppChromeRouteChrome } from "@/components/mobile/mobile-app-chrome";
+import { DocumentRouteLink } from "@/components/navigation/document-route-link";
 import type { DashboardToolbarStatusTone } from "@/components/navigation/dashboard-toolbar";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
@@ -188,11 +189,16 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
           : isSearchContext
             ? copy.header.backToSearch
             : copy.header.backToDashboard;
-  const leadingLink = (
-    <Link href={backHref} className={styles.backButton} aria-label={backLabel} title={backLabel}>
-      ←
-    </Link>
-  );
+  const leadingLink =
+    navContext === SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT ? (
+      <DocumentRouteLink href={backHref} className={styles.backButton} aria-label={backLabel} title={backLabel}>
+        ←
+      </DocumentRouteLink>
+    ) : (
+      <Link href={backHref} className={styles.backButton} aria-label={backLabel} title={backLabel}>
+        ←
+      </Link>
+    );
 
   const handleDetailModeNavigation = (
     event: ReactMouseEvent<HTMLButtonElement>,
