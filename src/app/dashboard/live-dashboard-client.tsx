@@ -41,6 +41,7 @@ import {
 import { getNumberLocale } from "@/lib/locale";
 import {
   buildDashboardDeciderOverviewModel,
+  buildDashboardDeciderMoreHref,
   buildDashboardPortfolioOverviewModel,
   type DashboardDeciderOverviewModel,
   type DashboardPortfolioOverviewModel,
@@ -2179,6 +2180,14 @@ export function LiveDashboardClient({
       trackedError,
     ],
   );
+  const deciderRecommendationDetailHref = useMemo(
+    () =>
+      buildDashboardDeciderMoreHref({
+        fallbackHref: signalDeciderFeedbackModel.detailHref,
+        model: deciderOverviewModel,
+      }),
+    [deciderOverviewModel, signalDeciderFeedbackModel.detailHref],
+  );
   const portfolioOverviewModel = useMemo(
     () =>
       buildDashboardPortfolioOverviewModel({
@@ -2406,7 +2415,7 @@ export function LiveDashboardClient({
           <div className={styles.primaryInsightGrid}>
             <DeciderRecommendationCard
               copy={copy}
-              detailHref={signalDeciderFeedbackModel.detailHref}
+              detailHref={deciderRecommendationDetailHref}
               feedbackStatus={signalDeciderFeedbackModel.status}
               model={deciderOverviewModel}
               numberLocale={numberLocale}

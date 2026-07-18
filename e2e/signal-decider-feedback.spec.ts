@@ -1589,9 +1589,13 @@ test("dashboard signal-decider card hides current cycle on closed-market weekend
   await expect(card).not.toContainText("Current cycle");
   await expect(card).not.toContainText("2026-05-09 signal-decider");
   await expect(card).not.toContainText("Latest Friday recommendation remains the dashboard basis on the weekend.");
+  await expect(card.getByRole("link", { name: /Review rationale: Samsung Electronics 005930/i })).toHaveAttribute(
+    "href",
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-27",
+  );
   await expect(card.getByRole("link", { name: /Open the signal-decider feedback detail page/i })).toHaveAttribute(
     "href",
-    "/dashboard/signal-decider-feedback?marketDate=2026-05-08",
+    "/dashboard/signal-decider-feedback?marketDate=2026-04-27",
   );
 });
 

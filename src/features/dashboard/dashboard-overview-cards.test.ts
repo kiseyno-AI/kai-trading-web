@@ -11,6 +11,7 @@ import type {
 
 import {
   buildDashboardDeciderOverviewModel,
+  buildDashboardDeciderMoreHref,
   buildDashboardPortfolioOverviewModel,
 } from "./dashboard-overview-cards";
 import type { CoreMarketStatus, CoreTrackedQuotesResponse } from "./live-dashboard-types";
@@ -76,6 +77,7 @@ test("builds market-open decider rows from monitored symbols without per-symbol 
   });
 
   assert.equal(model.mode, "market-open");
+  assert.equal(model.detailMarketDate, "2026-05-22");
   assert.equal(model.rows.length, 1);
   assert.deepEqual(
     model.rows[0].prices.map((price) => [price.label, price.value]),
@@ -218,6 +220,7 @@ test("shows planned buy and sell rows when closed-market process is partial with
   });
 
   assert.equal(model.mode, "closed-planned");
+  assert.equal(model.detailMarketDate, "2026-05-22");
   assert.equal(model.statusLabel, "Today's plan");
   assert.equal(model.emptyLabel, null);
   assert.equal(model.rows.length, 2);
@@ -325,6 +328,7 @@ test("builds closed-market next-day exec rows with close prices when the daily p
   });
 
   assert.equal(model.mode, "closed-completed");
+  assert.equal(model.detailMarketDate, "2026-05-21");
   assert.equal(model.rows.length, 1);
   assert.deepEqual(
     model.rows[0].prices.map((price) => [price.label, price.value]),
@@ -337,6 +341,78 @@ test("builds closed-market next-day exec rows with close prices when the daily p
   assert.equal(
     model.rows[0].detailHref,
     "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21",
+  );
+});
+
+test("routes decider More link to visible recommendation source date", () => {
+  const board = {
+    market_date: "2026-07-19",
+    items: [
+      {
+        symbol: "004080",
+        name: "Kyungbang",
+        market: "KRX",
+        status: "scheduled",
+        intent: "next_open_buy",
+        target_price: 9500,
+        stop_loss_price: 8700,
+        market_close_price: 9100,
+        source_market_date: "2026-07-16",
+        target_trade_date: "2026-07-20",
+      },
+    ],
+  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+
+  const model = buildDashboardDeciderOverviewModel({
+    board,
+    copy,
+    market: {
+      is_open: false,
+      server_time: "2026-07-19T00:10:00+09:00",
+      state: "CLOSED",
+    },
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.equal(model.detailMarketDate, "2026-07-16");
+  assert.equal(
+    model.rows[0].detailHref,
+    "/dashboard/symbol/004080/action-summary?name=Kyungbang&market=KRX&marketDate=2026-07-16",
+  );
+  assert.equal(
+    buildDashboardDeciderMoreHref({
+      fallbackHref: "/dashboard/signal-decider-feedback?marketDate=2026-07-19",
+      model,
+    }),
+    "/dashboard/signal-decider-feedback?marketDate=2026-07-16",
+  );
+});
+
+test("keeps fallback decider More href when no recommendation rows are visible", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: { market_date: "2026-07-19", items: [] },
+    copy,
+    market: {
+      is_open: false,
+      server_time: "2026-07-19T00:10:00+09:00",
+      state: "CLOSED",
+    },
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.equal(model.detailMarketDate, null);
+  assert.equal(
+    buildDashboardDeciderMoreHref({
+      fallbackHref: "/dashboard/signal-decider-feedback?marketDate=2026-07-19",
+      model,
+    }),
+    "/dashboard/signal-decider-feedback?marketDate=2026-07-19",
   );
 });
 
