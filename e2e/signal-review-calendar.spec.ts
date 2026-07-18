@@ -2184,7 +2184,7 @@ test("calendar-sourced mobile feedback shows decision rows before data-gap diagn
   expect(firstDecisionBox!.y).toBeLessThan(dataGapBox!.y);
 });
 
-test("calendar-sourced mobile feedback timeout keeps Core detail in diagnostics", async ({ page }) => {
+test("calendar unavailable selected date keeps feedback CTA in recovery mode", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page, {
     forceCalendarSummaryFailure: true,
@@ -2194,36 +2194,49 @@ test("calendar-sourced mobile feedback timeout keeps Core detail in diagnostics"
 
   await page.goto("/calendar?date=2026-05-26");
   await page.getByRole("button", { name: /Korean/i }).click();
-  await page.getByRole("link", { name: /피드백 표 열기/i }).first().click();
 
-  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-05-26&navContext=calendar$/);
-  await expect(
-    page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-05-26 / 피드백"),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: "캘린더로 돌아가기" })).toHaveAttribute(
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveText("피드백 표 사용 불가");
+  await expect(feedbackCta).toBeDisabled();
+  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "disabled");
+  await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
+    "선택한 날짜는 지금 피드백 행을 열 수 없습니다.",
+  );
+  await expect(page).toHaveURL(/\/calendar\?date=2026-05-26$/);
+  await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveCount(0);
+  await expect(page.getByTestId("feedback-error-primary")).toHaveCount(0);
+});
+
+test("calendar unavailable selected date routes feedback CTA to latest cached usable date", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedDashboardSignalDeciderCache(page, "2026-04-27");
+  await mockSignalReviewCalendar(page, {
+    forceCalendarSummaryFailure: true,
+    runningProgressDates: ["2026-05-26"],
+    timeoutFeedbackDates: ["2026-05-26"],
+    timeoutReviewDateDates: ["2026-05-26"],
+  });
+
+  await page.goto("/calendar?date=2026-05-26");
+  await page.getByRole("button", { name: /Korean/i }).click();
+
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveText("최근 피드백 표 열기");
+  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "latest");
+  await expect(feedbackCta).toHaveAttribute(
     "href",
-    "/calendar?date=2026-05-26",
+    "/dashboard/signal-decider-feedback?marketDate=2026-04-27&navContext=calendar",
   );
+  await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText("2026-04-27");
 
-  const primaryFeedbackError = page.getByTestId("feedback-error-primary").first();
-  await expect(primaryFeedbackError).toContainText("시그널 디사이더 피드백 조회 시간이 초과되었습니다.");
-  await expect(primaryFeedbackError).toContainText("피드백 없음으로 확정된 상태가 아닙니다.");
-  await expect(primaryFeedbackError).not.toContainText("/agent-context/feedback");
-  await expect(page.getByTestId("feedback-error-retry").first()).toHaveText("다시 시도");
+  await feedbackCta.click();
 
-  const dataGapReport = page.getByTestId("decider-data-gaps-report");
-  await expect(dataGapReport.getByTestId("feedback-error-primary")).toContainText(
-    "피드백 조회 시간이 초과되어 데이터 갭 집계를 사용할 수 없습니다.",
-  );
-  await expect(dataGapReport.getByTestId("feedback-error-primary")).not.toContainText("/agent-context/feedback");
-  await expect(dataGapReport.getByTestId("decider-data-gap-total-rows").locator("strong")).toHaveText("사용 불가");
-  await expect(dataGapReport).not.toContainText("피드백 행이 없어 데이터 갭 집계를 실행할 수 없습니다.");
-
-  const diagnostics = page.getByTestId("feedback-error-diagnostics").first();
-  await diagnostics.locator("summary").click();
-  await expect(diagnostics).toContainText(
-    "Timed out after 5.0s while loading /agent-context/feedback from trading-core.",
-  );
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27&navContext=calendar$/);
+  await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+  await expect(
+    page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-04-27 / 피드백"),
+  ).toBeVisible();
+  await expect(page.getByTestId("signal-decider-result-card").first()).toBeVisible();
 });
 
 test("feedback table link keeps the selected calendar date in navigation", async ({ page }) => {
@@ -2690,25 +2703,15 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
     await expect(selectedPanel).toContainText("선택한 날짜 리뷰를 불러오지 못했습니다.");
     await expect(selectedPanel).not.toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
     await expect(selectedPanel).not.toContainText("로딩 중");
-    await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveAttribute(
-      "href",
-      /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-26&navContext=calendar$/,
+    const feedbackCta = page.getByTestId("calendar-feedback-cta");
+    await expect(feedbackCta).toHaveText("피드백 표 사용 불가");
+    await expect(feedbackCta).toBeDisabled();
+    await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "disabled");
+    await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
+      "선택한 날짜는 지금 피드백 행을 열 수 없습니다.",
     );
-
-    await page.getByRole("link", { name: /피드백 표 열기/i }).click();
-    await expect(page).toHaveURL(
-      /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-26&navContext=calendar$/,
-    );
-    await expect(
-      page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-05-26 / 피드백"),
-    ).toBeVisible();
-    await expect(page.getByRole("link", { name: "캘린더로 돌아가기" })).toHaveAttribute(
-      "href",
-      "/calendar?date=2026-05-26",
-    );
-    await expect(page.getByTestId("feedback-error-primary").first()).toContainText(
-      "시그널 디사이더 피드백 조회 시간이 초과되었습니다.",
-    );
+    await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/calendar\?date=2026-05-26$/);
   } finally {
     unavailableDateFetch.resolve();
   }
