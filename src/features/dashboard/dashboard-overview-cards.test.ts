@@ -6,8 +6,8 @@ import type {
   ExecutionRuntimeDailyBoardResponseDto,
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeStatusResponseDto,
-  PortfolioSummaryDto,
-} from "@/types/trading-api";
+} from "@/types/trading-api/execution-runtime";
+import type { PortfolioSummaryDto } from "@/types/trading-api/portfolio-account";
 
 import {
   buildDashboardDeciderOverviewModel,

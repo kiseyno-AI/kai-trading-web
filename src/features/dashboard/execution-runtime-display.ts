@@ -9,7 +9,7 @@ import type {
   ExecutionRuntimeQuantity,
   ExecutionRuntimeStatusResponseDto,
   ExecutionRuntimeStatusValue,
-} from "@/types/trading-api";
+} from "@/types/trading-api/execution-runtime";
 
 import { UNKNOWN_LABEL } from "./live-dashboard-derived-state";
 
@@ -154,7 +154,12 @@ function getDerivedStatusCount(items: ExecutionRuntimeBoardItemDto[], status: Ex
 function getStatusTone(status: ExecutionRuntimeStatusValue | null | undefined): ExecutionRuntimeTone {
   const normalizedStatus = normalizeToken(status);
   if (normalizedStatus === "ready") return "positive";
-  if (normalizedStatus === "degraded" || normalizedStatus === "offline" || normalizedStatus === "kill_switched") {
+  if (
+    normalizedStatus === "degraded" ||
+    normalizedStatus === "offline" ||
+    normalizedStatus === "paused" ||
+    normalizedStatus === "kill_switched"
+  ) {
     return "warning";
   }
   return "neutral";

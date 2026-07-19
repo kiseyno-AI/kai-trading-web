@@ -251,7 +251,7 @@ src/
   features/               # dashboard, markets, bots composition
   data/                   # Mock/demo payloads
   lib/                    # trading-api adapter, trading-upstream, hooks, utils
-  types/                  # DTOs (trading-api.ts)
+  types/                  # Trading API DTO barrel plus endpoint-family DTO modules
 docs/
   API_CONTRACT.md         # Intended envelope and shapes (may drift; compare to code)
 e2e/                      # Playwright smoke tests

@@ -8,9 +8,9 @@ import type {
   CryptoRuntimeReadinessRowDto,
   CryptoStrategyOverviewResponseDto,
   CryptoStrategyRowDto,
-  ExecutionRuntimeQuantity,
-  PortfolioMoneyAmountDto,
-} from "@/types/trading-api";
+} from "@/types/trading-api/crypto-readonly";
+import type { ExecutionRuntimeQuantity } from "@/types/trading-api/execution-runtime";
+import type { PortfolioMoneyAmountDto } from "@/types/trading-api/portfolio-account";
 
 export const CRYPTO_MARKET_OVERVIEW_UPSTREAM_PATH = "/crypto/markets/overview";
 export const CRYPTO_STRATEGY_OVERVIEW_UPSTREAM_PATH = "/crypto/strategies/overview";

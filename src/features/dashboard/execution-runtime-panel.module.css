@@ -25,6 +25,7 @@
 
 .panel[data-runtime-status="offline"],
 .panel[data-runtime-status="degraded"],
+.panel[data-runtime-status="paused"],
 .panel[data-runtime-status="kill_switched"] {
   border-color: rgba(245, 184, 75, 0.42);
   background:

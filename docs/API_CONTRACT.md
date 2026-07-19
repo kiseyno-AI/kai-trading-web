@@ -60,6 +60,7 @@ This document defines the first practical frontend contract for wiring `trading-
     - `/dashboard` renders exec integration/connection state inside the Portfolio status card from this core-owned read model only. The web does not call `kai-trading-exec` directly.
     - The card treats `exec_connected` as the primary connection signal and labels the field as unavailable when the status payload is missing. Rich runtime details such as mode, heartbeat, open-order count, active job count, and issue lists are no longer separate dashboard body sections.
     - Runtime reads are uncached in the browser because liveness, heartbeat, open orders, and active jobs can change during the same session.
+    - Canonical web-side execution-runtime DTOs live in `src/types/trading-api/execution-runtime.ts`; `src/types/trading-api.ts` re-exports them only for legacy import compatibility. Runtime browser reads normalize timeout, not-configured, unavailable, and invalid-response states through `src/lib/execution-runtime-read.ts` and `src/lib/trading-api-result.ts`.
   - `GET /execution/runtime/monitored-symbols?market_date=YYYY-MM-DD`
     - When `/market/status` reports the market open, `/dashboard` renders Decider recommendations from Core's grouped execution-runtime view. Each row shows symbol/company, market when available, stop-loss price, target price, and current price.
     - The web consumes optional `target_price`, `stop_loss_price`, and `current_price` fields when Core includes them. If current price is absent from the monitored-symbol read, the card reuses the existing grouped `/quotes/tracked` read for matching symbols and otherwise labels the value unavailable. It does not fan out per-symbol quote requests.
@@ -373,7 +374,8 @@ No active request or response contract is documented for the current web UI. Add
 - Use Redis/cache for short-lived market snapshots and order book depth data
 
 ## Frontend implementation notes in `trading-web`
-- Types live in `src/types/trading-api.ts`
+- `src/types/trading-api.ts` is the compatibility barrel. Endpoint-family DTOs live under `src/types/trading-api/`, including `common.ts`, `portfolio-account.ts`, `execution-runtime.ts`, and `crypto-readonly.ts`; add new read-model fields to the endpoint-family module first, then re-export through the barrel when old imports must keep working.
+- Shared same-origin BFF read failure normalization lives in `src/lib/trading-api-result.ts`; execution-runtime read validators and client result helpers live in `src/lib/execution-runtime-read.ts`.
 - Current mock adapter lives in `src/lib/trading-api.ts`
 - Route-level hooks now consume the adapter rather than hardcoding page data
 - FastAPI migration path: swap `mockTradingApi` for an HTTP-backed adapter with the same `TradingApiAdapter` interface

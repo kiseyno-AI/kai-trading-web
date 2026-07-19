@@ -16,7 +16,7 @@ import type {
   CryptoPaperRuntimeResponseDto,
   CryptoRuntimeReadinessResponseDto,
   CryptoStrategyOverviewResponseDto,
-} from "@/types/trading-api";
+} from "@/types/trading-api/crypto-readonly";
 
 const CRYPTO_READ_ONLY_KEY = ["markets", "crypto", "read-only"] as const;
 
