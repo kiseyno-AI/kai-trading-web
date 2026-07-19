@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getExecutionRuntimeMonitoredSymbolsReadResult,
+  getExecutionRuntimeStatusReadResult,
   normalizeExecutionRuntimeDailyBoardResult,
   normalizeExecutionRuntimeMonitoredSymbolsResult,
   normalizeExecutionRuntimeStatusResult,
@@ -73,4 +75,44 @@ test("rejects malformed execution runtime list payload item containers", () => {
   if (result.ok) throw new Error("Expected malformed list to normalize as a failure.");
   assert.equal(result.kind, "invalid-response");
   assert.equal(result.message, "Execution runtime monitored-symbols response was invalid.");
+});
+
+test("normalizes empty successful execution runtime status JSON as invalid response", async (t) => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => new Response("", { status: 200 })) as typeof fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const result = await getExecutionRuntimeStatusReadResult();
+
+  assert.equal(result.ok, false);
+  if (result.ok) throw new Error("Expected empty JSON to normalize as a failure.");
+  assert.equal(result.kind, "invalid-response");
+  assert.equal(result.message, "Execution runtime status response was invalid.");
+  assert.equal(result.status, null);
+});
+
+test("normalizes malformed successful execution runtime monitored-symbols JSON as invalid response", async (t) => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () =>
+    new Response("{ malformed", {
+      headers: {
+        "content-type": "application/json",
+      },
+      status: 200,
+    })) as typeof fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const result = await getExecutionRuntimeMonitoredSymbolsReadResult();
+
+  assert.equal(result.ok, false);
+  if (result.ok) throw new Error("Expected malformed JSON to normalize as a failure.");
+  assert.equal(result.kind, "invalid-response");
+  assert.equal(result.message, "Execution runtime monitored-symbols response was invalid.");
+  assert.equal(result.status, null);
 });
