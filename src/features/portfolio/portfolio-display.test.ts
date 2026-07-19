@@ -16,7 +16,7 @@ import {
   resolvePortfolioRiskSnapshotState,
   resolvePortfolioSummaryState,
 } from "./portfolio-display";
-import type { PortfolioRiskSnapshotDto, PortfolioSummaryDto } from "@/types/trading-api";
+import type { PortfolioRiskSnapshotDto, PortfolioSummaryDto } from "@/types/trading-api/portfolio-account";
 
 test("formats backend money display values before raw numeric fallbacks", () => {
   assert.equal(formatPortfolioMoney({ amount: 1000, currency: "KRW", display: "₩1,000 settled" }), "₩1,000 settled");

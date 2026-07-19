@@ -16,9 +16,13 @@ import {
   getTradingApiJsonResult,
   readTradingApiJsonSnapshot,
   seedTradingApiJsonSnapshot,
-  type TradingApiJsonResult,
 } from "@/lib/trading-api-cache";
-import type { PortfolioRiskSnapshotDto, PortfolioSummaryDto } from "@/types/trading-api";
+import {
+  isTradingApiObjectResponse,
+  normalizeTradingApiJsonResult,
+  type TradingApiNormalizedFailure,
+} from "@/lib/trading-api-result";
+import type { PortfolioRiskSnapshotDto, PortfolioSummaryDto } from "@/types/trading-api/portfolio-account";
 import {
   buildPortfolioRiskSnapshotModel,
   buildPortfolioSectionStates,
@@ -105,10 +109,17 @@ function StateNotice({
   );
 }
 
-type PortfolioSummaryFailure = Extract<TradingApiJsonResult<PortfolioSummaryDto>, { ok: false }>;
-type PortfolioRiskSnapshotFailure = Extract<TradingApiJsonResult<PortfolioRiskSnapshotDto>, { ok: false }>;
+type PortfolioSummaryFailure = TradingApiNormalizedFailure;
+type PortfolioRiskSnapshotFailure = TradingApiNormalizedFailure;
 
 function getPortfolioFailure(result: PortfolioSummaryFailure, copy: PortfolioCopy): PortfolioFailure {
+  if (result.kind === "invalid-response") {
+    return {
+      kind: "invalid-response",
+      message: result.message,
+    };
+  }
+
   const kind = classifyPortfolioSummaryFailure(result);
 
   if (kind === "endpoint-pending") {
@@ -132,6 +143,13 @@ function getPortfolioFailure(result: PortfolioSummaryFailure, copy: PortfolioCop
 }
 
 function getPortfolioRiskFailure(result: PortfolioRiskSnapshotFailure, copy: PortfolioCopy): PortfolioFailure {
+  if (result.kind === "invalid-response") {
+    return {
+      kind: "invalid-response",
+      message: result.message,
+    };
+  }
+
   const kind = classifyPortfolioSummaryFailure(result);
 
   if (kind === "endpoint-pending") {
@@ -470,22 +488,20 @@ export default function PortfolioPageClient() {
 
         if (cancelled) return;
 
-        if (!result.ok) {
-          setFailure(getPortfolioFailure(result, copy));
+        const normalizedResult = normalizeTradingApiJsonResult(result, {
+          invalidResponseMessage: copy.errors.emptyResponse,
+          isValidData: (value): value is PortfolioSummaryDto => isTradingApiObjectResponse(value),
+        });
+
+        if (!normalizedResult.ok) {
+          setFailure(getPortfolioFailure(normalizedResult, copy));
           setSummary(null);
           setLoading(false);
           return;
         }
 
-        if (!result.data || typeof result.data !== "object") {
-          setFailure({ kind: "invalid-response", message: copy.errors.emptyResponse });
-          setSummary(null);
-          setLoading(false);
-          return;
-        }
-
-        seedTradingApiJsonSnapshot(PORTFOLIO_SUMMARY_PATH, result.data);
-        setSummary(result.data);
+        seedTradingApiJsonSnapshot(PORTFOLIO_SUMMARY_PATH, normalizedResult.data);
+        setSummary(normalizedResult.data);
         setFailure(null);
         setLoading(false);
       } catch {
@@ -514,22 +530,20 @@ export default function PortfolioPageClient() {
 
         if (cancelled) return;
 
-        if (!result.ok) {
-          setRiskFailure(getPortfolioRiskFailure(result, copy));
+        const normalizedResult = normalizeTradingApiJsonResult(result, {
+          invalidResponseMessage: copy.risk.errors.emptyResponse,
+          isValidData: (value): value is PortfolioRiskSnapshotDto => isTradingApiObjectResponse(value),
+        });
+
+        if (!normalizedResult.ok) {
+          setRiskFailure(getPortfolioRiskFailure(normalizedResult, copy));
           setRiskSnapshot(null);
           setRiskLoading(false);
           return;
         }
 
-        if (!result.data || typeof result.data !== "object") {
-          setRiskFailure({ kind: "invalid-response", message: copy.risk.errors.emptyResponse });
-          setRiskSnapshot(null);
-          setRiskLoading(false);
-          return;
-        }
-
-        seedTradingApiJsonSnapshot(EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_CLIENT_PATH, result.data);
-        setRiskSnapshot(result.data);
+        seedTradingApiJsonSnapshot(EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_CLIENT_PATH, normalizedResult.data);
+        setRiskSnapshot(normalizedResult.data);
         setRiskFailure(null);
         setRiskLoading(false);
       } catch {

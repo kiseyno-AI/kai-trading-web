@@ -22,8 +22,12 @@ import {
   buildExecutionRuntimeMarketDatePath,
   EXECUTION_RUNTIME_DAILY_BOARD_CLIENT_PATH,
   EXECUTION_RUNTIME_MONITORED_SYMBOLS_CLIENT_PATH,
-  EXECUTION_RUNTIME_STATUS_CLIENT_PATH,
 } from "@/lib/execution-runtime";
+import {
+  getExecutionRuntimeDailyBoardReadResult,
+  getExecutionRuntimeMonitoredSymbolsReadResult,
+  getExecutionRuntimeStatusReadResult,
+} from "@/lib/execution-runtime-read";
 import {
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
   PORTFOLIO_SUMMARY_PATH,
@@ -528,36 +532,36 @@ export function useLiveDashboardData({
     );
 
     const loadExecutionRuntime = async () => {
-      const [statusResult, monitoredSymbolsResult, dailyBoardResult] = await Promise.allSettled([
-        getJsonNoCache<ExecutionRuntimeStatusResponseDto>(EXECUTION_RUNTIME_STATUS_CLIENT_PATH),
-        getJsonNoCache<ExecutionRuntimeMonitoredSymbolsResponseDto>(monitoredSymbolsPath),
-        getJsonNoCache<ExecutionRuntimeDailyBoardResponseDto>(dailyBoardPath),
+      const [statusResult, monitoredSymbolsResult, dailyBoardResult] = await Promise.all([
+        getExecutionRuntimeStatusReadResult(),
+        getExecutionRuntimeMonitoredSymbolsReadResult(monitoredSymbolsPath),
+        getExecutionRuntimeDailyBoardReadResult(dailyBoardPath),
       ]);
 
       if (!active) return;
 
-      if (statusResult.status === "fulfilled") {
-        setExecutionRuntimeStatus(statusResult.value);
+      if (statusResult.ok) {
+        setExecutionRuntimeStatus(statusResult.data);
         setExecutionRuntimeStatusError(null);
       } else {
-        console.error("Dashboard execution runtime status load failed", statusResult.reason);
-        setExecutionRuntimeStatusError(getDashboardLoadErrorMessage(statusResult.reason));
+        console.error("Dashboard execution runtime status load failed", statusResult.message);
+        setExecutionRuntimeStatusError(statusResult.message);
       }
 
-      if (monitoredSymbolsResult.status === "fulfilled") {
-        setExecutionRuntimeMonitoredSymbols(monitoredSymbolsResult.value);
+      if (monitoredSymbolsResult.ok) {
+        setExecutionRuntimeMonitoredSymbols(monitoredSymbolsResult.data);
         setExecutionRuntimeMonitoredSymbolsError(null);
       } else {
-        console.error("Dashboard execution runtime monitored symbols load failed", monitoredSymbolsResult.reason);
-        setExecutionRuntimeMonitoredSymbolsError(getDashboardLoadErrorMessage(monitoredSymbolsResult.reason));
+        console.error("Dashboard execution runtime monitored symbols load failed", monitoredSymbolsResult.message);
+        setExecutionRuntimeMonitoredSymbolsError(monitoredSymbolsResult.message);
       }
 
-      if (dailyBoardResult.status === "fulfilled") {
-        setExecutionRuntimeDailyBoard(dailyBoardResult.value);
+      if (dailyBoardResult.ok) {
+        setExecutionRuntimeDailyBoard(dailyBoardResult.data);
         setExecutionRuntimeDailyBoardError(null);
       } else {
-        console.error("Dashboard execution runtime daily board load failed", dailyBoardResult.reason);
-        setExecutionRuntimeDailyBoardError(getDashboardLoadErrorMessage(dailyBoardResult.reason));
+        console.error("Dashboard execution runtime daily board load failed", dailyBoardResult.message);
+        setExecutionRuntimeDailyBoardError(dailyBoardResult.message);
       }
     };
 

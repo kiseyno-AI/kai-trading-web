@@ -6,10 +6,12 @@ import type {
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeQuantity,
   ExecutionRuntimeStatusResponseDto,
+} from "@/types/trading-api/execution-runtime";
+import type {
   PortfolioHoldingDto,
   PortfolioMoneyAmountDto,
   PortfolioSummaryDto,
-} from "@/types/trading-api";
+} from "@/types/trading-api/portfolio-account";
 import {
   buildPortfolioMetricModels,
   formatPortfolioMoney,

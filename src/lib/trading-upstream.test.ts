@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { proxyTradingUpstreamJson, proxyTradingUpstreamResponse } from "./trading-upstream";
+import {
+  buildTradingUpstreamRequestPath,
+  proxyTradingUpstreamJson,
+  proxyTradingUpstreamResponse,
+} from "./trading-upstream";
 
 function createAbortAwareFetch() {
   let requestCount = 0;
@@ -77,6 +81,15 @@ test("proxyTradingUpstreamJson returns a bounded 504 response when upstream neve
   assert.equal(body.path, "/symbols/search?q=005930&limit=20");
   assert.equal(body.timeoutMs, 10);
   assert.match(body.message ?? "", /Timed out after 10ms/i);
+});
+
+test("buildTradingUpstreamRequestPath forwards route query parameters", () => {
+  const request = new Request("http://localhost:3000/api/trading/execution/runtime/status?refresh=true");
+
+  assert.equal(
+    buildTradingUpstreamRequestPath(request, "/execution/runtime/status"),
+    "/execution/runtime/status?refresh=true",
+  );
 });
 
 test("proxyTradingUpstreamResponse does not apply the JSON default timeout to document streams", async (t) => {

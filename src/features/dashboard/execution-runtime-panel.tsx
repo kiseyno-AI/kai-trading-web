@@ -8,7 +8,7 @@ import type {
   ExecutionRuntimeDailyBoardResponseDto,
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeStatusResponseDto,
-} from "@/types/trading-api";
+} from "@/types/trading-api/execution-runtime";
 
 import {
   buildExecutionRuntimeDailyBoardModel,

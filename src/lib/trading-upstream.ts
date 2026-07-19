@@ -465,6 +465,22 @@ export async function proxyTradingUpstreamJson(
   }
 }
 
+export function buildTradingUpstreamRequestPath(request: Request, upstreamPath: string) {
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.toString();
+
+  return query ? `${upstreamPath}?${query}` : upstreamPath;
+}
+
+export function proxyTradingUpstreamJsonFromRequest(
+  request: Request,
+  upstreamPath: string,
+  init?: RequestInit,
+  options: TradingUpstreamRequestOptions = {},
+) {
+  return proxyTradingUpstreamJson(buildTradingUpstreamRequestPath(request, upstreamPath), init, options);
+}
+
 export async function proxyTradingUpstreamResponse(
   path: string,
   init?: RequestInit,

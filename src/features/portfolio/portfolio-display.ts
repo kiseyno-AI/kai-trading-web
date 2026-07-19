@@ -9,7 +9,8 @@ import type {
   PortfolioRiskSnapshotDto,
   PortfolioRiskWarningDto,
   PortfolioSummaryDto,
-} from "@/types/trading-api";
+} from "@/types/trading-api/portfolio-account";
+import { classifyTradingApiFailure } from "@/lib/trading-api-result";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 
 export type PortfolioMetricId = "total-assets" | "week-pnl" | "unrealized-pnl" | "cash-buying-power";
@@ -110,7 +111,7 @@ type PortfolioRiskSnapshotStateInput = {
 
 type PortfolioFailureInput = {
   message?: string | null;
-  status: number;
+  status?: number | null;
 };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -808,10 +809,9 @@ export function isPortfolioSummaryPartial(summary: PortfolioSummaryDto | null | 
 }
 
 export function classifyPortfolioSummaryFailure({ message = null, status }: PortfolioFailureInput): PortfolioSummaryFailureKind {
-  if (status === 404) return "endpoint-pending";
-  if (status === 401 || status === 403) return "not-configured";
-  if (hasMessageSignal(message, NOT_CONFIGURED_MESSAGE_PATTERN)) return "not-configured";
-  if (status >= 500 || status === 0) return "upstream-unavailable";
+  const failureKind = classifyTradingApiFailure({ message, status });
+  if (failureKind === "endpoint-pending") return "endpoint-pending";
+  if (failureKind === "not-configured") return "not-configured";
 
   return "upstream-unavailable";
 }

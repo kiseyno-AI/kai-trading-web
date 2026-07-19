@@ -975,6 +975,34 @@ test.describe("dashboard desktop", () => {
         }),
       });
     });
+    await page.route("**/api/trading/execution/runtime/status**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ready",
+          mode: "paper",
+          exec_connected: true,
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/monitored-symbols**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-16",
+          items: [],
+        }),
+      });
+    });
+    await page.route("**/api/trading/execution/runtime/daily-board**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-04-16",
+          items: [],
+        }),
+      });
+    });
 
     await page.goto("/dashboard");
 
