@@ -1,7 +1,211 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const symbolSeed =
   "name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10";
+
+const symbolOverviewFactorPaths = [
+  "/api/trading/eod/momentum-factors",
+  "/api/trading/eod/low-risk-factors",
+  "/api/trading/eod/beta-factors",
+  "/api/trading/eod/value-factors",
+  "/api/trading/eod/advanced-value-factors",
+] as const;
+
+async function mockSymbolOverviewSectionRoutes(page: Page) {
+  const marketDate = "2026-04-10";
+
+  await page.route("**/api/trading/scanner/tracked-symbols", async (route) => {
+    await route.fulfill({
+      json: {
+        tracked_symbols: [],
+        count: 0,
+        last_updated_at: null,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/quotes/005930", async (route) => {
+    await route.fulfill({
+      json: {
+        symbol: "005930",
+        company_name: "Samsung Electronics",
+        price: 71500,
+        change: 0,
+        change_pct: 0,
+        volume: 1250000,
+        turnover: 89375000000,
+        market_state: "CLOSED",
+        source: "daily_price_bar",
+        fallback: true,
+        is_live: false,
+        available: true,
+        trade_date: marketDate,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/market/status", async (route) => {
+    await route.fulfill({
+      json: {
+        state: "CLOSED",
+        is_open: false,
+        server_time: `${marketDate}T16:00:00+09:00`,
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      json: {
+        today: {
+          trade_date: marketDate,
+          eod_status: "completed",
+          symbols_total: 1,
+          symbols_succeeded: 1,
+          symbols_failed: 0,
+        },
+        latest: {
+          price_trade_date: marketDate,
+          technical_market_date: marketDate,
+          action_market_date: marketDate,
+        },
+        technical: {
+          success: true,
+          latest_date: marketDate,
+        },
+      },
+    });
+  });
+
+  await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+    await route.fulfill({
+      json: {
+        request: {
+          market_date: marketDate,
+          symbols: ["005930"],
+          fs_div: null,
+          fs_label: null,
+          disclosures_limit: 4,
+        },
+        summary: {
+          requested_symbol_count: 1,
+          matched_symbol_count: 1,
+          technical_snapshot_count: 0,
+          action_summary_count: 0,
+          fundamentals_count: 0,
+          recent_disclosure_symbol_count: 0,
+          missing_symbols: [],
+        },
+        items: [
+          {
+            symbol: "005930",
+            market_date: marketDate,
+            company: {
+              symbol: "005930",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+              instrument_type: "stock",
+              standard_code: "KR7005930003",
+              source: "test",
+              is_active: true,
+              last_refreshed_at: null,
+              dart: {
+                corp_code: "00126380",
+                corp_name: "Samsung Electronics",
+              },
+            },
+            technical_snapshot: null,
+            action_summary: null,
+            fundamentals: {
+              latest_snapshot: null,
+              history_summary: {
+                entries: 0,
+                latest_receipt_date: null,
+                latest_period_end_date: null,
+                available_business_years: [],
+                recent_periods: [],
+              },
+            },
+            recent_disclosures: {
+              count: 0,
+              items: [],
+            },
+            availability: {
+              company: true,
+              technical_snapshot: false,
+              action_summary: false,
+              fundamentals: false,
+              recent_disclosures: false,
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+    await route.fulfill({
+      json: {
+        market_date: marketDate,
+        summary: {
+          entries: 0,
+          requested_symbol: "005930",
+          matched_symbols: [],
+          missing_symbols: ["005930"],
+          passed_count: 0,
+          not_passed_count: 0,
+        },
+        item: null,
+        items: [],
+      },
+    });
+  });
+
+  await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+    await route.fulfill({
+      json: {
+        symbol: "005930",
+        count: 1,
+        start_date: marketDate,
+        end_date: marketDate,
+        requested_start_date: "2025-04-10",
+        requested_end_date: marketDate,
+        items: [
+          {
+            trade_date: marketDate,
+            open_price: 71000,
+            high_price: 71800,
+            low_price: 70800,
+            close_price: 71500,
+            volume: 1250000,
+            turnover: 89375000000,
+            source: "test",
+            captured_at: `${marketDate}T16:00:00+09:00`,
+          },
+        ],
+      },
+    });
+  });
+
+  for (const factorPath of symbolOverviewFactorPaths) {
+    await page.route(`**${factorPath}?**`, async (route) => {
+      await route.fulfill({
+        json: {
+          market_date: marketDate,
+          feature_version: "e2e-empty-factor-snapshot",
+          summary: {
+            entries: 0,
+            requested_symbol: "005930",
+            matched_symbols: [],
+            missing_symbols: ["005930"],
+          },
+          item: null,
+          items: [],
+        },
+      });
+    });
+  }
+}
 
 test.describe("symbol detail desktop", () => {
   test("revisits symbol workspace with local unit refresh overlays instead of a full-page loader", async ({ page }) => {
@@ -311,6 +515,7 @@ test.describe("symbol detail desktop", () => {
 
   test("overview shows Insights chart, factor snapshot, and freshness sections", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await mockSymbolOverviewSectionRoutes(page);
     await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
 
     await expect(page.getByRole("navigation", { name: /Primary desktop/i })).toBeVisible();
