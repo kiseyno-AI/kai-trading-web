@@ -2430,47 +2430,48 @@ test("signal review calendar avoids repeated partial fragments in Korean mobile 
   }
 });
 
-test("signal review calendar keeps a different month loading while the selected ready date belongs to the previous month", async ({
-  page,
-}) => {
-  const delayedPreviousMonthFetch = createDeferred();
-  try {
-    await mockSignalReviewCalendar(page, {
-      denseFeedbackDates: {
-        "2026-05-22": 118,
-      },
-      forceCalendarSummaryFailure: true,
-      feedbackDelays: {
-        "2026-04-01": delayedPreviousMonthFetch.promise,
-      },
-    });
+test("signal review calendar synchronizes selected context when navigating to the previous month", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-23T09:00:00+09:00"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page);
 
-    await page.goto("/calendar?date=2026-05-22");
+  await page.goto("/calendar?date=2026-07-23");
+  await expect(page.getByRole("heading", { name: "2026-07-23" })).toBeVisible();
 
-    const selectedDateCell = page.getByRole("button", { name: /2026-05-22/ });
-    await expect(selectedDateCell).toContainText("118 decisions");
-    await expect(page.getByRole("heading", { name: "2026-05-22" })).toBeVisible();
+  await page.getByRole("button", { name: "Previous month" }).click();
 
-    await page.getByRole("button", { name: "Previous month" }).click();
-    await expect(page.getByRole("heading", { name: "April 2026" })).toBeVisible();
-    await expect(page.getByText("Month loaded with partial coverage")).toBeVisible();
-    await expect(page.getByText("2 month decisions")).toBeVisible();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-06-23$/);
+  await expect(page.getByRole("heading", { name: "June 2026" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "2026-06-23" })).toBeVisible();
+  await expect(page.locator("[data-dashboard-toolbar-subtitle]")).toHaveText("2026-06-23");
+  await expect(page.locator('[data-calendar-cell="2026-06-23"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-calendar-cell="2026-07-23"][aria-pressed="true"]')).toHaveCount(0);
+});
 
-    const delayedPastCell = page.getByRole("button", { name: /2026-04-01/ });
-    await expect(
-      delayedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="full"]'),
-    ).toHaveText("Loading");
-    await expect(
-      delayedPastCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
-    ).toHaveText("LOAD");
-    await expect(
-      delayedPastCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]'),
-    ).toHaveText("");
-    await expect(delayedPastCell).not.toContainText("Partial");
-    await expect(delayedPastCell).not.toContainText("RUN");
-  } finally {
-    delayedPreviousMonthFetch.resolve();
-  }
+test("signal review calendar clamps the selected day to the target month", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-23T09:00:00+09:00"));
+  await mockSignalReviewCalendar(page);
+
+  await page.goto("/calendar?date=2026-03-31");
+  await page.getByRole("button", { name: "Previous month" }).click();
+
+  await expect(page).toHaveURL(/\/calendar\?date=2026-02-28$/);
+  await expect(page.getByRole("heading", { name: "February 2026" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "2026-02-28" })).toBeVisible();
+  await expect(page.locator('[data-calendar-cell="2026-02-28"]')).toHaveAttribute("aria-pressed", "true");
+});
+
+test("signal review calendar clamps current-month navigation to today", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-07-23T09:00:00+09:00"));
+  await mockSignalReviewCalendar(page);
+
+  await page.goto("/calendar?date=2026-06-30");
+  await page.getByRole("button", { name: "Next month" }).click();
+
+  await expect(page).toHaveURL(/\/calendar\?date=2026-07-23$/);
+  await expect(page.getByRole("heading", { name: "July 2026" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "2026-07-23" })).toBeVisible();
+  await expect(page.locator('[data-calendar-cell="2026-07-23"]')).toHaveAttribute("aria-pressed", "true");
 });
 
 test("signal review calendar labels unresolved month loading cells as loading instead of run", async ({ page }) => {
