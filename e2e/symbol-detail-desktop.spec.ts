@@ -292,6 +292,39 @@ test.describe("symbol detail desktop", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("stops automatic price-bar recovery after one failed retry", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockSymbolOverviewSectionRoutes(page);
+
+    let priceHistoryRequestCount = 0;
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      priceHistoryRequestCount += 1;
+      await route.fulfill({
+        status: 404,
+        json: {
+          error: "Price history unavailable",
+          message: "Symbol not found",
+        },
+      });
+    });
+
+    await page.goto(
+      "/dashboard/symbol/005930?name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90&market=KOSPI&standardCode=KR7005930003&marketDate=2026-07-23&navContext=search&q=005930",
+    );
+
+    await expect(page.getByText("trading-core에서 저장된 과거 가격 바를 불러올 수 없습니다.")).toBeVisible();
+    await expect.poll(() => priceHistoryRequestCount, { timeout: 10_000 }).toBe(2);
+    await page.waitForTimeout(5_500);
+    expect(priceHistoryRequestCount).toBe(2);
+    expect(pageErrors).toEqual([]);
+  });
+
   test("revisits symbol workspace with local unit refresh overlays instead of a full-page loader", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const now = "2026-04-18T09:10:00+09:00";

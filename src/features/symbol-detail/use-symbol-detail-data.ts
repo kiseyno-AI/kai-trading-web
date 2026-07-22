@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildInitialSymbolMeta,
@@ -79,6 +79,7 @@ type UseSymbolDetailDataOptions = {
 };
 
 const PRICE_HISTORY_RETRY_INTERVAL_MS = 5_000;
+const PRICE_HISTORY_MAX_AUTOMATIC_RETRIES = 1;
 
 export function useSymbolDetailData({
   copy,
@@ -331,6 +332,7 @@ export function useSymbolDetailData({
     [marketDate, normalizedSymbol, selectedRange, shouldLoadPriceHistory, symbolReady],
   );
   const priceHistoryResult = useUnitData<SymbolPriceBarsResponseDto>(priceHistoryRequest);
+  const priceHistoryRetryAttempts = useRef(0);
   const priceHistory = shouldLoadPriceHistory ? priceHistoryResult.data : null;
   const historyLoading =
     shouldLoadPriceHistory && priceHistory === null && (marketDate === null ? symbolReady : priceHistoryResult.isInitialLoading);
@@ -342,11 +344,22 @@ export function useSymbolDetailData({
   const refetchPriceHistory = priceHistoryResult.refetch;
 
   useEffect(() => {
-    if (!shouldLoadPriceHistory || !marketDate || priceHistory || !priceHistoryResult.error) {
+    priceHistoryRetryAttempts.current = 0;
+  }, [priceHistoryRequest]);
+
+  useEffect(() => {
+    if (
+      !shouldLoadPriceHistory ||
+      !marketDate ||
+      priceHistory ||
+      !priceHistoryResult.error ||
+      priceHistoryRetryAttempts.current >= PRICE_HISTORY_MAX_AUTOMATIC_RETRIES
+    ) {
       return;
     }
 
     const timer = window.setTimeout(() => {
+      priceHistoryRetryAttempts.current += 1;
       void refetchPriceHistory();
     }, PRICE_HISTORY_RETRY_INTERVAL_MS);
 
