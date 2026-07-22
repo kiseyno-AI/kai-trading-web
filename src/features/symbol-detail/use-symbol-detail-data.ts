@@ -78,6 +78,8 @@ type UseSymbolDetailDataOptions = {
   serverSymbol?: string;
 };
 
+const PRICE_HISTORY_RETRY_INTERVAL_MS = 5_000;
+
 export function useSymbolDetailData({
   copy,
   locale,
@@ -337,6 +339,21 @@ export function useSymbolDetailData({
     Boolean(priceHistory?.items.length) &&
     priceHistoryResult.isRefreshing;
   const historyError = priceHistoryResult.error && !priceHistory ? copy.errors.historyUnavailable : null;
+  const refetchPriceHistory = priceHistoryResult.refetch;
+
+  useEffect(() => {
+    if (!shouldLoadPriceHistory || !marketDate || priceHistory || !priceHistoryResult.error) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refetchPriceHistory();
+    }, PRICE_HISTORY_RETRY_INTERVAL_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [marketDate, priceHistory, priceHistoryResult.error, refetchPriceHistory, shouldLoadPriceHistory]);
 
   useEffect(() => {
     if (!shouldLoadPriceHistory) {
