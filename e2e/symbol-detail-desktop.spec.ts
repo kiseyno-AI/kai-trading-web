@@ -208,6 +208,123 @@ async function mockSymbolOverviewSectionRoutes(page: Page) {
 }
 
 test.describe("symbol detail desktop", () => {
+  test("recovers stored price bars after a transient BFF failure", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockSymbolOverviewSectionRoutes(page);
+
+    let priceHistoryRequestCount = 0;
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      priceHistoryRequestCount += 1;
+
+      if (priceHistoryRequestCount === 1) {
+        await route.fulfill({
+          status: 502,
+          json: {
+            error: "Upstream fetch failed",
+            message: "fetch failed",
+          },
+        });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          symbol: "005930",
+          count: 3,
+          start_date: "2026-07-20",
+          end_date: "2026-07-22",
+          requested_start_date: "2025-07-23",
+          requested_end_date: "2026-07-23",
+          items: [
+            {
+              trade_date: "2026-07-20",
+              open_price: 240000,
+              high_price: 246000,
+              low_price: 238000,
+              close_price: 244000,
+              volume: 24305601,
+              turnover: null,
+              source: "stored",
+              captured_at: null,
+            },
+            {
+              trade_date: "2026-07-21",
+              open_price: 250000,
+              high_price: 262000,
+              low_price: 249000,
+              close_price: 259000,
+              volume: 20358379,
+              turnover: null,
+              source: "stored",
+              captured_at: null,
+            },
+            {
+              trade_date: "2026-07-22",
+              open_price: 260000,
+              high_price: 263000,
+              low_price: 258000,
+              close_price: 260500,
+              volume: 21249029,
+              turnover: null,
+              source: "stored",
+              captured_at: null,
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto(
+      "/dashboard/symbol/005930?name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90&market=KOSPI&standardCode=KR7005930003&marketDate=2026-07-23&navContext=search&q=005930",
+    );
+
+    await expect(page.getByText("trading-core에서 저장된 과거 가격 바를 불러올 수 없습니다.")).toBeVisible();
+    await expect.poll(() => priceHistoryRequestCount, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+    await expect(page.getByRole("img", { name: /Historical candlestick chart for 005930/i })).toBeVisible();
+    await expect(page.getByText("trading-core에서 저장된 과거 가격 바를 불러올 수 없습니다.")).toHaveCount(0);
+    await expect(page.locator("#chart")).toContainText("260,500");
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("stops automatic price-bar recovery after one failed retry", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockSymbolOverviewSectionRoutes(page);
+
+    let priceHistoryRequestCount = 0;
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
+      priceHistoryRequestCount += 1;
+      await route.fulfill({
+        status: 404,
+        json: {
+          error: "Price history unavailable",
+          message: "Symbol not found",
+        },
+      });
+    });
+
+    await page.goto(
+      "/dashboard/symbol/005930?name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90&market=KOSPI&standardCode=KR7005930003&marketDate=2026-07-23&navContext=search&q=005930",
+    );
+
+    await expect(page.getByText("trading-core에서 저장된 과거 가격 바를 불러올 수 없습니다.")).toBeVisible();
+    await expect.poll(() => priceHistoryRequestCount, { timeout: 10_000 }).toBe(2);
+    await page.waitForTimeout(5_500);
+    expect(priceHistoryRequestCount).toBe(2);
+    expect(pageErrors).toEqual([]);
+  });
+
   test("revisits symbol workspace with local unit refresh overlays instead of a full-page loader", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const now = "2026-04-18T09:10:00+09:00";
