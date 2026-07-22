@@ -306,6 +306,16 @@ function addMonths(monthKey: string, delta: number) {
   return formatDateKey(new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1 + delta, 1))).slice(0, 7);
 }
 
+function getMonthNavigationDate(monthKey: string, selectedDate: string | null, todayKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const selectedDay = Number.parseInt((selectedDate ?? todayKey).slice(8, 10), 10);
+  const lastDayOfMonth = new Date(Date.UTC(year ?? 1970, month ?? 1, 0)).getUTCDate();
+  const day = Math.min(Number.isFinite(selectedDay) ? Math.max(selectedDay, 1) : 1, lastDayOfMonth);
+  const nextDate = `${monthKey}-${String(day).padStart(2, "0")}`;
+
+  return nextDate > todayKey ? todayKey : nextDate;
+}
+
 function formatMonthLabel(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", {
@@ -1568,7 +1578,8 @@ export default function SignalReviewCalendarPageClient() {
   }
 
   function handleMonthChange(delta: number) {
-    setMonthKey((value) => addMonths(value, delta));
+    const nextMonthKey = addMonths(monthKey, delta);
+    handleSelectDate(getMonthNavigationDate(nextMonthKey, selectedDate, todayKey));
   }
 
   const openDetailPanel = useCallback((itemId: string) => {
