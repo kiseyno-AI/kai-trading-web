@@ -22,8 +22,8 @@ export type ExecutionRuntimeWeeklyPnlDto = Record<string, unknown> & {
   weekly_realized_pnl?: string | number | null;
   weekly_buy_notional?: string | number | null;
   weekly_sell_notional?: string | number | null;
-  matched_sell_quantity?: number | null;
-  unmatched_sell_quantity?: number | null;
+  matched_sell_quantity?: number | string | null;
+  unmatched_sell_quantity?: number | string | null;
   closed_trade_count?: number | null;
   win_count?: number | null;
   loss_count?: number | null;
