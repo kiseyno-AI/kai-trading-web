@@ -213,6 +213,9 @@ const dashboardLiveCopy = {
         openOrders: "Open orders",
         activeJobs: "Active jobs",
         heartbeat: "Heartbeat",
+        dailyRealizedPnl: "Daily FIFO P/L",
+        soldClosedSymbols: "Sold / closed",
+        unmatchedSells: "Unmatched sells",
       },
       monitoringStates: {
         watchingTargetStop: "Watching target/stop",
@@ -778,6 +781,9 @@ const dashboardLiveCopy = {
         openOrders: "미체결 주문",
         activeJobs: "활성 실행 작업",
         heartbeat: "하트비트",
+        dailyRealizedPnl: "일간 FIFO 손익",
+        soldClosedSymbols: "매도 / 청산",
+        unmatchedSells: "미매칭 매도",
       },
       monitoringStates: {
         watchingTargetStop: "타깃/스탑 감시",
