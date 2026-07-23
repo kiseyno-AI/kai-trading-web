@@ -35,6 +35,12 @@ test("marks ready execution runtime state as connected and healthy", () => {
       closed_symbols: ["010950", "161390"],
       unmatched_sell_symbols: ["003280"],
     },
+    weekly_pnl: {
+      weekly_realized_pnl: "8800.0000",
+      closed_trade_count: 2,
+      win_count: 2,
+      loss_count: 0,
+    },
     issues: [],
   };
 
@@ -54,6 +60,8 @@ test("marks ready execution runtime state as connected and healthy", () => {
   assert.equal(model.contextLabel, null);
   assert.equal(model.metrics.find((metric) => metric.key === "daily-realized-pnl")?.value, "₩8,800");
   assert.equal(model.metrics.find((metric) => metric.key === "daily-realized-pnl")?.tone, "positive");
+  assert.equal(model.metrics.find((metric) => metric.key === "weekly-realized-pnl")?.value, "₩8,800");
+  assert.equal(model.metrics.find((metric) => metric.key === "weekly-realized-pnl")?.tone, "positive");
   assert.equal(model.metrics.find((metric) => metric.key === "sold-closed-symbols")?.value, "3 / 2");
   assert.equal(model.metrics.find((metric) => metric.key === "unmatched-sells")?.value, "1");
   assert.equal(model.metrics.find((metric) => metric.key === "unmatched-sells")?.tone, "warning");

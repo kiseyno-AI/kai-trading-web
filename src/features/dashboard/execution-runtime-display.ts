@@ -273,6 +273,8 @@ export function buildExecutionRuntimeSummaryModel({
   const issueLabels = (status?.issues ?? []).map(getIssueLabel).filter((label): label is string => Boolean(label));
   const dailyPnl = status?.daily_pnl;
   const dailyRealizedPnl = numberOrNull(dailyPnl?.daily_realized_pnl);
+  const weeklyPnl = status?.weekly_pnl;
+  const weeklyRealizedPnl = numberOrNull(weeklyPnl?.weekly_realized_pnl);
   const soldSymbolCount =
     typeof dailyPnl?.sold_symbol_count === "number" && Number.isFinite(dailyPnl.sold_symbol_count)
       ? dailyPnl.sold_symbol_count
@@ -334,6 +336,12 @@ export function buildExecutionRuntimeSummaryModel({
         label: copy.metrics.dailyRealizedPnl,
         value: formatRuntimeKrw(dailyPnl?.daily_realized_pnl, numberLocale),
         tone: dailyRealizedPnl === null ? "neutral" : dailyRealizedPnl < 0 ? "warning" : dailyRealizedPnl > 0 ? "positive" : "neutral",
+      },
+      {
+        key: "weekly-realized-pnl",
+        label: copy.metrics.weeklyRealizedPnl,
+        value: formatRuntimeKrw(weeklyPnl?.weekly_realized_pnl, numberLocale),
+        tone: weeklyRealizedPnl === null ? "neutral" : weeklyRealizedPnl < 0 ? "warning" : weeklyRealizedPnl > 0 ? "positive" : "neutral",
       },
       {
         key: "sold-closed-symbols",
