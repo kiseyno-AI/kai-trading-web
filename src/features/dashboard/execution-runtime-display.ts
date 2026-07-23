@@ -133,6 +133,21 @@ function formatCount(value: number | null | undefined, numberLocale: string) {
   return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString(numberLocale) : UNKNOWN_LABEL;
 }
 
+function formatRuntimeCount(value: number | string | null | undefined, numberLocale: string) {
+  const numericValue = numberOrNull(value);
+  return numericValue === null ? UNKNOWN_LABEL : numericValue.toLocaleString(numberLocale);
+}
+
+function formatRuntimeKrw(value: number | string | null | undefined, numberLocale: string) {
+  const numericValue = numberOrNull(value);
+  if (numericValue === null) return UNKNOWN_LABEL;
+  return numericValue.toLocaleString(numberLocale, {
+    currency: "KRW",
+    maximumFractionDigits: 0,
+    style: "currency",
+  });
+}
+
 function formatOptionalNumber(value: ExecutionRuntimeQuantity | undefined, numberLocale: string) {
   const numericValue = numberOrNull(value);
   if (numericValue === null) return UNKNOWN_LABEL;
@@ -256,6 +271,32 @@ export function buildExecutionRuntimeSummaryModel({
         : copy.safety.disabled;
   const automationTone: ExecutionRuntimeTone = isKillSwitched || isPaused ? "warning" : automationEnabled ? "positive" : "neutral";
   const issueLabels = (status?.issues ?? []).map(getIssueLabel).filter((label): label is string => Boolean(label));
+  const dailyPnl = status?.daily_pnl;
+  const dailyRealizedPnl = numberOrNull(dailyPnl?.daily_realized_pnl);
+  const weeklyPnl = status?.weekly_pnl;
+  const weeklyRealizedPnl = numberOrNull(weeklyPnl?.weekly_realized_pnl);
+  const soldSymbolCount =
+    typeof dailyPnl?.sold_symbol_count === "number" && Number.isFinite(dailyPnl.sold_symbol_count)
+      ? dailyPnl.sold_symbol_count
+      : Array.isArray(dailyPnl?.sold_symbols)
+        ? dailyPnl.sold_symbols.length
+        : null;
+  const closedSymbolCount =
+    typeof dailyPnl?.closed_symbol_count === "number" && Number.isFinite(dailyPnl.closed_symbol_count)
+      ? dailyPnl.closed_symbol_count
+      : Array.isArray(dailyPnl?.closed_symbols)
+        ? dailyPnl.closed_symbols.length
+        : null;
+  const unmatchedSellSymbolCount =
+    typeof dailyPnl?.unmatched_sell_symbol_count === "number" && Number.isFinite(dailyPnl.unmatched_sell_symbol_count)
+      ? dailyPnl.unmatched_sell_symbol_count
+      : Array.isArray(dailyPnl?.unmatched_sell_symbols)
+        ? dailyPnl.unmatched_sell_symbols.length
+        : null;
+  const soldClosedLabel =
+    soldSymbolCount === null && closedSymbolCount === null
+      ? UNKNOWN_LABEL
+      : `${formatCount(soldSymbolCount, numberLocale)} / ${formatCount(closedSymbolCount, numberLocale)}`;
   const contextLabel = error
     ? `${copy.unavailablePrefix} ${error}`
     : issueLabels.length > 0
@@ -289,6 +330,30 @@ export function buildExecutionRuntimeSummaryModel({
         label: copy.metrics.heartbeat,
         value: heartbeatLabel,
         tone: monitoringTone,
+      },
+      {
+        key: "daily-realized-pnl",
+        label: copy.metrics.dailyRealizedPnl,
+        value: formatRuntimeKrw(dailyPnl?.daily_realized_pnl, numberLocale),
+        tone: dailyRealizedPnl === null ? "neutral" : dailyRealizedPnl < 0 ? "warning" : dailyRealizedPnl > 0 ? "positive" : "neutral",
+      },
+      {
+        key: "weekly-realized-pnl",
+        label: copy.metrics.weeklyRealizedPnl,
+        value: formatRuntimeKrw(weeklyPnl?.weekly_realized_pnl, numberLocale),
+        tone: weeklyRealizedPnl === null ? "neutral" : weeklyRealizedPnl < 0 ? "warning" : weeklyRealizedPnl > 0 ? "positive" : "neutral",
+      },
+      {
+        key: "sold-closed-symbols",
+        label: copy.metrics.soldClosedSymbols,
+        value: soldClosedLabel,
+        tone: unmatchedSellSymbolCount && unmatchedSellSymbolCount > 0 ? "warning" : "neutral",
+      },
+      {
+        key: "unmatched-sells",
+        label: copy.metrics.unmatchedSells,
+        value: formatRuntimeCount(unmatchedSellSymbolCount, numberLocale),
+        tone: unmatchedSellSymbolCount && unmatchedSellSymbolCount > 0 ? "warning" : "neutral",
       },
     ],
     modeLabel,

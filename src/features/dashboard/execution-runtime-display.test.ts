@@ -26,6 +26,21 @@ test("marks ready execution runtime state as connected and healthy", () => {
     last_heartbeat_at: "2026-04-30T00:09:58Z",
     open_order_count: 0,
     active_execution_job_count: 0,
+    daily_pnl: {
+      daily_realized_pnl: "8800.0000",
+      sold_symbol_count: 3,
+      closed_symbol_count: 2,
+      unmatched_sell_symbol_count: 1,
+      sold_symbols: ["003280", "010950", "161390"],
+      closed_symbols: ["010950", "161390"],
+      unmatched_sell_symbols: ["003280"],
+    },
+    weekly_pnl: {
+      weekly_realized_pnl: "8800.0000",
+      closed_trade_count: 2,
+      win_count: 2,
+      loss_count: 0,
+    },
     issues: [],
   };
 
@@ -43,6 +58,13 @@ test("marks ready execution runtime state as connected and healthy", () => {
   assert.equal(model.monitoringLabel, "Heartbeat alive");
   assert.equal(model.automationLabel, "Automation enabled");
   assert.equal(model.contextLabel, null);
+  assert.equal(model.metrics.find((metric) => metric.key === "daily-realized-pnl")?.value, "₩8,800");
+  assert.equal(model.metrics.find((metric) => metric.key === "daily-realized-pnl")?.tone, "positive");
+  assert.equal(model.metrics.find((metric) => metric.key === "weekly-realized-pnl")?.value, "₩8,800");
+  assert.equal(model.metrics.find((metric) => metric.key === "weekly-realized-pnl")?.tone, "positive");
+  assert.equal(model.metrics.find((metric) => metric.key === "sold-closed-symbols")?.value, "3 / 2");
+  assert.equal(model.metrics.find((metric) => metric.key === "unmatched-sells")?.value, "1");
+  assert.equal(model.metrics.find((metric) => metric.key === "unmatched-sells")?.tone, "warning");
 });
 
 test("marks offline execution runtime state explicitly", () => {

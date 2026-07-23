@@ -22,13 +22,53 @@ export type ExecutionRuntimeWeeklyPnlDto = Record<string, unknown> & {
   weekly_realized_pnl?: string | number | null;
   weekly_buy_notional?: string | number | null;
   weekly_sell_notional?: string | number | null;
-  matched_sell_quantity?: number | null;
-  unmatched_sell_quantity?: number | null;
+  matched_sell_quantity?: number | string | null;
+  unmatched_sell_quantity?: number | string | null;
   closed_trade_count?: number | null;
   win_count?: number | null;
   loss_count?: number | null;
   breakeven_count?: number | null;
   pnl_method?: string | null;
+};
+
+export type ExecutionRuntimeDailyPnlDto = Record<string, unknown> & {
+  date?: string | null;
+  daily_realized_pnl?: string | number | null;
+  daily_buy_notional?: string | number | null;
+  daily_sell_notional?: string | number | null;
+  matched_sell_quantity?: number | string | null;
+  unmatched_sell_quantity?: number | string | null;
+  sold_symbols?: string[] | null;
+  sold_symbol_count?: number | null;
+  closed_symbols?: string[] | null;
+  closed_symbol_count?: number | null;
+  unmatched_sell_symbols?: string[] | null;
+  unmatched_sell_symbol_count?: number | null;
+  pnl_method?: string | null;
+};
+
+export type ExecutionRuntimeMonthlyPnlDto = Record<string, unknown> & {
+  month?: string | null;
+  monthly_realized_pnl?: string | number | null;
+  monthly_buy_notional?: string | number | null;
+  monthly_sell_notional?: string | number | null;
+  matched_sell_quantity?: number | string | null;
+  unmatched_sell_quantity?: number | string | null;
+  pnl_method?: string | null;
+};
+
+export type ExecutionRuntimeSymbolsDto = Record<string, unknown> & {
+  filled_today?: string[] | null;
+  filled_today_by_side?: {
+    buy?: string[] | null;
+    sell?: string[] | null;
+  } | null;
+  filled_today_counts?: Record<string, Record<string, number> | undefined> | null;
+};
+
+export type ExecutionRuntimeActionableAlertsDto = Record<string, unknown> & {
+  status?: string | null;
+  alerts?: Record<string, unknown>[] | null;
 };
 
 export type ExecutionRuntimeStatusResponseDto = Record<string, unknown> & {
@@ -45,6 +85,10 @@ export type ExecutionRuntimeStatusResponseDto = Record<string, unknown> & {
   issues?: ExecutionRuntimeIssueDto[] | null;
   core_integration_mode?: string | null;
   delegate_execution?: boolean | null;
+  symbols?: ExecutionRuntimeSymbolsDto | null;
+  daily_pnl?: ExecutionRuntimeDailyPnlDto | null;
+  monthly_pnl?: ExecutionRuntimeMonthlyPnlDto | null;
+  actionable_alerts?: ExecutionRuntimeActionableAlertsDto | null;
   weekly_pnl?: ExecutionRuntimeWeeklyPnlDto | null;
 };
 
