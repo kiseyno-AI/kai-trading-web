@@ -227,6 +227,7 @@ export function useSymbolDetailData({
       resolveSymbolDetailEffectiveMarketDate({
         defaultMarketDate,
         freshness: freshnessBasis,
+        freshnessRequestFailed: Boolean(freshnessBasisResult.error),
         marketState: marketStatus?.state ?? quote?.market_state,
         quoteTradeDate: quote?.trade_date,
         requestedMarketDate,
@@ -235,6 +236,7 @@ export function useSymbolDetailData({
     [
       defaultMarketDate,
       freshnessBasis,
+      freshnessBasisResult.error,
       marketStatus?.state,
       quote?.market_state,
       quote?.trade_date,

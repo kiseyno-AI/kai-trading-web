@@ -552,6 +552,7 @@ function shouldUseLatestStoredMarketDate({
 export function resolveSymbolDetailEffectiveMarketDate({
   defaultMarketDate,
   freshness,
+  freshnessRequestFailed = false,
   marketState,
   quoteTradeDate,
   requestedMarketDate,
@@ -559,6 +560,7 @@ export function resolveSymbolDetailEffectiveMarketDate({
 }: {
   defaultMarketDate: string;
   freshness: EodFreshnessResponseDto | null;
+  freshnessRequestFailed?: boolean;
   marketState?: string | null;
   quoteTradeDate: string | null | undefined;
   requestedMarketDate: string | null;
@@ -592,11 +594,17 @@ export function resolveSymbolDetailEffectiveMarketDate({
     return productIsoDate ?? defaultMarketDate;
   }
 
-  return (
-    clampMarketDateToProductDate(quoteTradeDate, productMarketDate) ??
-    productIsoDate ??
-    defaultMarketDate
-  );
+  const quoteMarketDate = clampMarketDateToProductDate(quoteTradeDate, productMarketDate);
+  if (quoteMarketDate) return quoteMarketDate;
+
+  if (
+    freshnessRequestFailed &&
+    (isWeekendProductMarketDate(productMarketDate) || isNonTradingStoredDateFallbackState(marketState))
+  ) {
+    return null;
+  }
+
+  return productIsoDate ?? defaultMarketDate;
 }
 
 export function buildSymbolDetailMarketDateBasisCopy({

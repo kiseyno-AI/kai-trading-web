@@ -1565,8 +1565,11 @@ test.describe("search terminal mobile", () => {
       }) as DateConstructor;
       Date.now = () => fixedNow;
     }, `${weekendDate}T12:30:00+09:00`);
+    const aggregateMarketDates: Array<string | null> = [];
     const priceBarEndDates: Array<string | null> = [];
     const factorMarketDates: Array<string | null> = [];
+    let marketStatusRequestCount = 0;
+    let quoteRequestCount = 0;
 
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({ json: { count: 0, items: [] } });
@@ -1624,6 +1627,15 @@ test.describe("search terminal mobile", () => {
       });
     });
     await page.route("**/api/trading/quotes/005930**", async (route) => {
+      quoteRequestCount += 1;
+      if (quoteRequestCount === 1) {
+        await route.fulfill({
+          status: 504,
+          json: { error: "Upstream request timed out" },
+        });
+        return;
+      }
+
       await route.fulfill({
         json: {
           symbol: "005930",
@@ -1639,11 +1651,21 @@ test.describe("search terminal mobile", () => {
           is_live: false,
           available: false,
           cached_at: `${weekendDate}T12:30:00+09:00`,
+          trade_date: latestDate,
           unavailable_reason: "no_live_quote_or_fresh_fallback",
         },
       });
     });
     await page.route("**/api/trading/market/status", async (route) => {
+      marketStatusRequestCount += 1;
+      if (marketStatusRequestCount === 1) {
+        await route.fulfill({
+          status: 504,
+          json: { error: "Upstream request timed out" },
+        });
+        return;
+      }
+
       await route.fulfill({
         json: {
           state: "WEEKEND",
@@ -1663,34 +1685,8 @@ test.describe("search terminal mobile", () => {
     });
     await page.route("**/api/trading/eod/freshness", async (route) => {
       await route.fulfill({
-        json: {
-          today: {
-            trade_date: weekendDate,
-            eod_status: "pending",
-            symbols_total: 1,
-            symbols_succeeded: 0,
-            symbols_failed: 0,
-          },
-          latest: {
-            stages: {
-              price: {
-                summary: {
-                  price_trade_date: latestDate,
-                },
-              },
-              technical_snapshots: {
-                summary: {
-                  market_date: latestDate,
-                },
-              },
-              action_summaries: {
-                summary: {
-                  market_date: latestDate,
-                },
-              },
-            },
-          },
-        },
+        status: 504,
+        json: { error: "Upstream request timed out" },
       });
     });
     await page.route("**/api/trading/symbols/005930/price-bars?**", async (route) => {
@@ -1749,7 +1745,9 @@ test.describe("search terminal mobile", () => {
     });
     await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
       const requestUrl = new URL(route.request().url());
-      const marketDate = requestUrl.searchParams.get("market_date") ?? latestDate;
+      const requestedMarketDate = requestUrl.searchParams.get("market_date");
+      aggregateMarketDates.push(requestedMarketDate);
+      const marketDate = requestedMarketDate ?? latestDate;
 
       await route.fulfill({
         json: {
@@ -2080,6 +2078,10 @@ test.describe("search terminal mobile", () => {
     await expect(page.locator("#factor-snapshot")).not.toContainText("Missing Depreciation And Amortization");
     await expect(page.locator("#factor-snapshot")).not.toContainText("예약된 슬롯");
     await expect(page.locator("#freshness")).toContainText("2026-05-22");
+    expect(marketStatusRequestCount).toBeGreaterThanOrEqual(2);
+    expect(quoteRequestCount).toBeGreaterThanOrEqual(2);
+    expect(aggregateMarketDates.length).toBeGreaterThanOrEqual(1);
+    expect(aggregateMarketDates.every((marketDate) => marketDate === latestDate)).toBe(true);
     expect(priceBarEndDates).toContain(latestDate);
     expect(priceBarEndDates).not.toContain(weekendDate);
     expect(factorMarketDates.length).toBeGreaterThanOrEqual(5);
