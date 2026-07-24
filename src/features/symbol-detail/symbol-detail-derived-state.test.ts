@@ -253,6 +253,45 @@ test("falls back to the quote trade date when freshness has no latest stored dat
   );
 });
 
+test("keeps an implicit non-trading basis pending after freshness fails until quote fallback recovers", () => {
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness: null,
+      freshnessRequestFailed: true,
+      marketState: null,
+      quoteTradeDate: null,
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    null,
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness: null,
+      freshnessRequestFailed: true,
+      marketState: "WEEKEND",
+      quoteTradeDate: "2026-05-22",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-05-22",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-05-24",
+      freshness: null,
+      freshnessRequestFailed: true,
+      marketState: "WEEKEND",
+      quoteTradeDate: null,
+      requestedMarketDate: "2026-05-24",
+      waitForFreshness: false,
+    }),
+    "2026-05-24",
+  );
+});
+
 test("advances implicit symbol-detail dates after KST midnight on trading weekdays", () => {
   const freshness = {
     today: {
