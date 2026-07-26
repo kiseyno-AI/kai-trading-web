@@ -1498,15 +1498,23 @@ export default function SignalReviewCalendarPageClient() {
       ? "latest"
       : "disabled"
     : "selected";
+  const storedFeedbackCtaExceedsLimit =
+    selectedStoredDecisionCount > SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
   const feedbackCtaLabel =
     feedbackCtaState === "latest"
       ? copy.actions.openLatestFeedback
       : feedbackCtaState === "disabled"
         ? copy.actions.feedbackUnavailable
         : selectedInlineReviewUnavailable && selectedDateHasStoredEvidence
-          ? copy.actions.openStoredFeedback.replaceAll(
+          ? (storedFeedbackCtaExceedsLimit
+              ? copy.actions.openStoredFeedbackUpTo
+              : copy.actions.openStoredFeedback
+            ).replaceAll(
               "{count}",
-              selectedStoredDecisionCount.toLocaleString("en-US"),
+              Math.min(
+                selectedStoredDecisionCount,
+                SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+              ).toLocaleString("en-US"),
             )
         : copy.actions.openFeedback;
   const feedbackCtaNotice =

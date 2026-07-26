@@ -2943,6 +2943,29 @@ test("signal review calendar preserves selected-date stored feedback when inline
   );
 });
 
+test("signal review calendar caps the stored feedback rows promised by the recovery CTA", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackActions: {
+      "2026-05-27": "wait",
+    },
+    denseFeedbackDates: {
+      "2026-05-27": 275,
+    },
+    timeoutFeedbackDates: ["2026-05-27"],
+    timeoutReviewDateDates: ["2026-05-27"],
+  });
+
+  await page.goto("/calendar?date=2026-05-27");
+
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveText("Open up to 200 rows in feedback table");
+  await expect(feedbackCta).not.toContainText("275");
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-27&navContext=calendar",
+  );
+});
+
 test("signal review calendar hides previous selected-date rows while a new date is loading", async ({ page }) => {
   const delayedFeedback = createDeferred();
   await mockSignalReviewCalendar(page, {
