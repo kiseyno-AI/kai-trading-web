@@ -536,17 +536,12 @@ function isNonTradingStoredDateFallbackState(value: string | null | undefined) {
 
 function shouldUseLatestStoredMarketDate({
   latestStoredMarketDate,
-  marketState,
   productMarketDate,
 }: {
   latestStoredMarketDate: string;
-  marketState?: string | null;
   productMarketDate: string;
 }) {
-  if (latestStoredMarketDate === productMarketDate) return true;
-  if (latestStoredMarketDate > productMarketDate) return false;
-
-  return isWeekendProductMarketDate(productMarketDate) || isNonTradingStoredDateFallbackState(marketState);
+  return latestStoredMarketDate <= productMarketDate;
 }
 
 export function resolveSymbolDetailEffectiveMarketDate({
@@ -577,7 +572,6 @@ export function resolveSymbolDetailEffectiveMarketDate({
     latestStoredMarketDate &&
     shouldUseLatestStoredMarketDate({
       latestStoredMarketDate,
-      marketState,
       productMarketDate,
     })
   ) {

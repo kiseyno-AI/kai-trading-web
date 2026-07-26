@@ -292,7 +292,7 @@ test("keeps an implicit non-trading basis pending after freshness fails until qu
   );
 });
 
-test("advances implicit symbol-detail dates after KST midnight on trading weekdays", () => {
+test("keeps the latest stored basis after KST midnight on trading weekdays", () => {
   const freshness = {
     today: {
       trade_date: "2026-07-13",
@@ -318,7 +318,44 @@ test("advances implicit symbol-detail dates after KST midnight on trading weekda
       requestedMarketDate: null,
       waitForFreshness: false,
     }),
-    "2026-07-14",
+    "2026-07-13",
+  );
+});
+
+test("uses Friday's latest stored basis for an implicit Monday pre-open search route", () => {
+  const freshness = {
+    today: {
+      trade_date: "2026-07-27",
+      eod_status: "pending",
+    },
+    latest: {
+      price_trade_date: "2026-07-24",
+      technical_market_date: "2026-07-24",
+      action_market_date: "2026-07-24",
+    },
+  };
+
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-07-27",
+      freshness,
+      marketState: "PREOPEN",
+      quoteTradeDate: "2026-07-24",
+      requestedMarketDate: null,
+      waitForFreshness: false,
+    }),
+    "2026-07-24",
+  );
+  assert.equal(
+    resolveSymbolDetailEffectiveMarketDate({
+      defaultMarketDate: "2026-07-27",
+      freshness,
+      marketState: "PREOPEN",
+      quoteTradeDate: "2026-07-24",
+      requestedMarketDate: "2026-07-27",
+      waitForFreshness: false,
+    }),
+    "2026-07-27",
   );
 });
 
