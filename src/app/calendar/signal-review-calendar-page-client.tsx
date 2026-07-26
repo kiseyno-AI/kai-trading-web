@@ -631,8 +631,14 @@ function getSelectedDateDisplayStatus({
   summary: SignalDeciderFeedbackSummaryModel;
 }): SelectedDateDisplayStatus {
   if (loadState === "loading") return selectedSnapshot?.status === "unavailable" ? "unavailable" : "loading";
+  if (loadState === "error" && selectedSnapshot && selectedSnapshot.decisionCount > 0) {
+    return selectedSnapshot.status;
+  }
   if (loadState === "error") return "unavailable";
   if (loadState === "idle") return summary.status;
+  if (selectedError && selectedSnapshot && selectedSnapshot.decisionCount > 0) {
+    return selectedSnapshot.status;
+  }
   if (selectedError) return "unavailable";
   if (selectedSnapshot?.status === "unavailable") return "unavailable";
 
@@ -1425,6 +1431,10 @@ export default function SignalReviewCalendarPageClient() {
   const selectedReadyDateInDisplayedMonth =
     selectedDate !== null && selectedDisplayLoadState === "ready" && getMonthKey(selectedDate) === monthKey;
   const selectedSnapshot = selectedDate ? (monthSnapshots[selectedDate] ?? null) : null;
+  const selectedStoredDecisionCount = selectedSnapshot?.decisionCount ?? 0;
+  const selectedDateHasStoredEvidence = selectedStoredDecisionCount > 0;
+  const selectedInlineReviewUnavailable =
+    selectedDisplayLoadState === "error" || Boolean(selectedError) || selectedSnapshot?.status === "unavailable";
   const selectedDisplayStatus = getSelectedDateDisplayStatus({
     loadState: selectedDisplayLoadState,
     selectedError,
@@ -1434,33 +1444,33 @@ export default function SignalReviewCalendarPageClient() {
   const selectedDateUnavailable = isSelectedDateMetricUnavailable(selectedDisplayStatus);
   const selectedActionMixLabel = getSelectedDateActionMixLabel({
     copy,
-    displayStatus: selectedDisplayStatus,
+    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
     summary: selectedSummary,
   });
   const selectedResultCountLabel = getSelectedDateCountMetricLabel({
     copy,
     count: selectedSummary.resultCount,
-    displayStatus: selectedDisplayStatus,
+    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
   });
   const selectedReviewCountLabel = getSelectedDateCountMetricLabel({
     copy,
     count: reviewCount,
-    displayStatus: selectedDisplayStatus,
+    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
   });
   const selectedPrimaryHorizonMetricLabel = getSelectedDatePrimaryHorizonMetricLabel({
     copy,
     counts: primaryHorizonCounts,
-    displayStatus: selectedDisplayStatus,
+    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
   });
   const selectedPendingHorizonMetricLabel = getSelectedDatePendingHorizonMetricLabel({
     copy,
     counts: primaryHorizonCounts,
-    displayStatus: selectedDisplayStatus,
+    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
   });
   const selectedShorterHorizonMetricLabel = getSelectedDateShorterHorizonMetricLabel({
     copy,
     count: shorterHorizonComputedCount,
-    displayStatus: selectedDisplayStatus,
+    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
   });
   const selectedEmptyStateMessage = getSelectedDateEmptyStateMessage({
     copy,
@@ -1471,7 +1481,7 @@ export default function SignalReviewCalendarPageClient() {
     !feedbackDate ||
     selectedDisplayLoadState === "idle" ||
     selectedDisplayLoadState === "loading" ||
-    (selectedDateUnavailable && selectedSummary.items.length === 0);
+    (selectedDateUnavailable && selectedSummary.items.length === 0 && !selectedDateHasStoredEvidence);
   const latestUsableFeedbackCtaDate =
     selectedFeedbackNavigationBlocked && latestUsableFeedbackDate && latestUsableFeedbackDate !== feedbackDate
       ? latestUsableFeedbackDate
@@ -1493,6 +1503,11 @@ export default function SignalReviewCalendarPageClient() {
       ? copy.actions.openLatestFeedback
       : feedbackCtaState === "disabled"
         ? copy.actions.feedbackUnavailable
+        : selectedInlineReviewUnavailable && selectedDateHasStoredEvidence
+          ? copy.actions.openStoredFeedback.replaceAll(
+              "{count}",
+              selectedStoredDecisionCount.toLocaleString("en-US"),
+            )
         : copy.actions.openFeedback;
   const feedbackCtaNotice =
     feedbackCtaState === "latest" && latestUsableFeedbackCtaDate
@@ -1858,7 +1873,14 @@ export default function SignalReviewCalendarPageClient() {
               <div className={styles.inlineNotice}>{copy.states.progressUnavailable}</div>
             ) : null}
 
-            {selectedDateUnavailable ? (
+            {selectedInlineReviewUnavailable && selectedDateHasStoredEvidence ? (
+              <div className={styles.emptyState}>
+                {copy.states.selectedInlineUnavailableStored.replaceAll(
+                  "{count}",
+                  selectedStoredDecisionCount.toLocaleString("en-US"),
+                )}
+              </div>
+            ) : selectedDateUnavailable ? (
               <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
             ) : selectedDisplayLoadState === "loading" ? (
               <div className={styles.emptyState}>{copy.states.loadingSelected}</div>
@@ -1908,7 +1930,14 @@ export default function SignalReviewCalendarPageClient() {
             </div>
           </header>
 
-          {selectedDateUnavailable ? (
+          {selectedInlineReviewUnavailable && selectedDateHasStoredEvidence ? (
+            <div className={styles.emptyState}>
+              {copy.states.selectedInlineUnavailableStored.replaceAll(
+                "{count}",
+                selectedStoredDecisionCount.toLocaleString("en-US"),
+              )}
+            </div>
+          ) : selectedDateUnavailable ? (
             <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
           ) : selectedDisplayLoadState === "loading" ? (
             <div className={styles.emptyState}>{copy.states.loadingSelected}</div>

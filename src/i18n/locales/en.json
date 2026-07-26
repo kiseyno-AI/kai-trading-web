@@ -441,6 +441,7 @@
       "nextMonth": "Next month",
       "openLatestFeedback": "Open latest feedback table",
       "openFeedback": "Open feedback table",
+      "openStoredFeedback": "Open {count} rows in feedback table",
       "previousMonth": "Previous month",
       "reject": "Reject",
       "review": "Review",
@@ -485,6 +486,7 @@
       "replayUnavailable": "Replay horizon results are not stored for this symbol yet.",
       "riskContextUnavailable": "No operator-facing risk context is stored for this signal.",
       "selectedUnavailable": "Unable to load selected-date reviews. Re-select the date to retry.",
+      "selectedInlineUnavailableStored": "The inline review summary is unavailable, but {count} stored feedback rows are available in the feedback table.",
       "signalRationaleUnavailable": "Signal rationale is not stored for this decision.",
       "unavailableMonth": "Calendar scan unavailable"
     },
