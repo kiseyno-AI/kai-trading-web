@@ -2768,9 +2768,9 @@ test("signal review calendar hides fallback row counts when selected-date review
   const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-27" }) });
   await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
     "data-selected-date-status",
-    "unavailable",
+    "stored",
   );
-  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("Unavailable");
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("Stored");
   await expect(
     selectedPanel.locator("div").filter({ hasText: /^Total decisions\s*Unavailable$/ }).locator("strong"),
   ).toHaveText("Unavailable");
@@ -2792,13 +2792,22 @@ test("signal review calendar hides fallback row counts when selected-date review
   await expect(selectedPanel).not.toContainText("Total decisions5");
   await expect(selectedPanel).not.toContainText("Reviewed rows0");
   await expect(selectedPanel).not.toContainText(/pending maturity 0/i);
-  await expect(selectedPanel).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+  await expect(selectedPanel).toContainText(
+    "The inline review summary is unavailable, but 5 stored feedback rows are available in the feedback table.",
+  );
+  await expect(page.getByTestId("calendar-feedback-cta")).toHaveText("Open 5 rows in feedback table");
+  await expect(page.getByTestId("calendar-feedback-cta")).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-27&navContext=calendar",
+  );
   await expect(selectedPanel).not.toContainText("Loading selected-date decisions...");
 
   const reviewRowsSection = page
     .locator("section")
     .filter({ has: page.getByRole("heading", { name: "Selected-date decisions" }) });
-  await expect(reviewRowsSection).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+  await expect(reviewRowsSection).toContainText(
+    "The inline review summary is unavailable, but 5 stored feedback rows are available in the feedback table.",
+  );
   await expect(reviewRowsSection).not.toContainText("Loading selected-date decisions...");
   await expect(reviewRowsSection).not.toContainText("Dense Regression");
 });
@@ -2888,6 +2897,73 @@ test("signal review calendar shows outcome badges while preserving pending and i
   await expect(insufficientTableRow).toContainText("Stop hit");
   await expect(insufficientTableRow).toContainText("insufficient price data");
   await expect(page.locator("body")).not.toContainText("Replay review is pending for the 5-day window.");
+});
+
+test("signal review calendar preserves selected-date stored feedback when inline review is unavailable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackActions: {
+      "2026-05-27": "wait",
+    },
+    denseFeedbackDates: {
+      "2026-05-27": 75,
+    },
+    timeoutFeedbackDates: ["2026-05-27"],
+    timeoutReviewDateDates: ["2026-05-27"],
+  });
+
+  await page.goto("/calendar?date=2026-05-27");
+  await page.getByRole("button", { name: "Korean" }).click();
+
+  const selectedDateCell = page.locator('[data-calendar-cell="2026-05-27"]');
+  await expect(selectedDateCell).toHaveAttribute("aria-label", /2026-05-27 저장됨.*75 개 결정.*대기 75/);
+
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-27" }) });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "stored",
+  );
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("저장됨");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^총 결정\s*사용 불가$/ }).locator("strong"),
+  ).toHaveText("사용 불가");
+  await expect(selectedPanel).toContainText(
+    "인라인 리뷰 요약을 불러오지 못했지만 피드백 표에서 저장된 75개 행을 확인할 수 있습니다.",
+  );
+  await expect(selectedPanel).not.toContainText("선택한 날짜 리뷰를 불러오지 못했습니다. 날짜를 다시 선택해");
+
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveText("피드백 표에서 75개 행 열기");
+  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "selected");
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-27&navContext=calendar",
+  );
+});
+
+test("signal review calendar caps the stored feedback rows promised by the recovery CTA", async ({ page }) => {
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackActions: {
+      "2026-05-27": "wait",
+    },
+    denseFeedbackDates: {
+      "2026-05-27": 275,
+    },
+    timeoutFeedbackDates: ["2026-05-27"],
+    timeoutReviewDateDates: ["2026-05-27"],
+  });
+
+  await page.goto("/calendar?date=2026-05-27");
+
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveText("Open up to 200 rows in feedback table");
+  await expect(feedbackCta).not.toContainText("275");
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-27&navContext=calendar",
+  );
 });
 
 test("signal review calendar hides previous selected-date rows while a new date is loading", async ({ page }) => {

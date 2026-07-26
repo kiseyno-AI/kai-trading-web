@@ -441,6 +441,8 @@
       "nextMonth": "다음 달",
       "openLatestFeedback": "최근 피드백 표 열기",
       "openFeedback": "피드백 표 열기",
+      "openStoredFeedback": "피드백 표에서 {count}개 행 열기",
+      "openStoredFeedbackUpTo": "피드백 표에서 최대 {count}개 행 열기",
       "previousMonth": "이전 달",
       "reject": "제외",
       "review": "리뷰",
@@ -485,6 +487,7 @@
       "replayUnavailable": "이 종목의 리플레이 기간 결과가 아직 저장되지 않았습니다.",
       "riskContextUnavailable": "이 시그널에 저장된 운영자용 리스크 설명이 없습니다.",
       "selectedUnavailable": "선택한 날짜 리뷰를 불러오지 못했습니다. 날짜를 다시 선택해 다시 불러보세요.",
+      "selectedInlineUnavailableStored": "인라인 리뷰 요약을 불러오지 못했지만 피드백 표에서 저장된 {count}개 행을 확인할 수 있습니다.",
       "signalRationaleUnavailable": "이 결정의 시그널 근거가 저장되지 않았습니다.",
       "unavailableMonth": "캘린더 스캔 사용 불가"
     },
