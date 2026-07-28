@@ -2590,21 +2590,107 @@ test("signal review calendar keeps timed-out current-month fallback cells scanna
 
     await expect(page.getByTestId("calendar-month-status")).toHaveText("Calendar scan unavailable");
     await expect(firstPastCell).toHaveAttribute("aria-label", /2026-06-01 Unavailable/);
+    await expect(firstPastCell).toBeDisabled();
     await expectCompactCalendarStatusFillsCell(firstPastCell, "ERR");
     await expect(selectedTodayCell).toHaveAttribute("aria-label", /2026-06-29 Unavailable/);
+    await expect(selectedTodayCell).toBeDisabled();
     await expectCompactCalendarStatusFillsCell(selectedTodayCell, "ERR");
+    await expect(page.getByTestId("calendar-month-recovery")).toContainText(
+      "The displayed zero is not confirmation that no decisions are stored.",
+    );
+    await expect(page.getByTestId("calendar-month-retry")).toHaveText("Retry calendar reads");
 
     await page.getByRole("button", { name: "Korean" }).click();
     await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
     await expect(page.getByTestId("calendar-month-status")).toHaveText("캘린더 스캔 사용 불가");
     await expect(firstPastCell).toHaveAttribute("aria-label", /2026-06-01 사용 불가/);
+    await expect(firstPastCell).toBeDisabled();
     await expectCompactCalendarStatusFillsCell(firstPastCell, "불가");
     await expect(selectedTodayCell).toHaveAttribute("aria-label", /2026-06-29 사용 불가/);
+    await expect(selectedTodayCell).toBeDisabled();
     await expectCompactCalendarStatusFillsCell(selectedTodayCell, "불가");
+    await expect(page.getByTestId("calendar-month-recovery")).toContainText(
+      "표시된 0은 저장된 결정이 없다는 뜻이 아닙니다.",
+    );
+    const initialCalendarSummaryHits = requestHits.calendarSummary;
+    const initialReviewDateHits = requestHits.reviewDate;
+    await page.getByTestId("calendar-month-retry").click();
+    await expect.poll(async () => requestHits.calendarSummary).toBeGreaterThan(initialCalendarSummaryHits);
+    await expect.poll(async () => requestHits.reviewDate).toBeGreaterThan(initialReviewDateHits);
     await expectNarrowMobileLabelsContained(page);
   } finally {
     delayedFallbackFeedback.resolve();
   }
+});
+
+test("signal review calendar keeps failed dates recoverable during a partial month", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const requestHits = await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-05-04": 3,
+    },
+    forceCalendarSummaryFailure: true,
+    timeoutFeedbackDates: ["2026-05-05"],
+    timeoutReviewDateDates: ["2026-05-05"],
+  });
+
+  await page.goto("/calendar?date=2026-05-04");
+  await expect(page.getByTestId("calendar-month-status")).toHaveText("Month loaded with partial coverage");
+
+  const successfulDateCell = page.locator('[data-calendar-cell="2026-05-04"]');
+  await expect(successfulDateCell).toBeEnabled();
+  await expect(successfulDateCell).toHaveAttribute("aria-pressed", "true");
+
+  const failedDateCell = page.locator('[data-calendar-cell="2026-05-05"]');
+  await expect(failedDateCell).toHaveAttribute("aria-label", /2026-05-05 Unavailable/);
+  await expect(failedDateCell).toBeEnabled();
+
+  await failedDateCell.click();
+
+  await expect(page).toHaveURL(/\/calendar\?date=2026-05-05$/);
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-05" }) });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "unavailable",
+  );
+  await expect(selectedPanel).toContainText(
+    "The selected-date read failed. This does not confirm that no decisions are stored.",
+  );
+  await expect(page.getByTestId("calendar-selected-date-retry")).toHaveText("Retry calendar reads");
+
+  await page.getByRole("button", { name: "Korean" }).click();
+  await expect(failedDateCell).toHaveAttribute("aria-label", /2026-05-05 사용 불가/);
+  await expect(failedDateCell).toBeEnabled();
+  await expect(selectedPanel).toContainText("선택한 날짜 조회에 실패했습니다.");
+  await expect(page.getByTestId("calendar-selected-date-retry")).toHaveText("캘린더 조회 다시 시도");
+
+  const initialCalendarSummaryHits = requestHits.calendarSummary;
+  const initialReviewDateHits = requestHits.reviewDate;
+  await page.getByTestId("calendar-selected-date-retry").click();
+  await expect.poll(async () => requestHits.calendarSummary).toBeGreaterThan(initialCalendarSummaryHits);
+  await expect.poll(async () => requestHits.reviewDate).toBeGreaterThan(initialReviewDateHits);
+});
+
+test("signal review calendar confirms a completed empty month without disabling usable dates", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page);
+
+  await page.goto("/calendar?date=2026-05-26");
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+  await expect(page.getByTestId("calendar-month-status")).toHaveText("Month scan ready");
+  await expect(page.getByTestId("calendar-empty-month-notice")).toHaveText(
+    "Month scan completed: no stored decisions were found.",
+  );
+
+  const selectedDateCell = page.locator('[data-calendar-cell="2026-05-26"]');
+  await expect(selectedDateCell).toBeEnabled();
+  await expect(selectedDateCell).toHaveAttribute("aria-label", /2026-05-26 No rows/);
+  await expect(page.getByTestId("calendar-month-recovery")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Korean" }).click();
+  await expect(page.getByTestId("calendar-empty-month-notice")).toHaveText(
+    "월간 스캔이 완료되었으며 저장된 결정이 없습니다.",
+  );
 });
 
 test("signal review calendar settles zero-row selected-date summary while the month snapshot is unresolved", async ({
@@ -2673,6 +2759,7 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
 
     const selectedDateCell = page.locator('[data-calendar-cell="2026-05-26"]');
     await expect(selectedDateCell).toHaveAttribute("aria-label", /2026-05-26 사용 불가/);
+    await expect(selectedDateCell).toBeEnabled();
     await expect(
       selectedDateCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]'),
     ).toHaveText("불가");
@@ -2701,9 +2788,11 @@ test("signal review calendar settles unavailable zero-row selected-date summary"
     await expect(
       selectedPanel.locator("div").filter({ hasText: /^단기 기간\s*사용 불가$/ }).locator("strong"),
     ).toHaveText("사용 불가");
-    await expect(selectedPanel).toContainText("선택한 날짜 리뷰를 불러오지 못했습니다.");
+    await expect(selectedPanel).toContainText("선택한 날짜 조회에 실패했습니다.");
+    await expect(selectedPanel).toContainText("저장된 결정이 없다는 뜻은 아닙니다.");
     await expect(selectedPanel).not.toContainText("선택한 날짜에 저장된 시그널 디사이더 결정이 없습니다.");
     await expect(selectedPanel).not.toContainText("로딩 중");
+    await expect(page.getByTestId("calendar-selected-date-retry")).toHaveText("캘린더 조회 다시 시도");
     const feedbackCta = page.getByTestId("calendar-feedback-cta");
     await expect(feedbackCta).toHaveText("피드백 표 사용 불가");
     await expect(feedbackCta).toBeDisabled();
@@ -2740,13 +2829,18 @@ test("signal review calendar settles selected-date body and review rows when mon
       "data-selected-date-status",
       "unavailable",
     );
-    await expect(selectedPanel).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+    await expect(selectedPanel).toContainText(
+      "The selected-date read failed. This does not confirm that no decisions are stored.",
+    );
     await expect(selectedPanel).not.toContainText("Loading selected-date decisions...");
+    await expect(page.getByTestId("calendar-selected-date-retry")).toHaveText("Retry calendar reads");
 
     const reviewRowsSection = page
       .locator("section")
       .filter({ has: page.getByRole("heading", { name: "Selected-date decisions" }) });
-    await expect(reviewRowsSection).toContainText("Unable to load selected-date reviews. Re-select the date to retry.");
+    await expect(reviewRowsSection).toContainText(
+      "The selected-date read failed. This does not confirm that no decisions are stored.",
+    );
     await expect(reviewRowsSection).not.toContainText("Loading selected-date decisions...");
     await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
   } finally {
@@ -3242,7 +3336,11 @@ test("signal review calendar resolves selected-date gateway timeouts into an exp
   await page.goto("/calendar?date=2026-04-29");
 
   await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
-  await expect(page.getByText("Unable to load selected-date reviews. Re-select the date to retry.").first()).toBeVisible();
+  await expect(
+    page.getByText(
+      "The selected-date read failed. This does not confirm that no decisions are stored. Retry calendar reads instead of selecting another unavailable date.",
+    ).first(),
+  ).toBeVisible();
   await expect(page.getByText("Loading selected-date decisions...")).toHaveCount(0);
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
 });

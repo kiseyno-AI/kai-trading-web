@@ -1047,6 +1047,7 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedProgress, setSelectedProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [selectedDataDate, setSelectedDataDate] = useState<string | null>(null);
   const [latestUsableFeedbackDate, setLatestUsableFeedbackDate] = useState<string | null>(null);
+  const [calendarReadRetryKey, setCalendarReadRetryKey] = useState(0);
   const [selectedLoadState, setSelectedLoadState] = useState<DetailLoadState>(initialDate ? "loading" : "idle");
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [progressUnavailable, setProgressUnavailable] = useState(false);
@@ -1249,7 +1250,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [copy.states.unavailableMonth, monthKey, refreshLatestUsableFeedbackDate, todayKey]);
+  }, [calendarReadRetryKey, copy.states.unavailableMonth, monthKey, refreshLatestUsableFeedbackDate, todayKey]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -1392,7 +1393,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [selectedUnavailable, devMode, refreshLatestUsableFeedbackDate, selectedDate]);
+  }, [calendarReadRetryKey, selectedUnavailable, devMode, refreshLatestUsableFeedbackDate, selectedDate]);
 
   const calendarDays = useMemo(() => buildCalendarDays(monthKey, todayKey), [monthKey, todayKey]);
   const selectedDataMatchesDate = selectedDate !== null && selectedDataDate === selectedDate;
@@ -1605,6 +1606,10 @@ export default function SignalReviewCalendarPageClient() {
     handleSelectDate(getMonthNavigationDate(nextMonthKey, selectedDate, todayKey));
   }
 
+  function handleRetryCalendarReads() {
+    setCalendarReadRetryKey((current) => current + 1);
+  }
+
   const openDetailPanel = useCallback((itemId: string) => {
     detailOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     shouldRestoreDetailFocusRef.current = false;
@@ -1648,7 +1653,10 @@ export default function SignalReviewCalendarPageClient() {
         })
       : null;
     const active = day.dateKey === selectedDate;
-    const disabled = !day.inMonth || day.isFuture;
+    const disabled =
+      !day.inMonth ||
+      day.isFuture ||
+      (monthLoadState === "unavailable" && snapshot?.status === "unavailable");
     const statusLabel = snapshot ? getStatusLabel(snapshot.status, copy) : "";
     const decisionLabel = snapshot ? getCalendarCellDecisionLabel(snapshot, copy) : "";
     const actionMixLabel = snapshot ? getCalendarCellActionMixLabel(snapshot, copy) : "";
@@ -1826,6 +1834,24 @@ export default function SignalReviewCalendarPageClient() {
               <strong>{monthDecisionCount.toLocaleString("en-US")} {copy.labels.monthDecisions}</strong>
             </div>
 
+            {monthLoadState === "unavailable" ? (
+              <div className={styles.recoveryStack} data-testid="calendar-month-recovery">
+                <p className={styles.inlineNotice}>{copy.states.monthReadUnavailable}</p>
+                <button
+                  type="button"
+                  className={styles.secondaryLink}
+                  data-testid="calendar-month-retry"
+                  onClick={handleRetryCalendarReads}
+                >
+                  {copy.actions.retryCalendarReads}
+                </button>
+              </div>
+            ) : monthLoadState === "ready" && monthDecisionCount === 0 ? (
+              <p className={styles.emptyState} data-testid="calendar-empty-month-notice">
+                {copy.states.emptyMonth}
+              </p>
+            ) : null}
+
             <div className={styles.weekHeader} aria-hidden="true">
               {WEEKDAY_KEYS.map((day) => (
                 <span key={day}>{copy.weekdays[day]}</span>
@@ -1889,7 +1915,17 @@ export default function SignalReviewCalendarPageClient() {
                 )}
               </div>
             ) : selectedDateUnavailable ? (
-              <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
+              <div className={styles.recoveryStack}>
+                <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
+                <button
+                  type="button"
+                  className={styles.secondaryLink}
+                  data-testid="calendar-selected-date-retry"
+                  onClick={handleRetryCalendarReads}
+                >
+                  {copy.actions.retryCalendarReads}
+                </button>
+              </div>
             ) : selectedDisplayLoadState === "loading" ? (
               <div className={styles.emptyState}>{copy.states.loadingSelected}</div>
             ) : selectedDisplayLoadState === "error" ? (
