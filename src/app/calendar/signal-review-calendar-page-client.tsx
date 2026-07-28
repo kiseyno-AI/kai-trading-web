@@ -1653,7 +1653,10 @@ export default function SignalReviewCalendarPageClient() {
         })
       : null;
     const active = day.dateKey === selectedDate;
-    const disabled = !day.inMonth || day.isFuture || snapshot?.status === "unavailable";
+    const disabled =
+      !day.inMonth ||
+      day.isFuture ||
+      (monthLoadState === "unavailable" && snapshot?.status === "unavailable");
     const statusLabel = snapshot ? getStatusLabel(snapshot.status, copy) : "";
     const decisionLabel = snapshot ? getCalendarCellDecisionLabel(snapshot, copy) : "";
     const actionMixLabel = snapshot ? getCalendarCellActionMixLabel(snapshot, copy) : "";
