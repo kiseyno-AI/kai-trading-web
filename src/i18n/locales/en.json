@@ -445,6 +445,7 @@
       "openStoredFeedbackUpTo": "Open up to {count} rows in feedback table",
       "previousMonth": "Previous month",
       "reject": "Reject",
+      "retryCalendarReads": "Retry calendar reads",
       "review": "Review",
       "today": "Today",
       "unknown": "Unknown",
@@ -473,10 +474,12 @@
       "needsReview": "Needs review"
     },
     "states": {
+      "emptyMonth": "Month scan completed: no stored decisions were found.",
       "emptySelected": "No signal-decider decisions are stored for the selected date.",
-      "feedbackTableUnavailable": "The selected date cannot open feedback rows right now. Stay on the calendar and retry this date or choose another date with stored rows.",
+      "feedbackTableUnavailable": "The selected date cannot open feedback rows right now. Retry calendar reads; another unavailable date is not expected to work without stored evidence.",
       "loadingMonth": "Loading decision dates",
       "loadingSelected": "Loading selected-date decisions...",
+      "monthReadUnavailable": "The month read failed. The displayed zero is not confirmation that no decisions are stored. Retry calendar reads; unavailable dates stay disabled until a read succeeds.",
       "openLatestFeedback": "Selected-date reviews are unavailable, so this opens the latest known usable feedback date: {marketDate}.",
       "partialMonth": "Month loaded with partial coverage",
       "pathUnavailable": "Path unavailable",
@@ -486,7 +489,7 @@
       "replayWindowProvisional": "The requested {days}-day replay window is not fully observed yet, so the review remains provisional.",
       "replayUnavailable": "Replay horizon results are not stored for this symbol yet.",
       "riskContextUnavailable": "No operator-facing risk context is stored for this signal.",
-      "selectedUnavailable": "Unable to load selected-date reviews. Re-select the date to retry.",
+      "selectedUnavailable": "The selected-date read failed. This does not confirm that no decisions are stored. Retry calendar reads instead of selecting another unavailable date.",
       "selectedInlineUnavailableStored": "The inline review summary is unavailable, but {count} stored feedback rows are available in the feedback table.",
       "signalRationaleUnavailable": "Signal rationale is not stored for this decision.",
       "unavailableMonth": "Calendar scan unavailable"

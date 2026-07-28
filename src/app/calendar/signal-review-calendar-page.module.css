@@ -92,6 +92,12 @@
   line-height: 1.45;
 }
 
+.recoveryStack {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: start;
+}
+
 .secondaryLink,
 .monthControls button,
 .reviewButton,
@@ -881,6 +887,10 @@
   .monthStateRow strong {
     flex: 1 1 8rem;
     text-align: left;
+  }
+
+  .recoveryStack .secondaryLink {
+    width: 100%;
   }
 
   .tableWrap {
