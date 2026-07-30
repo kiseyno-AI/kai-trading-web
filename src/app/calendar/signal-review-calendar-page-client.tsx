@@ -190,7 +190,7 @@ function toCalendarInt(value: unknown): number {
 }
 
 function normalizeActionKey(value: string | null | undefined): SignalDeciderAction {
-  const normalized = value?.trim().toLowerCase().replace(/\W+/g, " ").trim() ?? "";
+  const normalized = value?.trim().toLowerCase().replace(/[\W_]+/g, " ").trim() ?? "";
   if (normalized === "buy") return "buy";
   if (normalized === "wait" || normalized === "watch" || normalized === "watchlist") return "wait";
   if (normalized === "watch for trigger" || normalized === "wait for trigger" || normalized === "trigger watch") {
@@ -452,6 +452,20 @@ function getActionMixLabel(
     (action) => `${copy.actions[action]} ${actionCounts[action].toLocaleString("en-US")}`,
   );
   return labels.length > 0 ? labels.join(" · ") : copy.status.pending;
+}
+
+function getDegradedSelectedDateActionMixLabel(
+  actionCounts: Record<SignalDeciderAction, number>,
+  copy: ReturnType<typeof useAppState>["t"]["signalReview"],
+) {
+  return getActionMixLabel(
+    {
+      ...actionCounts,
+      wait: actionCounts.wait + actionCounts.watch_for_trigger,
+      reject: actionCounts.reject + actionCounts.avoid_chase,
+    },
+    copy,
+  );
 }
 
 function formatCompactCalendarNumber(value: number) {
@@ -1436,42 +1450,52 @@ export default function SignalReviewCalendarPageClient() {
   const selectedDateHasStoredEvidence = selectedStoredDecisionCount > 0;
   const selectedInlineReviewUnavailable =
     selectedDisplayLoadState === "error" || Boolean(selectedError) || selectedSnapshot?.status === "unavailable";
-  const selectedDisplayStatus = getSelectedDateDisplayStatus({
+  const selectedInlineReviewDegraded = selectedInlineReviewUnavailable && selectedDateHasStoredEvidence;
+  const resolvedSelectedDisplayStatus = getSelectedDateDisplayStatus({
     loadState: selectedDisplayLoadState,
     selectedError,
     selectedSnapshot,
     summary: selectedSummary,
   });
+  const selectedDisplayStatus: SelectedDateDisplayStatus = selectedInlineReviewDegraded
+    ? "partial"
+    : resolvedSelectedDisplayStatus;
   const selectedDateUnavailable = isSelectedDateMetricUnavailable(selectedDisplayStatus);
-  const selectedActionMixLabel = getSelectedDateActionMixLabel({
-    copy,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
-    summary: selectedSummary,
-  });
+  const selectedInlineMetricStatus: SelectedDateDisplayStatus = selectedInlineReviewUnavailable
+    ? "unavailable"
+    : selectedDisplayStatus;
+  const selectedActionMixLabel =
+    selectedInlineReviewDegraded && selectedSnapshot
+      ? getDegradedSelectedDateActionMixLabel(selectedSnapshot.actionCounts, copy)
+      : getSelectedDateActionMixLabel({
+          copy,
+          displayStatus: selectedInlineMetricStatus,
+          summary: selectedSummary,
+        });
   const selectedResultCountLabel = getSelectedDateCountMetricLabel({
     copy,
-    count: selectedSummary.resultCount,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    count: selectedInlineReviewDegraded ? selectedStoredDecisionCount : selectedSummary.resultCount,
+    displayStatus: selectedInlineReviewDegraded ? selectedDisplayStatus : selectedInlineMetricStatus,
   });
   const selectedReviewCountLabel = getSelectedDateCountMetricLabel({
     copy,
-    count: reviewCount,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    count: selectedInlineReviewDegraded ? (selectedSnapshot?.reviewCount ?? 0) : reviewCount,
+    displayStatus: selectedInlineReviewDegraded ? selectedDisplayStatus : selectedInlineMetricStatus,
   });
   const selectedPrimaryHorizonMetricLabel = getSelectedDatePrimaryHorizonMetricLabel({
     copy,
     counts: primaryHorizonCounts,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    displayStatus: selectedInlineMetricStatus,
   });
   const selectedPendingHorizonMetricLabel = getSelectedDatePendingHorizonMetricLabel({
     copy,
     counts: primaryHorizonCounts,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    displayStatus: selectedInlineMetricStatus,
   });
   const selectedShorterHorizonMetricLabel = getSelectedDateShorterHorizonMetricLabel({
     copy,
     count: shorterHorizonComputedCount,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    displayStatus: selectedInlineMetricStatus,
   });
   const selectedEmptyStateMessage = getSelectedDateEmptyStateMessage({
     copy,

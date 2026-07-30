@@ -2,9 +2,17 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { expectMobileContentClearsBottomChrome } from "./mobile-bottom-chrome";
 
+type SignalReviewCalendarMockAction =
+  | "buy"
+  | "wait"
+  | "reject"
+  | "watch_for_trigger"
+  | "avoid_chase"
+  | "unknown";
+
 type SignalReviewCalendarMockOptions = {
   calendarSummaryDelay?: Promise<void>;
-  denseFeedbackActions?: Partial<Record<string, "buy" | "wait" | "reject" | "unknown">>;
+  denseFeedbackActions?: Partial<Record<string, SignalReviewCalendarMockAction | SignalReviewCalendarMockAction[]>>;
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
@@ -75,14 +83,24 @@ async function getActiveElementState(page: Page) {
 function parseActionPreference(value: unknown) {
   if (typeof value !== "string") return "unknown";
   const normalized = value.trim().toLowerCase();
-  if (normalized === "buy" || normalized === "wait" || normalized === "reject") return normalized;
+  if (
+    normalized === "buy" ||
+    normalized === "wait" ||
+    normalized === "reject" ||
+    normalized === "watch_for_trigger" ||
+    normalized === "avoid_chase"
+  ) {
+    return normalized;
+  }
   if (normalized === "watch" || normalized === "hold" || normalized === "watchlist") return "wait";
   if (normalized === "avoid" || normalized === "skip") return "reject";
   return "unknown";
 }
 
-function getDenseFeedbackAction(date: string, options: SignalReviewCalendarMockOptions) {
-  return options.denseFeedbackActions?.[date] ?? "buy";
+function getDenseFeedbackAction(date: string, options: SignalReviewCalendarMockOptions, index = 0) {
+  const configuredAction = options.denseFeedbackActions?.[date];
+  if (!Array.isArray(configuredAction)) return configuredAction ?? "buy";
+  return configuredAction[index % configuredAction.length] ?? "buy";
 }
 
 function hasReviewEvidence(item: SignalReviewCalendarFeedbackItem) {
@@ -173,7 +191,6 @@ function buildMockFeedbackItemsForDate(
 ): SignalReviewCalendarFeedbackItem[] {
   const denseFeedbackCount = options.denseFeedbackDates?.[date] ?? 0;
   if (denseFeedbackCount > 0) {
-    const denseFeedbackAction = getDenseFeedbackAction(date, options);
     return Array.from({ length: denseFeedbackCount }, (_, index) => ({
       id: `dense-${date}-${index}`,
       market_date: date,
@@ -187,8 +204,8 @@ function buildMockFeedbackItemsForDate(
         role: "signal-decider",
         symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
         market_date: date,
-        preferred_action: denseFeedbackAction,
-        next_day_open_action: denseFeedbackAction,
+        preferred_action: getDenseFeedbackAction(date, options, index),
+        next_day_open_action: getDenseFeedbackAction(date, options, index),
         confidence_score_10: 8,
         conviction_score_10: 7,
         thesis_summary: "Dense mobile calendar regression row.",
@@ -877,6 +894,8 @@ function buildCalendarSummaryResponse(month: string, options: SignalReviewCalend
         buy: 0,
         wait: 0,
         reject: 0,
+        watch_for_trigger: 0,
+        avoid_chase: 0,
         unknown: 0,
       };
 
@@ -1109,7 +1128,6 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       return;
     }
     const denseFeedbackCount = options.denseFeedbackDates?.[marketDate] ?? 0;
-    const denseFeedbackAction = getDenseFeedbackAction(marketDate, options);
     const items =
       denseFeedbackCount > 0
         ? Array.from({ length: denseFeedbackCount }, (_, index) => ({
@@ -1125,8 +1143,8 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
               role: "signal-decider",
               symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
               market_date: marketDate,
-              preferred_action: denseFeedbackAction,
-              next_day_open_action: denseFeedbackAction,
+              preferred_action: getDenseFeedbackAction(marketDate, options, index),
+              next_day_open_action: getDenseFeedbackAction(marketDate, options, index),
               confidence_score_10: 8,
               conviction_score_10: 7,
               thesis_summary: "Dense mobile calendar regression row.",
@@ -2848,7 +2866,7 @@ test("signal review calendar settles selected-date body and review rows when mon
   }
 });
 
-test("signal review calendar hides fallback row counts when selected-date review times out", async ({ page }) => {
+test("signal review calendar keeps calendar evidence when selected-date review times out", async ({ page }) => {
   await mockSignalReviewCalendar(page, {
     denseFeedbackDates: {
       "2026-05-27": 5,
@@ -2862,18 +2880,18 @@ test("signal review calendar hides fallback row counts when selected-date review
   const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-27" }) });
   await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
     "data-selected-date-status",
-    "stored",
+    "partial",
   );
-  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("Stored");
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("Partial");
   await expect(
-    selectedPanel.locator("div").filter({ hasText: /^Total decisions\s*Unavailable$/ }).locator("strong"),
-  ).toHaveText("Unavailable");
+    selectedPanel.locator("div").filter({ hasText: /^Total decisions\s*5$/ }).locator("strong"),
+  ).toHaveText("5");
   await expect(
-    selectedPanel.locator("div").filter({ hasText: /^Action mix\s*Unavailable$/ }).locator("strong"),
-  ).toHaveText("Unavailable");
+    selectedPanel.locator("div").filter({ hasText: /^Action mix\s*Buy 5$/ }).locator("strong"),
+  ).toHaveText("Buy 5");
   await expect(
-    selectedPanel.locator("div").filter({ hasText: /^Reviewed rows\s*Unavailable$/ }).locator("strong"),
-  ).toHaveText("Unavailable");
+    selectedPanel.locator("div").filter({ hasText: /^Reviewed rows\s*0$/ }).locator("strong"),
+  ).toHaveText("0");
   await expect(
     selectedPanel.locator("div").filter({ hasText: /^5D target \/ stop\s*Unavailable$/ }).locator("strong"),
   ).toHaveText("Unavailable");
@@ -2883,8 +2901,6 @@ test("signal review calendar hides fallback row counts when selected-date review
   await expect(
     selectedPanel.locator("div").filter({ hasText: /^Shorter horizons\s*Unavailable$/ }).locator("strong"),
   ).toHaveText("Unavailable");
-  await expect(selectedPanel).not.toContainText("Total decisions5");
-  await expect(selectedPanel).not.toContainText("Reviewed rows0");
   await expect(selectedPanel).not.toContainText(/pending maturity 0/i);
   await expect(selectedPanel).toContainText(
     "The inline review summary is unavailable, but 5 stored feedback rows are available in the feedback table.",
@@ -2993,47 +3009,68 @@ test("signal review calendar shows outcome badges while preserving pending and i
   await expect(page.locator("body")).not.toContainText("Replay review is pending for the 5-day window.");
 });
 
-test("signal review calendar preserves selected-date stored feedback when inline review is unavailable", async ({
+test("signal review calendar shows a partial selected-date state from stored evidence when inline review is unavailable", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page, {
     denseFeedbackActions: {
-      "2026-05-27": "wait",
+      "2026-07-30": ["watch_for_trigger", "avoid_chase"],
     },
     denseFeedbackDates: {
-      "2026-05-27": 75,
+      "2026-07-30": 60,
     },
-    timeoutFeedbackDates: ["2026-05-27"],
-    timeoutReviewDateDates: ["2026-05-27"],
+    timeoutFeedbackDates: ["2026-07-30"],
+    timeoutReviewDateDates: ["2026-07-30"],
   });
 
-  await page.goto("/calendar?date=2026-05-27");
+  await page.goto("/calendar?date=2026-07-30");
   await page.getByRole("button", { name: "Korean" }).click();
 
-  const selectedDateCell = page.locator('[data-calendar-cell="2026-05-27"]');
-  await expect(selectedDateCell).toHaveAttribute("aria-label", /2026-05-27 저장됨.*75 개 결정.*대기 75/);
+  await expect(page.getByTestId("calendar-month-state")).toContainText("60 월간 결정");
 
-  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-27" }) });
+  const selectedDateCell = page.locator('[data-calendar-cell="2026-07-30"]');
+  await expect(selectedDateCell).toHaveAttribute("aria-label", /2026-07-30 저장됨.*60 개 결정/);
+
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-07-30" }) });
   await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
     "data-selected-date-status",
-    "stored",
+    "partial",
   );
-  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("저장됨");
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveText("부분");
   await expect(
-    selectedPanel.locator("div").filter({ hasText: /^총 결정\s*사용 불가$/ }).locator("strong"),
+    selectedPanel.locator("div").filter({ hasText: /^총 결정\s*60$/ }).locator("strong"),
+  ).toHaveText("60");
+  const actionMixMetric = selectedPanel
+    .locator("div")
+    .filter({ hasText: /^액션 믹스\s*대기 30 · 제외 30$/ })
+    .locator("strong");
+  await expect(actionMixMetric).toHaveText("대기 30 · 제외 30");
+  await expect(actionMixMetric).not.toHaveText("대기 중");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^리뷰된 행\s*0$/ }).locator("strong"),
+  ).toHaveText("0");
+  await expect(
+    selectedPanel.locator("div").filter({ hasText: /^5D 목표 \/ 손절\s*사용 불가$/ }).locator("strong"),
   ).toHaveText("사용 불가");
   await expect(selectedPanel).toContainText(
-    "인라인 리뷰 요약을 불러오지 못했지만 피드백 표에서 저장된 75개 행을 확인할 수 있습니다.",
+    "인라인 리뷰 요약을 불러오지 못했지만 피드백 표에서 저장된 60개 행을 확인할 수 있습니다.",
   );
   await expect(selectedPanel).not.toContainText("선택한 날짜 리뷰를 불러오지 못했습니다. 날짜를 다시 선택해");
 
   const feedbackCta = page.getByTestId("calendar-feedback-cta");
-  await expect(feedbackCta).toHaveText("피드백 표에서 75개 행 열기");
+  await expect(feedbackCta).toHaveText("피드백 표에서 60개 행 열기");
   await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "selected");
   await expect(feedbackCta).toHaveAttribute(
     "href",
-    "/dashboard/signal-decider-feedback?marketDate=2026-05-27&navContext=calendar",
+    "/dashboard/signal-decider-feedback?marketDate=2026-07-30&navContext=calendar",
+  );
+
+  const reviewRowsSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "선택 날짜 결정" }) });
+  await expect(reviewRowsSection).toContainText(
+    "인라인 리뷰 요약을 불러오지 못했지만 피드백 표에서 저장된 60개 행을 확인할 수 있습니다.",
   );
 });
 
