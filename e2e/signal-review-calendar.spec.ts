@@ -2,9 +2,17 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { expectMobileContentClearsBottomChrome } from "./mobile-bottom-chrome";
 
+type SignalReviewCalendarMockAction =
+  | "buy"
+  | "wait"
+  | "reject"
+  | "watch_for_trigger"
+  | "avoid_chase"
+  | "unknown";
+
 type SignalReviewCalendarMockOptions = {
   calendarSummaryDelay?: Promise<void>;
-  denseFeedbackActions?: Partial<Record<string, "buy" | "wait" | "reject" | "unknown">>;
+  denseFeedbackActions?: Partial<Record<string, SignalReviewCalendarMockAction | SignalReviewCalendarMockAction[]>>;
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
@@ -75,14 +83,24 @@ async function getActiveElementState(page: Page) {
 function parseActionPreference(value: unknown) {
   if (typeof value !== "string") return "unknown";
   const normalized = value.trim().toLowerCase();
-  if (normalized === "buy" || normalized === "wait" || normalized === "reject") return normalized;
+  if (
+    normalized === "buy" ||
+    normalized === "wait" ||
+    normalized === "reject" ||
+    normalized === "watch_for_trigger" ||
+    normalized === "avoid_chase"
+  ) {
+    return normalized;
+  }
   if (normalized === "watch" || normalized === "hold" || normalized === "watchlist") return "wait";
   if (normalized === "avoid" || normalized === "skip") return "reject";
   return "unknown";
 }
 
-function getDenseFeedbackAction(date: string, options: SignalReviewCalendarMockOptions) {
-  return options.denseFeedbackActions?.[date] ?? "buy";
+function getDenseFeedbackAction(date: string, options: SignalReviewCalendarMockOptions, index = 0) {
+  const configuredAction = options.denseFeedbackActions?.[date];
+  if (!Array.isArray(configuredAction)) return configuredAction ?? "buy";
+  return configuredAction[index % configuredAction.length] ?? "buy";
 }
 
 function hasReviewEvidence(item: SignalReviewCalendarFeedbackItem) {
@@ -173,7 +191,6 @@ function buildMockFeedbackItemsForDate(
 ): SignalReviewCalendarFeedbackItem[] {
   const denseFeedbackCount = options.denseFeedbackDates?.[date] ?? 0;
   if (denseFeedbackCount > 0) {
-    const denseFeedbackAction = getDenseFeedbackAction(date, options);
     return Array.from({ length: denseFeedbackCount }, (_, index) => ({
       id: `dense-${date}-${index}`,
       market_date: date,
@@ -187,8 +204,8 @@ function buildMockFeedbackItemsForDate(
         role: "signal-decider",
         symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
         market_date: date,
-        preferred_action: denseFeedbackAction,
-        next_day_open_action: denseFeedbackAction,
+        preferred_action: getDenseFeedbackAction(date, options, index),
+        next_day_open_action: getDenseFeedbackAction(date, options, index),
         confidence_score_10: 8,
         conviction_score_10: 7,
         thesis_summary: "Dense mobile calendar regression row.",
@@ -877,6 +894,8 @@ function buildCalendarSummaryResponse(month: string, options: SignalReviewCalend
         buy: 0,
         wait: 0,
         reject: 0,
+        watch_for_trigger: 0,
+        avoid_chase: 0,
         unknown: 0,
       };
 
@@ -1109,7 +1128,6 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       return;
     }
     const denseFeedbackCount = options.denseFeedbackDates?.[marketDate] ?? 0;
-    const denseFeedbackAction = getDenseFeedbackAction(marketDate, options);
     const items =
       denseFeedbackCount > 0
         ? Array.from({ length: denseFeedbackCount }, (_, index) => ({
@@ -1125,8 +1143,8 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
               role: "signal-decider",
               symbol: `DENSE${String(index + 1).padStart(3, "0")}`,
               market_date: marketDate,
-              preferred_action: denseFeedbackAction,
-              next_day_open_action: denseFeedbackAction,
+              preferred_action: getDenseFeedbackAction(marketDate, options, index),
+              next_day_open_action: getDenseFeedbackAction(marketDate, options, index),
               confidence_score_10: 8,
               conviction_score_10: 7,
               thesis_summary: "Dense mobile calendar regression row.",
@@ -2997,7 +3015,7 @@ test("signal review calendar shows a partial selected-date state from stored evi
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page, {
     denseFeedbackActions: {
-      "2026-07-30": "wait",
+      "2026-07-30": ["watch_for_trigger", "avoid_chase"],
     },
     denseFeedbackDates: {
       "2026-07-30": 60,
@@ -3012,7 +3030,7 @@ test("signal review calendar shows a partial selected-date state from stored evi
   await expect(page.getByTestId("calendar-month-state")).toContainText("60 월간 결정");
 
   const selectedDateCell = page.locator('[data-calendar-cell="2026-07-30"]');
-  await expect(selectedDateCell).toHaveAttribute("aria-label", /2026-07-30 저장됨.*60 개 결정.*대기 60/);
+  await expect(selectedDateCell).toHaveAttribute("aria-label", /2026-07-30 저장됨.*60 개 결정/);
 
   const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-07-30" }) });
   await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
@@ -3023,9 +3041,12 @@ test("signal review calendar shows a partial selected-date state from stored evi
   await expect(
     selectedPanel.locator("div").filter({ hasText: /^총 결정\s*60$/ }).locator("strong"),
   ).toHaveText("60");
-  await expect(
-    selectedPanel.locator("div").filter({ hasText: /^액션 믹스\s*대기 60$/ }).locator("strong"),
-  ).toHaveText("대기 60");
+  const actionMixMetric = selectedPanel
+    .locator("div")
+    .filter({ hasText: /^액션 믹스\s*대기 30 · 제외 30$/ })
+    .locator("strong");
+  await expect(actionMixMetric).toHaveText("대기 30 · 제외 30");
+  await expect(actionMixMetric).not.toHaveText("대기 중");
   await expect(
     selectedPanel.locator("div").filter({ hasText: /^리뷰된 행\s*0$/ }).locator("strong"),
   ).toHaveText("0");
