@@ -560,7 +560,7 @@ test.describe("search terminal mobile", () => {
     await expect.poll(() => searchRequests).toEqual(["005930"]);
   });
 
-  test("offers degraded symbol-detail opens when mobile symbol search times out", async ({ page }) => {
+  test("labels degraded symbol-detail opens when mobile symbol search times out", async ({ page }) => {
     const searchRequests: string[] = [];
 
     await page.addInitScript(() => {
@@ -638,7 +638,9 @@ test.describe("search terminal mobile", () => {
 
     await searchInput.fill("삼성");
     await expect(page.getByText(/검색 엔드포인트를 사용할 수 없습니다\..*HTTP 504/i).first()).toBeVisible();
-    const knownFallback = page.getByRole("link", { name: /005930.*삼성전자/i }).first();
+    const knownFallback = page
+      .getByRole("link", { name: /005930.*삼성전자.*정적 대체 정보.*Core 미확인/i })
+      .first();
     await expect(knownFallback).toBeVisible();
     await expect(knownFallback).toHaveAttribute(
       "href",
@@ -651,7 +653,9 @@ test.describe("search terminal mobile", () => {
     expect(searchRequests).toEqual(["123456", "F70100026", "252670", "삼성", "123456"]);
 
     await searchInput.fill("삼성");
-    const routeFallback = page.getByRole("link", { name: /005930.*삼성전자/i }).first();
+    const routeFallback = page
+      .getByRole("link", { name: /005930.*삼성전자.*정적 대체 정보.*Core 미확인/i })
+      .first();
     await expect(routeFallback).toBeVisible();
     await Promise.all([
       page.waitForURL(/\/dashboard\/symbol\/005930\?.*navContext=search.*q=%EC%82%BC%EC%84%B1/),
