@@ -52,6 +52,7 @@ import {
   buildSearchSymbolHref,
   getValidatedSymbolMasterItem,
   isDegradedDirectOpenSearchItem,
+  isDegradedKnownSymbolSearchItem,
   normalizeSearchItem,
   type SymbolSearchItem,
 } from "./search-symbol-routing";
@@ -232,6 +233,10 @@ function getSearchItemDisplayName(item: SymbolSearchItem, copy: SearchPageCopy) 
 
 function getSearchItemMetaLabel(item: SymbolSearchItem, copy: SearchPageCopy) {
   return isDegradedDirectOpenSearchItem(item) ? copy.results.degradedDirectOpenMeta : item.market;
+}
+
+function getSearchItemProvenanceLabel(item: SymbolSearchItem, copy: SearchPageCopy) {
+  return isDegradedKnownSymbolSearchItem(item) ? copy.results.degradedKnownSymbolProvenance : null;
 }
 
 function getTrendingEndpoint(mode: TrendingMode, limit: number) {
@@ -1025,6 +1030,7 @@ export default function SearchPageClient() {
                   const searchSuggestionBadge = getSearchSuggestionBadge({ symbol: item.symbol, market: item.market });
                   const itemDisplayName = getSearchItemDisplayName(item, copy);
                   const itemMetaLabel = getSearchItemMetaLabel(item, copy);
+                  const itemProvenanceLabel = getSearchItemProvenanceLabel(item, copy);
                   return (
                     <Link
                       key={item.symbol}
@@ -1045,6 +1051,9 @@ export default function SearchPageClient() {
                       <span className={styles.resultIdentity}>
                         <strong className="clamp-3">{item.symbol}</strong>
                         <span className="clamp-3">{itemDisplayName}</span>
+                        {itemProvenanceLabel ? (
+                          <span className={styles.degradedProvenanceBadge}>{itemProvenanceLabel}</span>
+                        ) : null}
                       </span>
                       <small className="clamp-3">{itemMetaLabel}</small>
                     </Link>
@@ -1396,6 +1405,7 @@ export default function SearchPageClient() {
                   const canShowSelectedQuote = isSelected && quote;
                   const itemDisplayName = getSearchItemDisplayName(item, copy);
                   const itemMetaLabel = getSearchItemMetaLabel(item, copy);
+                  const itemProvenanceLabel = getSearchItemProvenanceLabel(item, copy);
                   return (
                     <tr key={item.symbol} className={isSelected ? styles.selectedRow : undefined}>
                       <td>
@@ -1404,7 +1414,12 @@ export default function SearchPageClient() {
                         </button>
                       </td>
                       <td>
-                        <span className="clamp-3">{itemDisplayName}</span>
+                        <span className={styles.resultNameCell}>
+                          <span className="clamp-3">{itemDisplayName}</span>
+                          {itemProvenanceLabel ? (
+                            <span className={styles.degradedProvenanceBadge}>{itemProvenanceLabel}</span>
+                          ) : null}
+                        </span>
                       </td>
                       <td>{canShowSelectedQuote && hasNumber(quote.price) ? formatPrice(quote.price) : UNKNOWN}</td>
                       <td className={canShowSelectedQuote ? getChangeClass(quote.change_pct) : styles.neutralText}>

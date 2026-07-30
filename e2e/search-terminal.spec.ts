@@ -451,7 +451,19 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByText(/Selected Terminal Feed/i)).toHaveCount(0);
   });
 
-  test("offers known symbol-detail rows when Korean search times out", async ({ page }) => {
+  test("labels known static fallback rows when Korean search times out", async ({ page }) => {
+    let marketStatusRequests = 0;
+
+    await page.route("**/api/trading/market/status", async (route) => {
+      marketStatusRequests += 1;
+      await route.fulfill({
+        json: {
+          state: "CLOSED",
+          is_open: false,
+          server_time: "2026-04-14T09:00:00+09:00",
+        },
+      });
+    });
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({ json: { count: 0, items: [] } });
     });
@@ -481,16 +493,21 @@ test.describe("search terminal desktop", () => {
     });
 
     await page.goto("/search");
+    await expect.poll(() => marketStatusRequests).toBe(1);
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("삼성");
 
     await expect(page.getByText(/Search endpoint unavailable.*HTTP 504/i).first()).toBeVisible();
-    const samsungFallback = page.getByRole("link", { name: /005930.*삼성전자/i }).first();
+    const samsungFallback = page
+      .getByRole("link", { name: /005930.*삼성전자.*Static fallback.*not confirmed by Core/i })
+      .first();
     await expect(samsungFallback).toBeVisible();
     await expect(samsungFallback).toHaveAttribute(
       "href",
       /\/dashboard\/symbol\/005930\?(?=.*name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90)(?=.*market=KOSPI)(?=.*standardCode=KR7005930003)(?=.*navContext=search)(?=.*q=%EC%82%BC%EC%84%B1)/,
     );
-    await expect(page.getByRole("row", { name: /005930.*삼성전자/i })).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: /005930.*삼성전자.*Static fallback.*not confirmed by Core/i }),
+    ).toBeVisible();
     await expect(page.getByText("Searching...")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Results for "삼성"/i })).toBeVisible();
   });

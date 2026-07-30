@@ -372,6 +372,27 @@
   color: var(--search-text-muted);
 }
 
+span.degradedProvenanceBadge {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid rgba(245, 184, 75, 0.32);
+  border-radius: 999px;
+  background: var(--warning-soft);
+  padding: 0.2rem 0.45rem;
+  color: var(--warning);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+}
+
+.resultNameCell {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: 0.4rem;
+}
+
 .quickGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
