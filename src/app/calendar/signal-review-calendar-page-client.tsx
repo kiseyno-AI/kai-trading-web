@@ -1436,42 +1436,52 @@ export default function SignalReviewCalendarPageClient() {
   const selectedDateHasStoredEvidence = selectedStoredDecisionCount > 0;
   const selectedInlineReviewUnavailable =
     selectedDisplayLoadState === "error" || Boolean(selectedError) || selectedSnapshot?.status === "unavailable";
-  const selectedDisplayStatus = getSelectedDateDisplayStatus({
+  const selectedInlineReviewDegraded = selectedInlineReviewUnavailable && selectedDateHasStoredEvidence;
+  const resolvedSelectedDisplayStatus = getSelectedDateDisplayStatus({
     loadState: selectedDisplayLoadState,
     selectedError,
     selectedSnapshot,
     summary: selectedSummary,
   });
+  const selectedDisplayStatus: SelectedDateDisplayStatus = selectedInlineReviewDegraded
+    ? "partial"
+    : resolvedSelectedDisplayStatus;
   const selectedDateUnavailable = isSelectedDateMetricUnavailable(selectedDisplayStatus);
-  const selectedActionMixLabel = getSelectedDateActionMixLabel({
-    copy,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
-    summary: selectedSummary,
-  });
+  const selectedInlineMetricStatus: SelectedDateDisplayStatus = selectedInlineReviewUnavailable
+    ? "unavailable"
+    : selectedDisplayStatus;
+  const selectedActionMixLabel =
+    selectedInlineReviewDegraded && selectedSnapshot
+      ? getActionMixLabel(selectedSnapshot.actionCounts, copy)
+      : getSelectedDateActionMixLabel({
+          copy,
+          displayStatus: selectedInlineMetricStatus,
+          summary: selectedSummary,
+        });
   const selectedResultCountLabel = getSelectedDateCountMetricLabel({
     copy,
-    count: selectedSummary.resultCount,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    count: selectedInlineReviewDegraded ? selectedStoredDecisionCount : selectedSummary.resultCount,
+    displayStatus: selectedInlineReviewDegraded ? selectedDisplayStatus : selectedInlineMetricStatus,
   });
   const selectedReviewCountLabel = getSelectedDateCountMetricLabel({
     copy,
-    count: reviewCount,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    count: selectedInlineReviewDegraded ? (selectedSnapshot?.reviewCount ?? 0) : reviewCount,
+    displayStatus: selectedInlineReviewDegraded ? selectedDisplayStatus : selectedInlineMetricStatus,
   });
   const selectedPrimaryHorizonMetricLabel = getSelectedDatePrimaryHorizonMetricLabel({
     copy,
     counts: primaryHorizonCounts,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    displayStatus: selectedInlineMetricStatus,
   });
   const selectedPendingHorizonMetricLabel = getSelectedDatePendingHorizonMetricLabel({
     copy,
     counts: primaryHorizonCounts,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    displayStatus: selectedInlineMetricStatus,
   });
   const selectedShorterHorizonMetricLabel = getSelectedDateShorterHorizonMetricLabel({
     copy,
     count: shorterHorizonComputedCount,
-    displayStatus: selectedInlineReviewUnavailable ? "unavailable" : selectedDisplayStatus,
+    displayStatus: selectedInlineMetricStatus,
   });
   const selectedEmptyStateMessage = getSelectedDateEmptyStateMessage({
     copy,
