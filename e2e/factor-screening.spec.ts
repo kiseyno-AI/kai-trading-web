@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 const marketDate = "2026-04-23";
 
@@ -325,6 +325,7 @@ const factorPayloads = {
 } as const;
 
 type FactorPayloadFixtures = Record<keyof typeof factorPayloads, unknown>;
+type FactorPayloadFixtureFamily = keyof FactorPayloadFixtures;
 
 const emptyFactorPayloads = {
   momentum: {
@@ -454,7 +455,23 @@ function isSymbolMetaKey(symbol: string): symbol is keyof typeof symbolMeta {
   return symbol in symbolMeta;
 }
 
-async function stubFactorScreeningApis(page: Page, payloads: FactorPayloadFixtures = factorPayloads) {
+async function stubFactorScreeningApis(
+  page: Page,
+  payloads: FactorPayloadFixtures = factorPayloads,
+  unavailableFamilies: readonly FactorPayloadFixtureFamily[] = [],
+) {
+  const fulfillFamily = async (route: Route, family: FactorPayloadFixtureFamily) => {
+    if (unavailableFamilies.includes(family)) {
+      await route.fulfill({
+        json: { error: "Upstream request timed out" },
+        status: 504,
+      });
+      return;
+    }
+
+    await route.fulfill({ json: payloads[family] });
+  };
+
   await page.route("**/api/trading/eod/freshness", async (route) => {
     await route.fulfill({
       json: {
@@ -479,19 +496,19 @@ async function stubFactorScreeningApis(page: Page, payloads: FactorPayloadFixtur
   });
 
   await page.route("**/api/trading/eod/momentum-factors?**", async (route) => {
-    await route.fulfill({ json: payloads.momentum });
+    await fulfillFamily(route, "momentum");
   });
   await page.route("**/api/trading/eod/low-risk-factors?**", async (route) => {
-    await route.fulfill({ json: payloads.lowRisk });
+    await fulfillFamily(route, "lowRisk");
   });
   await page.route("**/api/trading/eod/beta-factors?**", async (route) => {
-    await route.fulfill({ json: payloads.beta });
+    await fulfillFamily(route, "beta");
   });
   await page.route("**/api/trading/eod/value-factors?**", async (route) => {
-    await route.fulfill({ json: payloads.value });
+    await fulfillFamily(route, "value");
   });
   await page.route("**/api/trading/eod/advanced-value-factors?**", async (route) => {
-    await route.fulfill({ json: payloads.advancedValue });
+    await fulfillFamily(route, "advancedValue");
   });
 
   await page.route("**/api/trading/market/status", async (route) => {
@@ -867,6 +884,42 @@ test("factor screening removes loading copy after empty family results resolve",
   await expect(page.getByText("Factors ready", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Core returned no rows for this factor family and market date.")).toBeVisible();
   await expect(page.getByText("Loading factor ranking rows...")).toHaveCount(0);
+});
+
+test("factor screening reports partial status and names timed-out families", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await stubFactorScreeningApis(page, factorPayloads, ["lowRisk", "beta", "value", "advancedValue"]);
+
+  await page.goto("/markets/factors");
+
+  await expect(page.getByTestId("factor-aggregate-status")).toHaveText("Factor data partial");
+  await expect(page.getByTestId("factor-unavailable-families")).toHaveText(
+    "Unavailable families: Low risk, Beta, Unified value, Advanced value components.",
+  );
+  await expect(page.locator('[data-app-chrome-topbar="fixed"]')).toContainText("Factor data partial");
+  await expect(page.locator("aside").filter({ hasText: "Market status" })).toContainText("Factor data partial");
+  await expect(page.getByText("Factors ready", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Composite-ready layout", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Factor family data request timed out.", { exact: true })).toHaveCount(4);
+
+  await page.getByRole("button", { name: /Korean/i }).first().click();
+
+  await expect(page.getByTestId("factor-aggregate-status")).toHaveText("팩터 데이터 일부 제공");
+  await expect(page.getByTestId("factor-unavailable-families")).toHaveText(
+    "사용 불가 패밀리: Low risk, Beta, Unified value, Advanced value components.",
+  );
+  await expect(page.getByText("팩터 준비 완료", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("합성 준비 완료 레이아웃", { exact: true })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await expect(page.getByTestId("factor-aggregate-status")).toBeVisible();
+  await expect(page.locator('[data-app-chrome-topbar="fixed"]')).toContainText("팩터 데이터 일부 제공");
+  const viewportMetrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(viewportMetrics.scrollWidth).toBeLessThanOrEqual(viewportMetrics.clientWidth + 1);
 });
 
 test("factor screening route chrome stays unavailable when market-date resolution returns HTTP 504", async ({
