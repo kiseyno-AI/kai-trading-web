@@ -7,6 +7,7 @@ import {
   type FactorScreeningRow,
   getFactorScreeningMarketDateNote,
   loadFactorScreeningWorkspace,
+  resolveFactorScreeningAvailability,
   resolveFactorScreeningFamily,
   resolveFactorScreeningMarketDate,
   resolveFactorScreeningRouteStatus,
@@ -97,6 +98,21 @@ test("resolveFactorScreeningRouteStatus only reports ready for a complete curren
     resolveFactorScreeningRouteStatus({ ...baseOptions, selectedFamily: "composite" }),
     "partial",
   );
+});
+
+test("resolveFactorScreeningAvailability identifies unavailable major families", () => {
+  const workspace = buildRouteStatusWorkspace();
+  workspace.families.lowRisk = buildRouteStatusDataset("error", 0, null);
+  workspace.families.beta = buildRouteStatusDataset("error", 0, null);
+  workspace.families.value = buildRouteStatusDataset("error", 0, null);
+  workspace.families.advancedValue = buildRouteStatusDataset("error", 0, null);
+
+  assert.deepEqual(resolveFactorScreeningAvailability(routeStatusMarketDate, workspace), {
+    currentFamilyCount: 1,
+    totalFamilyCount: 5,
+    unavailableFamilies: ["lowRisk", "beta", "value", "advancedValue"],
+    usableFamilyCount: 1,
+  });
 });
 
 test("loadFactorScreeningWorkspace maps current families into one ranking workspace and keeps the composite slot reserved", async () => {

@@ -5,6 +5,16 @@
   justify-content: flex-end;
 }
 
+.unavailableFamilies {
+  flex-basis: 100%;
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 .frame {
   min-width: 0;
 }
@@ -426,5 +436,15 @@
 
   .sectionHead {
     align-items: center;
+  }
+}
+
+@media (max-width: 720px) {
+  .introAside {
+    justify-content: flex-start;
+  }
+
+  .unavailableFamilies {
+    text-align: left;
   }
 }

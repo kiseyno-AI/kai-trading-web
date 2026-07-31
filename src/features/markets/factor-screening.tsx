@@ -15,6 +15,7 @@ import {
   getFactorScreeningMarketDateNote,
   loadFactorScreeningWorkspace,
   resolveFactorScreeningFamily,
+  resolveFactorScreeningAvailability,
   resolveFactorScreeningMarketDate,
   resolveFactorScreeningRouteStatus,
   type FactorScreeningDataset,
@@ -40,7 +41,6 @@ const copyByLocale = {
     applyDate: "Apply date",
     auditRows: "Audit rows",
     backToMarkets: "Back to markets",
-    compositeReady: "Composite-ready layout",
     controlsEyebrow: "Screen controls",
     controlsTitle: "Family, date, and eligibility filters",
     controlsBody:
@@ -100,6 +100,7 @@ const copyByLocale = {
     summaryTitle: "Market-date aware ranking and drill-in",
     summaryBody:
       "The ranked list always stays tied to the selected market date, and every row keeps enough factor context to make the drill-in path explainable.",
+    unavailableFamilies: (families: string[]) => `Unavailable families: ${families.join(", ")}.`,
     visibleRows: "Visible rows",
   },
   ko: {
@@ -109,7 +110,6 @@ const copyByLocale = {
     applyDate: "날짜 적용",
     auditRows: "감사용 행",
     backToMarkets: "마켓으로 돌아가기",
-    compositeReady: "합성 준비 완료 레이아웃",
     controlsEyebrow: "스크린 제어",
     controlsTitle: "패밀리, 날짜, 적격성 필터",
     controlsBody:
@@ -169,6 +169,7 @@ const copyByLocale = {
     summaryTitle: "시장 날짜 인지형 순위와 드릴인",
     summaryBody:
       "순위 목록은 항상 선택한 시장 날짜와 정렬 상태를 함께 유지하고, 각 행은 종목 상세로 내려가기 전에 충분한 팩터 맥락을 보여 줍니다.",
+    unavailableFamilies: (families: string[]) => `사용 불가 패밀리: ${families.join(", ")}.`,
     visibleRows: "표시 행 수",
   },
 } satisfies Record<
@@ -180,7 +181,6 @@ const copyByLocale = {
     applyDate: string;
     auditRows: string;
     backToMarkets: string;
-    compositeReady: string;
     controlsEyebrow: string;
     controlsTitle: string;
     controlsBody: string;
@@ -224,6 +224,7 @@ const copyByLocale = {
     summaryEyebrow: string;
     summaryTitle: string;
     summaryBody: string;
+    unavailableFamilies: (families: string[]) => string;
     visibleRows: string;
   }
 >;
@@ -292,7 +293,7 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { locale } = useAppState();
+  const { locale, t } = useAppState();
   const copy = copyByLocale[locale];
   const numberLocale = useMemo(() => getNumberLocale(locale), [locale]);
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
@@ -390,6 +391,28 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
     selectedFamily,
     workspace,
   });
+  const availability = resolveFactorScreeningAvailability(activeMarketDate, workspace);
+  const unavailableFamilyNames = availability.unavailableFamilies.map(
+    (family) => workspace?.families[family].title ?? getFamilyFallbackLabel(family),
+  );
+  const routeStatusDisplay = {
+    partial: {
+      label: t.markets.factorScreeningStatusPartial,
+      tone: "warning" as const,
+    },
+    pending: {
+      label: t.markets.factorScreeningStatusPending,
+      tone: "neutral" as const,
+    },
+    ready: {
+      label: t.markets.factorScreeningStatus,
+      tone: "info" as const,
+    },
+    unavailable: {
+      label: t.markets.factorScreeningStatusUnavailable,
+      tone: "warning" as const,
+    },
+  }[routeStatus];
 
   useEffect(() => {
     onRouteStatusChange?.(routeStatus);
@@ -446,7 +469,14 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
             <span className="pill info">
               {copy.activeDate}: {formatIsoDateLabel(activeMarketDate, copy.marketDatePending)}
             </span>
-            <span className="pill neutral">{copy.compositeReady}</span>
+            <span className={`pill ${routeStatusDisplay.tone}`} data-testid="factor-aggregate-status">
+              {routeStatusDisplay.label}
+            </span>
+            {unavailableFamilyNames.length > 0 ? (
+              <p className={styles.unavailableFamilies} data-testid="factor-unavailable-families">
+                {copy.unavailableFamilies(unavailableFamilyNames)}
+              </p>
+            ) : null}
           </div>
         }
       />
