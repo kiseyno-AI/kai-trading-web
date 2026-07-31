@@ -9,7 +9,31 @@ import {
   loadFactorScreeningWorkspace,
   resolveFactorScreeningFamily,
   resolveFactorScreeningMarketDate,
+  resolveFactorScreeningRouteStatus,
 } from "./factor-screening";
+
+const routeStatusMarketDate = "2026-04-23";
+
+function buildRouteStatusDataset(
+  state: "ready" | "error" | "future",
+  totalRows: number,
+  marketDate: string | null = routeStatusMarketDate,
+) {
+  return { marketDate, state, totalRows };
+}
+
+function buildRouteStatusWorkspace() {
+  return {
+    families: {
+      advancedValue: buildRouteStatusDataset("ready", 1),
+      beta: buildRouteStatusDataset("ready", 1),
+      composite: buildRouteStatusDataset("future", 0),
+      lowRisk: buildRouteStatusDataset("ready", 1),
+      momentum: buildRouteStatusDataset("ready", 1),
+      value: buildRouteStatusDataset("ready", 1),
+    },
+  } satisfies NonNullable<Parameters<typeof resolveFactorScreeningRouteStatus>[0]["workspace"]>;
+}
 
 test("buildFactorScreeningPath uses market-date list reads for every available family", () => {
   assert.equal(
@@ -31,6 +55,47 @@ test("buildFactorScreeningPath uses market-date list reads for every available f
   assert.equal(
     buildFactorScreeningPath("advancedValue", "2026-04-23"),
     "/api/trading/eod/advanced-value-factors?market_date=2026-04-23",
+  );
+});
+
+test("resolveFactorScreeningRouteStatus only reports ready for a complete current-date row basis", () => {
+  const readyWorkspace = buildRouteStatusWorkspace();
+  const baseOptions = {
+    activeMarketDate: routeStatusMarketDate,
+    hasError: false,
+    isBusy: false,
+    selectedFamily: "momentum" as const,
+    workspace: readyWorkspace,
+  };
+
+  assert.equal(resolveFactorScreeningRouteStatus(baseOptions), "ready");
+  assert.equal(
+    resolveFactorScreeningRouteStatus({ ...baseOptions, activeMarketDate: null, workspace: null }),
+    "pending",
+  );
+  assert.equal(resolveFactorScreeningRouteStatus({ ...baseOptions, isBusy: true }), "pending");
+  assert.equal(resolveFactorScreeningRouteStatus({ ...baseOptions, hasError: true }), "unavailable");
+
+  const unavailableWorkspace = buildRouteStatusWorkspace();
+  for (const family of ["momentum", "lowRisk", "beta", "value", "advancedValue"] as const) {
+    unavailableWorkspace.families[family] = buildRouteStatusDataset("error", 0, null);
+  }
+  assert.equal(
+    resolveFactorScreeningRouteStatus({ ...baseOptions, workspace: unavailableWorkspace }),
+    "unavailable",
+  );
+
+  const partialWorkspace = buildRouteStatusWorkspace();
+  partialWorkspace.families.beta = buildRouteStatusDataset("error", 0, null);
+  assert.equal(resolveFactorScreeningRouteStatus({ ...baseOptions, workspace: partialWorkspace }), "partial");
+
+  const staleWorkspace = buildRouteStatusWorkspace();
+  staleWorkspace.families.value = buildRouteStatusDataset("ready", 1, "2026-04-22");
+  assert.equal(resolveFactorScreeningRouteStatus({ ...baseOptions, workspace: staleWorkspace }), "partial");
+
+  assert.equal(
+    resolveFactorScreeningRouteStatus({ ...baseOptions, selectedFamily: "composite" }),
+    "partial",
   );
 });
 

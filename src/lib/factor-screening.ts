@@ -44,6 +44,7 @@ export const FACTOR_SCREENING_API_REQUEST_TIMEOUT_MS = 15_000;
 export type FactorScreeningFamilyId = (typeof FACTOR_SCREENING_FAMILY_ORDER)[number];
 export type FactorScreeningStatusBucket = "eligible" | "caution" | "audit";
 export type FactorScreeningDatasetState = "ready" | "error" | "future";
+export type FactorScreeningRouteStatus = "pending" | "unavailable" | "partial" | "ready";
 export type FactorScreeningTone = "positive" | "negative" | "neutral";
 
 export type FactorScreeningMetric = {
@@ -109,6 +110,13 @@ export type FactorScreeningDataset = {
 export type FactorScreeningWorkspace = {
   requestedMarketDate: string;
   families: Record<FactorScreeningFamilyId, FactorScreeningDataset>;
+};
+
+type FactorScreeningRouteWorkspace = {
+  families: Record<
+    FactorScreeningFamilyId,
+    Pick<FactorScreeningDataset, "marketDate" | "state" | "totalRows">
+  >;
 };
 
 export const FACTOR_SCREENING_FILTER_MODES = ["review", "all", "eligible", "caution", "audit"] as const;
@@ -1142,6 +1150,35 @@ export function buildFactorScreeningPath(family: FactorFamilyId, marketDate: str
 
 export function resolveFactorScreeningMarketDate(freshness: EodFreshnessResponseDto | null) {
   return getLatestPriceTradeDate(freshness) ?? freshness?.today?.trade_date ?? null;
+}
+
+export function resolveFactorScreeningRouteStatus(options: {
+  activeMarketDate: string | null;
+  hasError: boolean;
+  isBusy: boolean;
+  selectedFamily: FactorScreeningFamilyId;
+  workspace: FactorScreeningRouteWorkspace | null;
+}): FactorScreeningRouteStatus {
+  if (options.hasError) return "unavailable";
+  if (options.isBusy || !options.activeMarketDate || !options.workspace) return "pending";
+
+  const workspace = options.workspace;
+  const datasets = FACTOR_FAMILY_ORDER.map((family) => workspace.families[family]);
+  const usableDatasets = datasets.filter(
+    (dataset) =>
+      dataset?.state === "ready" &&
+      Boolean(dataset.marketDate?.trim()) &&
+      dataset.totalRows > 0,
+  );
+
+  if (usableDatasets.length === 0) return "unavailable";
+
+  const hasCompleteCurrentBasis =
+    options.selectedFamily !== "composite" &&
+    usableDatasets.length === FACTOR_FAMILY_ORDER.length &&
+    usableDatasets.every((dataset) => dataset.marketDate === options.activeMarketDate);
+
+  return hasCompleteCurrentBasis ? "ready" : "partial";
 }
 
 export function getFactorScreeningMarketDateNote(
