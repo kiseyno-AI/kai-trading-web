@@ -770,6 +770,7 @@ test("factor screening supports switching, eligibility filtering, composite plac
   const activeFilterValue = page.getByTestId("factor-active-filter-value");
 
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+  await expect(page.getByText("Factors ready", { exact: true }).first()).toBeVisible();
   const desktopNav = page.getByRole("navigation", { name: /Primary desktop/i });
   await expect(desktopNav.getByRole("link")).toHaveCount(5);
   await expect(desktopNav.getByRole("link", { name: "Markets", exact: true })).toHaveCount(0);
@@ -862,8 +863,39 @@ test("factor screening removes loading copy after empty family results resolve",
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /Momentum/i })).toContainText("Ready");
   await expect(page.getByRole("button", { name: /Low risk/i })).toContainText("Ready");
+  await expect(page.getByText("Factor data unavailable", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Factors ready", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Core returned no rows for this factor family and market date.")).toBeVisible();
   await expect(page.getByText("Loading factor ranking rows...")).toHaveCount(0);
+});
+
+test("factor screening route chrome stays unavailable when market-date resolution returns HTTP 504", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      json: {
+        error: "Upstream request timed out",
+        message: "HTTP 504",
+      },
+      status: 504,
+    });
+  });
+
+  await page.goto("/markets/factors");
+
+  await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+  await expect(page.getByText("Factor data unavailable", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Factors ready", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Factor screening is unavailable right now.")).toBeVisible();
+  await expect(page.getByText("HTTP 504", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: /Korean/i }).first().click();
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+  await expect(page.getByText("팩터 데이터 사용 불가", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("팩터 준비 완료", { exact: true })).toHaveCount(0);
 });
 
 test("factor screening stays usable on mobile viewport", async ({ page }) => {

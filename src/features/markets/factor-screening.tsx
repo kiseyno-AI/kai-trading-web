@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { useAppState } from "@/components/providers/app-state-provider";
@@ -16,9 +16,11 @@ import {
   loadFactorScreeningWorkspace,
   resolveFactorScreeningFamily,
   resolveFactorScreeningMarketDate,
+  resolveFactorScreeningRouteStatus,
   type FactorScreeningDataset,
   type FactorScreeningFilterMode,
   type FactorScreeningFamilyId,
+  type FactorScreeningRouteStatus,
   type FactorScreeningWorkspace,
 } from "@/lib/factor-screening";
 import { getNumberLocale } from "@/lib/locale";
@@ -282,7 +284,11 @@ function getFilterModeCount(dataset: FactorScreeningDataset | null, mode: Factor
   }
 }
 
-export function FactorScreening() {
+type FactorScreeningProps = {
+  onRouteStatusChange?: (status: FactorScreeningRouteStatus) => void;
+};
+
+export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -377,6 +383,17 @@ export function FactorScreening() {
   const summaryBusy =
     workspaceResult.isRefreshing ||
     (!workspace && (workspaceResult.isInitialLoading || (!requestedMarketDate && freshnessResult.isInitialLoading)));
+  const routeStatus = resolveFactorScreeningRouteStatus({
+    activeMarketDate,
+    hasError: Boolean(summaryError),
+    isBusy: summaryBusy,
+    selectedFamily,
+    workspace,
+  });
+
+  useEffect(() => {
+    onRouteStatusChange?.(routeStatus);
+  }, [onRouteStatusChange, routeStatus]);
 
   const handleFamilySelect = (family: FactorScreeningFamilyId) => {
     updateSearch((nextParams) => {

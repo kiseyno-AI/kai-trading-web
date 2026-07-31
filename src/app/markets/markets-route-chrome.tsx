@@ -4,13 +4,19 @@ import type { ReactNode } from "react";
 
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
+import type { FactorScreeningRouteStatus } from "@/lib/factor-screening";
 
 type MarketsRouteChromeProps = {
   children: ReactNode;
+  factorStatus?: FactorScreeningRouteStatus;
   variant?: "crypto" | "factors" | "overview";
 };
 
-export function MarketsRouteChrome({ children, variant = "overview" }: MarketsRouteChromeProps) {
+export function MarketsRouteChrome({
+  children,
+  factorStatus = "pending",
+  variant = "overview",
+}: MarketsRouteChromeProps) {
   const { t } = useAppState();
   const isFactors = variant === "factors";
   const isCrypto = variant === "crypto";
@@ -20,10 +26,28 @@ export function MarketsRouteChrome({ children, variant = "overview" }: MarketsRo
     : isFactors
       ? t.markets.factorScreeningSubtitle
       : t.markets.chromeSubtitle;
-  const statusLabel = isCrypto
+  const factorStatusDisplay = {
+    partial: {
+      label: t.markets.factorScreeningStatusPartial,
+      tone: "warning" as const,
+    },
+    pending: {
+      label: t.markets.factorScreeningStatusPending,
+      tone: "neutral" as const,
+    },
+    ready: {
+      label: t.markets.factorScreeningStatus,
+      tone: "info" as const,
+    },
+    unavailable: {
+      label: t.markets.factorScreeningStatusUnavailable,
+      tone: "warning" as const,
+    },
+  }[factorStatus];
+  const statusDisplay = isCrypto
     ? t.markets.cryptoChromeStatus
     : isFactors
-      ? t.markets.factorScreeningStatus
+      ? factorStatusDisplay.label
       : t.markets.statusUnavailable;
 
   return (
@@ -33,8 +57,8 @@ export function MarketsRouteChrome({ children, variant = "overview" }: MarketsRo
         title,
         subtitle,
         status: {
-          label: statusLabel,
-          tone: isFactors ? "info" : "warning",
+          label: statusDisplay,
+          tone: isFactors ? factorStatusDisplay.tone : "warning",
         },
         toolbarAction: "none",
       }}
