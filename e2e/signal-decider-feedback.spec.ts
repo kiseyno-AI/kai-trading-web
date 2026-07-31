@@ -990,6 +990,35 @@ test("dashboard signal-decider card shows planned board rows and links to the de
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Feature Snapshot Id");
 });
 
+test("dashboard preserves its latest feedback route date when feedback rows are unavailable", async ({ page }) => {
+  const shell = await mockDashboardShell(page);
+  shell.setSignalDeciderFeedbackMode("empty");
+
+  await page.goto("/dashboard");
+
+  const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
+  await expect(card.getByTestId("dashboard-decider-row")).toHaveCount(2);
+  await expect(card.getByRole("link", { name: /Open the signal-decider feedback detail page/i })).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-04-27",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const rawHint = window.sessionStorage.getItem("kai.signalDeciderFeedbackRecovery.v1");
+        return rawHint ? JSON.parse(rawHint) : null;
+      }),
+    )
+    .toMatchObject({
+      version: 1,
+      marketDate: "2026-04-27",
+      source: "dashboard",
+    });
+  await expect
+    .poll(() => page.evaluate(() => window.sessionStorage.getItem("kai.signalDeciderFeedback.v1:2026-04-27")))
+    .toBeNull();
+});
+
 test("signal-decider feedback review dialog traps focus and hides mobile background controls", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockDashboardShell(page);

@@ -28,7 +28,10 @@ import {
   buildSignalDeciderFeedbackSummary,
   selectSignalDeciderDashboardFeedback,
 } from "@/lib/signal-decider-feedback";
-import { writeSignalDeciderFeedbackCache } from "@/lib/signal-decider-feedback-cache";
+import {
+  writeSignalDeciderFeedbackCache,
+  writeSignalDeciderFeedbackRecoveryHint,
+} from "@/lib/signal-decider-feedback-cache";
 import { resolvePortfolioSummaryState } from "@/features/portfolio/portfolio-display";
 import {
   getFundamentalsRunDate,
@@ -2188,6 +2191,13 @@ export function LiveDashboardClient({
       }),
     [deciderOverviewModel, signalDeciderFeedbackModel.detailHref],
   );
+  useEffect(() => {
+    if (deciderOverviewModel.rows.length === 0 || !deciderOverviewModel.detailMarketDate) return;
+
+    writeSignalDeciderFeedbackRecoveryHint({
+      marketDate: deciderOverviewModel.detailMarketDate,
+    });
+  }, [deciderOverviewModel.detailMarketDate, deciderOverviewModel.rows.length]);
   const portfolioOverviewModel = useMemo(
     () =>
       buildDashboardPortfolioOverviewModel({

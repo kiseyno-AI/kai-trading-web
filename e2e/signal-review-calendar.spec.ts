@@ -1430,6 +1430,20 @@ async function seedDashboardSignalDeciderCache(page: Page, marketDate: string) {
   }, marketDate);
 }
 
+async function seedDashboardSignalDeciderRecoveryHint(page: Page, marketDate: string) {
+  await page.addInitScript((date) => {
+    window.sessionStorage.setItem(
+      "kai.signalDeciderFeedbackRecovery.v1",
+      JSON.stringify({
+        version: 1,
+        marketDate: date,
+        cachedAt: Date.now(),
+        source: "dashboard",
+      }),
+    );
+  }, marketDate);
+}
+
 async function mockSymbolDetailApis(
   page: Page,
   {
@@ -2255,6 +2269,48 @@ test("calendar unavailable selected date routes feedback CTA to latest cached us
     page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-04-27 / 피드백"),
   ).toBeVisible();
   await expect(page.getByTestId("signal-decider-result-card").first()).toBeVisible();
+});
+
+test("calendar unavailable scan routes to the latest dashboard-known feedback date without cached rows", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await seedDashboardSignalDeciderRecoveryHint(page, "2026-07-31");
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-07-31": 2,
+    },
+    forceCalendarSummaryFailure: true,
+    runningProgressDates: ["2026-08-01"],
+    timeoutFeedbackDates: ["2026-08-01"],
+    timeoutReviewDateDates: ["2026-08-01"],
+  });
+
+  await page.goto("/calendar?date=2026-08-01");
+  await page.getByRole("button", { name: /Korean/i }).click();
+
+  await expect(page.getByText("캘린더 스캔 사용 불가", { exact: true })).toBeVisible();
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveText("최근 피드백 표 열기");
+  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "latest");
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-07-31&navContext=calendar",
+  );
+  await expect(page.getByTestId("calendar-feedback-recovery-notice")).toHaveText(
+    "캘린더 조회를 사용할 수 없어 대시보드에서 마지막으로 확인한 피드백 기준일 2026-07-31을 엽니다.",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.sessionStorage.getItem("kai.signalDeciderFeedback.v1:2026-07-31")),
+    )
+    .toBeNull();
+
+  await feedbackCta.click();
+
+  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-07-31&navContext=calendar$/);
+  await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+  await expect(page.getByTestId("signal-decider-result-card")).toHaveCount(2);
 });
 
 test("feedback table link keeps the selected calendar date in navigation", async ({ page }) => {
