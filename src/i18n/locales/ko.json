@@ -480,6 +480,7 @@
       "loadingMonth": "의사결정 날짜를 불러오는 중",
       "loadingSelected": "선택한 날짜의 결정을 불러오는 중...",
       "monthReadUnavailable": "월간 조회에 실패했습니다. 표시된 0은 저장된 결정이 없다는 뜻이 아닙니다. 캘린더 조회를 다시 시도하세요. 조회가 성공할 때까지 사용 불가 날짜는 비활성화됩니다.",
+      "openDashboardFeedback": "캘린더 조회를 사용할 수 없어 대시보드에서 마지막으로 확인한 피드백 기준일 {marketDate}을 엽니다.",
       "openLatestFeedback": "선택한 날짜 리뷰를 사용할 수 없어 최근 확인 가능한 피드백 날짜 {marketDate}을 엽니다.",
       "partialMonth": "월간 커버리지가 부분적으로 로드됨",
       "pathUnavailable": "경로 사용 불가",

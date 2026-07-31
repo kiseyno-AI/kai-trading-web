@@ -39,10 +39,11 @@ import {
   type SignalDeciderQualityTone,
 } from "@/lib/signal-decider-feedback";
 import {
-  readLatestSignalDeciderFeedbackCacheByMarketDate,
+  readLatestSignalDeciderFeedbackRecoveryDate,
   readSignalDeciderFeedbackCache,
   readSignalDeciderFeedbackCacheForMonth,
   selectSignalDeciderFeedbackResponse,
+  type SignalDeciderFeedbackRecoveryDate,
   writeSignalDeciderFeedbackCache,
 } from "@/lib/signal-decider-feedback-cache";
 import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
@@ -1060,7 +1061,7 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedFeedback, setSelectedFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [selectedProgress, setSelectedProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [selectedDataDate, setSelectedDataDate] = useState<string | null>(null);
-  const [latestUsableFeedbackDate, setLatestUsableFeedbackDate] = useState<string | null>(null);
+  const [latestFeedbackRecovery, setLatestFeedbackRecovery] = useState<SignalDeciderFeedbackRecoveryDate | null>(null);
   const [calendarReadRetryKey, setCalendarReadRetryKey] = useState(0);
   const [selectedLoadState, setSelectedLoadState] = useState<DetailLoadState>(initialDate ? "loading" : "idle");
   const [selectedError, setSelectedError] = useState<string | null>(null);
@@ -1072,10 +1073,13 @@ export default function SignalReviewCalendarPageClient() {
   const copy = t.signalReview;
   const selectedUnavailable = copy.states.selectedUnavailable;
   const feedbackDate = useMemo(() => parseCompactDateValue(selectedDate), [selectedDate]);
-  const refreshLatestUsableFeedbackDate = useCallback(() => {
-    const latestEntry = readLatestSignalDeciderFeedbackCacheByMarketDate();
-    const nextLatestDate = latestEntry?.marketDate ?? null;
-    setLatestUsableFeedbackDate((current) => (current === nextLatestDate ? current : nextLatestDate));
+  const refreshLatestFeedbackRecovery = useCallback(() => {
+    const nextRecovery = readLatestSignalDeciderFeedbackRecoveryDate();
+    setLatestFeedbackRecovery((current) =>
+      current?.marketDate === nextRecovery?.marketDate && current?.source === nextRecovery?.source
+        ? current
+        : nextRecovery,
+    );
   }, []);
 
   useEffect(() => {
@@ -1083,13 +1087,13 @@ export default function SignalReviewCalendarPageClient() {
 
     queueMicrotask(() => {
       if (!active) return;
-      refreshLatestUsableFeedbackDate();
+      refreshLatestFeedbackRecovery();
     });
 
     return () => {
       active = false;
     };
-  }, [refreshLatestUsableFeedbackDate]);
+  }, [refreshLatestFeedbackRecovery]);
 
   useEffect(() => {
     const refreshTodayKey = () => {
@@ -1231,7 +1235,7 @@ export default function SignalReviewCalendarPageClient() {
               progress: null,
               source: "calendar",
             });
-            if (wroteCache) refreshLatestUsableFeedbackDate();
+            if (wroteCache) refreshLatestFeedbackRecovery();
           }
           return buildDateSnapshot(day.dateKey, selectedFeedback);
         } catch (error) {
@@ -1264,7 +1268,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [calendarReadRetryKey, copy.states.unavailableMonth, monthKey, refreshLatestUsableFeedbackDate, todayKey]);
+  }, [calendarReadRetryKey, copy.states.unavailableMonth, monthKey, refreshLatestFeedbackRecovery, todayKey]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -1319,7 +1323,7 @@ export default function SignalReviewCalendarPageClient() {
             progress: selectedProgress,
             source: "calendar",
           });
-          if (wroteCache) refreshLatestUsableFeedbackDate();
+          if (wroteCache) refreshLatestFeedbackRecovery();
         }
       } catch (error) {
         try {
@@ -1363,7 +1367,7 @@ export default function SignalReviewCalendarPageClient() {
               progress,
               source: "calendar",
             });
-            if (wroteCache) refreshLatestUsableFeedbackDate();
+            if (wroteCache) refreshLatestFeedbackRecovery();
           }
           return;
         } catch (fallbackError) {
@@ -1407,7 +1411,7 @@ export default function SignalReviewCalendarPageClient() {
     return () => {
       active = false;
     };
-  }, [calendarReadRetryKey, selectedUnavailable, devMode, refreshLatestUsableFeedbackDate, selectedDate]);
+  }, [calendarReadRetryKey, selectedUnavailable, devMode, refreshLatestFeedbackRecovery, selectedDate]);
 
   const calendarDays = useMemo(() => buildCalendarDays(monthKey, todayKey), [monthKey, todayKey]);
   const selectedDataMatchesDate = selectedDate !== null && selectedDataDate === selectedDate;
@@ -1508,8 +1512,10 @@ export default function SignalReviewCalendarPageClient() {
     selectedDisplayLoadState === "loading" ||
     (selectedDateUnavailable && selectedSummary.items.length === 0 && !selectedDateHasStoredEvidence);
   const latestUsableFeedbackCtaDate =
-    selectedFeedbackNavigationBlocked && latestUsableFeedbackDate && latestUsableFeedbackDate !== feedbackDate
-      ? latestUsableFeedbackDate
+    selectedFeedbackNavigationBlocked &&
+    latestFeedbackRecovery &&
+    (latestFeedbackRecovery.source === "dashboard" || latestFeedbackRecovery.marketDate !== feedbackDate)
+      ? latestFeedbackRecovery.marketDate
       : null;
   const feedbackCtaHref = selectedFeedbackNavigationBlocked
     ? latestUsableFeedbackCtaDate
@@ -1544,7 +1550,10 @@ export default function SignalReviewCalendarPageClient() {
         : copy.actions.openFeedback;
   const feedbackCtaNotice =
     feedbackCtaState === "latest" && latestUsableFeedbackCtaDate
-      ? copy.states.openLatestFeedback.replaceAll("{marketDate}", latestUsableFeedbackCtaDate)
+      ? (latestFeedbackRecovery?.source === "dashboard"
+          ? copy.states.openDashboardFeedback
+          : copy.states.openLatestFeedback
+        ).replaceAll("{marketDate}", latestUsableFeedbackCtaDate)
       : feedbackCtaState === "disabled"
         ? copy.states.feedbackTableUnavailable
         : null;

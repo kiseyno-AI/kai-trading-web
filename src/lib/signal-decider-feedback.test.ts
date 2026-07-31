@@ -38,9 +38,11 @@ import {
 import {
   readLatestSignalDeciderFeedbackCache,
   readLatestSignalDeciderFeedbackCacheByMarketDate,
+  readLatestSignalDeciderFeedbackRecoveryDate,
   readSignalDeciderFeedbackCache,
   selectSignalDeciderFeedbackResponse,
   writeSignalDeciderFeedbackCache,
+  writeSignalDeciderFeedbackRecoveryHint,
 } from "./signal-decider-feedback-cache";
 
 const EMPTY_DECIDER_ACTION_COUNTS = {
@@ -2700,6 +2702,57 @@ test("resolves the latest usable cache entry by market date for calendar recover
 
   assert.equal(readLatestSignalDeciderFeedbackCache({ now: 3500, storage })?.marketDate, "2026-04-26");
   assert.equal(readLatestSignalDeciderFeedbackCacheByMarketDate({ now: 3500, storage })?.marketDate, "2026-04-29");
+});
+
+test("uses a newer dashboard-known feedback date for calendar recovery without cached rows", () => {
+  const storage = buildMemoryStorage();
+
+  assert.equal(
+    writeSignalDeciderFeedbackRecoveryHint({
+      marketDate: "2026-07-31",
+      now: 1000,
+      storage,
+    }),
+    true,
+  );
+  assert.deepEqual(readLatestSignalDeciderFeedbackRecoveryDate({ now: 2000, storage }), {
+    marketDate: "2026-07-31",
+    source: "dashboard",
+  });
+  assert.equal(readLatestSignalDeciderFeedbackRecoveryDate({ now: 31 * 60 * 1000, storage }), null);
+});
+
+test("prefers the newest row-backed or dashboard-known calendar recovery date", () => {
+  const storage = buildMemoryStorage();
+
+  writeSignalDeciderFeedbackCache({
+    feedback: buildFeedbackResponse(),
+    marketDate: "2026-04-27",
+    now: 1000,
+    progress: buildProgress(),
+    source: "dashboard",
+    storage,
+  });
+  writeSignalDeciderFeedbackRecoveryHint({
+    marketDate: "2026-04-26",
+    now: 2000,
+    storage,
+  });
+
+  assert.deepEqual(readLatestSignalDeciderFeedbackRecoveryDate({ now: 3000, storage }), {
+    marketDate: "2026-04-27",
+    source: "cached-feedback",
+  });
+
+  writeSignalDeciderFeedbackRecoveryHint({
+    marketDate: "2026-04-29",
+    now: 4000,
+    storage,
+  });
+  assert.deepEqual(readLatestSignalDeciderFeedbackRecoveryDate({ now: 5000, storage }), {
+    marketDate: "2026-04-29",
+    source: "dashboard",
+  });
 });
 
 test("does not replace cached stored rows with a contradictory empty direct read", () => {
