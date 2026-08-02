@@ -1,6 +1,7 @@
 import {
   SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
   SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
@@ -726,6 +727,7 @@ export function buildSymbolRouteQuery(
   feedbackStatusFilter: string | null = null,
   feedbackNavContext: string | null = null,
   feedbackReturnRoute: SymbolDetailFeedbackReturnRoute | null = null,
+  feedbackOriginDate: string | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -781,6 +783,10 @@ export function buildSymbolRouteQuery(
 
   if (feedbackNavContext) {
     params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM, feedbackNavContext);
+  }
+
+  if (feedbackOriginDate) {
+    params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM, feedbackOriginDate);
   }
 
   if (feedbackReturnRoute) {

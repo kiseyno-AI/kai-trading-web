@@ -48,6 +48,7 @@ export const SYMBOL_DETAIL_SEARCH_QUERY_PARAM = "q";
 export const SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM = "feedbackAction";
 export const SYMBOL_DETAIL_FEEDBACK_SORT_PARAM = "feedbackSort";
 export const SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM = "feedbackNavContext";
+export const SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM = "feedbackOriginDate";
 export const SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM = "feedbackRoute";
 
 export type SymbolDetailNavContext =

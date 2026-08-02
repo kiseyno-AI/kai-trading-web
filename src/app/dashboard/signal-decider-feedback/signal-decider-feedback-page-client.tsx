@@ -12,6 +12,7 @@ import {
   SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE,
   SYMBOL_DETAIL_FEEDBACK_NAV_CONTEXT,
   SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
@@ -739,6 +740,7 @@ function buildSymbolHref(
     agentName: DeciderAgentName;
     actionFilter: ActionFilter;
     feedbackNavContext: string | null;
+    feedbackOriginDate: string | null;
     feedbackReturnRoute: SymbolDetailFeedbackReturnRoute;
     query: string;
     sortMode: SortMode;
@@ -757,6 +759,9 @@ function buildSymbolHref(
   if (context.sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, context.sortMode);
   if (context.feedbackNavContext) {
     params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM, context.feedbackNavContext);
+  }
+  if (context.feedbackOriginDate) {
+    params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM, context.feedbackOriginDate);
   }
   params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM, context.feedbackReturnRoute);
   const query = params.toString();
@@ -1591,6 +1596,7 @@ export default function SignalDeciderFeedbackPageClient() {
                   actionFilter,
                   agentName: activeAgent,
                   feedbackNavContext: calendarContextNav,
+                  feedbackOriginDate: originDate,
                   feedbackReturnRoute: isSharedRoute
                     ? SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE
                     : SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE,

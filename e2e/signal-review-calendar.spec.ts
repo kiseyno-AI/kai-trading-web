@@ -2291,11 +2291,14 @@ test("calendar unavailable scan routes to the latest dashboard-known feedback da
     (_, index) => `2026-08-${String(index + 1).padStart(2, "0")}`,
   );
   await seedDashboardSignalDeciderRecoveryHint(page, "2026-07-31");
+  await mockSymbolDetailApis(page, {
+    companyName: "한진중공업홀딩스",
+    marketDate: "2026-07-31",
+    symbol: "003480",
+  });
   await mockSignalReviewCalendar(page, {
-    denseFeedbackDates: {
-      "2026-07-31": 2,
-    },
     forceCalendarSummaryFailure: true,
+    pendingWaitDate: "2026-07-31",
     runningProgressDates: ["2026-08-03"],
     timeoutFeedbackDates: unavailableAugustDates,
     timeoutReviewDateDates: unavailableAugustDates,
@@ -2336,7 +2339,29 @@ test("calendar unavailable scan routes to the latest dashboard-known feedback da
     "href",
     "/calendar?date=2026-08-03",
   );
-  await expect(page.getByTestId("signal-decider-result-card")).toHaveCount(2);
+  const feedbackCard = page.getByRole("article", { name: /한진중공업홀딩스 .*피드백/i });
+  await expect(feedbackCard).toBeVisible();
+  const symbolLink = feedbackCard.getByRole("link", { name: /한진중공업홀딩스.*003480/ });
+  await expect(symbolLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/003480\?.*marketDate=2026-07-31.*feedbackNavContext=calendar.*feedbackOriginDate=2026-08-03.*feedbackRoute=signal-decider-feedback/,
+  );
+
+  await symbolLink.click();
+  const feedbackReturnLink = page.getByRole("link", { name: /피드백으로 돌아가기/i });
+  await expect(feedbackReturnLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/signal-decider-feedback\?(?=.*marketDate=2026-07-31)(?=.*navContext=calendar)(?=.*originDate=2026-08-03)/,
+  );
+
+  await feedbackReturnLink.click();
+  const restoredCalendarReturnLink = page.getByRole("link", {
+    name: "캘린더로 돌아가기 (선택 날짜 2026-08-03)",
+  });
+  await expect(restoredCalendarReturnLink).toHaveAttribute("href", "/calendar?date=2026-08-03");
+
+  await restoredCalendarReturnLink.click();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-08-03$/);
 });
 
 test("feedback table link keeps the selected calendar date in navigation", async ({ page }) => {
