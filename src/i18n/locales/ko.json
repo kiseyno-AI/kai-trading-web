@@ -560,7 +560,9 @@
     "calendarContext": {
       "label": "캘린더 피드백 컨텍스트",
       "breadcrumb": "캘린더 / {marketDate} / 피드백",
-      "backToCalendar": "캘린더로 돌아가기"
+      "fallbackBreadcrumb": "캘린더 / 선택 날짜 {originDate} / 피드백 기준일 {marketDate}",
+      "backToCalendar": "캘린더로 돌아가기",
+      "backToOriginDate": "캘린더로 돌아가기 (선택 날짜 {originDate})"
     },
     "tabs": {
       "label": "디사이더 피드백 탭",

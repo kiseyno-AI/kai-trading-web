@@ -19,6 +19,7 @@ export const SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT = 200;
 export const SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH = "/api/trading/agent-context/feedback/review";
 export const SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH = "/api/trading/agent-context/feedback/calendar";
 export const DECIDER_FEEDBACK_NAV_CONTEXT_PARAM = "navContext";
+export const DECIDER_FEEDBACK_ORIGIN_DATE_PARAM = "originDate";
 export const DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT = "calendar";
 
 export type DeciderAgentName = (typeof DECIDER_AGENT_NAMES)[number];
@@ -2785,17 +2786,29 @@ export function resolveDeciderFeedbackNavContext(value: string | null | undefine
   return value === DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT ? value : null;
 }
 
+export function resolveDeciderFeedbackOriginDate(value: string | null | undefined) {
+  if (!hasTextValue(value)) return null;
+  const trimmed = value.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+
+  const parsed = new Date(`${trimmed}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === trimmed ? trimmed : null;
+}
+
 export function buildSignalDeciderFeedbackHref(
   marketDate: string | null | undefined,
   {
     actionFilter,
     navContext,
+    originDate,
     query,
     sortMode,
     statusFilter,
   }: {
     actionFilter?: string | null;
     navContext?: string | null;
+    originDate?: string | null;
     query?: string | null;
     sortMode?: string | null;
     statusFilter?: string | null;
@@ -2804,6 +2817,8 @@ export function buildSignalDeciderFeedbackHref(
   const params = new URLSearchParams();
   if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
   if (hasTextValue(navContext)) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, navContext.trim());
+  const resolvedOriginDate = resolveDeciderFeedbackOriginDate(originDate);
+  if (resolvedOriginDate) params.set(DECIDER_FEEDBACK_ORIGIN_DATE_PARAM, resolvedOriginDate);
   if (hasTextValue(query)) params.set("q", query.trim());
   if (hasTextValue(actionFilter) && actionFilter !== "all") params.set("feedbackAction", actionFilter.trim());
   if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
@@ -2822,6 +2837,7 @@ export function buildDeciderFeedbackHref({
   statusFilter,
   sortMode,
   navContext,
+  originDate,
 }: {
   agentName?: string | null;
   marketDate?: string | null;
@@ -2832,6 +2848,7 @@ export function buildDeciderFeedbackHref({
   statusFilter?: string | null;
   sortMode?: string | null;
   navContext?: string | null;
+  originDate?: string | null;
 } = {}) {
   const params = new URLSearchParams({ agent: resolveDeciderAgentName(agentName) });
   if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
@@ -2842,6 +2859,8 @@ export function buildDeciderFeedbackHref({
   if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
   if (hasTextValue(sortMode) && sortMode !== "priority") params.set("feedbackSort", sortMode.trim());
   if (hasTextValue(navContext)) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, navContext.trim());
+  const resolvedOriginDate = resolveDeciderFeedbackOriginDate(originDate);
+  if (resolvedOriginDate) params.set(DECIDER_FEEDBACK_ORIGIN_DATE_PARAM, resolvedOriginDate);
   return `${DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
 }
 

@@ -33,11 +33,13 @@ import {
   DECIDER_DATA_GAP_CATEGORIES,
   DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
   DECIDER_FEEDBACK_NAV_CONTEXT_PARAM,
+  DECIDER_FEEDBACK_ORIGIN_DATE_PARAM,
   DECIDER_FEEDBACK_DASHBOARD_PATH,
   filterDeciderDataGapRecords,
   getDeciderFeedbackComparisonKey,
   getOppositeDeciderAgentName,
   resolveDeciderFeedbackNavContext,
+  resolveDeciderFeedbackOriginDate,
   resolveDeciderDataGapDisplayState,
   resolveDeciderAgentName,
   SHORT_TERM_DECIDER_AGENT_NAME,
@@ -999,6 +1001,10 @@ export default function SignalDeciderFeedbackPageClient() {
     () => resolveDeciderFeedbackNavContext(searchParams.get(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM)),
     [searchParams],
   );
+  const originDate = useMemo(
+    () => resolveDeciderFeedbackOriginDate(searchParams.get(DECIDER_FEEDBACK_ORIGIN_DATE_PARAM)),
+    [searchParams],
+  );
   const isCalendarContext = navContext === DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT;
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [marketDateDraft, setMarketDateDraft] = useState(requestedMarketDate ?? "");
@@ -1321,6 +1327,7 @@ export default function SignalDeciderFeedbackPageClient() {
     gapSymbol: validGapSymbol,
     marketDate: displayedMarketDate,
     navContext,
+    originDate,
     query,
     sortMode,
     statusFilter,
@@ -1368,13 +1375,24 @@ export default function SignalDeciderFeedbackPageClient() {
   const dataGapReadTimeoutMessage = formatDeciderAgentCopy(copy.errors.dataGapReadTimeout, activeAgentLabel);
   const feedbackErrorDiagnosticDetail = getFeedbackErrorDiagnosticDetail(error);
   const canRetryFeedbackRead = hasFeedbackErrorSource(error, "feedback") && Boolean(marketDate);
-  const calendarReturnDate = displayedMarketDate ?? marketDate ?? requestedMarketDate;
+  const feedbackDataDate = displayedMarketDate ?? marketDate ?? requestedMarketDate;
+  const calendarReturnDate = isCalendarContext ? (originDate ?? feedbackDataDate) : null;
+  const isFallbackCalendarContext = Boolean(
+    originDate && feedbackDataDate && originDate !== feedbackDataDate,
+  );
   const calendarReturnHref =
     isCalendarContext && calendarReturnDate ? `/calendar?date=${encodeURIComponent(calendarReturnDate)}` : null;
   const calendarBreadcrumb =
-    isCalendarContext && calendarReturnDate
-      ? copy.calendarContext.breadcrumb.replaceAll("{marketDate}", calendarReturnDate)
+    isCalendarContext && calendarReturnDate && feedbackDataDate
+      ? (isFallbackCalendarContext
+          ? copy.calendarContext.fallbackBreadcrumb
+              .replaceAll("{originDate}", calendarReturnDate)
+              .replaceAll("{marketDate}", feedbackDataDate)
+          : copy.calendarContext.breadcrumb.replaceAll("{marketDate}", feedbackDataDate))
       : null;
+  const calendarReturnLabel = isFallbackCalendarContext
+    ? copy.calendarContext.backToOriginDate.replaceAll("{originDate}", calendarReturnDate ?? "")
+    : copy.calendarContext.backToCalendar;
   const calendarContextNav = isCalendarContext ? DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT : null;
   const dataGapSummaryUnavailableLabel = statusCopy.unavailable;
   const dataGapTotalRows = getLoadStateGatedValue(
@@ -1517,8 +1535,12 @@ export default function SignalDeciderFeedbackPageClient() {
     if (!nextMarketDate) {
       router.push(
         isSharedRoute
-          ? buildDeciderFeedbackHref({ agentName: activeAgent, navContext: calendarContextNav })
-          : buildSignalDeciderFeedbackHref(null, { navContext: calendarContextNav }),
+          ? buildDeciderFeedbackHref({
+              agentName: activeAgent,
+              navContext: calendarContextNav,
+              originDate,
+            })
+          : buildSignalDeciderFeedbackHref(null, { navContext: calendarContextNav, originDate }),
       );
       return;
     }
@@ -1533,6 +1555,7 @@ export default function SignalDeciderFeedbackPageClient() {
     if (statusFilter !== "all") params.set("feedbackStatus", statusFilter);
     if (sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, sortMode);
     if (calendarContextNav) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, calendarContextNav);
+    if (originDate) params.set(DECIDER_FEEDBACK_ORIGIN_DATE_PARAM, originDate);
     router.push(`${isSharedRoute ? DECIDER_FEEDBACK_DASHBOARD_PATH : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`);
   }
 
@@ -2000,7 +2023,7 @@ export default function SignalDeciderFeedbackPageClient() {
             <nav className={styles.contextNav} aria-label={copy.calendarContext.label}>
               <span className={styles.contextBreadcrumb}>{calendarBreadcrumb}</span>
               <Link href={calendarReturnHref} className={styles.contextReturnLink}>
-                {copy.calendarContext.backToCalendar}
+                {calendarReturnLabel}
               </Link>
             </nav>
           ) : null}

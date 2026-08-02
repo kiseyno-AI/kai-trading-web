@@ -1521,6 +1521,7 @@ export default function SignalReviewCalendarPageClient() {
     ? latestUsableFeedbackCtaDate
       ? buildSignalDeciderFeedbackHref(latestUsableFeedbackCtaDate, {
           navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
+          originDate: feedbackDate,
         })
       : null
     : buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT });
