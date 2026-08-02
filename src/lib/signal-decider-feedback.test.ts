@@ -24,6 +24,7 @@ import {
   normalizeDeciderFeedbackItems,
   normalizeSignalDeciderFeedbackItems,
   resolveDeciderDataGapDisplayState,
+  resolveDeciderFeedbackOriginDate,
   resolveSignalDeciderFeedbackResultLimit,
   resolveSignalDeciderFeedbackStatus,
   resolveSignalDeciderLatestFeedbackMarketDate,
@@ -1374,22 +1375,28 @@ test("builds shared decider feedback paths with agent-specific API params and ro
       agentName: SHORT_TERM_DECIDER_AGENT_NAME,
       actionFilter: "watch_for_trigger",
       marketDate: "2026-04-28",
+      navContext: "calendar",
+      originDate: "2026-05-09",
       query: "Samsung",
       sortMode: "confidence",
       statusFilter: "with-risk",
     }),
-    "/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-28&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence",
+    "/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-28&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence&navContext=calendar&originDate=2026-05-09",
   );
   assert.equal(
     buildSignalDeciderFeedbackHref("2026-05-06", {
       actionFilter: "wait",
       navContext: "calendar",
+      originDate: "2026-05-09",
       query: "한진",
       sortMode: "captured",
       statusFilter: "with-risk",
     }),
-    "/dashboard/signal-decider-feedback?marketDate=2026-05-06&navContext=calendar&q=%ED%95%9C%EC%A7%84&feedbackAction=wait&feedbackStatus=with-risk&feedbackSort=captured",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-06&navContext=calendar&originDate=2026-05-09&q=%ED%95%9C%EC%A7%84&feedbackAction=wait&feedbackStatus=with-risk&feedbackSort=captured",
   );
+  assert.equal(resolveDeciderFeedbackOriginDate("2026-05-09"), "2026-05-09");
+  assert.equal(resolveDeciderFeedbackOriginDate("2026-02-30"), null);
+  assert.equal(resolveDeciderFeedbackOriginDate("not-a-date"), null);
 });
 
 test("normalizes short-term decider tactical fields and data gaps", () => {

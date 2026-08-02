@@ -2257,36 +2257,54 @@ test("calendar unavailable selected date routes feedback CTA to latest cached us
   await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "latest");
   await expect(feedbackCta).toHaveAttribute(
     "href",
-    "/dashboard/signal-decider-feedback?marketDate=2026-04-27&navContext=calendar",
+    "/dashboard/signal-decider-feedback?marketDate=2026-04-27&navContext=calendar&originDate=2026-05-26",
   );
   await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText("2026-04-27");
 
   await feedbackCta.click();
 
-  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27&navContext=calendar$/);
+  await expect(page).toHaveURL(
+    /\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27&navContext=calendar&originDate=2026-05-26$/,
+  );
   await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
   await expect(
-    page.getByLabel("캘린더 피드백 컨텍스트").getByText("캘린더 / 2026-04-27 / 피드백"),
+    page
+      .getByLabel("캘린더 피드백 컨텍스트")
+      .getByText("캘린더 / 선택 날짜 2026-05-26 / 피드백 기준일 2026-04-27"),
   ).toBeVisible();
   await expect(page.getByTestId("signal-decider-result-card").first()).toBeVisible();
+  const calendarReturnLink = page.getByRole("link", {
+    name: "캘린더로 돌아가기 (선택 날짜 2026-05-26)",
+  });
+  await expect(calendarReturnLink).toHaveAttribute("href", "/calendar?date=2026-05-26");
+
+  await calendarReturnLink.click();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-05-26$/);
 });
 
 test("calendar unavailable scan routes to the latest dashboard-known feedback date without cached rows", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  const unavailableAugustDates = Array.from(
+    { length: 31 },
+    (_, index) => `2026-08-${String(index + 1).padStart(2, "0")}`,
+  );
   await seedDashboardSignalDeciderRecoveryHint(page, "2026-07-31");
+  await mockSymbolDetailApis(page, {
+    companyName: "한진중공업홀딩스",
+    marketDate: "2026-07-31",
+    symbol: "003480",
+  });
   await mockSignalReviewCalendar(page, {
-    denseFeedbackDates: {
-      "2026-07-31": 2,
-    },
     forceCalendarSummaryFailure: true,
-    runningProgressDates: ["2026-08-01"],
-    timeoutFeedbackDates: ["2026-08-01"],
-    timeoutReviewDateDates: ["2026-08-01"],
+    pendingWaitDate: "2026-07-31",
+    runningProgressDates: ["2026-08-03"],
+    timeoutFeedbackDates: unavailableAugustDates,
+    timeoutReviewDateDates: unavailableAugustDates,
   });
 
-  await page.goto("/calendar?date=2026-08-01");
+  await page.goto("/calendar?date=2026-08-03");
   await page.getByRole("button", { name: /Korean/i }).click();
 
   await expect(page.getByText("캘린더 스캔 사용 불가", { exact: true })).toBeVisible();
@@ -2295,7 +2313,7 @@ test("calendar unavailable scan routes to the latest dashboard-known feedback da
   await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "latest");
   await expect(feedbackCta).toHaveAttribute(
     "href",
-    "/dashboard/signal-decider-feedback?marketDate=2026-07-31&navContext=calendar",
+    "/dashboard/signal-decider-feedback?marketDate=2026-07-31&navContext=calendar&originDate=2026-08-03",
   );
   await expect(page.getByTestId("calendar-feedback-recovery-notice")).toHaveText(
     "캘린더 조회를 사용할 수 없어 대시보드에서 마지막으로 확인한 피드백 기준일 2026-07-31을 엽니다.",
@@ -2308,9 +2326,42 @@ test("calendar unavailable scan routes to the latest dashboard-known feedback da
 
   await feedbackCta.click();
 
-  await expect(page).toHaveURL(/\/dashboard\/signal-decider-feedback\?marketDate=2026-07-31&navContext=calendar$/);
+  await expect(page).toHaveURL(
+    /\/dashboard\/signal-decider-feedback\?marketDate=2026-07-31&navContext=calendar&originDate=2026-08-03$/,
+  );
   await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
-  await expect(page.getByTestId("signal-decider-result-card")).toHaveCount(2);
+  await expect(
+    page
+      .getByLabel("캘린더 피드백 컨텍스트")
+      .getByText("캘린더 / 선택 날짜 2026-08-03 / 피드백 기준일 2026-07-31"),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "캘린더로 돌아가기 (선택 날짜 2026-08-03)" })).toHaveAttribute(
+    "href",
+    "/calendar?date=2026-08-03",
+  );
+  const feedbackCard = page.getByRole("article", { name: /한진중공업홀딩스 .*피드백/i });
+  await expect(feedbackCard).toBeVisible();
+  const symbolLink = feedbackCard.getByRole("link", { name: /한진중공업홀딩스.*003480/ });
+  await expect(symbolLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/003480\?.*marketDate=2026-07-31.*feedbackNavContext=calendar.*feedbackOriginDate=2026-08-03.*feedbackRoute=signal-decider-feedback/,
+  );
+
+  await symbolLink.click();
+  const feedbackReturnLink = page.getByRole("link", { name: /피드백으로 돌아가기/i });
+  await expect(feedbackReturnLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/signal-decider-feedback\?(?=.*marketDate=2026-07-31)(?=.*navContext=calendar)(?=.*originDate=2026-08-03)/,
+  );
+
+  await feedbackReturnLink.click();
+  const restoredCalendarReturnLink = page.getByRole("link", {
+    name: "캘린더로 돌아가기 (선택 날짜 2026-08-03)",
+  });
+  await expect(restoredCalendarReturnLink).toHaveAttribute("href", "/calendar?date=2026-08-03");
+
+  await restoredCalendarReturnLink.click();
+  await expect(page).toHaveURL(/\/calendar\?date=2026-08-03$/);
 });
 
 test("feedback table link keeps the selected calendar date in navigation", async ({ page }) => {

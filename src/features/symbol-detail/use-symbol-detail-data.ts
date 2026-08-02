@@ -15,6 +15,7 @@ import {
   shouldFetchSymbolMeta,
   SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM,
   SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM,
+  SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM,
   SYMBOL_DETAIL_FEEDBACK_SORT_PARAM,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
@@ -113,6 +114,10 @@ export function useSymbolDetailData({
   const feedbackAgent = useMemo(() => searchParams.get("agent"), [searchParams]);
   const feedbackStatusFilter = useMemo(() => searchParams.get("feedbackStatus"), [searchParams]);
   const feedbackNavContext = useMemo(() => searchParams.get(SYMBOL_DETAIL_FEEDBACK_RETURN_NAV_CONTEXT_PARAM), [searchParams]);
+  const feedbackOriginDate = useMemo(
+    () => searchParams.get(SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM),
+    [searchParams],
+  );
   const feedbackReturnRoute = useMemo(
     () => resolveSymbolDetailFeedbackReturnRoute(searchParams.get(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM)),
     [searchParams],
@@ -491,11 +496,13 @@ export function useSymbolDetailData({
         feedbackStatusFilter,
         feedbackNavContext,
         feedbackReturnRoute,
+        feedbackOriginDate,
       ),
     [
       feedbackActionFilter,
       feedbackAgent,
       feedbackNavContext,
+      feedbackOriginDate,
       feedbackReturnRoute,
       feedbackSortMode,
       feedbackStatusFilter,
@@ -584,6 +591,7 @@ export function useSymbolDetailData({
     feedbackActionFilter,
     feedbackAgent,
     feedbackNavContext,
+    feedbackOriginDate,
     feedbackReturnRoute,
     feedbackSortMode,
     feedbackStatusFilter,
