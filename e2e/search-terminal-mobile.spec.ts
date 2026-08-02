@@ -230,6 +230,43 @@ test.describe("search terminal mobile", () => {
     ).toEqual([]);
   });
 
+  test("keeps Korean trending direction labels intact at 390px", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await stubEmptySearchData(page);
+    await page.goto("/search");
+
+    const trendingSection = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "인기 종목" }) })
+      .first();
+    const twentyDayCaption = trendingSection.getByRole("tab", { name: /20일 상승\/하락/ }).locator("small");
+
+    await expect(twentyDayCaption).toHaveText("20일 상승/하락");
+    const directionLineCount = await twentyDayCaption.evaluate((caption) => {
+      const textNode = caption.firstChild;
+      const direction = "상승/하락";
+      const directionStart = textNode?.textContent?.indexOf(direction) ?? -1;
+
+      if (!(textNode instanceof Text) || directionStart < 0) return 0;
+
+      const range = document.createRange();
+      range.setStart(textNode, directionStart);
+      range.setEnd(textNode, directionStart + direction.length);
+      const lineCount = new Set(
+        Array.from(range.getClientRects())
+          .filter((rect) => rect.width > 0 && rect.height > 0)
+          .map((rect) => Math.round(rect.top)),
+      ).size;
+      range.detach();
+
+      return lineCount;
+    });
+
+    expect(directionLineCount).toBe(1);
+  });
+
   test("trending rows scroll clear of the mobile bottom nav", async ({ page }) => {
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({ json: { count: 0, items: [] } });
