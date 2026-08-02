@@ -736,9 +736,10 @@ span.degradedProvenanceBadge {
   font-size: 0.58rem;
   font-weight: 800;
   line-height: 1.14;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   text-overflow: clip;
   text-wrap: balance;
+  word-break: keep-all;
   white-space: normal;
 }
 
