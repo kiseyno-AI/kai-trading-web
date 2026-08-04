@@ -37,12 +37,20 @@ export function getUserFacingSelectedDateReviewError({
 }
 
 export function shouldSuppressSelectedDateReviewFallbackError({
+  calendarHasStoredDecisions = false,
   errorMessage,
   devMode,
+  fallbackProgressActive = false,
+  fallbackResolvedEmpty = false,
 }: {
+  calendarHasStoredDecisions?: boolean;
   errorMessage: string;
   devMode: boolean;
+  fallbackProgressActive?: boolean;
+  fallbackResolvedEmpty?: boolean;
 }) {
+  if (fallbackResolvedEmpty) return !fallbackProgressActive && !calendarHasStoredDecisions;
+
   const normalizedError = errorMessage.trim();
   return !devMode && normalizedError.length > 0 && isDependencyGapWarning(normalizedError);
 }
