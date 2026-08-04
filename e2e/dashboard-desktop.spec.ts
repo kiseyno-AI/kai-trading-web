@@ -164,6 +164,14 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toHaveCount(0);
+    const filteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
+    await expect(filteringScoring).toBeVisible();
+    await expect(filteringScoring.getByRole("heading", { name: /Filtering/i })).toBeVisible();
+    await expect(filteringScoring.getByRole("heading", { name: /^Scoring$/i })).toBeVisible();
+    await expect(filteringScoring.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
+    await expect(
+      filteringScoring.getByRole("link", { name: /Open the full Piotroski filter pass list/i }),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Insight cockpit/i)).toHaveCount(0);
@@ -249,6 +257,36 @@ test.describe("dashboard desktop", () => {
 
     expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
     expect(Math.abs(portfolioBox.width - signalBox.width)).toBeLessThan(signalBox.width * 0.35);
+  });
+
+  test("filtering and scoring stay visible across responsive dashboard widths", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1100 });
+    await page.goto("/dashboard");
+
+    const filteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
+    const filteringCard = filteringScoring.locator("article").filter({ hasText: "Filtering" });
+    const scoringCard = filteringScoring.locator("article").filter({ hasText: "Scoring" });
+
+    for (const width of [768, 1024, 1280, 1536]) {
+      await page.setViewportSize({ width, height: 1100 });
+      await expect(filteringCard).toBeVisible();
+      await expect(scoringCard).toBeVisible();
+
+      const [filteringBox, scoringBox] = await Promise.all([
+        getRequiredBox(filteringCard, `filtering card at ${width}px`),
+        getRequiredBox(scoringCard, `scoring card at ${width}px`),
+      ]);
+
+      if (width < 1024) {
+        expect(scoringBox.y).toBeGreaterThan(filteringBox.y + filteringBox.height - 1);
+        expect(Math.abs(scoringBox.x - filteringBox.x)).toBeLessThan(8);
+        continue;
+      }
+
+      expect(Math.abs(scoringBox.y - filteringBox.y)).toBeLessThan(24);
+      expect(scoringBox.x).toBeGreaterThan(filteringBox.x);
+      expect(Math.abs(filteringBox.width - scoringBox.width)).toBeLessThan(filteringBox.width * 0.2);
+    }
   });
 
   test("dashboard body no longer requests or renders the market snapshot card", async ({ page }) => {
@@ -1238,7 +1276,7 @@ test.describe("dashboard desktop", () => {
     expect(searchRequests).toEqual([]);
   });
 
-  test("D2 Filtering More opens the full pass list and rows navigate to the symbol detail page", async ({ page }) => {
+  test("Dashboard Filtering opens the full pass list and rows navigate to the symbol detail page", async ({ page }) => {
     const now = "2026-04-16T09:10:00+09:00";
     const piotroskiRequestedMarketDates: string[] = [];
 
@@ -1542,14 +1580,13 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect(page.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
-    const processDrawer = await openProcessMonitorDrawer(page);
-    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
+    const filteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
+    const filteringCard = filteringScoring.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
     await expectFilteringStageStatusIcon(piotroskiSection, "completed", "Completed");
     await expect(piotroskiSection).toContainText(/Market date\s*2026-04-15/);
-    await expect(processDrawer).toContainText(/Patch date\s*2026-04-16/);
     await expect(piotroskiSection).toContainText(/Filtered\s*4/);
     await expect(piotroskiSection).not.toContainText(/Checked|Not pass/);
     await expect(piotroskiSection).toContainText("Requested 2026-04-16");

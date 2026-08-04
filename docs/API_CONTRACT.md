@@ -5,7 +5,7 @@ This document defines the first practical frontend contract for wiring `trading-
 ## Current shipped dashboard wiring
 - Web-side BFF and browser API reads are expected to resolve into data, empty, unavailable, timeout, or error states. The Next.js BFF applies a bounded timeout to JSON proxy reads and returns HTTP `504` with an explicit timeout message when trading-core hangs or lags past that budget, so operator routes should not remain in indefinite loading states while waiting on upstream reads.
 - `/dashboard` currently renders from these live endpoints where available:
-  - The dashboard body is intentionally limited to Daily process summary, Decider recommendations, and Portfolio status. Detailed EOD/filter/scoring/agent-feedback status remains available through the Daily process summary drawer instead of separate inline body cards.
+  - The dashboard body exposes the Daily process summary, Decider recommendations, Portfolio status, and shared Filtering and Scoring cards. The Daily process summary drawer remains the canonical full process view for detailed EOD, filtering, scoring, and agent-feedback status.
   - `GET /market/status`
     - The desktop navigation rail uses this compact session state for its market-status metadata. If the read fails or the page is in offline-placeholder mode, the rail labels the status as unavailable instead of inferring an open/closed state.
   - `GET /quotes/tracked`
@@ -22,7 +22,7 @@ This document defines the first practical frontend contract for wiring `trading-
     - D2 Filtering renders Piotroski summary state instead of a top-pass teaser list, showing completion state plus only the filtered count from `summary.passed_count` for the actual returned dataset
     - The dashboard and Piotroski full-list page tolerate the richer optional date fields `requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and the returned effective `market_date`
     - D2 Filtering uses the returned effective `market_date` when present, otherwise falls back to `resolved_market_date`, then the requested market date; the per-stage `Market date` line is only shown when that effective date differs from the shared patch date, and when the requested and effective dates differ the card keeps a compact note so operators can tell whether Core resolved to another stored date or explicitly fell back to the latest available result
-    - The D2 Filtering `More` link opens `/dashboard/piotroski-filter?marketDate=YYYY-MM-DD` using the effective/resolved date so the full pass list matches the process monitor summary, and row clicks still route to `/dashboard/symbol/[symbol]`
+    - The Filtering `More` link is visible in the dashboard body and process monitor drawer. It opens `/dashboard/piotroski-filter?marketDate=YYYY-MM-DD` using the effective/resolved date so the full pass list matches the summary, and row clicks still route to `/dashboard/symbol/[symbol]`
   - `GET /eod/market-risk-filters?market_date=YYYY-MM-DD`
     - D2 Filtering also renders the persisted KIS market-risk summary beside Piotroski inside the same card, showing completion state plus only the filtered count from `summary.passed_count`
     - The card uses the same optional date-resolution fields `requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and `market_date` so operators can see when KIS risk status is showing the requested date versus the latest available stored result
