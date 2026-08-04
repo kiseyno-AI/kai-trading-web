@@ -290,11 +290,12 @@ Expected behaviors:
 
 Purpose:
 
-- expose the current end-to-end system processing state across non-agent stages, filtering, scoring, and agent feedback from the toolbar process monitor
+- expose Filtering and Scoring in the dashboard body, including the Piotroski pass-list entry point
+- expose the full end-to-end system processing state across non-agent stages, filtering, scoring, and agent feedback from the toolbar process monitor
 
 This is the most important operational contract in the app.
 
-The dashboard body must not embed a duplicate freshness registry. The toolbar process monitor is the canonical access path for these details.
+The dashboard body must not embed the full freshness registry. It keeps the shared Filtering and Scoring cards visible for operational scanning and the Piotroski click path, while the toolbar process monitor remains the canonical access path for the full process detail set.
 
 It should contain four major cards:
 

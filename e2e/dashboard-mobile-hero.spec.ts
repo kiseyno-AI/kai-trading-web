@@ -59,24 +59,40 @@ test.describe("dashboard mobile hero", () => {
     await expect(hero.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
     await expect(hero.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
     await expect(hero.getByText(/EOD Status/i)).toHaveCount(0);
+    const filteringScoring = hero.locator('[data-dashboard-filtering-scoring="inline"]');
+    const filteringCard = filteringScoring.locator("article").filter({ hasText: "Filtering" });
+    const scoringCard = filteringScoring.locator("article").filter({ hasText: "Scoring" });
+    await expect(filteringScoring).toBeVisible();
+    await expect(filteringCard.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
+    await expect(scoringCard.getByRole("heading", { name: /Unified value scoring/i })).toBeVisible();
+    await expect(
+      filteringCard.getByRole("link", { name: /Open the full Piotroski filter pass list/i }),
+    ).toBeVisible();
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 
-    const [deciderBox, portfolioBox] = await Promise.all([
+    const [deciderBox, portfolioBox, filteringBox, scoringBox] = await Promise.all([
       deciderCard.boundingBox(),
       portfolioCard.boundingBox(),
+      filteringCard.boundingBox(),
+      scoringCard.boundingBox(),
     ]);
 
     expect(deciderBox).not.toBeNull();
     expect(portfolioBox).not.toBeNull();
+    expect(filteringBox).not.toBeNull();
+    expect(scoringBox).not.toBeNull();
 
-    if (!deciderBox || !portfolioBox) {
-      throw new Error("Expected mobile primary insight cards to have layout boxes.");
+    if (!deciderBox || !portfolioBox || !filteringBox || !scoringBox) {
+      throw new Error("Expected mobile dashboard cards to have layout boxes.");
     }
 
     expect(portfolioBox.y).toBeGreaterThan(deciderBox.y + deciderBox.height - 1);
     expect(Math.abs(portfolioBox.x - deciderBox.x)).toBeLessThan(8);
+    expect(filteringBox.y).toBeGreaterThan(portfolioBox.y + portfolioBox.height - 1);
+    expect(scoringBox.y).toBeGreaterThan(filteringBox.y + filteringBox.height - 1);
+    expect(Math.abs(filteringBox.x - scoringBox.x)).toBeLessThan(8);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer.locator('[class*="processMonitorDrawerSummary"]')).toHaveCount(0);

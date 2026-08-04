@@ -2437,6 +2437,35 @@ export function LiveDashboardClient({
               numberLocale={numberLocale}
             />
           </div>
+
+          <div
+            className={styles.filteringScoringGrid}
+            data-dashboard-filtering-scoring="inline"
+            aria-hidden={processMonitorDrawerMounted || undefined}
+            hidden={processMonitorDrawerMounted || undefined}
+          >
+            <FilteringCard
+              copy={copy}
+              filteringCardModel={filteringCardModel}
+              patchDate={processMonitorModel.patchDate}
+            />
+
+            <ScoringCard
+              copy={copy}
+              patchDate={processMonitorModel.patchDate}
+              scoringCardModel={scoringCardModel}
+            />
+
+            {processMonitorModel.patchDate ? (
+              <div
+                className={`${styles.processMonitorPatchDate} ${styles.filteringScoringPatchDate}`}
+                aria-label={copy.processMonitor.patchDate}
+              >
+                <span>{copy.processMonitor.patchDate}</span>
+                <strong>{processMonitorModel.patchDate}</strong>
+              </div>
+            ) : null}
+          </div>
         </section>
 
       </div>
