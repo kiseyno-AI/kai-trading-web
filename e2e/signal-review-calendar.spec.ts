@@ -3489,6 +3489,44 @@ test("signal review calendar resolves selected-date gateway timeouts into an exp
   await expect(page.getByText("No signal-decider decisions are stored for the selected date.")).toHaveCount(0);
 });
 
+test("signal review calendar resolves a successful empty fallback on the initial selected-date load", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const requestHits = await mockSignalReviewCalendar(page, {
+    reviewDateErrorMessages: {
+      "2026-08-05":
+        "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+    },
+  });
+
+  await page.goto("/calendar?date=2026-08-05");
+
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-08-05" }) });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "empty",
+  );
+  await expect(selectedPanel).toContainText("No signal-decider decisions are stored for the selected date.");
+  await expect(page.getByTestId("calendar-selected-date-retry")).toHaveCount(0);
+  await expect.poll(async () => requestHits.reviewDate).toBe(1);
+  await expect.poll(async () => requestHits.feedback).toBe(1);
+
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "selected");
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-08-05&navContext=calendar",
+  );
+
+  await feedbackCta.click();
+  await expect(page).toHaveURL(
+    /\/dashboard\/signal-decider-feedback\?marketDate=2026-08-05&navContext=calendar$/,
+  );
+  await expect(page.getByRole("heading", { name: "Signal-decider feedback" })).toBeVisible();
+  await expect(page.getByText("No Signal Decider feedback rows were returned for 2026-08-05.")).toBeVisible();
+});
+
 test("signal review calendar does not expose dependency-gap warning text in English", async ({ page }) => {
   await mockSignalReviewCalendar(page, {
     reviewDateErrorMessages: {

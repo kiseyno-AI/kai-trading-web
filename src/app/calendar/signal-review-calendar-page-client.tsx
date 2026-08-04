@@ -1346,7 +1346,12 @@ export default function SignalReviewCalendarPageClient() {
           const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedSnapshot.progress) : progress;
           const selectedReviewError =
             error instanceof Error
-              ? shouldSuppressSelectedDateReviewFallbackError({ errorMessage: error.message, devMode })
+              ? shouldSuppressSelectedDateReviewFallbackError({
+                  errorMessage: error.message,
+                  devMode,
+                  fallbackResolvedEmpty:
+                    selectedFeedback.items.length === 0 && selectedFeedback.summary.count === 0,
+                })
                 ? null
                 : getUserFacingSelectedDateReviewError({
                     errorMessage: error.message,

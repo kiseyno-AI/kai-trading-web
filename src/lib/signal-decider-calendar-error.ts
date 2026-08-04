@@ -39,10 +39,14 @@ export function getUserFacingSelectedDateReviewError({
 export function shouldSuppressSelectedDateReviewFallbackError({
   errorMessage,
   devMode,
+  fallbackResolvedEmpty = false,
 }: {
   errorMessage: string;
   devMode: boolean;
+  fallbackResolvedEmpty?: boolean;
 }) {
+  if (fallbackResolvedEmpty) return true;
+
   const normalizedError = errorMessage.trim();
   return !devMode && normalizedError.length > 0 && isDependencyGapWarning(normalizedError);
 }

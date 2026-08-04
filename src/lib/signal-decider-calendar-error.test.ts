@@ -58,6 +58,16 @@ test("suppresses dependency-gap review warnings after fallback rows succeed", ()
   assert.equal(suppressed, true);
 });
 
+test("suppresses review errors when the feedback fallback conclusively returns no rows", () => {
+  const suppressed = shouldSuppressSelectedDateReviewFallbackError({
+    errorMessage: "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+    devMode: false,
+    fallbackResolvedEmpty: true,
+  });
+
+  assert.equal(suppressed, true);
+});
+
 test("keeps timeout review errors visible after fallback attempts", () => {
   const suppressed = shouldSuppressSelectedDateReviewFallbackError({
     errorMessage: "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
