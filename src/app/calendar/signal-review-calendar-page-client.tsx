@@ -23,6 +23,7 @@ import {
   buildSignalDeciderFeedbackListFromReviewDateResponse,
   DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
   formatSignalDeciderActionLabel,
+  resolveSignalDeciderFeedbackStatus,
   SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
   SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH,
@@ -1058,6 +1059,7 @@ export default function SignalReviewCalendarPageClient() {
   const [monthKey, setMonthKey] = useState(getMonthKey(initialDate ?? todayKey));
   const [monthLoadState, setMonthLoadState] = useState<MonthLoadState>("idle");
   const [monthSnapshots, setMonthSnapshots] = useState<Record<string, CalendarDateSnapshot>>({});
+  const monthSnapshotsRef = useRef(monthSnapshots);
   const [selectedFeedback, setSelectedFeedback] = useState<AgentFeedbackListResponseDto | null>(null);
   const [selectedProgress, setSelectedProgress] = useState<AgentFeedbackProgressResponseDto | null>(null);
   const [selectedDataDate, setSelectedDataDate] = useState<string | null>(null);
@@ -1081,6 +1083,10 @@ export default function SignalReviewCalendarPageClient() {
         : nextRecovery,
     );
   }, []);
+
+  useEffect(() => {
+    monthSnapshotsRef.current = monthSnapshots;
+  }, [monthSnapshots]);
 
   useEffect(() => {
     let active = true;
@@ -1344,13 +1350,21 @@ export default function SignalReviewCalendarPageClient() {
             fetched: feedback,
           });
           const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedSnapshot.progress) : progress;
+          const fallbackResolvedEmpty =
+            selectedFeedback.items.length === 0 && selectedFeedback.summary.count === 0;
           const selectedReviewError =
             error instanceof Error
               ? shouldSuppressSelectedDateReviewFallbackError({
+                  calendarHasStoredDecisions:
+                    (monthSnapshotsRef.current[selectedDate]?.decisionCount ?? 0) > 0,
                   errorMessage: error.message,
                   devMode,
-                  fallbackResolvedEmpty:
-                    selectedFeedback.items.length === 0 && selectedFeedback.summary.count === 0,
+                  fallbackProgressActive:
+                    resolveSignalDeciderFeedbackStatus({
+                      feedback: selectedFeedback,
+                      progress: selectedProgress,
+                    }) === "running",
+                  fallbackResolvedEmpty,
                 })
                 ? null
                 : getUserFacingSelectedDateReviewError({

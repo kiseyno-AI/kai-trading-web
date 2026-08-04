@@ -15,6 +15,7 @@ type SignalReviewCalendarMockOptions = {
   denseFeedbackActions?: Partial<Record<string, SignalReviewCalendarMockAction | SignalReviewCalendarMockAction[]>>;
   denseFeedbackDates?: Partial<Record<string, number>>;
   emptyFeedbackDates?: string[];
+  emptyFeedbackListDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
   identityFallbackDate?: string;
   issue705Date?: string;
@@ -1242,7 +1243,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
               received_at: `${marketDate}T07:45:00+00:00`,
             },
           ]
-        : options.emptyFeedbackDates?.includes(marketDate)
+        : options.emptyFeedbackDates?.includes(marketDate) || options.emptyFeedbackListDates?.includes(marketDate)
         ? []
         : marketDate === "2026-04-27"
         ? [
@@ -3525,6 +3526,74 @@ test("signal review calendar resolves a successful empty fallback on the initial
   );
   await expect(page.getByRole("heading", { name: "Signal-decider feedback" })).toBeVisible();
   await expect(page.getByText("No Signal Decider feedback rows were returned for 2026-08-05.")).toBeVisible();
+});
+
+test("signal review calendar keeps review failures visible while an empty fallback date is still running", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page, {
+    reviewDateErrorMessages: {
+      "2026-08-05":
+        "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+    },
+    runningProgressDates: ["2026-08-05"],
+  });
+
+  await page.goto("/calendar?date=2026-08-05");
+
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-08-05" }) });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "unavailable",
+  );
+  await expect(selectedPanel).toContainText(
+    "The selected-date read failed. This does not confirm that no decisions are stored.",
+  );
+  await expect(selectedPanel).not.toContainText("No signal-decider decisions are stored for the selected date.");
+  await expect(page.getByTestId("calendar-selected-date-retry")).toHaveText("Retry calendar reads");
+});
+
+test("signal review calendar keeps review failures visible when an empty fallback contradicts stored decisions", async ({
+  page,
+}) => {
+  const delayedFeedback = createDeferred();
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockSignalReviewCalendar(page, {
+      denseFeedbackDates: {
+        "2026-05-27": 5,
+      },
+      emptyFeedbackListDates: ["2026-05-27"],
+      feedbackDelays: {
+        "2026-05-27": delayedFeedback.promise,
+      },
+      reviewDateErrorMessages: {
+        "2026-05-27":
+          "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+      },
+    });
+
+    await page.goto("/calendar?date=2026-05-27");
+    await expect(page.locator('[data-calendar-cell="2026-05-27"]')).toHaveAttribute(
+      "aria-label",
+      /2026-05-27 Stored/,
+    );
+    delayedFeedback.resolve();
+
+    const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-27" }) });
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+      "data-selected-date-status",
+      "partial",
+    );
+    await expect(selectedPanel).toContainText(
+      "The inline review summary is unavailable, but 5 stored feedback rows are available in the feedback table.",
+    );
+    await expect(selectedPanel).not.toContainText("No signal-decider decisions are stored for the selected date.");
+    await expect(page.getByTestId("calendar-feedback-cta")).toHaveText("Open 5 rows in feedback table");
+  } finally {
+    delayedFeedback.resolve();
+  }
 });
 
 test("signal review calendar does not expose dependency-gap warning text in English", async ({ page }) => {

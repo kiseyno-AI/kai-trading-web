@@ -68,6 +68,28 @@ test("suppresses review errors when the feedback fallback conclusively returns n
   assert.equal(suppressed, true);
 });
 
+test("keeps review errors visible when an empty feedback fallback has active progress", () => {
+  const suppressed = shouldSuppressSelectedDateReviewFallbackError({
+    errorMessage: "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+    devMode: false,
+    fallbackProgressActive: true,
+    fallbackResolvedEmpty: true,
+  });
+
+  assert.equal(suppressed, false);
+});
+
+test("keeps review errors visible when an empty feedback fallback contradicts the calendar snapshot", () => {
+  const suppressed = shouldSuppressSelectedDateReviewFallbackError({
+    calendarHasStoredDecisions: true,
+    errorMessage: "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
+    devMode: false,
+    fallbackResolvedEmpty: true,
+  });
+
+  assert.equal(suppressed, false);
+});
+
 test("keeps timeout review errors visible after fallback attempts", () => {
   const suppressed = shouldSuppressSelectedDateReviewFallbackError({
     errorMessage: "Timed out after 5.0s while loading /agent-context/feedback/review from trading-core.",
