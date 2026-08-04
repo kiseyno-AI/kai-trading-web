@@ -508,7 +508,7 @@ test.describe("dashboard desktop", () => {
     expect(drawerBox.width).toBeLessThanOrEqual(freshnessPanelBox.width + 1);
   });
 
-  test("desktop process monitor detail cards stay in a balanced two-column grid", async ({ page }) => {
+  test("desktop daily cards keep the shared patch date and process monitor stays balanced", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
     await page.route("**/api/trading/market/status", async (route) => {
@@ -772,6 +772,39 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect(page.locator("#dashboard-freshness [data-dashboard-operational-integrity=\"inline\"]")).toHaveCount(0);
+
+    const inlineFilteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
+    const inlineFilteringCard = inlineFilteringScoring.locator("article").filter({ hasText: "Filtering" });
+    const inlineScoringCard = inlineFilteringScoring.locator("article").filter({ hasText: "Scoring" });
+    const inlinePiotroskiStage = inlineFilteringCard.locator('[data-filter-stage="piotroski"]');
+    const inlineUnifiedValueStage = inlineScoringCard.locator('[data-scoring-stage="unified-value"]');
+
+    await expectFilteringStageStatusIcon(inlinePiotroskiStage, "completed", "Completed");
+    await expect(inlinePiotroskiStage).toContainText(/Filtered\s*128/);
+    await expect(inlinePiotroskiStage).not.toContainText(/Market date\s*2026-04-15/);
+    await expect(inlineUnifiedValueStage).toHaveAttribute("data-scoring-status", "completed");
+    await expect(inlineUnifiedValueStage).toContainText(/Progress\s*3,200\s*\/\s*3,200/);
+    await expect(inlineUnifiedValueStage).not.toContainText(/Market date\s*2026-04-15/);
+    const inlinePatchDate = inlineFilteringScoring.getByLabel("Patch date");
+    await expect(inlinePatchDate).toContainText("2026-04-15");
+
+    for (const width of [390, 768, 1024, 1280, 1536]) {
+      await page.setViewportSize({ width, height: 1100 });
+      await expect(inlinePatchDate).toBeVisible();
+
+      const [inlineGridBox, inlinePatchDateBox] = await Promise.all([
+        getRequiredBox(inlineFilteringScoring, `inline filtering and scoring grid at ${width}px`),
+        getRequiredBox(inlinePatchDate, `inline patch date at ${width}px`),
+      ]);
+
+      expect(inlinePatchDateBox.x).toBeGreaterThanOrEqual(inlineGridBox.x - 1);
+      expect(inlinePatchDateBox.x + inlinePatchDateBox.width).toBeLessThanOrEqual(
+        inlineGridBox.x + inlineGridBox.width + 1,
+      );
+      expect(Math.abs(inlinePatchDateBox.width - inlineGridBox.width)).toBeLessThan(2);
+    }
+
+    await page.setViewportSize({ width: 1440, height: 1100 });
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodCard = processDrawer.locator("article").filter({ hasText: "Daily Data Fetch" });

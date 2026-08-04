@@ -2455,6 +2455,16 @@ export function LiveDashboardClient({
               patchDate={processMonitorModel.patchDate}
               scoringCardModel={scoringCardModel}
             />
+
+            {processMonitorModel.patchDate ? (
+              <div
+                className={`${styles.processMonitorPatchDate} ${styles.filteringScoringPatchDate}`}
+                aria-label={copy.processMonitor.patchDate}
+              >
+                <span>{copy.processMonitor.patchDate}</span>
+                <strong>{processMonitorModel.patchDate}</strong>
+              </div>
+            ) : null}
           </div>
         </section>
 
