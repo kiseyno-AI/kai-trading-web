@@ -213,7 +213,7 @@ Local production serving for the bridge/Tailscale path uses launchd label `com.k
 /Users/shawn/trading-web/scripts/redeploy-prod-8383.sh
 ```
 
-The script installs dependencies when needed, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web` and the isolated production dist directory `NEXT_DIST_DIR=.next-prod-8383`, then restarts the launchd-managed `next start` server on port `8383`. Normal developer and agent builds such as `npx next build --webpack` continue to write to `.next`, so validation builds cannot overwrite the live 8383 production artifacts.
+The script serializes redeploys, validates the launchd plist before building, builds with `NEXT_PUBLIC_BASE_PATH=/trading-web` and the isolated production dist directory `NEXT_DIST_DIR=.next-prod-8383`, then restarts the launchd-managed `next start` server on port `8383`. A loaded service is restarted in place with `launchctl kickstart` instead of being unloaded first; if the service is missing, the script bootstraps it and verifies that launchd owns it before running health checks. Normal developer and agent builds such as `npx next build --webpack` continue to write to `.next`, so validation builds cannot overwrite the live 8383 production artifacts.
 
 The start helper also exports `NEXT_DIST_DIR=.next-prod-8383` before `next start`. The redeploy helper validates `required-server-files.json`, refuses to use the shared `.next` directory for the 8383 runtime, and checks that served app-shell HTML under `/trading-web` references `/trading-web/_next/static/...` assets instead of root `/_next/static/...` URLs.
 

@@ -80,13 +80,21 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
   assert.match(packageJson.scripts?.["test:e2e:tailnet"] ?? "", /TAILNET_ENTRYPOINT_URL=\$\{TAILNET_ENTRYPOINT_URL:-https:\/\/gangseunghyeon-uiui-macmini-1\.tail1d831c\.ts\.net\/trading-web\}/);
   assert.match(redeployScript, /TAILNET_ENTRYPOINT_URL="\$\{TAILNET_ENTRYPOINT_URL:-https:\/\/\$\{TAILNET_HOST\}\/trading-web\}"/);
   assert.match(redeployScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
+  assert.match(redeployScript, /DEPLOY_LOCK_FILE="\$\{DEPLOY_LOCK_FILE:-\/tmp\/\$\{SERVICE_LABEL\}\.redeploy\.lock\}"/);
+  assert.match(redeployScript, /\/usr\/bin\/lockf -s -t 0 9/);
   assert.match(redeployScript, /is_shared_next_dist_dir\(\)/);
   assert.match(redeployScript, /path\.resolve\(process\.cwd\(\), raw\.trim\(\)\) === path\.resolve\(process\.cwd\(\), "\.next"\)/);
+  assert.match(redeployScript, /\/usr\/bin\/plutil -lint "\$SERVICE_PLIST"/);
   assert.match(redeployScript, /required-server-files\.json/);
   assert.match(redeployScript, /app HTML asset path sanity check failed/);
   assert.match(redeployScript, /TAILNET_BROWSER_ENTRYPOINT_URL/);
   assert.match(redeployScript, /RAW_TAILNET_BROWSER_ENTRYPOINT_URL/);
   assert.match(redeployScript, /normalized Tailnet browser entrypoint from .+ to /);
+  assert.match(redeployScript, /if \/bin\/launchctl print "\$SERVICE_TARGET"/);
+  assert.match(redeployScript, /\/bin\/launchctl kickstart -k "\$SERVICE_TARGET"/);
+  assert.match(redeployScript, /\/bin\/launchctl bootstrap "gui\/\$\(id -u\)" "\$SERVICE_PLIST"/);
+  assert.doesNotMatch(redeployScript, /\/bin\/launchctl bootout/);
+  assert.doesNotMatch(redeployScript, /launchctl bootstrap[^\n]+\|\| true/);
   assert.match(startScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
   assert.match(startScript, /is_shared_next_dist_dir\(\)/);
   assert.match(startScript, /path\.resolve\(process\.cwd\(\), raw\.trim\(\)\) === path\.resolve\(process\.cwd\(\), "\.next"\)/);
@@ -94,4 +102,15 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
   assert.match(productionSection, new RegExp(DEFAULT_TAILNET_BROWSER_ENTRYPOINT_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(productionSection, /\.next-prod-8383/);
   assert.equal(productionSection.includes(legacyHttpEntrypointUrl), false);
+});
+
+test("production redeploy validates recovery prerequisites before restarting the listener", () => {
+  const redeployScript = fs.readFileSync(path.join(repoRoot, "scripts/redeploy-prod-8383.sh"), "utf8");
+  const plistGuardIndex = redeployScript.indexOf('if [ ! -f "$SERVICE_PLIST" ]');
+  const buildIndex = redeployScript.indexOf("/opt/homebrew/bin/npx next build --webpack");
+  const restartIndex = redeployScript.indexOf('if /bin/launchctl print "$SERVICE_TARGET"');
+
+  assert.ok(plistGuardIndex >= 0, "redeploy must guard the launchd plist");
+  assert.ok(buildIndex > plistGuardIndex, "redeploy must validate the launchd plist before building");
+  assert.ok(restartIndex > buildIndex, "redeploy must only restart launchd after a successful build");
 });

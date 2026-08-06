@@ -6,6 +6,7 @@ cd /Users/shawn/trading-web
 SERVICE_LABEL="com.kiseyno.trading-web-8383"
 SERVICE_TARGET="gui/$(id -u)/${SERVICE_LABEL}"
 SERVICE_PLIST="/Users/shawn/Library/LaunchAgents/${SERVICE_LABEL}.plist"
+DEPLOY_LOCK_FILE="${DEPLOY_LOCK_FILE:-/tmp/${SERVICE_LABEL}.redeploy.lock}"
 PORT=8383
 export NEXT_DIST_DIR="${NEXT_DIST_DIR:-.next-prod-8383}"
 APP_HEALTH_URL="http://127.0.0.1:${PORT}/trading-web/dashboard"
@@ -15,6 +16,12 @@ TAILNET_ENTRYPOINT_URL="${TAILNET_ENTRYPOINT_URL:-https://${TAILNET_HOST}/tradin
 TAILNET_BROWSER_ENTRYPOINT_URL="${TAILNET_BROWSER_ENTRYPOINT_URL:-$TAILNET_ENTRYPOINT_URL}"
 RAW_TAILNET_BROWSER_ENTRYPOINT_URL="$TAILNET_BROWSER_ENTRYPOINT_URL"
 RUN_TAILNET_BROWSER_SMOKE="${RUN_TAILNET_BROWSER_SMOKE:-1}"
+
+exec 9>"$DEPLOY_LOCK_FILE"
+if ! /usr/bin/lockf -s -t 0 9; then
+  echo "another ${SERVICE_LABEL} redeploy is already running" >&2
+  exit 75
+fi
 
 if [[ "$TAILNET_BROWSER_ENTRYPOINT_URL" == http://*.ts.net/* ]]; then
   TAILNET_BROWSER_ENTRYPOINT_URL="https://${TAILNET_BROWSER_ENTRYPOINT_URL#http://}"
@@ -28,6 +35,13 @@ if is_shared_next_dist_dir "$NEXT_DIST_DIR"; then
   echo "refusing to build the 8383 production runtime into shared dist dir: $NEXT_DIST_DIR" >&2
   exit 1
 fi
+
+if [ ! -f "$SERVICE_PLIST" ]; then
+  echo "launchd plist not found: $SERVICE_PLIST" >&2
+  exit 1
+fi
+
+/usr/bin/plutil -lint "$SERVICE_PLIST" >/dev/null
 
 fetch_local_asset() {
   local asset_path="$1"
@@ -99,27 +113,28 @@ if [ -z "$CSS_ASSET" ]; then
   exit 1
 fi
 
-/bin/launchctl bootout "$SERVICE_TARGET" >/dev/null 2>&1 || true
-sleep 2
+if /bin/launchctl print "$SERVICE_TARGET" >/dev/null 2>&1; then
+  /bin/launchctl kickstart -k "$SERVICE_TARGET"
+else
+  PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
+  if [ -n "$PIDS" ]; then
+    echo "$PIDS" | xargs kill -TERM || true
+    sleep 2
+  fi
+  PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
+  if [ -n "$PIDS" ]; then
+    echo "$PIDS" | xargs kill -KILL || true
+    sleep 2
+  fi
 
-PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
-if [ -n "$PIDS" ]; then
-  echo "$PIDS" | xargs kill -TERM || true
-  sleep 2
-fi
-PIDS=$(lsof -tiTCP:$PORT -sTCP:LISTEN || true)
-if [ -n "$PIDS" ]; then
-  echo "$PIDS" | xargs kill -KILL || true
-  sleep 2
+  /bin/launchctl bootstrap "gui/$(id -u)" "$SERVICE_PLIST"
+  /bin/launchctl kickstart "$SERVICE_TARGET"
 fi
 
-if [ ! -f "$SERVICE_PLIST" ]; then
-  echo "launchd plist not found: $SERVICE_PLIST" >&2
+if ! /bin/launchctl print "$SERVICE_TARGET" >/dev/null 2>&1; then
+  echo "launchd service is not loaded after restart: $SERVICE_TARGET" >&2
   exit 1
 fi
-
-/bin/launchctl bootstrap gui/$(id -u) "$SERVICE_PLIST" >/dev/null 2>&1 || true
-/bin/launchctl kickstart -k "$SERVICE_TARGET"
 
 for _ in {1..30}; do
   APP_HTML=$(curl -fsS "$APP_HEALTH_URL" 2>/dev/null || true)
