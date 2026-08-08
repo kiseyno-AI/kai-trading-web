@@ -1466,6 +1466,12 @@ export default function SignalReviewCalendarPageClient() {
         .reduce((sum, snapshot) => sum + snapshot.decisionCount, 0),
     [monthKey, monthSnapshots],
   );
+  const monthDecisionCountLabel =
+    monthLoadState === "idle" || monthLoadState === "loading"
+      ? copy.states.monthDecisionCountPending
+      : monthLoadState === "unavailable"
+        ? copy.states.monthDecisionCountUnavailable
+        : `${monthDecisionCount.toLocaleString("en-US")} ${copy.labels.monthDecisions}`;
   const selectedReadyDateInDisplayedMonth =
     selectedDate !== null && selectedDisplayLoadState === "ready" && getMonthKey(selectedDate) === monthKey;
   const selectedSnapshot = selectedDate ? (monthSnapshots[selectedDate] ?? null) : null;
@@ -1884,7 +1890,7 @@ export default function SignalReviewCalendarPageClient() {
                       ? copy.states.unavailableMonth
                       : copy.states.readyMonth}
               </span>
-              <strong>{monthDecisionCount.toLocaleString("en-US")} {copy.labels.monthDecisions}</strong>
+              <strong data-testid="calendar-month-decision-count">{monthDecisionCountLabel}</strong>
             </div>
 
             {monthLoadState === "unavailable" ? (
