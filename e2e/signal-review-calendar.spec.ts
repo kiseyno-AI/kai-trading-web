@@ -2240,6 +2240,56 @@ test("calendar unavailable selected date keeps feedback CTA in recovery mode", a
   await expect(page.getByTestId("feedback-error-primary")).toHaveCount(0);
 });
 
+test("calendar unavailable scan avoids a false zero and surfaces mobile shell recovery", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-08-09T09:00:00+09:00"));
+  await page.setViewportSize({ width: 390, height: 844 });
+  const unavailableAugustDates = listMonthDates("2026-08");
+  const requestHits = await mockSignalReviewCalendar(page, {
+    forceCalendarSummaryFailure: true,
+    runningProgressDates: ["2026-08-09"],
+    timeoutFeedbackDates: unavailableAugustDates,
+    timeoutReviewDateDates: unavailableAugustDates,
+  });
+
+  await page.goto("/dashboard");
+  await page.locator('[data-mobile-nav-item="calendar"]').click();
+
+  await expect(page).toHaveURL(/\/calendar\?date=2026-08-09$/);
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+  await expect(page.getByTestId("calendar-month-status")).toHaveText("Calendar scan unavailable");
+  await expect(page.getByTestId("calendar-month-decision-count")).toHaveText(
+    "Month decision count unavailable",
+  );
+  await expect(page.getByText("0 month decisions", { exact: true })).toHaveCount(0);
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveAttribute(
+    "data-calendar-feedback-cta-state",
+    "latest",
+  );
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?marketDate=2026-04-27&navContext=calendar&originDate=2026-08-09",
+  );
+  await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
+    "2026-04-27",
+  );
+  await expect(page.getByTestId("calendar-month-recovery")).toContainText(
+    "Retry calendar reads for this month and the selected date",
+  );
+
+  const initialCalendarSummaryHits = requestHits.calendarSummary;
+  const initialReviewDateHits = requestHits.reviewDate;
+  await page.getByTestId("calendar-month-retry").click();
+  await expect.poll(async () => requestHits.calendarSummary).toBeGreaterThan(initialCalendarSummaryHits);
+  await expect.poll(async () => requestHits.reviewDate).toBeGreaterThan(initialReviewDateHits);
+  await expectNarrowMobileLabelsContained(page);
+
+  await feedbackCta.click();
+  await expect(page).toHaveURL(
+    /\/dashboard\/signal-decider-feedback\?marketDate=2026-04-27&navContext=calendar&originDate=2026-08-09$/,
+  );
+});
+
 test("calendar unavailable selected date routes feedback CTA to latest cached usable date", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await seedDashboardSignalDeciderCache(page, "2026-04-27");
@@ -2615,7 +2665,8 @@ test("signal review calendar labels unresolved month loading cells as loading in
     await page.goto("/calendar?date=2026-05-26");
     await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
     await expect(page.getByTestId("calendar-month-status")).toHaveText("Loading decision dates");
-    await expect(page.getByText("0 month decisions")).toBeVisible();
+    await expect(page.getByTestId("calendar-month-decision-count")).toHaveText("Month decision count pending");
+    await expect(page.getByText("0 month decisions", { exact: true })).toHaveCount(0);
 
     const unresolvedPastCell = page.locator('[data-calendar-cell="2026-05-01"]');
     await expect(
@@ -2647,7 +2698,8 @@ test("signal review calendar keeps no-date current-month loading cells out of ru
     await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "June 2026" })).toBeVisible();
     await expect(page.getByTestId("calendar-month-status")).toHaveText("Loading decision dates");
-    await expect(page.getByText("0 month decisions")).toBeVisible();
+    await expect(page.getByTestId("calendar-month-decision-count")).toHaveText("Month decision count pending");
+    await expect(page.getByText("0 month decisions", { exact: true })).toHaveCount(0);
 
     const unresolvedPastCell = page.locator('[data-calendar-cell="2026-06-01"]');
     await expect(
@@ -2686,7 +2738,8 @@ test("signal review calendar keeps timed-out current-month fallback cells scanna
     await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "June 2026" })).toBeVisible();
     await expect(page.getByTestId("calendar-month-status")).toHaveText("Loading decision dates");
-    await expect(page.getByText("0 month decisions")).toBeVisible();
+    await expect(page.getByTestId("calendar-month-decision-count")).toHaveText("Month decision count pending");
+    await expect(page.getByText("0 month decisions", { exact: true })).toHaveCount(0);
     await expect.poll(async () => requestHits.calendarSummary).toBeGreaterThanOrEqual(1);
     await expect.poll(async () => requestHits.feedback).toBeGreaterThan(0);
 
@@ -2721,8 +2774,12 @@ test("signal review calendar keeps timed-out current-month fallback cells scanna
     await expect(selectedTodayCell).toHaveAttribute("aria-label", /2026-06-29 Unavailable/);
     await expect(selectedTodayCell).toBeDisabled();
     await expectCompactCalendarStatusFillsCell(selectedTodayCell, "ERR");
+    await expect(page.getByTestId("calendar-month-decision-count")).toHaveText(
+      "Month decision count unavailable",
+    );
+    await expect(page.getByText("0 month decisions", { exact: true })).toHaveCount(0);
     await expect(page.getByTestId("calendar-month-recovery")).toContainText(
-      "The displayed zero is not confirmation that no decisions are stored.",
+      "Retry calendar reads for this month and the selected date",
     );
     await expect(page.getByTestId("calendar-month-retry")).toHaveText("Retry calendar reads");
 
@@ -2735,8 +2792,10 @@ test("signal review calendar keeps timed-out current-month fallback cells scanna
     await expect(selectedTodayCell).toHaveAttribute("aria-label", /2026-06-29 사용 불가/);
     await expect(selectedTodayCell).toBeDisabled();
     await expectCompactCalendarStatusFillsCell(selectedTodayCell, "불가");
+    await expect(page.getByTestId("calendar-month-decision-count")).toHaveText("월간 결정 수 사용 불가");
+    await expect(page.getByText("0 월간 결정", { exact: true })).toHaveCount(0);
     await expect(page.getByTestId("calendar-month-recovery")).toContainText(
-      "표시된 0은 저장된 결정이 없다는 뜻이 아닙니다.",
+      "이 달과 선택한 날짜의 캘린더 조회를 다시 시도하세요.",
     );
     const initialCalendarSummaryHits = requestHits.calendarSummary;
     const initialReviewDateHits = requestHits.reviewDate;
