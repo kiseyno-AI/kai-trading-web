@@ -525,6 +525,15 @@ const ScoringCard = memo(function ScoringCard({
           );
         })}
       </div>
+
+      <div className={styles.cardActionRow}>
+        <Link href="/markets" className={styles.signalDeciderDetailLink}>
+          {copy.marketOverview.openMarkets}
+        </Link>
+        <Link href="/markets/factors" className={styles.signalDeciderDetailLink}>
+          {copy.marketOverview.openFactorScreening}
+        </Link>
+      </div>
     </article>
   );
 });
