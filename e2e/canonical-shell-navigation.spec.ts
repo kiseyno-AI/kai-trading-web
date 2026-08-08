@@ -69,6 +69,27 @@ test.describe("canonical shell navigation", () => {
     }
   });
 
+  test("dashboard actions reach Markets and Factor Screening by visible clicks", async ({ page }) => {
+    const viewports = [
+      { width: 1365, height: 900 },
+      { width: 390, height: 844 },
+    ];
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await page.goto("/dashboard");
+
+      await page.getByRole("link", { name: "Open markets", exact: true }).click();
+      await expect(page).toHaveURL(/\/markets$/);
+      await expect(page.getByRole("heading", { name: "Markets", exact: true })).toBeVisible();
+
+      await page.getByRole("link", { name: "Open factor screening", exact: true }).first().click();
+      await expect(page).toHaveURL(/\/markets\/factors$/);
+      await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+    }
+  });
+
   test("AppShell workspace sidebar still exposes Markets and Bots", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/bots");
