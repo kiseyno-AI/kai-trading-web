@@ -45,15 +45,32 @@ test("normalizes supported live pipeline status tokens to running", () => {
 
 test("classifies upstream and BFF pipeline inspect endpoints without hiding product routes", () => {
   for (const href of [
+    "/agent-context/feedback/progress",
+    "/crypto/markets/overview",
+    "/disclosures/dart/fundamentals/daily/inspect",
     "/eod/status",
     "/eod/master/refresh-if-due",
+    "/execution/runtime/status",
+    "/market/status",
+    "/portfolio/summary",
+    "/quotes/tracked",
+    "/scanner/tracked-symbols",
+    "/symbols/favorites",
     "/api/trading/eod/status",
     "/trading-web/api/trading/eod/status",
   ]) {
     assert.equal(isPipelineApiInspectEndpoint(href), true, href);
   }
 
-  for (const href of ["/dashboard", "/markets/factors", "/dashboard/eod/status", "/eod-monitor"]) {
+  for (const href of [
+    "/dashboard",
+    "/markets",
+    "/markets/factors",
+    "/markets/crypto",
+    "/portfolio",
+    "/dashboard/eod/status",
+    "/eod-monitor",
+  ]) {
     assert.equal(isPipelineApiInspectEndpoint(href), false, href);
   }
 });

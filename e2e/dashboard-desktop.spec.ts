@@ -520,6 +520,8 @@ test.describe("dashboard desktop", () => {
             "pykrx_universe_refresh",
             "price_collection",
             "technical_snapshots",
+            "fundamentals_daily_refresh",
+            "agent_feedback_summaries",
           ],
           stages: {
             master_refresh: {
@@ -558,6 +560,24 @@ test.describe("dashboard desktop", () => {
                 inspect_href: "/trading-web/api/trading/eod/status",
               },
             },
+            fundamentals_daily_refresh: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_href: "/disclosures/dart/fundamentals/daily/inspect",
+              },
+            },
+            agent_feedback_summaries: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_path: "/agent-context/feedback/progress",
+              },
+            },
           },
         }),
       });
@@ -574,6 +594,12 @@ test.describe("dashboard desktop", () => {
     const technicalSnapshotsStage = processDrawer.locator(
       '[data-pipeline-stage="technical_snapshots"]',
     );
+    const fundamentalsStage = processDrawer.locator(
+      '[data-pipeline-stage="fundamentals_daily_refresh"]',
+    );
+    const agentFeedbackStage = processDrawer.locator(
+      '[data-pipeline-stage="agent_feedback_summaries"]',
+    );
     const statusEndpoint = masterRefreshStage.locator('[data-pipeline-inspect-endpoint="/eod/status"]');
     const refreshIfDueEndpoint = universeRefreshStage.locator(
       '[data-pipeline-inspect-endpoint="/eod/master/refresh-if-due"]',
@@ -584,6 +610,12 @@ test.describe("dashboard desktop", () => {
     const basePathEndpoint = technicalSnapshotsStage.locator(
       '[data-pipeline-inspect-endpoint="/trading-web/api/trading/eod/status"]',
     );
+    const disclosuresEndpoint = fundamentalsStage.locator(
+      '[data-pipeline-inspect-endpoint="/disclosures/dart/fundamentals/daily/inspect"]',
+    );
+    const agentContextEndpoint = agentFeedbackStage.locator(
+      '[data-pipeline-inspect-endpoint="/agent-context/feedback/progress"]',
+    );
 
     await expect(statusEndpoint).toBeVisible();
     await expect(statusEndpoint).toContainText("Inspect");
@@ -591,9 +623,13 @@ test.describe("dashboard desktop", () => {
     await expect(refreshIfDueEndpoint).toContainText("Inspect");
     await expect(pipelineEndpoint).toBeVisible();
     await expect(basePathEndpoint).toBeVisible();
+    await expect(disclosuresEndpoint).toBeVisible();
+    await expect(agentContextEndpoint).toBeVisible();
     await expect(masterRefreshStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
     await expect(universeRefreshStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
     await expect(technicalSnapshotsStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(fundamentalsStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(agentFeedbackStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
     await expect(priceCollectionStage.getByRole("link", { name: "Inspect", exact: true })).toHaveAttribute(
       "href",
       "/markets",
