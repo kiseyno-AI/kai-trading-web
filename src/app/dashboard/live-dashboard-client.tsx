@@ -1229,6 +1229,10 @@ function formatPipelineRunIds(runIds: DailyPipelineStageModel["sourceRunIds"]) {
   return runIds.map((runId) => `${runId.key}: ${runId.value}`).join(", ");
 }
 
+function isPipelineApiInspectEndpoint(href: string) {
+  return /(?:^|\/)api\/trading(?:\/|$)/.test(href);
+}
+
 type DailyPipelineTimelineProps = {
   copy: DashboardLiveCopy;
   pipeline: DailyPipelineTimelineModel;
@@ -1416,11 +1420,23 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
 
                 {stage.inspectLinks.length > 0 ? (
                   <div className={styles.pipelineInspectLinks} aria-label={copy.processMonitor.inspectLinks}>
-                    {stage.inspectLinks.map((link) => (
-                      <Link key={`${stage.key}:${link.href}`} href={link.href}>
-                        {link.label}
-                      </Link>
-                    ))}
+                    {stage.inspectLinks.map((link) =>
+                      isPipelineApiInspectEndpoint(link.href) ? (
+                        <span
+                          key={`${stage.key}:${link.href}`}
+                          className={styles.pipelineInspectEndpoint}
+                          data-pipeline-inspect-endpoint={link.href}
+                          title={link.href}
+                        >
+                          {link.label}
+                          <span aria-hidden="true">API</span>
+                        </span>
+                      ) : (
+                        <Link key={`${stage.key}:${link.href}`} href={link.href}>
+                          {link.label}
+                        </Link>
+                      ),
+                    )}
                   </div>
                 ) : null}
               </section>

@@ -508,6 +508,51 @@ test.describe("dashboard desktop", () => {
     expect(drawerBox.width).toBeLessThanOrEqual(freshnessPanelBox.width + 1);
   });
 
+  test("process monitor keeps API inspection endpoints inside the drawer", async ({ page }) => {
+    await page.route("**/api/trading/eod/pipeline/status**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-08-11",
+          status: "running",
+          stage_order: ["master_refresh"],
+          stages: {
+            master_refresh: {
+              status: "running",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              inspect_routes: ["/eod/status", "/eod/master/refresh-if-due"],
+            },
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const masterRefreshStage = processDrawer.locator('[data-pipeline-stage="master_refresh"]');
+    const statusEndpoint = masterRefreshStage.locator(
+      '[data-pipeline-inspect-endpoint="/api/trading/eod/status"]',
+    );
+    const refreshIfDueEndpoint = masterRefreshStage.locator(
+      '[data-pipeline-inspect-endpoint="/api/trading/eod/master/refresh-if-due"]',
+    );
+
+    await expect(statusEndpoint).toBeVisible();
+    await expect(statusEndpoint).toContainText("Status");
+    await expect(refreshIfDueEndpoint).toBeVisible();
+    await expect(refreshIfDueEndpoint).toContainText("Refresh If Due");
+    await expect(masterRefreshStage.getByRole("link", { name: "Status", exact: true })).toHaveCount(0);
+    await expect(masterRefreshStage.getByRole("link", { name: "Refresh If Due", exact: true })).toHaveCount(0);
+
+    await statusEndpoint.click();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(processDrawer).toBeVisible();
+  });
+
   test("desktop daily cards keep the shared patch date and process monitor stays balanced", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 
