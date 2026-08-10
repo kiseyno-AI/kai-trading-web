@@ -19,10 +19,11 @@ import {
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp } from "@/lib/format";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
-import type {
-  DailyPipelineStageModel,
-  DailyPipelineStageStatus,
-  DailyPipelineTimelineModel,
+import {
+  isPipelineApiInspectEndpoint,
+  type DailyPipelineStageModel,
+  type DailyPipelineStageStatus,
+  type DailyPipelineTimelineModel,
 } from "@/lib/eod-pipeline-status";
 import {
   buildSignalDeciderFeedbackSummary,
@@ -1227,10 +1228,6 @@ function formatPipelineDependencyList(
 function formatPipelineRunIds(runIds: DailyPipelineStageModel["sourceRunIds"]) {
   if (runIds.length === 0) return null;
   return runIds.map((runId) => `${runId.key}: ${runId.value}`).join(", ");
-}
-
-function isPipelineApiInspectEndpoint(href: string) {
-  return /(?:^|\/)api\/trading(?:\/|$)/.test(href);
 }
 
 type DailyPipelineTimelineProps = {

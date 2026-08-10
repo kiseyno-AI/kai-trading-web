@@ -515,14 +515,48 @@ test.describe("dashboard desktop", () => {
         body: JSON.stringify({
           market_date: "2026-08-11",
           status: "running",
-          stage_order: ["master_refresh"],
+          stage_order: [
+            "master_refresh",
+            "pykrx_universe_refresh",
+            "price_collection",
+            "technical_snapshots",
+          ],
           stages: {
             master_refresh: {
               status: "running",
               processed: 0,
               total: 1,
               failed: 0,
-              inspect_routes: ["/eod/status", "/eod/master/refresh-if-due"],
+              details: {
+                inspect_href: "/eod/status",
+              },
+            },
+            pykrx_universe_refresh: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_path: "/eod/master/refresh-if-due",
+              },
+            },
+            price_collection: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_href: "/markets",
+              },
+            },
+            technical_snapshots: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_href: "/trading-web/api/trading/eod/status",
+              },
             },
           },
         }),
@@ -533,19 +567,37 @@ test.describe("dashboard desktop", () => {
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const masterRefreshStage = processDrawer.locator('[data-pipeline-stage="master_refresh"]');
-    const statusEndpoint = masterRefreshStage.locator(
-      '[data-pipeline-inspect-endpoint="/api/trading/eod/status"]',
+    const universeRefreshStage = processDrawer.locator(
+      '[data-pipeline-stage="pykrx_universe_refresh"]',
     );
-    const refreshIfDueEndpoint = masterRefreshStage.locator(
-      '[data-pipeline-inspect-endpoint="/api/trading/eod/master/refresh-if-due"]',
+    const priceCollectionStage = processDrawer.locator('[data-pipeline-stage="price_collection"]');
+    const technicalSnapshotsStage = processDrawer.locator(
+      '[data-pipeline-stage="technical_snapshots"]',
+    );
+    const statusEndpoint = masterRefreshStage.locator('[data-pipeline-inspect-endpoint="/eod/status"]');
+    const refreshIfDueEndpoint = universeRefreshStage.locator(
+      '[data-pipeline-inspect-endpoint="/eod/master/refresh-if-due"]',
+    );
+    const pipelineEndpoint = masterRefreshStage.locator(
+      '[data-pipeline-inspect-endpoint="/api/trading/eod/pipeline/status"]',
+    );
+    const basePathEndpoint = technicalSnapshotsStage.locator(
+      '[data-pipeline-inspect-endpoint="/trading-web/api/trading/eod/status"]',
     );
 
     await expect(statusEndpoint).toBeVisible();
-    await expect(statusEndpoint).toContainText("Status");
+    await expect(statusEndpoint).toContainText("Inspect");
     await expect(refreshIfDueEndpoint).toBeVisible();
-    await expect(refreshIfDueEndpoint).toContainText("Refresh If Due");
-    await expect(masterRefreshStage.getByRole("link", { name: "Status", exact: true })).toHaveCount(0);
-    await expect(masterRefreshStage.getByRole("link", { name: "Refresh If Due", exact: true })).toHaveCount(0);
+    await expect(refreshIfDueEndpoint).toContainText("Inspect");
+    await expect(pipelineEndpoint).toBeVisible();
+    await expect(basePathEndpoint).toBeVisible();
+    await expect(masterRefreshStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(universeRefreshStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(technicalSnapshotsStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(priceCollectionStage.getByRole("link", { name: "Inspect", exact: true })).toHaveAttribute(
+      "href",
+      "/markets",
+    );
 
     await statusEndpoint.click();
 
