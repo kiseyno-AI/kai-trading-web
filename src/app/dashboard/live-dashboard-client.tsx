@@ -19,10 +19,11 @@ import {
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp } from "@/lib/format";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
-import type {
-  DailyPipelineStageModel,
-  DailyPipelineStageStatus,
-  DailyPipelineTimelineModel,
+import {
+  isPipelineApiInspectEndpoint,
+  type DailyPipelineStageModel,
+  type DailyPipelineStageStatus,
+  type DailyPipelineTimelineModel,
 } from "@/lib/eod-pipeline-status";
 import {
   buildSignalDeciderFeedbackSummary,
@@ -1416,11 +1417,23 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
 
                 {stage.inspectLinks.length > 0 ? (
                   <div className={styles.pipelineInspectLinks} aria-label={copy.processMonitor.inspectLinks}>
-                    {stage.inspectLinks.map((link) => (
-                      <Link key={`${stage.key}:${link.href}`} href={link.href}>
-                        {link.label}
-                      </Link>
-                    ))}
+                    {stage.inspectLinks.map((link) =>
+                      isPipelineApiInspectEndpoint(link.href) ? (
+                        <span
+                          key={`${stage.key}:${link.href}`}
+                          className={styles.pipelineInspectEndpoint}
+                          data-pipeline-inspect-endpoint={link.href}
+                          title={link.href}
+                        >
+                          {link.label}
+                          <span aria-hidden="true">API</span>
+                        </span>
+                      ) : (
+                        <Link key={`${stage.key}:${link.href}`} href={link.href}>
+                          {link.label}
+                        </Link>
+                      ),
+                    )}
                   </div>
                 ) : null}
               </section>

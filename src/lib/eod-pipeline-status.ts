@@ -9,6 +9,27 @@ export const EOD_PIPELINE_STATUS_UPSTREAM_PATH = "/eod/pipeline/status";
 export const EOD_PIPELINE_STATUS_CLIENT_PATH = "/api/trading/eod/pipeline/status";
 export const EOD_PIPELINE_STATUS_REQUEST_TIMEOUT_MS = 10_000;
 
+const TRADING_API_UPSTREAM_NAMESPACES = new Set([
+  "agent-context",
+  "crypto",
+  "disclosures",
+  "eod",
+  "execution",
+  "market",
+  "portfolio",
+  "quotes",
+  "scanner",
+  "symbols",
+]);
+
+export function isPipelineApiInspectEndpoint(href: string) {
+  const normalizedHref = href.trim();
+  if (/(?:^|\/)api\/trading(?:[/?#]|$)/.test(normalizedHref)) return true;
+
+  const upstreamPathMatch = normalizedHref.match(/^\/?([^/?#]+)\/[^/?#]+/);
+  return upstreamPathMatch ? TRADING_API_UPSTREAM_NAMESPACES.has(upstreamPathMatch[1]) : false;
+}
+
 export const CANONICAL_EOD_PIPELINE_STAGE_ORDER = [
   "master_refresh",
   "pykrx_universe_refresh",

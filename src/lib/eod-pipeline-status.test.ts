@@ -7,6 +7,7 @@ import {
   CANONICAL_EOD_PIPELINE_STAGE_ORDER,
   buildDailyPipelineTimelineModel,
   isDailyPipelineStatusRunning,
+  isPipelineApiInspectEndpoint,
   normalizeDailyPipelineStatusToken,
 } from "./eod-pipeline-status";
 
@@ -39,6 +40,38 @@ test("normalizes supported live pipeline status tokens to running", () => {
   for (const token of ["running", "in_progress", "started", "active"] as const) {
     assert.equal(normalizeDailyPipelineStatusToken(token), "running", token);
     assert.equal(isDailyPipelineStatusRunning(token), true, token);
+  }
+});
+
+test("classifies upstream and BFF pipeline inspect endpoints without hiding product routes", () => {
+  for (const href of [
+    "/agent-context/feedback/progress",
+    "/crypto/markets/overview",
+    "/disclosures/dart/fundamentals/daily/inspect",
+    "/eod/status",
+    "/eod/master/refresh-if-due",
+    "/execution/runtime/status",
+    "/market/status",
+    "/portfolio/summary",
+    "/quotes/tracked",
+    "/scanner/tracked-symbols",
+    "/symbols/favorites",
+    "/api/trading/eod/status",
+    "/trading-web/api/trading/eod/status",
+  ]) {
+    assert.equal(isPipelineApiInspectEndpoint(href), true, href);
+  }
+
+  for (const href of [
+    "/dashboard",
+    "/markets",
+    "/markets/factors",
+    "/markets/crypto",
+    "/portfolio",
+    "/dashboard/eod/status",
+    "/eod-monitor",
+  ]) {
+    assert.equal(isPipelineApiInspectEndpoint(href), false, href);
   }
 });
 

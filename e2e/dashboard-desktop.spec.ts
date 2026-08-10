@@ -508,6 +508,139 @@ test.describe("dashboard desktop", () => {
     expect(drawerBox.width).toBeLessThanOrEqual(freshnessPanelBox.width + 1);
   });
 
+  test("process monitor keeps API inspection endpoints inside the drawer", async ({ page }) => {
+    await page.route("**/api/trading/eod/pipeline/status**", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          market_date: "2026-08-11",
+          status: "running",
+          stage_order: [
+            "master_refresh",
+            "pykrx_universe_refresh",
+            "price_collection",
+            "technical_snapshots",
+            "fundamentals_daily_refresh",
+            "agent_feedback_summaries",
+          ],
+          stages: {
+            master_refresh: {
+              status: "running",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_href: "/eod/status",
+              },
+            },
+            pykrx_universe_refresh: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_path: "/eod/master/refresh-if-due",
+              },
+            },
+            price_collection: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_href: "/markets",
+              },
+            },
+            technical_snapshots: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_href: "/trading-web/api/trading/eod/status",
+              },
+            },
+            fundamentals_daily_refresh: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_href: "/disclosures/dart/fundamentals/daily/inspect",
+              },
+            },
+            agent_feedback_summaries: {
+              status: "pending",
+              processed: 0,
+              total: 1,
+              failed: 0,
+              details: {
+                inspect_path: "/agent-context/feedback/progress",
+              },
+            },
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const masterRefreshStage = processDrawer.locator('[data-pipeline-stage="master_refresh"]');
+    const universeRefreshStage = processDrawer.locator(
+      '[data-pipeline-stage="pykrx_universe_refresh"]',
+    );
+    const priceCollectionStage = processDrawer.locator('[data-pipeline-stage="price_collection"]');
+    const technicalSnapshotsStage = processDrawer.locator(
+      '[data-pipeline-stage="technical_snapshots"]',
+    );
+    const fundamentalsStage = processDrawer.locator(
+      '[data-pipeline-stage="fundamentals_daily_refresh"]',
+    );
+    const agentFeedbackStage = processDrawer.locator(
+      '[data-pipeline-stage="agent_feedback_summaries"]',
+    );
+    const statusEndpoint = masterRefreshStage.locator('[data-pipeline-inspect-endpoint="/eod/status"]');
+    const refreshIfDueEndpoint = universeRefreshStage.locator(
+      '[data-pipeline-inspect-endpoint="/eod/master/refresh-if-due"]',
+    );
+    const pipelineEndpoint = masterRefreshStage.locator(
+      '[data-pipeline-inspect-endpoint="/api/trading/eod/pipeline/status"]',
+    );
+    const basePathEndpoint = technicalSnapshotsStage.locator(
+      '[data-pipeline-inspect-endpoint="/trading-web/api/trading/eod/status"]',
+    );
+    const disclosuresEndpoint = fundamentalsStage.locator(
+      '[data-pipeline-inspect-endpoint="/disclosures/dart/fundamentals/daily/inspect"]',
+    );
+    const agentContextEndpoint = agentFeedbackStage.locator(
+      '[data-pipeline-inspect-endpoint="/agent-context/feedback/progress"]',
+    );
+
+    await expect(statusEndpoint).toBeVisible();
+    await expect(statusEndpoint).toContainText("Inspect");
+    await expect(refreshIfDueEndpoint).toBeVisible();
+    await expect(refreshIfDueEndpoint).toContainText("Inspect");
+    await expect(pipelineEndpoint).toBeVisible();
+    await expect(basePathEndpoint).toBeVisible();
+    await expect(disclosuresEndpoint).toBeVisible();
+    await expect(agentContextEndpoint).toBeVisible();
+    await expect(masterRefreshStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(universeRefreshStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(technicalSnapshotsStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(fundamentalsStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(agentFeedbackStage.getByRole("link", { name: "Inspect", exact: true })).toHaveCount(0);
+    await expect(priceCollectionStage.getByRole("link", { name: "Inspect", exact: true })).toHaveAttribute(
+      "href",
+      "/markets",
+    );
+
+    await statusEndpoint.click();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(processDrawer).toBeVisible();
+  });
+
   test("desktop daily cards keep the shared patch date and process monitor stays balanced", async ({ page }) => {
     const now = "2026-04-15T09:10:00+09:00";
 

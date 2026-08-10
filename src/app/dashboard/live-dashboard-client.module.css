@@ -654,9 +654,11 @@
   gap: 0.36rem;
 }
 
-.pipelineInspectLinks a {
+.pipelineInspectLinks a,
+.pipelineInspectEndpoint {
   display: inline-flex;
   align-items: center;
+  gap: 0.28rem;
   min-height: 1.55rem;
   padding: 0.24rem 0.48rem;
   border: 1px solid rgba(88, 139, 255, 0.24);
@@ -667,6 +669,21 @@
   font-weight: 750;
   line-height: 1;
   text-decoration: none;
+}
+
+.pipelineInspectEndpoint {
+  border-color: rgba(134, 162, 194, 0.22);
+  background: rgba(134, 162, 194, 0.08);
+  color: var(--muted);
+  cursor: default;
+}
+
+.pipelineInspectEndpoint > span {
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.54rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
 }
 
 .pipelineInspectLinks a:hover {
