@@ -14,7 +14,7 @@ const RECOVERY_HINT_KEY = "kai.signalDeciderFeedbackRecovery.v1";
 type CacheStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export type SignalDeciderFeedbackCacheSource = "dashboard" | "detail" | "calendar";
-export type SignalDeciderFeedbackRecoverySource = "cached-feedback" | "dashboard";
+export type SignalDeciderFeedbackRecoverySource = "backend-feedback" | "cached-feedback" | "dashboard";
 
 export type SignalDeciderFeedbackCacheEntry = {
   cachedAt: number;
@@ -125,17 +125,19 @@ export function getSignalDeciderFeedbackStoredRowCount(
   return normalizeSignalDeciderFeedbackItems(feedback).length;
 }
 
-function responseMatchesMarketDate(
+export function isSignalDeciderFeedbackResponseForMarketDate(
   feedback: AgentFeedbackListResponseDto | null | undefined,
   marketDate: string,
 ) {
   if (!feedback) return false;
 
   const requestedMarketDate = normalizeMarketDate(feedback.request?.market_date);
-  if (requestedMarketDate === marketDate) return true;
-
   const items = normalizeSignalDeciderFeedbackItems(feedback);
-  return items.length > 0 && items.every((item) => normalizeMarketDate(item.marketDate) === marketDate);
+  if (items.length > 0) {
+    return items.every((item) => normalizeMarketDate(item.marketDate) === marketDate);
+  }
+
+  return requestedMarketDate === marketDate;
 }
 
 function isUsableCacheEntry(
@@ -147,7 +149,7 @@ function isUsableCacheEntry(
     entry?.version === CACHE_VERSION &&
     entry.marketDate === marketDate &&
     now - entry.cachedAt <= CACHE_TTL_MS &&
-    responseMatchesMarketDate(entry.feedback, marketDate)
+    isSignalDeciderFeedbackResponseForMarketDate(entry.feedback, marketDate)
   );
 }
 
@@ -174,7 +176,7 @@ export function writeSignalDeciderFeedbackCache({
     !targetStorage ||
     !feedback ||
     getSignalDeciderFeedbackStoredRowCount(feedback) <= 0 ||
-    !responseMatchesMarketDate(feedback, normalizedMarketDate)
+    !isSignalDeciderFeedbackResponseForMarketDate(feedback, normalizedMarketDate)
   ) {
     return false;
   }
