@@ -40,6 +40,8 @@ import {
   type SignalDeciderQualityTone,
 } from "@/lib/signal-decider-feedback";
 import {
+  getSignalDeciderFeedbackStoredRowCount,
+  isSignalDeciderFeedbackResponseForMarketDate,
   readLatestSignalDeciderFeedbackRecoveryDate,
   readSignalDeciderFeedbackCache,
   readSignalDeciderFeedbackCacheForMonth,
@@ -47,6 +49,7 @@ import {
   type SignalDeciderFeedbackRecoveryDate,
   writeSignalDeciderFeedbackCache,
 } from "@/lib/signal-decider-feedback-cache";
+import { getSignalDeciderFeedbackRecoveryCandidateDates } from "@/lib/signal-decider-feedback-recovery";
 import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
 import {
   getUserFacingSelectedDateReviewError,
@@ -55,6 +58,7 @@ import {
 import type {
   AgentFeedbackListResponseDto,
   AgentFeedbackProgressResponseDto,
+  EodFreshnessResponseDto,
   Locale,
 } from "@/types/trading-api";
 
@@ -1607,6 +1611,83 @@ export default function SignalReviewCalendarPageClient() {
         : null;
 
   useEffect(() => {
+    const shouldProbeBackendRecovery =
+      feedbackDate &&
+      selectedFeedbackNavigationBlocked &&
+      (monthLoadState === "unavailable" || selectedDateUnavailable);
+    if (!shouldProbeBackendRecovery) return;
+
+    let active = true;
+
+    const loadBackendRecovery = async () => {
+      try {
+        const freshness = await getSignalDeciderReviewJson<EodFreshnessResponseDto>(
+          "/api/trading/eod/freshness",
+          { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
+        );
+        const candidateDates = getSignalDeciderFeedbackRecoveryCandidateDates({
+          freshness,
+          unavailableMarketDate: feedbackDate,
+        }).filter(
+          (candidateDate) =>
+            !latestFeedbackRecovery || candidateDate > latestFeedbackRecovery.marketDate,
+        );
+
+        for (const candidateDate of candidateDates) {
+          if (!active) return;
+
+          try {
+            const feedback = await getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+              buildSignalDeciderFeedbackPath({
+                basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+                marketDate: candidateDate,
+              }),
+              { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
+            );
+            if (
+              !active ||
+              getSignalDeciderFeedbackStoredRowCount(feedback) <= 0 ||
+              !isSignalDeciderFeedbackResponseForMarketDate(feedback, candidateDate)
+            ) {
+              continue;
+            }
+
+            writeSignalDeciderFeedbackCache({
+              feedback,
+              marketDate: candidateDate,
+              progress: null,
+              source: "calendar",
+            });
+            setLatestFeedbackRecovery((current) =>
+              current && current.marketDate > candidateDate
+                ? current
+                : { marketDate: candidateDate, source: "backend-feedback" },
+            );
+            return;
+          } catch {
+            // Try the next explicit backend-reported date. Unknown dates are never probed.
+          }
+        }
+      } catch {
+        // Recovery is optional; the truthful unavailable state remains when evidence cannot be read.
+      }
+    };
+
+    void loadBackendRecovery();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    calendarReadRetryKey,
+    feedbackDate,
+    latestFeedbackRecovery,
+    monthLoadState,
+    selectedDateUnavailable,
+    selectedFeedbackNavigationBlocked,
+  ]);
+
+  useEffect(() => {
     let active = true;
 
     queueMicrotask(() => {
@@ -1737,7 +1818,7 @@ export default function SignalReviewCalendarPageClient() {
     const disabled =
       !day.inMonth ||
       day.isFuture ||
-      (monthLoadState === "unavailable" && snapshot?.status === "unavailable");
+      snapshot?.status === "unavailable";
     const statusLabel = snapshot ? getStatusLabel(snapshot.status, copy) : "";
     const decisionLabel = snapshot ? getCalendarCellDecisionLabel(snapshot, copy) : "";
     const actionMixLabel = snapshot ? getCalendarCellActionMixLabel(snapshot, copy) : "";
