@@ -646,7 +646,11 @@ function getSelectedDateDisplayStatus({
   selectedSnapshot: CalendarDateSnapshot | null;
   summary: SignalDeciderFeedbackSummaryModel;
 }): SelectedDateDisplayStatus {
-  if (loadState === "loading") return selectedSnapshot?.status === "unavailable" ? "unavailable" : "loading";
+  if (loadState === "loading") {
+    if (selectedSnapshot?.status === "unavailable") return "unavailable";
+    if (selectedSnapshot && selectedSnapshot.decisionCount > 0) return "partial";
+    return "loading";
+  }
   if (loadState === "error" && selectedSnapshot && selectedSnapshot.decisionCount > 0) {
     return selectedSnapshot.status;
   }
@@ -1466,12 +1470,28 @@ export default function SignalReviewCalendarPageClient() {
         .reduce((sum, snapshot) => sum + snapshot.decisionCount, 0),
     [monthKey, monthSnapshots],
   );
+  const monthHasUnavailableDates = useMemo(
+    () =>
+      calendarDays.some(
+        (day) => day.inMonth && !day.isFuture && monthSnapshots[day.dateKey]?.status === "unavailable",
+      ),
+    [calendarDays, monthSnapshots],
+  );
   const monthDecisionCountLabel =
     monthLoadState === "idle" || monthLoadState === "loading"
       ? copy.states.monthDecisionCountPending
       : monthLoadState === "unavailable"
         ? copy.states.monthDecisionCountUnavailable
-        : `${monthDecisionCount.toLocaleString("en-US")} ${copy.labels.monthDecisions}`;
+        : monthLoadState === "partial"
+          ? monthDecisionCount > 0
+            ? copy.states.monthDecisionCountPartial.replaceAll(
+                "{count}",
+                monthDecisionCount.toLocaleString("en-US"),
+              )
+            : monthHasUnavailableDates
+              ? copy.states.monthDecisionCountUnavailable
+              : copy.states.monthDecisionCountPending
+          : `${monthDecisionCount.toLocaleString("en-US")} ${copy.labels.monthDecisions}`;
   const selectedReadyDateInDisplayedMonth =
     selectedDate !== null && selectedDisplayLoadState === "ready" && getMonthKey(selectedDate) === monthKey;
   const selectedSnapshot = selectedDate ? (monthSnapshots[selectedDate] ?? null) : null;
@@ -1479,22 +1499,24 @@ export default function SignalReviewCalendarPageClient() {
   const selectedDateHasStoredEvidence = selectedStoredDecisionCount > 0;
   const selectedInlineReviewUnavailable =
     selectedDisplayLoadState === "error" || Boolean(selectedError) || selectedSnapshot?.status === "unavailable";
-  const selectedInlineReviewDegraded = selectedInlineReviewUnavailable && selectedDateHasStoredEvidence;
+  const selectedCalendarEvidenceOnly =
+    selectedDateHasStoredEvidence &&
+    (selectedDisplayLoadState === "loading" || selectedInlineReviewUnavailable);
   const resolvedSelectedDisplayStatus = getSelectedDateDisplayStatus({
     loadState: selectedDisplayLoadState,
     selectedError,
     selectedSnapshot,
     summary: selectedSummary,
   });
-  const selectedDisplayStatus: SelectedDateDisplayStatus = selectedInlineReviewDegraded
+  const selectedDisplayStatus: SelectedDateDisplayStatus = selectedCalendarEvidenceOnly
     ? "partial"
     : resolvedSelectedDisplayStatus;
   const selectedDateUnavailable = isSelectedDateMetricUnavailable(selectedDisplayStatus);
-  const selectedInlineMetricStatus: SelectedDateDisplayStatus = selectedInlineReviewUnavailable
+  const selectedInlineMetricStatus: SelectedDateDisplayStatus = selectedCalendarEvidenceOnly
     ? "unavailable"
     : selectedDisplayStatus;
   const selectedActionMixLabel =
-    selectedInlineReviewDegraded && selectedSnapshot
+    selectedCalendarEvidenceOnly && selectedSnapshot
       ? getDegradedSelectedDateActionMixLabel(selectedSnapshot.actionCounts, copy)
       : getSelectedDateActionMixLabel({
           copy,
@@ -1503,13 +1525,13 @@ export default function SignalReviewCalendarPageClient() {
         });
   const selectedResultCountLabel = getSelectedDateCountMetricLabel({
     copy,
-    count: selectedInlineReviewDegraded ? selectedStoredDecisionCount : selectedSummary.resultCount,
-    displayStatus: selectedInlineReviewDegraded ? selectedDisplayStatus : selectedInlineMetricStatus,
+    count: selectedCalendarEvidenceOnly ? selectedStoredDecisionCount : selectedSummary.resultCount,
+    displayStatus: selectedCalendarEvidenceOnly ? selectedDisplayStatus : selectedInlineMetricStatus,
   });
   const selectedReviewCountLabel = getSelectedDateCountMetricLabel({
     copy,
-    count: selectedInlineReviewDegraded ? (selectedSnapshot?.reviewCount ?? 0) : reviewCount,
-    displayStatus: selectedInlineReviewDegraded ? selectedDisplayStatus : selectedInlineMetricStatus,
+    count: selectedCalendarEvidenceOnly ? (selectedSnapshot?.reviewCount ?? 0) : reviewCount,
+    displayStatus: selectedCalendarEvidenceOnly ? selectedDisplayStatus : selectedInlineMetricStatus,
   });
   const selectedPrimaryHorizonMetricLabel = getSelectedDatePrimaryHorizonMetricLabel({
     copy,
@@ -1534,7 +1556,7 @@ export default function SignalReviewCalendarPageClient() {
   const selectedFeedbackNavigationBlocked =
     !feedbackDate ||
     selectedDisplayLoadState === "idle" ||
-    selectedDisplayLoadState === "loading" ||
+    (selectedDisplayLoadState === "loading" && !selectedDateHasStoredEvidence) ||
     (selectedDateUnavailable && selectedSummary.items.length === 0 && !selectedDateHasStoredEvidence);
   const latestUsableFeedbackCtaDate =
     selectedFeedbackNavigationBlocked &&
@@ -1562,7 +1584,7 @@ export default function SignalReviewCalendarPageClient() {
       ? copy.actions.openLatestFeedback
       : feedbackCtaState === "disabled"
         ? copy.actions.feedbackUnavailable
-        : selectedInlineReviewUnavailable && selectedDateHasStoredEvidence
+        : selectedCalendarEvidenceOnly
           ? (storedFeedbackCtaExceedsLimit
               ? copy.actions.openStoredFeedbackUpTo
               : copy.actions.openStoredFeedback
@@ -1893,9 +1915,13 @@ export default function SignalReviewCalendarPageClient() {
               <strong data-testid="calendar-month-decision-count">{monthDecisionCountLabel}</strong>
             </div>
 
-            {monthLoadState === "unavailable" ? (
+            {monthLoadState === "unavailable" || (monthLoadState === "partial" && monthHasUnavailableDates) ? (
               <div className={styles.recoveryStack} data-testid="calendar-month-recovery">
-                <p className={styles.inlineNotice}>{copy.states.monthReadUnavailable}</p>
+                <p className={styles.inlineNotice}>
+                  {monthLoadState === "unavailable"
+                    ? copy.states.monthReadUnavailable
+                    : copy.states.monthReadPartial}
+                </p>
                 <button
                   type="button"
                   className={styles.secondaryLink}
@@ -1966,7 +1992,7 @@ export default function SignalReviewCalendarPageClient() {
               <div className={styles.inlineNotice}>{copy.states.progressUnavailable}</div>
             ) : null}
 
-            {selectedInlineReviewUnavailable && selectedDateHasStoredEvidence ? (
+            {selectedCalendarEvidenceOnly ? (
               <div className={styles.emptyState}>
                 {copy.states.selectedInlineUnavailableStored.replaceAll(
                   "{count}",
@@ -2033,7 +2059,7 @@ export default function SignalReviewCalendarPageClient() {
             </div>
           </header>
 
-          {selectedInlineReviewUnavailable && selectedDateHasStoredEvidence ? (
+          {selectedCalendarEvidenceOnly ? (
             <div className={styles.emptyState}>
               {copy.states.selectedInlineUnavailableStored.replaceAll(
                 "{count}",
