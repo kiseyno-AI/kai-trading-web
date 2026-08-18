@@ -14,6 +14,7 @@ import {
   buildActionSummarySectionModel,
   buildDisclosureCoverageSectionModel,
   buildFundamentalsHistorySectionModel,
+  buildNormalizedActionSummaryState,
   buildSystemFreshnessSectionModel,
   buildTechnicalAnalysisSectionModel,
   formatQuoteUnavailableReasonLabel,
@@ -192,6 +193,34 @@ test("TC-SYMBOL-008 action-summary insufficient-history state localizes KO copy 
   assert.equal(model.meter.valueLabel, copy.action.scoreUnavailable);
   assert.doesNotMatch(model.meter.ariaLabel, /\b\d+\s*\/\s*100\b/);
   assert.doesNotMatch(rendered, /\binsufficient_history\b|Summary Version|Symbol|Market Date|Bias Direction|Insufficient Data\b/);
+});
+
+test("TC-SYMBOL-010 recommendation state distinguishes pending, unavailable, insufficient history, and resolved", () => {
+  const enCopy = getSymbolDetailCopy("en");
+  const koCopy = getSymbolDetailCopy("ko");
+  const pending = buildNormalizedActionSummaryState(null, true, koCopy);
+  const unavailable = buildNormalizedActionSummaryState(null, false, enCopy);
+  const insufficientHistory = buildNormalizedActionSummaryState(
+    makeActionSummary({
+      action_label: "insufficient_data",
+      confidence_tier: "low",
+      reasons: ["insufficient_history"],
+    }),
+    false,
+    koCopy,
+  );
+  const resolved = buildNormalizedActionSummaryState(makeActionSummary(), false, enCopy);
+
+  assert.equal(pending.kind, "pending");
+  assert.equal(unavailable.kind, "unavailable");
+  assert.equal(unavailable.sectionModel.badgeLabel, enCopy.action.unavailable);
+  assert.equal(insufficientHistory.kind, "insufficient-history");
+  assert.equal(
+    insufficientHistory.sectionModel.headline,
+    `${koCopy.action.actionLabels.insufficientData} · ${koCopy.action.confidence} ${koCopy.action.confidenceLevels.low}`,
+  );
+  assert.equal(resolved.kind, "resolved");
+  assert.equal(resolved.sectionModel.headline, "Strong Buy · Confidence High");
 });
 
 test("TC-SYMBOL-009 technical unavailable state localizes KO copy and hides backend tokens", () => {
