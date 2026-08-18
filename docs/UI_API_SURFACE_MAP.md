@@ -154,7 +154,7 @@ Client polling:
 
 UI surfaces and fields:
 - Shared responsive chrome: mobile fixed app bar + bottom tab bar, desktop KAI Trading rail + top bar -> current symbol navigation state only, no additional backend dependency
-- Quote hero: `/quotes/{symbol}` + `/market/status` + `/symbols/search` + `/agent-context/symbol-day` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`, route metadata seed, aggregate availability summary
+- Quote hero: `/quotes/{symbol}` + `/market/status` + `/symbols/search` + `/eod/action-summaries` + `/agent-context/symbol-day` -> `price`, `change`, `change_pct`, `volume`, `turnover`, `market_state`, `source`, `available`, `fallback`, `fallback_reason`, `unavailable_reason`, `cached_at`, `trade_date`, action-summary `action_label`, `confidence_tier`, `reasons`, route metadata seed, aggregate availability summary
 - Hero tracked-symbol star: `/scanner/tracked-symbols` -> `tracked_symbols`; clicking the star posts the replacement symbol list, fills the star when the current symbol is present, and clears the fill when it is removed
 - Market-status gate for quote polling: `/market/status` -> `state`
 - Chart: `/symbols/{symbol}/price-bars` -> `items[].trade_date`, `open_price`, `high_price`, `low_price`, `close_price`, `volume`, `turnover`; the UI treats missing or zero-sentinel turnover on a nonzero-volume candle as confirmation-needed instead of rendering `₩0`

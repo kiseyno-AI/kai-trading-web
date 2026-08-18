@@ -256,7 +256,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
         <section className={`${styles.panel} ${styles.heroCard}`} id="summary">
           <ComponentTag
             label="symbol.hero"
-            api="/api/trading/quotes/{symbol} + /api/trading/market/status + /api/trading/symbols/search + /api/trading/symbols/{symbol}/price-bars + /api/trading/agent-context/symbol-day + /api/trading/eod/piotroski-filter-results"
+            api="/api/trading/quotes/{symbol} + /api/trading/market/status + /api/trading/symbols/search + /api/trading/symbols/{symbol}/price-bars + /api/trading/eod/action-summaries + /api/trading/agent-context/symbol-day + /api/trading/eod/piotroski-filter-results"
           />
 
           <div className={styles.heroTopRow}>
