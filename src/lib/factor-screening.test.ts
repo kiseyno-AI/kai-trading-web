@@ -592,6 +592,52 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
     assert.match(workspace.families.advancedValue.rows[1]?.note ?? "", /Unified valuation context: Missing metric/);
     assert.equal(workspace.families.composite.state, "future");
     assert.equal(workspace.families.composite.totalRows, 0);
+
+    const koreanWorkspace = await loadFactorScreeningWorkspace({
+      locale: "ko",
+      marketDate,
+      numberLocale: "ko-KR",
+    });
+    const koreanValueAuditRow = koreanWorkspace.families.value.rows.find(
+      (row) => row.symbol === "035420",
+    );
+    const koreanAdvancedValueRow = koreanWorkspace.families.advancedValue.rows.find(
+      (row) => row.symbol === "005930",
+    );
+
+    assert.equal(
+      koreanValueAuditRow?.note,
+      "이익이 양수가 아니어서 PER 점수 계산에서 제외됐습니다. 컴포넌트 상태: PER: 이익 0 이하 · PBR: 사용 가능 · 배당수익률: 사용 가능 · FCF 수익률: 지표 누락 · EV / EBITDA: 펀더멘털 부족.",
+    );
+    assert.equal(
+      koreanAdvancedValueRow?.note,
+      "FCF 수익률과 EV / EBITDA가 모두 고급 밸류 적격 점수를 뒷받침했습니다. 통합 밸류 맥락: 지표 누락. 컴포넌트 상태: FCF 수익률: 사용 가능 · EV / EBITDA: 사용 가능.",
+    );
+    assert.doesNotMatch(
+      [koreanValueAuditRow?.note, koreanAdvancedValueRow?.note].join(" "),
+      /Components:|Available|Missing metric|Insufficient fundamentals/i,
+    );
+    assert.deepEqual(
+      filterFactorScreeningRows(koreanWorkspace.families.beta.rows, {
+        mode: "all",
+        query: "적격",
+      }).map((row) => row.symbol),
+      ["005930"],
+    );
+    assert.deepEqual(
+      filterFactorScreeningRows(koreanWorkspace.families.momentum.rows, {
+        mode: "all",
+        query: "이력 부족",
+      }).map((row) => row.symbol),
+      ["000660"],
+    );
+    assert.deepEqual(
+      filterFactorScreeningRows(koreanWorkspace.families.value.rows, {
+        mode: "all",
+        query: "FCF 수익률: 지표 누락",
+      }).map((row) => row.symbol),
+      ["035420"],
+    );
     } finally {
       global.fetch = originalFetch;
     }

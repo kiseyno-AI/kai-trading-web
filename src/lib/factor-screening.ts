@@ -298,6 +298,19 @@ function normalizeText(value: string) {
   return value.trim().toLowerCase();
 }
 
+function getKoreanFactorStatusLabel(statusCode: string) {
+  return (
+    KOREAN_FACTOR_SCREENING_DISPLAY.statusLabels[
+      statusCode as keyof typeof KOREAN_FACTOR_SCREENING_DISPLAY.statusLabels
+    ] ?? "확인 필요"
+  );
+}
+
+function getKoreanFactorRowNote(family: FactorFamilyId, statusCode: string) {
+  const rowNotes = KOREAN_FACTOR_SCREENING_DISPLAY.families[family].rowNotes;
+  return rowNotes[statusCode as keyof typeof rowNotes] ?? rowNotes.default;
+}
+
 function formatPercentScore(value: number | null | undefined, fallback = "Unavailable") {
   if (!hasNumber(value)) return fallback;
   return `${(value * 100).toFixed(1)}%`;
@@ -472,25 +485,46 @@ function readPayloadStatus(payload: Record<string, unknown> | null, key: string)
   return null;
 }
 
-function humanizeStatusToken(value: string | null | undefined, fallback = "Unavailable") {
-  if (!value) return fallback;
+function humanizeStatusToken(value: string | null | undefined, locale: Locale = "en") {
+  if (!value) return locale === "ko" ? "사용 불가" : "Unavailable";
 
   const normalized = value.trim();
-  const knownLabels: Record<string, string> = {
-    available: "Available",
-    insufficient_components: "Insufficient components",
-    insufficient_fundamentals: "Insufficient fundamentals",
-    invalid_non_positive: "Earnings non-positive",
-    invalid_per: "PER excluded",
-    missing_depreciation_and_amortization: "Missing D&A",
-    missing_ebitda: "Missing EBITDA",
-    missing_enterprise_value: "Missing enterprise value",
-    missing_free_cash_flow: "Missing FCF",
-    missing_market_date_bar: "Missing market-date bar",
-    missing_metric: "Missing metric",
-    non_positive: "Non-positive",
-    scored: "Scored",
-  };
+  const knownLabels: Record<string, string> =
+    locale === "ko"
+      ? {
+          available: "사용 가능",
+          insufficient_components: "컴포넌트 부족",
+          insufficient_fundamentals: "펀더멘털 부족",
+          invalid_non_positive: "이익 0 이하",
+          invalid_per: "PER 제외",
+          missing_depreciation_and_amortization: "감가상각비 누락",
+          missing_ebitda: "EBITDA 누락",
+          missing_enterprise_value: "기업가치 누락",
+          missing_free_cash_flow: "FCF 누락",
+          missing_market_date_bar: "시장일자 가격 바 누락",
+          missing_metric: "지표 누락",
+          non_positive: "0 이하",
+          scored: "점수 산출",
+        }
+      : {
+          available: "Available",
+          insufficient_components: "Insufficient components",
+          insufficient_fundamentals: "Insufficient fundamentals",
+          invalid_non_positive: "Earnings non-positive",
+          invalid_per: "PER excluded",
+          missing_depreciation_and_amortization: "Missing D&A",
+          missing_ebitda: "Missing EBITDA",
+          missing_enterprise_value: "Missing enterprise value",
+          missing_free_cash_flow: "Missing FCF",
+          missing_market_date_bar: "Missing market-date bar",
+          missing_metric: "Missing metric",
+          non_positive: "Non-positive",
+          scored: "Scored",
+        };
+
+  if (locale === "ko") {
+    return knownLabels[normalized] ?? "확인 필요";
+  }
 
   return (
     knownLabels[normalized] ??
@@ -519,18 +553,32 @@ function readValueComponentStatuses(item: EodValueFactorItemDto | EodAdvancedVal
   };
 }
 
-function formatValueComponentHints(item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto) {
+function formatValueComponentHints(
+  item: EodValueFactorItemDto | EodAdvancedValueFactorItemDto,
+  locale: Locale = "en",
+) {
   const statuses = readValueComponentStatuses(item);
-  const hints = [
-    ["PER", statuses.per],
-    ["PBR", statuses.pbr],
-    ["Dividend yield", statuses.dividendYield],
-    ["FCF yield", statuses.fcfYield],
-    ["EV / EBITDA", statuses.evToEbitda],
-  ] as const;
+  const hints =
+    locale === "ko"
+      ? ([
+          ["PER", statuses.per],
+          ["PBR", statuses.pbr],
+          ["배당수익률", statuses.dividendYield],
+          ["FCF 수익률", statuses.fcfYield],
+          ["EV / EBITDA", statuses.evToEbitda],
+        ] as const)
+      : ([
+          ["PER", statuses.per],
+          ["PBR", statuses.pbr],
+          ["Dividend yield", statuses.dividendYield],
+          ["FCF yield", statuses.fcfYield],
+          ["EV / EBITDA", statuses.evToEbitda],
+        ] as const);
 
   return hints
-    .map(([label, status]) => (status ? `${label}: ${humanizeStatusToken(status)}` : null))
+    .map(([label, status]) =>
+      status ? `${label}: ${humanizeStatusToken(status, locale)}` : null,
+    )
     .filter((hint): hint is string => Boolean(hint));
 }
 
@@ -670,7 +718,9 @@ function buildBetaNote(status: FactorStatusDescriptor) {
   }
 }
 
-function buildValueNote(status: FactorStatusDescriptor) {
+function buildValueNote(status: FactorStatusDescriptor, locale: Locale = "en") {
+  if (locale === "ko") return getKoreanFactorRowNote("value", status.code);
+
   switch (status.code) {
     case "scored":
       return "PER, PBR, and dividend yield all produced a valid value score.";
@@ -683,9 +733,21 @@ function buildValueNote(status: FactorStatusDescriptor) {
   }
 }
 
-function buildUnifiedValueNote(status: FactorStatusDescriptor, componentHints: string[]) {
+function buildUnifiedValueNote(
+  status: FactorStatusDescriptor,
+  componentHints: string[],
+  locale: Locale = "en",
+) {
   const componentSuffix =
-    componentHints.length > 0 ? ` Components: ${componentHints.join(" · ")}.` : "";
+    componentHints.length > 0
+      ? locale === "ko"
+        ? ` 컴포넌트 상태: ${componentHints.join(" · ")}.`
+        : ` Components: ${componentHints.join(" · ")}.`
+      : "";
+
+  if (locale === "ko") {
+    return `${getKoreanFactorRowNote("value", status.code)}${componentSuffix}`;
+  }
 
   switch (status.code) {
     case "scored":
@@ -708,17 +770,28 @@ function buildUnifiedValueNote(status: FactorStatusDescriptor, componentHints: s
 function buildAdvancedValueUnifiedContextNote(
   item: EodAdvancedValueFactorItemDto,
   componentHints: string[],
+  locale: Locale = "en",
 ) {
   if (!hasUnifiedValueFields(item)) return "";
 
   const unifiedStatus = getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item));
   const componentSuffix =
-    componentHints.length > 0 ? ` Components: ${componentHints.join(" · ")}.` : "";
+    componentHints.length > 0
+      ? locale === "ko"
+        ? ` 컴포넌트 상태: ${componentHints.join(" · ")}.`
+        : ` Components: ${componentHints.join(" · ")}.`
+      : "";
+
+  if (locale === "ko") {
+    return ` 통합 밸류 맥락: ${getKoreanFactorStatusLabel(unifiedStatus.code)}.${componentSuffix}`;
+  }
 
   return ` Unified valuation context: ${getFactorStatusLabel(unifiedStatus.code)}.${componentSuffix}`;
 }
 
-function buildAdvancedValueNote(status: FactorStatusDescriptor) {
+function buildAdvancedValueNote(status: FactorStatusDescriptor, locale: Locale = "en") {
+  if (locale === "ko") return getKoreanFactorRowNote("advancedValue", status.code);
+
   switch (status.code) {
     case "eligible":
       return "FCF yield and EV / EBITDA both supported an eligible advanced-value score.";
@@ -862,13 +935,21 @@ function buildBetaRows(response: EodBetaFactorsResponseDto): FactorScreeningRow[
   });
 }
 
-function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRow[] {
+function buildValueRows(
+  response: EodValueFactorsResponseDto,
+  locale: Locale = "en",
+): FactorScreeningRow[] {
   return extractFactorInspectItems<EodValueFactorItemDto>(response).map((item) => {
     const usesUnifiedValue = hasUnifiedValueFields(item);
     const status = usesUnifiedValue
       ? getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item))
       : getValueFactorStatusDescriptor(item);
     const componentHints = formatValueComponentHints(item);
+    const localizedComponentHints =
+      locale === "ko" ? formatValueComponentHints(item, locale) : [];
+    const displayComponentHints = localizedComponentHints.length > 0
+      ? localizedComponentHints
+      : componentHints;
     const quality = buildScreeningQuality(item, { force: true });
     const companyName = resolveFactorScreeningCompanyName(item);
 
@@ -901,7 +982,9 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
             buildMetric("Dividend yield", formatPercentScore(item.dividend_yield)),
           ],
       quality,
-      note: usesUnifiedValue ? buildUnifiedValueNote(status, componentHints) : buildValueNote(status),
+      note: usesUnifiedValue
+        ? buildUnifiedValueNote(status, displayComponentHints, locale)
+        : buildValueNote(status, locale),
       searchText: normalizeText(
         [
           companyName ?? "",
@@ -911,6 +994,7 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
           quality?.statusLabel ?? "",
           quality?.calculationLabel ?? "",
           ...componentHints,
+          ...localizedComponentHints,
           ...(quality?.componentHints ?? []),
         ]
           .filter(Boolean)
@@ -928,11 +1012,19 @@ function buildValueRows(response: EodValueFactorsResponseDto): FactorScreeningRo
   });
 }
 
-function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): FactorScreeningRow[] {
+function buildAdvancedValueRows(
+  response: EodAdvancedValueFactorsResponseDto,
+  locale: Locale = "en",
+): FactorScreeningRow[] {
   return extractFactorInspectItems<EodAdvancedValueFactorItemDto>(response).map((item) => {
     const usesUnifiedValue = hasUnifiedValueFields(item);
     const status = getAdvancedValueFactorStatusDescriptor(item);
     const componentHints = formatValueComponentHints(item);
+    const localizedComponentHints =
+      locale === "ko" ? formatValueComponentHints(item, locale) : [];
+    const displayComponentHints = localizedComponentHints.length > 0
+      ? localizedComponentHints
+      : componentHints;
     const quality = usesUnifiedValue ? buildScreeningQuality(item) : null;
     const companyName = resolveFactorScreeningCompanyName(item);
     const advancedMetrics = [
@@ -968,7 +1060,11 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
       marketDate: item.market_date,
       metrics: [...advancedMetrics, ...unifiedMetrics],
       quality,
-      note: `${buildAdvancedValueNote(status)}${buildAdvancedValueUnifiedContextNote(item, componentHints)}`,
+      note: `${buildAdvancedValueNote(status, locale)}${buildAdvancedValueUnifiedContextNote(
+        item,
+        displayComponentHints,
+        locale,
+      )}`,
       searchText: normalizeText(
         [
           companyName ?? "",
@@ -979,6 +1075,7 @@ function buildAdvancedValueRows(response: EodAdvancedValueFactorsResponseDto): F
             ? getFactorStatusLabel(getUnifiedValueStatusDescriptor(resolveUnifiedValueStatusCode(item)).code)
             : "",
           ...componentHints,
+          ...localizedComponentHints,
           quality?.statusLabel ?? "",
           quality?.calculationLabel ?? "",
           ...(quality?.componentHints ?? []),
@@ -1116,17 +1213,20 @@ function localizeFactorScreeningDataset(
     error: localizedError,
     note: localizedNote,
     rows: dataset.rows.map((row) => {
-      const rowNotes = KOREAN_FACTOR_SCREENING_DISPLAY.families[row.family].rowNotes;
-      const localizedRowNote =
-        rowNotes[row.status.code as keyof typeof rowNotes] ?? rowNotes.default;
+      const localizedRowNote = getKoreanFactorRowNote(row.family, row.status.code);
+      const localizedStatusLabel = getKoreanFactorStatusLabel(row.status.code);
+      const note =
+        row.family === "value" || row.family === "advancedValue"
+          ? row.note
+          : localizedRowNote;
 
       return {
         ...row,
-        note: localizedRowNote,
-        statusLabel:
-          KOREAN_FACTOR_SCREENING_DISPLAY.statusLabels[
-            row.status.code as keyof typeof KOREAN_FACTOR_SCREENING_DISPLAY.statusLabels
-          ] ?? "확인 필요",
+        note,
+        searchText: normalizeText(
+          [row.searchText, localizedStatusLabel, note].filter(Boolean).join(" "),
+        ),
+        statusLabel: localizedStatusLabel,
       };
     }),
     sortBasis: familyCopy.sortBasis,
@@ -1138,6 +1238,7 @@ function localizeFactorScreeningDataset(
 async function loadAvailableFamilyDataset(
   family: FactorFamilyId,
   options: {
+    locale: Locale;
     marketDate: string;
     numberLocale: string;
   },
@@ -1235,7 +1336,7 @@ async function loadAvailableFamilyDataset(
           );
         }
 
-        const rows = assignDisplayRanks(buildValueRows(result.data));
+        const rows = assignDisplayRanks(buildValueRows(result.data, options.locale));
         return buildReadyDataset({
           family,
           featureVersion: result.data.feature_version ?? null,
@@ -1260,7 +1361,7 @@ async function loadAvailableFamilyDataset(
           );
         }
 
-        const rows = assignDisplayRanks(buildAdvancedValueRows(result.data));
+        const rows = assignDisplayRanks(buildAdvancedValueRows(result.data, options.locale));
         return buildReadyDataset({
           family,
           featureVersion: result.data.feature_version ?? null,
