@@ -124,6 +124,11 @@ export type ActionSummarySectionModel = {
   tone: "positive" | "negative" | "info" | "neutral";
 };
 
+export type NormalizedActionSummaryState = {
+  kind: "pending" | "unavailable" | "insufficient-history" | "resolved";
+  sectionModel: ActionSummarySectionModel;
+};
+
 export type TechnicalAnalysisSectionModel = {
   badgeLabel: string;
   body: string;
@@ -1150,6 +1155,24 @@ export function buildActionSummarySectionModel(
     score,
     tone: buildActionTone(actionSummary),
   };
+}
+
+export function buildNormalizedActionSummaryState(
+  actionSummary: AgentContextActionSummaryDto | null,
+  isPending: boolean,
+  copy: SymbolDetailCopy,
+  options?: { includePayloadMeta?: boolean },
+): NormalizedActionSummaryState {
+  const sectionModel = buildActionSummarySectionModel(actionSummary, copy, options);
+  const kind = actionSummary
+    ? sectionModel.meter.state === "unavailable"
+      ? "insufficient-history"
+      : "resolved"
+    : isPending
+      ? "pending"
+      : "unavailable";
+
+  return { kind, sectionModel };
 }
 
 export function buildTechnicalAnalysisSectionModel(

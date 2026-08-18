@@ -24,13 +24,13 @@ import styles from "@/app/dashboard/symbol/[symbol]/symbol-detail.module.css";
 
 import { fetchUnitJson } from "./symbol-detail-api";
 import {
-  buildActionSummarySectionModel,
   buildDisclosureCoverageSectionModel,
   buildFundamentalsHistoryQuery,
   buildFundamentalsHistorySectionModel,
   buildHeroFundamentalLatestMetricModel,
   buildHeroPiotroskiMetricModel,
   buildLatestDisclosure,
+  buildNormalizedActionSummaryState,
   buildSystemFreshnessSectionModel,
   buildTechnicalAnalysisSectionModel,
   buildTechnicalFreshnessDate,
@@ -224,13 +224,16 @@ export const HeroPiotroskiMetric = memo(function HeroPiotroskiMetric({
   );
 });
 
-export const ActionSummarySection = memo(function ActionSummarySection({
-  copy,
-  fsDiv,
-  marketDate,
-  normalizedSymbol,
-  symbolReady,
-}: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady">) {
+function useNormalizedActionSummaryState(
+  {
+    copy,
+    fsDiv,
+    marketDate,
+    normalizedSymbol,
+    symbolReady,
+  }: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady">,
+  options?: { includePayloadMeta?: boolean },
+) {
   const { aggregateContext, aggregateContextLoadState, aggregateContextRefreshing } = useSymbolAggregateContextData({
     copy,
     fsDiv,
@@ -262,23 +265,80 @@ export const ActionSummarySection = memo(function ActionSummarySection({
   );
   const actionSummaryResult = useUnitData<AgentContextActionSummaryDto | null>(actionSummaryRequest);
   const resolvedActionSummary = actionSummaryResult.data ?? aggregateContext?.action_summary ?? null;
-  const { devMode } = useAppState();
-  const actionSectionModel = buildActionSummarySectionModel(resolvedActionSummary, copy, {
-    includePayloadMeta: devMode,
-  });
-  const actionSectionRefreshing =
+  const actionSummaryRefreshing =
     (actionSummaryResult.hasData || aggregateContext !== null) &&
     (actionSummaryResult.isRefreshing || aggregateContextRefreshing);
-  const actionSectionBusy =
-    actionSectionRefreshing ||
-    (!resolvedActionSummary &&
-      (aggregateContextLoadState === "loading" || actionSummaryResult.isInitialLoading || (!marketDate && symbolReady)));
+  const actionSummaryPending =
+    !resolvedActionSummary &&
+    (aggregateContextLoadState === "loading" || actionSummaryResult.isInitialLoading || (!marketDate && symbolReady));
+
+  return {
+    busy: actionSummaryRefreshing || actionSummaryPending,
+    normalizedState: buildNormalizedActionSummaryState(resolvedActionSummary, actionSummaryPending, copy, options),
+    refreshing: actionSummaryRefreshing,
+  };
+}
+
+export const HeroActionRecommendationMetric = memo(function HeroActionRecommendationMetric({
+  copy,
+  fsDiv,
+  marketDate,
+  normalizedSymbol,
+  symbolReady,
+}: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady">) {
+  const { busy, normalizedState } = useNormalizedActionSummaryState({
+    copy,
+    fsDiv,
+    marketDate,
+    normalizedSymbol,
+    symbolReady,
+  });
+  const recommendation =
+    normalizedState.kind === "pending"
+      ? copy.hero.comingSoon
+      : normalizedState.kind === "unavailable"
+        ? normalizedState.sectionModel.badgeLabel
+        : normalizedState.sectionModel.headline;
+
+  return (
+    <article
+      className={styles.heroMetricCard}
+      aria-busy={busy || undefined}
+      data-action-state={normalizedState.kind}
+    >
+      <span>{copy.hero.recommendation}</span>
+      <strong className="clamp-3">{recommendation}</strong>
+    </article>
+  );
+});
+
+export const ActionSummarySection = memo(function ActionSummarySection({
+  copy,
+  fsDiv,
+  marketDate,
+  normalizedSymbol,
+  symbolReady,
+}: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady">) {
+  const { devMode } = useAppState();
+  const { busy, normalizedState, refreshing } = useNormalizedActionSummaryState(
+    {
+      copy,
+      fsDiv,
+      marketDate,
+      normalizedSymbol,
+      symbolReady,
+    },
+    { includePayloadMeta: devMode },
+  );
+  const resolvedActionSectionModel = normalizedState.sectionModel;
+  const actionSectionBadgeLabel =
+    normalizedState.kind === "pending" ? copy.hero.comingSoon : resolvedActionSectionModel.badgeLabel;
   const signalTrackProps = {
-    "aria-label": actionSectionModel.meter.ariaLabel,
+    "aria-label": resolvedActionSectionModel.meter.ariaLabel,
     "aria-valuemax": 100,
     "aria-valuemin": 0,
-    "aria-valuenow": actionSectionModel.score,
-    "aria-valuetext": actionSectionModel.meter.valueLabel,
+    "aria-valuenow": resolvedActionSectionModel.score,
+    "aria-valuetext": resolvedActionSectionModel.meter.valueLabel,
     role: "meter" as const,
   };
 
@@ -286,10 +346,11 @@ export const ActionSummarySection = memo(function ActionSummarySection({
     <section
       className={`${styles.panel} ${styles.insightCard}`}
       id="action"
-      aria-busy={actionSectionBusy || undefined}
-      data-refreshing={actionSectionRefreshing ? "true" : "false"}
+      aria-busy={busy || undefined}
+      data-action-state={normalizedState.kind}
+      data-refreshing={refreshing ? "true" : "false"}
     >
-      <UnitRefreshFrame busy={actionSectionRefreshing} label={copy.common.refreshing}>
+      <UnitRefreshFrame busy={refreshing} label={copy.common.refreshing}>
         <ComponentTag
           label="symbol.action-summary"
           api="/api/trading/eod/action-summaries + /api/trading/agent-context/symbol-day"
@@ -300,33 +361,33 @@ export const ActionSummarySection = memo(function ActionSummarySection({
             <p className={styles.sectionEyebrow}>{copy.action.eyebrow}</p>
             <h2 className={styles.cardTitle}>{copy.action.title}</h2>
           </div>
-          <span className={`pill ${actionSectionModel.tone}`}>{actionSectionModel.badgeLabel}</span>
+          <span className={`pill ${resolvedActionSectionModel.tone}`}>{actionSectionBadgeLabel}</span>
         </div>
 
         <div className={styles.signalMeter}>
           <div className={styles.signalMeterHeader}>
-            <span>{actionSectionModel.meter.label}</span>
-            <strong>{actionSectionModel.meter.valueLabel}</strong>
+            <span>{resolvedActionSectionModel.meter.label}</span>
+            <strong>{resolvedActionSectionModel.meter.valueLabel}</strong>
           </div>
-          {actionSectionModel.meter.state === "resolved" ? (
+          {resolvedActionSectionModel.meter.state === "resolved" ? (
             <>
-              <div className={styles.signalTrack} data-state={actionSectionModel.meter.state} {...signalTrackProps}>
-                <div className={styles.signalFill} style={{ width: `${actionSectionModel.score}%` }} />
+              <div className={styles.signalTrack} data-state={resolvedActionSectionModel.meter.state} {...signalTrackProps}>
+                <div className={styles.signalFill} style={{ width: `${resolvedActionSectionModel.score}%` }} />
               </div>
-              <p className={styles.signalCurrent}>{actionSectionModel.meter.currentLabel}</p>
+              <p className={styles.signalCurrent}>{resolvedActionSectionModel.meter.currentLabel}</p>
             </>
           ) : (
-            <p className={styles.signalUnavailable} role="status" aria-label={actionSectionModel.meter.ariaLabel}>
-              {actionSectionModel.meter.currentLabel}
+            <p className={styles.signalUnavailable} role="status" aria-label={resolvedActionSectionModel.meter.ariaLabel}>
+              {resolvedActionSectionModel.meter.currentLabel}
             </p>
           )}
         </div>
 
-        <strong className={`clamp-3 ${styles.insightHeadline}`}>{actionSectionModel.headline}</strong>
-        <p className={`clamp-3 ${styles.supportingCopy}`}>{actionSectionModel.body}</p>
+        <strong className={`clamp-3 ${styles.insightHeadline}`}>{resolvedActionSectionModel.headline}</strong>
+        <p className={`clamp-3 ${styles.supportingCopy}`}>{resolvedActionSectionModel.body}</p>
 
         <div className={styles.metricGrid}>
-          {actionSectionModel.metrics.map((metric) => (
+          {resolvedActionSectionModel.metrics.map((metric) => (
             <article key={metric.key} className={styles.metricCard}>
               <span>{metric.label}</span>
               <strong>{metric.value}</strong>
@@ -335,14 +396,14 @@ export const ActionSummarySection = memo(function ActionSummarySection({
         </div>
 
         <div className={styles.tagGroup}>
-          {actionSectionModel.reasonTags.map((reason) => (
+          {resolvedActionSectionModel.reasonTags.map((reason) => (
             <span key={reason} className={styles.tagChip}>
               {reason}
             </span>
           ))}
         </div>
 
-        {actionSectionModel.metaCaption ? <p className={styles.metaCaption}>{actionSectionModel.metaCaption}</p> : null}
+        {resolvedActionSectionModel.metaCaption ? <p className={styles.metaCaption}>{resolvedActionSectionModel.metaCaption}</p> : null}
       </UnitRefreshFrame>
     </section>
   );

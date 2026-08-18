@@ -64,8 +64,11 @@ type PriceHistoryRequestSnapshot = {
 };
 
 type MockDetailModeSwitchOptions = {
+  actionConfidenceTier?: string;
   actionLabel?: string;
   actionReasons?: string[];
+  actionRiskTier?: string;
+  actionSignalScore?: number;
   marketDate?: string;
   marketStatusIsOpen?: boolean;
   marketStatusState?: string;
@@ -477,9 +480,9 @@ async function mockDetailModeSwitchApis(
             source: "test",
             action_label: options.actionLabel ?? "strong_buy",
             bias_direction: "long",
-            signal_score: 94,
-            confidence_tier: "high",
-            risk_tier: "medium",
+            signal_score: options.actionSignalScore ?? 94,
+            confidence_tier: options.actionConfidenceTier ?? "high",
+            risk_tier: options.actionRiskTier ?? "medium",
             trigger_price: 70100,
             invalidation_price: 68000,
             support_price: 69000,
@@ -1007,6 +1010,10 @@ test.describe("symbol detail mobile pages", () => {
     await page.goto(`/dashboard/symbol/005930/action-summary?${symbolSeed}`);
 
     const actionSection = page.locator("#action");
+    const recommendationCard = page.locator("#summary article").filter({ hasText: "Recommendation" });
+    await expect(recommendationCard).toHaveAttribute("data-action-state", "unavailable");
+    await expect(recommendationCard).toContainText("Unavailable");
+    await expect(recommendationCard).not.toContainText("Coming soon");
     await expect(actionSection).toBeVisible();
     await expect(actionSection).toContainText("Unavailable");
     await expect(actionSection).toContainText("No current action resolved");
@@ -1015,6 +1022,42 @@ test.describe("symbol detail mobile pages", () => {
     await expect(actionSection).not.toContainText("Strong Buy");
     await expect(actionSection.getByRole("meter")).toHaveCount(0);
     await expect(actionSection.locator('[role="status"][aria-label="Signal score: No current action resolved"]')).toBeVisible();
+  });
+
+  test("Korean hero and Action tab share the terminal insufficient-history state", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests, {
+      actionConfidenceTier: "low",
+      actionLabel: "insufficient_data",
+      actionReasons: ["insufficient_history"],
+      actionRiskTier: "unknown",
+      actionSignalScore: 0,
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/symbol/005930/action-summary?${symbolSeed}`);
+
+    const recommendationCard = page.locator("#summary article").filter({ hasText: "추천" });
+    const actionSection = page.locator("#action");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(recommendationCard).toContainText("준비 중");
+    await expect(recommendationCard).toHaveAttribute("data-action-state", "insufficient-history");
+    await expect(recommendationCard).toContainText("데이터 부족 · 신뢰도 낮음");
+    await expect(recommendationCard).not.toContainText("준비 중");
+    await expect(actionSection).toHaveAttribute("data-action-state", "insufficient-history");
+    await expect(actionSection).toContainText("데이터 부족 · 신뢰도 낮음");
+    await expect(actionSection).toContainText("현재 액션: 저장된 과거 데이터 부족");
+    await expect(actionSection).toContainText("점수 계산 불가");
   });
 
   test("Korean action summary localizes watch-long decision reasons on mobile", async ({ page }) => {
@@ -1169,7 +1212,7 @@ test.describe("symbol detail mobile pages", () => {
       .toEqual({
         priceHistory: 1,
         technical: 0,
-        action: 0,
+        action: 1,
         fundamentals: 0,
       });
     expect(priceHistoryRequests).toEqual([

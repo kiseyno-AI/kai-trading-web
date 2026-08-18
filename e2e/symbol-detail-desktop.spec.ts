@@ -960,7 +960,9 @@ test.describe("symbol detail desktop", () => {
     await expect(piotroskiCard).toContainText("Pass");
 
     const recommendationCard = summary.locator("article").filter({ hasText: "Recommendation" });
-    await expect(recommendationCard).toContainText("Coming soon");
+    await expect(recommendationCard).toHaveAttribute("data-action-state", "unavailable");
+    await expect(recommendationCard).toContainText("Unavailable");
+    await expect(recommendationCard).not.toContainText("Coming soon");
   });
 
   test("factor snapshot surfaces family rows and isolates partial failures", async ({ page }) => {

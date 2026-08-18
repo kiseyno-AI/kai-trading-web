@@ -14,6 +14,7 @@ import {
   ActionSummarySection,
   DisclosureCoverageSection,
   FundamentalsHistorySection,
+  HeroActionRecommendationMetric,
   HeroFundamentalLatestMetric,
   HeroPiotroskiMetric,
   SystemFreshnessSection,
@@ -368,10 +369,13 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
               symbolReady={symbolReady}
             />
 
-            <article className={styles.heroMetricCard}>
-              <span>{copy.hero.recommendation}</span>
-              <strong>{copy.hero.comingSoon}</strong>
-            </article>
+            <HeroActionRecommendationMetric
+              copy={copy}
+              fsDiv={fsDiv}
+              marketDate={marketDate}
+              normalizedSymbol={normalizedSymbol}
+              symbolReady={symbolReady}
+            />
           </div>
         </section>
 
