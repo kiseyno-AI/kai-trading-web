@@ -170,6 +170,7 @@ const symbolDetailCopy = {
         long: "Long",
         short: "Short",
         neutral: "Neutral",
+        unknown: "Unknown",
       },
       reasonLabels: {
         fresh20dBreakout: "Fresh 20D breakout",
@@ -676,6 +677,7 @@ const symbolDetailCopy = {
         long: "롱",
         short: "숏",
         neutral: "중립",
+        unknown: "알 수 없음",
       },
       reasonLabels: {
         fresh20dBreakout: "신규 20일 돌파",

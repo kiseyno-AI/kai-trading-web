@@ -601,11 +601,12 @@ test("localizes watch-long action and decision reason tokens in Korean", () => {
   );
 });
 
-test("keeps unknown Korean action tokens behind operator-safe fallback copy", () => {
+test("keeps unknown Korean action and bias tokens behind operator-safe fallback copy", () => {
   const copy = getSymbolDetailCopy("ko");
   const model = buildActionSummarySectionModel(
     makeActionSummary({
       action_label: "new_backend_action",
+      bias_direction: "future_bias_direction",
       confidence_tier: "new_confidence_tier",
       reasons: ["new_backend_reason"],
       risk_tier: "new_risk_tier",
@@ -617,13 +618,15 @@ test("keeps unknown Korean action tokens behind operator-safe fallback copy", ()
     model.badgeLabel,
     model.headline,
     model.body,
+    model.meter.currentLabel,
     ...model.metrics.map((metric) => metric.value),
     ...model.reasonTags,
   ].join(" ");
 
   assert.equal(model.badgeLabel, copy.action.actionLabels.unknown);
+  assert.equal(model.meter.currentLabel, `현재 액션: ${copy.action.actionLabels.unknown} · 편향 ${copy.action.biasDirections.unknown}`);
   assert.equal(model.reasonTags[0], copy.action.reasonLabels.unmapped);
-  assert.doesNotMatch(rendered, /new_backend|new confidence|new risk/i);
+  assert.doesNotMatch(rendered, /new_backend|new confidence|new risk|future bias|편향 중립/i);
 });
 
 test("presents resolved strong-buy long-bias action summaries as the current meter state", () => {

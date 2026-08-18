@@ -1038,7 +1038,7 @@ function resolveActionBiasLabel(value: string | null | undefined, copy: SymbolDe
   const normalized = normalizeActionToken(value);
   if (!normalized) return copy.action.biasDirections.neutral;
   return copy.action.biasDirections[normalized as keyof typeof copy.action.biasDirections] ??
-    (shouldExposeBackendActionTokenFallback(copy) ? humanizeToken(normalized) : copy.action.biasDirections.neutral);
+    (shouldExposeBackendActionTokenFallback(copy) ? humanizeToken(normalized) : copy.action.biasDirections.unknown);
 }
 
 function resolveActionReasonLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
