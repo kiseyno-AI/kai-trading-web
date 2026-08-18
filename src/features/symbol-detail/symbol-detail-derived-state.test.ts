@@ -563,6 +563,72 @@ test("localizes insufficient-history action summaries in Korean and explains the
   assert.doesNotMatch(model.meter.valueLabel, /\b\d+\s*\/\s*100\b/);
 });
 
+test("localizes watch-long action and decision reason tokens in Korean", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildActionSummarySectionModel(
+    makeActionSummary({
+      action_label: "watch_long",
+      reasons: [
+        "Mixed Ma Alignment",
+        "Range Bound State",
+        "Fresh 20d Breakout",
+        "High Atr Risk",
+      ],
+    }),
+    copy,
+  );
+
+  const rendered = [
+    model.badgeLabel,
+    model.headline,
+    model.body,
+    model.meter.currentLabel,
+    ...model.reasonTags,
+  ].join(" ");
+
+  assert.equal(model.badgeLabel, "롱 관찰");
+  assert.equal(model.headline, "롱 관찰 · 신뢰도 높음");
+  assert.equal(model.meter.currentLabel, "현재 액션: 롱 관찰 · 편향 롱");
+  assert.deepEqual(model.reasonTags, [
+    "이동평균선 배열 혼조",
+    "박스권 상태",
+    "신규 20일 돌파",
+    "높은 ATR 리스크",
+  ]);
+  assert.doesNotMatch(
+    rendered,
+    /Watch Long|Mixed Ma Alignment|Range Bound State|Fresh 20d Breakout|High Atr Risk|watch_long/i,
+  );
+});
+
+test("keeps unknown Korean action and bias tokens behind operator-safe fallback copy", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildActionSummarySectionModel(
+    makeActionSummary({
+      action_label: "new_backend_action",
+      bias_direction: "future_bias_direction",
+      confidence_tier: "new_confidence_tier",
+      reasons: ["new_backend_reason"],
+      risk_tier: "new_risk_tier",
+    }),
+    copy,
+  );
+
+  const rendered = [
+    model.badgeLabel,
+    model.headline,
+    model.body,
+    model.meter.currentLabel,
+    ...model.metrics.map((metric) => metric.value),
+    ...model.reasonTags,
+  ].join(" ");
+
+  assert.equal(model.badgeLabel, copy.action.actionLabels.unknown);
+  assert.equal(model.meter.currentLabel, `현재 액션: ${copy.action.actionLabels.unknown} · 편향 ${copy.action.biasDirections.unknown}`);
+  assert.equal(model.reasonTags[0], copy.action.reasonLabels.unmapped);
+  assert.doesNotMatch(rendered, /new_backend|new confidence|new risk|future bias|편향 중립/i);
+});
+
 test("presents resolved strong-buy long-bias action summaries as the current meter state", () => {
   const copy = getSymbolDetailCopy("en");
   const model = buildActionSummarySectionModel(makeActionSummary(), copy);

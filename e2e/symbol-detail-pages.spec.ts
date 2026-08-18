@@ -64,6 +64,8 @@ type PriceHistoryRequestSnapshot = {
 };
 
 type MockDetailModeSwitchOptions = {
+  actionLabel?: string;
+  actionReasons?: string[];
   marketDate?: string;
   marketStatusIsOpen?: boolean;
   marketStatusState?: string;
@@ -473,7 +475,7 @@ async function mockDetailModeSwitchApis(
             symbol: "005930",
             market_date: marketDate,
             source: "test",
-            action_label: "strong_buy",
+            action_label: options.actionLabel ?? "strong_buy",
             bias_direction: "long",
             signal_score: 94,
             confidence_tier: "high",
@@ -482,7 +484,7 @@ async function mockDetailModeSwitchApis(
             invalidation_price: 68000,
             support_price: 69000,
             resistance_price: 72000,
-            reasons: ["Trend support confirmed", "Volume expansion detected"],
+            reasons: options.actionReasons ?? ["Trend support confirmed", "Volume expansion detected"],
             summary_payload: {
               trigger: "breakout",
             },
@@ -1013,6 +1015,43 @@ test.describe("symbol detail mobile pages", () => {
     await expect(actionSection).not.toContainText("Strong Buy");
     await expect(actionSection.getByRole("meter")).toHaveCount(0);
     await expect(actionSection.locator('[role="status"][aria-label="Signal score: No current action resolved"]')).toBeVisible();
+  });
+
+  test("Korean action summary localizes watch-long decision reasons on mobile", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests, {
+      actionLabel: "watch_long",
+      actionReasons: [
+        "Mixed Ma Alignment",
+        "Range Bound State",
+        "Fresh 20d Breakout",
+        "High Atr Risk",
+      ],
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/symbol/005930/action-summary?${symbolSeed}`);
+
+    const actionSection = page.locator("#action");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(actionSection).toContainText("롱 관찰");
+    await expect(actionSection).toContainText("이동평균선 배열 혼조");
+    await expect(actionSection).toContainText("박스권 상태");
+    await expect(actionSection).toContainText("신규 20일 돌파");
+    await expect(actionSection).toContainText("높은 ATR 리스크");
+    await expect(actionSection).not.toContainText(
+      /Watch Long|Mixed Ma Alignment|Range Bound State|Fresh 20d Breakout|High Atr Risk|watch_long/i,
+    );
   });
 
   test("disclosure detail requests the same row cap it can render", async ({ page }) => {
