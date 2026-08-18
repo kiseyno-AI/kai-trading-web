@@ -36,6 +36,7 @@ import type {
   EodMomentumFactorsResponseDto,
   EodValueFactorItemDto,
   EodValueFactorsResponseDto,
+  Locale,
 } from "@/types/trading-api";
 
 export const FACTOR_SCREENING_FAMILY_ORDER = [...FACTOR_FAMILY_ORDER, "composite"] as const;
@@ -184,6 +185,106 @@ const FACTOR_SCREENING_FAMILY_META: Record<
   },
   composite: COMPOSITE_FAMILY_META,
 };
+
+const FACTOR_SCREENING_TIMEOUT_NOTE = "Factor family data request timed out.";
+const FACTOR_SCREENING_UNAVAILABLE_NOTE = "Factor family data is currently unavailable.";
+
+const KOREAN_FACTOR_SCREENING_DISPLAY = {
+  error: {
+    timeout: "팩터 패밀리 데이터 요청 시간이 초과되었습니다.",
+    unavailable: "현재 팩터 패밀리 데이터를 사용할 수 없습니다.",
+  },
+  families: {
+    momentum: {
+      note: "선택한 시장일자의 12-1 모멘텀 순위와 추세 게이트 상태입니다.",
+      rowNotes: {
+        default: "모멘텀 데이터는 있지만 하나 이상의 추세 조건이 적격 기준에 미달했습니다.",
+        eligible: "추세 확인을 통과했고 최근 단기 과열 방지 조건도 충족했습니다.",
+        insufficient_history: "안정적인 12-1 모멘텀 순위를 계산하기에는 저장된 가격 이력이 부족합니다.",
+        overheated: "모멘텀은 확인됐지만 최근 움직임이 단기 과열 방지 조건에 걸렸습니다.",
+      },
+      sortBasis: "Momentum 순위",
+      subtitle: "12-1 모멘텀, 이동평균선 추세 확인 및 단기 과열 방지",
+    },
+    lowRisk: {
+      note: "선택한 시장일자의 변동성, 낙폭, 유동성 및 이력 조건입니다.",
+      rowNotes: {
+        default: "저위험 데이터는 있지만 적격 구간에는 들지 못했습니다.",
+        eligible: "변동성, 낙폭 및 유동성이 모두 저위험 적격 구간에 들었습니다.",
+        insufficient_history: "이 종목을 신뢰성 있게 분류하기에는 저장된 이력이 부족합니다.",
+        liquidity_excluded: "리스크 데이터는 있지만 유동성 하한 조건으로 적격 대상에서 제외됐습니다.",
+        watchlist: "점수는 유효하지만 저위험 적격 기준에는 미치지 못해 관찰 대상으로 분류됐습니다.",
+      },
+      sortBasis: "저위험 점수",
+      subtitle: "실현 변동성, 낙폭 및 유동성 하한",
+    },
+    beta: {
+      note: "선택한 시장일자의 벤치마크 대비 Beta 순위입니다.",
+      rowNotes: {
+        default: "Beta가 산출됐지만 저베타 적격 구간에는 들지 못했습니다.",
+        eligible: "벤치마크 대비 Beta가 저베타 적격 구간에 들었습니다.",
+        insufficient_history: "안정적인 Beta 추정치를 계산하기에는 저장된 이력이 부족합니다.",
+        missing_market_date_bar: "시장일자 가격 바가 없어 Beta 순위가 완전하지 않습니다.",
+        watchlist: "Beta가 목표 구간에 가깝지만 아직 관찰 대상으로 분류됐습니다.",
+      },
+      sortBasis: "저베타 점수",
+      subtitle: "벤치마크 대비 Beta 및 저베타 분류",
+    },
+    value: {
+      note: "선택한 시장일자의 통합 밸류 순위와 레거시 컴포넌트 맥락입니다.",
+      rowNotes: {
+        default: "저장된 밸류 데이터의 상태를 검토해야 합니다.",
+        insufficient_components: "완전한 통합 밸류 점수를 계산하기에는 사용 가능한 컴포넌트가 부족합니다.",
+        insufficient_fundamentals: "모든 컴포넌트를 계산하려면 사용 가능한 저장 펀더멘털 스냅샷이 필요합니다.",
+        invalid_per: "이익이 양수가 아니어서 PER 점수 계산에서 제외됐습니다.",
+        missing_market_date_bar: "시장일자 가격 바가 없어 밸류 점수가 완전하지 않습니다.",
+        missing_metric: "하나 이상의 필수 지표가 없어 통합 밸류 점수가 완전하지 않습니다.",
+        scored: "지원되는 밸류 컴포넌트로 통합 밸류 점수가 계산됐습니다.",
+      },
+      sortBasis: "통합 밸류 순위",
+      subtitle: "PER, PBR, 배당수익률, FCF 수익률 및 EV / EBITDA 맥락을 포함한 통합 밸류 점수",
+    },
+    advancedValue: {
+      note: "선택한 시장일자의 고급 밸류 컴포넌트 순위입니다.",
+      rowNotes: {
+        default: "저장된 입력으로 고급 밸류 컴포넌트 일부만 계산할 수 있었습니다.",
+        eligible: "FCF 수익률과 EV / EBITDA가 모두 고급 밸류 적격 점수를 뒷받침했습니다.",
+        insufficient_fundamentals: "저장된 DART 펀더멘털이 고급 밸류 점수를 모두 계산하기에 부족합니다.",
+        missing_market_date_bar: "시장일자 가격 바가 없어 고급 밸류 점수가 완전하지 않습니다.",
+        watchlist: "두 고급 밸류 컴포넌트가 계산됐지만 관찰 대상으로 분류됐습니다.",
+      },
+      sortBasis: "고급 컴포넌트 순위",
+      subtitle: "저장된 DART 펀더멘털의 FCF 수익률 및 EV / EBITDA 컴포넌트",
+    },
+    composite: {
+      note: "향후 종합 팩터 API를 현재 순위 화면에 연결하기 위한 예약 영역입니다.",
+      sortBasis: "종합 순위",
+      subtitle: "향후 종합 팩터 순위를 위한 예약 영역",
+    },
+  },
+  stateLabels: {
+    error: "사용 불가",
+    future: "향후 슬롯",
+    ready: "준비 완료",
+  },
+  statusLabels: {
+    eligible: "적격",
+    ineligible: "부적격",
+    insufficient_components: "컴포넌트 부족",
+    insufficient_fundamentals: "펀더멘털 부족",
+    insufficient_history: "이력 부족",
+    invalid_per: "PER 제외",
+    liquidity_excluded: "유동성 기준 제외",
+    missing_market_date_bar: "시장일자 가격 바 누락",
+    missing_metric: "지표 누락",
+    missing_row: "행 없음",
+    overheated: "단기 과열",
+    scored: "점수 산출",
+    trend_filtered: "추세 필터 제외",
+    unavailable: "사용 불가",
+    watchlist: "관찰",
+  },
+} as const;
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -944,8 +1045,8 @@ function buildErrorDataset(
     lowerCaseError.includes("timeout") ||
     lowerCaseError.includes("504");
   const note = isTimeout
-    ? "Factor family data request timed out."
-    : "Factor family data is currently unavailable.";
+    ? FACTOR_SCREENING_TIMEOUT_NOTE
+    : FACTOR_SCREENING_UNAVAILABLE_NOTE;
 
   return {
     api: meta.api,
@@ -993,6 +1094,44 @@ function buildCompositeDataset(requestedMarketDate: string): FactorScreeningData
     title: COMPOSITE_FAMILY_META.title,
     totalEntries: null,
     totalRows: 0,
+  };
+}
+
+function localizeFactorScreeningDataset(
+  dataset: FactorScreeningDataset,
+  locale: Locale,
+): FactorScreeningDataset {
+  if (locale !== "ko") return dataset;
+
+  const familyCopy = KOREAN_FACTOR_SCREENING_DISPLAY.families[dataset.family];
+  const localizedError = dataset.error
+    ? dataset.note === FACTOR_SCREENING_TIMEOUT_NOTE
+      ? KOREAN_FACTOR_SCREENING_DISPLAY.error.timeout
+      : KOREAN_FACTOR_SCREENING_DISPLAY.error.unavailable
+    : null;
+  const localizedNote = localizedError ?? familyCopy.note;
+
+  return {
+    ...dataset,
+    error: localizedError,
+    note: localizedNote,
+    rows: dataset.rows.map((row) => {
+      const rowNotes = KOREAN_FACTOR_SCREENING_DISPLAY.families[row.family].rowNotes;
+      const localizedRowNote =
+        rowNotes[row.status.code as keyof typeof rowNotes] ?? rowNotes.default;
+
+      return {
+        ...row,
+        note: localizedRowNote,
+        statusLabel:
+          KOREAN_FACTOR_SCREENING_DISPLAY.statusLabels[
+            row.status.code as keyof typeof KOREAN_FACTOR_SCREENING_DISPLAY.statusLabels
+          ] ?? "확인 필요",
+      };
+    }),
+    sortBasis: familyCopy.sortBasis,
+    stateLabel: KOREAN_FACTOR_SCREENING_DISPLAY.stateLabels[dataset.state],
+    subtitle: familyCopy.subtitle,
   };
 }
 
@@ -1210,6 +1349,7 @@ export function resolveFactorScreeningRouteStatus(options: {
 export function getFactorScreeningMarketDateNote(
   requestedMarketDate: string | null | undefined,
   resolvedMarketDate: string | null | undefined,
+  locale: Locale = "en",
 ) {
   const requestedDate = requestedMarketDate?.trim() || null;
   const effectiveDate = resolvedMarketDate?.trim() || null;
@@ -1218,7 +1358,9 @@ export function getFactorScreeningMarketDateNote(
     return null;
   }
 
-  return `Requested ${requestedDate}. Showing stored rows for ${effectiveDate}.`;
+  return locale === "ko"
+    ? `${requestedDate}을 요청했으며 ${effectiveDate}의 저장된 행을 표시합니다.`
+    : `Requested ${requestedDate}. Showing stored rows for ${effectiveDate}.`;
 }
 
 export function doesFactorScreeningRowMatchFilterMode(
@@ -1252,13 +1394,14 @@ export function filterFactorScreeningRows(rows: FactorScreeningRow[], filters: F
 }
 
 export async function loadFactorScreeningWorkspace(options: {
+  locale: Locale;
   marketDate: string;
   numberLocale: string;
 }): Promise<FactorScreeningWorkspace> {
   const entries = await Promise.all(
     FACTOR_FAMILY_ORDER.map(async (family) => {
       const dataset = await loadAvailableFamilyDataset(family, options);
-      return [family, dataset] as const;
+      return [family, localizeFactorScreeningDataset(dataset, options.locale)] as const;
     }),
   );
 
@@ -1266,7 +1409,10 @@ export async function loadFactorScreeningWorkspace(options: {
     requestedMarketDate: options.marketDate,
     families: {
       ...Object.fromEntries(entries),
-      composite: buildCompositeDataset(options.marketDate),
+      composite: localizeFactorScreeningDataset(
+        buildCompositeDataset(options.marketDate),
+        options.locale,
+      ),
     } as Record<FactorScreeningFamilyId, FactorScreeningDataset>,
   };
 }

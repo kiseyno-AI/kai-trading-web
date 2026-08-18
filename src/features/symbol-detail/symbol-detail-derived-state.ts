@@ -982,7 +982,16 @@ function normalizeActionToken(value: string | null | undefined) {
   return typeof value === "string" ? value.trim().toLowerCase() : null;
 }
 
-function resolveActionCopyToken<T extends Record<string, string>>(value: string | null | undefined, labels: T, fallback: string) {
+function shouldExposeBackendActionTokenFallback(copy: SymbolDetailCopy) {
+  return copy.common.unavailable === "Unavailable";
+}
+
+function resolveActionCopyToken<T extends Record<string, string>>(
+  value: string | null | undefined,
+  labels: T,
+  fallback: string,
+  unknownFallback?: string,
+) {
   const normalized = normalizeActionToken(value);
   if (!normalized) return fallback;
 
@@ -997,36 +1006,50 @@ function resolveActionCopyToken<T extends Record<string, string>>(value: string 
   const camelMatch = labels[camelCased as keyof T];
   if (camelMatch) return camelMatch;
 
-  return humanizeToken(normalized);
+  return unknownFallback ?? humanizeToken(normalized);
 }
 
 function resolveActionSummaryActionLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
-  return resolveActionCopyToken(value, copy.action.actionLabels, copy.action.actionLabels.noAction);
+  return resolveActionCopyToken(
+    value,
+    copy.action.actionLabels,
+    copy.action.actionLabels.noAction,
+    shouldExposeBackendActionTokenFallback(copy) ? undefined : copy.action.actionLabels.unknown,
+  );
 }
 
 function resolveActionConfidenceLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
   const normalized = normalizeActionToken(value);
   if (!normalized) return copy.action.confidenceLevels.unavailable;
-  return copy.action.confidenceLevels[normalized as keyof typeof copy.action.confidenceLevels] ?? humanizeToken(normalized);
+  return copy.action.confidenceLevels[normalized as keyof typeof copy.action.confidenceLevels] ??
+    (shouldExposeBackendActionTokenFallback(copy)
+      ? humanizeToken(normalized)
+      : copy.action.confidenceLevels.unknown);
 }
 
 function resolveActionRiskLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
   const normalized = normalizeActionToken(value);
   if (!normalized) return copy.action.riskLevels.unavailable;
-  return copy.action.riskLevels[normalized as keyof typeof copy.action.riskLevels] ?? humanizeToken(normalized);
+  return copy.action.riskLevels[normalized as keyof typeof copy.action.riskLevels] ??
+    (shouldExposeBackendActionTokenFallback(copy) ? humanizeToken(normalized) : copy.action.riskLevels.unknown);
 }
 
 function resolveActionBiasLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
   const normalized = normalizeActionToken(value);
   if (!normalized) return copy.action.biasDirections.neutral;
-  return copy.action.biasDirections[normalized as keyof typeof copy.action.biasDirections] ?? humanizeToken(normalized);
+  return copy.action.biasDirections[normalized as keyof typeof copy.action.biasDirections] ??
+    (shouldExposeBackendActionTokenFallback(copy) ? humanizeToken(normalized) : copy.action.biasDirections.neutral);
 }
 
 function resolveActionReasonLabel(value: string | null | undefined, copy: SymbolDetailCopy) {
   const normalized = normalizeActionToken(value);
   if (!normalized) return null;
-  if (normalized === "insufficient_history") return copy.action.reasonLabels.insufficientHistory;
-  return humanizeToken(normalized);
+  return resolveActionCopyToken(
+    normalized,
+    copy.action.reasonLabels,
+    copy.action.reasonLabels.unmapped,
+    shouldExposeBackendActionTokenFallback(copy) ? undefined : copy.action.reasonLabels.unmapped,
+  );
 }
 
 function isInsufficientHistoryActionSummary(actionSummary: AgentContextActionSummaryDto | null) {

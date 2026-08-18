@@ -869,6 +869,22 @@ test("factor screening active filter does not report caution for eligible-only m
   await expect(page.getByRole("link", { name: /Samsung Electronics \(005930\) 상세 열기/i })).toBeVisible();
   await expect(page.getByTestId("factor-active-filter-value")).toHaveText("검토 세트");
   await expect(page.getByTestId("factor-active-filter-value")).not.toHaveText("주의");
+  await expect(
+    page.getByText("12-1 모멘텀, 이동평균선 추세 확인 및 단기 과열 방지", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("선택한 시장일자의 12-1 모멘텀 순위와 추세 게이트 상태입니다.", {
+      exact: true,
+    }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Samsung Electronics \(005930\) 상세 열기/i }),
+  ).toContainText("추세 확인을 통과했고 최근 단기 과열 방지 조건도 충족했습니다.");
+  await expect(
+    page.getByText("Trend confirmation passed and the recent overheat guard stayed clear.", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
 });
 
 test("factor screening removes loading copy after empty family results resolve", async ({ page }) => {
@@ -910,6 +926,8 @@ test("factor screening reports partial status and names timed-out families", asy
   );
   await expect(page.getByText("팩터 준비 완료", { exact: true })).toHaveCount(0);
   await expect(page.getByText("합성 준비 완료 레이아웃", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("팩터 패밀리 데이터 요청 시간이 초과되었습니다.", { exact: true })).toHaveCount(4);
+  await expect(page.getByText("Factor family data request timed out.", { exact: true })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
 
@@ -949,6 +967,8 @@ test("factor screening route chrome stays unavailable when market-date resolutio
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");
   await expect(page.getByText("팩터 데이터 사용 불가", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("팩터 준비 완료", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("팩터 데이터 요청 시간이 초과되었습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("HTTP 504", { exact: true })).toHaveCount(0);
 });
 
 test("factor screening stays usable on mobile viewport", async ({ page }) => {

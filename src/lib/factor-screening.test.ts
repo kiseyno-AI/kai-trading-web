@@ -504,6 +504,7 @@ test("loadFactorScreeningWorkspace maps current families into one ranking worksp
 
   try {
     const workspace = await loadFactorScreeningWorkspace({
+      locale: "en",
       marketDate,
       numberLocale: "en-US",
     });
@@ -749,8 +750,9 @@ test("loadFactorScreeningWorkspace keeps successful families when some factor fa
 
   try {
     const workspace = await loadFactorScreeningWorkspace({
+      locale: "ko",
       marketDate,
-      numberLocale: "en-US",
+      numberLocale: "ko-KR",
     });
 
     assert.equal(workspace.families.momentum.state, "ready");
@@ -775,10 +777,31 @@ test("loadFactorScreeningWorkspace keeps successful families when some factor fa
     );
     assert.equal(workspace.families.beta.error?.includes("HTTP"), false);
     assert.equal(workspace.families.lowRisk.error?.includes("HTTP"), false);
-    assert.match(workspace.families.beta.error ?? "", /timed out/i);
-    assert.match(workspace.families.lowRisk.error ?? "", /factor family data request timed out/i);
-    assert.equal(workspace.families.beta.note, "Factor family data request timed out.");
-    assert.equal(workspace.families.lowRisk.note, "Factor family data request timed out.");
+    assert.equal(workspace.families.beta.note, "팩터 패밀리 데이터 요청 시간이 초과되었습니다.");
+    assert.equal(workspace.families.lowRisk.note, "팩터 패밀리 데이터 요청 시간이 초과되었습니다.");
+    assert.equal(
+      workspace.families.momentum.subtitle,
+      "12-1 모멘텀, 이동평균선 추세 확인 및 단기 과열 방지",
+    );
+    assert.equal(
+      workspace.families.momentum.note,
+      "선택한 시장일자의 12-1 모멘텀 순위와 추세 게이트 상태입니다.",
+    );
+    assert.equal(
+      workspace.families.momentum.rows[0]?.note,
+      "추세 확인을 통과했고 최근 단기 과열 방지 조건도 충족했습니다.",
+    );
+    assert.equal(workspace.families.momentum.rows[0]?.statusLabel, "적격");
+    assert.doesNotMatch(
+      [
+        workspace.families.beta.note,
+        workspace.families.lowRisk.note,
+        workspace.families.momentum.subtitle,
+        workspace.families.momentum.note,
+        workspace.families.momentum.rows[0]?.note,
+      ].join(" "),
+      /request timed out|trend confirmation|overheat guard|realized volatility/i,
+    );
   } finally {
     global.fetch = originalFetch;
   }
@@ -811,6 +834,10 @@ test("market-date helpers and row filters preserve ranking intent without hiding
   assert.equal(
     getFactorScreeningMarketDateNote("2026-04-24", "2026-04-23"),
     "Requested 2026-04-24. Showing stored rows for 2026-04-23.",
+  );
+  assert.equal(
+    getFactorScreeningMarketDateNote("2026-04-24", "2026-04-23", "ko"),
+    "2026-04-24을 요청했으며 2026-04-23의 저장된 행을 표시합니다.",
   );
 
   const rows: FactorScreeningRow[] = [

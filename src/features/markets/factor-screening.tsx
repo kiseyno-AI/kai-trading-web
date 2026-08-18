@@ -37,6 +37,7 @@ const copyByLocale = {
   en: {
     activeDate: "Active date",
     activeFilters: "Active filters",
+    allRows: "All rows",
     allFamilies: "Factor families",
     applyDate: "Apply date",
     auditRows: "Audit rows",
@@ -46,6 +47,7 @@ const copyByLocale = {
     controlsBody:
       "Switch factor families, pin a market date, and keep only the rows that fit the current screening intent.",
     countSummary: (visible: number, total: number) => `${visible.toLocaleString("en-US")} visible / ${total.toLocaleString("en-US")} matching`,
+    dataTimeout: "Factor data request timed out.",
     emptyFilters: "No rows match the current filters for this factor family.",
     emptyRows: "Core returned no rows for this factor family and market date.",
     familySummary: "Family summary",
@@ -77,6 +79,7 @@ const copyByLocale = {
       companyName ? `Open ${companyName} (${symbol})` : `Open ${symbol} (name unavailable)`,
     queryLabel: "Quick filter",
     queryPlaceholder: "005930 or Samsung",
+    pending: "Pending",
     refresh: "Refresh",
     requestedDate: "Requested date",
     resolvedDate: "Resolved date",
@@ -106,6 +109,7 @@ const copyByLocale = {
   ko: {
     activeDate: "활성 날짜",
     activeFilters: "활성 필터",
+    allRows: "전체 행",
     allFamilies: "팩터 패밀리",
     applyDate: "날짜 적용",
     auditRows: "감사용 행",
@@ -115,6 +119,7 @@ const copyByLocale = {
     controlsBody:
       "팩터 패밀리를 전환하고, 시장 날짜를 고정하고, 현재 스크리닝 목적에 맞는 행만 남길 수 있습니다.",
     countSummary: (visible: number, total: number) => `${visible.toLocaleString("ko-KR")}개 표시 / ${total.toLocaleString("ko-KR")}개 일치`,
+    dataTimeout: "팩터 데이터 요청 시간이 초과되었습니다.",
     emptyFilters: "현재 필터에 맞는 행이 없습니다.",
     emptyRows: "이 팩터 패밀리와 시장 날짜에 대해 Core가 반환한 행이 없습니다.",
     familySummary: "패밀리 요약",
@@ -146,6 +151,7 @@ const copyByLocale = {
       companyName ? `${companyName} (${symbol}) 상세 열기` : `${symbol} (종목명 미제공) 상세 열기`,
     queryLabel: "빠른 필터",
     queryPlaceholder: "005930 또는 Samsung",
+    pending: "대기 중",
     refresh: "새로고침",
     requestedDate: "요청 날짜",
     resolvedDate: "해결 날짜",
@@ -177,6 +183,7 @@ const copyByLocale = {
   {
     activeDate: string;
     activeFilters: string;
+    allRows: string;
     allFamilies: string;
     applyDate: string;
     auditRows: string;
@@ -185,6 +192,7 @@ const copyByLocale = {
     controlsTitle: string;
     controlsBody: string;
     countSummary: (visible: number, total: number) => string;
+    dataTimeout: string;
     emptyFilters: string;
     emptyRows: string;
     familySummary: string;
@@ -207,6 +215,7 @@ const copyByLocale = {
     openSymbol: (companyName: string | null, symbol: string) => string;
     queryLabel: string;
     queryPlaceholder: string;
+    pending: string;
     refresh: string;
     requestedDate: string;
     resolvedDate: string;
@@ -336,7 +345,7 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
   const workspaceRequest = useMemo(
     () => ({
       enabled: Boolean(activeMarketDate),
-      key: ["factor-screening", "workspace", activeMarketDate ?? "pending", numberLocale] as const,
+      key: ["factor-screening", "workspace", activeMarketDate ?? "pending", locale, numberLocale] as const,
       ttlMs: 60_000,
       fetcher: async () => {
         if (!activeMarketDate) {
@@ -344,12 +353,13 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
         }
 
         return loadFactorScreeningWorkspace({
+          locale,
           marketDate: activeMarketDate,
           numberLocale,
         });
       },
     }),
-    [activeMarketDate, copy.marketDatePending, numberLocale],
+    [activeMarketDate, copy.marketDatePending, locale, numberLocale],
   );
   const workspaceResult = useUnitData<FactorScreeningWorkspace>(workspaceRequest);
   const workspace = workspaceResult.data;
@@ -374,13 +384,21 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
   const marketDateNote = getFactorScreeningMarketDateNote(
     selectedDataset?.requestedMarketDate ?? activeMarketDate,
     selectedDataset?.marketDate ?? activeMarketDate,
+    locale,
   );
-  const summaryError =
+  const rawSummaryError =
     !requestedMarketDate && freshnessResult.error && !activeMarketDate
       ? freshnessResult.error.message
       : workspaceResult.error && !workspace
         ? workspaceResult.error.message
         : null;
+  const summaryError = rawSummaryError
+    ? locale === "ko"
+      ? /timed out|timeout|504/i.test(rawSummaryError)
+        ? copy.dataTimeout
+        : copy.loadError
+      : rawSummaryError
+    : null;
   const summaryBusy =
     workspaceResult.isRefreshing ||
     (!workspace && (workspaceResult.isInitialLoading || (!requestedMarketDate && freshnessResult.isInitialLoading)));
@@ -510,7 +528,7 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
               </div>
               <div className="detail-row">
                 <span>{copy.sortBasis}</span>
-                <strong>{selectedDataset?.sortBasis ?? "Pending"}</strong>
+                <strong>{selectedDataset?.sortBasis ?? copy.pending}</strong>
               </div>
             </div>
 
@@ -722,7 +740,7 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
                   </div>
                   <div className={styles.summaryBadge}>
                     <span>{copy.searchStatus}</span>
-                    <strong>{query.trim() ? query.trim() : "All rows"}</strong>
+                    <strong>{query.trim() ? query.trim() : copy.allRows}</strong>
                   </div>
                   <div className={styles.summaryBadge}>
                     <span>{copy.rowsReturned}</span>
