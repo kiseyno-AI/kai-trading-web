@@ -103,13 +103,14 @@ test("AppShell and MobileAppChrome share the central route model", () => {
   assert.match(mobileChromeSource, /buildAppChromeNavItems/);
 });
 
-test("Markets route chrome relies on the canonical full-screen route key set", () => {
+test("Markets route chrome opts into the canonical AppShell route key set", () => {
   const source = readFileSync(join(repoRoot, "src/app/markets/markets-route-chrome.tsx"), "utf8");
 
-  assert.doesNotMatch(source, /navRouteKeys:\s*MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
+  assert.match(source, /MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
+  assert.match(source, /navRouteKeys:\s*MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
 });
 
-test("MobileAppChrome app routes do not override the primary full-screen route set", () => {
+test("only Markets workspace routes override the primary full-screen route set", () => {
   const requiredChromeRoutes = [
     "src/app/calendar/signal-review-calendar-page-client.tsx",
     "src/app/dashboard/live-dashboard-client.tsx",
@@ -135,6 +136,8 @@ test("MobileAppChrome app routes do not override the primary full-screen route s
   }
 
   const offenders = chromeRouteFiles.flatMap((route) => {
+    if (route === "src/app/markets/markets-route-chrome.tsx") return [];
+
     const source = readFileSync(join(repoRoot, route), "utf8");
 
     return forbiddenOverrides

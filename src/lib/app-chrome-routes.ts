@@ -9,7 +9,7 @@ export const FULL_PAGE_CHROME_ROUTE_KEYS = [
   "portfolio",
   "symbols",
 ] as const;
-export const MARKETS_ROUTE_CHROME_ROUTE_KEYS = FULL_PAGE_CHROME_ROUTE_KEYS;
+export const MARKETS_ROUTE_CHROME_ROUTE_KEYS = APP_SHELL_ROUTE_KEYS;
 
 export type AppChromeRouteKey = (typeof APP_SHELL_ROUTE_KEYS)[number] | "symbols";
 export type FullPageChromeRouteKey = (typeof FULL_PAGE_CHROME_ROUTE_KEYS)[number];
