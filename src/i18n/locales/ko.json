@@ -441,6 +441,7 @@
       "nextMonth": "다음 달",
       "openLatestFeedback": "최근 피드백 표 열기",
       "openFeedback": "피드백 표 열기",
+      "openingFeedback": "피드백 표 여는 중...",
       "openStoredFeedback": "피드백 표에서 {count}개 행 열기",
       "openStoredFeedbackUpTo": "피드백 표에서 최대 {count}개 행 열기",
       "previousMonth": "이전 달",

@@ -8,6 +8,7 @@ import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { DocumentRouteLink } from "@/components/navigation/document-route-link";
 import { useAppState } from "@/components/providers/app-state-provider";
+import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import {
   SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT,
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
@@ -1080,6 +1081,7 @@ export default function SignalReviewCalendarPageClient() {
   const detailOpenerRef = useRef<HTMLElement | null>(null);
   const shouldRestoreDetailFocusRef = useRef(false);
   const { devMode, locale, t } = useAppState();
+  const { isNavigatingTo } = useNavigationLoading();
   const copy = t.signalReview;
   const selectedUnavailable = copy.states.selectedUnavailable;
   const feedbackDate = useMemo(() => parseCompactDateValue(selectedDate), [selectedDate]);
@@ -1581,6 +1583,7 @@ export default function SignalReviewCalendarPageClient() {
       ? "latest"
       : "disabled"
     : "selected";
+  const feedbackNavigationPending = feedbackCtaHref ? isNavigatingTo(feedbackCtaHref) : false;
   const storedFeedbackCtaExceedsLimit =
     selectedStoredDecisionCount > SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
   const feedbackCtaLabel =
@@ -1932,10 +1935,13 @@ export default function SignalReviewCalendarPageClient() {
                 <DocumentRouteLink
                   href={feedbackCtaHref}
                   className={styles.secondaryLink}
+                  aria-busy={feedbackNavigationPending || undefined}
                   data-calendar-feedback-cta-state={feedbackCtaState}
+                  data-navigation-pending={feedbackNavigationPending ? "true" : "false"}
                   data-testid="calendar-feedback-cta"
+                  pendingAcknowledgement
                 >
-                  {feedbackCtaLabel}
+                  {feedbackNavigationPending ? copy.actions.openingFeedback : feedbackCtaLabel}
                 </DocumentRouteLink>
               ) : (
                 <button

@@ -2289,6 +2289,75 @@ test("calendar unavailable state opens backend-proven latest feedback without en
   await expect(page.getByTestId("signal-decider-result-card").first()).toBeVisible();
 });
 
+for (const viewport of [
+  { height: 900, label: "desktop", width: 1440 },
+  { height: 844, label: "mobile", width: 390 },
+]) {
+  test(`calendar unavailable latest-feedback navigation acknowledges routing and hands slow reads to the destination on ${viewport.label}`, async ({
+    page,
+  }) => {
+    const destinationDocument = createDeferred();
+    const destinationRead = createDeferred();
+
+    try {
+      await page.clock.setFixedTime(new Date("2026-08-17T09:00:00+09:00"));
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await seedDashboardSignalDeciderRecoveryHint(page, "2026-07-31");
+      const unavailableAugustDates = listMonthDates("2026-08");
+      await mockSignalReviewCalendar(page, {
+        feedbackDelays: {
+          "2026-07-31": destinationRead.promise,
+        },
+        forceCalendarSummaryFailure: true,
+        runningProgressDates: ["2026-08-17"],
+        timeoutFeedbackDates: [...unavailableAugustDates, "2026-07-31"],
+        timeoutReviewDateDates: unavailableAugustDates,
+      });
+      await page.route("**/dashboard/signal-decider-feedback?**", async (route) => {
+        if (!route.request().isNavigationRequest()) {
+          await route.continue();
+          return;
+        }
+
+        await destinationDocument.promise;
+        await route.continue();
+      });
+
+      await page.goto("/calendar?date=2026-08-17");
+      await expect(page.getByTestId("calendar-month-status")).toHaveText("Calendar scan unavailable");
+
+      const feedbackCta = page.getByTestId("calendar-feedback-cta");
+      await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "latest");
+      await expect(feedbackCta).toHaveText("Open latest feedback table");
+
+      await feedbackCta.hover();
+      await page.mouse.down();
+
+      await expect(feedbackCta).toHaveAttribute("aria-busy", "true");
+      await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "true");
+      await expect(feedbackCta).toHaveText("Opening feedback table...");
+      expect(page.url()).toMatch(/\/calendar\?date=2026-08-17$/);
+
+      await page.mouse.up();
+      destinationDocument.resolve();
+
+      await expect(page).toHaveURL(
+        /\/dashboard\/signal-decider-feedback\?marketDate=2026-07-31&navContext=calendar&originDate=2026-08-17$/,
+      );
+      await expect(page.getByRole("heading", { name: "Signal-decider feedback" })).toBeVisible();
+      await expect(page.getByText("Loading Signal Decider feedback...").first()).toBeVisible();
+
+      destinationRead.resolve();
+
+      await expect(page.getByTestId("feedback-error-primary").first()).toContainText(/timed out/i);
+      await expect(page.getByTestId("feedback-error-retry").first()).toBeVisible();
+    } finally {
+      destinationDocument.resolve();
+      destinationRead.resolve();
+    }
+  });
+}
+
 test("calendar unavailable scan avoids a false zero and surfaces mobile shell recovery", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-08-16T09:00:00+09:00"));
   await page.setViewportSize({ width: 390, height: 844 });

@@ -3,6 +3,7 @@
 import {
   type AnchorHTMLAttributes,
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
 } from "react";
 
@@ -12,6 +13,7 @@ import { normalizeAppBasePath, withAppBasePath } from "@/lib/app-base-path";
 type DocumentRouteLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
   children: ReactNode;
   href: string;
+  pendingAcknowledgement?: boolean;
 };
 
 function resolveDocumentHref(href: string) {
@@ -25,7 +27,10 @@ function resolveDocumentHref(href: string) {
   return withAppBasePath(href as `/${string}`, basePath);
 }
 
-function isPlainPrimaryClick(event: MouseEvent<HTMLAnchorElement>, target: string | undefined) {
+function isPlainPrimaryInteraction(
+  event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>,
+  target: string | undefined,
+) {
   return (
     event.button === 0 &&
     !event.metaKey &&
@@ -40,6 +45,8 @@ export function DocumentRouteLink({
   children,
   href,
   onClick,
+  onPointerDown,
+  pendingAcknowledgement = false,
   target,
   ...anchorProps
 }: DocumentRouteLinkProps) {
@@ -51,11 +58,31 @@ export function DocumentRouteLink({
       {...anchorProps}
       href={documentHref}
       target={target}
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented || !isPlainPrimaryClick(event, target)) return;
+      onPointerDown={(event) => {
+        onPointerDown?.(event);
+        if (
+          !pendingAcknowledgement ||
+          event.defaultPrevented ||
+          !isPlainPrimaryInteraction(event, target)
+        ) {
+          return;
+        }
 
         beginNavigation(documentHref);
+      }}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented || !isPlainPrimaryInteraction(event, target)) return;
+
+        beginNavigation(documentHref);
+        if (!pendingAcknowledgement || event.detail !== 0) {
+          return;
+        }
+
+        event.preventDefault();
+        window.requestAnimationFrame(() => {
+          window.setTimeout(() => window.location.assign(documentHref), 0);
+        });
       }}
     >
       {children}
