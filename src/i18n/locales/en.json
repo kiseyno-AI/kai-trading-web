@@ -441,6 +441,7 @@
       "nextMonth": "Next month",
       "openLatestFeedback": "Open latest feedback table",
       "openFeedback": "Open feedback table",
+      "openingFeedback": "Opening feedback table...",
       "openStoredFeedback": "Open {count} rows in feedback table",
       "openStoredFeedbackUpTo": "Open up to {count} rows in feedback table",
       "previousMonth": "Previous month",

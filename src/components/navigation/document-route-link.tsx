@@ -3,7 +3,9 @@
 import {
   type AnchorHTMLAttributes,
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
+  useRef,
 } from "react";
 
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
@@ -12,6 +14,7 @@ import { normalizeAppBasePath, withAppBasePath } from "@/lib/app-base-path";
 type DocumentRouteLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
   children: ReactNode;
   href: string;
+  pendingAcknowledgement?: boolean;
 };
 
 function resolveDocumentHref(href: string) {
@@ -25,7 +28,10 @@ function resolveDocumentHref(href: string) {
   return withAppBasePath(href as `/${string}`, basePath);
 }
 
-function isPlainPrimaryClick(event: MouseEvent<HTMLAnchorElement>, target: string | undefined) {
+function isPlainPrimaryInteraction(
+  event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>,
+  target: string | undefined,
+) {
   return (
     event.button === 0 &&
     !event.metaKey &&
@@ -40,10 +46,16 @@ export function DocumentRouteLink({
   children,
   href,
   onClick,
+  onPointerCancel,
+  onPointerDown,
+  onPointerLeave,
+  onPointerUp,
+  pendingAcknowledgement = false,
   target,
   ...anchorProps
 }: DocumentRouteLinkProps) {
-  const { beginNavigation } = useNavigationLoading();
+  const { beginNavigation, cancelNavigation } = useNavigationLoading();
+  const pendingPointerIdRef = useRef<number | null>(null);
   const documentHref = resolveDocumentHref(href);
 
   return (
@@ -51,11 +63,60 @@ export function DocumentRouteLink({
       {...anchorProps}
       href={documentHref}
       target={target}
+      onPointerDown={(event) => {
+        onPointerDown?.(event);
+        if (
+          !pendingAcknowledgement ||
+          event.defaultPrevented ||
+          !isPlainPrimaryInteraction(event, target)
+        ) {
+          return;
+        }
+
+        pendingPointerIdRef.current = event.pointerId;
+        beginNavigation(documentHref);
+      }}
+      onPointerUp={(event) => {
+        onPointerUp?.(event);
+        if (pendingPointerIdRef.current !== event.pointerId) return;
+
+        pendingPointerIdRef.current = null;
+        if (event.defaultPrevented) {
+          cancelNavigation(documentHref);
+        }
+      }}
+      onPointerCancel={(event) => {
+        onPointerCancel?.(event);
+        if (pendingPointerIdRef.current !== event.pointerId) return;
+
+        pendingPointerIdRef.current = null;
+        cancelNavigation(documentHref);
+      }}
+      onPointerLeave={(event) => {
+        onPointerLeave?.(event);
+        if (pendingPointerIdRef.current !== event.pointerId) return;
+
+        pendingPointerIdRef.current = null;
+        cancelNavigation(documentHref);
+      }}
       onClick={(event) => {
         onClick?.(event);
-        if (event.defaultPrevented || !isPlainPrimaryClick(event, target)) return;
+        if (event.defaultPrevented || !isPlainPrimaryInteraction(event, target)) {
+          if (pendingAcknowledgement) {
+            cancelNavigation(documentHref);
+          }
+          return;
+        }
 
         beginNavigation(documentHref);
+        if (!pendingAcknowledgement || event.detail !== 0) {
+          return;
+        }
+
+        event.preventDefault();
+        window.requestAnimationFrame(() => {
+          window.setTimeout(() => window.location.assign(documentHref), 0);
+        });
       }}
     >
       {children}
