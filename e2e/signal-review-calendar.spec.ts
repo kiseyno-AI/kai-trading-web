@@ -2289,11 +2289,58 @@ test("calendar unavailable state opens backend-proven latest feedback without en
   await expect(page.getByTestId("signal-decider-result-card").first()).toBeVisible();
 });
 
-for (const viewport of [
-  { height: 900, label: "desktop", width: 1440 },
-  { height: 844, label: "mobile", width: 390 },
+test("calendar feedback navigation stays idle when touch or pointer activation is cancelled", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockSignalReviewCalendar(page);
+  await page.goto("/calendar?date=2026-05-05");
+
+  const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  await expect(feedbackCta).toHaveText("Open feedback table");
+
+  await feedbackCta.dispatchEvent("pointerdown", {
+    button: 0,
+    buttons: 1,
+    isPrimary: true,
+    pointerId: 7,
+    pointerType: "touch",
+  });
+  await feedbackCta.dispatchEvent("pointercancel", {
+    button: 0,
+    buttons: 0,
+    isPrimary: true,
+    pointerId: 7,
+    pointerType: "touch",
+  });
+
+  await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "false");
+  await expect(feedbackCta).not.toHaveAttribute("aria-busy", "true");
+  await expect(feedbackCta).toHaveText("Open feedback table");
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const feedbackCtaBounds = await feedbackCta.boundingBox();
+  expect(feedbackCtaBounds).not.toBeNull();
+  if (!feedbackCtaBounds) return;
+
+  await page.mouse.move(
+    feedbackCtaBounds.x + feedbackCtaBounds.width / 2,
+    feedbackCtaBounds.y + feedbackCtaBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(0, 0, { steps: 5 });
+  await page.mouse.up();
+
+  await expect(page).toHaveURL(/\/calendar\?date=2026-05-05$/);
+  await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "false");
+  await expect(feedbackCta).not.toHaveAttribute("aria-busy", "true");
+  await expect(feedbackCta).toHaveText("Open feedback table");
+});
+
+for (const activation of [
+  { height: 900, input: "pointer", label: "desktop", width: 1440 },
+  { height: 844, input: "pointer", label: "mobile", width: 390 },
+  { height: 900, input: "keyboard", label: "keyboard", width: 1440 },
 ]) {
-  test(`calendar unavailable latest-feedback navigation acknowledges routing and hands slow reads to the destination on ${viewport.label}`, async ({
+  test(`calendar unavailable latest-feedback navigation acknowledges routing and hands slow reads to the destination with ${activation.label} activation`, async ({
     page,
   }) => {
     const destinationDocument = createDeferred();
@@ -2301,7 +2348,7 @@ for (const viewport of [
 
     try {
       await page.clock.setFixedTime(new Date("2026-08-17T09:00:00+09:00"));
-      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.setViewportSize({ width: activation.width, height: activation.height });
       await seedDashboardSignalDeciderRecoveryHint(page, "2026-07-31");
       const unavailableAugustDates = listMonthDates("2026-08");
       await mockSignalReviewCalendar(page, {
@@ -2330,22 +2377,56 @@ for (const viewport of [
       await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "latest");
       await expect(feedbackCta).toHaveText("Open latest feedback table");
 
-      await feedbackCta.hover();
-      await page.mouse.down();
+      if (activation.input === "keyboard") {
+        await feedbackCta.evaluate((element) => {
+          const observer = new MutationObserver(() => {
+            if (element.getAttribute("aria-busy") !== "true") return;
 
-      await expect(feedbackCta).toHaveAttribute("aria-busy", "true");
-      await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "true");
-      await expect(feedbackCta).toHaveText("Opening feedback table...");
-      expect(page.url()).toMatch(/\/calendar\?date=2026-08-17$/);
+            window.requestAnimationFrame(() => {
+              window.sessionStorage.setItem(
+                "kai.test.calendarKeyboardNavigationAcknowledgement",
+                `${element.getAttribute("data-navigation-pending")}:${element.textContent?.trim()}`,
+              );
+            });
+            observer.disconnect();
+          });
+          observer.observe(element, {
+            attributes: true,
+            characterData: true,
+            childList: true,
+            subtree: true,
+          });
+        });
+        await feedbackCta.focus();
+        await page.keyboard.press("Enter");
+        destinationDocument.resolve();
+      } else {
+        await feedbackCta.hover();
+        await page.mouse.down();
 
-      await page.mouse.up();
-      destinationDocument.resolve();
+        await expect(feedbackCta).toHaveAttribute("aria-busy", "true");
+        await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "true");
+        await expect(feedbackCta).toHaveText("Opening feedback table...");
+        expect(page.url()).toMatch(/\/calendar\?date=2026-08-17$/);
+
+        await page.mouse.up();
+        destinationDocument.resolve();
+      }
 
       await expect(page).toHaveURL(
         /\/dashboard\/signal-decider-feedback\?marketDate=2026-07-31&navContext=calendar&originDate=2026-08-17$/,
       );
       await expect(page.getByRole("heading", { name: "Signal-decider feedback" })).toBeVisible();
       await expect(page.getByText("Loading Signal Decider feedback...").first()).toBeVisible();
+      if (activation.input === "keyboard") {
+        await expect
+          .poll(() =>
+            page.evaluate(() =>
+              window.sessionStorage.getItem("kai.test.calendarKeyboardNavigationAcknowledgement"),
+            ),
+          )
+          .toBe("true:Opening feedback table...");
+      }
 
       destinationRead.resolve();
 

@@ -5,6 +5,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  useRef,
 } from "react";
 
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
@@ -45,12 +46,16 @@ export function DocumentRouteLink({
   children,
   href,
   onClick,
+  onPointerCancel,
   onPointerDown,
+  onPointerLeave,
+  onPointerUp,
   pendingAcknowledgement = false,
   target,
   ...anchorProps
 }: DocumentRouteLinkProps) {
-  const { beginNavigation } = useNavigationLoading();
+  const { beginNavigation, cancelNavigation } = useNavigationLoading();
+  const pendingPointerIdRef = useRef<number | null>(null);
   const documentHref = resolveDocumentHref(href);
 
   return (
@@ -68,11 +73,40 @@ export function DocumentRouteLink({
           return;
         }
 
+        pendingPointerIdRef.current = event.pointerId;
         beginNavigation(documentHref);
+      }}
+      onPointerUp={(event) => {
+        onPointerUp?.(event);
+        if (pendingPointerIdRef.current !== event.pointerId) return;
+
+        pendingPointerIdRef.current = null;
+        if (event.defaultPrevented) {
+          cancelNavigation(documentHref);
+        }
+      }}
+      onPointerCancel={(event) => {
+        onPointerCancel?.(event);
+        if (pendingPointerIdRef.current !== event.pointerId) return;
+
+        pendingPointerIdRef.current = null;
+        cancelNavigation(documentHref);
+      }}
+      onPointerLeave={(event) => {
+        onPointerLeave?.(event);
+        if (pendingPointerIdRef.current !== event.pointerId) return;
+
+        pendingPointerIdRef.current = null;
+        cancelNavigation(documentHref);
       }}
       onClick={(event) => {
         onClick?.(event);
-        if (event.defaultPrevented || !isPlainPrimaryInteraction(event, target)) return;
+        if (event.defaultPrevented || !isPlainPrimaryInteraction(event, target)) {
+          if (pendingAcknowledgement) {
+            cancelNavigation(documentHref);
+          }
+          return;
+        }
 
         beginNavigation(documentHref);
         if (!pendingAcknowledgement || event.detail !== 0) {

@@ -21,6 +21,7 @@ export type PendingNavigation = {
 
 type NavigationLoadingContextValue = {
   beginNavigation: (href?: string | URL | null) => void;
+  cancelNavigation: (href?: string | URL | null) => void;
   isNavigationPending: boolean;
   isNavigatingTo: (href?: string | URL | null) => boolean;
   pendingNavigation: PendingNavigation | null;
@@ -28,6 +29,7 @@ type NavigationLoadingContextValue = {
 
 const NavigationLoadingContext = createContext<NavigationLoadingContextValue>({
   beginNavigation: () => {},
+  cancelNavigation: () => {},
   isNavigationPending: false,
   isNavigatingTo: () => false,
   pendingNavigation: null,
@@ -137,6 +139,24 @@ export function NavigationLoadingProvider({ children }: { children: ReactNode })
     }, FAILSAFE_TIMEOUT_MS);
   }, []);
 
+  const cancelNavigation = useCallback((href?: string | URL | null) => {
+    const targetRouteKey = resolveInternalRouteKey(href);
+    if (!targetRouteKey) return;
+
+    setPendingNavigation((currentNavigation) => {
+      if (
+        !currentNavigation ||
+        currentNavigation.originRouteKey !== routeKeyRef.current ||
+        currentNavigation.targetRouteKey !== targetRouteKey
+      ) {
+        return currentNavigation;
+      }
+
+      clearTimer(failsafeTimerRef);
+      return null;
+    });
+  }, []);
+
   useLayoutEffect(() => {
     routeKeyRef.current = routeKey;
     if (!pendingNavigation || routeKey === pendingNavigation.originRouteKey) return;
@@ -165,11 +185,12 @@ export function NavigationLoadingProvider({ children }: { children: ReactNode })
   const contextValue = useMemo(
     () => ({
       beginNavigation,
+      cancelNavigation,
       isNavigationPending: pendingNavigation !== null && routeKey === pendingNavigation.originRouteKey,
       isNavigatingTo,
       pendingNavigation,
     }),
-    [beginNavigation, isNavigatingTo, pendingNavigation, routeKey],
+    [beginNavigation, cancelNavigation, isNavigatingTo, pendingNavigation, routeKey],
   );
 
   return (
