@@ -789,9 +789,15 @@ test("factor screening supports switching, eligibility filtering, composite plac
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
   await expect(page.getByText("Factors ready", { exact: true }).first()).toBeVisible();
   const desktopNav = page.getByRole("navigation", { name: /Primary desktop/i });
-  await expect(desktopNav.getByRole("link")).toHaveCount(5);
-  await expect(desktopNav.getByRole("link", { name: "Markets", exact: true })).toHaveCount(0);
-  await expect(desktopNav.getByRole("link", { name: "Bots", exact: true })).toHaveCount(0);
+  await expect(desktopNav.getByRole("link")).toHaveCount(6);
+  await expect(desktopNav.getByRole("link", { name: "Markets", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(desktopNav.getByRole("link", { name: "Bots", exact: true })).toHaveAttribute(
+    "href",
+    "/bots",
+  );
   await expect(page.getByText("2026.04.23").first()).toBeVisible();
   await expect(activeFilterValue).toHaveText("Review set");
   await expect(page.getByRole("link", { name: /Open Samsung Electronics/i })).toBeVisible();
@@ -979,8 +985,15 @@ test("factor screening stays usable on mobile viewport", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
   const primaryNav = page.getByRole("navigation", { name: /^Primary$/i });
-  await expect(primaryNav.getByRole("link", { name: "Markets", exact: true })).toHaveCount(0);
-  await expect(primaryNav.getByRole("link", { name: "Bots", exact: true })).toHaveCount(0);
+  await expect(primaryNav.getByRole("link")).toHaveCount(6);
+  await expect(primaryNav.getByRole("link", { name: "Markets", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(primaryNav.getByRole("link", { name: "Bots", exact: true })).toHaveAttribute(
+    "href",
+    "/bots",
+  );
   await expect(page.getByText("2026.04.23").first()).toBeVisible();
 
   const viewportMetrics = await page.evaluate(() => ({

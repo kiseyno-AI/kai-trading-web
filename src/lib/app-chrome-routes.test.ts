@@ -29,13 +29,14 @@ test("full-screen MobileAppChrome route keys expose only primary chrome destinat
   assert.equal(navItems.some((item) => item.id === "bots"), false);
 });
 
-test("Markets route chrome uses the same primary full-screen destinations", () => {
+test("Markets route chrome exposes the broader AppShell destinations", () => {
   const navItems = buildAppChromeNavItems(messages.en, MARKETS_ROUTE_CHROME_ROUTE_KEYS);
   const navIds = navItems.map((item) => item.id);
 
-  assert.deepEqual(navIds, FULL_PAGE_CHROME_ROUTE_KEYS);
-  assert.equal(navItems.some((item) => item.id === "markets"), false);
-  assert.equal(navItems.some((item) => item.id === "bots"), false);
+  assert.deepEqual(MARKETS_ROUTE_CHROME_ROUTE_KEYS, APP_SHELL_ROUTE_KEYS);
+  assert.deepEqual(navIds, APP_SHELL_ROUTE_KEYS);
+  assert.equal(navItems.find((item) => item.id === "markets")?.href, "/markets");
+  assert.equal(navItems.find((item) => item.id === "bots")?.href, "/bots");
 });
 
 test("broader AppShell navigation still exposes Markets and Bots for workspace routes", () => {

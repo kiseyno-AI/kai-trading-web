@@ -12,7 +12,6 @@ const fullPageMobileRoutes = [
     path: "/dashboard/symbol/005930?name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-04-10",
   },
   { label: "feedback", path: "/dashboard/signal-decider-feedback" },
-  { label: "markets route chrome", path: "/markets" },
 ];
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -69,7 +68,7 @@ test.describe("canonical shell navigation", () => {
     }
   });
 
-  test("dashboard actions reach Markets and Factor Screening by visible clicks", async ({ page }) => {
+  test("dashboard actions and AppShell navigation reach Markets, Factor Screening, and Bots", async ({ page }) => {
     const viewports = [
       { width: 1365, height: 900 },
       { width: 390, height: 844 },
@@ -86,6 +85,21 @@ test.describe("canonical shell navigation", () => {
       await page.getByRole("link", { name: "Open factor screening", exact: true }).first().click();
       await expect(page).toHaveURL(/\/markets\/factors$/);
       await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+
+      const workspaceNav = page.getByRole("navigation", {
+        name: viewport.width >= 1024 ? /Primary desktop/i : /^Primary$/i,
+      });
+      await expect(workspaceNav.getByRole("link", { name: "Markets", exact: true })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      const botsLink = workspaceNav.getByRole("link", { name: "Bots", exact: true });
+      await expect(botsLink).toBeVisible();
+      await expect(botsLink).toHaveAttribute("href", "/bots");
+      await botsLink.click();
+      await expect(page).toHaveURL(/\/bots$/);
+      await expect(page.getByRole("heading", { name: /No live bot roster connected/i })).toBeVisible();
       await expectNoHorizontalOverflow(page);
     }
   });
