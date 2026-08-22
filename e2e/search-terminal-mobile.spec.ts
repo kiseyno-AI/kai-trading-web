@@ -645,9 +645,13 @@ test.describe("search terminal mobile", () => {
     await expect(searchInput).toHaveAttribute("aria-expanded", "true");
 
     await searchInput.press("Tab");
-    await expect(firstOption).toBeFocused();
-
-    await searchInput.focus();
+    await expect(searchInput).toBeFocused();
+    await expect(searchInput).toHaveAttribute("aria-activedescendant", firstOptionId!);
+    await expect(firstOption).toHaveAttribute("aria-selected", "true");
+    await expect(firstOption).toHaveAttribute("tabindex", "-1");
+    await searchInput.press("ArrowDown");
+    await expect(searchInput).toHaveAttribute("aria-activedescendant", secondOptionId!);
+    await expect(secondOption).toHaveAttribute("aria-selected", "true");
     await searchInput.press("Escape");
     await expect(searchInput).toBeFocused();
     await expect(searchInput).toHaveAttribute("aria-expanded", "false");
@@ -660,6 +664,9 @@ test.describe("search terminal mobile", () => {
     await expect(firstOption).toHaveAttribute("aria-selected", "true");
     await expect(searchInput).toBeFocused();
 
+    await searchInput.press("Tab");
+    await expect(page.getByRole("button", { name: /Clear search query/i })).toBeFocused();
+    await searchInput.focus();
     await searchInput.press("ArrowDown");
     await expect(searchInput).toHaveAttribute("aria-activedescendant", secondOptionId!);
     await expect(secondOption).toHaveAttribute("aria-selected", "true");

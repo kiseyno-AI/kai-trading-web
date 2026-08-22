@@ -909,13 +909,15 @@ export default function SearchPageClient() {
       return;
     }
 
-    if (event.key === "Tab" && !event.shiftKey && searchSuggestions.length > 0 && searchSuggestionsOpen) {
-      const fallbackIndex = activeSearchSuggestionIndex >= 0 ? activeSearchSuggestionIndex : 0;
-      const fallbackOption = document.getElementById(getSuggestionOptionId(SEARCH_SUGGESTIONS_ID, fallbackIndex));
-      if (!fallbackOption) return;
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      activeSearchSuggestionIndex < 0 &&
+      searchSuggestions.length > 0 &&
+      searchSuggestionsOpen
+    ) {
       event.preventDefault();
-      setActiveSearchSuggestionIndex(fallbackIndex);
-      fallbackOption.focus();
+      setActiveSearchSuggestionIndex(0);
     }
   };
 
@@ -946,13 +948,15 @@ export default function SearchPageClient() {
       return;
     }
 
-    if (event.key === "Tab" && !event.shiftKey && favoriteSearchItems.length > 0 && favoriteSuggestionsOpen) {
-      const fallbackIndex = activeFavoriteSuggestionIndex >= 0 ? activeFavoriteSuggestionIndex : 0;
-      const fallbackOption = document.getElementById(getSuggestionOptionId(FAVORITE_SUGGESTIONS_ID, fallbackIndex));
-      if (!fallbackOption) return;
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      activeFavoriteSuggestionIndex < 0 &&
+      favoriteSearchItems.length > 0 &&
+      favoriteSuggestionsOpen
+    ) {
       event.preventDefault();
-      setActiveFavoriteSuggestionIndex(fallbackIndex);
-      fallbackOption.focus();
+      setActiveFavoriteSuggestionIndex(0);
     }
   };
 
@@ -1151,6 +1155,7 @@ export default function SearchPageClient() {
                       id={getSuggestionOptionId(SEARCH_SUGGESTIONS_ID, index)}
                       href={buildSearchSymbolHref(item, query)}
                       role="option"
+                      tabIndex={-1}
                       aria-selected={isActive}
                       className={`${styles.searchSuggestion} ${isSelected || isActive ? styles.searchSuggestionActive : ""}`.trim()}
                       onClick={() => handleSelect(item)}
@@ -1355,6 +1360,7 @@ export default function SearchPageClient() {
                             id={getSuggestionOptionId(FAVORITE_SUGGESTIONS_ID, index)}
                             type="button"
                             role="option"
+                            tabIndex={-1}
                             aria-selected={activeFavoriteSuggestionIndex === index}
                             onClick={() => void handleAddFavorite(item)}
                             disabled={favoriteSavingSymbol !== null}

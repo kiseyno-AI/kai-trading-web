@@ -875,9 +875,13 @@ test.describe("search terminal desktop", () => {
     await expect(favoriteInput).toHaveAttribute("aria-expanded", "true");
 
     await favoriteInput.press("Tab");
-    await expect(favoriteOption).toBeFocused();
-
-    await favoriteInput.focus();
+    await expect(favoriteInput).toBeFocused();
+    await expect(favoriteInput).toHaveAttribute("aria-activedescendant", favoriteOptionId!);
+    await expect(favoriteOption).toHaveAttribute("aria-selected", "true");
+    await expect(favoriteOption).toHaveAttribute("tabindex", "-1");
+    await favoriteInput.press("ArrowDown");
+    await expect(favoriteInput).toHaveAttribute("aria-activedescendant", favoriteOptionId!);
+    await expect(favoriteInput).toBeFocused();
     await favoriteInput.press("Escape");
     await expect(dialog).toBeVisible();
     await expect(favoriteInput).toHaveAttribute("aria-expanded", "false");
@@ -889,6 +893,10 @@ test.describe("search terminal desktop", () => {
     await expect(favoriteInput).toHaveAttribute("aria-activedescendant", favoriteOptionId!);
     await expect(favoriteOption).toHaveAttribute("aria-selected", "true");
     await expect(favoriteInput).toBeFocused();
+
+    await favoriteInput.press("Tab");
+    await expect(dialog.getByRole("button", { name: /^Add$/i })).toBeFocused();
+    await favoriteInput.focus();
     await favoriteInput.press("Enter");
 
     await expect.poll(() => postedSymbols).toEqual(["005930", "000660"]);
