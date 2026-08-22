@@ -587,14 +587,97 @@ test.describe("search terminal mobile", () => {
 
     await expect(page.getByLabel(/Search suggestions/i)).toHaveCount(0);
     await expect(page.getByText(/Start typing to search the symbol master/i)).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /000001.*Default Result/i })).toHaveCount(0);
+    await expect(page.getByRole("option", { name: /000001.*Default Result/i })).toHaveCount(0);
     await page.waitForTimeout(250);
     expect(searchRequests).toEqual([]);
 
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
 
-    await expect(page.getByRole("link", { name: /005930.*Samsung Electronics/i }).first()).toBeVisible();
+    await expect(page.getByRole("option", { name: /005930.*Samsung Electronics/i }).first()).toBeVisible();
     await expect.poll(() => searchRequests).toEqual(["005930"]);
+  });
+
+  test("navigates the mobile search listbox with arrow keys and exposes the active option", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await stubEmptySearchData(page);
+    await page.unroute("**/api/trading/symbols/search?**");
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      const query = new URL(route.request().url()).searchParams.get("q") ?? "";
+
+      await route.fulfill({
+        json: {
+          query,
+          count: 2,
+          items: [
+            {
+              symbol: "005930",
+              standard_code: "KR7005930003",
+              name_ko: "Samsung Electronics",
+              market: "KOSPI",
+            },
+            {
+              symbol: "000660",
+              standard_code: "KR7000660001",
+              name_ko: "SK hynix",
+              market: "KOSPI",
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/search");
+
+    const searchInput = page.getByRole("combobox", { name: /Search markets, symbols, or analysis/i });
+    await searchInput.fill("00");
+
+    let listbox = page.getByRole("listbox", { name: /Search suggestions/i });
+    await expect(listbox).toBeVisible();
+    const firstOption = listbox.getByRole("option", { name: /005930.*Samsung Electronics/i });
+    const secondOption = listbox.getByRole("option", { name: /000660.*SK hynix/i });
+    const listboxId = await listbox.getAttribute("id");
+    const firstOptionId = await firstOption.getAttribute("id");
+    const secondOptionId = await secondOption.getAttribute("id");
+    expect(listboxId).not.toBeNull();
+    expect(firstOptionId).not.toBeNull();
+    expect(secondOptionId).not.toBeNull();
+    await expect(searchInput).toHaveAttribute("aria-controls", listboxId!);
+    await expect(searchInput).toHaveAttribute("aria-expanded", "true");
+
+    await searchInput.press("Tab");
+    await expect(firstOption).toBeFocused();
+
+    await searchInput.focus();
+    await searchInput.press("Escape");
+    await expect(searchInput).toBeFocused();
+    await expect(searchInput).toHaveAttribute("aria-expanded", "false");
+    await expect(listbox).toHaveCount(0);
+
+    await searchInput.press("ArrowDown");
+    listbox = page.getByRole("listbox", { name: /Search suggestions/i });
+    await expect(listbox).toBeVisible();
+    await expect(searchInput).toHaveAttribute("aria-activedescendant", firstOptionId!);
+    await expect(firstOption).toHaveAttribute("aria-selected", "true");
+    await expect(searchInput).toBeFocused();
+
+    await searchInput.press("ArrowDown");
+    await expect(searchInput).toHaveAttribute("aria-activedescendant", secondOptionId!);
+    await expect(secondOption).toHaveAttribute("aria-selected", "true");
+
+    await searchInput.press("ArrowUp");
+    await expect(searchInput).toHaveAttribute("aria-activedescendant", firstOptionId!);
+
+    await searchInput.press("Escape");
+    await expect(listbox).toHaveCount(0);
+    await searchInput.press("ArrowUp");
+    await expect(searchInput).toHaveAttribute("aria-activedescendant", secondOptionId!);
+    await searchInput.press("ArrowDown");
+    await expect(searchInput).toHaveAttribute("aria-activedescendant", firstOptionId!);
+
+    await Promise.all([
+      page.waitForURL(/\/dashboard\/symbol\/005930\?.*navContext=search.*q=00/),
+      searchInput.press("Enter"),
+    ]);
   });
 
   test("labels degraded symbol-detail opens when mobile symbol search times out", async ({ page }) => {
@@ -653,7 +736,7 @@ test.describe("search terminal mobile", () => {
     await searchInput.fill("123456");
 
     await expect(page.getByText(/검색 엔드포인트를 사용할 수 없습니다\..*HTTP 504/i).first()).toBeVisible();
-    let directOpen = page.getByRole("link", { name: /123456.*코드 직접 열기.*종목 정보 미확인/i }).first();
+    let directOpen = page.getByRole("option", { name: /123456.*코드 직접 열기.*종목 정보 미확인/i }).first();
     await expect(directOpen).toBeVisible();
     await expect(directOpen).toHaveAttribute(
       "href",
@@ -676,7 +759,7 @@ test.describe("search terminal mobile", () => {
     await searchInput.fill("삼성");
     await expect(page.getByText(/검색 엔드포인트를 사용할 수 없습니다\..*HTTP 504/i).first()).toBeVisible();
     const knownFallback = page
-      .getByRole("link", { name: /005930.*삼성전자.*정적 대체 정보.*Core 미확인/i })
+      .getByRole("option", { name: /005930.*삼성전자.*정적 대체 정보.*Core 미확인/i })
       .first();
     await expect(knownFallback).toBeVisible();
     await expect(knownFallback).toHaveAttribute(
@@ -685,13 +768,13 @@ test.describe("search terminal mobile", () => {
     );
 
     await searchInput.fill("123456");
-    directOpen = page.getByRole("link", { name: /123456.*코드 직접 열기.*종목 정보 미확인/i }).first();
+    directOpen = page.getByRole("option", { name: /123456.*코드 직접 열기.*종목 정보 미확인/i }).first();
     await expect(directOpen).toBeVisible();
     expect(searchRequests).toEqual(["123456", "F70100026", "252670", "삼성", "123456"]);
 
     await searchInput.fill("삼성");
     const routeFallback = page
-      .getByRole("link", { name: /005930.*삼성전자.*정적 대체 정보.*Core 미확인/i })
+      .getByRole("option", { name: /005930.*삼성전자.*정적 대체 정보.*Core 미확인/i })
       .first();
     await expect(routeFallback).toBeVisible();
     await Promise.all([
@@ -780,7 +863,7 @@ test.describe("search terminal mobile", () => {
     );
     await expect(quickSection.locator("strong").filter({ hasText: /^Unavailable$/ })).toBeVisible();
     await expect(quickSection.getByText(/Favorite list unavailable\. HTTP 503/i)).toBeVisible();
-    await expect(page.getByRole("link", { name: /005930.*Samsung Electronics/i }).first()).toBeVisible();
+    await expect(page.getByRole("option", { name: /005930.*Samsung Electronics/i }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /SK hynix.*000660/i })).toBeVisible();
     await expect(page.getByText(/Network Integrity/i)).toHaveCount(0);
@@ -1567,7 +1650,7 @@ test.describe("search terminal mobile", () => {
     await page.goto("/search");
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("005930");
 
-    const resultCard = page.getByRole("link", { name: /005930.*Samsung Electronics/i }).first();
+    const resultCard = page.getByRole("option", { name: /005930.*Samsung Electronics/i }).first();
     await expect(resultCard).toBeVisible();
     await expect(resultCard).toHaveAttribute(
       "href",
@@ -2092,7 +2175,7 @@ test.describe("search terminal mobile", () => {
     await page.goto("/search");
     await page.getByLabel(/마켓, 종목 또는 분석 검색/i).fill("삼성");
 
-    const resultCard = page.getByRole("link", { name: /005930.*삼성전자/ }).first();
+    const resultCard = page.getByRole("option", { name: /005930.*삼성전자/ }).first();
     await expect(resultCard).toBeVisible();
     await expect(resultCard).toHaveAttribute("href", /\/dashboard\/symbol\/005930\?.*navContext=search/);
 

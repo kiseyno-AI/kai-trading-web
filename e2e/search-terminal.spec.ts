@@ -222,7 +222,7 @@ test.describe("search terminal desktop", () => {
     await page.goto("/search");
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("000660");
 
-    const suggestion = page.getByRole("link", { name: /000660.*SK hynix/i });
+    const suggestion = page.getByRole("option", { name: /000660.*SK hynix/i });
     await expect(suggestion).toBeVisible();
     await expect(suggestion.locator("> *")).toHaveCount(3);
     await expect(suggestion.locator("> *").first()).toHaveAttribute("aria-hidden", "true");
@@ -498,7 +498,7 @@ test.describe("search terminal desktop", () => {
 
     await expect(page.getByText(/Search endpoint unavailable.*HTTP 504/i).first()).toBeVisible();
     const samsungFallback = page
-      .getByRole("link", { name: /005930.*삼성전자.*Static fallback.*not confirmed by Core/i })
+      .getByRole("option", { name: /005930.*삼성전자.*Static fallback.*not confirmed by Core/i })
       .first();
     await expect(samsungFallback).toBeVisible();
     await expect(samsungFallback).toHaveAttribute(
@@ -782,7 +782,7 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByLabel(/Favorite symbol search/i)).toBeFocused();
 
     await page.getByLabel(/Favorite symbol search/i).fill("005930");
-    await expect(dialog.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect(dialog.getByRole("option", { name: /005930.*Samsung Electronics/i })).toBeVisible();
   });
 
   test("Q3 + favorite search saves an autocomplete result through the core tracked-symbol flow", async ({ page }) => {
@@ -862,8 +862,34 @@ test.describe("search terminal desktop", () => {
 
     await quickSection.getByRole("button", { name: /Open favorite search/i }).click();
     const dialog = page.getByRole("dialog", { name: /Save Symbol/i });
-    await page.getByLabel(/Favorite symbol search/i).fill("005930");
-    await dialog.getByRole("button", { name: /005930.*Samsung Electronics/i }).click();
+    const favoriteInput = page.getByRole("combobox", { name: /Favorite symbol search/i });
+    await favoriteInput.fill("005930");
+
+    let favoriteListbox = dialog.getByRole("listbox", { name: /Favorite search suggestions/i });
+    const favoriteOption = favoriteListbox.getByRole("option", { name: /005930.*Samsung Electronics/i });
+    const favoriteListboxId = await favoriteListbox.getAttribute("id");
+    const favoriteOptionId = await favoriteOption.getAttribute("id");
+    expect(favoriteListboxId).not.toBeNull();
+    expect(favoriteOptionId).not.toBeNull();
+    await expect(favoriteInput).toHaveAttribute("aria-controls", favoriteListboxId!);
+    await expect(favoriteInput).toHaveAttribute("aria-expanded", "true");
+
+    await favoriteInput.press("Tab");
+    await expect(favoriteOption).toBeFocused();
+
+    await favoriteInput.focus();
+    await favoriteInput.press("Escape");
+    await expect(dialog).toBeVisible();
+    await expect(favoriteInput).toHaveAttribute("aria-expanded", "false");
+    await expect(favoriteListbox).toHaveCount(0);
+
+    await favoriteInput.press("ArrowDown");
+    favoriteListbox = dialog.getByRole("listbox", { name: /Favorite search suggestions/i });
+    await expect(favoriteListbox).toBeVisible();
+    await expect(favoriteInput).toHaveAttribute("aria-activedescendant", favoriteOptionId!);
+    await expect(favoriteOption).toHaveAttribute("aria-selected", "true");
+    await expect(favoriteInput).toBeFocused();
+    await favoriteInput.press("Enter");
 
     await expect.poll(() => postedSymbols).toEqual(["005930", "000660"]);
     await expect(dialog).toHaveCount(0);
@@ -952,7 +978,7 @@ test.describe("search terminal desktop", () => {
     const favoriteInput = page.getByLabel(/Favorite symbol search/i);
     await favoriteInput.fill("005930");
 
-    await expect(dialog.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect(dialog.getByRole("option", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await dialog.getByRole("button", { name: /^Add$/ }).click();
 
     await expect.poll(() => postedSymbols).toEqual(["005930", "000660"]);
@@ -1079,13 +1105,13 @@ test.describe("search terminal desktop", () => {
     const favoriteInput = page.getByLabel(/Favorite symbol search/i);
 
     await favoriteInput.fill("005930");
-    await dialog.getByRole("button", { name: /005930.*Samsung Electronics/i }).click();
+    await dialog.getByRole("option", { name: /005930.*Samsung Electronics/i }).click();
 
     await expect(dialog.getByText(/Favorite saved but core favorites refresh failed. HTTP 503/i)).toBeVisible();
     await expect.poll(() => postedSymbols).toEqual([["005930", "000660"]]);
 
     await favoriteInput.fill("035420");
-    await dialog.getByRole("button", { name: /035420.*NAVER/i }).click();
+    await dialog.getByRole("option", { name: /035420.*NAVER/i }).click();
 
     await expect.poll(() => postedSymbols).toEqual([
       ["005930", "000660"],
@@ -1162,7 +1188,7 @@ test.describe("search terminal desktop", () => {
     await expect(favoriteInput).toHaveValue("");
 
     await favoriteInput.fill("Samsung Electronics");
-    await expect(dialog.getByRole("button", { name: /005930.*Samsung Electronics/i })).toBeVisible();
+    await expect(dialog.getByRole("option", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Add" })).toBeDisabled();
 
     await favoriteInput.press("Enter");
@@ -1226,7 +1252,7 @@ test.describe("search terminal desktop", () => {
     await quickSection.getByRole("button", { name: /Open favorite search/i }).click();
     const dialog = page.getByRole("dialog", { name: /Save Symbol/i });
     await page.getByLabel(/Favorite symbol search/i).fill("005930");
-    await dialog.getByRole("button", { name: /005930.*Samsung Electronics/i }).click();
+    await dialog.getByRole("option", { name: /005930.*Samsung Electronics/i }).click();
 
     await expect(dialog.getByText(/Favorite save blocked until tracked symbols refresh succeeds. HTTP 503/i)).toBeVisible();
     expect(postAttempted).toBe(false);
@@ -1465,7 +1491,7 @@ test.describe("search terminal desktop", () => {
 
     await page.goto("/search");
     await page.getByLabel(/Search markets, symbols, or analysis/i).fill("삼성");
-    const suggestion = page.getByRole("link", { name: /005930.*삼성전자/i });
+    const suggestion = page.getByRole("option", { name: /005930.*삼성전자/i });
 
     await expect(suggestion).toBeVisible();
     await expect(suggestion).toHaveAttribute(
