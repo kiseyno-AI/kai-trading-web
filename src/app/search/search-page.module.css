@@ -319,9 +319,15 @@
 }
 
 .searchSuggestion:hover,
+.searchSuggestion[aria-selected="true"],
 .searchSuggestionActive {
   border-color: var(--outline-strong);
   background: var(--surface);
+}
+
+.searchSuggestion:focus-visible {
+  outline: 2px solid var(--outline-strong);
+  outline-offset: 2px;
 }
 
 .searchSuggestion:active {
@@ -627,9 +633,15 @@ span.degradedProvenanceBadge {
   text-align: left;
 }
 
-.favoriteSuggestions button:hover {
+.favoriteSuggestions button:hover,
+.favoriteSuggestions button[aria-selected="true"] {
   border-color: var(--outline-strong);
   background: rgba(11, 22, 38, 0.96);
+}
+
+.favoriteSuggestions button:focus-visible {
+  outline: 2px solid var(--outline-strong);
+  outline-offset: 2px;
 }
 
 .favoriteSuggestions span {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ComponentTag } from "@/components/dev/component-tag";
@@ -196,6 +196,16 @@ const CLOSED_MARKET_STATUS: CoreMarketStatus = {
   is_open: false,
   server_time: "",
 };
+
+function getSuggestionOptionId(listboxId: string, index: number) {
+  return `${listboxId}-option-${index}`;
+}
+
+function getNextSuggestionIndex(currentIndex: number, itemCount: number, direction: 1 | -1) {
+  if (itemCount === 0) return -1;
+  if (currentIndex < 0) return direction === 1 ? 0 : itemCount - 1;
+  return (currentIndex + direction + itemCount) % itemCount;
+}
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -439,6 +449,8 @@ export default function SearchPageClient() {
   const querySeed = useMemo(() => searchParams.get("q")?.trim() ?? "", [searchParams]);
   const [query, setQuery] = useState(querySeed);
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
+  const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(Boolean(querySeed));
+  const [activeSearchSuggestionIndex, setActiveSearchSuggestionIndex] = useState(-1);
   const [selected, setSelected] = useState<SymbolSearchItem | null>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [favoriteItems, setFavoriteItems] = useState<SymbolSearchItem[]>(() => getInitialFavoriteItems());
@@ -447,11 +459,15 @@ export default function SearchPageClient() {
   const [favoriteDialogOpen, setFavoriteDialogOpen] = useState(false);
   const [favoriteSymbolInput, setFavoriteSymbolInput] = useState("");
   const [favoriteSearchItems, setFavoriteSearchItems] = useState<SymbolSearchItem[]>([]);
+  const [favoriteSuggestionsOpen, setFavoriteSuggestionsOpen] = useState(false);
+  const [activeFavoriteSuggestionIndex, setActiveFavoriteSuggestionIndex] = useState(-1);
   const [favoriteSearchLoading, setFavoriteSearchLoading] = useState(false);
   const [favoriteSearchError, setFavoriteSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     setQuery(querySeed);
+    setSearchSuggestionsOpen(Boolean(querySeed));
+    setActiveSearchSuggestionIndex(-1);
   }, [querySeed]);
   const [favoriteSavingSymbol, setFavoriteSavingSymbol] = useState<string | null>(null);
   const [favoriteStatus, setFavoriteStatus] = useState<string | null>(null);
@@ -576,6 +592,7 @@ export default function SearchPageClient() {
     const searchQuery = query.trim();
     if (!searchQuery) {
       setItems([]);
+      setActiveSearchSuggestionIndex(-1);
       setSearchError(null);
       setSearchLoading(false);
       return;
@@ -583,6 +600,7 @@ export default function SearchPageClient() {
 
     let active = true;
     setItems([]);
+    setActiveSearchSuggestionIndex(-1);
     setSearchError(null);
     setSearchLoading(true);
     const load = async () => {
@@ -622,6 +640,8 @@ export default function SearchPageClient() {
   useEffect(() => {
     if (!favoriteDialogOpen) {
       setFavoriteSearchItems([]);
+      setActiveFavoriteSuggestionIndex(-1);
+      setFavoriteSuggestionsOpen(false);
       setFavoriteSearchLoading(false);
       setFavoriteSearchError(null);
       return;
@@ -630,6 +650,7 @@ export default function SearchPageClient() {
     const favoriteQuery = favoriteSymbolInput.trim();
     if (!favoriteQuery) {
       setFavoriteSearchItems([]);
+      setActiveFavoriteSuggestionIndex(-1);
       setFavoriteSearchLoading(false);
       setFavoriteSearchError(null);
       return;
@@ -821,6 +842,8 @@ export default function SearchPageClient() {
 
   const handleQueryChange = (nextQuery: string) => {
     setQuery(nextQuery);
+    setActiveSearchSuggestionIndex(-1);
+    setSearchSuggestionsOpen(Boolean(nextQuery.trim()));
     setFavoriteStatus(null);
     setFavoriteError(null);
   };
@@ -840,14 +863,101 @@ export default function SearchPageClient() {
     setFavoriteError(null);
     setFavoriteSearchError(null);
     setFavoriteSymbolInput(selected?.symbol ?? "");
+    setActiveFavoriteSuggestionIndex(-1);
+    setFavoriteSuggestionsOpen(Boolean(selected?.symbol));
     setFavoriteDialogOpen(true);
   };
 
   const handleCloseFavoriteDialog = () => {
     if (favoriteSavingSymbol) return;
     setFavoriteDialogOpen(false);
+    setActiveFavoriteSuggestionIndex(-1);
+    setFavoriteSuggestionsOpen(false);
     setFavoriteSearchError(null);
     window.setTimeout(() => favoriteOpenButtonRef.current?.focus(), 0);
+  };
+
+  const handleFavoriteQueryChange = (nextQuery: string) => {
+    setFavoriteSymbolInput(nextQuery);
+    setActiveFavoriteSuggestionIndex(-1);
+    setFavoriteSuggestionsOpen(Boolean(nextQuery.trim()));
+  };
+
+  const handleSearchComboboxKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape" && searchSuggestionsOpen) {
+      event.preventDefault();
+      setActiveSearchSuggestionIndex(-1);
+      setSearchSuggestionsOpen(false);
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (searchSuggestions.length === 0) return;
+      event.preventDefault();
+      setSearchSuggestionsOpen(true);
+      setActiveSearchSuggestionIndex((currentIndex) =>
+        getNextSuggestionIndex(currentIndex, searchSuggestions.length, event.key === "ArrowDown" ? 1 : -1),
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && activeSearchSuggestionIndex >= 0 && searchSuggestionsOpen) {
+      const activeItem = searchSuggestions[activeSearchSuggestionIndex];
+      if (!activeItem) return;
+      event.preventDefault();
+      handleSelect(activeItem, { navigate: true });
+      return;
+    }
+
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      activeSearchSuggestionIndex < 0 &&
+      searchSuggestions.length > 0 &&
+      searchSuggestionsOpen
+    ) {
+      event.preventDefault();
+      setActiveSearchSuggestionIndex(0);
+    }
+  };
+
+  const handleFavoriteComboboxKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape" && favoriteSuggestionsOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveFavoriteSuggestionIndex(-1);
+      setFavoriteSuggestionsOpen(false);
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (favoriteSearchItems.length === 0) return;
+      event.preventDefault();
+      setFavoriteSuggestionsOpen(true);
+      setActiveFavoriteSuggestionIndex((currentIndex) =>
+        getNextSuggestionIndex(currentIndex, favoriteSearchItems.length, event.key === "ArrowDown" ? 1 : -1),
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && activeFavoriteSuggestionIndex >= 0 && favoriteSuggestionsOpen) {
+      const activeItem = favoriteSearchItems[activeFavoriteSuggestionIndex];
+      if (!activeItem) return;
+      event.preventDefault();
+      void handleAddFavorite(activeItem);
+      return;
+    }
+
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      activeFavoriteSuggestionIndex < 0 &&
+      favoriteSearchItems.length > 0 &&
+      favoriteSuggestionsOpen
+    ) {
+      event.preventDefault();
+      setActiveFavoriteSuggestionIndex(0);
+    }
   };
 
   const handleAddFavorite = async (item?: SymbolSearchItem) => {
@@ -999,12 +1109,18 @@ export default function SearchPageClient() {
               <input
                 value={query}
                 onChange={(event) => handleQueryChange(event.target.value)}
+                onKeyDown={handleSearchComboboxKeyDown}
                 placeholder={copy.hero.inputPlaceholder}
                 aria-label={copy.hero.inputLabel}
                 role="combobox"
                 aria-autocomplete="list"
-                aria-expanded={Boolean(trimmedQuery)}
-                aria-controls={trimmedQuery ? SEARCH_SUGGESTIONS_ID : undefined}
+                aria-expanded={Boolean(trimmedQuery) && searchSuggestionsOpen}
+                aria-controls={trimmedQuery && searchSuggestionsOpen ? SEARCH_SUGGESTIONS_ID : undefined}
+                aria-activedescendant={
+                  activeSearchSuggestionIndex >= 0 && searchSuggestionsOpen
+                    ? getSuggestionOptionId(SEARCH_SUGGESTIONS_ID, activeSearchSuggestionIndex)
+                    : undefined
+                }
                 autoComplete="off"
               />
               {query ? (
@@ -1016,17 +1132,19 @@ export default function SearchPageClient() {
               )}
             </label>
 
-            {trimmedQuery ? (
+            {trimmedQuery && searchSuggestionsOpen ? (
               <div
                 id={SEARCH_SUGGESTIONS_ID}
                 className={styles.searchSuggestions}
+                role="listbox"
                 aria-label={copy.hero.suggestions}
                 aria-busy={searchLoading}
                 aria-live="polite"
               >
                 {searchError ? <PanelUnavailable message={searchError} label={copy.status.unavailable} /> : null}
-                {searchSuggestions.map((item) => {
+                {searchSuggestions.map((item, index) => {
                   const isSelected = selected?.symbol === item.symbol;
+                  const isActive = activeSearchSuggestionIndex === index;
                   const searchSuggestionBadge = getSearchSuggestionBadge({ symbol: item.symbol, market: item.market });
                   const itemDisplayName = getSearchItemDisplayName(item, copy);
                   const itemMetaLabel = getSearchItemMetaLabel(item, copy);
@@ -1034,8 +1152,12 @@ export default function SearchPageClient() {
                   return (
                     <Link
                       key={item.symbol}
+                      id={getSuggestionOptionId(SEARCH_SUGGESTIONS_ID, index)}
                       href={buildSearchSymbolHref(item, query)}
-                      className={`${styles.searchSuggestion} ${isSelected ? styles.searchSuggestionActive : ""}`.trim()}
+                      role="option"
+                      tabIndex={-1}
+                      aria-selected={isActive}
+                      className={`${styles.searchSuggestion} ${isSelected || isActive ? styles.searchSuggestionActive : ""}`.trim()}
                       onClick={() => handleSelect(item)}
                     >
                       <span
@@ -1202,13 +1324,19 @@ export default function SearchPageClient() {
                         ref={favoriteSearchInputRef}
                         id="favorite-symbol-search"
                         value={favoriteSymbolInput}
-                        onChange={(event) => setFavoriteSymbolInput(event.target.value)}
+                        onChange={(event) => handleFavoriteQueryChange(event.target.value)}
+                        onKeyDown={handleFavoriteComboboxKeyDown}
                         placeholder={copy.quickAccess.inputPlaceholder}
                         aria-label={copy.quickAccess.inputLabel}
                         role="combobox"
                         aria-autocomplete="list"
-                        aria-expanded={favoriteSearchItems.length > 0}
-                        aria-controls={FAVORITE_SUGGESTIONS_ID}
+                        aria-expanded={favoriteSuggestionsOpen}
+                        aria-controls={favoriteSuggestionsOpen ? FAVORITE_SUGGESTIONS_ID : undefined}
+                        aria-activedescendant={
+                          activeFavoriteSuggestionIndex >= 0 && favoriteSuggestionsOpen
+                            ? getSuggestionOptionId(FAVORITE_SUGGESTIONS_ID, activeFavoriteSuggestionIndex)
+                            : undefined
+                        }
                         autoComplete="off"
                       />
                       <button type="submit" disabled={!canAddFavorite}>
@@ -1217,44 +1345,54 @@ export default function SearchPageClient() {
                     </form>
                     {favoriteSearchError ? <div className={styles.feedback}>{favoriteSearchError}</div> : null}
                     {favoriteError ? <div className={styles.feedback}>{favoriteError}</div> : null}
-                    <div
-                      id={FAVORITE_SUGGESTIONS_ID}
-                      className={styles.favoriteSuggestions}
-                      aria-label={copy.quickAccess.suggestions}
-                      aria-busy={favoriteSearchLoading}
-                      aria-live="polite"
-                    >
-                      {favoriteSearchItems.map((item) => (
-                        <button
-                          key={item.symbol}
-                          type="button"
-                          onClick={() => void handleAddFavorite(item)}
-                          disabled={favoriteSavingSymbol !== null}
-                        >
-                          <span>
-                            <strong className="clamp-3">{item.symbol}</strong>
-                            <small className="clamp-3">{item.name_ko}</small>
-                          </span>
-                          <small className="clamp-3">{item.market}</small>
-                        </button>
-                      ))}
-                      {favoriteSymbolInput.trim() &&
-                      favoriteSearchItems.length === 0 &&
-                      !favoriteSearchLoading &&
-                      !favoriteSearchError ? (
-                        <div className={styles.emptyState}>
-                          <strong>{copy.quickAccess.noMatchesTitle}</strong>
-                          <p className="clamp-3">{copy.quickAccess.noMatchesBody}</p>
-                        </div>
-                      ) : null}
-                      {!favoriteSymbolInput.trim() ? (
+                    {favoriteSuggestionsOpen ? (
+                      <div
+                        id={FAVORITE_SUGGESTIONS_ID}
+                        className={styles.favoriteSuggestions}
+                        role="listbox"
+                        aria-label={copy.quickAccess.suggestions}
+                        aria-busy={favoriteSearchLoading}
+                        aria-live="polite"
+                      >
+                        {favoriteSearchItems.map((item, index) => (
+                          <button
+                            key={item.symbol}
+                            id={getSuggestionOptionId(FAVORITE_SUGGESTIONS_ID, index)}
+                            type="button"
+                            role="option"
+                            tabIndex={-1}
+                            aria-selected={activeFavoriteSuggestionIndex === index}
+                            onClick={() => void handleAddFavorite(item)}
+                            disabled={favoriteSavingSymbol !== null}
+                          >
+                            <span>
+                              <strong className="clamp-3">{item.symbol}</strong>
+                              <small className="clamp-3">{item.name_ko}</small>
+                            </span>
+                            <small className="clamp-3">{item.market}</small>
+                          </button>
+                        ))}
+                        {favoriteSymbolInput.trim() &&
+                        favoriteSearchItems.length === 0 &&
+                        !favoriteSearchLoading &&
+                        !favoriteSearchError ? (
+                          <div className={styles.emptyState}>
+                            <strong>{copy.quickAccess.noMatchesTitle}</strong>
+                            <p className="clamp-3">{copy.quickAccess.noMatchesBody}</p>
+                          </div>
+                        ) : null}
+                        {favoriteSearchLoading ? (
+                          <p className={styles.favoriteSearchStatus}>{copy.status.searching}</p>
+                        ) : null}
+                      </div>
+                    ) : !favoriteSymbolInput.trim() ? (
+                      <div className={styles.favoriteSuggestions}>
                         <div className={styles.emptyState}>
                           <strong>{copy.quickAccess.startTypingTitle}</strong>
                           <p className="clamp-3">{copy.quickAccess.startTypingBody}</p>
                         </div>
-                      ) : null}
-                      {favoriteSearchLoading ? <p className={styles.favoriteSearchStatus}>{copy.status.searching}</p> : null}
-                    </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>,
                 document.body,
