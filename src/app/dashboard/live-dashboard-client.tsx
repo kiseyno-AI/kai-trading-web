@@ -1107,13 +1107,11 @@ function getLiveProcessMonitorStage(
   pipeline: DailyPipelineTimelineModel,
   pipelineAvailability: ProcessMonitorModel["pipelineAvailability"],
 ) {
-  if (pipelineAvailability.status !== "available" || !pipeline.currentStage) {
+  if (pipelineAvailability.status !== "available" || pipeline.currentStage?.status !== "running") {
     return null;
   }
 
-  return pipeline.status === "running" || pipeline.currentStage.status === "running"
-    ? pipeline.currentStage
-    : null;
+  return pipeline.currentStage;
 }
 
 function getProcessMonitorCurrentLabel(

@@ -239,6 +239,11 @@ test("shows planned buy and sell rows when closed-market process is partial with
     model.rows[0].detailHref,
     "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22",
   );
+  assert.equal(
+    model.contextLabel,
+    "No live daily-process stage is reported. Rows show planned buy/sell stocks from the execution board.",
+  );
+  assert.doesNotMatch(model.contextLabel, /Live daily-process stage reported:/);
   assert.doesNotMatch([model.statusLabel, model.emptyLabel, model.contextLabel].filter(Boolean).join("\n"), /running|진행 중/i);
 });
 
