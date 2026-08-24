@@ -990,6 +990,64 @@ test("dashboard signal-decider card shows planned board rows and links to the de
   await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Feature Snapshot Id");
 });
 
+test("dashboard only claims a running current stage as live in the process trigger and Decider copy", async ({ page }) => {
+  await mockDashboardShell(page);
+  await page.unroute("**/api/trading/eod/pipeline/status?**");
+  let pipelineStatus: "partial" | "running" = "partial";
+  let stageStatus: "partial" | "running" = "running";
+  await page.route("**/api/trading/eod/pipeline/status?**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        market_date: "2026-04-27",
+        status: pipelineStatus,
+        current_stage: "price_collection",
+        display_completed_stages: 3,
+        total_stages: 26,
+        stage_order: ["price_collection", "technical_snapshots", "action_summaries"],
+        stages: {
+          price_collection: {
+            label: "PyKRX daily price collection",
+            status: stageStatus,
+            processed: 3,
+            total: 26,
+            failed: 0,
+          },
+          technical_snapshots: { status: "pending", processed: 0, total: 3, failed: 0 },
+          action_summaries: { status: "pending", processed: 0, total: 3, failed: 0 },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/dashboard");
+
+  const processControl = page.locator('[data-process-monitor-status="partial"]:visible');
+  await expect(processControl).toBeVisible();
+  await expect(processControl).toContainText("Current: PyKRX daily price collection");
+  await expect(processControl).toContainText("Partial");
+  await expect(processControl).toContainText("3 / 26");
+
+  const card = page.locator("#dashboard-freshness article[data-signal-decider-status]");
+  await expect(card).toContainText("Live daily-process stage reported: PyKRX daily price collection.");
+  await expect(card).not.toContainText("No live daily-process stage is reported.");
+  await expect(card).toContainText("Planned trades");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileProcessControl = page.locator('[data-process-monitor-status="partial"]:visible');
+  await expect(mobileProcessControl).toContainText("Current: PyKRX daily price collection");
+  await expect(card).toContainText("Live daily-process stage reported: PyKRX daily price collection.");
+
+  pipelineStatus = "running";
+  stageStatus = "partial";
+  await page.reload();
+  const staleCurrentStageProcessControl = page.locator('[data-process-monitor-status="running"]:visible');
+  await expect(staleCurrentStageProcessControl).toContainText("Current: No live stage reported");
+  await expect(staleCurrentStageProcessControl).not.toContainText("PyKRX daily price collection");
+  await expect(card).not.toContainText("Live daily-process stage reported:");
+  await expect(card).not.toContainText("PyKRX daily price collection");
+});
+
 test("dashboard preserves its latest feedback route date when feedback rows are unavailable", async ({ page }) => {
   const shell = await mockDashboardShell(page);
   shell.setSignalDeciderFeedbackMode("empty");

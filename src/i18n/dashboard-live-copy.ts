@@ -63,6 +63,10 @@ const dashboardLiveCopy = {
       plannedTrades: "Planned trades",
       plannedTradesContext:
         "No live daily-process stage is reported. Rows show planned buy/sell stocks from the execution board.",
+      plannedTradesLiveStageContext:
+        "Live daily-process stage reported: {stage}. Rows show planned buy/sell stocks from the execution board.",
+      plannedTradesUnconfirmedStageContext:
+        "Daily-process stage status is stale or unavailable, so no live stage is confirmed. Rows show planned buy/sell stocks from the execution board.",
       plannedTradesToday: "Today's plan",
       processInProgress: "일별 프로세스 진행 중",
       processRunning: "Daily process running",
@@ -632,6 +636,10 @@ const dashboardLiveCopy = {
       plannedTrade: "매매 예정",
       plannedTrades: "예정 종목",
       plannedTradesContext: "실시간 일별 프로세스 단계가 보고되지 않았습니다. 실행 보드의 매수/매도 예정 종목을 표시합니다.",
+      plannedTradesLiveStageContext:
+        "실시간 일별 프로세스 단계가 보고되었습니다: {stage}. 실행 보드의 매수/매도 예정 종목을 표시합니다.",
+      plannedTradesUnconfirmedStageContext:
+        "일별 프로세스 단계 상태가 오래되었거나 확인 불가이므로 현재 라이브 단계는 확인되지 않습니다. 실행 보드의 매수/매도 예정 종목을 표시합니다.",
       plannedTradesToday: "오늘 예정 종목",
       processInProgress: "일별 프로세스 진행 중",
       processRunning: "일별 프로세스 진행 중",

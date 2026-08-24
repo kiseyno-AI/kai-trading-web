@@ -24,6 +24,7 @@ import type {
   CoreMarketStatus,
   CoreTrackedQuote,
   CoreTrackedQuotesResponse,
+  ProcessMonitorPipelineAvailabilityStatus,
   ProcessMonitorStatus,
 } from "./live-dashboard-types";
 
@@ -65,6 +66,11 @@ export type DashboardDeciderOverviewModel = {
   rows: DashboardDeciderRow[];
   statusLabel: string;
   statusTone: OverviewTone;
+};
+
+export type DashboardProcessStageSnapshot = {
+  availability: ProcessMonitorPipelineAvailabilityStatus;
+  label: string | null;
 };
 
 export type DashboardPortfolioTradeRow = {
@@ -235,6 +241,21 @@ function buildRecommendationDetailHref({
 
 function getRowsDetailMarketDate(rows: readonly DashboardDeciderRow[]) {
   return rows.find((row) => textOrNull(row.marketDate))?.marketDate ?? null;
+}
+
+function getPlannedTradesContext(
+  copy: DashboardOverviewCopy,
+  processStage: DashboardProcessStageSnapshot,
+) {
+  if (processStage.availability !== "available") {
+    return copy.plannedTradesUnconfirmedStageContext;
+  }
+
+  if (processStage.label) {
+    return copy.plannedTradesLiveStageContext.replace("{stage}", processStage.label);
+  }
+
+  return copy.plannedTradesContext;
 }
 
 export function buildDashboardDeciderMoreHref({
@@ -894,6 +915,7 @@ export function buildDashboardDeciderOverviewModel({
   monitoredSymbols,
   monitoredSymbolsError,
   numberLocale,
+  processStage,
   processStatus,
   tracked,
   trackedError,
@@ -905,6 +927,7 @@ export function buildDashboardDeciderOverviewModel({
   monitoredSymbols: ExecutionRuntimeMonitoredSymbolsResponseDto | null;
   monitoredSymbolsError?: string | null;
   numberLocale: string;
+  processStage: DashboardProcessStageSnapshot;
   processStatus: ProcessMonitorStatus;
   tracked: CoreTrackedQuotesResponse | null;
   trackedError?: string | null;
@@ -1026,7 +1049,7 @@ export function buildDashboardDeciderOverviewModel({
       .every((item) => isTodayPlannedTrade(item, boardMarketDate, currentMarketDate));
 
     return {
-      contextLabel: rows.length > 0 ? overviewCopy.plannedTradesContext : null,
+      contextLabel: rows.length > 0 ? getPlannedTradesContext(overviewCopy, processStage) : null,
       detailMarketDate: getRowsDetailMarketDate(rows),
       diagnostics,
       emptyLabel:
