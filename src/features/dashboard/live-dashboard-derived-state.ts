@@ -63,6 +63,7 @@ import type {
   MarketSnapshotFxRateDto,
   MarketSnapshotIndexDto,
   MarketSnapshotResponseDto,
+  Locale,
 } from "@/types/trading-api";
 
 import type {
@@ -2168,7 +2169,45 @@ function getLocalizedGeneratedPipelineReason(reason: string, copy: DashboardLive
   return null;
 }
 
-function formatPipelineStageReason(reason: string, copy: DashboardLiveCopy, numberLocale: string) {
+function getKoreanPipelineStateReason(stage: DailyPipelineStageModel, reason: string, copy: DashboardLiveCopy) {
+  const stageName = stage.label;
+
+  if (/^pending\b/i.test(reason)) {
+    return formatCopyTemplate(copy.processMonitor.stageReasons.pendingStage, { stage: stageName });
+  }
+
+  if (/^(?:waiting|awaiting)\b/i.test(reason)) {
+    return formatCopyTemplate(copy.processMonitor.stageReasons.waitingStage, { stage: stageName });
+  }
+
+  if (/\b(?:unavailable|not available)\b/i.test(reason)) {
+    return formatCopyTemplate(copy.processMonitor.stageReasons.unavailableStage, { stage: stageName });
+  }
+
+  if (/^blocked\b/i.test(reason) || stage.status === "blocked") {
+    const dependencies = stage.blockingDependencies.map((dependency) => dependency.label).join(", ");
+    return dependencies
+      ? formatCopyTemplate(copy.processMonitor.stageReasons.blockedStage, {
+          dependencies,
+          stage: stageName,
+        })
+      : formatCopyTemplate(copy.processMonitor.stageReasons.blockedStageByUpstream, { stage: stageName });
+  }
+
+  if (/^partial\b/i.test(reason) || stage.status === "partial") {
+    return formatCopyTemplate(copy.processMonitor.stageReasons.partialStage, { stage: stageName });
+  }
+
+  return null;
+}
+
+function formatPipelineStageReason(
+  stage: DailyPipelineStageModel,
+  copy: DashboardLiveCopy,
+  locale: Locale,
+  numberLocale: string,
+) {
+  const reason = stage.reason;
   const trimmedReason = reason.trim();
   if (!trimmedReason) return trimmedReason;
 
@@ -2184,11 +2223,19 @@ function formatPipelineStageReason(reason: string, copy: DashboardLiveCopy, numb
   } else if (RAW_PIPELINE_REASON_TOKEN_PATTERN.test(reasonWithoutMissingSymbols)) {
     parts.push(copy.processMonitor.stageReasons.unmappedBackendReason);
   } else {
-    const localizedGeneratedReason = getLocalizedGeneratedPipelineReason(reasonWithoutMissingSymbols, copy);
-    if (localizedGeneratedReason) {
+    const localizedStateReason = locale === "ko"
+      ? getKoreanPipelineStateReason(stage, reasonWithoutMissingSymbols, copy)
+      : null;
+    const localizedGeneratedReason = localizedStateReason
+      ? null
+      : getLocalizedGeneratedPipelineReason(reasonWithoutMissingSymbols, copy);
+
+    if (localizedStateReason) {
+      parts.push(localizedStateReason);
+    } else if (localizedGeneratedReason) {
       parts.push(localizedGeneratedReason);
     } else if (reasonWithoutMissingSymbols) {
-      parts.push(reasonWithoutMissingSymbols);
+      parts.push(locale === "ko" ? copy.processMonitor.stageReasons.unmappedBackendReason : reasonWithoutMissingSymbols);
     }
   }
 
@@ -2233,26 +2280,52 @@ function getPipelineStageStatusLabel(status: DailyPipelineStageModel["status"], 
   return copy.processMonitor.stageStatuses[status] ?? status;
 }
 
+function getPipelineStageDisplayName(
+  key: string,
+  fallback: string,
+  copy: DashboardLiveCopy,
+  locale: Locale,
+) {
+  if (locale !== "ko") return fallback;
+
+  return copy.processMonitor.stageNames[key as keyof typeof copy.processMonitor.stageNames] ?? fallback;
+}
+
 function localizeDailyPipelineStageModel(
   stage: DailyPipelineStageModel,
   copy: DashboardLiveCopy,
+  locale: Locale,
   numberLocale: string,
 ): DailyPipelineStageModel {
-  return {
+  const localizeDependencies = (dependencies: DailyPipelineStageModel["dependencies"]) =>
+    dependencies.map((dependency) => ({
+      ...dependency,
+      label: getPipelineStageDisplayName(dependency.key, dependency.label, copy, locale),
+    }));
+  const localizedStage = {
     ...stage,
+    label: getPipelineStageDisplayName(stage.key, stage.label, copy, locale),
     statusLabel: getPipelineStageStatusLabel(stage.status, copy),
     progressLabel: formatPipelineStageProgressLabel(stage, copy, numberLocale),
     progressSourceLabel: getPipelineProgressSourceLabel(stage.progressSource, copy),
-    reason: formatPipelineStageReason(stage.reason, copy, numberLocale),
+    dependencies: localizeDependencies(stage.dependencies),
+    blockingDependencies: localizeDependencies(stage.blockingDependencies),
+    failedBlockingDependencies: localizeDependencies(stage.failedBlockingDependencies),
+  };
+
+  return {
+    ...localizedStage,
+    reason: formatPipelineStageReason(localizedStage, copy, locale, numberLocale),
   };
 }
 
 function localizeDailyPipelineTimelineModel(
   pipeline: DailyPipelineTimelineModel,
   copy: DashboardLiveCopy,
+  locale: Locale,
   numberLocale: string,
 ): DailyPipelineTimelineModel {
-  const stages = pipeline.stages.map((stage) => localizeDailyPipelineStageModel(stage, copy, numberLocale));
+  const stages = pipeline.stages.map((stage) => localizeDailyPipelineStageModel(stage, copy, locale, numberLocale));
   const currentStage = pipeline.currentStage
     ? (stages.find((stage) => stage.key === pipeline.currentStage?.key) ?? null)
     : null;
@@ -2524,23 +2597,34 @@ function formatProcessMonitorReadIssue(prefix: string, error: string | null | un
 function buildProcessMonitorPipelineAvailability({
   copy,
   freshnessError,
+  locale,
   marketError,
   pipeline,
   pipelineStatusError,
 }: {
   copy: DashboardLiveCopy;
   freshnessError: string | null;
+  locale: Locale;
   marketError: string | null;
   pipeline: DailyPipelineTimelineModel;
   pipelineStatusError: string | null;
 }): ProcessMonitorPipelineAvailability {
   const readIssue =
     pipelineStatusError
-      ? formatProcessMonitorReadIssue(copy.processMonitor.readIssues.pipelineStatus, pipelineStatusError)
+      ? {
+          detail: formatProcessMonitorReadIssue(copy.processMonitor.readIssues.pipelineStatus, pipelineStatusError),
+          label: copy.processMonitor.readIssues.pipelineStatus,
+        }
       : freshnessError
-        ? formatProcessMonitorReadIssue(copy.processMonitor.readIssues.freshness, freshnessError)
+        ? {
+            detail: formatProcessMonitorReadIssue(copy.processMonitor.readIssues.freshness, freshnessError),
+            label: copy.processMonitor.readIssues.freshness,
+          }
         : marketError
-          ? formatProcessMonitorReadIssue(copy.processMonitor.readIssues.marketStatus, marketError)
+          ? {
+              detail: formatProcessMonitorReadIssue(copy.processMonitor.readIssues.marketStatus, marketError),
+              label: copy.processMonitor.readIssues.marketStatus,
+            }
           : null;
 
   if (!readIssue) {
@@ -2567,7 +2651,7 @@ function buildProcessMonitorPipelineAvailability({
       status === "degraded"
         ? copy.processMonitor.pipelineStatusDegraded
         : copy.processMonitor.pipelineStatusUnavailable,
-    reason: `${detail} ${readIssue}`,
+    reason: `${detail} ${locale === "ko" ? withTerminalPeriod(readIssue.label) : readIssue.detail}`,
     hideFallbackStages,
   };
 }
@@ -2578,6 +2662,7 @@ export function buildProcessMonitorModel({
   eodStageCards,
   filteringCardModel,
   freshnessError = null,
+  locale = "en",
   marketError = null,
   numberLocale,
   patchDate = null,
@@ -2590,6 +2675,7 @@ export function buildProcessMonitorModel({
   eodStageCards: readonly EodStageCard[];
   filteringCardModel: FilteringCardModel;
   freshnessError?: string | null;
+  locale?: Locale;
   marketError?: string | null;
   numberLocale: string;
   patchDate?: string | null;
@@ -2600,11 +2686,13 @@ export function buildProcessMonitorModel({
   const pipeline = localizeDailyPipelineTimelineModel(
     buildDailyPipelineTimelineModel(pipelineStatus, numberLocale),
     copy,
+    locale,
     numberLocale,
   );
   const pipelineAvailability = buildProcessMonitorPipelineAvailability({
     copy,
     freshnessError,
+    locale,
     marketError,
     pipeline,
     pipelineStatusError,
