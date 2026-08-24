@@ -360,6 +360,77 @@ async function mockDashboardProcessStatusApis(
   });
 }
 
+const koreanPendingReasonStages = {
+  action_summaries: {
+    label: "action summary compute",
+    localizedLabel: "액션 요약 계산",
+    localizedReason: "액션 요약 계산: 대기 중입니다.",
+    reason: "Pending action summary compute.",
+  },
+  agent_feedback_summaries: {
+    label: "agent feedback summarizer dispatch",
+    localizedLabel: "에이전트 피드백 요약 생성",
+    localizedReason: "에이전트 피드백 요약 생성: 대기 중입니다.",
+    reason: "Pending agent feedback summarizer dispatch.",
+  },
+  fundamentals_daily_refresh: {
+    label: "DART fundamentals daily refresh",
+    localizedLabel: "DART 펀더멘털 일별 갱신",
+    localizedReason: "DART 펀더멘털 일별 갱신: 대기 중입니다.",
+    reason: "Pending DART fundamentals daily refresh.",
+  },
+  price_collection: {
+    label: "pykrx daily price collection",
+    localizedLabel: "PyKRX 일별 가격 수집",
+    localizedReason: "PyKRX 일별 가격 수집: 대기 중입니다.",
+    reason: "Pending pykrx daily price collection.",
+  },
+  pykrx_enrichment: {
+    label: "pykrx enrichment collect",
+    localizedLabel: "PyKRX 보강 데이터 수집",
+    localizedReason: "PyKRX 보강 데이터 수집: 대기 중입니다.",
+    reason: "Pending pykrx enrichment collect.",
+  },
+  technical_snapshots: {
+    label: "technical snapshot compute",
+    localizedLabel: "기술 지표 스냅샷 계산",
+    localizedReason: "기술 지표 스냅샷 계산: 대기 중입니다.",
+    reason: "Pending technical snapshot compute.",
+  },
+} as const;
+
+async function expectKoreanPendingReasonLocalization(page: Page) {
+  await mockDashboardProcessStatusApis(page, () => "partial", (stageKey) => {
+    const stage = koreanPendingReasonStages[stageKey as keyof typeof koreanPendingReasonStages];
+    return stage
+      ? {
+          label: stage.label,
+          reason: stage.reason,
+          status: "pending",
+        }
+      : null;
+  });
+  await page.addInitScript(() => {
+    window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+  });
+
+  await page.goto("/dashboard");
+  await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+  const processDrawer = await openProcessMonitorDrawer(page);
+  const canonicalPipeline = processDrawer.getByLabel("표준 일별 파이프라인 상태");
+
+  for (const [stageKey, expected] of Object.entries(koreanPendingReasonStages)) {
+    const stage = canonicalPipeline.locator(`[data-pipeline-stage="${stageKey}"]`);
+    await expect(stage).toContainText(expected.localizedLabel);
+    await expect(stage.getByText(expected.localizedReason, { exact: true })).toBeVisible();
+  }
+
+  await expect(canonicalPipeline).not.toContainText(
+    /Pending (?:pykrx|technical|action|DART|agent feedback)/i,
+  );
+}
+
 async function expectStatusChromeSeparated(page: Page, viewport: { width: number; height: number }) {
   await page.setViewportSize(viewport);
   await page.goto("/dashboard");
@@ -741,6 +812,11 @@ test.describe("dashboard mobile chrome", () => {
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
     await expectProcessMonitorTriggersMirrorCanonical(page);
+  });
+
+  test("Korean process monitor localizes pending reasons at 390x844", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectKoreanPendingReasonLocalization(page);
   });
 
   test("mobile process monitor keeps grouped progress primary when full pipeline is fallback-only", async ({ page }) => {
@@ -1907,6 +1983,10 @@ test.describe("dashboard desktop process monitor canonical truth", () => {
     await expect(canonicalPipeline).toContainText(/15\s*\/\s*24/);
     await expect(canonicalPipeline).toContainText(/fallback inference|대체 추론/);
     await expectProcessMonitorTriggersMirrorCanonical(page);
+  });
+
+  test("Korean process monitor localizes pending reasons on desktop", async ({ page }) => {
+    await expectKoreanPendingReasonLocalization(page);
   });
 
   test("desktop process monitor renders oversized stored-row evidence without an impossible ratio", async ({ page }) => {

@@ -3172,6 +3172,7 @@ test("localizes raw partial pipeline reasons in the Korean process monitor model
     copy,
     eodStageCards: [],
     filteringCardModel,
+    locale: "ko",
     numberLocale: "ko-KR",
     patchDate: "2026-06-01",
     pipelineStatus,
@@ -3186,12 +3187,167 @@ test("localizes raw partial pipeline reasons in the Korean process monitor model
   ].join(" ");
 
   assert.equal(currentStage?.key, "market_risk_filter");
+  assert.equal(currentStage?.label, copy.processMonitor.stageNames.market_risk_filter);
   assert.equal(currentStage?.progressLabel, "20 / 24");
   assert.equal(currentStage?.progressSourceLabel, copy.processMonitor.sourceLabels.storedRows);
   assert.match(primaryStageText, /누락 종목 1개: 175140/);
   assert.doesNotMatch(primaryStageText, /row_count_partial_above_min_coverage/);
   assert.doesNotMatch(primaryStageText, /Missing 1 symbol/i);
   assert.doesNotMatch(primaryStageText, /stored rows/i);
+});
+
+test("localizes Korean pending, waiting, blocked, partial, and unavailable pipeline reasons", () => {
+  const copy = getDashboardLiveCopy("ko");
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "idle",
+    numberLocale: "ko-KR",
+    piotroskiMarketDate: null,
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "ko-KR",
+    pipelineStatus: null,
+    scoringMarketDate: null,
+  });
+  const pipelineStatus = buildPipelineStatus({
+    current_stage: "master_refresh",
+    market_date: "2026-08-24",
+    stage_order: [
+      "master_refresh",
+      "pykrx_universe_refresh",
+      "price_collection",
+      "action_summaries",
+      "fundamentals_daily_refresh",
+    ],
+    stages: {
+      master_refresh: {
+        ...buildPipelineStageDto("pending"),
+        label: "security master warmup",
+        reason: "Pending security master warmup.",
+      },
+      pykrx_universe_refresh: {
+        ...buildPipelineStageDto("pending"),
+        label: "pykrx universe warmup",
+        reason: "Waiting for security master warmup.",
+      },
+      price_collection: {
+        ...buildPipelineStageDto("blocked"),
+        blocking_dependencies: ["pykrx_universe_refresh"],
+        label: "pykrx daily price collection",
+        reason: "Blocked by pykrx universe warmup.",
+      },
+      action_summaries: {
+        ...buildPipelineStageDto("partial", 12, 24),
+        label: "action summary compute",
+        reason: "Completed with partial action summary data.",
+      },
+      fundamentals_daily_refresh: {
+        ...buildPipelineStageDto("pending"),
+        label: "DART fundamentals daily refresh",
+        reason: "DART fundamentals daily refresh unavailable.",
+      },
+    },
+    status: "partial",
+  });
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards: [],
+    copy,
+    eodStageCards: [],
+    filteringCardModel,
+    locale: "ko",
+    numberLocale: "ko-KR",
+    pipelineStatus,
+    scoringCardModel,
+  });
+  const stages = new Map(model.pipeline.stages.map((stage) => [stage.key, stage]));
+
+  assert.equal(stages.get("master_refresh")?.label, "종목 마스터 갱신");
+  assert.equal(stages.get("master_refresh")?.reason, "종목 마스터 갱신: 대기 중입니다.");
+  assert.equal(stages.get("pykrx_universe_refresh")?.reason, "PyKRX 종목군 갱신: 시작 조건을 기다리고 있습니다.");
+  assert.equal(
+    stages.get("price_collection")?.reason,
+    "PyKRX 일별 가격 수집: PyKRX 종목군 갱신 단계 때문에 차단되었습니다.",
+  );
+  assert.equal(stages.get("action_summaries")?.reason, "액션 요약 계산: 일부만 완료되었습니다.");
+  assert.equal(
+    stages.get("fundamentals_daily_refresh")?.reason,
+    "DART 펀더멘털 일별 갱신: 상태를 확인할 수 없습니다.",
+  );
+
+  const operatorText = model.pipeline.stages.map((stage) => `${stage.label} ${stage.reason}`).join(" ");
+  assert.doesNotMatch(
+    operatorText,
+    /security master warmup|pykrx universe warmup|pykrx daily price collection|action summary compute|Pending|Waiting|Blocked|unavailable/i,
+  );
+
+  const unavailableModel = buildProcessMonitorModel({
+    agentRoleCards: [],
+    copy,
+    eodStageCards: [],
+    filteringCardModel,
+    locale: "ko",
+    numberLocale: "ko-KR",
+    pipelineStatus: null,
+    pipelineStatusError: "HTTP 504 for /api/trading/eod/pipeline/status",
+    scoringCardModel,
+  });
+
+  assert.match(unavailableModel.pipelineAvailability.reason ?? "", /파이프라인 상태 조회 불가/);
+  assert.doesNotMatch(unavailableModel.pipelineAvailability.reason ?? "", /HTTP 504|api\/trading/i);
+});
+
+test("preserves backend stage labels and pending reasons in the English process monitor", () => {
+  const copy = getDashboardLiveCopy("en");
+  const filteringCardModel = buildFilteringCardModel({
+    copy,
+    marketRiskStatus: null,
+    marketRiskStatusError: null,
+    marketRiskStatusLoadState: "idle",
+    numberLocale: "en-US",
+    piotroskiMarketDate: null,
+    piotroskiStatus: null,
+    piotroskiStatusError: null,
+    piotroskiStatusLoadState: "idle",
+  });
+  const scoringCardModel = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: null,
+    scoringMarketDate: null,
+  });
+  const pipelineStatus = buildPipelineStatus({
+    current_stage: "price_collection",
+    stage_order: ["price_collection"],
+    stages: {
+      price_collection: {
+        ...buildPipelineStageDto("pending"),
+        label: "pykrx daily price collection",
+        reason: "Pending pykrx daily price collection.",
+      },
+    },
+    status: "pending",
+  });
+
+  const model = buildProcessMonitorModel({
+    agentRoleCards: [],
+    copy,
+    eodStageCards: [],
+    filteringCardModel,
+    locale: "en",
+    numberLocale: "en-US",
+    pipelineStatus,
+    scoringCardModel,
+  });
+
+  assert.equal(model.pipeline.currentStage?.label, "pykrx daily price collection");
+  assert.equal(model.pipeline.currentStage?.reason, "Pending pykrx daily price collection.");
 });
 
 test("keeps the full daily process monitor completed from latest available data when today is empty", () => {
