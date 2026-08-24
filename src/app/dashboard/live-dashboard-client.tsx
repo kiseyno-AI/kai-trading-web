@@ -1103,6 +1103,19 @@ function getProcessMonitorTriggerSummary(model: ProcessMonitorModel): ProcessMon
   };
 }
 
+function getLiveProcessMonitorStage(
+  pipeline: DailyPipelineTimelineModel,
+  pipelineAvailability: ProcessMonitorModel["pipelineAvailability"],
+) {
+  if (pipelineAvailability.status !== "available" || !pipeline.currentStage) {
+    return null;
+  }
+
+  return pipeline.status === "running" || pipeline.currentStage.status === "running"
+    ? pipeline.currentStage
+    : null;
+}
+
 function getProcessMonitorCurrentLabel(
   model: ProcessMonitorModel,
   copy: DashboardLiveCopy,
@@ -1113,8 +1126,9 @@ function getProcessMonitorCurrentLabel(
   }
 
   if (triggerSummary.source === "canonical-pipeline") {
-    if (model.pipeline.currentStage) {
-      return `${copy.processMonitor.current}: ${model.pipeline.currentStage.label}`;
+    const liveStage = getLiveProcessMonitorStage(model.pipeline, model.pipelineAvailability);
+    if (liveStage) {
+      return `${copy.processMonitor.current}: ${liveStage.label}`;
     }
 
     if (triggerSummary.status === "completed") {
@@ -1243,7 +1257,7 @@ const DailyPipelineTimeline = memo(function DailyPipelineTimeline({
   pipelineAvailability,
   summarySource,
 }: DailyPipelineTimelineProps) {
-  const currentStage = pipeline.currentStage;
+  const currentStage = getLiveProcessMonitorStage(pipeline, pipelineAvailability);
   const availabilityStatus = pipelineAvailability.status;
   const availabilityActive = availabilityStatus !== "available";
   const currentStatus = currentStage?.status ?? pipeline.status;
@@ -2171,6 +2185,10 @@ export function LiveDashboardClient({
     () => hasLivePipelineRunningState(pipelineStatus) || isAgentFeedbackRunning,
     [isAgentFeedbackRunning, pipelineStatus],
   );
+  const liveProcessMonitorStage = getLiveProcessMonitorStage(
+    processMonitorModel.pipeline,
+    processMonitorModel.pipelineAvailability,
+  );
   const deciderProcessStatus: ProcessMonitorStatus =
     processMonitorModel.status === "running" && !hasLiveDailyProcessRunning ? "pending" : processMonitorModel.status;
   const portfolioSummaryState = resolvePortfolioSummaryState({
@@ -2188,6 +2206,10 @@ export function LiveDashboardClient({
         monitoredSymbols: executionRuntimeMonitoredSymbols,
         monitoredSymbolsError: executionRuntimeMonitoredSymbolsError,
         numberLocale,
+        processStage: {
+          availability: processMonitorModel.pipelineAvailability.status,
+          label: liveProcessMonitorStage?.label ?? null,
+        },
         processStatus: deciderProcessStatus,
         tracked,
         trackedError,
@@ -2201,6 +2223,8 @@ export function LiveDashboardClient({
       market,
       numberLocale,
       deciderProcessStatus,
+      liveProcessMonitorStage?.label,
+      processMonitorModel.pipelineAvailability.status,
       tracked,
       trackedError,
     ],

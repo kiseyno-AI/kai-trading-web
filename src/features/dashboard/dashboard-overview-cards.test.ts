@@ -27,6 +27,10 @@ const marketClosed = {
   server_time: "2026-05-22T18:00:00+09:00",
   state: "CLOSED",
 } satisfies CoreMarketStatus;
+const noLiveProcessStage = {
+  availability: "available",
+  label: null,
+} as const;
 
 test("builds market-open decider rows from monitored symbols without per-symbol fanout", () => {
   const monitoredSymbols = {
@@ -72,6 +76,7 @@ test("builds market-open decider rows from monitored symbols without per-symbol 
     market: marketOpen,
     monitoredSymbols,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "running",
     tracked,
   });
@@ -122,6 +127,7 @@ test("builds compact market-open decider price line with current-price fallback"
     market: marketOpen,
     monitoredSymbols,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "running",
     tracked,
   });
@@ -150,6 +156,7 @@ test("sanitizes market-open monitored-symbol timeout while preserving diagnostic
     monitoredSymbols: null,
     monitoredSymbolsError: rawTimeout,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "running",
     tracked: null,
   });
@@ -174,6 +181,7 @@ test("uses in-progress copy only while the closed-market daily process is runnin
     market: marketClosed,
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "running",
     tracked: null,
   });
@@ -215,6 +223,7 @@ test("shows planned buy and sell rows when closed-market process is partial with
     market: marketClosed,
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "partial",
     tracked: null,
   });
@@ -231,6 +240,70 @@ test("shows planned buy and sell rows when closed-market process is partial with
     "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22",
   );
   assert.doesNotMatch([model.statusLabel, model.emptyLabel, model.contextLabel].filter(Boolean).join("\n"), /running|진행 중/i);
+});
+
+test("reports the available live stage beside planned rows when the daily process is partial", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: {
+      market_date: "2026-05-22",
+      items: [
+        {
+          symbol: "005930",
+          name: "Samsung Electronics",
+          status: "planned",
+          intent: "buy",
+        },
+      ],
+    },
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: {
+      availability: "available",
+      label: "PyKRX daily price collection",
+    },
+    processStatus: "partial",
+    tracked: null,
+  });
+
+  assert.equal(
+    model.contextLabel,
+    "Live daily-process stage reported: PyKRX daily price collection. Rows show planned buy/sell stocks from the execution board.",
+  );
+  assert.doesNotMatch(model.contextLabel, /No live daily-process stage is reported/);
+});
+
+test("does not confirm a stale current-stage snapshot as live beside planned rows", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: {
+      market_date: "2026-05-22",
+      items: [
+        {
+          symbol: "005930",
+          name: "Samsung Electronics",
+          status: "planned",
+          intent: "buy",
+        },
+      ],
+    },
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: {
+      availability: "degraded",
+      label: "PyKRX daily price collection",
+    },
+    processStatus: "partial",
+    tracked: null,
+  });
+
+  assert.equal(
+    model.contextLabel,
+    "Daily-process stage status is stale or unavailable, so no live stage is confirmed. Rows show planned buy/sell stocks from the execution board.",
+  );
+  assert.doesNotMatch(model.contextLabel, /Live daily-process stage reported/);
 });
 
 test("labels target-date planned rows as today's plan before market open", () => {
@@ -270,6 +343,7 @@ test("labels target-date planned rows as today's plan before market open", () =>
     },
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "partial",
     tracked: null,
   });
@@ -287,6 +361,7 @@ test("uses an honest empty state when no planned rows exist and no process is ru
     market: marketClosed,
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "partial",
     tracked: null,
   });
@@ -323,6 +398,7 @@ test("builds closed-market next-day exec rows with close prices when the daily p
     market: marketClosed,
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "completed",
     tracked: null,
   });
@@ -373,6 +449,7 @@ test("routes decider More link to visible recommendation source date", () => {
     },
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "completed",
     tracked: null,
   });
@@ -402,6 +479,7 @@ test("keeps fallback decider More href when no recommendation rows are visible",
     },
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "completed",
     tracked: null,
   });
@@ -729,6 +807,7 @@ test("keeps first-card planned rows while excluding core-only planned rows from 
     market: marketClosed,
     monitoredSymbols: null,
     numberLocale: "en-US",
+    processStage: noLiveProcessStage,
     processStatus: "partial",
     tracked: null,
   });
