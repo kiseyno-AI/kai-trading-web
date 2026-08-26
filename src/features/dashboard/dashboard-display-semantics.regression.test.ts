@@ -332,6 +332,9 @@ test("TC-DASH-008 piotroski filter copy remains Korean when using ko locale", ()
   assert.equal(koCopy.piotroskiFilter.metricClose, "종가");
   assert.equal(koCopy.piotroskiFilter.metricChange, "변동");
   assert.equal(koCopy.piotroskiFilter.metricScore, "점수");
+  assert.equal(koCopy.piotroskiFilter.unavailableStatus, "데이터 사용 불가");
+  assert.match(koCopy.piotroskiFilter.unavailableDescription, /불러오지 못했습니다.*지연.*다시 시도/);
+  assert.equal(koCopy.piotroskiFilter.retry, "다시 시도");
   assert.equal(koCopy.piotroskiFilter.backToDashboard, "대시보드로 돌아가기");
   assert.notEqual(koCopy.piotroskiFilter.title, enCopy.piotroskiFilter.title);
 });

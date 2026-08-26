@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
+import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/format";
 import { getDashboardLiveCopy } from "@/i18n/dashboard-live-copy";
 import {
@@ -20,6 +21,8 @@ import {
 } from "@/lib/piotroski-pass-list";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import { getCachedTradingApiJson } from "@/lib/trading-api-cache";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
+import { cn } from "@/lib/utils";
 import type { EodFreshnessResponseDto } from "@/types/trading-api";
 
 import styles from "./piotroski-filter-page.module.css";
@@ -123,6 +126,7 @@ export default function PiotroskiFilterPageClient() {
   const [marketDate, setMarketDate] = useState<string | null>(requestedMarketDate);
   const [data, setData] = useState<PiotroskiPassListResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">(
     requestedMarketDate ? "loading" : "idle",
   );
@@ -146,7 +150,7 @@ export default function PiotroskiFilterPageClient() {
         setMarketDate(resolvedMarketDate);
         if (!resolvedMarketDate) {
           setLoadState("error");
-          setError(copy.marketDateUnavailableError);
+          setError(copy.unavailableDescription);
         }
       } catch (freshnessError) {
         if (!active) return;
@@ -160,7 +164,7 @@ export default function PiotroskiFilterPageClient() {
     return () => {
       active = false;
     };
-  }, [copy.marketDateUnavailableError, requestedMarketDate]);
+  }, [copy.marketDateUnavailableError, copy.unavailableDescription, requestedMarketDate, retryNonce]);
 
   useEffect(() => {
     if (!marketDate) return;
@@ -197,23 +201,41 @@ export default function PiotroskiFilterPageClient() {
     return () => {
       active = false;
     };
-  }, [copy.marketDateUnavailableError, marketDate]);
+  }, [copy.marketDateUnavailableError, marketDate, retryNonce]);
+
+  function handleRetry() {
+    setData(null);
+    setError(null);
+    setLoadState("loading");
+    setMarketDate(requestedMarketDate);
+    setRetryNonce((current) => current + 1);
+  }
 
   const displayedMarketDate = data?.marketDate ?? marketDate;
+  const isUnavailable = loadState === "error";
   const marketDateNote = data
     ? getPiotroskiMarketDateNote(copy, data.requestedMarketDate, data.marketDate, data.isLatestFallback)
     : null;
-  const pageCopyText = displayedMarketDate
-    ? marketDateNote
-      ? `${copy.pageCopyPrefix} ${displayedMarketDate}${copy.pageCopySuffix} ${marketDateNote}`
-      : `${copy.pageCopyPrefix} ${displayedMarketDate}${copy.pageCopySuffix}`
-    : copy.pageCopyLoading;
+  const pageCopyText = isUnavailable
+    ? copy.unavailableDescription
+    : displayedMarketDate
+      ? marketDateNote
+        ? `${copy.pageCopyPrefix} ${displayedMarketDate}${copy.pageCopySuffix} ${marketDateNote}`
+        : `${copy.pageCopyPrefix} ${displayedMarketDate}${copy.pageCopySuffix}`
+      : copy.pageCopyLoading;
+  const errorDetail = getUserFacingErrorMessage(error, "");
 
   return (
     <MobileAppChrome
       chrome={{
         activeNav: "dashboard",
-        status: { label: displayedMarketDate ? `MD ${displayedMarketDate}` : copy.marketDatePending },
+        status: {
+          label: isUnavailable
+            ? copy.unavailableStatus
+            : displayedMarketDate
+              ? `MD ${displayedMarketDate}`
+              : copy.marketDatePending,
+        },
         toolbarAction: "dev-mode",
       }}
     >
@@ -238,11 +260,17 @@ export default function PiotroskiFilterPageClient() {
           <div className={styles.summaryGrid}>
             <div className={styles.summaryCard}>
               <span>{copy.marketDateLabel}</span>
-              <strong>{displayedMarketDate ?? copy.pendingMarketDate}</strong>
+              <strong>{displayedMarketDate ?? (isUnavailable ? copy.unavailableValue : copy.pendingMarketDate)}</strong>
             </div>
             <div className={styles.summaryCard}>
               <span>{copy.passedSymbolsLabel}</span>
-              <strong>{loadState === "ready" ? data?.totalPassedCount.toLocaleString("ko-KR") ?? "0" : "..."}</strong>
+              <strong>
+                {loadState === "ready"
+                  ? data?.totalPassedCount.toLocaleString("ko-KR") ?? "0"
+                  : isUnavailable
+                    ? copy.unavailableValue
+                    : "..."}
+              </strong>
             </div>
             <div className={styles.summaryCard}>
               <span>{copy.sortLabel}</span>
@@ -253,7 +281,15 @@ export default function PiotroskiFilterPageClient() {
           {loadState === "loading" ? (
             <div className={styles.emptyState}>{copy.loading}</div>
           ) : loadState === "error" ? (
-            <div className={styles.emptyState}>{error ?? copy.marketDateUnavailableError}</div>
+            <div className={cn(styles.emptyState, styles.errorState)} role="alert" data-testid="piotroski-error-state">
+              <p className={styles.errorMessage}>{copy.unavailableDescription}</p>
+              {errorDetail && errorDetail !== copy.unavailableDescription ? (
+                <p className={styles.errorDetail}>{errorDetail}</p>
+              ) : null}
+              <Button type="button" variant="outline" size="sm" onClick={handleRetry}>
+                {copy.retry}
+              </Button>
+            </div>
           ) : data && data.items.length > 0 ? (
             <div className={styles.list}>
               {data.items.map((item) => {
