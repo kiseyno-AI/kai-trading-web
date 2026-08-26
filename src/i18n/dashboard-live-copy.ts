@@ -550,6 +550,11 @@ const dashboardLiveCopy = {
       resolvedSuffix: "Showing the resolved result for",
       requestedMarketDateSuffix: " and market date context.",
       loading: "Loading Piotroski pass list...",
+      unavailableStatus: "Dataset unavailable",
+      unavailableValue: "Unavailable",
+      unavailableDescription:
+        "The Piotroski dataset could not be loaded. The latest results may be delayed. Retry or return to the dashboard.",
+      retry: "Retry",
       noPassedSymbols: "No Piotroski pass symbols were stored for",
       passedSummaryTemplate: "Piotroski summary reports %passedCount% passed symbols for %marketDate%, but row details were not returned.",
       backToDashboard: "Back to dashboard",
@@ -1155,6 +1160,11 @@ const dashboardLiveCopy = {
       resolvedSuffix: "해당 기준일에 대한 확정 결과를 표시합니다:",
       requestedMarketDateSuffix: "",
       loading: "피오트로스키 통과 목록 로딩 중...",
+      unavailableStatus: "데이터 사용 불가",
+      unavailableValue: "확인 불가",
+      unavailableDescription:
+        "피오트로스키 결과 데이터를 불러오지 못했습니다. 최신 데이터 처리가 지연되었을 수 있습니다. 다시 시도하거나 대시보드로 돌아가세요.",
+      retry: "다시 시도",
       noPassedSymbols: "요청 기준일에 저장된 피오트로스키 통과 종목이 없습니다.",
       passedSummaryTemplate: "피오트로스키 요약에서 %marketDate% 기준 %passedCount%개 종목 통과를 확인했으나, 상세 행은 반환되지 않았습니다.",
       backToDashboard: "대시보드로 돌아가기",

@@ -145,6 +145,107 @@ async function mockHansolSymbolDetail(page: Page, marketDate = "2026-05-08") {
 }
 
 test.describe("Piotroski pass-list route", () => {
+  test("maps a latest-date 504 to a localized terminal state and retries the request", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+
+    let freshnessRequestCount = 0;
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      freshnessRequestCount += 1;
+      if (freshnessRequestCount === 1) {
+        await route.fulfill({
+          status: 504,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "HTTP 504: Timed out while loading /eod/freshness from trading-core." }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        json: {
+          today: { trade_date: "2026-05-08" },
+          latest: null,
+        },
+      });
+    });
+    await mockPiotroskiPassList(page);
+
+    await page.goto("/dashboard/piotroski-filter");
+
+    const errorState = page.getByTestId("piotroski-error-state");
+    await expect(errorState).toContainText(
+      "피오트로스키 결과 데이터를 불러오지 못했습니다. 최신 데이터 처리가 지연되었을 수 있습니다.",
+    );
+    await expect(page.getByText("데이터 사용 불가", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/기준일\s*확인 불가/)).toBeVisible();
+    await expect(page.getByText(/통과 종목\s*확인 불가/)).toBeVisible();
+    await expect(page.getByText("최신 피오트로스키 기준일을 확인 중입니다.")).toHaveCount(0);
+    await expect(page.getByText("기준일 대기 중", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("대기 중", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("main").getByText("HTTP 504")).toHaveCount(0);
+    await expect(page.getByRole("main").getByText("/eod/freshness")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "대시보드로 돌아가기" })).toBeVisible();
+
+    await page.getByRole("button", { name: "다시 시도" }).click();
+
+    await expect(page.getByText(/확인된 종목을 기준일 기준으로 점수 내림차순 정렬해 보여줍니다. 2026-05-08/)).toBeVisible();
+    await expect(page.getByText(/통과 종목\s*107/)).toBeVisible();
+    await expect(errorState).toHaveCount(0);
+    expect(freshnessRequestCount).toBe(2);
+  });
+
+  test("retries the network request after caching freshness without a trade date", async ({ page }) => {
+    let freshnessRequestCount = 0;
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      freshnessRequestCount += 1;
+      await route.fulfill({
+        json:
+          freshnessRequestCount === 1
+            ? { today: { trade_date: null }, latest: null }
+            : { today: { trade_date: "2026-05-08" }, latest: null },
+      });
+    });
+    await mockPiotroskiPassList(page);
+
+    await page.goto("/dashboard/piotroski-filter");
+
+    const errorState = page.getByTestId("piotroski-error-state");
+    await expect(errorState).toBeVisible();
+    expect(freshnessRequestCount).toBe(1);
+
+    await page.getByRole("button", { name: "Retry" }).click();
+
+    await expect(page.getByText(/Showing passed symbols for 2026-05-08/)).toBeVisible();
+    await expect(errorState).toHaveCount(0);
+    expect(freshnessRequestCount).toBe(2);
+  });
+
+  test("maps a pass-list 504 to unavailable values instead of loading placeholders", async ({ page }) => {
+    await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "HTTP 504: Timed out while loading /eod/piotroski-filter-results from trading-core.",
+        }),
+      });
+    });
+
+    await page.goto("/dashboard/piotroski-filter?marketDate=2026-05-08");
+
+    await expect(page.getByTestId("piotroski-error-state")).toContainText(
+      "The Piotroski dataset could not be loaded. The latest results may be delayed.",
+    );
+    await expect(page.getByText("Dataset unavailable", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/Passed symbols\s*Unavailable/)).toBeVisible();
+    await expect(page.getByText("Loading Piotroski pass list...")).toHaveCount(0);
+    await expect(page.getByRole("main").getByText("HTTP 504")).toHaveCount(0);
+    await expect(page.getByRole("main").getByText("/eod/piotroski-filter-results")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to dashboard" })).toBeVisible();
+  });
+
   test("renders available Piotroski rows while quote enrichment is still pending", async ({ page }) => {
     const quoteRequests: string[] = [];
 
