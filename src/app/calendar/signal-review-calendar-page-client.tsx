@@ -1077,11 +1077,16 @@ export default function SignalReviewCalendarPageClient() {
   const [selectedLoadState, setSelectedLoadState] = useState<DetailLoadState>(initialDate ? "loading" : "idle");
   const [selectedError, setSelectedError] = useState<string | null>(null);
   const [progressUnavailable, setProgressUnavailable] = useState(false);
+  const [feedbackNavigationAttempt, setFeedbackNavigationAttempt] = useState<{
+    href: string;
+    notice: string | null;
+    state: "latest" | "selected";
+  } | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const detailOpenerRef = useRef<HTMLElement | null>(null);
   const shouldRestoreDetailFocusRef = useRef(false);
   const { devMode, locale, t } = useAppState();
-  const { isNavigatingTo } = useNavigationLoading();
+  const { isNavigationFailed, isNavigatingTo } = useNavigationLoading();
   const copy = t.signalReview;
   const selectedUnavailable = copy.states.selectedUnavailable;
   const feedbackDate = useMemo(() => parseCompactDateValue(selectedDate), [selectedDate]);
@@ -1583,7 +1588,6 @@ export default function SignalReviewCalendarPageClient() {
       ? "latest"
       : "disabled"
     : "selected";
-  const feedbackNavigationPending = feedbackCtaHref ? isNavigatingTo(feedbackCtaHref) : false;
   const storedFeedbackCtaExceedsLimit =
     selectedStoredDecisionCount > SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
   const feedbackCtaLabel =
@@ -1612,6 +1616,27 @@ export default function SignalReviewCalendarPageClient() {
       : feedbackCtaState === "disabled"
         ? copy.states.feedbackTableUnavailable
         : null;
+  const feedbackNavigationTargetHref = feedbackNavigationAttempt?.href ?? feedbackCtaHref;
+  const feedbackNavigationPending = feedbackNavigationTargetHref
+    ? isNavigatingTo(feedbackNavigationTargetHref)
+    : false;
+  const feedbackNavigationFailed =
+    !feedbackNavigationPending &&
+    Boolean(feedbackNavigationAttempt?.href) &&
+    isNavigationFailed(feedbackNavigationAttempt?.href);
+  const feedbackNavigationAttemptActive = feedbackNavigationPending || feedbackNavigationFailed;
+  const renderedFeedbackCtaHref =
+    feedbackNavigationAttemptActive && feedbackNavigationAttempt
+      ? feedbackNavigationAttempt.href
+      : feedbackCtaHref;
+  const renderedFeedbackCtaState =
+    feedbackNavigationAttemptActive && feedbackNavigationAttempt
+      ? feedbackNavigationAttempt.state
+      : feedbackCtaState;
+  const renderedFeedbackCtaNotice =
+    feedbackNavigationAttemptActive && feedbackNavigationAttempt
+      ? feedbackNavigationAttempt.notice
+      : feedbackCtaNotice;
 
   useEffect(() => {
     const shouldProbeBackendRecovery =
@@ -1931,17 +1956,29 @@ export default function SignalReviewCalendarPageClient() {
 
           <div className={styles.heroActionStack}>
             <div className={styles.heroActions}>
-              {feedbackCtaHref ? (
+              {renderedFeedbackCtaHref ? (
                 <DocumentRouteLink
-                  href={feedbackCtaHref}
+                  href={renderedFeedbackCtaHref}
                   className={styles.secondaryLink}
                   aria-busy={feedbackNavigationPending || undefined}
-                  data-calendar-feedback-cta-state={feedbackCtaState}
+                  data-calendar-feedback-cta-state={renderedFeedbackCtaState}
+                  data-navigation-failed={feedbackNavigationFailed ? "true" : "false"}
                   data-navigation-pending={feedbackNavigationPending ? "true" : "false"}
                   data-testid="calendar-feedback-cta"
+                  onNavigationCommit={(href) => {
+                    setFeedbackNavigationAttempt({
+                      href,
+                      notice: feedbackCtaNotice,
+                      state: feedbackCtaState === "latest" ? "latest" : "selected",
+                    });
+                  }}
                   pendingAcknowledgement
                 >
-                  {feedbackNavigationPending ? copy.actions.openingFeedback : feedbackCtaLabel}
+                  {feedbackNavigationPending
+                    ? copy.actions.openingFeedback
+                    : feedbackNavigationFailed
+                      ? copy.actions.retryFeedbackNavigation
+                      : feedbackCtaLabel}
                 </DocumentRouteLink>
               ) : (
                 <button
@@ -1958,9 +1995,18 @@ export default function SignalReviewCalendarPageClient() {
                 {copy.actions.backDashboard}
               </Link>
             </div>
-            {feedbackCtaNotice ? (
+            {renderedFeedbackCtaNotice ? (
               <p className={styles.feedbackRecoveryNotice} data-testid="calendar-feedback-recovery-notice">
-                {feedbackCtaNotice}
+                {renderedFeedbackCtaNotice}
+              </p>
+            ) : null}
+            {feedbackNavigationFailed ? (
+              <p
+                className={styles.feedbackNavigationFailure}
+                data-testid="calendar-feedback-navigation-failure"
+                role="alert"
+              >
+                {copy.states.feedbackNavigationFailed}
               </p>
             ) : null}
           </div>
