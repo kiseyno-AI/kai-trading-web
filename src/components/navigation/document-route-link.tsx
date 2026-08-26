@@ -14,6 +14,7 @@ import { normalizeAppBasePath, withAppBasePath } from "@/lib/app-base-path";
 type DocumentRouteLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
   children: ReactNode;
   href: string;
+  onNavigationCommit?: (href: string) => void;
   pendingAcknowledgement?: boolean;
 };
 
@@ -46,6 +47,7 @@ export function DocumentRouteLink({
   children,
   href,
   onClick,
+  onNavigationCommit,
   onPointerCancel,
   onPointerDown,
   onPointerLeave,
@@ -109,6 +111,7 @@ export function DocumentRouteLink({
         }
 
         beginNavigation(documentHref);
+        onNavigationCommit?.(documentHref);
         if (!pendingAcknowledgement || event.detail !== 0) {
           return;
         }

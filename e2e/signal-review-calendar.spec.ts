@@ -2439,6 +2439,101 @@ for (const activation of [
   });
 }
 
+for (const viewport of [
+  { height: 900, label: "desktop", width: 1440 },
+  { height: 844, label: "mobile", width: 390 },
+]) {
+  test(`calendar keeps a stalled latest-feedback target acknowledged and retryable on ${viewport.label}`, async ({
+    page,
+  }) => {
+    const backendRecoveryRead = createDeferred();
+
+    try {
+      await page.clock.install({ time: new Date("2026-08-27T09:00:00+09:00") });
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await seedDashboardSignalDeciderRecoveryHint(page, "2026-07-30");
+      const unavailableAugustDates = listMonthDates("2026-08");
+      await mockSignalReviewCalendar(page, {
+        feedbackDelays: {
+          "2026-07-31": backendRecoveryRead.promise,
+        },
+        forceCalendarSummaryFailure: true,
+        freshnessActionDate: "2026-07-31",
+        freshnessLatestDate: "2026-08-27",
+        pendingWaitDate: "2026-07-31",
+        runningProgressDates: ["2026-08-27"],
+        timeoutFeedbackDates: unavailableAugustDates,
+        timeoutReviewDateDates: unavailableAugustDates,
+      });
+
+      await page.goto("/calendar?date=2026-08-27");
+      await page.getByRole("button", { name: "Korean" }).click();
+      await expect(page.getByTestId("calendar-month-status")).toHaveText("캘린더 스캔 사용 불가");
+
+      const feedbackCta = page.getByTestId("calendar-feedback-cta");
+      const attemptedHref =
+        "/dashboard/signal-decider-feedback?marketDate=2026-07-30&navContext=calendar&originDate=2026-08-27";
+      await expect(feedbackCta).toHaveText("최근 피드백 표 열기");
+      await expect(feedbackCta).toHaveAttribute("href", attemptedHref);
+
+      await page.evaluate((expectedHref) => {
+        document.addEventListener(
+          "click",
+          (event) => {
+            const anchor = (event.target as Element | null)?.closest("a[href]");
+            if (anchor?.getAttribute("href") === expectedHref) {
+              event.preventDefault();
+            }
+          },
+          { once: true },
+        );
+      }, attemptedHref);
+
+      await feedbackCta.hover();
+      await page.mouse.down();
+      await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "true");
+      await expect(feedbackCta).toHaveText("피드백 표 여는 중...");
+      await page.mouse.up();
+      await expect(page).toHaveURL(/\/calendar\?date=2026-08-27$/);
+
+      backendRecoveryRead.resolve();
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const value = window.sessionStorage.getItem("kai.signalDeciderFeedback.v1:dates");
+            return value ? (JSON.parse(value) as { marketDates?: string[] }).marketDates?.[0] : null;
+          }),
+        )
+        .toBe("2026-07-31");
+
+      await expect(feedbackCta).toHaveAttribute("href", attemptedHref);
+      await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "true");
+      await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText("2026-07-30");
+
+      await page.clock.fastForward(12_000);
+
+      await expect(feedbackCta).toHaveAttribute("data-navigation-failed", "true");
+      await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "false");
+      await expect(feedbackCta).toHaveText("피드백 표 열기 다시 시도");
+      await expect(page.getByTestId("calendar-feedback-navigation-failure")).toHaveText(
+        "피드백 표가 열리지 않았습니다. 연결을 확인하고 이 작업을 다시 시도하세요.",
+      );
+
+      await feedbackCta.hover();
+      await page.mouse.down();
+      await expect(feedbackCta).toHaveAttribute("data-navigation-pending", "true");
+      await page.mouse.up();
+
+      await expect(page).toHaveURL(
+        /\/dashboard\/signal-decider-feedback\?marketDate=2026-07-30&navContext=calendar&originDate=2026-08-27$/,
+      );
+      await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
+    } finally {
+      backendRecoveryRead.resolve();
+    }
+  });
+}
+
 test("calendar unavailable scan avoids a false zero and surfaces mobile shell recovery", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-08-16T09:00:00+09:00"));
   await page.setViewportSize({ width: 390, height: 844 });

@@ -23,6 +23,7 @@ type NavigationLoadingContextValue = {
   beginNavigation: (href?: string | URL | null) => void;
   cancelNavigation: (href?: string | URL | null) => void;
   isNavigationPending: boolean;
+  isNavigationFailed: (href?: string | URL | null) => boolean;
   isNavigatingTo: (href?: string | URL | null) => boolean;
   pendingNavigation: PendingNavigation | null;
 };
@@ -31,6 +32,7 @@ const NavigationLoadingContext = createContext<NavigationLoadingContextValue>({
   beginNavigation: () => {},
   cancelNavigation: () => {},
   isNavigationPending: false,
+  isNavigationFailed: () => false,
   isNavigatingTo: () => false,
   pendingNavigation: null,
 });
@@ -120,6 +122,7 @@ function useCurrentRouteKey() {
 export function NavigationLoadingProvider({ children }: { children: ReactNode }) {
   const routeKey = useCurrentRouteKey();
   const routeKeyRef = useRef(routeKey);
+  const [failedNavigation, setFailedNavigation] = useState<PendingNavigation | null>(null);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
   const failsafeTimerRef = useRef<number | null>(null);
 
@@ -128,14 +131,16 @@ export function NavigationLoadingProvider({ children }: { children: ReactNode })
     if (!targetRouteKey) return;
 
     clearTimer(failsafeTimerRef);
-    setPendingNavigation({
+    const navigation = {
       originRouteKey: routeKeyRef.current,
       targetRouteKey,
-    });
+    };
+    setPendingNavigation(navigation);
 
     failsafeTimerRef.current = window.setTimeout(() => {
       failsafeTimerRef.current = null;
       setPendingNavigation(null);
+      setFailedNavigation(navigation);
     }, FAILSAFE_TIMEOUT_MS);
   }, []);
 
@@ -159,14 +164,21 @@ export function NavigationLoadingProvider({ children }: { children: ReactNode })
 
   useLayoutEffect(() => {
     routeKeyRef.current = routeKey;
-    if (!pendingNavigation || routeKey === pendingNavigation.originRouteKey) return;
+    const pendingRouteChanged = pendingNavigation && routeKey !== pendingNavigation.originRouteKey;
+    const failedRouteChanged = failedNavigation && routeKey !== failedNavigation.originRouteKey;
+    if (!pendingRouteChanged && !failedRouteChanged) return;
 
-    clearTimer(failsafeTimerRef);
-    // React route cache can restore the origin screen on Back; clear the pending
-    // record in the same layout commit that observes the route transition.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPendingNavigation(null);
-  }, [pendingNavigation, routeKey]);
+    if (pendingRouteChanged) {
+      clearTimer(failsafeTimerRef);
+      // React route cache can restore the origin screen on Back; clear the pending
+      // record in the same layout commit that observes the route transition.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingNavigation(null);
+    }
+    if (failedRouteChanged) {
+      setFailedNavigation(null);
+    }
+  }, [failedNavigation, pendingNavigation, routeKey]);
 
   useEffect(() => {
     return () => {
@@ -182,15 +194,31 @@ export function NavigationLoadingProvider({ children }: { children: ReactNode })
     [pendingNavigation, routeKey],
   );
 
+  const isNavigationFailed = useCallback(
+    (href?: string | URL | null) => {
+      if (!failedNavigation || routeKey !== failedNavigation.originRouteKey) return false;
+      return resolveInternalRouteKey(href) === failedNavigation.targetRouteKey;
+    },
+    [failedNavigation, routeKey],
+  );
+
   const contextValue = useMemo(
     () => ({
       beginNavigation,
       cancelNavigation,
       isNavigationPending: pendingNavigation !== null && routeKey === pendingNavigation.originRouteKey,
+      isNavigationFailed,
       isNavigatingTo,
       pendingNavigation,
     }),
-    [beginNavigation, cancelNavigation, isNavigatingTo, pendingNavigation, routeKey],
+    [
+      beginNavigation,
+      cancelNavigation,
+      isNavigationFailed,
+      isNavigatingTo,
+      pendingNavigation,
+      routeKey,
+    ],
   );
 
   return (
