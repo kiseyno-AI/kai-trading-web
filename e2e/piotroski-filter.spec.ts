@@ -195,6 +195,32 @@ test.describe("Piotroski pass-list route", () => {
     expect(freshnessRequestCount).toBe(2);
   });
 
+  test("retries the network request after caching freshness without a trade date", async ({ page }) => {
+    let freshnessRequestCount = 0;
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      freshnessRequestCount += 1;
+      await route.fulfill({
+        json:
+          freshnessRequestCount === 1
+            ? { today: { trade_date: null }, latest: null }
+            : { today: { trade_date: "2026-05-08" }, latest: null },
+      });
+    });
+    await mockPiotroskiPassList(page);
+
+    await page.goto("/dashboard/piotroski-filter");
+
+    const errorState = page.getByTestId("piotroski-error-state");
+    await expect(errorState).toBeVisible();
+    expect(freshnessRequestCount).toBe(1);
+
+    await page.getByRole("button", { name: "Retry" }).click();
+
+    await expect(page.getByText(/Showing passed symbols for 2026-05-08/)).toBeVisible();
+    await expect(errorState).toHaveCount(0);
+    expect(freshnessRequestCount).toBe(2);
+  });
+
   test("maps a pass-list 504 to unavailable values instead of loading placeholders", async ({ page }) => {
     await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
       await route.fulfill({

@@ -20,12 +20,14 @@ import {
   type PiotroskiPassListResult,
 } from "@/lib/piotroski-pass-list";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
-import { getCachedTradingApiJson } from "@/lib/trading-api-cache";
+import { getCachedTradingApiJson, invalidateTradingApiCacheByPathPrefix } from "@/lib/trading-api-cache";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 import { cn } from "@/lib/utils";
 import type { EodFreshnessResponseDto } from "@/types/trading-api";
 
 import styles from "./piotroski-filter-page.module.css";
+
+const FRESHNESS_PATH = resolveTradingApiClientPath("/api/trading/eod/freshness");
 
 function hasNumber(value: number | null | undefined): value is number {
   return typeof value === "number";
@@ -110,9 +112,7 @@ function getPiotroskiEmptyState(
 
 async function loadFreshness() {
   try {
-    return await getCachedTradingApiJson<EodFreshnessResponseDto>(
-      resolveTradingApiClientPath("/api/trading/eod/freshness"),
-    );
+    return await getCachedTradingApiJson<EodFreshnessResponseDto>(FRESHNESS_PATH);
   } catch (error) {
     throw error;
   }
@@ -204,6 +204,9 @@ export default function PiotroskiFilterPageClient() {
   }, [copy.marketDateUnavailableError, marketDate, retryNonce]);
 
   function handleRetry() {
+    if (!requestedMarketDate) {
+      invalidateTradingApiCacheByPathPrefix([FRESHNESS_PATH]);
+    }
     setData(null);
     setError(null);
     setLoadState("loading");
