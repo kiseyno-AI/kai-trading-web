@@ -95,7 +95,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     priceHistory,
     previousFocusBar,
     quote,
-    quotePollingStopped,
+    quotePollingState,
     quoteSourceCopy,
     navContext,
     feedbackActionFilter,
@@ -332,8 +332,12 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 {item.market}: {item.state}
               </span>
             ))}
-            <span className={`pill ${quotePollingStopped ? "info" : "warning"}`}>
-              {quotePollingStopped ? copy.hero.closedSession : copy.hero.pollingActive}
+            <span className={`pill ${quotePollingState === "active" ? "warning" : "info"}`}>
+              {quotePollingState === "closed"
+                ? copy.hero.closedSession
+                : quotePollingState === "active"
+                  ? copy.hero.pollingActive
+                  : copy.hero.pollingStopped}
             </span>
           </div>
 

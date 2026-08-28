@@ -172,7 +172,7 @@ UI surfaces and fields:
 Important behavior:
 - The primary chart now uses the stored historical bars API, not an in-page quote trace. The technical-analysis detail page also renders the same candlestick API on desktop to match the Stitch candlestick view.
 - The chart focus card updates from chart interaction, but the chart itself remains EOD-history based.
-- Quote polling stops entirely after the first response where both `/market/status.state` and `/quotes/{symbol}.market_state` are `CLOSED`.
+- Quote polling stops when `/market/status` resolves a closed session, including the dashboard's latest shared market-status snapshot. While market state is unresolved, symbol detail retries the status gate without claiming active live quote polling; resolved open sessions and confirmed live/open quotes preserve the active quote refresh loop.
 - `/agent-context/symbol-day`, `/eod/momentum-factors`, `/eod/low-risk-factors`, `/eod/beta-factors`, `/eod/value-factors`, `/eod/advanced-value-factors`, `/eod/technical-snapshots`, `/eod/action-summaries`, `/disclosures/dart/fundamentals/history`, and `/symbols/{symbol}/price-bars` are one-shot per dependency change, not recurring quote polls.
 - `/scanner/tracked-symbols` is requested by the symbol detail route only for the hero star state and toggle; it does not enable order execution.
 - When a technical or action field is not confirmed upstream, the UI shows `[확인 필요]` instead of manufacturing indicator values.

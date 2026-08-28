@@ -49,11 +49,6 @@ export type TrackedSymbolsResponse = {
   last_updated_at: string | null;
 };
 
-export type QuoteWorkspaceSnapshot = {
-  marketStatus: MarketStatusResponse;
-  quote: QuoteResponse;
-};
-
 export type PriceHistoryRange = "3M" | "1Y" | "5Y" | "MAX";
 
 export const PRICE_HISTORY_RANGES: PriceHistoryRange[] = ["3M", "1Y", "5Y", "MAX"];

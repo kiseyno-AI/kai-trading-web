@@ -1535,6 +1535,20 @@ export function shouldStopQuotePollingForClosedSession(
   return isClosedSessionMarketState(marketStatus?.state) && isClosedSessionMarketState(quote?.market_state);
 }
 
+export type QuotePollingDisplayState = "active" | "closed" | "stopped";
+
+export function resolveQuotePollingDisplayState(
+  marketStatus: MarketStatusResponse | null,
+  quote: QuoteResponse | null,
+): QuotePollingDisplayState {
+  if (shouldStopQuotePollingForClosedSession(marketStatus, quote)) return "closed";
+  if (getMarketOpenState(marketStatus) === true) return "active";
+
+  return quote?.available === true && quote.is_live === true && normalizeMarketCode(quote.market_state) === "OPEN"
+    ? "active"
+    : "stopped";
+}
+
 export function resolveMarketStateValue(value: string | null | undefined, copy: SymbolDetailCopy) {
   const state = normalizeMarketCode(value);
   if (state === "OPEN") return copy.header.marketStates.open;
