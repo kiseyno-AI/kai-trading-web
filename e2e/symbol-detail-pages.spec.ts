@@ -71,10 +71,12 @@ type MockDetailModeSwitchOptions = {
   actionSignalScore?: number;
   marketDate?: string;
   marketStatusIsOpen?: boolean;
+  marketStatusUnavailable?: boolean;
   marketStatusState?: string;
   onQuoteRequest?: () => void;
   quoteAvailable?: boolean;
   quoteMarketState?: string;
+  quoteUnavailable?: boolean;
   quoteUnavailableReason?: string;
   technicalSnapshotAvailable?: boolean;
 };
@@ -307,6 +309,10 @@ async function mockDetailModeSwitchApis(
 
   await page.route("**/api/trading/quotes/005930", async (route) => {
     options.onQuoteRequest?.();
+    if (options.quoteUnavailable) {
+      await route.fulfill({ status: 503, json: { detail: "Quote unavailable" } });
+      return;
+    }
     await route.fulfill({
       json: {
         symbol: "005930",
@@ -330,6 +336,10 @@ async function mockDetailModeSwitchApis(
   });
 
   await page.route("**/api/trading/market/status", async (route) => {
+    if (options.marketStatusUnavailable) {
+      await route.fulfill({ status: 503, json: { detail: "Market status unavailable" } });
+      return;
+    }
     await route.fulfill({
       json: {
         state: marketStatusState,
@@ -886,6 +896,59 @@ test.describe("symbol detail mobile pages", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
     await expect(topbar).toContainText("마켓 닫힘");
     await expect(hero).toContainText("KOSPI: WEEKEND");
+    await expect(hero).toContainText("휴장 세션");
+    await expect(hero).not.toContainText("폴링 활성");
+    await expect.poll(() => quoteRequestCount).toBe(1);
+
+    await page.waitForTimeout(1_800);
+    expect(quoteRequestCount).toBe(1);
+  });
+
+  test("keeps the dashboard closed state when symbol live reads are unavailable at 390px", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+    let quoteRequestCount = 0;
+
+    await page.addInitScript(() => {
+      const now = Date.now();
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+      window.sessionStorage.setItem(
+        "kai.trading-api.cache.v1",
+        JSON.stringify({
+          "SNAPSHOT GET /api/trading/market/status": {
+            cachedAt: now,
+            expiresAt: now + 60_000,
+            data: {
+              state: "CLOSED",
+              is_open: false,
+              server_time: "2026-08-29T00:00:00+09:00",
+            },
+          },
+        }),
+      );
+    });
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests, {
+      marketDate: "2026-08-28",
+      marketStatusUnavailable: true,
+      onQuoteRequest: () => {
+        quoteRequestCount += 1;
+      },
+      quoteUnavailable: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(
+      "/dashboard/symbol/005930?name=Samsung%20Electronics&market=KOSPI&standardCode=KR7005930003&marketDate=2026-08-28&navContext=piotroski",
+    );
+
+    const topbar = page.locator("header.topbar");
+    const hero = page.locator("#summary");
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(topbar).toContainText("마켓 닫힘");
     await expect(hero).toContainText("휴장 세션");
     await expect(hero).not.toContainText("폴링 활성");
     await expect.poll(() => quoteRequestCount).toBe(1);

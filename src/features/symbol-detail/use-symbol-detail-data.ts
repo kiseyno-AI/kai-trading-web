@@ -23,8 +23,13 @@ import {
   type SymbolDetailMode,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
+import { MOBILE_TOOLBAR_MARKET_STATUS_PATH } from "@/lib/mobile-toolbar-data";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
-import { invalidateTradingApiCacheByPathPrefix } from "@/lib/trading-api-cache";
+import {
+  invalidateTradingApiCacheByPathPrefix,
+  readTradingApiJsonSnapshot,
+  seedTradingApiJsonSnapshot,
+} from "@/lib/trading-api-cache";
 import { useUnitData } from "@/lib/use-unit-data";
 import type {
   EodFreshnessResponseDto,
@@ -54,6 +59,7 @@ import {
   normalizeTrackedSymbols,
   pickSelectedBarTradeDate,
   readRouteParam,
+  resolveQuotePollingDisplayState,
   resolveMarketStateValue,
   resolveSymbolDetailCurrentMarketDate,
   resolveSymbolDetailEffectiveMarketDate,
@@ -65,7 +71,6 @@ import type {
   MarketStatusResponse,
   PriceHistoryRange,
   QuoteResponse,
-  QuoteWorkspaceSnapshot,
   SymbolSearchItem,
   SymbolSearchResponse,
   TrackedSymbolsResponse,
@@ -140,6 +145,8 @@ export function useSymbolDetailData({
   const [trackedSymbolsLoaded, setTrackedSymbolsLoaded] = useState(false);
   const [trackingSaving, setTrackingSaving] = useState(false);
   const [trackingError, setTrackingError] = useState<string | null>(null);
+  const [marketStatus, setMarketStatus] = useState<MarketStatusResponse | null>(null);
+  const marketStatusRequestRef = useRef<Promise<void> | null>(null);
   const localizedModes = useMemo(() => getLocalizedSymbolDetailModes(copy), [copy]);
 
   useEffect(() => {
@@ -182,33 +189,55 @@ export function useSymbolDetailData({
           ? copy.errors.masterSymbolNotFound
           : null;
 
-  const quoteBundleRequest = useMemo(
+  const quoteRequest = useMemo(
     () => ({
       enabled: symbolReady,
-      key: ["symbol-detail", "quote-bundle", normalizedSymbol] as const,
+      key: ["symbol-detail", "quote", normalizedSymbol] as const,
       cachePolicy: "network-first" as const,
       ttlMs: 5_000,
-      fetcher: async () => {
-        const [quote, marketStatus] = await Promise.all([
-          fetchUnitJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(normalizedSymbol)}`),
-          fetchUnitJson<MarketStatusResponse>("/api/trading/market/status"),
-        ]);
-
-        return {
-          marketStatus,
-          quote,
-        } satisfies QuoteWorkspaceSnapshot;
-      },
+      fetcher: () => fetchUnitJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(normalizedSymbol)}`),
     }),
     [normalizedSymbol, symbolReady],
   );
-  const quoteBundleResult = useUnitData<QuoteWorkspaceSnapshot>(quoteBundleRequest);
-  const quote = quoteBundleResult.data?.quote ?? null;
-  const marketStatus = quoteBundleResult.data?.marketStatus ?? null;
-  const loading = symbolReady ? quoteBundleResult.isInitialLoading : true;
-  const quoteError = quoteBundleResult.error && !quote ? copy.errors.quoteUnavailable : null;
+  const quoteResult = useUnitData<QuoteResponse>(quoteRequest);
+  const refreshMarketStatus = useCallback(() => {
+    if (marketStatusRequestRef.current) return marketStatusRequestRef.current;
+
+    const request = fetchUnitJson<MarketStatusResponse>(MOBILE_TOOLBAR_MARKET_STATUS_PATH)
+      .then((nextMarketStatus) => {
+        seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, nextMarketStatus);
+        setMarketStatus(nextMarketStatus);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        marketStatusRequestRef.current = null;
+      });
+
+    marketStatusRequestRef.current = request;
+    return request;
+  }, []);
+
+  useEffect(() => {
+    if (!symbolReady) {
+      setMarketStatus(null);
+      return;
+    }
+
+    const dashboardMarketStatus = readTradingApiJsonSnapshot<MarketStatusResponse>(
+      MOBILE_TOOLBAR_MARKET_STATUS_PATH,
+    );
+    if (dashboardMarketStatus) {
+      setMarketStatus(dashboardMarketStatus);
+    }
+    void refreshMarketStatus();
+  }, [refreshMarketStatus, symbolReady]);
+
+  const quote = quoteResult.data;
+  const loading = symbolReady ? quoteResult.isInitialLoading : true;
+  const quoteError = quoteResult.error && !quote ? copy.errors.quoteUnavailable : null;
   const quotePollingStopped = shouldStopQuotePollingForClosedSession(marketStatus, quote);
-  const refetchQuoteBundle = quoteBundleResult.refetch;
+  const quotePollingState = resolveQuotePollingDisplayState(marketStatus, quote);
+  const refetchQuote = quoteResult.refetch;
 
   const freshnessBasisRequest = useMemo(
     () => ({
@@ -272,13 +301,16 @@ export function useSymbolDetailData({
     if (!symbolReady || quotePollingStopped) return;
 
     const timer = window.setInterval(() => {
-      void refetchQuoteBundle();
+      void refreshMarketStatus();
+      if (quotePollingState === "active") {
+        void refetchQuote();
+      }
     }, 1_500);
 
     return () => {
       window.clearInterval(timer);
     };
-  }, [quotePollingStopped, refetchQuoteBundle, symbolReady]);
+  }, [quotePollingState, quotePollingStopped, refetchQuote, refreshMarketStatus, symbolReady]);
 
   useEffect(() => {
     let active = true;
@@ -585,7 +617,7 @@ export function useSymbolDetailData({
     priceHistory,
     previousFocusBar,
     quote,
-    quotePollingStopped,
+    quotePollingState,
     quoteSourceCopy,
     navContext,
     feedbackActionFilter,

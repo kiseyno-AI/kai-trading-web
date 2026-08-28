@@ -31,6 +31,7 @@ import {
   resolveSymbolDetailCurrentMarketDate,
   resolveSymbolDetailEffectiveMarketDate,
   resolveSymbolDetailLatestStoredMarketDate,
+  resolveQuotePollingDisplayState,
   shouldStopQuotePollingForClosedSession,
 } from "./symbol-detail-derived-state";
 
@@ -149,6 +150,26 @@ test("uses polling-active copy during live sessions even when quote indicates CL
     getMarketOpenState({ state: "OPEN", is_open: true }),
     true,
   );
+});
+
+test("only reports active quote polling when live refresh is applicable", () => {
+  assert.equal(resolveQuotePollingDisplayState(null, null), "stopped");
+  assert.equal(
+    resolveQuotePollingDisplayState(
+      null,
+      makeQuote({ available: false, is_live: false, market_state: "OPEN" }),
+    ),
+    "stopped",
+  );
+  assert.equal(
+    resolveQuotePollingDisplayState(
+      { state: "CLOSED", is_open: false },
+      makeQuote({ available: true, is_live: true, market_state: "OPEN" }),
+    ),
+    "closed",
+  );
+  assert.equal(resolveQuotePollingDisplayState({ state: "OPEN", is_open: true }, null), "active");
+  assert.equal(resolveQuotePollingDisplayState(null, makeQuote()), "active");
 });
 
 test("resolves implicit symbol-detail market date from latest stored freshness while preserving explicit dates", () => {
