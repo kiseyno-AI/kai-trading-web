@@ -93,7 +93,8 @@ const symbolDetailCopy = {
       targetPrice: "Target",
       currentPrice: "Current price",
       closePrice: "Close price",
-      reviewEvidence: "Review full symbol evidence",
+      actionRationaleUnavailableEvidence:
+        "Action-summary rationale unavailable · Review same-date signal-decider evidence",
     },
     chart: {
       overviewEyebrow: "Historical Performance",
@@ -611,7 +612,7 @@ const symbolDetailCopy = {
       targetPrice: "목표",
       currentPrice: "현재 가격",
       closePrice: "종가",
-      reviewEvidence: "종목 전체 근거 보기",
+      actionRationaleUnavailableEvidence: "액션 요약 근거 없음 · 같은 기준일 디사이더 근거 보기",
     },
     chart: {
       overviewEyebrow: "과거 성과",

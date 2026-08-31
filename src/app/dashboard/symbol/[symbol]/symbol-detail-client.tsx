@@ -220,7 +220,9 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const handleOpenFreshnessDetail = useCallback(() => {
     setActiveMode("system-freshness");
   }, [setActiveMode]);
-  const overviewHref = `/dashboard/symbol/${encodeURIComponent(symbol)}${routeQueryString ? `?${routeQueryString}` : ""}`;
+  const dashboardRecommendationEvidenceHref = dashboardRecommendation
+    ? buildSignalDeciderFeedbackHref(marketDate, { query: normalizedSymbol })
+    : null;
 
   const pendingChrome = {
     activeNav: symbolDetailActiveNav,
@@ -454,9 +456,6 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 <strong>{formatPrice(dashboardRecommendation.referencePrice, copy.common.unavailable)}</strong>
               </article>
             </div>
-            <Link href={overviewHref} className={styles.detailLink}>
-              {copy.dashboardRecommendation.reviewEvidence}
-            </Link>
           </section>
         ) : null}
 
@@ -592,6 +591,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             {showActionSection ? (
               <ActionSummarySection
                 copy={copy}
+                dashboardRecommendationEvidenceHref={dashboardRecommendationEvidenceHref}
                 fsDiv={fsDiv}
                 marketDate={marketDate}
                 normalizedSymbol={normalizedSymbol}
