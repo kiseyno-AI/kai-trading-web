@@ -314,11 +314,14 @@ export const HeroActionRecommendationMetric = memo(function HeroActionRecommenda
 
 export const ActionSummarySection = memo(function ActionSummarySection({
   copy,
+  dashboardRecommendationEvidenceHref,
   fsDiv,
   marketDate,
   normalizedSymbol,
   symbolReady,
-}: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady">) {
+}: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady"> & {
+  dashboardRecommendationEvidenceHref?: string | null;
+}) {
   const { devMode } = useAppState();
   const { busy, normalizedState, refreshing } = useNormalizedActionSummaryState(
     {
@@ -333,6 +336,9 @@ export const ActionSummarySection = memo(function ActionSummarySection({
   const resolvedActionSectionModel = normalizedState.sectionModel;
   const actionSectionBadgeLabel =
     normalizedState.kind === "pending" ? copy.hero.comingSoon : resolvedActionSectionModel.badgeLabel;
+  const shouldShowDashboardEvidenceFallback =
+    Boolean(dashboardRecommendationEvidenceHref) &&
+    (normalizedState.kind === "unavailable" || normalizedState.kind === "insufficient-history");
   const signalTrackProps = {
     "aria-label": resolvedActionSectionModel.meter.ariaLabel,
     "aria-valuemax": 100,
@@ -404,6 +410,15 @@ export const ActionSummarySection = memo(function ActionSummarySection({
         </div>
 
         {resolvedActionSectionModel.metaCaption ? <p className={styles.metaCaption}>{resolvedActionSectionModel.metaCaption}</p> : null}
+
+        {shouldShowDashboardEvidenceFallback && dashboardRecommendationEvidenceHref ? (
+          <Link
+            href={dashboardRecommendationEvidenceHref}
+            className={`${styles.detailLink} ${styles.dashboardEvidenceFallback}`}
+          >
+            {copy.dashboardRecommendation.actionRationaleUnavailableEvidence}
+          </Link>
+        ) : null}
       </UnitRefreshFrame>
     </section>
   );

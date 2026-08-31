@@ -1342,6 +1342,18 @@ test("builds signal-decider feedback paths with the full result window by defaul
   assert.equal(url.searchParams.get("limit"), String(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT));
 });
 
+test("builds symbol-scoped feedback paths before the upstream result limit", () => {
+  const path = buildSignalDeciderFeedbackPath({
+    basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
+    marketDate: "2026-04-28",
+    symbols: [" 005930 ", "000660", "005930"],
+  });
+  const url = new URL(`https://example.test${path}`);
+
+  assert.deepEqual(url.searchParams.getAll("symbols"), ["005930", "000660"]);
+  assert.equal(url.searchParams.get("limit"), String(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT));
+});
+
 test("builds latest signal-decider feedback paths with a resolved market date", () => {
   const path = buildSignalDeciderLatestFeedbackPath({
     basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
@@ -1393,6 +1405,13 @@ test("builds shared decider feedback paths with agent-specific API params and ro
       statusFilter: "with-risk",
     }),
     "/dashboard/signal-decider-feedback?marketDate=2026-05-06&navContext=calendar&originDate=2026-05-09&q=%ED%95%9C%EC%A7%84&feedbackAction=wait&feedbackStatus=with-risk&feedbackSort=captured",
+  );
+  assert.equal(
+    buildSignalDeciderFeedbackHref("2026-05-06", {
+      query: "005930",
+      symbols: ["005930"],
+    }),
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-06&q=005930&symbols=005930",
   );
   assert.equal(resolveDeciderFeedbackOriginDate("2026-05-09"), "2026-05-09");
   assert.equal(resolveDeciderFeedbackOriginDate("2026-02-30"), null);

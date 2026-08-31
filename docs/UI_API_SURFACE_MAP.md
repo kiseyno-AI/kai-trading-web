@@ -54,8 +54,8 @@ Entry point:
 
 Client loading:
 - `GET /api/trading/eod/freshness` when the route is opened without `marketDate`
-- `GET /api/trading/agent-context/feedback?market_date={marketDate}&agent_name=signal-decider&limit=200`
-- `GET /api/trading/agent-context/feedback/progress?market_date={marketDate}` as a best-effort status overlay
+- `GET /api/trading/agent-context/feedback?market_date={marketDate}&agent_name=signal-decider&limit=200[&symbols={selectedSymbol}]`
+- `GET /api/trading/agent-context/feedback/progress?market_date={marketDate}[&symbols={selectedSymbol}]` as a best-effort status overlay
 - Dashboard card only: `GET /api/trading/agent-context/feedback?market_date={latest_completed_or_resolved_feedback_date}&agent_name=signal-decider&limit={progress-sized full-result window}` as the latest-completed recommendation fallback while the active process date is still running or empty
 
 UI surfaces and fields:
@@ -66,6 +66,7 @@ UI surfaces and fields:
 
 Important behavior:
 - The route uses the generic stored feedback read filtered to `agent_name=signal-decider`; there is no signal-decider-specific read endpoint yet.
+- Symbol-detail evidence links add the selected symbol as an upstream `symbols` filter before Core applies its 200-row cap; the matching `q` parameter remains a client-side display filter.
 - Persisted 5-trading-day evaluation fields are read from stored feedback rows/details/normalized payloads only. The UI does not call compute, evaluate, recompute, maintenance, or task-run endpoints; absent evaluation objects render as `not computed yet`, and incomplete persisted objects render pending/insufficient-data states.
 - The dashboard card may show an older latest-completed signal-decider row set while the active process date is still running. The fallback read still includes a resolved `market_date` from the latest completed pipeline/action-summary/process basis when available and does not call the generic feedback route without that required query parameter. In that state the card labels the recommendation market date separately from the current cycle date/status, and its detail link points to the effective recommendation date. Explicit date-selected detail and calendar reads stay pinned to the requested date.
 - Dedicated Core decision list/detail/diagnostics/policy APIs from `kai-trading-core#234` and `#235` are still a dependency for guaranteed realized-result, missed-opportunity, bad-buy, and policy-version coverage. This page displays those fields when they are already stored on feedback rows, but it does not infer them from unrelated market data.

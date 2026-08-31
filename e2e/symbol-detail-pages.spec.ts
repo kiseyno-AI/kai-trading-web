@@ -266,6 +266,115 @@ async function mockSystemFreshnessApis(
   });
 }
 
+async function mockSignalDeciderRecommendationEvidence(page: Page) {
+  await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
+    await route.fulfill({
+      json: {
+        request: {
+          market_date: "2026-04-10",
+          agent_names: ["signal-decider"],
+        },
+        result: {
+          market_date: "2026-04-10",
+          roles: {
+            "signal-decider": {
+              requested_count: 1,
+              completed_count: 1,
+              error_count: 0,
+            },
+          },
+        },
+      },
+    });
+  });
+
+  await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
+    const url = new URL(route.request().url());
+    const marketDate = url.searchParams.get("market_date");
+    const agentName = url.searchParams.get("agent_name");
+    const requestedSymbols = url.searchParams.getAll("symbols");
+    const hasMatchingEvidence = marketDate === "2026-04-10" && agentName === "signal-decider";
+    const highVolumeRows = hasMatchingEvidence
+      ? [
+          ...Array.from({ length: 200 }, (_, index) => ({
+            id: `earlier-dashboard-evidence-${index}`,
+            market_date: marketDate,
+            symbol: String(100000 + index),
+            agent: {
+              name: "signal-decider",
+              run_id: "dashboard-decider-2026-04-10",
+            },
+            summary: {},
+            feedback: {
+              role: "signal-decider",
+              symbol: String(100000 + index),
+              market_date: marketDate,
+              preferred_action: "wait",
+              thesis_summary: `Earlier stored recommendation ${index + 1}`,
+            },
+            normalized_feedback: null,
+            details: null,
+            context: null,
+            received_at: `2026-04-10T07:${String(59 - Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}+00:00`,
+          })),
+          {
+            id: "dashboard-evidence-005930",
+            market_date: marketDate,
+            symbol: "005930",
+            agent: {
+              name: "signal-decider",
+              run_id: "dashboard-decider-2026-04-10",
+            },
+            summary: {},
+            feedback: {
+              role: "signal-decider",
+              symbol: "005930",
+              market_date: marketDate,
+              preferred_action: "buy",
+              next_day_open_action: "buy",
+              target_price: 55200,
+              stop_loss_price: 51800,
+              confidence_score_10: 8,
+              conviction_score_10: 7,
+              thesis_summary: "Insurance momentum and valuation support the same-date recommendation.",
+              decision_risks: ["Opening gap could invalidate the setup"],
+              policy_version: "decider-policy-2026.04",
+            },
+            normalized_feedback: null,
+            details: null,
+            context: {
+              symbol_day_context: {
+                company: {
+                  name_ko: "현대해상",
+                },
+              },
+            },
+            received_at: "2026-04-10T07:00:00+00:00",
+          },
+        ]
+      : [];
+    const scopedRows = requestedSymbols.length
+      ? highVolumeRows.filter((item) => requestedSymbols.includes(item.symbol))
+      : highVolumeRows;
+    const returnedRows = scopedRows.slice(0, 200);
+
+    await route.fulfill({
+      json: {
+        request: {
+          market_date: marketDate,
+          symbols: requestedSymbols,
+          agent_name: agentName,
+          limit: 200,
+        },
+        summary: {
+          count: returnedRows.length,
+        },
+        items: returnedRows,
+      },
+    });
+  });
+}
+
 async function mockDetailModeSwitchApis(
   page: Page,
   requestCounts: { priceHistory: number; technical: number; action: number; fundamentals: number },
@@ -1087,44 +1196,75 @@ test.describe("symbol detail mobile pages", () => {
     await expect(actionSection.locator('[role="status"][aria-label="Signal score: No current action resolved"]')).toBeVisible();
   });
 
-  test("dashboard recommendation drilldown preserves context and opens broader symbol evidence", async ({ page }) => {
-    await mockSystemFreshnessApis(page);
-    await page.route("**/api/trading/quotes/005930", async (route) => {
-      await route.fulfill({ status: 503, json: { detail: "Quote unavailable" } });
+  for (const viewport of [
+    { label: "desktop", width: 1280, height: 900 },
+    { label: "390x844 mobile", width: 390, height: 844 },
+  ]) {
+    test(`dashboard recommendation fallback retrieves same-date evidence beyond the 200-row cap on ${viewport.label}`, async ({
+      page,
+    }) => {
+      await mockSystemFreshnessApis(page);
+      await mockSignalDeciderRecommendationEvidence(page);
+      await page.route("**/api/trading/quotes/005930", async (route) => {
+        await route.fulfill({ status: 503, json: { detail: "Quote unavailable" } });
+      });
+      await page.route("**/api/trading/symbols/search?**", async (route) => {
+        await route.fulfill({ status: 503, json: { detail: "Symbol search unavailable" } });
+      });
+
+      const recommendationQuery = new URLSearchParams({
+        name: "현대해상",
+        market: "KOSPI",
+        marketDate: "2026-04-10",
+        recommendationSource: "dashboard-decider",
+        referencePriceKind: "current",
+        stopLossPrice: "51800",
+        targetPrice: "55200",
+        referencePrice: "52400",
+      });
+
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(`/dashboard/symbol/005930/action-summary?${recommendationQuery}`);
+
+      const context = page.getByRole("region", { name: /현대해상 · Selected recommendation context/i });
+      const actionSection = page.locator("#action");
+      await expect(page.getByRole("heading", { name: "현대해상", exact: true })).toBeVisible();
+      await expect(context).toBeVisible();
+      await expect(context).toContainText("Dashboard Decider");
+      await expect(context).toContainText("Market date 2026-04-10");
+      await expect(context).toContainText("51,800");
+      await expect(context).toContainText("55,200");
+      await expect(context).toContainText("52,400");
+      await expect(actionSection).toHaveAttribute("data-action-state", "unavailable");
+
+      const evidenceLink = actionSection.getByRole("link", {
+        name: /Action-summary rationale unavailable · Review same-date signal-decider evidence/i,
+      });
+      await expect(evidenceLink).toHaveAttribute(
+        "href",
+        "/dashboard/signal-decider-feedback?marketDate=2026-04-10&q=005930&symbols=005930",
+      );
+      await evidenceLink.click();
+
+      await expect(page).toHaveURL(
+        /\/dashboard\/signal-decider-feedback\?marketDate=2026-04-10&q=005930&symbols=005930$/,
+      );
+      const evidenceCard = page.getByTestId("signal-decider-result-card");
+      await expect(evidenceCard).toHaveCount(1);
+      await expect(evidenceCard).toContainText("현대해상");
+      await expect(evidenceCard).toContainText("005930");
+      await expect(evidenceCard).toContainText(
+        "Insurance momentum and valuation support the same-date recommendation.",
+      );
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+        .toBeLessThanOrEqual(1);
+
+      if (viewport.width === 390) {
+        await expectMobileContentClearsBottomChrome(page, evidenceCard);
+      }
     });
-    await page.route("**/api/trading/symbols/search?**", async (route) => {
-      await route.fulfill({ status: 503, json: { detail: "Symbol search unavailable" } });
-    });
-
-    const recommendationQuery = new URLSearchParams({
-      name: "현대해상",
-      market: "KOSPI",
-      marketDate: "2026-04-10",
-      recommendationSource: "dashboard-decider",
-      referencePriceKind: "current",
-      stopLossPrice: "51800",
-      targetPrice: "55200",
-      referencePrice: "52400",
-    });
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/dashboard/symbol/005930/action-summary?${recommendationQuery}`);
-
-    const context = page.getByRole("region", { name: /현대해상 · Selected recommendation context/i });
-    await expect(page.getByRole("heading", { name: "현대해상", exact: true })).toBeVisible();
-    await expect(context).toBeVisible();
-    await expect(context).toContainText("Market date 2026-04-10");
-    await expect(context).toContainText("51,800");
-    await expect(context).toContainText("55,200");
-    await expect(context).toContainText("52,400");
-    await expect(page.locator("#action")).toHaveAttribute("data-action-state", "unavailable");
-
-    await context.getByRole("link", { name: /Review full symbol evidence/i }).click();
-
-    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?name=%ED%98%84%EB%8C%80%ED%95%B4%EC%83%81/);
-    await expect(page.getByRole("button", { name: "Insights" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("#chart")).toBeVisible();
-  });
+  }
 
   test("Korean hero and Action tab share the terminal insufficient-history state", async ({ page }) => {
     const requestCounts = {

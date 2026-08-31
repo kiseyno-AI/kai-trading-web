@@ -412,6 +412,13 @@
   white-space: nowrap;
 }
 
+.dashboardEvidenceFallback {
+  width: 100%;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+}
+
 .detailTabActive {
   background: rgba(0, 82, 255, 0.18);
   border-color: rgba(88, 139, 255, 0.42);
@@ -958,6 +965,10 @@
 }
 
 @media (min-width: 768px) {
+  .dashboardEvidenceFallback {
+    width: fit-content;
+  }
+
   .chartCard .cardHeader {
     flex-direction: row;
     align-items: flex-start;
