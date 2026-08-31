@@ -181,7 +181,7 @@ test.describe("dashboard desktop", () => {
     await expect(deciderCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
     await expect(deciderCard.getByRole("link", { name: /Review rationale: Samsung Electronics 005930/i })).toHaveAttribute(
       "href",
-      "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-28",
+      "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-28&recommendationSource=dashboard-decider&referencePriceKind=current&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
     );
     await expect(deciderCard.getByText("Stop-loss", { exact: true })).toBeVisible();
     await expect(deciderCard.getByText("Target", { exact: true })).toBeVisible();

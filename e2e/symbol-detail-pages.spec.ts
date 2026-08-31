@@ -1087,6 +1087,45 @@ test.describe("symbol detail mobile pages", () => {
     await expect(actionSection.locator('[role="status"][aria-label="Signal score: No current action resolved"]')).toBeVisible();
   });
 
+  test("dashboard recommendation drilldown preserves context and opens broader symbol evidence", async ({ page }) => {
+    await mockSystemFreshnessApis(page);
+    await page.route("**/api/trading/quotes/005930", async (route) => {
+      await route.fulfill({ status: 503, json: { detail: "Quote unavailable" } });
+    });
+    await page.route("**/api/trading/symbols/search?**", async (route) => {
+      await route.fulfill({ status: 503, json: { detail: "Symbol search unavailable" } });
+    });
+
+    const recommendationQuery = new URLSearchParams({
+      name: "현대해상",
+      market: "KOSPI",
+      marketDate: "2026-04-10",
+      recommendationSource: "dashboard-decider",
+      referencePriceKind: "current",
+      stopLossPrice: "51800",
+      targetPrice: "55200",
+      referencePrice: "52400",
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/dashboard/symbol/005930/action-summary?${recommendationQuery}`);
+
+    const context = page.getByRole("region", { name: /현대해상 · Selected recommendation context/i });
+    await expect(page.getByRole("heading", { name: "현대해상", exact: true })).toBeVisible();
+    await expect(context).toBeVisible();
+    await expect(context).toContainText("Market date 2026-04-10");
+    await expect(context).toContainText("51,800");
+    await expect(context).toContainText("55,200");
+    await expect(context).toContainText("52,400");
+    await expect(page.locator("#action")).toHaveAttribute("data-action-state", "unavailable");
+
+    await context.getByRole("link", { name: /Review full symbol evidence/i }).click();
+
+    await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?name=%ED%98%84%EB%8C%80%ED%95%B4%EC%83%81/);
+    await expect(page.getByRole("button", { name: "Insights" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#chart")).toBeVisible();
+  });
+
   test("Korean hero and Action tab share the terminal insufficient-history state", async ({ page }) => {
     const requestCounts = {
       priceHistory: 0,

@@ -69,6 +69,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     activeMode,
     chartMetrics,
     chartUnitRefreshing,
+    dashboardRecommendation,
     detailErrors,
     disclosureItemLimit,
     focusBar,
@@ -219,6 +220,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const handleOpenFreshnessDetail = useCallback(() => {
     setActiveMode("system-freshness");
   }, [setActiveMode]);
+  const overviewHref = `/dashboard/symbol/${encodeURIComponent(symbol)}${routeQueryString ? `?${routeQueryString}` : ""}`;
 
   const pendingChrome = {
     activeNav: symbolDetailActiveNav,
@@ -416,6 +418,47 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             ))}
           </nav>
         </section>
+
+        {showActionSection && dashboardRecommendation ? (
+          <section
+            className={`${styles.panel} ${styles.recommendationContextCard}`}
+            aria-labelledby="dashboard-recommendation-context-title"
+          >
+            <div className={styles.cardHeader}>
+              <div>
+                <p className={styles.sectionEyebrow}>{copy.dashboardRecommendation.eyebrow}</p>
+                <h2 id="dashboard-recommendation-context-title" className={styles.cardTitle}>
+                  {introTitle} · {copy.dashboardRecommendation.title}
+                </h2>
+              </div>
+              <span className="pill info">
+                {copy.dashboardRecommendation.marketDate} {marketDate ?? copy.common.datePending}
+              </span>
+            </div>
+            <p className={styles.supportingCopy}>{copy.dashboardRecommendation.body}</p>
+            <div className={styles.metricGrid}>
+              <article className={styles.metricCard}>
+                <span>{copy.dashboardRecommendation.stopLossPrice}</span>
+                <strong>{formatPrice(dashboardRecommendation.stopLossPrice, copy.common.unavailable)}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>{copy.dashboardRecommendation.targetPrice}</span>
+                <strong>{formatPrice(dashboardRecommendation.targetPrice, copy.common.unavailable)}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>
+                  {dashboardRecommendation.referencePriceKind === "close"
+                    ? copy.dashboardRecommendation.closePrice
+                    : copy.dashboardRecommendation.currentPrice}
+                </span>
+                <strong>{formatPrice(dashboardRecommendation.referencePrice, copy.common.unavailable)}</strong>
+              </article>
+            </div>
+            <Link href={overviewHref} className={styles.detailLink}>
+              {copy.dashboardRecommendation.reviewEvidence}
+            </Link>
+          </section>
+        ) : null}
 
         {showChartSection ? (
           <section

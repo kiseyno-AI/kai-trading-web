@@ -24,6 +24,7 @@ import {
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { MOBILE_TOOLBAR_MARKET_STATUS_PATH } from "@/lib/mobile-toolbar-data";
+import { readDashboardRecommendationContext } from "@/lib/dashboard-recommendation-context";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import {
   invalidateTradingApiCacheByPathPrefix,
@@ -130,6 +131,10 @@ export function useSymbolDetailData({
   const symbolDetailActiveNav = resolveSymbolDetailActiveNav(navContext);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
+  const dashboardRecommendation = useMemo(
+    () => readDashboardRecommendationContext(searchParams),
+    [searchParams],
+  );
   const initialMeta = useMemo(() => {
     return buildInitialSymbolMeta(symbol, {
       name: searchParams.get("name"),
@@ -179,7 +184,7 @@ export function useSymbolDetailData({
     [needsSymbolMeta, normalizedSymbol, symbolReady],
   );
   const metaResult = useUnitData<SymbolSearchItem | null>(metaRequest);
-  const meta = needsSymbolMeta ? metaResult.data : initialMeta;
+  const meta = needsSymbolMeta ? (metaResult.data ?? initialMeta) : initialMeta;
   const metaError =
     !needsSymbolMeta
       ? null
@@ -591,6 +596,7 @@ export function useSymbolDetailData({
     activeMode,
     chartMetrics,
     chartUnitRefreshing,
+    dashboardRecommendation,
     detailErrors,
     disclosureItemLimit,
     focusBar,

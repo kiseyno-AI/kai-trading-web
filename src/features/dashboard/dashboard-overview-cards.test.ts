@@ -95,7 +95,7 @@ test("builds market-open decider rows from monitored symbols without per-symbol 
   assert.equal(model.rows[0].compactPriceLine, "Stop 70,000 · Target 76,000 · Now 71,500");
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22",
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22&recommendationSource=dashboard-decider&referencePriceKind=current&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
   );
 });
 
@@ -237,7 +237,7 @@ test("shows planned buy and sell rows when closed-market process is partial with
   assert.equal(model.rows[1].intentLabel, "Planned sell today");
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22",
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22&recommendationSource=dashboard-decider&referencePriceKind=close&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
   );
   assert.equal(
     model.contextLabel,
@@ -421,7 +421,7 @@ test("builds closed-market next-day exec rows with close prices when the daily p
   );
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21",
+    "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21&recommendationSource=dashboard-decider&referencePriceKind=close&stopLossPrice=174000&targetPrice=184000&referencePrice=179500",
   );
 });
 
@@ -462,7 +462,7 @@ test("routes decider More link to visible recommendation source date", () => {
   assert.equal(model.detailMarketDate, "2026-07-16");
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/004080/action-summary?name=Kyungbang&market=KRX&marketDate=2026-07-16",
+    "/dashboard/symbol/004080/action-summary?name=Kyungbang&market=KRX&marketDate=2026-07-16&recommendationSource=dashboard-decider&referencePriceKind=close&stopLossPrice=8700&targetPrice=9500&referencePrice=9100",
   );
   assert.equal(
     buildDashboardDeciderMoreHref({

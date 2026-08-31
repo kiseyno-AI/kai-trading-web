@@ -20,6 +20,10 @@ import {
   type PortfolioSummaryState,
 } from "@/features/portfolio/portfolio-display";
 import { buildSignalDeciderFeedbackHref } from "@/lib/signal-decider-feedback";
+import {
+  appendDashboardRecommendationContext,
+  type DashboardRecommendationReferencePriceKind,
+} from "@/lib/dashboard-recommendation-context";
 import type {
   CoreMarketStatus,
   CoreTrackedQuote,
@@ -212,12 +216,20 @@ function buildRecommendationDetailHref({
   marketDate,
   marketLabel,
   nameLabel,
+  referencePrice,
+  referencePriceKind,
+  stopLossPrice,
   symbol,
+  targetPrice,
 }: {
   marketDate: string | null;
   marketLabel: string | null;
   nameLabel: string;
+  referencePrice: ExecutionRuntimeQuantity | undefined;
+  referencePriceKind: DashboardRecommendationReferencePriceKind;
+  stopLossPrice: ExecutionRuntimeQuantity | undefined;
   symbol: string;
+  targetPrice: ExecutionRuntimeQuantity | undefined;
 }) {
   const params = new URLSearchParams();
   const forwardableName = textOrNull(nameLabel);
@@ -234,6 +246,13 @@ function buildRecommendationDetailHref({
   if (marketDate) {
     params.set("marketDate", marketDate);
   }
+
+  appendDashboardRecommendationContext(params, {
+    referencePrice: quantityToNumber(referencePrice),
+    referencePriceKind,
+    stopLossPrice: quantityToNumber(stopLossPrice),
+    targetPrice: quantityToNumber(targetPrice),
+  });
 
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(symbol)}/action-summary${query ? `?${query}` : ""}`;
@@ -439,13 +458,20 @@ function buildClosedMarketDeciderRow({
   const marketLabel = textOrNull(item.market);
   const nameLabel = textOrNull(item.name) ?? item.symbol;
   const sourceMarketDate = textOrNull(item.source_market_date) ?? boardMarketDate ?? currentMarketDate;
+  const stopLossPrice = getStopLossPriceWithFallback(item, null);
+  const targetPrice = getTargetPrice(item, null);
+  const closePrice = getClosedPrice(item);
 
   return {
     detailHref: buildRecommendationDetailHref({
       marketDate: sourceMarketDate,
       marketLabel,
       nameLabel,
+      referencePrice: closePrice,
+      referencePriceKind: "close",
+      stopLossPrice,
       symbol: item.symbol,
+      targetPrice,
     }),
     intentLabel: getPlannedTradeIntentLabel(item, boardMarketDate, currentMarketDate, copy),
     key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? index}`,
@@ -456,17 +482,17 @@ function buildClosedMarketDeciderRow({
       {
         key: "stop-loss",
         label: copy.stopLossPrice,
-        value: formatPrice(getStopLossPriceWithFallback(item, null), numberLocale, copy.unavailable),
+        value: formatPrice(stopLossPrice, numberLocale, copy.unavailable),
       },
       {
         key: "target",
         label: copy.targetPrice,
-        value: formatPrice(getTargetPrice(item, null), numberLocale, copy.unavailable),
+        value: formatPrice(targetPrice, numberLocale, copy.unavailable),
       },
       {
         key: "close",
         label: copy.closePrice,
-        value: formatPrice(getClosedPrice(item), numberLocale, copy.unavailable),
+        value: formatPrice(closePrice, numberLocale, copy.unavailable),
       },
     ],
     symbol: item.symbol,
@@ -971,7 +997,11 @@ export function buildDashboardDeciderOverviewModel({
           marketDate: sourceMarketDate,
           marketLabel,
           nameLabel,
+          referencePrice: currentPrice,
+          referencePriceKind: "current",
+          stopLossPrice,
           symbol: item.symbol,
+          targetPrice,
         }),
         key: item.symbol,
         marketDate: sourceMarketDate,
