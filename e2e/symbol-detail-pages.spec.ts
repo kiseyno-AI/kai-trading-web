@@ -292,57 +292,84 @@ async function mockSignalDeciderRecommendationEvidence(page: Page) {
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date");
     const agentName = url.searchParams.get("agent_name");
+    const requestedSymbols = url.searchParams.getAll("symbols");
     const hasMatchingEvidence = marketDate === "2026-04-10" && agentName === "signal-decider";
+    const highVolumeRows = hasMatchingEvidence
+      ? [
+          ...Array.from({ length: 200 }, (_, index) => ({
+            id: `earlier-dashboard-evidence-${index}`,
+            market_date: marketDate,
+            symbol: String(100000 + index),
+            agent: {
+              name: "signal-decider",
+              run_id: "dashboard-decider-2026-04-10",
+            },
+            summary: {},
+            feedback: {
+              role: "signal-decider",
+              symbol: String(100000 + index),
+              market_date: marketDate,
+              preferred_action: "wait",
+              thesis_summary: `Earlier stored recommendation ${index + 1}`,
+            },
+            normalized_feedback: null,
+            details: null,
+            context: null,
+            received_at: `2026-04-10T07:${String(59 - Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}+00:00`,
+          })),
+          {
+            id: "dashboard-evidence-005930",
+            market_date: marketDate,
+            symbol: "005930",
+            agent: {
+              name: "signal-decider",
+              run_id: "dashboard-decider-2026-04-10",
+            },
+            summary: {},
+            feedback: {
+              role: "signal-decider",
+              symbol: "005930",
+              market_date: marketDate,
+              preferred_action: "buy",
+              next_day_open_action: "buy",
+              target_price: 55200,
+              stop_loss_price: 51800,
+              confidence_score_10: 8,
+              conviction_score_10: 7,
+              thesis_summary: "Insurance momentum and valuation support the same-date recommendation.",
+              decision_risks: ["Opening gap could invalidate the setup"],
+              policy_version: "decider-policy-2026.04",
+            },
+            normalized_feedback: null,
+            details: null,
+            context: {
+              symbol_day_context: {
+                company: {
+                  name_ko: "현대해상",
+                },
+              },
+            },
+            received_at: "2026-04-10T07:00:00+00:00",
+          },
+        ]
+      : [];
+    const scopedRows = requestedSymbols.length
+      ? highVolumeRows.filter((item) => requestedSymbols.includes(item.symbol))
+      : highVolumeRows;
+    const returnedRows = scopedRows.slice(0, 200);
 
     await route.fulfill({
       json: {
         request: {
           market_date: marketDate,
-          symbols: [],
+          symbols: requestedSymbols,
           agent_name: agentName,
           limit: 200,
         },
         summary: {
-          count: hasMatchingEvidence ? 1 : 0,
+          count: returnedRows.length,
         },
-        items: hasMatchingEvidence
-          ? [
-              {
-                id: "dashboard-evidence-005930",
-                market_date: marketDate,
-                symbol: "005930",
-                agent: {
-                  name: "signal-decider",
-                  run_id: "dashboard-decider-2026-04-10",
-                },
-                summary: {},
-                feedback: {
-                  role: "signal-decider",
-                  symbol: "005930",
-                  market_date: marketDate,
-                  preferred_action: "buy",
-                  next_day_open_action: "buy",
-                  target_price: 55200,
-                  stop_loss_price: 51800,
-                  confidence_score_10: 8,
-                  conviction_score_10: 7,
-                  thesis_summary: "Insurance momentum and valuation support the same-date recommendation.",
-                  decision_risks: ["Opening gap could invalidate the setup"],
-                  policy_version: "decider-policy-2026.04",
-                },
-                normalized_feedback: null,
-                details: null,
-                context: {
-                  symbol_day_context: {
-                    company: {
-                      name_ko: "현대해상",
-                    },
-                  },
-                },
-                received_at: "2026-04-10T07:45:00+00:00",
-              },
-            ]
-          : [],
+        items: returnedRows,
       },
     });
   });
@@ -1173,7 +1200,7 @@ test.describe("symbol detail mobile pages", () => {
     { label: "desktop", width: 1280, height: 900 },
     { label: "390x844 mobile", width: 390, height: 844 },
   ]) {
-    test(`dashboard recommendation fallback opens same-date signal-decider evidence on ${viewport.label}`, async ({
+    test(`dashboard recommendation fallback retrieves same-date evidence beyond the 200-row cap on ${viewport.label}`, async ({
       page,
     }) => {
       await mockSystemFreshnessApis(page);
@@ -1215,12 +1242,12 @@ test.describe("symbol detail mobile pages", () => {
       });
       await expect(evidenceLink).toHaveAttribute(
         "href",
-        "/dashboard/signal-decider-feedback?marketDate=2026-04-10&q=005930",
+        "/dashboard/signal-decider-feedback?marketDate=2026-04-10&q=005930&symbols=005930",
       );
       await evidenceLink.click();
 
       await expect(page).toHaveURL(
-        /\/dashboard\/signal-decider-feedback\?marketDate=2026-04-10&q=005930$/,
+        /\/dashboard\/signal-decider-feedback\?marketDate=2026-04-10&q=005930&symbols=005930$/,
       );
       const evidenceCard = page.getByTestId("signal-decider-result-card");
       await expect(evidenceCard).toHaveCount(1);

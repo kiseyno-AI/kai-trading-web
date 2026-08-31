@@ -221,7 +221,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     setActiveMode("system-freshness");
   }, [setActiveMode]);
   const dashboardRecommendationEvidenceHref = dashboardRecommendation
-    ? buildSignalDeciderFeedbackHref(marketDate, { query: normalizedSymbol })
+    ? buildSignalDeciderFeedbackHref(marketDate, { query: normalizedSymbol, symbols: [normalizedSymbol] })
     : null;
 
   const pendingChrome = {

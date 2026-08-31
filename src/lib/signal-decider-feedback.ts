@@ -20,6 +20,7 @@ export const SIGNAL_DECIDER_FEEDBACK_REVIEW_DATE_CLIENT_PATH = "/api/trading/age
 export const SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH = "/api/trading/agent-context/feedback/calendar";
 export const DECIDER_FEEDBACK_NAV_CONTEXT_PARAM = "navContext";
 export const DECIDER_FEEDBACK_ORIGIN_DATE_PARAM = "originDate";
+export const DECIDER_FEEDBACK_SYMBOLS_PARAM = "symbols";
 export const DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT = "calendar";
 
 export type DeciderAgentName = (typeof DECIDER_AGENT_NAMES)[number];
@@ -2682,17 +2683,30 @@ export function buildSignalDeciderFeedbackPath({
   basePath,
   limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   marketDate,
+  symbols,
 }: {
   basePath: string;
   limit?: number | null;
   marketDate: string;
+  symbols?: readonly string[] | null;
 }) {
   return buildDeciderFeedbackPath({
     agentName: SIGNAL_DECIDER_AGENT_NAME,
     basePath,
     limit,
     marketDate,
+    symbols,
   });
+}
+
+export function normalizeDeciderFeedbackSymbols(symbols: readonly (string | null | undefined)[]) {
+  return Array.from(new Set(symbols.filter(hasTextValue).map((symbol) => symbol.trim())));
+}
+
+function appendDeciderFeedbackSymbols(params: URLSearchParams, symbols: readonly string[] | null | undefined) {
+  for (const symbol of normalizeDeciderFeedbackSymbols(symbols ?? [])) {
+    params.append(DECIDER_FEEDBACK_SYMBOLS_PARAM, symbol);
+  }
 }
 
 export function buildDeciderFeedbackPath({
@@ -2700,17 +2714,20 @@ export function buildDeciderFeedbackPath({
   basePath,
   limit = SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
   marketDate,
+  symbols,
 }: {
   agentName?: string | null;
   basePath: string;
   limit?: number | null;
   marketDate: string;
+  symbols?: readonly string[] | null;
 }) {
   const params = new URLSearchParams({
     market_date: marketDate,
     agent_name: resolveDeciderAgentName(agentName),
     limit: String(limit ?? SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT),
   });
+  appendDeciderFeedbackSymbols(params, symbols);
   return `${basePath}?${params.toString()}`;
 }
 
@@ -2805,6 +2822,7 @@ export function buildSignalDeciderFeedbackHref(
     query,
     sortMode,
     statusFilter,
+    symbols,
   }: {
     actionFilter?: string | null;
     navContext?: string | null;
@@ -2812,6 +2830,7 @@ export function buildSignalDeciderFeedbackHref(
     query?: string | null;
     sortMode?: string | null;
     statusFilter?: string | null;
+    symbols?: readonly string[] | null;
   } = {},
 ) {
   const params = new URLSearchParams();
@@ -2823,6 +2842,7 @@ export function buildSignalDeciderFeedbackHref(
   if (hasTextValue(actionFilter) && actionFilter !== "all") params.set("feedbackAction", actionFilter.trim());
   if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
   if (hasTextValue(sortMode) && sortMode !== "priority") params.set("feedbackSort", sortMode.trim());
+  appendDeciderFeedbackSymbols(params, symbols);
   const queryString = params.toString();
   return `${SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}${queryString ? `?${queryString}` : ""}`;
 }
@@ -2838,6 +2858,7 @@ export function buildDeciderFeedbackHref({
   sortMode,
   navContext,
   originDate,
+  symbols,
 }: {
   agentName?: string | null;
   marketDate?: string | null;
@@ -2849,6 +2870,7 @@ export function buildDeciderFeedbackHref({
   sortMode?: string | null;
   navContext?: string | null;
   originDate?: string | null;
+  symbols?: readonly string[] | null;
 } = {}) {
   const params = new URLSearchParams({ agent: resolveDeciderAgentName(agentName) });
   if (hasTextValue(marketDate)) params.set("marketDate", marketDate.trim());
@@ -2861,6 +2883,7 @@ export function buildDeciderFeedbackHref({
   if (hasTextValue(navContext)) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, navContext.trim());
   const resolvedOriginDate = resolveDeciderFeedbackOriginDate(originDate);
   if (resolvedOriginDate) params.set(DECIDER_FEEDBACK_ORIGIN_DATE_PARAM, resolvedOriginDate);
+  appendDeciderFeedbackSymbols(params, symbols);
   return `${DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
 }
 

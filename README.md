@@ -102,7 +102,7 @@ These routes are implemented under **`src/app/api/trading/`**. They proxy to tra
 | `GET` | `/api/trading/market/snapshot` | `/market/snapshot` | — |
 | `GET` | `/api/trading/portfolio/summary` | `/portfolio/summary` | — |
 | `GET` | `/api/trading/agent-context/symbol-day` | `/agent-context/symbol-day` | `market_date`, repeatable `symbols`, optional `fs_div`, optional `disclosures_limit` |
-| `GET` | `/api/trading/agent-context/feedback` | `/agent-context/feedback` | `market_date`, optional `agent_name`, optional `limit` |
+| `GET` | `/api/trading/agent-context/feedback` | `/agent-context/feedback` | `market_date`, optional repeatable `symbols`, optional `agent_name`, optional `limit` |
 | `GET` | `/api/trading/agent-context/feedback/progress` | `/agent-context/feedback/progress` | `market_date`, optional repeatable `symbols` |
 | `POST` | `/api/trading/agent-context/internal/core/control` | `/agent-context/internal/core/control` | JSON `{ "action": "kill", "signal_name": "SIGKILL", "port": 8000 }` |
 | `GET` | `/api/trading/execution/runtime/status` | `/execution/runtime/status` | optional `refresh` |

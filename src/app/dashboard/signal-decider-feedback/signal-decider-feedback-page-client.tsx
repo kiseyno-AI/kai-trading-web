@@ -35,10 +35,12 @@ import {
   DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
   DECIDER_FEEDBACK_NAV_CONTEXT_PARAM,
   DECIDER_FEEDBACK_ORIGIN_DATE_PARAM,
+  DECIDER_FEEDBACK_SYMBOLS_PARAM,
   DECIDER_FEEDBACK_DASHBOARD_PATH,
   filterDeciderDataGapRecords,
   getDeciderFeedbackComparisonKey,
   getOppositeDeciderAgentName,
+  normalizeDeciderFeedbackSymbols,
   resolveDeciderFeedbackNavContext,
   resolveDeciderFeedbackOriginDate,
   resolveDeciderDataGapDisplayState,
@@ -988,6 +990,10 @@ export default function SignalDeciderFeedbackPageClient() {
   const isShortTermAgent = activeAgent === SHORT_TERM_DECIDER_AGENT_NAME;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
   const requestedFeedbackQuery = useMemo(() => searchParams.get(SYMBOL_DETAIL_SEARCH_QUERY_PARAM) ?? "", [searchParams]);
+  const requestedFeedbackSymbols = useMemo(
+    () => normalizeDeciderFeedbackSymbols(searchParams.getAll(DECIDER_FEEDBACK_SYMBOLS_PARAM)),
+    [searchParams],
+  );
   const requestedActionFilter = useMemo(
     () => resolveActionFilterParam(searchParams.get(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM)),
     [searchParams],
@@ -1124,7 +1130,11 @@ export default function SignalDeciderFeedbackPageClient() {
     if (!marketDate) return;
 
     let active = true;
-    const cachedSnapshot = activeAgent === SIGNAL_DECIDER_AGENT_NAME ? readSignalDeciderFeedbackCache(marketDate) : null;
+    const isScopedFeedbackRead = requestedFeedbackSymbols.length > 0;
+    const cachedSnapshot =
+      activeAgent === SIGNAL_DECIDER_AGENT_NAME && !isScopedFeedbackRead
+        ? readSignalDeciderFeedbackCache(marketDate)
+        : null;
     if (cachedSnapshot) {
       queueMicrotask(() => {
         if (!active) return;
@@ -1151,6 +1161,7 @@ export default function SignalDeciderFeedbackPageClient() {
           basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
           limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
           marketDate,
+          symbols: requestedFeedbackSymbols,
         }),
         { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
       ).catch(() => null);
@@ -1164,6 +1175,7 @@ export default function SignalDeciderFeedbackPageClient() {
                 basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
                 limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
                 marketDate: previousMarketDate,
+                symbols: requestedFeedbackSymbols,
               }),
               { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
             ).catch(() => null)
@@ -1184,11 +1196,18 @@ export default function SignalDeciderFeedbackPageClient() {
               basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
               limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
               marketDate,
+              symbols: requestedFeedbackSymbols,
             }),
             { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
           ),
           getSignalDeciderReviewJson<AgentFeedbackProgressResponseDto>(
-            `/api/trading/agent-context/feedback/progress?market_date=${encodeURIComponent(marketDate)}`,
+            (() => {
+              const progressParams = new URLSearchParams({ market_date: marketDate });
+              for (const symbol of requestedFeedbackSymbols) {
+                progressParams.append(DECIDER_FEEDBACK_SYMBOLS_PARAM, symbol);
+              }
+              return `/api/trading/agent-context/feedback/progress?${progressParams.toString()}`;
+            })(),
             { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
           ).catch(() => null),
         ]);
@@ -1204,7 +1223,7 @@ export default function SignalDeciderFeedbackPageClient() {
         setPreviousFeedback(null);
         setProgress(selectedProgress);
         setLoadState("ready");
-        if (activeAgent === SIGNAL_DECIDER_AGENT_NAME && selectedFeedback === feedbackData) {
+        if (!isScopedFeedbackRead && activeAgent === SIGNAL_DECIDER_AGENT_NAME && selectedFeedback === feedbackData) {
           writeSignalDeciderFeedbackCache({
             feedback: feedbackData,
             marketDate,
@@ -1240,7 +1259,7 @@ export default function SignalDeciderFeedbackPageClient() {
     return () => {
       active = false;
     };
-  }, [activeAgent, comparisonAgent, marketDate, retryNonce]);
+  }, [activeAgent, comparisonAgent, marketDate, requestedFeedbackSymbols, retryNonce]);
 
   const summary = useMemo(
     () => buildDeciderFeedbackSummary({ agentName: activeAgent, feedback, marketDate, progress, previewLimit: 5 }),
@@ -1336,6 +1355,7 @@ export default function SignalDeciderFeedbackPageClient() {
     query,
     sortMode,
     statusFilter,
+    symbols: requestedFeedbackSymbols,
   };
   const signalTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SIGNAL_DECIDER_AGENT_NAME });
   const shortTermTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SHORT_TERM_DECIDER_AGENT_NAME });
@@ -1559,6 +1579,9 @@ export default function SignalDeciderFeedbackPageClient() {
     if (validGapSymbol !== "all") params.set("gapSymbol", validGapSymbol);
     if (statusFilter !== "all") params.set("feedbackStatus", statusFilter);
     if (sortMode !== "priority") params.set(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, sortMode);
+    for (const symbol of requestedFeedbackSymbols) {
+      params.append(DECIDER_FEEDBACK_SYMBOLS_PARAM, symbol);
+    }
     if (calendarContextNav) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, calendarContextNav);
     if (originDate) params.set(DECIDER_FEEDBACK_ORIGIN_DATE_PARAM, originDate);
     router.push(`${isSharedRoute ? DECIDER_FEEDBACK_DASHBOARD_PATH : SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`);
