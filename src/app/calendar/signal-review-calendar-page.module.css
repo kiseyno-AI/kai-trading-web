@@ -343,6 +343,7 @@
   display: block;
   margin-top: 0.28rem;
   overflow-wrap: anywhere;
+  word-break: keep-all;
   color: var(--text-strong);
   font-family: var(--font-inter), sans-serif;
   font-size: 0.9rem;

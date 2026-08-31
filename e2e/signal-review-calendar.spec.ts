@@ -3564,6 +3564,55 @@ test("signal review calendar shows outcome badges while preserving pending and i
   await expect(page.locator("body")).not.toContainText("Replay review is pending for the 5-day window.");
 });
 
+test("signal review calendar keeps Korean selected-date summary words intact across responsive widths", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await mockSignalReviewCalendar(page, { mixedHorizonDate: "2026-04-30" });
+
+  await page.goto("/calendar?date=2026-04-30");
+  await page.getByRole("button", { name: "Korean" }).click();
+
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-04-30" }) });
+  const pendingMetric = selectedPanel
+    .locator("div")
+    .filter({ hasText: /^5D 대기 상태\s*성숙 대기 1 · 가격 데이터 부족 1 · 미계산 0$/ })
+    .locator("strong");
+
+  await expect(pendingMetric).toHaveText("성숙 대기 1 · 가격 데이터 부족 1 · 미계산 0");
+  for (const viewport of [
+    { width: 1440, height: 1000 },
+    { width: 1280, height: 900 },
+    { width: 768, height: 1024 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(pendingMetric).toHaveCSS("word-break", "keep-all");
+
+    const layoutMetrics = await pendingMetric.evaluate((element) => {
+      const textNode = element.firstChild;
+      const text = textNode?.textContent ?? "";
+      const wordStart = text.indexOf("데이터");
+
+      if (!(textNode instanceof Text) || wordStart < 0) {
+        throw new Error("Expected the Korean data status word in the selected-date metric.");
+      }
+
+      const range = document.createRange();
+      range.setStart(textNode, wordStart);
+      range.setEnd(textNode, wordStart + "데이터".length);
+
+      const selectedPanel = element.closest("aside");
+      return {
+        panelFits: selectedPanel instanceof HTMLElement && selectedPanel.scrollWidth <= selectedPanel.clientWidth,
+        priceDataLineCount: range.getClientRects().length,
+      };
+    });
+    expect(layoutMetrics.priceDataLineCount).toBe(1);
+    expect(layoutMetrics.panelFits).toBe(true);
+  }
+});
+
 test("signal review calendar shows a partial selected-date state from stored evidence when inline review is unavailable", async ({
   page,
 }) => {
