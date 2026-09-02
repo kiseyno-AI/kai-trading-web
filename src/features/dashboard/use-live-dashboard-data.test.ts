@@ -3,11 +3,94 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  createMarketSnapshotRequestTimeout,
   hasResponseForRequestedMarketDate,
   isEodPipelineStatusTransientError,
   getEodPipelineStatusMonitorAwarePollDelayMs,
   getEodPipelineStatusPollDelayMsWithTransientErrors,
 } from "./use-live-dashboard-data";
+
+type MarketSnapshotTimeoutOptions = NonNullable<Parameters<typeof createMarketSnapshotRequestTimeout>[0]>;
+type MarketSnapshotTimeoutApi = NonNullable<MarketSnapshotTimeoutOptions["timeoutApi"]>;
+
+function buildMarketSnapshotTimeoutApi() {
+  let clearCount = 0;
+  let scheduledDelay: number | null = null;
+  let timeoutCallback: (() => void) | null = null;
+  const timeoutApi = {
+    clearTimeout: (() => {
+      clearCount += 1;
+    }) as MarketSnapshotTimeoutApi["clearTimeout"],
+    setTimeout: ((callback: () => void, delay?: number) => {
+      timeoutCallback = callback;
+      scheduledDelay = delay ?? null;
+      return 1;
+    }) as MarketSnapshotTimeoutApi["setTimeout"],
+  };
+
+  return {
+    get clearCount() {
+      return clearCount;
+    },
+    get scheduledDelay() {
+      return scheduledDelay;
+    },
+    runTimeout() {
+      assert.ok(timeoutCallback, "expected a market snapshot request timeout to be scheduled");
+      timeoutCallback();
+    },
+    timeoutApi,
+  };
+}
+
+test("aborts stalled market snapshot requests when the timeout elapses", () => {
+  const timeout = buildMarketSnapshotTimeoutApi();
+  const requestTimeout = createMarketSnapshotRequestTimeout({
+    timeoutApi: timeout.timeoutApi,
+    timeoutMs: 123,
+  });
+
+  assert.equal(timeout.scheduledDelay, 123);
+  assert.equal(requestTimeout.signal.aborted, false);
+
+  timeout.runTimeout();
+
+  assert.equal(requestTimeout.signal.aborted, true);
+  assert.match(
+    requestTimeout.signal.reason instanceof Error
+      ? requestTimeout.signal.reason.message
+      : String(requestTimeout.signal.reason),
+    /Market snapshot request timed out after 123ms\./,
+  );
+});
+
+test("clears settled market snapshot request timeouts without aborting the request", () => {
+  const timeout = buildMarketSnapshotTimeoutApi();
+  const requestTimeout = createMarketSnapshotRequestTimeout({
+    timeoutApi: timeout.timeoutApi,
+    timeoutMs: 123,
+  });
+
+  requestTimeout.clear();
+  requestTimeout.clear();
+
+  assert.equal(timeout.clearCount, 1);
+  assert.equal(requestTimeout.signal.aborted, false);
+});
+
+test("wires the market snapshot poll through its BFF path and request timeout", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.match(source, /const MARKET_SNAPSHOT_PATH = "\/api\/trading\/market\/snapshot";/);
+  assert.match(
+    source,
+    /const snapshot = await getJsonNoCache<MarketSnapshotResponseDto>\(MARKET_SNAPSHOT_PATH, \{\s*signal: requestTimeout\.signal,\s*\}\);/,
+  );
+  assert.match(source, /requestTimeout\.clear\(\);/);
+  assert.match(source, /inFlightRequest\?\.abort\(\);/);
+  assert.match(source, /getMarketSnapshotPollDelayMs\(\{/);
+});
 
 test("requires a requested-date match before reusing latest fallback snapshots", () => {
   const fallbackSnapshot = {

@@ -56,6 +56,7 @@ import {
   buildAgentRoleCards,
   buildEodStageCard,
   buildFilteringCardModel,
+  buildMarketSnapshotPresentation,
   buildProcessMonitorModel,
   buildScoringCardModel,
   formatEodSymbolCount,
@@ -73,6 +74,17 @@ import {
   getFundamentalsStatusLabel,
   getFundamentalsStageStatusLabel,
   getFundamentalsUpdatedSymbolsDetail,
+  getMarketSnapshotFlow,
+  getMarketSnapshotFlowAmount,
+  getMarketSnapshotFxChange,
+  getMarketSnapshotFxChangeRate,
+  getMarketSnapshotFxRate,
+  getMarketSnapshotFxValue,
+  getMarketSnapshotIndex,
+  getMarketSnapshotIndexChange,
+  getMarketSnapshotIndexChangeRate,
+  getMarketSnapshotIndexLevel,
+  getMarketSnapshotSummaryLine,
   getPipelineStageResolvedStatusDate,
   getPipelineStage,
   getPriceFreshnessStage,
@@ -91,6 +103,7 @@ import {
   maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
   mergeRunningPipelineStage,
+  normalizeMarketSnapshotToken,
   resolveFundamentalsPollingPresentation,
   shouldShowAgentRoleProgress,
   shouldTreatAgentFeedbackStopDisconnectAsAccepted,
@@ -113,6 +126,10 @@ import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-da
 import type {
   AgentContextCoreControlRequestDto,
   AgentContextCoreControlResponseDto,
+  MarketSnapshotFlowDto,
+  MarketSnapshotFxRateDto,
+  MarketSnapshotIndexDto,
+  MarketSnapshotResponseDto,
 } from "@/types/trading-api";
 
 import styles from "./live-dashboard-client.module.css";
@@ -1079,6 +1096,262 @@ const PortfolioStatusCard = memo(function PortfolioStatusCard({
   );
 });
 
+type MarketSnapshotTone = "positive" | "negative" | null;
+
+function getMarketSnapshotTone(value: number | null): MarketSnapshotTone {
+  if (value === null || value === 0) return null;
+  return value > 0 ? "positive" : "negative";
+}
+
+function getMarketSnapshotToneClassName(tone: MarketSnapshotTone) {
+  if (tone === "positive") return styles.positive;
+  if (tone === "negative") return styles.negative;
+  return "";
+}
+
+function formatMarketSnapshotNumber(
+  value: number | null,
+  numberLocale: string,
+  maximumFractionDigits = 2,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  if (value === null) return unavailableLabel;
+
+  return value.toLocaleString(numberLocale, {
+    maximumFractionDigits,
+    minimumFractionDigits: maximumFractionDigits,
+  });
+}
+
+function formatSignedMarketSnapshotNumber(
+  value: number | null,
+  numberLocale: string,
+  maximumFractionDigits = 2,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  if (value === null) return unavailableLabel;
+  const prefix = value > 0 ? "+" : "";
+
+  return `${prefix}${formatMarketSnapshotNumber(value, numberLocale, maximumFractionDigits)}`;
+}
+
+function formatSignedMarketSnapshotPercent(value: number | null, numberLocale: string, unavailableLabel = UNKNOWN_LABEL) {
+  if (value === null) return unavailableLabel;
+
+  return `${formatSignedMarketSnapshotNumber(value, numberLocale, 2)}%`;
+}
+
+function formatMarketSnapshotDelta(
+  change: number | null,
+  changeRate: number | null,
+  numberLocale: string,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  const changeLabel = formatSignedMarketSnapshotNumber(change, numberLocale, 2, unavailableLabel);
+  const rateLabel = formatSignedMarketSnapshotPercent(changeRate, numberLocale, unavailableLabel);
+
+  if (changeLabel === unavailableLabel && rateLabel === unavailableLabel) return unavailableLabel;
+  if (changeLabel === unavailableLabel) return rateLabel;
+  if (rateLabel === unavailableLabel) return changeLabel;
+
+  return `${changeLabel} (${rateLabel})`;
+}
+
+function compactMarketSnapshotAmount(value: number, numberLocale: string) {
+  const absoluteValue = Math.abs(value);
+
+  if (absoluteValue >= 1_000_000_000_000) {
+    return `${(absoluteValue / 1_000_000_000_000).toLocaleString(numberLocale, {
+      maximumFractionDigits: 1,
+    })}T`;
+  }
+
+  if (absoluteValue >= 1_000_000_000) {
+    return `${(absoluteValue / 1_000_000_000).toLocaleString(numberLocale, {
+      maximumFractionDigits: 1,
+    })}B`;
+  }
+
+  if (absoluteValue >= 1_000_000) {
+    return `${(absoluteValue / 1_000_000).toLocaleString(numberLocale, {
+      maximumFractionDigits: 1,
+    })}M`;
+  }
+
+  return absoluteValue.toLocaleString(numberLocale, { maximumFractionDigits: 0 });
+}
+
+function formatSignedMarketSnapshotAmount(
+  value: number | null,
+  flow: MarketSnapshotFlowDto | null | undefined,
+  numberLocale: string,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  if (value === null) return unavailableLabel;
+  const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
+  const currency = flow?.currency?.trim().toUpperCase() ?? "";
+  const unit = flow?.unit?.trim();
+  const amountLabel = compactMarketSnapshotAmount(value, numberLocale);
+
+  if (unit) return `${prefix}${amountLabel} ${unit}`;
+  if (currency === "KRW") return `${prefix}₩${amountLabel}`;
+  if (currency) return `${prefix}${amountLabel} ${currency}`;
+
+  return `${prefix}${amountLabel}`;
+}
+
+function getMarketSnapshotFlowTone(flow: MarketSnapshotFlowDto | null | undefined): MarketSnapshotTone {
+  const amount = getMarketSnapshotFlowAmount(flow);
+  if (amount !== null) return getMarketSnapshotTone(amount);
+
+  const direction = normalizeMarketSnapshotToken(flow?.direction);
+  if (direction.includes("buy") || direction.includes("inflow") || direction.includes("positive")) return "positive";
+  if (direction.includes("sell") || direction.includes("outflow") || direction.includes("negative")) return "negative";
+
+  return null;
+}
+
+function formatMarketSnapshotFlow(
+  flow: MarketSnapshotFlowDto | null | undefined,
+  numberLocale: string,
+  unavailableLabel = UNKNOWN_LABEL,
+) {
+  const summary = flow?.summary?.trim();
+  if (summary) return summary;
+
+  const amount = getMarketSnapshotFlowAmount(flow);
+  if (amount !== null) return formatSignedMarketSnapshotAmount(amount, flow, numberLocale, unavailableLabel);
+
+  return flow?.direction?.trim() || unavailableLabel;
+}
+
+function getMarketSnapshotAsOf(
+  snapshot: MarketSnapshotResponseDto | null,
+  kospi: MarketSnapshotIndexDto | null,
+  kosdaq: MarketSnapshotIndexDto | null,
+  fxRate: MarketSnapshotFxRateDto | null,
+) {
+  return getFirstTextValue(
+    snapshot?.as_of,
+    snapshot?.market_date,
+    kospi?.as_of,
+    kospi?.market_date,
+    kosdaq?.as_of,
+    kosdaq?.market_date,
+    fxRate?.as_of,
+  );
+}
+
+type MarketOverviewCardProps = {
+  copy: DashboardLiveCopy;
+  marketSnapshot: MarketSnapshotResponseDto | null;
+  marketSnapshotError: string | null;
+  numberLocale: string;
+};
+
+const MarketOverviewCard = memo(function MarketOverviewCard({
+  copy,
+  marketSnapshot,
+  marketSnapshotError,
+  numberLocale,
+}: MarketOverviewCardProps) {
+  const snapshotPresentation = buildMarketSnapshotPresentation(copy, marketSnapshot, marketSnapshotError);
+  const displaySnapshot = snapshotPresentation.displaySnapshot;
+  const kospi = getMarketSnapshotIndex(displaySnapshot, "kospi");
+  const kosdaq = getMarketSnapshotIndex(displaySnapshot, "kosdaq");
+  const fxRate = getMarketSnapshotFxRate(displaySnapshot);
+  const kospiLevel = getMarketSnapshotIndexLevel(kospi);
+  const kospiChange = getMarketSnapshotIndexChange(kospi);
+  const kospiChangeRate = getMarketSnapshotIndexChangeRate(kospi);
+  const kosdaqLevel = getMarketSnapshotIndexLevel(kosdaq);
+  const kosdaqChange = getMarketSnapshotIndexChange(kosdaq);
+  const kosdaqChangeRate = getMarketSnapshotIndexChangeRate(kosdaq);
+  const usdKrwRate = getMarketSnapshotFxValue(fxRate);
+  const usdKrwChange = getMarketSnapshotFxChange(fxRate);
+  const usdKrwChangeRate = getMarketSnapshotFxChangeRate(fxRate);
+  const foreignFlow = getMarketSnapshotFlow(displaySnapshot, "foreign");
+  const institutionalFlow = getMarketSnapshotFlow(displaySnapshot, "institutional");
+  const summaryLine = getMarketSnapshotSummaryLine(displaySnapshot);
+  const asOfLabel = getMarketSnapshotAsOf(displaySnapshot, kospi, kosdaq, fxRate);
+  const unavailableLabel = copy.marketOverview.valueUnavailable;
+  const changeUnavailableLabel = copy.marketOverview.changeUnavailable;
+
+  return (
+    <article
+      className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.marketOverviewCard}`}
+      data-market-snapshot-status={snapshotPresentation.status}
+    >
+      <ComponentTag label="dashboard.market-overview" api="/api/trading/market/snapshot" />
+
+      <div className={styles.sectionHeaderRow}>
+        <div>
+          <p className={styles.sectionEyebrow}>{copy.marketOverview.eyebrow}</p>
+          <h2 className={styles.sectionTitle}>{copy.marketOverview.title}</h2>
+        </div>
+        <span className={`pill ${snapshotPresentation.statusTone}`}>{snapshotPresentation.statusLabel}</span>
+      </div>
+
+      <div className={styles.marketIndexGrid} aria-label={copy.marketOverview.indexSummary}>
+        <div className={styles.marketIndexCard}>
+          <div className={styles.marketIndexHeader}>
+            <span>{copy.marketOverview.kospi}</span>
+            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : copy.marketOverview.asOfUnavailable}</span>
+          </div>
+          <strong>{formatMarketSnapshotNumber(kospiLevel, numberLocale, 2, unavailableLabel)}</strong>
+          <span className={getMarketSnapshotToneClassName(getMarketSnapshotTone(kospiChange))}>
+            {formatMarketSnapshotDelta(kospiChange, kospiChangeRate, numberLocale, changeUnavailableLabel)}
+          </span>
+        </div>
+
+        <div className={styles.marketIndexCard}>
+          <div className={styles.marketIndexHeader}>
+            <span>{copy.marketOverview.kosdaq}</span>
+            <span>{asOfLabel ? formatDisplayTimestamp(asOfLabel, asOfLabel) : copy.marketOverview.asOfUnavailable}</span>
+          </div>
+          <strong>{formatMarketSnapshotNumber(kosdaqLevel, numberLocale, 2, unavailableLabel)}</strong>
+          <span className={getMarketSnapshotToneClassName(getMarketSnapshotTone(kosdaqChange))}>
+            {formatMarketSnapshotDelta(kosdaqChange, kosdaqChangeRate, numberLocale, changeUnavailableLabel)}
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.marketContextGrid}>
+        <div>
+          <span>{copy.marketOverview.usdKrw}</span>
+          <strong>{formatMarketSnapshotNumber(usdKrwRate, numberLocale, 2, unavailableLabel)}</strong>
+          <small className={getMarketSnapshotToneClassName(getMarketSnapshotTone(usdKrwChange))}>
+            {formatMarketSnapshotDelta(usdKrwChange, usdKrwChangeRate, numberLocale, changeUnavailableLabel)}
+          </small>
+        </div>
+        <div>
+          <span>{copy.marketOverview.foreignFlow}</span>
+          <strong className={getMarketSnapshotToneClassName(getMarketSnapshotFlowTone(foreignFlow))}>
+            {formatMarketSnapshotFlow(foreignFlow, numberLocale, unavailableLabel)}
+          </strong>
+        </div>
+        <div>
+          <span>{copy.marketOverview.institutionalFlow}</span>
+          <strong className={getMarketSnapshotToneClassName(getMarketSnapshotFlowTone(institutionalFlow))}>
+            {formatMarketSnapshotFlow(institutionalFlow, numberLocale, unavailableLabel)}
+          </strong>
+        </div>
+      </div>
+
+      {summaryLine ? <p className={styles.marketSummaryLine}>{summaryLine}</p> : null}
+
+      {!summaryLine || snapshotPresentation.status !== "ready" ? (
+        <p className={styles.cardContext}>{snapshotPresentation.fallbackContextLabel}</p>
+      ) : null}
+
+      <div className={styles.cardActionRow}>
+        <Link href="/markets" className={styles.signalDeciderDetailLink} aria-label={copy.marketOverview.openMarkets}>
+          {copy.marketOverview.openMarkets}
+        </Link>
+      </div>
+    </article>
+  );
+});
+
 type ProcessMonitorTriggerProps = {
   copy: DashboardLiveCopy;
   model: ProcessMonitorModel;
@@ -1625,6 +1898,8 @@ export function LiveDashboardClient({
     fundamentalsStatus,
     latestSignalDeciderFeedback,
     market,
+    marketSnapshot,
+    marketSnapshotError,
     marketRiskStatus,
     marketRiskStatusError,
     marketRiskStatusLoadState,
@@ -2457,7 +2732,7 @@ export function LiveDashboardClient({
         <section className={styles.primaryInsightsSection} id="dashboard-freshness">
           <ComponentTag
             label="dashboard.primary-insights"
-            api="/api/trading/agent-context/feedback + /api/trading/portfolio/summary + /api/trading/market/status + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters + grouped process monitor data"
+            api="/api/trading/agent-context/feedback + /api/trading/portfolio/summary + /api/trading/market/status + /api/trading/market/snapshot + /api/trading/eod/piotroski-filter-results + /api/trading/eod/market-risk-filters + grouped process monitor data"
           />
 
           <ProcessMonitorTrigger
@@ -2480,6 +2755,13 @@ export function LiveDashboardClient({
             <PortfolioStatusCard
               copy={copy}
               model={portfolioOverviewModel}
+              numberLocale={numberLocale}
+            />
+
+            <MarketOverviewCard
+              copy={copy}
+              marketSnapshot={marketSnapshot}
+              marketSnapshotError={marketSnapshotError}
               numberLocale={numberLocale}
             />
           </div>

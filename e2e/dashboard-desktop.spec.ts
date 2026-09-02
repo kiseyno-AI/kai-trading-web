@@ -83,6 +83,30 @@ async function getRequiredBox(locator: Locator, label: string) {
 
 test.describe("dashboard desktop", () => {
   test("dashboard labels match currently wired core data", async ({ page }) => {
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ready",
+          as_of: "2026-04-28T10:15:00+09:00",
+          indices: {
+            kospi: { level: 2742.31, change: 18.42, change_rate: 0.68 },
+            kosdaq: { level: 842.17, change: -4.11, change_rate: -0.51 },
+          },
+          fx: {
+            usdkrw: { rate: 1378.2, change: 1.4, change_rate: 0.1 },
+          },
+          flows: {
+            foreign: { summary: "+₩248B net buy" },
+            institutional: { summary: "-₩91B net sell" },
+          },
+          summary: {
+            market_bias: "Constructive",
+            breadth: "Large caps leading",
+          },
+        }),
+      });
+    });
     await page.route("**/api/trading/market/status", async (route) => {
       await route.fulfill({
         contentType: "application/json",
@@ -156,7 +180,22 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+    await expect(marketCard).toHaveAttribute("data-market-snapshot-status", "ready");
+    await expect(marketCard.getByText("KOSPI", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("KOSDAQ", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("2,742.31", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+18.42 (+0.68%)", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("842.17", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("-4.11 (-0.51%)", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("1,378.20", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+₩248B net buy", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("-₩91B net sell", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Constructive · Large caps leading", { exact: true })).toBeVisible();
+    await expect(marketCard.getByRole("link", { name: /Open markets/i })).toHaveAttribute("href", "/markets");
     await expect(page.getByRole("heading", { name: /^Exec runtime$/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Monitored symbols/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
@@ -183,9 +222,7 @@ test.describe("dashboard desktop", () => {
       "href",
       "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-28&recommendationSource=dashboard-decider&referencePriceKind=current&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
     );
-    await expect(deciderCard.getByText("Stop-loss", { exact: true })).toBeVisible();
-    await expect(deciderCard.getByText("Target", { exact: true })).toBeVisible();
-    await expect(deciderCard.getByText("Current price", { exact: true })).toBeVisible();
+    await expect(deciderCard.getByText("Stop 70,000 · Target 76,000 · Now 71,500", { exact: true })).toBeVisible();
     await expect(deciderCard.getByText("Results", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Market date", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Action mix", { exact: true })).toHaveCount(0);
@@ -226,18 +263,24 @@ test.describe("dashboard desktop", () => {
 
     const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
 
     await expect(signalCard).toBeVisible();
     await expect(portfolioCard).toBeVisible();
+    await expect(marketCard).toBeVisible();
 
-    const [signalBox, portfolioBox] = await Promise.all([
+    const [signalBox, portfolioBox, marketBox] = await Promise.all([
       getRequiredBox(signalCard, "signal card"),
       getRequiredBox(portfolioCard, "portfolio card"),
+      getRequiredBox(marketCard, "market card"),
     ]);
 
     expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
     expect(portfolioBox.x).toBeGreaterThan(signalBox.x);
+    expect(marketBox.x).toBeGreaterThan(portfolioBox.x);
     expect(Math.abs(signalBox.width - portfolioBox.width)).toBeLessThan(signalBox.width * 0.25);
+    expect(Math.abs(portfolioBox.width - marketBox.width)).toBeLessThan(portfolioBox.width * 0.25);
+    expect(Math.abs(marketBox.y - signalBox.y)).toBeLessThan(24);
   });
 
   test("primary insight cards keep a balanced two-up layout at intermediate desktop widths", async ({ page }) => {
@@ -246,17 +289,22 @@ test.describe("dashboard desktop", () => {
 
     const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
 
     await expect(signalCard).toBeVisible();
     await expect(portfolioCard).toBeVisible();
+    await expect(marketCard).toBeVisible();
 
-    const [signalBox, portfolioBox] = await Promise.all([
+    const [signalBox, portfolioBox, marketBox] = await Promise.all([
       getRequiredBox(signalCard, "signal card"),
       getRequiredBox(portfolioCard, "portfolio card"),
+      getRequiredBox(marketCard, "market card"),
     ]);
 
     expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
     expect(Math.abs(portfolioBox.width - signalBox.width)).toBeLessThan(signalBox.width * 0.35);
+    expect(marketBox.y).toBeGreaterThan(signalBox.y + signalBox.height - 2);
+    expect(Math.abs(marketBox.x - signalBox.x)).toBeLessThan(24);
   });
 
   test("filtering and scoring stay visible across responsive dashboard widths", async ({ page }) => {
@@ -289,22 +337,105 @@ test.describe("dashboard desktop", () => {
     }
   });
 
-  test("dashboard body no longer requests or renders the market snapshot card", async ({ page }) => {
-    let snapshotRequests = 0;
-
+  test("market condition card keeps partial-but-usable snapshot values visible", async ({ page }) => {
     await page.route("**/api/trading/market/snapshot", async (route) => {
-      snapshotRequests += 1;
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({ detail: "market snapshot should not be read by dashboard body" }),
+        body: JSON.stringify({
+          status: "partial",
+          data: {
+            as_of: "2026-04-28T10:21:00+09:00",
+            source: "core-market-snapshot",
+            indices: {
+              kospi: { level: 2742.31, change: 18.42, change_rate: 0.68 },
+            },
+            fx: {
+              usdkrw: { value: 1378.2 },
+            },
+            flows: {
+              foreign: { value: 248_000_000_000, unit: "KRW" },
+            },
+            summary: {
+              line: "Partial snapshot still carries usable market context.",
+            },
+            missing_fields: ["indices.kosdaq", "flows.institutional"],
+          },
+        }),
       });
     });
 
     await page.goto("/dashboard");
-    await page.waitForTimeout(750);
 
-    await expect(page.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
-    expect(snapshotRequests).toBe(0);
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+    await expect(marketCard).toHaveAttribute("data-market-snapshot-status", "partial");
+    await expect(marketCard.getByText("Partial", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("2,742.31", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+18.42 (+0.68%)", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("1,378.20", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("+248B KRW", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Partial snapshot still carries usable market context.", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText(/Missing:.*KOSDAQ.*Institutional flow/i)).toBeVisible();
+  });
+
+  test("market condition card keeps stale values visible with the reported reason", async ({ page }) => {
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "stale",
+          stale_reason: "Latest close has not been published.",
+          as_of: "2026-04-27T15:30:00+09:00",
+          indices: {
+            kospi: { level: 2711.42, change: -8.25, change_rate: -0.3 },
+            kosdaq: { level: 839.18, change: 1.02, change_rate: 0.12 },
+          },
+          fx: { usdkrw: { value: 1381.6 } },
+          flows: {
+            foreign: { value: -80_000_000_000, unit: "KRW" },
+            institutional: { value: 42_000_000_000, unit: "KRW" },
+          },
+          summary: { line: "Showing the latest stored market close." },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+    await expect(marketCard).toHaveAttribute("data-market-snapshot-status", "stale");
+    await expect(marketCard.getByText("Stale", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("2,711.42", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Showing the latest stored market close.", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText(/Latest refresh issue: Latest close has not been published\./i)).toBeVisible();
+  });
+
+  test("market condition card renders an explicit unavailable state without inferred values", async ({ page }) => {
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "unavailable",
+          missing_fields: [
+            "indices.kospi",
+            "indices.kosdaq",
+            "fx.usdkrw",
+            "flows.foreign",
+            "flows.institutional",
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+    await expect(marketCard).toHaveAttribute("data-market-snapshot-status", "unavailable");
+    await expect(marketCard.locator(".pill.warning", { hasText: "Unavailable" })).toBeVisible();
+    await expect(
+      marketCard.getByText("Waiting for the market snapshot API. No fallback market data is inferred.", { exact: true }),
+    ).toBeVisible();
+    await expect(marketCard.getByText("No timestamp", { exact: true })).toHaveCount(2);
+    await expect(marketCard.getByText("Unavailable", { exact: true })).toHaveCount(6);
   });
 
   test("portfolio status card maps exec-approved monitoring and held rows", async ({ page }) => {

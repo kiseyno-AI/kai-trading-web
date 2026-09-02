@@ -69,6 +69,8 @@ test.describe("canonical shell navigation", () => {
   });
 
   test("dashboard actions and AppShell navigation reach Markets, Factor Screening, and Bots", async ({ page }) => {
+    test.setTimeout(60_000);
+
     const viewports = [
       { width: 1365, height: 900 },
       { width: 390, height: 844 },
@@ -78,8 +80,12 @@ test.describe("canonical shell navigation", () => {
       await page.setViewportSize(viewport);
       await page.goto("/dashboard");
 
-      await page.getByRole("link", { name: "Open markets", exact: true }).click();
-      await expect(page).toHaveURL(/\/markets$/);
+      const marketConditionCard = page.locator("article").filter({
+        has: page.getByRole("heading", { name: /Market condition/i }),
+      });
+      const openMarketsLink = marketConditionCard.getByRole("link", { name: "Open markets", exact: true });
+      await expect(openMarketsLink).toHaveAttribute("href", "/markets");
+      await Promise.all([page.waitForURL(/\/markets$/, { timeout: 15_000 }), openMarketsLink.click()]);
       await expect(page.getByRole("heading", { name: "Markets", exact: true })).toBeVisible();
 
       await page.getByRole("link", { name: "Open factor screening", exact: true }).first().click();

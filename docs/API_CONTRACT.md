@@ -5,9 +5,11 @@ This document defines the first practical frontend contract for wiring `trading-
 ## Current shipped dashboard wiring
 - Web-side BFF and browser API reads are expected to resolve into data, empty, unavailable, timeout, or error states. The Next.js BFF applies a bounded timeout to JSON proxy reads and returns HTTP `504` with an explicit timeout message when trading-core hangs or lags past that budget, so operator routes should not remain in indefinite loading states while waiting on upstream reads.
 - `/dashboard` currently renders from these live endpoints where available:
-  - The dashboard body exposes the Daily process summary, Decider recommendations, Portfolio status, and shared Filtering and Scoring cards. The Daily process summary drawer remains the canonical full process view for detailed EOD, filtering, scoring, and agent-feedback status.
+  - The dashboard body exposes the Daily process summary, Decider recommendations, Portfolio status, Market condition, and shared Filtering and Scoring cards. The Daily process summary drawer remains the canonical full process view for detailed EOD, filtering, scoring, and agent-feedback status.
   - `GET /market/status`
     - The desktop navigation rail uses this compact session state for its market-status metadata. If the read fails or the page is in offline-placeholder mode, the rail labels the status as unavailable instead of inferring an open/closed state.
+  - `GET /market/snapshot`
+    - Market condition renders KOSPI, KOSDAQ, USD/KRW, foreign flow, institutional flow, and the market summary when Core supplies them. Complete, partial, stale, error, and unavailable responses remain explicit: usable partial or stale values stay visible, while missing fields use unavailable labels and the dashboard never infers replacement values from unrelated market data.
   - `GET /quotes/tracked`
   - `GET /quotes/{symbol}`
   - `GET /symbols/search`
