@@ -13,6 +13,25 @@ async function openProcessMonitorDrawer(page: Page) {
 
 test.describe("dashboard mobile hero", () => {
   test("mobile shell and overview stay within the first viewport", async ({ page }) => {
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "ready",
+          as_of: "2026-04-28T10:15:00+09:00",
+          indices: {
+            kospi: { level: 2742.31, change: 18.42, change_rate: 0.68 },
+            kosdaq: { level: 842.17, change: -4.11, change_rate: -0.51 },
+          },
+          fx: { usdkrw: { value: 1378.2, change: 1.4, change_rate: 0.1 } },
+          flows: {
+            foreign: { value: 248_000_000_000, unit: "KRW" },
+            institutional: { value: -91_000_000_000, unit: "KRW" },
+          },
+          summary: { line: "Constructive breadth with selective risk." },
+        }),
+      });
+    });
     await page.goto("/dashboard");
 
     const topbar = page.locator("header.topbar");
@@ -53,7 +72,14 @@ test.describe("dashboard mobile hero", () => {
     await expect(hero.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
     const portfolioCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Portfolio status/i }) });
     await expect(portfolioCard).toBeVisible();
-    await expect(hero.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
+    const marketCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Market condition/i }) });
+    await expect(marketCard).toHaveAttribute("data-market-snapshot-status", "ready");
+    await expect(marketCard.getByText("KOSPI", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("KOSDAQ", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
+    await expect(marketCard.getByRole("link", { name: /Open markets/i })).toBeVisible();
     await expect(hero.getByRole("heading", { name: /^Exec runtime$/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Monitored symbols/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
@@ -72,27 +98,36 @@ test.describe("dashboard mobile hero", () => {
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
 
-    const [deciderBox, portfolioBox, filteringBox, scoringBox] = await Promise.all([
+    const [deciderBox, portfolioBox, marketBox, filteringBox, scoringBox] = await Promise.all([
       deciderCard.boundingBox(),
       portfolioCard.boundingBox(),
+      marketCard.boundingBox(),
       filteringCard.boundingBox(),
       scoringCard.boundingBox(),
     ]);
 
     expect(deciderBox).not.toBeNull();
     expect(portfolioBox).not.toBeNull();
+    expect(marketBox).not.toBeNull();
     expect(filteringBox).not.toBeNull();
     expect(scoringBox).not.toBeNull();
 
-    if (!deciderBox || !portfolioBox || !filteringBox || !scoringBox) {
+    if (!deciderBox || !portfolioBox || !marketBox || !filteringBox || !scoringBox) {
       throw new Error("Expected mobile dashboard cards to have layout boxes.");
     }
 
     expect(portfolioBox.y).toBeGreaterThan(deciderBox.y + deciderBox.height - 1);
     expect(Math.abs(portfolioBox.x - deciderBox.x)).toBeLessThan(8);
-    expect(filteringBox.y).toBeGreaterThan(portfolioBox.y + portfolioBox.height - 1);
+    expect(marketBox.y).toBeGreaterThan(portfolioBox.y + portfolioBox.height - 1);
+    expect(Math.abs(marketBox.x - deciderBox.x)).toBeLessThan(8);
+    expect(filteringBox.y).toBeGreaterThan(marketBox.y + marketBox.height - 1);
     expect(scoringBox.y).toBeGreaterThan(filteringBox.y + filteringBox.height - 1);
     expect(Math.abs(filteringBox.x - scoringBox.x)).toBeLessThan(8);
+
+    const marketCardFitsViewport = await marketCard.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth + 1,
+    );
+    expect(marketCardFitsViewport).toBe(true);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer.locator('[class*="processMonitorDrawerSummary"]')).toHaveCount(0);

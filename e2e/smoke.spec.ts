@@ -204,7 +204,7 @@ test.describe("smoke", () => {
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Market condition/i })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /Market condition/i })).toBeVisible();
     await expect(page.getByText(/Sovereign Desk/i)).toHaveCount(0);
   });
 

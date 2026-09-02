@@ -52,6 +52,7 @@ import {
   getAgentFeedbackProgressPollDelayMs,
   getDashboardLoadErrorMessage,
   getEodPipelineStatusPollDelayMs,
+  getMarketSnapshotPollDelayMs,
   getSignalDeciderFeedbackPollDelayMs,
   shouldRevalidateLatestAvailableFallback,
   shouldRevalidateFilteringFallback,
@@ -81,6 +82,7 @@ import type {
   ExecutionRuntimeDailyBoardResponseDto,
   ExecutionRuntimeMonitoredSymbolsResponseDto,
   ExecutionRuntimeStatusResponseDto,
+  MarketSnapshotResponseDto,
   PortfolioSummaryDto,
 } from "@/types/trading-api";
 
@@ -89,11 +91,44 @@ const FILTERING_FALLBACK_REVALIDATE_DELAY_MS = 5_000;
 const EXECUTION_RUNTIME_POLL_MS = 15_000;
 const EOD_PIPELINE_STATUS_MONITOR_POLL_MS = 2_000;
 const EOD_PIPELINE_STATUS_RETRY_DELAYS_MS = [2_000, 5_000, 10_000] as const;
+const MARKET_SNAPSHOT_PATH = "/api/trading/market/snapshot";
+const MARKET_SNAPSHOT_REQUEST_TIMEOUT_MS = 20_000;
 
 type DashboardTimeoutApi = {
   clearTimeout: typeof globalThis.clearTimeout;
   setTimeout: typeof globalThis.setTimeout;
 };
+
+export function createMarketSnapshotRequestTimeout({
+  timeoutApi = globalThis,
+  timeoutMs = MARKET_SNAPSHOT_REQUEST_TIMEOUT_MS,
+}: {
+  timeoutApi?: DashboardTimeoutApi;
+  timeoutMs?: number;
+} = {}) {
+  const abortController = new AbortController();
+  let timeoutCleared = false;
+  const timeout = timeoutApi.setTimeout(() => {
+    abortController.abort(new Error(`Market snapshot request timed out after ${timeoutMs}ms.`));
+  }, timeoutMs);
+
+  function clear() {
+    if (timeoutCleared) return;
+    timeoutCleared = true;
+    timeoutApi.clearTimeout(timeout);
+  }
+
+  return {
+    abort() {
+      clear();
+      if (!abortController.signal.aborted) {
+        abortController.abort();
+      }
+    },
+    clear,
+    signal: abortController.signal,
+  };
+}
 
 function createEodPipelineStatusRequestTimeout({
   timeoutApi = globalThis,
@@ -294,6 +329,8 @@ export function useLiveDashboardData({
   const pipelineStatusRequestDateRef = useRef<string | null>(initialPipelineRequestMarketDate);
   const marketServerTimeRef = useRef<string | null>(initialMarket.server_time ?? null);
   const freshnessTradeDateRef = useRef<string | null>(initialFreshness?.today?.trade_date ?? null);
+  const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshotResponseDto | null>(null);
+  const [marketSnapshotError, setMarketSnapshotError] = useState<string | null>(null);
   const [agentFeedbackProgress, setAgentFeedbackProgressState] = useState<AgentFeedbackProgressResponseDto | null>(
     initialAgentFeedbackProgress,
   );
@@ -489,6 +526,66 @@ export function useLiveDashboardData({
     return () => {
       active = false;
       clearRetryTimer();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let consecutiveErrorCount = 0;
+    let timer: number | null = null;
+    let inFlightRequest: ReturnType<typeof createMarketSnapshotRequestTimeout> | null = null;
+
+    function clearTimer() {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function scheduleNextLoad(hadError: boolean) {
+      if (!active) return;
+      clearTimer();
+      timer = window.setTimeout(
+        loadMarketSnapshot,
+        getMarketSnapshotPollDelayMs({
+          hadError,
+          consecutiveErrorCount,
+        }),
+      );
+    }
+
+    async function loadMarketSnapshot() {
+      const requestTimeout = createMarketSnapshotRequestTimeout();
+      inFlightRequest = requestTimeout;
+
+      try {
+        const snapshot = await getJsonNoCache<MarketSnapshotResponseDto>(MARKET_SNAPSHOT_PATH, {
+          signal: requestTimeout.signal,
+        });
+        if (!active) return;
+        consecutiveErrorCount = 0;
+        setMarketSnapshot(snapshot);
+        setMarketSnapshotError(null);
+        scheduleNextLoad(false);
+      } catch (snapshotError) {
+        console.error("Dashboard market snapshot load failed", snapshotError);
+        if (!active) return;
+        consecutiveErrorCount += 1;
+        setMarketSnapshotError(getDashboardLoadErrorMessage(snapshotError));
+        scheduleNextLoad(true);
+      } finally {
+        requestTimeout.clear();
+        if (inFlightRequest === requestTimeout) {
+          inFlightRequest = null;
+        }
+      }
+    }
+
+    void loadMarketSnapshot();
+
+    return () => {
+      active = false;
+      clearTimer();
+      inFlightRequest?.abort();
     };
   }, []);
 
@@ -1235,6 +1332,8 @@ export function useLiveDashboardData({
     freshnessError,
     fundamentalsStatus,
     market,
+    marketSnapshot,
+    marketSnapshotError,
     marketRiskStatus: filteringMarketDate ? marketRiskStatus : null,
     marketRiskStatusError: filteringMarketDate ? marketRiskStatusError : null,
     marketRiskStatusLoadState: filteringMarketDate ? marketRiskStatusLoadState : "idle",
