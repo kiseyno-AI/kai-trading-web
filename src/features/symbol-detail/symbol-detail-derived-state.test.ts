@@ -584,6 +584,32 @@ test("localizes insufficient-history action summaries in Korean and explains the
   assert.doesNotMatch(model.meter.valueLabel, /\b\d+\s*\/\s*100\b/);
 });
 
+test("deduplicates Korean action reason labels after mapping backend fallbacks", () => {
+  const copy = getSymbolDetailCopy("ko");
+  const model = buildActionSummarySectionModel(
+    makeActionSummary({
+      action_label: "insufficient_data",
+      confidence_tier: "low",
+      reasons: [
+        "insufficient_history",
+        "missing_price_history",
+        "missing_technical_history",
+        "missing_factor_history",
+      ],
+    }),
+    copy,
+  );
+
+  assert.deepEqual(model.reasonTags, [
+    copy.action.reasonLabels.insufficientHistory,
+    copy.action.reasonLabels.unmapped,
+  ]);
+  assert.equal(
+    model.body,
+    `${copy.action.reasonLabels.insufficientHistory} · ${copy.action.reasonLabels.unmapped} · ${copy.action.insufficientHistoryExplanation}`,
+  );
+});
+
 test("localizes watch-long action and decision reason tokens in Korean", () => {
   const copy = getSymbolDetailCopy("ko");
   const model = buildActionSummarySectionModel(
