@@ -1065,8 +1065,11 @@ function isInsufficientHistoryActionSummary(actionSummary: AgentContextActionSum
 }
 
 function buildActionReasonTags(actionSummary: AgentContextActionSummaryDto | null, copy: SymbolDetailCopy) {
-  const reasons = actionSummary?.reasons.slice(0, 4) ?? [];
-  return reasons.map((reason) => resolveActionReasonLabel(reason, copy)).filter((reason): reason is string => Boolean(reason));
+  const reasonLabels =
+    actionSummary?.reasons
+      .map((reason) => resolveActionReasonLabel(reason, copy))
+      .filter((reason): reason is string => Boolean(reason)) ?? [];
+  return Array.from(new Set(reasonLabels)).slice(0, 4);
 }
 
 function buildActionSummarySignalMeterModel(

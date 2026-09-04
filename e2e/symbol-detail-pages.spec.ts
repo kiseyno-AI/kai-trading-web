@@ -1266,7 +1266,9 @@ test.describe("symbol detail mobile pages", () => {
     });
   }
 
-  test("Korean hero and Action tab share the terminal insufficient-history state", async ({ page }) => {
+  test("Korean hero and Action tab deduplicate mapped reasons in the terminal insufficient-history state", async ({
+    page,
+  }) => {
     const requestCounts = {
       priceHistory: 0,
       technical: 0,
@@ -1281,7 +1283,12 @@ test.describe("symbol detail mobile pages", () => {
     await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests, {
       actionConfidenceTier: "low",
       actionLabel: "insufficient_data",
-      actionReasons: ["insufficient_history"],
+      actionReasons: [
+        "insufficient_history",
+        "missing_price_history",
+        "missing_technical_history",
+        "missing_factor_history",
+      ],
       actionRiskTier: "unknown",
       actionSignalScore: 0,
     });
@@ -1299,6 +1306,10 @@ test.describe("symbol detail mobile pages", () => {
     await expect(actionSection).toHaveAttribute("data-action-state", "insufficient-history");
     await expect(actionSection).toContainText("데이터 부족 · 신뢰도 낮음");
     await expect(actionSection).toContainText("현재 액션: 저장된 과거 데이터 부족");
+    await expect(actionSection).toContainText(
+      "저장된 과거 데이터 부족 · 기타 액션 근거 · 저장 데이터가 부족해 액션을 판단할 신뢰도가 아직 충분하지 않습니다.",
+    );
+    await expect(actionSection.getByText("기타 액션 근거", { exact: true })).toHaveCount(1);
     await expect(actionSection).toContainText("점수 계산 불가");
   });
 
