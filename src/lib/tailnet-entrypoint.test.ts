@@ -109,7 +109,9 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
   assert.match(startScript, /path\.resolve\(process\.cwd\(\), raw\.trim\(\)\) === path\.resolve\(process\.cwd\(\), "\.next"\)/);
   assert.match(startScript, /APP_VERSION_FILE="\$\{NEXT_DIST_DIR\}\/APP_VERSION"/);
   assert.match(startScript, /APP_REVISION_FILE="\$\{NEXT_DIST_DIR\}\/APP_REVISION"/);
-  assert.match(startScript, /APP_REVISION="unknown"/);
+  assert.match(startScript, /if \[ ! -f "\$APP_REVISION_FILE" \]/);
+  assert.match(startScript, /SOURCE_REVISION="\$\(git rev-parse HEAD\)"/);
+  assert.match(startScript, /if \[ "\$APP_REVISION" != "\$SOURCE_REVISION" \]/);
   assert.match(startScript, /NEXT_PUBLIC_APP_REVISION/);
   assert.match(rootLayout, /data-release-revision=\{RELEASE_REVISION\}/);
   assert.match(releaseVersion, /NEXT_PUBLIC_APP_REVISION/);
