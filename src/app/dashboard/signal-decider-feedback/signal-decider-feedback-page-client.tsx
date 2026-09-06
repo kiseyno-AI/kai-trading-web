@@ -33,8 +33,10 @@ import {
   buildSignalDeciderFeedbackHref,
   DECIDER_DATA_GAP_CATEGORIES,
   DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
+  DECIDER_FEEDBACK_FOCUS_PARAM,
   DECIDER_FEEDBACK_NAV_CONTEXT_PARAM,
   DECIDER_FEEDBACK_ORIGIN_DATE_PARAM,
+  DECIDER_FEEDBACK_PAGE_PARAM,
   DECIDER_FEEDBACK_SYMBOLS_PARAM,
   DECIDER_FEEDBACK_DASHBOARD_PATH,
   filterDeciderDataGapRecords,
@@ -81,6 +83,7 @@ import styles from "./signal-decider-feedback-page.module.css";
 const UNKNOWN_LABEL = "[확인 필요]";
 const CARD_LOADING_LABEL = "…";
 const SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS = 12_000;
+const SIGNAL_DECIDER_FEEDBACK_RESULT_WINDOW_SIZE = 10;
 const ACTION_FILTERS = ["all", "buy", "watch_for_trigger", "avoid_chase", "wait", "reject", "unknown"] as const;
 const STATUS_FILTERS = ["all", "with-review", "review-pending", "with-risk"] as const;
 const SORT_MODES = ["priority", "symbol", "confidence", "captured"] as const;
@@ -101,6 +104,13 @@ type FeedbackLoadState = "idle" | "loading" | "ready" | "error";
 type FeedbackErrorSource = "feedback" | "marketDate" | "generic";
 type DetailedFeedbackError = { message: string; source: FeedbackErrorSource };
 type FeedbackError = "feedbackUnavailable" | "marketDateUnavailable" | DetailedFeedbackError;
+type FeedbackRouteStateUpdate = {
+  actionFilter?: ActionFilter;
+  page?: number;
+  query?: string;
+  sortMode?: SortMode;
+  statusFilter?: StatusFilter;
+};
 
 type SignalDeciderFeedbackCopy = ReturnType<typeof useAppState>["t"]["signalDeciderFeedback"];
 type SignalDeciderStatusCopy = SignalDeciderFeedbackCopy["status"];
@@ -130,6 +140,12 @@ function resolveSortModeParam(value: string | null): SortMode {
 
 function resolveGapCategoryParam(value: string | null): GapCategoryFilter {
   return GAP_CATEGORY_FILTERS.includes(value as GapCategoryFilter) ? (value as GapCategoryFilter) : "all";
+}
+
+function resolveResultPageParam(value: string | null) {
+  if (!value) return 1;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function getStatusLabel(status: SignalDeciderFeedbackStatus, statusCopy: SignalDeciderStatusCopy) {
@@ -744,6 +760,8 @@ function buildSymbolHref(
     feedbackNavContext: string | null;
     feedbackOriginDate: string | null;
     feedbackReturnRoute: SymbolDetailFeedbackReturnRoute;
+    focus: string;
+    page: number;
     query: string;
     sortMode: SortMode;
     statusFilter: StatusFilter;
@@ -765,6 +783,8 @@ function buildSymbolHref(
   if (context.feedbackOriginDate) {
     params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM, context.feedbackOriginDate);
   }
+  if (context.page > 1) params.set(DECIDER_FEEDBACK_PAGE_PARAM, String(context.page));
+  params.set(DECIDER_FEEDBACK_FOCUS_PARAM, context.focus);
   params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM, context.feedbackReturnRoute);
   const query = params.toString();
   return `/dashboard/symbol/${encodeURIComponent(item.symbol)}${query ? `?${query}` : ""}`;
@@ -1008,6 +1028,14 @@ export default function SignalDeciderFeedbackPageClient() {
   );
   const requestedGapCategory = useMemo(() => resolveGapCategoryParam(searchParams.get("gapCategory")), [searchParams]);
   const requestedGapSymbol = useMemo(() => searchParams.get("gapSymbol") ?? "all", [searchParams]);
+  const requestedResultPage = useMemo(
+    () => resolveResultPageParam(searchParams.get(DECIDER_FEEDBACK_PAGE_PARAM)),
+    [searchParams],
+  );
+  const requestedFeedbackFocus = useMemo(
+    () => searchParams.get(DECIDER_FEEDBACK_FOCUS_PARAM),
+    [searchParams],
+  );
   const navContext = useMemo(
     () => resolveDeciderFeedbackNavContext(searchParams.get(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM)),
     [searchParams],
@@ -1037,6 +1065,48 @@ export default function SignalDeciderFeedbackPageClient() {
   const detailCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const detailOpenerRef = useRef<HTMLElement | null>(null);
   const shouldRestoreDetailFocusRef = useRef(false);
+  const resultWindowHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const shouldFocusResultWindowRef = useRef(false);
+  const restoredFeedbackFocusRef = useRef<string | null>(null);
+
+  const updateFeedbackRouteState = useCallback(
+    (update: FeedbackRouteStateUpdate, historyMode: "push" | "replace" = "replace") => {
+      const params = new URLSearchParams(searchParams.toString());
+      const setOptionalParam = (name: string, value: string, defaultValue: string) => {
+        if (value === defaultValue || value.trim().length === 0) {
+          params.delete(name);
+        } else {
+          params.set(name, value);
+        }
+      };
+
+      if (update.query !== undefined) setOptionalParam(SYMBOL_DETAIL_SEARCH_QUERY_PARAM, update.query.trim(), "");
+      if (update.actionFilter !== undefined) {
+        setOptionalParam(SYMBOL_DETAIL_FEEDBACK_ACTION_PARAM, update.actionFilter, "all");
+      }
+      if (update.statusFilter !== undefined) setOptionalParam("feedbackStatus", update.statusFilter, "all");
+      if (update.sortMode !== undefined) {
+        setOptionalParam(SYMBOL_DETAIL_FEEDBACK_SORT_PARAM, update.sortMode, "priority");
+      }
+      if (update.page !== undefined) {
+        if (update.page > 1) {
+          params.set(DECIDER_FEEDBACK_PAGE_PARAM, String(update.page));
+        } else {
+          params.delete(DECIDER_FEEDBACK_PAGE_PARAM);
+        }
+      }
+      params.delete(DECIDER_FEEDBACK_FOCUS_PARAM);
+
+      const queryString = params.toString();
+      const href = `${pathname}${queryString ? `?${queryString}` : ""}`;
+      if (historyMode === "push") {
+        router.push(href, { scroll: false });
+      } else {
+        router.replace(href, { scroll: false });
+      }
+    },
+    [pathname, router, searchParams],
+  );
 
   useEffect(() => {
     setMarketDate(requestedMarketDate);
@@ -1345,27 +1415,13 @@ export default function SignalDeciderFeedbackPageClient() {
       : "/api/trading/agent-context/feedback?agent_name=signal-decider + /api/trading/agent-context/feedback/progress";
   const selectedTabLabel =
     activeAgent === SHORT_TERM_DECIDER_AGENT_NAME ? copy.tabs.shortTermDecider : copy.tabs.signalDecider;
-  const preservedTabState = {
-    actionFilter,
-    gapCategory,
-    gapSymbol: validGapSymbol,
-    marketDate: displayedMarketDate,
-    navContext,
-    originDate,
-    query,
-    sortMode,
-    statusFilter,
-    symbols: requestedFeedbackSymbols,
-  };
-  const signalTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SIGNAL_DECIDER_AGENT_NAME });
-  const shortTermTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SHORT_TERM_DECIDER_AGENT_NAME });
   const noComparisonMessage =
     comparisonFeedback === null
       ? copy.comparison.unavailable
       : copy.comparison.empty.replaceAll("{agentLabel}", activeAgentLabel);
   const shouldShowGlobalComparisonNotice =
     loadState === "ready" && summary.items.length > 0 && (comparisonFeedback === null || comparisonCount === 0);
-  const visibleItems = useMemo(
+  const filteredItems = useMemo(
     () =>
       filterAndSortItems({
         actionFilter,
@@ -1376,6 +1432,32 @@ export default function SignalDeciderFeedbackPageClient() {
       }),
     [actionFilter, query, sortMode, statusFilter, summary.items],
   );
+  const resultPageCount = Math.max(1, Math.ceil(filteredItems.length / SIGNAL_DECIDER_FEEDBACK_RESULT_WINDOW_SIZE));
+  const resultPage = Math.min(requestedResultPage, resultPageCount);
+  const resultWindowStartIndex = (resultPage - 1) * SIGNAL_DECIDER_FEEDBACK_RESULT_WINDOW_SIZE;
+  const resultWindowEndIndex = Math.min(
+    resultWindowStartIndex + SIGNAL_DECIDER_FEEDBACK_RESULT_WINDOW_SIZE,
+    filteredItems.length,
+  );
+  const visibleItems = useMemo(
+    () => filteredItems.slice(resultWindowStartIndex, resultWindowEndIndex),
+    [filteredItems, resultWindowEndIndex, resultWindowStartIndex],
+  );
+  const preservedTabState = {
+    actionFilter,
+    gapCategory,
+    gapSymbol: validGapSymbol,
+    marketDate: displayedMarketDate,
+    navContext,
+    originDate,
+    page: resultPage,
+    query,
+    sortMode,
+    statusFilter,
+    symbols: requestedFeedbackSymbols,
+  };
+  const signalTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SIGNAL_DECIDER_AGENT_NAME });
+  const shortTermTabHref = buildDeciderFeedbackHref({ ...preservedTabState, agentName: SHORT_TERM_DECIDER_AGENT_NAME });
   const selectedItem = useMemo(
     () => summary.items.find((item) => item.id === selectedItemId) ?? null,
     [selectedItemId, summary.items],
@@ -1531,6 +1613,46 @@ export default function SignalDeciderFeedbackPageClient() {
     };
   }, [closeDetailDialog, selectedItem]);
 
+  useEffect(() => {
+    if (loadState !== "ready" || requestedResultPage === resultPage) return;
+    updateFeedbackRouteState({ page: resultPage });
+  }, [loadState, requestedResultPage, resultPage, updateFeedbackRouteState]);
+
+  useEffect(() => {
+    if (!shouldFocusResultWindowRef.current) return;
+    shouldFocusResultWindowRef.current = false;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const heading = resultWindowHeadingRef.current;
+      if (!heading) return;
+      heading.scrollIntoView({ block: "start" });
+      heading.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [resultPage]);
+
+  useEffect(() => {
+    if (loadState !== "ready" || !requestedFeedbackFocus) return;
+    const focusedItem = visibleItems.find((item) => item.id === requestedFeedbackFocus);
+    if (!focusedItem) return;
+
+    const restoreKey = `${displayedMarketDate ?? "unknown"}:${resultPage}:${focusedItem.id}`;
+    if (restoredFeedbackFocusRef.current === restoreKey) return;
+    restoredFeedbackFocusRef.current = restoreKey;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const card = Array.from(document.querySelectorAll<HTMLElement>('[data-feedback-item-id]')).find(
+        (element) => element.dataset.feedbackItemId === focusedItem.id,
+      );
+      if (!card) return;
+      card.scrollIntoView({ block: "start" });
+      card.querySelector<HTMLElement>("a[href]")?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [displayedMarketDate, loadState, requestedFeedbackFocus, resultPage, visibleItems]);
+
   const displayError = useMemo(() => {
     if (error === null) return null;
     if (error === "feedbackUnavailable") return feedbackUnavailableMessage;
@@ -1553,6 +1675,16 @@ export default function SignalDeciderFeedbackPageClient() {
   const handleRetryFeedbackRead = useCallback(() => {
     setRetryNonce((value) => value + 1);
   }, []);
+
+  const handleResultPageChange = useCallback(
+    (nextPage: number) => {
+      const clampedPage = Math.min(Math.max(nextPage, 1), resultPageCount);
+      if (clampedPage === resultPage) return;
+      shouldFocusResultWindowRef.current = true;
+      updateFeedbackRouteState({ page: clampedPage }, "push");
+    },
+    [resultPage, resultPageCount, updateFeedbackRouteState],
+  );
 
   function handleMarketDateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1611,6 +1743,7 @@ export default function SignalDeciderFeedbackPageClient() {
             className={styles.resultCard}
             aria-label={`${item.companyName ?? item.symbol} ${pageTitle}`}
             data-testid="signal-decider-result-card"
+            data-feedback-item-id={item.id}
             data-agent-name={activeAgent}
           >
             <header className={styles.resultHeader}>
@@ -1623,6 +1756,8 @@ export default function SignalDeciderFeedbackPageClient() {
                   feedbackReturnRoute: isSharedRoute
                     ? SYMBOL_DETAIL_DECIDER_FEEDBACK_RETURN_ROUTE
                     : SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE,
+                  focus: item.id,
+                  page: resultPage,
                   query,
                   sortMode,
                   statusFilter,
@@ -1810,6 +1945,80 @@ export default function SignalDeciderFeedbackPageClient() {
         summaryCopy,
       })}
     </div>
+  );
+
+  const resultWindowRangeLabel =
+    loadState === "ready"
+      ? filteredItems.length > 0
+        ? copy.resultWindow.range
+            .replaceAll("{start}", (resultWindowStartIndex + 1).toLocaleString("en-US"))
+            .replaceAll("{end}", resultWindowEndIndex.toLocaleString("en-US"))
+            .replaceAll("{total}", filteredItems.length.toLocaleString("en-US"))
+        : copy.resultWindow.empty
+      : labelsCopy.results;
+  const renderResultWindowNavigation = (position: "top" | "bottom") => (
+    <nav
+      className={styles.resultWindowNavigation}
+      aria-label={`${copy.resultWindow.navigationLabel} — ${
+        position === "top" ? copy.resultWindow.topNavigation : copy.resultWindow.bottomNavigation
+      }`}
+      data-testid={`feedback-result-window-nav-${position}`}
+    >
+      <button
+        type="button"
+        onClick={() => handleResultPageChange(resultPage - 1)}
+        disabled={resultPage <= 1}
+      >
+        {copy.resultWindow.previous}
+      </button>
+      <label className={styles.resultWindowPageSelect}>
+        <span>{copy.resultWindow.windowLabel}</span>
+        <select
+          value={resultPage}
+          onChange={(event) => handleResultPageChange(Number.parseInt(event.target.value, 10))}
+          aria-label={copy.resultWindow.selectLabel}
+        >
+          {Array.from({ length: resultPageCount }, (_, index) => index + 1).map((pageNumber) => (
+            <option key={pageNumber} value={pageNumber}>
+              {copy.resultWindow.pageOption
+                .replaceAll("{page}", pageNumber.toLocaleString("en-US"))
+                .replaceAll("{total}", resultPageCount.toLocaleString("en-US"))}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={() => handleResultPageChange(resultPage + 1)}
+        disabled={resultPage >= resultPageCount}
+      >
+        {copy.resultWindow.next}
+      </button>
+    </nav>
+  );
+  const feedbackResultWindowBlock = (
+    <section className={styles.resultWindow} aria-labelledby="feedback-results-window-title" data-testid="feedback-result-window">
+      <header className={styles.resultWindowHeader}>
+        <div>
+          <p className={styles.eyebrow}>{copy.resultWindow.eyebrow}</p>
+          <h2
+            ref={resultWindowHeadingRef}
+            id="feedback-results-window-title"
+            tabIndex={-1}
+            aria-live="polite"
+            data-testid="feedback-result-window-range"
+          >
+            {resultWindowRangeLabel}
+          </h2>
+        </div>
+        <a className={styles.dataGapJumpLink} href="#decider-data-gaps">
+          {copy.resultWindow.jumpToDataGaps}
+        </a>
+      </header>
+      {loadState === "ready" && filteredItems.length > 0 ? renderResultWindowNavigation("top") : null}
+      {feedbackResultsBlock}
+      {loadState === "ready" && resultPageCount > 1 ? renderResultWindowNavigation("bottom") : null}
+    </section>
   );
 
   const selectedReviewConclusion = selectedItem
@@ -2150,7 +2359,11 @@ export default function SignalDeciderFeedbackPageClient() {
               <span>{labelsCopy.search}</span>
               <input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  const nextQuery = event.target.value;
+                  setQuery(nextQuery);
+                  updateFeedbackRouteState({ page: 1, query: nextQuery });
+                }}
                 placeholder={filtersCopy.searchPlaceholder}
               />
             </label>
@@ -2167,7 +2380,14 @@ export default function SignalDeciderFeedbackPageClient() {
             </label>
             <label>
               <span>{labelsCopy.action}</span>
-              <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value as ActionFilter)}>
+              <select
+                value={actionFilter}
+                onChange={(event) => {
+                  const nextActionFilter = event.target.value as ActionFilter;
+                  setActionFilter(nextActionFilter);
+                  updateFeedbackRouteState({ actionFilter: nextActionFilter, page: 1 });
+                }}
+              >
                 {ACTION_FILTERS.map((action) => (
                   <option key={action} value={action}>
                     {action === "all" ? actionCopy.all : getLocalizedActionLabel(action, actionCopy)}
@@ -2177,7 +2397,14 @@ export default function SignalDeciderFeedbackPageClient() {
             </label>
             <label>
               <span>{labelsCopy.statusFilter}</span>
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  const nextStatusFilter = event.target.value as StatusFilter;
+                  setStatusFilter(nextStatusFilter);
+                  updateFeedbackRouteState({ page: 1, statusFilter: nextStatusFilter });
+                }}
+              >
                 {STATUS_FILTERS.map((status) => (
                   <option key={status} value={status}>
                     {getStatusFilterLabel(status, copy.statusFilters)}
@@ -2187,7 +2414,14 @@ export default function SignalDeciderFeedbackPageClient() {
             </label>
             <label>
               <span>{labelsCopy.sort}</span>
-              <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)}>
+              <select
+                value={sortMode}
+                onChange={(event) => {
+                  const nextSortMode = event.target.value as SortMode;
+                  setSortMode(nextSortMode);
+                  updateFeedbackRouteState({ page: 1, sortMode: nextSortMode });
+                }}
+              >
                 <option value="priority">{sortCopy.priority}</option>
                 <option value="confidence">{sortCopy.confidence}</option>
                 <option value="symbol">{sortCopy.symbol}</option>
@@ -2196,9 +2430,10 @@ export default function SignalDeciderFeedbackPageClient() {
             </label>
           </form>
 
-          {isCalendarContext ? feedbackResultsBlock : null}
+          {isCalendarContext ? feedbackResultWindowBlock : null}
 
           <section
+            id="decider-data-gaps"
             className={styles.dataGapPanel}
             aria-labelledby="decider-data-gaps-title"
             data-testid="decider-data-gaps-report"
@@ -2392,7 +2627,7 @@ export default function SignalDeciderFeedbackPageClient() {
             )}
           </section>
 
-          {isCalendarContext ? null : feedbackResultsBlock}
+          {isCalendarContext ? null : feedbackResultWindowBlock}
         </section>
       </div>
     </MobileAppChrome>

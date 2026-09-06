@@ -15,6 +15,7 @@ type MockDashboardShellOptions = {
   failSignalDeciderFeedback?: boolean;
   failSignalDeciderFeedbackRequestNumber?: number;
   failShortTermDeciderFeedback?: boolean;
+  signalDeciderFeedbackCount?: number;
   shortTermDeciderFeedbackMode?: SignalDeciderFeedbackMode;
 };
 
@@ -59,6 +60,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
   let signalDeciderFeedbackRequestCount = 0;
   let shouldFailSignalDeciderFeedback = options.failSignalDeciderFeedback ?? false;
   let signalDeciderFeedbackMode: SignalDeciderFeedbackMode = "normal";
+  const signalDeciderFeedbackCount = Math.max(2, options.signalDeciderFeedbackCount ?? 2);
 
   await page.route("**/api/trading/market/status", async (route) => {
     await route.fulfill({
@@ -686,7 +688,7 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
           limit: 200,
         },
         summary: {
-          count: 2,
+          count: signalDeciderFeedbackCount,
         },
         items: [
           {
@@ -800,6 +802,43 @@ async function mockDashboardShell(page: Page, options: MockDashboardShellOptions
             },
             received_at: "2026-04-27T07:44:00+00:00",
           },
+          ...Array.from({ length: signalDeciderFeedbackCount - 2 }, (_, index) => {
+            const rowNumber = index + 3;
+            const symbol = String(900000 + rowNumber);
+            const rowLabel = String(rowNumber).padStart(2, "0");
+
+            return {
+              id: `bulk-row-${rowLabel}`,
+              market_date: marketDate,
+              symbol,
+              agent: {
+                name: "signal-decider",
+                run_id: "feedback-cycle-2026-04-27",
+              },
+              summary: {},
+              feedback: {
+                role: "signal-decider",
+                symbol,
+                market_date: marketDate,
+                preferred_action: "wait",
+                next_day_open_action: "wait",
+                confidence_score_10: 5,
+                conviction_score_10: 5,
+                thesis_summary: `Bounded review fixture ${rowLabel}.`,
+                risk_flags: rowNumber % 4 === 0 ? ["Synthetic data gap for window coverage"] : [],
+              },
+              normalized_feedback: null,
+              details: null,
+              context: {
+                symbol_day_context: {
+                  company: {
+                    name_ko: `Review symbol ${rowLabel}`,
+                  },
+                },
+              },
+              received_at: `2026-04-27T07:${String((43 - (index % 60) + 60) % 60).padStart(2, "0")}:00+00:00`,
+            };
+          }),
         ],
       }),
     });
@@ -1686,14 +1725,74 @@ test("dashboard signal-decider card hides current cycle on closed-market weekend
   );
 });
 
+test("large signal-decider feedback sets use a durable bounded review window", async ({ page }) => {
+  await mockDashboardShell(page, { signalDeciderFeedbackCount: 23 });
+
+  await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27&navContext=calendar");
+
+  const resultWindow = page.getByTestId("feedback-result-window");
+  await expect(resultWindow.getByTestId("feedback-result-window-range")).toHaveText("Showing 1–10 of 23 results");
+  await expect(resultWindow.getByTestId("signal-decider-result-card")).toHaveCount(10);
+  const dataGapJump = resultWindow.getByRole("link", { name: "Jump to data gaps" });
+  await expect(dataGapJump).toHaveAttribute("href", "#decider-data-gaps");
+
+  for (const width of [768, 1024, 1280, 1536]) {
+    await page.setViewportSize({ width, height: 900 });
+    const overflow = await page.evaluate(() => {
+      const resultWindowElement = document.querySelector<HTMLElement>('[data-testid="feedback-result-window"]');
+      const topControls = document.querySelector<HTMLElement>('[data-testid="feedback-result-window-nav-top"]');
+      return {
+        document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        resultWindow: resultWindowElement ? resultWindowElement.scrollWidth - resultWindowElement.clientWidth : null,
+        topControls: topControls ? topControls.scrollWidth - topControls.clientWidth : null,
+      };
+    });
+    expect(overflow).toEqual({ document: 0, resultWindow: 0, topControls: 0 });
+  }
+
+  await dataGapJump.click();
+  await expect(page).toHaveURL(/#decider-data-gaps$/);
+  await expect(page.getByTestId("decider-data-gaps-report")).toBeInViewport();
+
+  const topWindowControls = resultWindow.getByTestId("feedback-result-window-nav-top");
+  await topWindowControls.getByRole("combobox", { name: "Select feedback result window" }).selectOption("2");
+  await expect(page).toHaveURL(/feedbackPage=2/);
+  await expect(resultWindow.getByTestId("feedback-result-window-range")).toHaveText("Showing 11–20 of 23 results");
+  await expect(resultWindow.getByTestId("signal-decider-result-card")).toHaveCount(10);
+
+  const restoredCard = page.getByRole("article", { name: /Review symbol 12 signal-decider feedback/i });
+  const restoredSymbolLink = restoredCard.getByRole("link", { name: /Review symbol 12.*900012/i });
+  await expect(restoredSymbolLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/900012\?.*feedbackPage=2.*feedbackFocus=bulk-row-12.*feedbackRoute=signal-decider-feedback/,
+  );
+
+  await restoredSymbolLink.click();
+  const feedbackReturnLink = page.getByRole("link", { name: /Back to feedback/i });
+  await expect(feedbackReturnLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/signal-decider-feedback\?(?=.*marketDate=2026-04-27)(?=.*navContext=calendar)(?=.*feedbackPage=2)(?=.*feedbackFocus=bulk-row-12)/,
+  );
+
+  await feedbackReturnLink.click();
+  await expect(page).toHaveURL(
+    /\/dashboard\/signal-decider-feedback\?(?=.*marketDate=2026-04-27)(?=.*navContext=calendar)(?=.*feedbackPage=2)(?=.*feedbackFocus=bulk-row-12)/,
+  );
+  await expect(resultWindow.getByTestId("feedback-result-window-range")).toHaveText("Showing 11–20 of 23 results");
+  await expect(restoredSymbolLink).toBeFocused();
+});
+
 test("signal-decider feedback detail stacks content without horizontal scrolling on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await mockDashboardShell(page);
+  await mockDashboardShell(page, { signalDeciderFeedbackCount: 23 });
 
   await page.goto("/dashboard/signal-decider-feedback?marketDate=2026-04-27");
 
   await expect(page.getByRole("heading", { name: /Signal-decider feedback/i })).toBeVisible();
   await expect(page.locator("table").filter({ hasText: "Decision" })).toHaveCount(0);
+  await expect(page.getByTestId("feedback-result-window-range")).toHaveText("Showing 1–10 of 23 results");
+  await expect(page.getByTestId("signal-decider-result-card")).toHaveCount(10);
+  await expect(page.getByTestId("feedback-result-window-nav-top").getByRole("button", { name: "Next" })).toBeVisible();
 
   const samsungCard = page.getByRole("article", { name: /Samsung Electronics signal-decider feedback/i });
   await expect(samsungCard).toBeVisible();

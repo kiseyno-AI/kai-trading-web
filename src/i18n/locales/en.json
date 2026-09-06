@@ -663,6 +663,20 @@
       "searchPlaceholder": "Symbol, thesis, risk",
       "load": "Load"
     },
+    "resultWindow": {
+      "eyebrow": "Review window",
+      "range": "Showing {start}–{end} of {total} results",
+      "empty": "0 results",
+      "navigationLabel": "Feedback result windows",
+      "topNavigation": "top controls",
+      "bottomNavigation": "bottom controls",
+      "windowLabel": "Window",
+      "selectLabel": "Select feedback result window",
+      "pageOption": "{page} of {total}",
+      "previous": "Previous",
+      "next": "Next",
+      "jumpToDataGaps": "Jump to data gaps"
+    },
     "review": {
       "verdict": "Verdict",
       "outcome": "Outcome",

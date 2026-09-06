@@ -663,6 +663,20 @@
       "searchPlaceholder": "종목, 근거, 리스크",
       "load": "불러오기"
     },
+    "resultWindow": {
+      "eyebrow": "리뷰 구간",
+      "range": "전체 {total}개 중 {start}–{end}개 표시",
+      "empty": "결과 0개",
+      "navigationLabel": "피드백 결과 구간",
+      "topNavigation": "상단 컨트롤",
+      "bottomNavigation": "하단 컨트롤",
+      "windowLabel": "구간",
+      "selectLabel": "피드백 결과 구간 선택",
+      "pageOption": "{total}개 중 {page}번째",
+      "previous": "이전",
+      "next": "다음",
+      "jumpToDataGaps": "데이터 갭으로 이동"
+    },
     "review": {
       "verdict": "판정",
       "outcome": "결과",

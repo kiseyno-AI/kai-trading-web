@@ -101,8 +101,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     navContext,
     feedbackActionFilter,
     feedbackAgent,
+    feedbackFocus,
     feedbackNavContext,
     feedbackOriginDate,
+    feedbackPage,
     feedbackReturnRoute,
     feedbackSortMode,
     feedbackStatusFilter,
@@ -154,8 +156,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       if (feedbackReturnRoute === SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE) {
         return buildSignalDeciderFeedbackHref(marketDate, {
           actionFilter: feedbackActionFilter,
+          focus: feedbackFocus,
           navContext: feedbackNavContext,
           originDate: feedbackOriginDate,
+          page: feedbackPage ? Number.parseInt(feedbackPage, 10) : null,
           query: searchContextQuery,
           sortMode: feedbackSortMode,
           statusFilter: feedbackStatusFilter,
@@ -165,9 +169,11 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       return buildDeciderFeedbackHref({
         actionFilter: feedbackActionFilter,
         agentName: feedbackAgent,
+        focus: feedbackFocus,
         marketDate,
         navContext: feedbackNavContext,
         originDate: feedbackOriginDate,
+        page: feedbackPage ? Number.parseInt(feedbackPage, 10) : null,
         query: searchContextQuery,
         sortMode: feedbackSortMode,
         statusFilter: feedbackStatusFilter,

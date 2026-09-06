@@ -798,6 +798,8 @@ test("preserves My Symbols navigation context in symbol detail subroutes only wh
       "calendar",
       "signal-decider-feedback",
       "2026-08-03",
+      "2",
+      "feedback-row-12",
     ),
   );
   const mySymbolsQuery = new URLSearchParams(buildSymbolRouteQuery(meta, "2026-04-10", null, "my-symbols"));
@@ -826,6 +828,8 @@ test("preserves My Symbols navigation context in symbol detail subroutes only wh
   assert.equal(feedbackQuery.get("feedbackNavContext"), "calendar");
   assert.equal(feedbackQuery.get("feedbackOriginDate"), "2026-08-03");
   assert.equal(feedbackQuery.get("feedbackRoute"), "signal-decider-feedback");
+  assert.equal(feedbackQuery.get("feedbackPage"), "2");
+  assert.equal(feedbackQuery.get("feedbackFocus"), "feedback-row-12");
   assert.equal(piotroskiQuery.get("marketDate"), "2026-05-08");
   assert.equal(piotroskiQuery.get("navContext"), "piotroski");
   assert.equal(

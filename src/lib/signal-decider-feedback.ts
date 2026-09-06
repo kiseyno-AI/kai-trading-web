@@ -21,6 +21,8 @@ export const SIGNAL_DECIDER_CALENDAR_SUMMARY_CLIENT_PATH = "/api/trading/agent-c
 export const DECIDER_FEEDBACK_NAV_CONTEXT_PARAM = "navContext";
 export const DECIDER_FEEDBACK_ORIGIN_DATE_PARAM = "originDate";
 export const DECIDER_FEEDBACK_SYMBOLS_PARAM = "symbols";
+export const DECIDER_FEEDBACK_PAGE_PARAM = "feedbackPage";
+export const DECIDER_FEEDBACK_FOCUS_PARAM = "feedbackFocus";
 export const DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT = "calendar";
 
 export type DeciderAgentName = (typeof DECIDER_AGENT_NAMES)[number];
@@ -2819,6 +2821,8 @@ export function buildSignalDeciderFeedbackHref(
     actionFilter,
     navContext,
     originDate,
+    page,
+    focus,
     query,
     sortMode,
     statusFilter,
@@ -2827,6 +2831,8 @@ export function buildSignalDeciderFeedbackHref(
     actionFilter?: string | null;
     navContext?: string | null;
     originDate?: string | null;
+    page?: number | null;
+    focus?: string | null;
     query?: string | null;
     sortMode?: string | null;
     statusFilter?: string | null;
@@ -2842,6 +2848,8 @@ export function buildSignalDeciderFeedbackHref(
   if (hasTextValue(actionFilter) && actionFilter !== "all") params.set("feedbackAction", actionFilter.trim());
   if (hasTextValue(statusFilter) && statusFilter !== "all") params.set("feedbackStatus", statusFilter.trim());
   if (hasTextValue(sortMode) && sortMode !== "priority") params.set("feedbackSort", sortMode.trim());
+  if (Number.isInteger(page) && Number(page) > 1) params.set(DECIDER_FEEDBACK_PAGE_PARAM, String(page));
+  if (hasTextValue(focus)) params.set(DECIDER_FEEDBACK_FOCUS_PARAM, focus.trim());
   appendDeciderFeedbackSymbols(params, symbols);
   const queryString = params.toString();
   return `${SIGNAL_DECIDER_FEEDBACK_DASHBOARD_PATH}${queryString ? `?${queryString}` : ""}`;
@@ -2858,6 +2866,8 @@ export function buildDeciderFeedbackHref({
   sortMode,
   navContext,
   originDate,
+  page,
+  focus,
   symbols,
 }: {
   agentName?: string | null;
@@ -2870,6 +2880,8 @@ export function buildDeciderFeedbackHref({
   sortMode?: string | null;
   navContext?: string | null;
   originDate?: string | null;
+  page?: number | null;
+  focus?: string | null;
   symbols?: readonly string[] | null;
 } = {}) {
   const params = new URLSearchParams({ agent: resolveDeciderAgentName(agentName) });
@@ -2883,6 +2895,8 @@ export function buildDeciderFeedbackHref({
   if (hasTextValue(navContext)) params.set(DECIDER_FEEDBACK_NAV_CONTEXT_PARAM, navContext.trim());
   const resolvedOriginDate = resolveDeciderFeedbackOriginDate(originDate);
   if (resolvedOriginDate) params.set(DECIDER_FEEDBACK_ORIGIN_DATE_PARAM, resolvedOriginDate);
+  if (Number.isInteger(page) && Number(page) > 1) params.set(DECIDER_FEEDBACK_PAGE_PARAM, String(page));
+  if (hasTextValue(focus)) params.set(DECIDER_FEEDBACK_FOCUS_PARAM, focus.trim());
   appendDeciderFeedbackSymbols(params, symbols);
   return `${DECIDER_FEEDBACK_DASHBOARD_PATH}?${params.toString()}`;
 }
