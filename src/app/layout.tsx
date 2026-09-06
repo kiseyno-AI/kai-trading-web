@@ -5,6 +5,7 @@ import { NavigationLoadingProvider } from "@/components/providers/navigation-loa
 import { AppStateProvider } from "@/components/providers/app-state-provider";
 import { NavigationFailureBoundary } from "@/components/providers/navigation-failure-boundary";
 import { WebDiagnosticsProvider } from "@/components/providers/web-diagnostics-provider";
+import { RELEASE_REVISION } from "@/lib/release-version";
 import "./globals.css";
 
 const inter = Inter({
@@ -38,7 +39,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${manrope.variable} dark h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${manrope.variable} dark h-full antialiased`}
+      data-release-revision={RELEASE_REVISION}
+    >
       <body className="min-h-full flex flex-col">
         <NavigationLoadingProvider>
           <AppStateProvider>

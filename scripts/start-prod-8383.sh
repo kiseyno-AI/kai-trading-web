@@ -21,4 +21,11 @@ else
   APP_VERSION=$(/opt/homebrew/bin/node -p "require('./package.json').version")
 fi
 export NEXT_PUBLIC_APP_VERSION="${NEXT_PUBLIC_APP_VERSION:-$APP_VERSION}"
+APP_REVISION_FILE="${NEXT_DIST_DIR}/APP_REVISION"
+if [ -f "$APP_REVISION_FILE" ]; then
+  APP_REVISION="$(cat "$APP_REVISION_FILE")"
+else
+  APP_REVISION="unknown"
+fi
+export NEXT_PUBLIC_APP_REVISION="$APP_REVISION"
 exec /opt/homebrew/bin/npm run start -- --hostname 0.0.0.0 --port 8383
