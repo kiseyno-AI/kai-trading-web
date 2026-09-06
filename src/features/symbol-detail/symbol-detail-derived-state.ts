@@ -19,6 +19,7 @@ import {
   getLatestTechnicalMarketDate,
 } from "@/lib/eod-freshness-latest";
 import { formatDisplayTimestamp, formatPrice, formatTurnover } from "@/lib/format";
+import { DECIDER_FEEDBACK_FOCUS_PARAM, DECIDER_FEEDBACK_PAGE_PARAM } from "@/lib/signal-decider-feedback";
 import {
   clampMarketDateToProductDate,
   getCurrentProductMarketDate,
@@ -733,6 +734,8 @@ export function buildSymbolRouteQuery(
   feedbackNavContext: string | null = null,
   feedbackReturnRoute: SymbolDetailFeedbackReturnRoute | null = null,
   feedbackOriginDate: string | null = null,
+  feedbackPage: string | null = null,
+  feedbackFocus: string | null = null,
 ) {
   const params = new URLSearchParams();
   const name = meta?.name_ko;
@@ -796,6 +799,14 @@ export function buildSymbolRouteQuery(
 
   if (feedbackReturnRoute) {
     params.set(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM, feedbackReturnRoute);
+  }
+
+  if (feedbackPage) {
+    params.set(DECIDER_FEEDBACK_PAGE_PARAM, feedbackPage);
+  }
+
+  if (feedbackFocus) {
+    params.set(DECIDER_FEEDBACK_FOCUS_PARAM, feedbackFocus);
   }
 
   return params.toString();

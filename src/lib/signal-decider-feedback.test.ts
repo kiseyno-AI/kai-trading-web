@@ -1389,22 +1389,26 @@ test("builds shared decider feedback paths with agent-specific API params and ro
       marketDate: "2026-04-28",
       navContext: "calendar",
       originDate: "2026-05-09",
+      page: 3,
+      focus: "short-005930",
       query: "Samsung",
       sortMode: "confidence",
       statusFilter: "with-risk",
     }),
-    "/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-28&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence&navContext=calendar&originDate=2026-05-09",
+    "/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-28&q=Samsung&feedbackAction=watch_for_trigger&feedbackStatus=with-risk&feedbackSort=confidence&navContext=calendar&originDate=2026-05-09&feedbackPage=3&feedbackFocus=short-005930",
   );
   assert.equal(
     buildSignalDeciderFeedbackHref("2026-05-06", {
       actionFilter: "wait",
       navContext: "calendar",
       originDate: "2026-05-09",
+      page: 2,
+      focus: "signal-003480",
       query: "한진",
       sortMode: "captured",
       statusFilter: "with-risk",
     }),
-    "/dashboard/signal-decider-feedback?marketDate=2026-05-06&navContext=calendar&originDate=2026-05-09&q=%ED%95%9C%EC%A7%84&feedbackAction=wait&feedbackStatus=with-risk&feedbackSort=captured",
+    "/dashboard/signal-decider-feedback?marketDate=2026-05-06&navContext=calendar&originDate=2026-05-09&q=%ED%95%9C%EC%A7%84&feedbackAction=wait&feedbackStatus=with-risk&feedbackSort=captured&feedbackPage=2&feedbackFocus=signal-003480",
   );
   assert.equal(
     buildSignalDeciderFeedbackHref("2026-05-06", {

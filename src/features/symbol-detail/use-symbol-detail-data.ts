@@ -25,6 +25,7 @@ import {
 import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { MOBILE_TOOLBAR_MARKET_STATUS_PATH } from "@/lib/mobile-toolbar-data";
 import { readDashboardRecommendationContext } from "@/lib/dashboard-recommendation-context";
+import { DECIDER_FEEDBACK_FOCUS_PARAM, DECIDER_FEEDBACK_PAGE_PARAM } from "@/lib/signal-decider-feedback";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import {
   invalidateTradingApiCacheByPathPrefix,
@@ -124,6 +125,8 @@ export function useSymbolDetailData({
     () => searchParams.get(SYMBOL_DETAIL_FEEDBACK_RETURN_ORIGIN_DATE_PARAM),
     [searchParams],
   );
+  const feedbackPage = useMemo(() => searchParams.get(DECIDER_FEEDBACK_PAGE_PARAM), [searchParams]);
+  const feedbackFocus = useMemo(() => searchParams.get(DECIDER_FEEDBACK_FOCUS_PARAM), [searchParams]);
   const feedbackReturnRoute = useMemo(
     () => resolveSymbolDetailFeedbackReturnRoute(searchParams.get(SYMBOL_DETAIL_FEEDBACK_RETURN_ROUTE_PARAM)),
     [searchParams],
@@ -534,12 +537,16 @@ export function useSymbolDetailData({
         feedbackNavContext,
         feedbackReturnRoute,
         feedbackOriginDate,
+        feedbackPage,
+        feedbackFocus,
       ),
     [
       feedbackActionFilter,
       feedbackAgent,
+      feedbackFocus,
       feedbackNavContext,
       feedbackOriginDate,
+      feedbackPage,
       feedbackReturnRoute,
       feedbackSortMode,
       feedbackStatusFilter,
@@ -628,8 +635,10 @@ export function useSymbolDetailData({
     navContext,
     feedbackActionFilter,
     feedbackAgent,
+    feedbackFocus,
     feedbackNavContext,
     feedbackOriginDate,
+    feedbackPage,
     feedbackReturnRoute,
     feedbackSortMode,
     feedbackStatusFilter,
