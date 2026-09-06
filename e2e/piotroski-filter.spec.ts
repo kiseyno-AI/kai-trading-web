@@ -346,6 +346,35 @@ test.describe("Piotroski pass-list route", () => {
 test.describe("Piotroski pass-list route on mobile", () => {
   test.use(chromiumIPhone13);
 
+  test("keeps a latest-date 504 localized and terminal at mobile width", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "HTTP 504: Timed out while loading /eod/freshness from trading-core." }),
+      });
+    });
+
+    await page.goto("/dashboard/piotroski-filter");
+
+    const errorState = page.getByTestId("piotroski-error-state");
+    await expect(errorState).toContainText(
+      "피오트로스키 결과 데이터를 불러오지 못했습니다. 최신 데이터 처리가 지연되었을 수 있습니다.",
+    );
+    await expect(
+      page.locator('[data-app-chrome-topbar="fixed"]').getByText("데이터 사용 불가", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/기준일\s*확인 불가/)).toBeVisible();
+    await expect(page.getByText(/통과 종목\s*확인 불가/)).toBeVisible();
+    await expect(page.getByText("최신 피오트로스키 기준일을 확인 중입니다.")).toHaveCount(0);
+    await expect(page.getByText("대기 중", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("main").getByText("HTTP 504", { exact: true })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
   test("maps quote unavailable reason tokens to compact change copy", async ({ page }) => {
     await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
       await route.fulfill({

@@ -27,6 +27,36 @@ if [[ "$TAILNET_BROWSER_ENTRYPOINT_URL" == http://*.ts.net/* ]]; then
   TAILNET_BROWSER_ENTRYPOINT_URL="https://${TAILNET_BROWSER_ENTRYPOINT_URL#http://}"
 fi
 
+sync_deployment_source() {
+  local current_branch
+  local remote_revision
+
+  current_branch=$(git branch --show-current)
+  if [ "$current_branch" != "main" ]; then
+    echo "refusing to deploy from branch ${current_branch:-detached}; expected main" >&2
+    exit 1
+  fi
+
+  if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+    echo "refusing to update a dirty production checkout" >&2
+    exit 1
+  fi
+
+  git fetch origin main
+  git merge --ff-only origin/main
+
+  SOURCE_REVISION=$(git rev-parse HEAD)
+  remote_revision=$(git rev-parse origin/main)
+  if [ "$SOURCE_REVISION" != "$remote_revision" ]; then
+    echo "production checkout does not exactly match origin/main: ${SOURCE_REVISION} != ${remote_revision}" >&2
+    exit 1
+  fi
+}
+
+SOURCE_REVISION=""
+sync_deployment_source
+echo "resolved trading-web source revision ${SOURCE_REVISION}"
+
 is_shared_next_dist_dir() {
   /opt/homebrew/bin/node -e 'const path = require("path"); const raw = process.argv[1] ?? ""; process.exit(path.resolve(process.cwd(), raw.trim()) === path.resolve(process.cwd(), ".next") ? 0 : 1);' "$1"
 }
@@ -73,9 +103,11 @@ fi
 
 export NEXT_PUBLIC_BASE_PATH=/trading-web
 export NEXT_PUBLIC_APP_VERSION="$NEW_VERSION"
+export NEXT_PUBLIC_APP_REVISION="$SOURCE_REVISION"
 /opt/homebrew/bin/npx next build --webpack
 
 printf "%s" "$NEW_VERSION" > "${NEXT_DIST_DIR}/APP_VERSION"
+printf "%s" "$SOURCE_REVISION" > "${NEXT_DIST_DIR}/APP_REVISION"
 
 /opt/homebrew/bin/node <<'NODE'
 const fs = require('fs');
@@ -145,15 +177,16 @@ for _ in {1..30}; do
 
   CSS_HREF=$(printf "%s" "$APP_HTML" | grep -oE 'href="[^"]+\.css[^"]*"' | head -n 1 | sed -E 's/^href="([^"]+)"/\1/' || true)
   JS_SRC=$(printf "%s" "$APP_HTML" | grep -oE 'src="[^"]+\.js[^"]*"' | sed -E 's/^src="([^"]+)"/\1/' | grep -F '/trading-web/_next/static/' | head -n 1 || true)
-  if [ -n "$CSS_HREF" ] && [ -n "$JS_SRC" ] && fetch_local_asset "$CSS_HREF" && fetch_local_asset "$JS_SRC" && curl -fsS "$DATA_HEALTH_URL" >/dev/null 2>&1; then
+  if [ -n "$CSS_HREF" ] && [ -n "$JS_SRC" ] && [[ "$APP_HTML" == *"data-release-revision=\"${SOURCE_REVISION}\""* ]] && fetch_local_asset "$CSS_HREF" && fetch_local_asset "$JS_SRC" && curl -fsS "$DATA_HEALTH_URL" >/dev/null 2>&1; then
     echo "trading-web redeployed on 8383 via launchd"
     echo "production dist dir: ${NEXT_DIST_DIR}"
+    echo "deployed source revision: ${SOURCE_REVISION}"
     echo "canonical Tailnet browser entrypoint: ${TAILNET_BROWSER_ENTRYPOINT_URL}"
     if [ "$TAILNET_BROWSER_ENTRYPOINT_URL" != "$RAW_TAILNET_BROWSER_ENTRYPOINT_URL" ]; then
       echo "normalized Tailnet browser entrypoint from ${RAW_TAILNET_BROWSER_ENTRYPOINT_URL} to ${TAILNET_BROWSER_ENTRYPOINT_URL}"
     fi
     if [ "$RUN_TAILNET_BROWSER_SMOKE" = "1" ]; then
-      PLAYWRIGHT_SKIP_WEB_SERVER=1 TAILNET_ENTRYPOINT_URL="$TAILNET_BROWSER_ENTRYPOINT_URL" \
+      PLAYWRIGHT_SKIP_WEB_SERVER=1 TAILNET_ENTRYPOINT_URL="$TAILNET_BROWSER_ENTRYPOINT_URL" TAILNET_EXPECTED_REVISION="$SOURCE_REVISION" \
         /opt/homebrew/bin/npm exec -- playwright test e2e/tailnet-entrypoint.spec.ts --project=chromium
     else
       echo "Tailnet browser smoke skipped because RUN_TAILNET_BROWSER_SMOKE=${RUN_TAILNET_BROWSER_SMOKE}"

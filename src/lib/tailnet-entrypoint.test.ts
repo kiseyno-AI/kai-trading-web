@@ -74,6 +74,8 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
   };
   const redeployScript = fs.readFileSync(path.join(repoRoot, "scripts/redeploy-prod-8383.sh"), "utf8");
   const startScript = fs.readFileSync(path.join(repoRoot, "scripts/start-prod-8383.sh"), "utf8");
+  const rootLayout = fs.readFileSync(path.join(repoRoot, "src/app/layout.tsx"), "utf8");
+  const releaseVersion = fs.readFileSync(path.join(repoRoot, "src/lib/release-version.ts"), "utf8");
   const readme = fs.readFileSync(path.join(repoRoot, "README.md"), "utf8");
   const productionSection = readme.slice(readme.indexOf("## Production serve on port 8383"));
 
@@ -82,6 +84,10 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
   assert.match(redeployScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
   assert.match(redeployScript, /DEPLOY_LOCK_FILE="\$\{DEPLOY_LOCK_FILE:-\/tmp\/\$\{SERVICE_LABEL\}\.redeploy\.lock\}"/);
   assert.match(redeployScript, /\/usr\/bin\/lockf -s -t 0 9/);
+  assert.match(redeployScript, /git status --porcelain --untracked-files=all/);
+  assert.match(redeployScript, /git fetch origin main/);
+  assert.match(redeployScript, /git merge --ff-only origin\/main/);
+  assert.match(redeployScript, /SOURCE_REVISION.*remote_revision/s);
   assert.match(redeployScript, /is_shared_next_dist_dir\(\)/);
   assert.match(redeployScript, /path\.resolve\(process\.cwd\(\), raw\.trim\(\)\) === path\.resolve\(process\.cwd\(\), "\.next"\)/);
   assert.match(redeployScript, /\/usr\/bin\/plutil -lint "\$SERVICE_PLIST"/);
@@ -93,12 +99,22 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
   assert.match(redeployScript, /if \/bin\/launchctl print "\$SERVICE_TARGET"/);
   assert.match(redeployScript, /\/bin\/launchctl kickstart -k "\$SERVICE_TARGET"/);
   assert.match(redeployScript, /\/bin\/launchctl bootstrap "gui\/\$\(id -u\)" "\$SERVICE_PLIST"/);
+  assert.match(redeployScript, /NEXT_PUBLIC_APP_REVISION="\$SOURCE_REVISION"/);
+  assert.match(redeployScript, /data-release-revision=\\"\$\{SOURCE_REVISION\}\\"/);
+  assert.match(redeployScript, /TAILNET_EXPECTED_REVISION="\$SOURCE_REVISION"/);
   assert.doesNotMatch(redeployScript, /\/bin\/launchctl bootout/);
   assert.doesNotMatch(redeployScript, /launchctl bootstrap[^\n]+\|\| true/);
   assert.match(startScript, /NEXT_DIST_DIR="\$\{NEXT_DIST_DIR:-\.next-prod-8383\}"/);
   assert.match(startScript, /is_shared_next_dist_dir\(\)/);
   assert.match(startScript, /path\.resolve\(process\.cwd\(\), raw\.trim\(\)\) === path\.resolve\(process\.cwd\(\), "\.next"\)/);
   assert.match(startScript, /APP_VERSION_FILE="\$\{NEXT_DIST_DIR\}\/APP_VERSION"/);
+  assert.match(startScript, /APP_REVISION_FILE="\$\{NEXT_DIST_DIR\}\/APP_REVISION"/);
+  assert.match(startScript, /if \[ ! -f "\$APP_REVISION_FILE" \]/);
+  assert.match(startScript, /SOURCE_REVISION="\$\(git rev-parse HEAD\)"/);
+  assert.match(startScript, /if \[ "\$APP_REVISION" != "\$SOURCE_REVISION" \]/);
+  assert.match(startScript, /NEXT_PUBLIC_APP_REVISION/);
+  assert.match(rootLayout, /data-release-revision=\{RELEASE_REVISION\}/);
+  assert.match(releaseVersion, /NEXT_PUBLIC_APP_REVISION/);
   assert.match(productionSection, new RegExp(DEFAULT_TAILNET_BROWSER_ENTRYPOINT_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(productionSection, /\.next-prod-8383/);
   assert.equal(productionSection.includes(legacyHttpEntrypointUrl), false);
@@ -106,10 +122,13 @@ test("repo-owned Tailnet defaults publish the browser-safe HTTPS entrypoint", ()
 
 test("production redeploy validates recovery prerequisites before restarting the listener", () => {
   const redeployScript = fs.readFileSync(path.join(repoRoot, "scripts/redeploy-prod-8383.sh"), "utf8");
+  const sourceSyncIndex = redeployScript.indexOf("sync_deployment_source");
   const plistGuardIndex = redeployScript.indexOf('if [ ! -f "$SERVICE_PLIST" ]');
   const buildIndex = redeployScript.indexOf("/opt/homebrew/bin/npx next build --webpack");
   const restartIndex = redeployScript.indexOf('if /bin/launchctl print "$SERVICE_TARGET"');
 
+  assert.ok(sourceSyncIndex >= 0, "redeploy must synchronize the production source checkout");
+  assert.ok(plistGuardIndex > sourceSyncIndex, "redeploy must synchronize source before validating runtime prerequisites");
   assert.ok(plistGuardIndex >= 0, "redeploy must guard the launchd plist");
   assert.ok(buildIndex > plistGuardIndex, "redeploy must validate the launchd plist before building");
   assert.ok(restartIndex > buildIndex, "redeploy must only restart launchd after a successful build");

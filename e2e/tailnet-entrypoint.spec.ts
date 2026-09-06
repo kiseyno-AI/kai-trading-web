@@ -8,6 +8,7 @@ import {
 const tailnetEntrypoint = resolveTailnetBrowserNavigationEntrypoint(process.env);
 const tailnetBrowserNavigationUrl = tailnetEntrypoint.navigationUrl;
 const tailnetEntrypointReport = formatTailnetBrowserNavigationEntrypoint(tailnetEntrypoint);
+const expectedRevision = process.env.TAILNET_EXPECTED_REVISION?.trim() ?? "";
 
 type StaticAssetResponse = {
   status: number;
@@ -32,6 +33,15 @@ function buildExpectedStaticAssetPathPrefix(entrypointUrl: string) {
   const basePath = pathname.replace(/\/dashboard\/?$/, "").replace(/\/$/, "");
 
   return `${basePath}/_next/static/`.replace(/^\/\//, "/");
+}
+
+function buildTailnetRouteUrl(entrypointUrl: string, routePath: string) {
+  const url = new URL(entrypointUrl);
+  const basePath = url.pathname.replace(/\/dashboard\/?$/, "").replace(/\/$/, "");
+  url.pathname = `${basePath}${routePath}`;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }
 
 function formatStaticAssetFailures(responses: StaticAssetResponse[], failures: StaticAssetFailure[]) {
@@ -107,6 +117,13 @@ test.describe("Tailnet browser entrypoint", () => {
     expect(response, `No browser response returned.\n${tailnetEntrypointReport}`).not.toBeNull();
     expect(response?.status(), `Unexpected Tailnet entrypoint status for ${page.url()}`).toBeLessThan(400);
 
+    if (expectedRevision) {
+      await expect(page.locator("html"), "Tailnet runtime must match the source revision selected for deployment").toHaveAttribute(
+        "data-release-revision",
+        expectedRevision,
+      );
+    }
+
     const expectedStaticAssetPathPrefix = buildExpectedStaticAssetPathPrefix(tailnetBrowserNavigationUrl);
     if (expectedStaticAssetPathPrefix !== "/_next/static/") {
       const documentHtml = await response!.text();
@@ -166,5 +183,36 @@ test.describe("Tailnet browser entrypoint", () => {
         /chrome-error:\/\/chromewebdata/,
       );
     }
+  });
+
+  test("maps a deployed Piotroski freshness 504 to one localized terminal state", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await page.route("**/api/trading/eod/freshness", async (route) => {
+      await route.fulfill({
+        status: 504,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "HTTP 504: Timed out while loading /eod/freshness from trading-core." }),
+      });
+    });
+
+    const piotroskiUrl = buildTailnetRouteUrl(tailnetBrowserNavigationUrl, "/dashboard/piotroski-filter");
+    await page.goto(piotroskiUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+
+    const main = page.getByRole("main");
+    const errorState = page.getByTestId("piotroski-error-state");
+    await expect(errorState).toContainText(
+      "피오트로스키 결과 데이터를 불러오지 못했습니다. 최신 데이터 처리가 지연되었을 수 있습니다.",
+    );
+    await expect(
+      page.locator('[data-app-chrome-topbar="fixed"]').getByText("데이터 사용 불가", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/기준일\s*확인 불가/)).toBeVisible();
+    await expect(page.getByText(/통과 종목\s*확인 불가/)).toBeVisible();
+    await expect(page.getByText("최신 피오트로스키 기준일을 확인 중입니다.")).toHaveCount(0);
+    await expect(page.getByText("대기 중", { exact: true })).toHaveCount(0);
+    await expect(main.getByText("HTTP 504", { exact: true })).toHaveCount(0);
   });
 });
