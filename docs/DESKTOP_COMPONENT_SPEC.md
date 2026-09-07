@@ -8,7 +8,7 @@ This document maps the desktop Stitch refresh to the shipped React surfaces, com
 - Long text remains clamped to **3 lines maximum** via `clamp-3`, then visually truncates with `...`.
 - Dev-mode component tags remain available through the `DevModeToggle` in the top bar.
 - If a field is not confirmed by `kai-trading-core`, the UI renders `[확인 필요]` instead of inventing values.
-- No live-trading behavior was added. Disabled execution CTAs remain visual placeholders until explicitly approved.
+- The web remains read-only and exposes no process-stop, order, cancel, or execution command controls.
 
 ## Stitch references
 
@@ -29,20 +29,20 @@ Downloaded reference assets were stored under `/tmp/stitch-4983085105003286837-d
 
 | Surface | File | API | Notes |
 | --- | --- | --- | --- |
-| Desktop rail | `src/components/mobile/mobile-app-chrome.tsx` + `src/lib/app-chrome-routes.ts` | shared route model | `MobileAppChrome` renders a desktop-only KAI Trading rail from the same descriptors as the mobile bottom nav: `Dashboard`, `Search`, `Calendar`, `Assets`, and `My Symbols`. |
-| Desktop top bar | `src/components/navigation/dashboard-toolbar.tsx` | route slot/config | `MobileAppChrome` and `AppShell` compose the shared dashboard toolbar instead of keeping per-route top-bar markup. Screens provide only `topbar` slots/config such as status/actions or a small leading control. |
+| Desktop rail | `src/components/mobile/mobile-app-chrome.tsx` + `src/lib/app-chrome-routes.ts` | shared route model | `MobileAppChrome` renders the same four destinations as the mobile bottom nav: `Overview`, `Explore`, `Review`, and `Portfolio`. |
+| Desktop top bar | `src/components/navigation/dashboard-toolbar.tsx` | route slot/config | `MobileAppChrome` owns the shared toolbar. Screens provide only route-specific toolbar slots such as status, actions, or a small leading control. |
 
 ## Dashboard: `/dashboard`
 
 | Tag | Component | API | Rendered fields |
 | --- | --- | --- | --- |
-| `dashboard.process-monitor` | Toolbar daily process monitor drawer plus dashboard Filtering and Scoring cards | `/api/trading/eod/freshness`, `/api/trading/eod/pipeline/status`, `/api/trading/market/status`, `/api/trading/agent-context/feedback/progress`, `/api/trading/disclosures/dart/fundamentals/daily/inspect`, `/api/trading/eod/piotroski-filter-results`, `/api/trading/eod/market-risk-filters` | EOD stage status/counts/latest dates, running pipeline steps, filtering fallback dates and counts, scoring progress, agent-feedback role progress, and the shared patch date |
-| `dashboard.signal-decider-feedback` | Signal-decider feedback card and detail route | `/api/trading/agent-context/feedback?market_date=...&agent_name=signal-decider`, `/api/trading/agent-context/feedback/progress` | card status, result count, market date, action mix, preview rows, and detail rows with symbol/company, action, conviction/confidence, thesis, risks, stop/target, persisted 5-day evaluation status/target-hit/stop-hit/first-hit/MFE/MAE/window/warnings, run id, and captured timestamp |
+| `dashboard.process-monitor` | Compact process status trigger plus canonical daily process monitor drawer | `/api/trading/eod/freshness`, `/api/trading/eod/pipeline/status`, `/api/trading/market/status`, `/api/trading/agent-context/feedback/progress`, `/api/trading/disclosures/dart/fundamentals/daily/inspect`, `/api/trading/eod/piotroski-filter-results`, `/api/trading/eod/market-risk-filters` | EOD stage status/counts/latest dates, running pipeline steps, filtering fallback dates and counts, scoring progress, agent-feedback role progress, and the shared patch date |
+| `dashboard.decider-feedback` / `dashboard.signal-decider-feedback` | Shared signal/short-term decider feedback plus the signal-only compatibility route | `/api/trading/agent-context/feedback?market_date=...&agent_name={signal-decider|short-term-decider}`, `/api/trading/agent-context/feedback/progress` | selected agent, card status, result count, market date, action mix, preview rows, and detail rows with symbol/company, action, conviction/confidence, thesis, risks, stop/target, persisted 5-day evaluation status/target-hit/stop-hit/first-hit/MFE/MAE/window/warnings, run id, and captured timestamp |
 | `dashboard.piotroski-board` | Piotroski full-list route | `/api/trading/eod/piotroski-filter-results`, `/api/trading/quotes/{symbol}`, `/api/trading/symbols/search` | `items[].symbol`, `items[].passed_filter`, `items[].piotroski_score`, per-symbol quote `price`, `change_pct`, metadata fallback name; the shared dashboard/process-monitor Filtering card owns the compact summary, while `More` opens `/dashboard/piotroski-filter` for the full list |
 
 - Agent Feedback role rows render compact progress bars under each EOD / Technical / Fundamental summarizer and signal-decider title, with the right-side status icon still derived from each row's resolved status.
-- Signal-decider feedback uses the generic stored feedback read filtered by `agent_name=signal-decider`; if progress role counts are absent, the UI keeps row counts visible and avoids inferring full cycle completion. Persisted 5-day evaluation outcomes are displayed when already stored on feedback rows, and missing/incomplete evaluation rows render not-computed, pending-window, or insufficient-data states without triggering compute endpoints.
-- At desktop widths, the dashboard-body Filtering and Scoring cards share a balanced row. The process monitor keeps the full `Daily Data Fetch`, `Filtering`, `Scoring`, and `Agent Feedback` detail grid.
+- Decider feedback uses the generic stored feedback read filtered by the exact selected agent. The shared route preserves agent/date/filter state across tabs, while the compatibility route always opens signal-decider. If progress role counts are absent, the UI keeps row counts visible and avoids inferring full cycle completion. Persisted 5-day evaluation outcomes are displayed when already stored on feedback rows, and missing/incomplete evaluation rows render not-computed, pending-window, or insufficient-data states without triggering compute endpoints.
+- At desktop widths, recommendations and market context stack in the left column while portfolio status occupies the right column, avoiding empty grid space. Filtering and Scoring appear once, inside the process drawer with `Daily Data Fetch` and `Agent Feedback`.
 
 ## Symbol desktop pages
 

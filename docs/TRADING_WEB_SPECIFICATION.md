@@ -3,7 +3,7 @@
 ## Document status
 
 - Repository: `trading-web`
-- Scope: current shipped and intentionally scaffolded product behavior
+- Scope: current shipped behavior and compatibility redirects
 - Audience: product, frontend, backend, QA, and future verification agents
 - Primary goal: define what each surface should do, what data it should show, and how it should behave when data is missing, stale, partial, or unavailable
 
@@ -39,14 +39,15 @@ The web app must:
 - call only the BFF / trading API layer, never broker APIs directly from the browser
 - behave conservatively when data is missing or ambiguous
 - prefer explicit unavailable / pending / stale states over guessed values
-- keep read-only decision support separate from live execution unless explicitly approved
+- remain a read-only trading and operations surface
 
 The web app must not:
 
 - invent prices, factor values, evaluation verdicts, or outcomes
 - imply that a missing field is zero
 - infer market-condition data from unrelated filtering endpoints
-- enable live-trading actions by accident
+- place or cancel orders
+- start, stop, or signal Core or Exec processes
 
 ---
 
@@ -55,7 +56,7 @@ The web app must not:
 ### 2.1 Frontend shape
 
 - Framework: Next.js App Router + TypeScript
-- Delivery pattern: server-rendered bootstrap with client-side polling / refresh where needed
+- Delivery pattern: server-rendered route shell with explicit unavailable sentinels, followed by validated client-side polling / refresh
 - Main folders:
   - `src/app/*` route entrypoints
   - `src/features/*` page-level composition
@@ -76,8 +77,8 @@ Never call broker systems directly from the browser.
 
 Prefer:
 
-1. SSR/bootstrap for initial route payloads where practical
-2. client polling only for actively changing operational data
+1. server-render a stable shell and explicit unavailable initial state without inventing upstream values
+2. load dashboard market, quote, decision, portfolio, and operational data through client polling
 3. per-surface state mapping so one bad subsection does not collapse a whole page
 
 ---
@@ -90,6 +91,8 @@ If a field is not confirmed by backend data, the UI must:
 
 - show `needs review`, `unavailable`, `pending`, or another explicit state label
 - never synthesize a plausible-looking number or verdict
+- reject a symbol-scoped row unless its normalized symbol exactly matches the requested symbol
+- reject a date-scoped dataset as current unless its actual or resolved date matches the requested date; an echoed request date is not sufficient evidence
 
 ### 3.2 Freshness rules
 
@@ -129,75 +132,53 @@ They are part of the intended QA/debug workflow.
 
 ## 4. Shared chrome and navigation specification
 
-Two shell systems coexist intentionally.
+One `MobileAppChrome` system owns global navigation on every maintained operator surface. It renders a compact desktop rail at larger widths and a mobile top bar plus bottom navigation at narrow widths. Routes provide page metadata and content; they do not create a second global shell.
 
-### 4.1 `MobileAppChrome`
+### 4.1 Primary navigation
 
-Used by the main operator surfaces such as:
+The ordered primary destinations are:
 
-- `/dashboard`
-- `/search`
-- `/my-symbols`
-- `/portfolio`
-- `/calendar`
-- symbol-detail and related mobile-style deep links
+1. Overview — `/dashboard`
+2. Explore — `/search`
+3. Review — `/calendar`
+4. Portfolio — `/portfolio`
 
-Expected behavior:
+The route registry in `src/lib/app-chrome-routes.ts` is the single source of truth for both desktop and mobile navigation.
 
-- fixed top app bar composed inside `MobileAppChrome` from `src/components/navigation/dashboard-toolbar.tsx`; routes provide only `topbar` slots/config
-- bottom tab bar
-- active-tab highlighting
-- desktop left rail when viewed at larger widths, derived from the shared app chrome route model
-- locale switch in shell chrome
-- release version visibility
-- sibling-route prefetching for toolbar targets
-- bottom accessory and floating layer slots that inherit the shell-owned safe-area/floating offset
+### 4.2 Contextual destinations
 
-Primary nav destinations:
+`/my-symbols`, `/markets/factors`, `/markets/crypto`, signal-decider feedback, Piotroski results, and symbol-detail routes remain reachable from relevant workflows, but they are not additional primary tabs.
 
-- Dashboard
-- Search
-- Calendar
-- Assets / Portfolio
-- My Symbols
+Expected shell behavior:
 
-### 4.2 `AppShell`
-
-Used by broader workspace-style routes such as:
-
-- `/markets`
-- `/markets/factors`
-- `/bots`
-
-`AppShell` uses the same shared dashboard toolbar component as `MobileAppChrome`, adding route copy, search, notification, locale, and profile slots instead of maintaining a separate top-bar implementation. Its default sidebar/nav and search suggestions are generated from the same route descriptors used by the full-page mobile chrome.
-
-Expected behavior:
-
-- left sidebar on larger layouts
-- shared top bar with route title and eyebrow
-- mobile nav drawer behavior when needed
-- route-level search suggestions and route metadata
+- active-destination highlighting
+- locale switch and release version visibility
+- route-level title/status context without a duplicate sidebar or top bar
+- sibling-route prefetching where useful
+- modal and floating layers that preserve responsive safe areas
 
 ### 4.3 Navigation rules
 
-- `/` must redirect to `/dashboard`
+- `/` must render the canonical dashboard entry without maintaining a second implementation
+- `/markets` must redirect to `/markets/factors`
+- `/real-dashboard`, `/kis-dashboard`, and `/bots` must redirect to `/dashboard`
+- `/scanner-tracker` must redirect to `/my-symbols`
 - route titles and eyebrows must match route intent
-- navigation should warm likely sibling views when the dedicated mobile shell is used
 - route changes should expose navigation-pending feedback rather than appearing dead
 
 ---
 
 ## 5. Route inventory
 
-## 5.1 `/` Home redirect
+## 5.1 `/` Home alias
 
 Purpose:
 
-- canonical entry redirects immediately to `/dashboard`
+- canonical entry re-exports the `/dashboard` route implementation while keeping `/` directly addressable
 
 Expected behavior:
 
-- no content surface of its own
+- no independent content or data implementation of its own
 - no alternate landing experience
 
 ---
@@ -206,9 +187,9 @@ Expected behavior:
 
 Purpose:
 
-- the main operational surface for daily monitoring and intervention awareness
+- the main read-only surface for daily decisions and operational awareness
 
-Primary bootstrap sources:
+Primary client data sources:
 
 - `/market/status`
 - `/market/snapshot`
@@ -219,6 +200,9 @@ Primary bootstrap sources:
 - `/agent-context/feedback/progress`
 - `/agent-context/feedback?market_date={resolved_date}&agent_name=signal-decider`
 - `/portfolio/summary`
+- `/execution/runtime/status`
+- `/execution/runtime/monitored-symbols`
+- `/execution/runtime/daily-board`
 - `/eod/piotroski-filter-results`
 - `/eod/market-risk-filters`
 
@@ -231,13 +215,13 @@ It must show what is truly available now, what is still running, and what is mis
 
 #### A. Core unavailable fallback
 
-When upstream bootstrap fails badly enough that the main dashboard cannot be trusted, the route must show an explicit core-unavailable state instead of a fake healthy dashboard.
+When upstream client reads fail badly enough that the main dashboard cannot be trusted, the route must show explicit unavailable states instead of a fake healthy dashboard.
 
 Expected content:
 
 - clear unavailable message
 - indication that live core data is unavailable
-- only safe fallback/mock placeholders where already intentionally supported
+- no plausible synthetic prices, scores, dates, market state, or process state
 
 #### B. Market condition card
 
@@ -290,12 +274,12 @@ Expected behaviors:
 
 Purpose:
 
-- expose Filtering and Scoring in the dashboard body, including the Piotroski pass-list entry point
-- expose the full end-to-end system processing state across non-agent stages, filtering, scoring, and agent feedback from the toolbar process monitor
+- expose one compact process-health trigger in the dashboard body
+- expose the full end-to-end system processing state across non-agent stages, filtering, scoring, and agent feedback inside the process monitor drawer
 
 This is the most important operational contract in the app.
 
-The dashboard body must not embed the full freshness registry. It keeps the shared Filtering and Scoring cards visible for operational scanning and the Piotroski click path, while the toolbar process monitor remains the canonical access path for the full process detail set.
+The dashboard body must not duplicate the freshness registry, Filtering, or Scoring cards. The process monitor drawer is the canonical access path for all process detail, including the Piotroski pass-list entry point.
 
 It should contain four major cards:
 
@@ -401,7 +385,7 @@ Purpose:
 
 Current contract:
 
-- separate card below Filtering
+- separate card below Filtering inside the process monitor drawer
 - intended to read future pipeline stages such as unified value / quality / momentum scoring
 
 Expected behavior now:
@@ -409,7 +393,7 @@ Expected behavior now:
 - if real scoring stage data is not yet integrated, the card must show clear pending / unavailable states rather than `needs review` everywhere or pretending completion
 - each scoring family should be independently rendered
 
-#### F. Signal-decider preview card
+#### F. Decider recommendations card
 
 Purpose:
 
@@ -419,6 +403,9 @@ Sources:
 
 - `/api/trading/agent-context/feedback?market_date={resolved_date}&agent_name=signal-decider`
 - `/api/trading/agent-context/feedback/progress`
+- `/api/trading/execution/runtime/monitored-symbols`
+- `/api/trading/execution/runtime/daily-board`
+- `/api/trading/quotes/tracked` for grouped quote enrichment only
 
 Expected displayed data:
 
@@ -430,7 +417,7 @@ Expected displayed data:
 Rules:
 
 - this is decision support only
-- no order placement behavior
+- no order placement or process-control behavior
 - if verdict/outcome review fields are absent, decision data like thesis / target / stop must still show
 - missing review verdict/outcome must be shown as pending review data, not as a synthetic unknown verdict
 
@@ -471,21 +458,23 @@ Rules:
 
 ---
 
-## 5.4 `/dashboard/signal-decider-feedback`
+## 5.4 `/dashboard/decider-feedback` and `/dashboard/signal-decider-feedback`
 
 Purpose:
 
-- full detail inspection surface for signal-decider outputs
+- shared full-detail inspection for signal-decider and short-term-decider outputs
+- backward-compatible signal-only inspection at `/dashboard/signal-decider-feedback`
 
 Sources:
 
 - `/api/trading/eod/freshness`
-- `/api/trading/agent-context/feedback?market_date=...&agent_name=signal-decider`
+- `/api/trading/agent-context/feedback?market_date=...&agent_name={signal-decider|short-term-decider}`
 - `/api/trading/agent-context/feedback/progress`
 
 Expected behavior:
 
 - date-based loading
+- exact-agent loading from the shared route `agent` query, with tab changes preserving the date and filter context
 - filters for action / available verdict / policy metadata only when such fields truly exist
 - search and sort across returned decision rows
 - detail dialog or expanded inspection for per-row reasoning
@@ -725,7 +714,9 @@ Purpose:
 
 Current source model:
 
-- generic signal-decider feedback rows probed by visible dates
+- compact `/api/trading/agent-context/feedback/calendar` month summaries
+- `/api/trading/agent-context/feedback/review` selected-date detail
+- exact-date generic feedback reads only as a degraded fallback when either preferred read fails
 - progress endpoint as best-effort overlay
 
 Expected behavior:
@@ -748,7 +739,8 @@ Expected displayed data where available:
 
 Rules:
 
-- must not invent month aggregates beyond probed data
+- must not invent month aggregates beyond compact-summary or exact-date fallback evidence
+- must not mark a requested date available from a mismatched returned dataset
 - must label missing review/path fields as unavailable instead of back-solving from unrelated quotes
 - review-only surface; no execution actions
 
@@ -954,26 +946,14 @@ Rules:
 
 Purpose:
 
-- higher-level market intelligence landing space
-
-Current composition:
-
-- `MarketsOverview` inside `AppShell`
+- compatibility entrypoint for the maintained factor-screening workspace
 
 Expected behavior:
 
-- act as a summarized market overview surface
-- provide route introduction, spotlight content, and links deeper into factor/screening workflows
+- redirect immediately to `/markets/factors`
+- render no independent overview, synthetic spotlight, or duplicate shell
 
-Expected displayed data:
-
-- market overview copy
-- breadth/overview sections
-- spotlight modules
-
-Rules:
-
-- any live data surfaced here should remain consistent with backend-truth and not contradict the dedicated dashboard market-condition contract
+The canonical market-condition summary remains on `/dashboard`; the canonical cross-symbol factor workspace is `/markets/factors`.
 
 ---
 
@@ -1019,21 +999,16 @@ Rules:
 
 Purpose:
 
-- automation management / operational playbook space
-
-Current composition:
-
-- `BotsOverview` inside `AppShell`
+- compatibility entrypoint retained for old links
 
 Expected behavior:
 
-- show a conservative scaffold while no source-backed bot read model exists
-- do not display fabricated bot names, registered counts, execution modes, risk locks, status chips, or capital allocation percentages
-- if actions are represented visually later, they must not imply approved live-trading control unless the backend workflow is explicit and approved
+- redirect immediately to `/dashboard`
+- expose no bot roster, execution controls, process controls, or independent data requests
 
 ---
 
-## 5.14 Alternate / legacy operator routes
+## 5.14 Retired route redirects
 
 Routes:
 
@@ -1043,9 +1018,9 @@ Routes:
 
 Expected status:
 
-- these are not the primary user journey
-- they may still exist for legacy, transitional, or experimental operator use
-- they must obey the same truthfulness rules for unavailable quotes and fallback provenance
+- `/scanner-tracker` redirects to `/my-symbols`
+- `/kis-dashboard` and `/real-dashboard` redirect to `/dashboard`
+- these routes render no independent data, synthetic dashboard, or duplicate shell
 
 ---
 
@@ -1095,13 +1070,9 @@ Expected status:
 
 - `/api/trading/portfolio/summary`
 
-### 6.3 Control endpoint rule
+### 6.3 Mutation boundary
 
-A control path may exist for explicit operational actions such as stop/kill flow through core control, but such actions must remain:
-
-- intentional
-- authenticated through backend/BFF
-- visibly separate from regular read-only inspection UI
+Trading Web exposes no order, bot, Core-process, or Exec-process control endpoint. The application remains read-only; any future mutation capability requires a separately reviewed contract and must not be smuggled into an inspection route.
 
 ---
 

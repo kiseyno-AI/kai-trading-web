@@ -1,13 +1,23 @@
 # Trading Web ↔ Trading Core API Contract
 
-This document defines the first practical frontend contract for wiring `trading-web` to the FastAPI backend in `trading-core`.
+This document defines the shipped frontend contract between `trading-web` and the FastAPI read models in `trading-core`.
+
+## Contract guardrails
+
+- The browser calls only same-origin `/api/trading/**` BFF routes. It never calls a broker, exchange, or `kai-trading-exec` directly.
+- Web is an operations and decision-support reader. It must not place or cancel orders, mutate trading decisions, or expose any browser/BFF contract that starts, stops, or signals Core or Exec processes.
+- The primary product routes are Overview (`/dashboard`), Explore (`/search`), Review (`/calendar`), and Portfolio (`/portfolio`). Retired route entrypoints redirect and own no separate API contract.
+- A symbol-scoped response is usable only when an exact normalized symbol match is present. A first row or another symbol's row is not a fallback.
+- A requested market date is current only when the response's actual or resolved date agrees with it. An echoed request parameter alone is not evidence that the returned dataset belongs to that date.
+- Missing, invalid, stale, or mismatched values remain explicitly unavailable. They must not be converted into plausible prices, scores, dates, or zeroes.
 
 ## Current shipped dashboard wiring
+
 - Web-side BFF and browser API reads are expected to resolve into data, empty, unavailable, timeout, or error states. The Next.js BFF applies a bounded timeout to JSON proxy reads and returns HTTP `504` with an explicit timeout message when trading-core hangs or lags past that budget, so operator routes should not remain in indefinite loading states while waiting on upstream reads.
 - `/dashboard` currently renders from these live endpoints where available:
-  - The dashboard body exposes the Daily process summary, Decider recommendations, Portfolio status, Market condition, and shared Filtering and Scoring cards. The Daily process summary drawer remains the canonical full process view for detailed EOD, filtering, scoring, and agent-feedback status.
+  - The dashboard body exposes Decider recommendations, Portfolio status, and Market condition. A compact Daily process trigger opens the single canonical drawer for EOD, filtering, scoring, and agent-feedback detail; those operational cards are not duplicated in the page body.
   - `GET /market/status`
-    - The desktop navigation rail uses this compact session state for its market-status metadata. If the read fails or the page is in offline-placeholder mode, the rail labels the status as unavailable instead of inferring an open/closed state.
+    - The desktop navigation rail uses this compact session state for its market-status metadata. If the read fails or bootstrap state is unavailable, the rail labels the status as unavailable instead of inferring an open/closed state.
   - `GET /market/snapshot`
     - Market condition renders KOSPI, KOSDAQ, USD/KRW, foreign flow, institutional flow, and the market summary when Core supplies them. Complete, partial, stale, error, and unavailable responses remain explicit: usable partial or stale values stay visible, while missing fields use unavailable labels and the dashboard never infers replacement values from unrelated market data.
   - `GET /quotes/tracked`
@@ -24,7 +34,7 @@ This document defines the first practical frontend contract for wiring `trading-
     - D2 Filtering renders Piotroski summary state instead of a top-pass teaser list, showing completion state plus only the filtered count from `summary.passed_count` for the actual returned dataset
     - The dashboard and Piotroski full-list page tolerate the richer optional date fields `requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and the returned effective `market_date`
     - D2 Filtering uses the returned effective `market_date` when present, otherwise falls back to `resolved_market_date`, then the requested market date; the per-stage `Market date` line is only shown when that effective date differs from the shared patch date, and when the requested and effective dates differ the card keeps a compact note so operators can tell whether Core resolved to another stored date or explicitly fell back to the latest available result
-    - The Filtering `More` link is visible in the dashboard body and process monitor drawer. It opens `/dashboard/piotroski-filter?marketDate=YYYY-MM-DD` using the effective/resolved date so the full pass list matches the summary, and row clicks still route to `/dashboard/symbol/[symbol]`
+    - The Filtering `More` link in the process monitor drawer opens `/dashboard/piotroski-filter?marketDate=YYYY-MM-DD` using the effective/resolved date so the full pass list matches the summary, and row clicks still route to `/dashboard/symbol/[symbol]`
   - `GET /eod/market-risk-filters?market_date=YYYY-MM-DD`
     - D2 Filtering also renders the persisted KIS market-risk summary beside Piotroski inside the same card, showing completion state plus only the filtered count from `summary.passed_count`
     - The card uses the same optional date-resolution fields `requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and `market_date` so operators can see when KIS risk status is showing the requested date versus the latest available stored result
@@ -39,7 +49,7 @@ This document defines the first practical frontend contract for wiring `trading-
     - The required pipeline payload includes `market_date`, `status`, `stage_order`, and `stages: Partial<Record<EodPipelineStageKey, EodPipelineStageDto>>`. Web also consumes optional top-level counters and current-stage metadata: `total_stages`, `completed_stages`, `display_completed_stages`, `partial_stages`, `failed_stages`, `blocked_stages`, `running_stages`, `pending_stages`, `current_stage`, and `current_stage_status`.
     - Web consumes richer stage fields when Core exposes them: `task`, `stage_id`, `label`, `group`, `order`, `status`, `source_status`, `processed`, `total`, `succeeded`, `failed`, `remaining`, `depends_on` / `dependencies`, `blocking_stages` / `blocking_dependencies`, `failed_blocking_stages` / `failed_blocking_dependencies`, `current_step`, `current_activity`, `current_symbol`, `current_period`, `started_at`, `updated_at`, `completed_at`, `eod_run_id`, `run_id`, `source_run_ids`, `inspect_routes`, `output_tables`, `default_selected`, and the matching `details.*` fields including `details.rows_persisted`, `details.expected_rows`, `details.expected_rows_source`, `details.progress_source`, `details.inspect_href`, `details.inspect_path`, `details.inspect_routes`, `details.missing_count`, `details.missing_symbols_sample`, `details.missing_symbol_details_sample`, and reason or error fields. If Core omits canonical stage metadata, the web still displays the stage with explicit fallback-inference status and dependency reasons.
     - D2 EOD Status treats `stages.price_collection`, `stages.technical_snapshots`, `stages.action_summaries`, and `stages.fundamentals_daily_refresh` as the live running-state override for the matching freshness subcards; when one of those pipeline stages is `running`, the dashboard keeps the subcard in `running`, uses the pipeline processed/total counters for the visible count, uses the active pipeline market date for the fundamentals latest-date presentation, suppresses stored fundamentals updated-entry activity while that live polling view is active, and replaces the usual `synced` pill copy on that same subcard with the reported `current_step`, falling back to `current_activity` and the animated running badge when step text is unavailable
-    - D2 Scoring renders as a separate operational card below Filtering. Live/running state still comes from `stages.unified_value_scoring`, `stages.quality_scoring`, and `stages.momentum_scoring` when Core exposes them, while persisted result counts come from `GET /eod/value-factors?market_date=YYYY-MM-DD` for unified value plus quality scoring and `GET /eod/momentum-factors?market_date=YYYY-MM-DD` for momentum scoring. Those factor responses may include the same optional date-resolution fields as filtering (`requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and returned effective `market_date`), and the dashboard shows the effective/latest-valid scoring basis instead of treating same-day absence as a broken scoring section. Pipeline stage rows override persisted summaries only when they carry active, completed, failed, or count evidence for the current process date.
+    - D2 Scoring renders as a separate operational card below Filtering inside the process monitor drawer. Live/running state still comes from `stages.unified_value_scoring`, `stages.quality_scoring`, and `stages.momentum_scoring` when Core exposes them, while persisted result counts come from `GET /eod/value-factors?market_date=YYYY-MM-DD` for unified value plus quality scoring and `GET /eod/momentum-factors?market_date=YYYY-MM-DD` for momentum scoring. Those factor responses may include the same optional date-resolution fields as filtering (`requested_market_date`, `resolved_market_date`, `is_latest_fallback`, and returned effective `market_date`), and the dashboard shows the effective/latest-valid scoring basis instead of treating same-day absence as a broken scoring section. Pipeline stage rows override persisted summaries only when they carry active, completed, failed, or count evidence for the current process date.
     - The dashboard uses the pipeline endpoint for running-state polling every second while the overall pipeline status or any reported stage remains `running`, keeps `current_activity` / `current_symbol` as tooltip context on compact running badges, and renders the full current-stage timeline in the process-monitor drawer.
   - `GET /agent-context/feedback/progress`
     - D2 Agent Feedback progress uses `latest.price_trade_date` from `/eod/freshness` as the primary `market_date`, falling back to `today.trade_date` only when no latest price date exists
@@ -48,9 +58,9 @@ This document defines the first practical frontend contract for wiring `trading-
     - While the resolved state is running, the active summarizer row keeps the detailed progress metrics from `summary.progress_percent`, `summary.total_symbols`, `summary.failed_items`, `summary.completed_symbols`, and `summary.current_role`, and conservative role-local labels such as `pending` do not demote the active row back to an idle treatment when the top-level cycle is clearly live
     - When the resolved state is not running, D2 Agent Feedback shows persisted per-role counts from `result.roles[role].requested_count`, `completed_count`, and `error_count`, with the latest market date only shown when it differs from the shared patch date. If those result counts are absent, the dashboard falls back to the backend role order plus `summary.completed_symbols`, `summary.total_symbols`, and `summary.current_role` to derive a bounded latest-run summary
     - Agent Feedback role rows show compact progress bars under each summarizer and signal-decider title, with right-side status icons still derived from the row status. Running role rows still build from `request.expected_agents`, animate the role matching `summary.current_role`, and keep dependency details such as EOD / Tech readiness out of the summarizer rows; the endpoint is not session-cached because active agent processing can change during the dashboard session and is polled every second while running
-  - `GET /agent-context/feedback?market_date=YYYY-MM-DD&agent_name=signal-decider&limit=...[&symbols={symbol}]`
-    - `/dashboard/signal-decider-feedback` reads the existing generic feedback rows filtered by `agent_name=signal-decider`. The `/dashboard` body no longer renders the old signal-decider metrics card; it renders a dedicated Decider recommendations card from execution-runtime read models and keeps the existing `More` link to this detail page when stored feedback is available.
-    - `/dashboard` also performs a dashboard-only latest-completed feedback read with `agent_name=signal-decider` and an explicit `market_date` resolved from the latest completed pipeline/action-summary/process basis when available, falling back only to already-known progress/current dates. It never calls the generic stored feedback route without `market_date`. When the active/current process date has no completed signal-decider row set yet and that fallback read resolves to an older market date with rows, the dashboard card renders those latest completed recommendations, labels their effective market date, and separately labels the active cycle date/status. Explicit date-selected routes such as `/dashboard/signal-decider-feedback?marketDate=YYYY-MM-DD` and `/calendar` remain anchored to the requested date and do not use this latest-completed fallback.
+  - `GET /agent-context/feedback?market_date=YYYY-MM-DD&agent_name={signal-decider|short-term-decider}&limit=...[&symbols={symbol}]`
+    - `/dashboard/decider-feedback` is the shared decision-review page. Its `agent` query selects `signal-decider` or `short-term-decider`, and both tabs read only the matching stored rows. `/dashboard/signal-decider-feedback` remains a backward-compatible signal-only entry point and does not reinterpret its query as short-term feedback. The `/dashboard` body no longer renders the old signal-decider metrics card; it renders a dedicated Decider recommendations card from execution-runtime read models and keeps the existing signal-only `More` link when stored feedback is available. Agent-feedback process rows use the shared route so short-term progress opens the matching short-term tab.
+    - `/dashboard` also performs a dashboard-only latest-completed feedback read with `agent_name=signal-decider` and an explicit `market_date` resolved from the latest completed pipeline/action-summary/process basis when available, falling back only to already-known progress/current dates. It never calls the generic stored feedback route without `market_date`. When the active/current process date has no completed signal-decider row set yet and that fallback read resolves to an older market date with rows, the dashboard card renders those latest completed recommendations, labels their effective market date, and separately labels the active cycle date/status. Explicit date-selected routes such as `/dashboard/decider-feedback?agent=short-term-decider&marketDate=YYYY-MM-DD`, `/dashboard/signal-decider-feedback?marketDate=YYYY-MM-DD`, and `/calendar` remain anchored to the requested date and do not use this latest-completed fallback.
     - The detail page also consumes optional stored decision-quality fields when Core includes them in the generic row payload or details object: policy/ruleset version, quality/evaluation verdict, missed-opportunity and weak/bad-buy tags, quality reason, realized results by horizon, factor attribution, gate results, traceability, and upstream evidence. Decision fields and review/result fields are displayed as separate groups. Review verdict/outcome areas render as pending when those fields are absent; they do not fall back to `[확인 필요]` as if a verdict or realized result existed, and the UI does not synthesize realized outcomes or policy versions from unrelated data. Symbol-detail evidence links include the preserved market date plus repeatable `symbols` filtering, so Core scopes the selected recommendation before applying the 200-row limit; `q` remains the client display filter.
     - The same stored feedback payload may include a persisted 5-trading-day decider evaluation object such as `five_day_evaluation`, `five_trading_day_evaluation`, `evaluation_5d`, `target_stop_evaluation`, or `short_term_decider_evaluation`. The frontend reads only those persisted fields and never calls compute/evaluate/recompute/maintenance routes from normal pages. Supported display fields include evaluation status/outcome, target/stop hit booleans within five trading days, first hit when known, same-day target/stop ambiguity, max favorable/adverse excursion percentages, evaluation window dates, and data-quality warnings. Missing persisted evaluation data renders as `not computed yet`; pending/incomplete persisted states render as pending evaluation window or insufficient-data states.
     - `/calendar` uses `GET /agent-context/feedback/calendar` for compact month summaries plus `GET /agent-context/feedback/review` for selected-date detail. Calendar cells show month-level decision and review counts from the compact summary payload and selected-date detail still maps through `GET /agent-context/feedback/review`.
@@ -83,8 +93,6 @@ This document defines the first practical frontend contract for wiring `trading-
     - `/portfolio` renders a read-only portfolio risk snapshot section from this core-owned execution-runtime read model when available. The browser path is `GET /api/trading/execution/runtime/portfolio-risk-snapshot` and the browser never calls `kai-trading-exec` directly.
     - Web tolerates the future compact snapshot shape from exec/core and the current exec-style snake-case portfolio-risk helper fields: generated/as-of timestamp, mode, source/source-status, available/source-failed state, open holding count, total market/securities value, top holdings/exposures by allocation or notional, open-order rows or summary, concentration warnings, stale position/order warnings, missing stop/metadata counts, and notices.
     - The section is advisory visibility only. It does not place orders, cancel orders, infer missing live account risk, or turn warnings into trading gates. HTTP 404, upstream failures, unavailable snapshots, and partial snapshots render explicit states while the rest of `/portfolio` remains usable.
-  - `POST /agent-context/internal/core/control`
-    - The D2 Agent Feedback stop confirmation posts through the Next.js BFF to this authenticated admin endpoint with `{ "action": "kill", "signal_name": "SIGKILL", "port": 8000 }`, allowing the existing dashboard stop flow to invoke the new core control API without exposing the upstream bearer token to the browser
   - `GET /disclosures/dart/fundamentals/daily/inspect`
     - `/dashboard` requests this endpoint with the resolved non-agent pipeline market date from `/eod/pipeline/status.market_date`, falling back to the active trade date or market server date when the pipeline response does not provide one yet
     - D2 Fundamentals displays the latest-available fundamentals coverage date from `/eod/freshness.latest.fundamentals` when present; otherwise it falls back to the layer date, then `latest_run.market_date`, then the date portion of `latest_run.completed_at`
@@ -152,235 +160,10 @@ This document defines the first practical frontend contract for wiring `trading-
   - Expected runtime readiness rows include `symbol`, `assetClass`, `venue`, `baseCurrency`, `quoteCurrency`, `mode`, `readiness` / `status`, `marketDataConnected`, `websocketConnected`, `paperTradingEnabled`, `liveTradingEnabled`, `lastHeartbeatAt`, and optional `issues`. These fields are read models only and must not imply browser-side execution authority.
   - Expected strategy rows are read-only BTC/ETH decision-support context from Core and include `symbol` (for example `KRW-BTC` or `BTC/KRW`), `assetClass`, `venue`, `provider`, `mode`, `readiness` / `status`, optional `strategyName`, `trendState`, `momentumScore`, `volatilityTier`, `liquidityTier`, `riskTier`, `targetLevel`, `invalidationLevel`, `reasons`, source metadata, and `asOf` / `updatedAt`. Missing strategy rows render as pending/unavailable and must not be replaced with mock strategy outputs.
   - Expected paper runtime rows are Upbit paper execution read models from exec/core and include `symbol`, `assetClass`, `venue`, `provider`, `mode` (`paper` when active), `readiness` / `status`, `paperRuntimeState`, `marketDataConnected`, `websocketConnected`, `paperTradingEnabled`, `liveTradingEnabled`, `killSwitchEnabled`, `paused`, `openPaperOrderCount`, `activePaperJobCount`, `lastHeartbeatAt`, `lastSimulatedFillAt`, and optional `issues`. These rows only describe paper readiness/runtime state and do not give the browser order authority.
-- The broader `/api/v1/dashboard/summary` contract below is still an intended future shape, not the current backend dependency for the live dashboard route.
 
-## Goals
-- Match the current UI shape in `/dashboard`, `/markets`, and `/bots`
-- Keep the frontend broker-agnostic
-- Give `trading-core` a clean first API surface without over-designing
-- Preserve room for streaming upgrades later (WebSocket/SSE)
+## Frontend implementation notes
 
-## Base assumptions
-- Base URL: `/api/v1`
-- Content type: `application/json`
-- All responses use an envelope
-- Timestamps are ISO-8601 UTC strings
-- Currency/value strings shown below are display-ready for the current UI, but backend should also keep raw numeric fields in later revisions if analytics screens need them
-
-## Response envelope
-
-```json
-{
-  "data": {},
-  "meta": {
-    "generatedAt": "2026-03-29T08:10:00Z",
-    "source": "api",
-    "requestId": "req_01HQ..."
-  }
-}
-```
-
-## 1) Dashboard summary
-
-### `GET /api/v1/dashboard/summary`
-Returns enough data to render the current dashboard in a single request.
-
-### Response
-```json
-{
-  "data": {
-    "nav": [
-      {
-        "id": "dashboard",
-        "label": "Dashboard",
-        "icon": "◫",
-        "href": "/dashboard",
-        "description": "Main command surface"
-      }
-    ],
-    "searchSuggestions": [
-      {
-        "id": "market-1",
-        "label": "BTC/USDT · Perpetual",
-        "type": "market",
-        "route": "/markets"
-      }
-    ],
-    "metrics": [
-      {
-        "id": "total_balance",
-        "title": "Total Balance",
-        "value": "$4,284,390",
-        "delta": "+2.48%",
-        "tone": "positive",
-        "subtitle": "Across tracked market surfaces"
-      },
-      {
-        "id": "live_pnl",
-        "title": "Live PNL",
-        "value": "+$182,440",
-        "delta": "Realtime",
-        "tone": "positive",
-        "subtitle": "Session return +4.21%",
-        "sparkline": [58, 49, 52, 36, 39, 25]
-      },
-      {
-        "id": "win_rate",
-        "title": "Win Rate",
-        "value": "78%",
-        "delta": "30D",
-        "tone": "neutral",
-        "donut": {
-          "value": 78,
-          "summary": "214 wins · 101 losses"
-        }
-      }
-    ],
-    "chart": {
-      "symbol": "BTC/USDT",
-      "title": "Execution Chart",
-      "tabs": ["1H", "4H", "1D"],
-      "activeTab": "1H",
-      "overlays": {
-        "top": "87,880",
-        "mid": "87,430",
-        "low": "86,980"
-      },
-      "tradeMarkers": [
-        {
-          "side": "buy",
-          "label": "Buy",
-          "value": "87,140",
-          "left": "19%",
-          "top": "64%"
-        }
-      ],
-      "orderBook": {
-        "depth": 10,
-        "sell": [{ "price": "87,688", "size": "1.82 BTC" }],
-        "midPrice": "87,430.18",
-        "midChange": "+1.8%",
-        "buy": [{ "price": "87,418", "size": "2.03 BTC" }]
-      }
-    },
-    "watchlist": [
-      {
-        "symbol": "BTC/USDT",
-        "context": "Momentum intact",
-        "price": 87430,
-        "change": 1.82
-      }
-    ],
-    "insight": {
-      "score": "87 / 100",
-      "label": "Primary Bias",
-      "title": "Long continuation with guarded leverage",
-      "description": "Order-flow delta remains positive while short-term funding stays manageable.",
-      "rows": [
-        { "label": "Confidence", "value": "High" },
-        { "label": "Volatility", "value": "Elevated" }
-      ]
-    },
-    "botControls": {
-      "title": "Bot controls unavailable",
-      "idleLabel": "No bot command API connected",
-      "actions": []
-    }
-  },
-  "meta": {
-    "generatedAt": "2026-03-29T08:10:00Z",
-    "source": "api"
-  }
-}
-```
-
-## 2) Markets overview
-
-### `GET /api/v1/markets/overview`
-Lightweight summary for the current `/markets` page.
-
-### Response
-```json
-{
-  "data": {
-    "spotlight": [
-      {
-        "symbol": "BTC/USDT",
-        "trend": "Leading the tape",
-        "volume": "$12.4B",
-        "change": "+1.82%"
-      }
-    ]
-  },
-  "meta": {
-    "generatedAt": "2026-03-29T08:10:00Z",
-    "source": "api"
-  }
-}
-```
-
-## 3) Order book detail
-
-### `GET /api/v1/markets/{symbol}/orderbook?depth=10`
-Optional dedicated endpoint for later refresh/streaming without reloading the full dashboard.
-
-### Response
-```json
-{
-  "data": {
-    "symbol": "BTC/USDT",
-    "depth": 10,
-    "midPrice": "87,430.18",
-    "midChange": "+1.8%",
-    "sell": [{ "price": "87,688", "size": "1.82 BTC" }],
-    "buy": [{ "price": "87,418", "size": "2.03 BTC" }]
-  },
-  "meta": {
-    "generatedAt": "2026-03-29T08:10:00Z",
-    "source": "api"
-  }
-}
-```
-
-## 4) Bots overview
-
-### `GET /api/v1/bots`
-Planned read model for `/bots`. The current `/bots` route is a scaffold and must not render a roster, execution state, risk fields, or capital allocation from mock data. Until this endpoint is backed by a real service, the UI should show explicit unavailable/scaffold copy instead of fabricated operational values.
-
-### Response
-```json
-{
-  "data": {
-    "bots": []
-  },
-  "meta": {
-    "generatedAt": "2026-03-29T08:10:00Z",
-    "source": "api"
-  }
-}
-```
-
-## 5) Bot command endpoint
-
-### `POST /api/v1/bots/{botId}/commands`
-Planned command endpoint for future bot detail screens. Placeholder UI must not expose command controls until the execution workflow, safety checks, and source-backed command status contract are explicit and approved.
-
-### Request / response
-No active request or response contract is documented for the current web UI. Add source-backed DTOs here only after the execution workflow, safety checks, and operator-facing status semantics are approved.
-
-## Backend implementation notes for `trading-core`
-- FastAPI router grouping suggestion:
-  - `dashboard.py`
-  - `markets.py`
-  - `bots.py`
-- Keep response DTOs close to router layer and map from domain models there
-- Later add numeric/raw fields behind the same display contract instead of breaking existing UI fields
-- Dashboard summary can aggregate from positions, pnl, orderbook cache, signal service, and bot orchestration service
-- Use Redis/cache for short-lived market snapshots and order book depth data
-
-## Frontend implementation notes in `trading-web`
-- `src/types/trading-api.ts` is the compatibility barrel. Endpoint-family DTOs live under `src/types/trading-api/`, including `common.ts`, `portfolio-account.ts`, `execution-runtime.ts`, and `crypto-readonly.ts`; add new read-model fields to the endpoint-family module first, then re-export through the barrel when old imports must keep working.
-- Shared same-origin BFF read failure normalization lives in `src/lib/trading-api-result.ts`; execution-runtime read validators and client result helpers live in `src/lib/execution-runtime-read.ts`.
-- Current mock adapter lives in `src/lib/trading-api.ts`
-- Route-level hooks now consume the adapter rather than hardcoding page data
-- FastAPI migration path: swap `mockTradingApi` for an HTTP-backed adapter with the same `TradingApiAdapter` interface
+- `src/types/trading-api.ts` is the compatibility barrel. Endpoint-family DTOs live under `src/types/trading-api/`, including `common.ts`, `portfolio-account.ts`, `execution-runtime.ts`, and `crypto-readonly.ts`; add new read-model fields to the endpoint-family module first, then re-export through the barrel only when existing imports require it.
+- Shared same-origin BFF failure normalization lives in `src/lib/trading-api-result.ts`; execution-runtime validators and client result helpers live in `src/lib/execution-runtime-read.ts`.
+- Route-level loaders and hooks consume live BFF contracts. Do not restore a mock dashboard adapter or a fallback that fabricates a complete payload.
+- Proposed aggregate or mutation endpoints belong in this document only after their Core contract and web consumer exist. Examples are not runtime fallbacks.
