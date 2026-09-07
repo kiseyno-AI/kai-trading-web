@@ -11,8 +11,6 @@ const agentReviewPendingLabel = /Agent review pending|에이전트 분석 대기
 const agentReviewCompletedLabel = /Agent review completed|에이전트 분석 완료/;
 const agentFeedbackStopButtonLabel = /Stop|중단/;
 const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트 피드백 실행을 중단할까요\?/;
-const yesLabel = /Yes|예/;
-const noLabel = /No|아니요/;
 
 async function expectEodStageStatus(stage: Locator, status: EodStageStatus) {
   await expect(stage).toHaveAttribute("data-status", status);
@@ -174,7 +172,18 @@ test.describe("dashboard desktop", () => {
     const desktopNav = page.getByRole("navigation", { name: /Primary desktop/i });
     await expect(desktopNav).toBeVisible();
     await expect(desktopNav.getByRole("link", { name: /Market Status/i })).toHaveCount(0);
-    await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveAttribute("href", "/my-symbols");
+    await expect(desktopNav.getByRole("link")).toHaveCount(4);
+    await expect(desktopNav.getByRole("link", { name: "Overview", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(desktopNav.getByRole("link", { name: "Explore", exact: true })).toHaveAttribute("href", "/search");
+    await expect(desktopNav.getByRole("link", { name: "Review", exact: true })).toHaveAttribute("href", "/calendar");
+    await expect(desktopNav.getByRole("link", { name: "Portfolio", exact: true })).toHaveAttribute(
+      "href",
+      "/portfolio",
+    );
+    await expect(desktopNav.getByRole("link", { name: /My Symbols/i })).toHaveCount(0);
     await expect(page.getByLabel("Current screen")).toContainText(/Trading Command Surface|트레이딩 커맨드 서피스/);
     await expect(page.getByLabel("Market status")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
@@ -195,7 +204,7 @@ test.describe("dashboard desktop", () => {
     await expect(marketCard.getByText("+₩248B net buy", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("-₩91B net sell", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Constructive · Large caps leading", { exact: true })).toBeVisible();
-    await expect(marketCard.getByRole("link", { name: /Open markets/i })).toHaveAttribute("href", "/markets");
+    await expect(marketCard.getByRole("link", { name: /Explore symbols/i })).toHaveAttribute("href", "/search");
     await expect(page.getByRole("heading", { name: /^Exec runtime$/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Monitored symbols/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
@@ -203,14 +212,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
     await expect(page.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Operational Integrity/i })).toHaveCount(0);
-    const filteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
-    await expect(filteringScoring).toBeVisible();
-    await expect(filteringScoring.getByRole("heading", { name: /Filtering/i })).toBeVisible();
-    await expect(filteringScoring.getByRole("heading", { name: /^Scoring$/i })).toBeVisible();
-    await expect(filteringScoring.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
-    await expect(
-      filteringScoring.getByRole("link", { name: /Open the full Piotroski filter pass list/i }),
-    ).toBeVisible();
+    await expect(page.locator('[data-dashboard-filtering-scoring="inline"]')).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Ledger coverage notes/i })).toHaveCount(0);
 
     await expect(page.getByText(/Insight cockpit/i)).toHaveCount(0);
@@ -222,7 +224,10 @@ test.describe("dashboard desktop", () => {
       "href",
       "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-28&recommendationSource=dashboard-decider&referencePriceKind=current&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
     );
-    await expect(deciderCard.getByText("Stop 70,000 · Target 76,000 · Now 71,500", { exact: true })).toBeVisible();
+    const recommendationPrices = deciderCard.locator('[class*="overviewValueGrid"]');
+    await expect(recommendationPrices).toContainText(/Stop-loss\s*70,000/);
+    await expect(recommendationPrices).toContainText(/Target\s*76,000/);
+    await expect(recommendationPrices).toContainText(/Current price\s*71,500/);
     await expect(deciderCard.getByText("Results", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Market date", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Action mix", { exact: true })).toHaveCount(0);
@@ -257,7 +262,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
-  test("primary insight cards distribute across a stable desktop grid", async ({ page }) => {
+  test("primary insight cards use an efficient split desktop hierarchy", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.goto("/dashboard");
 
@@ -277,10 +282,12 @@ test.describe("dashboard desktop", () => {
 
     expect(Math.abs(portfolioBox.y - signalBox.y)).toBeLessThan(24);
     expect(portfolioBox.x).toBeGreaterThan(signalBox.x);
-    expect(marketBox.x).toBeGreaterThan(portfolioBox.x);
     expect(Math.abs(signalBox.width - portfolioBox.width)).toBeLessThan(signalBox.width * 0.25);
-    expect(Math.abs(portfolioBox.width - marketBox.width)).toBeLessThan(portfolioBox.width * 0.25);
-    expect(Math.abs(marketBox.y - signalBox.y)).toBeLessThan(24);
+    expect(marketBox.y).toBeGreaterThan(signalBox.y + signalBox.height - 2);
+    expect(Math.abs(marketBox.x - signalBox.x)).toBeLessThan(24);
+    expect(Math.abs(marketBox.width - signalBox.width)).toBeLessThan(signalBox.width * 0.25);
+    expect(portfolioBox.height).toBeGreaterThan(signalBox.height);
+    expect(Math.abs(portfolioBox.y + portfolioBox.height - (marketBox.y + marketBox.height))).toBeLessThan(48);
   });
 
   test("primary insight cards keep a balanced two-up layout at intermediate desktop widths", async ({ page }) => {
@@ -305,35 +312,18 @@ test.describe("dashboard desktop", () => {
     expect(Math.abs(portfolioBox.width - signalBox.width)).toBeLessThan(signalBox.width * 0.35);
     expect(marketBox.y).toBeGreaterThan(signalBox.y + signalBox.height - 2);
     expect(Math.abs(marketBox.x - signalBox.x)).toBeLessThan(24);
+    expect(Math.abs(marketBox.width - signalBox.width)).toBeLessThan(signalBox.width * 0.35);
+    expect(Math.abs(portfolioBox.y + portfolioBox.height - (marketBox.y + marketBox.height))).toBeLessThan(48);
   });
 
-  test("filtering and scoring stay visible across responsive dashboard widths", async ({ page }) => {
+  test("filtering and scoring stay in the process drawer across responsive dashboard widths", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1100 });
     await page.goto("/dashboard");
 
-    const filteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
-    const filteringCard = filteringScoring.locator("article").filter({ hasText: "Filtering" });
-    const scoringCard = filteringScoring.locator("article").filter({ hasText: "Scoring" });
-
     for (const width of [768, 1024, 1280, 1536]) {
       await page.setViewportSize({ width, height: 1100 });
-      await expect(filteringCard).toBeVisible();
-      await expect(scoringCard).toBeVisible();
-
-      const [filteringBox, scoringBox] = await Promise.all([
-        getRequiredBox(filteringCard, `filtering card at ${width}px`),
-        getRequiredBox(scoringCard, `scoring card at ${width}px`),
-      ]);
-
-      if (width < 1024) {
-        expect(scoringBox.y).toBeGreaterThan(filteringBox.y + filteringBox.height - 1);
-        expect(Math.abs(scoringBox.x - filteringBox.x)).toBeLessThan(8);
-        continue;
-      }
-
-      expect(Math.abs(scoringBox.y - filteringBox.y)).toBeLessThan(24);
-      expect(scoringBox.x).toBeGreaterThan(filteringBox.x);
-      expect(Math.abs(filteringBox.width - scoringBox.width)).toBeLessThan(filteringBox.width * 0.2);
+      await expect(page.locator('[data-dashboard-filtering-scoring="inline"]')).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /Open process monitor/i }).first()).toBeVisible();
     }
   });
 
@@ -1037,38 +1027,7 @@ test.describe("dashboard desktop", () => {
 
     await expect(page.locator("#dashboard-freshness [data-dashboard-operational-integrity=\"inline\"]")).toHaveCount(0);
 
-    const inlineFilteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
-    const inlineFilteringCard = inlineFilteringScoring.locator("article").filter({ hasText: "Filtering" });
-    const inlineScoringCard = inlineFilteringScoring.locator("article").filter({ hasText: "Scoring" });
-    const inlinePiotroskiStage = inlineFilteringCard.locator('[data-filter-stage="piotroski"]');
-    const inlineUnifiedValueStage = inlineScoringCard.locator('[data-scoring-stage="unified-value"]');
-
-    await expectFilteringStageStatusIcon(inlinePiotroskiStage, "completed", "Completed");
-    await expect(inlinePiotroskiStage).toContainText(/Filtered\s*128/);
-    await expect(inlinePiotroskiStage).not.toContainText(/Market date\s*2026-04-15/);
-    await expect(inlineUnifiedValueStage).toHaveAttribute("data-scoring-status", "completed");
-    await expect(inlineUnifiedValueStage).toContainText(/Progress\s*3,200\s*\/\s*3,200/);
-    await expect(inlineUnifiedValueStage).not.toContainText(/Market date\s*2026-04-15/);
-    const inlinePatchDate = inlineFilteringScoring.getByLabel("Patch date");
-    await expect(inlinePatchDate).toContainText("2026-04-15");
-
-    for (const width of [390, 768, 1024, 1280, 1536]) {
-      await page.setViewportSize({ width, height: 1100 });
-      await expect(inlinePatchDate).toBeVisible();
-
-      const [inlineGridBox, inlinePatchDateBox] = await Promise.all([
-        getRequiredBox(inlineFilteringScoring, `inline filtering and scoring grid at ${width}px`),
-        getRequiredBox(inlinePatchDate, `inline patch date at ${width}px`),
-      ]);
-
-      expect(inlinePatchDateBox.x).toBeGreaterThanOrEqual(inlineGridBox.x - 1);
-      expect(inlinePatchDateBox.x + inlinePatchDateBox.width).toBeLessThanOrEqual(
-        inlineGridBox.x + inlineGridBox.width + 1,
-      );
-      expect(Math.abs(inlinePatchDateBox.width - inlineGridBox.width)).toBeLessThan(2);
-    }
-
-    await page.setViewportSize({ width: 1440, height: 1100 });
+    await expect(page.locator('[data-dashboard-filtering-scoring="inline"]')).toHaveCount(0);
 
     const processDrawer = await openProcessMonitorDrawer(page);
     const eodCard = processDrawer.locator("article").filter({ hasText: "Daily Data Fetch" });
@@ -1080,6 +1039,15 @@ test.describe("dashboard desktop", () => {
     await expect(filteringCard).toBeVisible();
     await expect(scoringCard).toBeVisible();
     await expect(agentFeedbackCard).toBeVisible();
+    const drawerPiotroskiStage = filteringCard.locator('[data-filter-stage="piotroski"]');
+    const drawerUnifiedValueStage = scoringCard.locator('[data-scoring-stage="unified-value"]');
+    await expectFilteringStageStatusIcon(drawerPiotroskiStage, "completed", "Completed");
+    await expect(drawerPiotroskiStage).toContainText(/Filtered\s*128/);
+    await expect(drawerPiotroskiStage).not.toContainText(/Market date\s*2026-04-15/);
+    await expect(drawerUnifiedValueStage).toHaveAttribute("data-scoring-status", "completed");
+    await expect(drawerUnifiedValueStage).toContainText(/Progress\s*3,200\s*\/\s*3,200/);
+    await expect(drawerUnifiedValueStage).not.toContainText(/Market date\s*2026-04-15/);
+    await expect(processDrawer.getByLabel("Patch date")).toContainText("2026-04-15");
     await expect(processDrawer.getByRole("listitem", { name: /^Patch / })).toHaveCount(0);
     await expect(processDrawer.getByRole("listitem", { name: /^Filter / })).toHaveCount(0);
     await expect(processDrawer.getByRole("listitem", { name: /^Scoring / })).toHaveCount(0);
@@ -1364,8 +1332,8 @@ test.describe("dashboard desktop", () => {
       };
     });
 
-    expect(runningPillAnimations.badgeSweep).toMatch(/eodRunningStatusSweep$/);
-    expect(runningPillAnimations.spinner).toMatch(/agentRoleSpin$/);
+    expect(runningPillAnimations.badgeSweep).toMatch(/eodRunningStatusSweep(?:__[A-Za-z0-9_-]+)?$/);
+    expect(runningPillAnimations.spinner).toMatch(/agentRoleSpin(?:__[A-Za-z0-9_-]+)?$/);
   });
 
   test("dashboard filtering stays clean after removing the ledger recommendation card", async ({ page }) => {
@@ -1877,8 +1845,9 @@ test.describe("dashboard desktop", () => {
     await page.goto("/dashboard");
 
     await expect(page.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
-    const filteringScoring = page.locator('[data-dashboard-filtering-scoring="inline"]');
-    const filteringCard = filteringScoring.locator("article").filter({ hasText: "Filtering" });
+    await expect(page.locator('[data-dashboard-filtering-scoring="inline"]')).toHaveCount(0);
+    const processDrawer = await openProcessMonitorDrawer(page);
+    const filteringCard = processDrawer.locator("article").filter({ hasText: "Filtering" });
     const piotroskiSection = filteringCard.locator('[data-filter-stage="piotroski"]');
     const marketRiskSection = filteringCard.locator('[data-filter-stage="kis-risk"]');
     await expect.poll(() => piotroskiRequestedMarketDates.includes("2026-04-16")).toBe(true);
@@ -3520,26 +3489,9 @@ test.describe("dashboard desktop", () => {
     await expect(progressCard).toBeVisible();
     await expect(progressCard).not.toContainText("Latest Run");
     await expect(progressCard).toContainText(agentReviewRunningLabel);
-    await expect(stopButton).toBeVisible();
-    await stopButton.click();
-    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
-    await expect(stopDialog).toBeVisible();
-    await expect(stopDialog.getByRole("button", { name: /close/i })).toHaveCount(0);
-    await expect(stopDialog).not.toContainText("실제 중단 동작은 추후 연결할 예정입니다.");
-    await stopDialog.getByRole("button", { name: noLabel }).click();
-    await expect(stopDialog).toHaveCount(0);
+    await expect(stopButton).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: agentFeedbackStopDialogLabel })).toHaveCount(0);
     expect(stopControlRequestBody).toBeNull();
-    await stopButton.click();
-    await expect(stopDialog).toBeVisible();
-    await stopDialog.getByRole("button", { name: yesLabel }).click();
-    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
-      JSON.stringify({
-        action: "kill",
-        signal_name: "SIGKILL",
-        port: 8000,
-      }),
-    );
-    await expect(stopDialog).toHaveCount(0);
     await expect(progressCard).not.toContainText(marketDateLabel);
     await expect(progressCard).not.toContainText("피드백 완료 302개 / 1,000개");
     await expect(progressCard).not.toContainText("예상 기준");
@@ -3588,24 +3540,32 @@ test.describe("dashboard desktop", () => {
       "aria-valuenow",
       "0",
     );
-    const activeRoleTitle = activeTechnicalRole.getByText("Technical summarizer", { exact: true });
-    const activeRoleTitleBox = await activeRoleTitle.boundingBox();
-    const activeRoleIcon = activeTechnicalRole.locator('[data-role-progress-icon="running"]');
-    const activeRoleIconBox = await activeRoleIcon.boundingBox();
+    const activeRoleLayout = await activeTechnicalRole.evaluate((element) => {
+      const title = element.querySelector('[data-agent-role-title]');
+      const icon = element.querySelector('[data-role-progress-icon="running"]');
+      const progress = element.querySelector('[data-role-progress-track]');
+      const readBox = (node: Element | null) => {
+        if (!node) return null;
+        const box = node.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+      };
 
-    expect(activeRoleTitleBox).not.toBeNull();
-    expect(activeRoleIconBox).not.toBeNull();
-    expect(activeRoleIconBox!.width).toBeLessThanOrEqual(22);
-    expect(activeRoleTitleBox!.x + activeRoleTitleBox!.width).toBeLessThanOrEqual(activeRoleIconBox!.x + 1);
-
-    const activeRoleProgress = activeTechnicalRole.getByRole("progressbar", {
-      name: /Technical summarizer progress/i,
+      return {
+        title: readBox(title),
+        icon: readBox(icon),
+        progress: readBox(progress),
+      };
     });
-    const activeRoleProgressBox = await activeRoleProgress.boundingBox();
 
-    expect(activeRoleProgressBox).not.toBeNull();
-    expect(activeRoleProgressBox!.width).toBeGreaterThan(40);
-    expect(activeRoleTitleBox!.y + activeRoleTitleBox!.height).toBeLessThanOrEqual(activeRoleProgressBox!.y + 1);
+    expect(activeRoleLayout.title).not.toBeNull();
+    expect(activeRoleLayout.icon).not.toBeNull();
+    expect(activeRoleLayout.progress).not.toBeNull();
+    expect(activeRoleLayout.icon!.width).toBeLessThanOrEqual(22);
+    expect(activeRoleLayout.title!.x + activeRoleLayout.title!.width).toBeLessThanOrEqual(activeRoleLayout.icon!.x + 1);
+    expect(activeRoleLayout.progress!.width).toBeGreaterThan(40);
+    expect(activeRoleLayout.title!.y + activeRoleLayout.title!.height).toBeLessThanOrEqual(
+      activeRoleLayout.progress!.y + 1,
+    );
     await expect(activeTechnicalRole).not.toContainText("EOD 확인");
     await expect(
       progressCard.locator('[data-role-status="pending"]').filter({ hasText: "Fundamental summarizer" }),
@@ -3651,7 +3611,7 @@ test.describe("dashboard desktop", () => {
     };
     await reloadAndExpectAgentStatus(agentReviewRunningLabel);
     await expect(progressCard).not.toContainText(agentReviewNeedsAttentionLabel);
-    await expect(stopButton).toBeVisible();
+    await expect(stopButton).toHaveCount(0);
 
     agentProgressSummary = {
       ...agentProgressSummary,
@@ -3819,7 +3779,7 @@ test.describe("dashboard desktop", () => {
     await expect(stopButton).toHaveCount(0);
   });
 
-  test("agent feedback stop confirmation accepts an upstream disconnect on desktop", async ({ page }) => {
+  test("agent feedback progress remains read-only when a Core control endpoint exists", async ({ page }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let stopControlRequestBody: Record<string, unknown> | null = null;
 
@@ -3982,27 +3942,12 @@ test.describe("dashboard desktop", () => {
     const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toContainText(agentReviewRunningLabel);
-    await expect(stopButton).toBeVisible();
-    await stopButton.click();
-
-    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
-    await expect(stopDialog).toBeVisible();
-    await stopDialog.getByRole("button", { name: yesLabel }).click();
-
-    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
-      JSON.stringify({
-        action: "kill",
-        signal_name: "SIGKILL",
-        port: 8000,
-      }),
-    );
-    await expect(stopDialog).toHaveCount(0);
-    await expect(progressCard).toContainText(agentReviewNeedsAttentionLabel);
     await expect(stopButton).toHaveCount(0);
-    await expect(progressCard).not.toContainText("fetch failed");
+    await expect(page.getByRole("dialog", { name: agentFeedbackStopDialogLabel })).toHaveCount(0);
+    expect(stopControlRequestBody).toBeNull();
   });
 
-  test("agent feedback stop acceptance falls back to idle retry cadence after progress fetch failures on desktop", async ({
+  test("read-only agent progress keeps polling without issuing Core control requests", async ({
     page,
   }) => {
     const now = "2026-04-15T10:20:00+09:00";
@@ -4181,32 +4126,16 @@ test.describe("dashboard desktop", () => {
     const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toContainText(agentReviewRunningLabel);
-    await expect(stopButton).toBeVisible();
-    await stopButton.click();
-
-    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
-    await expect(stopDialog).toBeVisible();
-    await stopDialog.getByRole("button", { name: yesLabel }).click();
-
-    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
-      JSON.stringify({
-        action: "kill",
-        signal_name: "SIGKILL",
-        port: 8000,
-      }),
-    );
-    await expect(stopDialog).toHaveCount(0);
-    await expect(progressCard).toContainText(agentReviewNeedsAttentionLabel);
     await expect(stopButton).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: agentFeedbackStopDialogLabel })).toHaveCount(0);
+    expect(stopControlRequestBody).toBeNull();
 
-    const progressRequestsAtStop = progressRequestCount;
-    await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThan(progressRequestsAtStop);
-    const progressRequestsAfterFirstFailure = progressRequestCount;
-    await page.waitForTimeout(1500);
-    expect(progressRequestCount).toBe(progressRequestsAfterFirstFailure);
+    const progressRequestsBeforeWait = progressRequestCount;
+    await expect.poll(() => progressRequestCount, { timeout: 2500 }).toBeGreaterThan(progressRequestsBeforeWait);
+    expect(shouldFailProgressPolling).toBe(false);
   });
 
-  test("agent feedback stop confirmation keeps real upstream 502 failures visible on desktop", async ({
+  test("read-only agent progress never exposes upstream Core control failures", async ({
     page,
   }) => {
     const now = "2026-04-15T10:20:00+09:00";
@@ -4365,24 +4294,10 @@ test.describe("dashboard desktop", () => {
     const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
     await expect(progressCard).toContainText(agentReviewRunningLabel);
-    await expect(stopButton).toBeVisible();
-    await stopButton.click();
-
-    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
-    await expect(stopDialog).toBeVisible();
-    await stopDialog.getByRole("button", { name: yesLabel }).click();
-
-    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
-      JSON.stringify({
-        action: "kill",
-        signal_name: "SIGKILL",
-        port: 8000,
-      }),
-    );
-    await expect(stopDialog).toBeVisible();
-    await expect(stopDialog).toContainText("HTTP 502 for /api/trading/agent-context/internal/core/control");
-    await expect(progressCard).toContainText(agentReviewRunningLabel);
-    await expect(stopButton).toBeVisible();
+    await expect(stopButton).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: agentFeedbackStopDialogLabel })).toHaveCount(0);
+    await expect(progressCard).not.toContainText("Upstream kill failed");
+    expect(stopControlRequestBody).toBeNull();
   });
 
   test("D2 agent feedback omits dependency confirmation labels and failure-count pills", async ({
@@ -5199,7 +5114,7 @@ test.describe("dashboard desktop", () => {
     await expect(fundamentalsTitle).toHaveCSS("text-overflow", "ellipsis");
     await expect(fundamentalsTitle).toHaveCSS("white-space", "nowrap");
     await expect(runningPill).toBeVisible();
-    await expect(runningPill).toHaveCSS("color", "rgb(244, 248, 255)");
+    await expect(runningPill).toHaveCSS("color", "rgb(244, 247, 251)");
     await expect(runningPill).toHaveCSS("background-color", "rgba(74, 168, 255, 0.22)");
     await expect(runningPill).toHaveCSS("border-top-color", "rgba(74, 168, 255, 0.38)");
 

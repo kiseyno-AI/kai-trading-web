@@ -2338,13 +2338,13 @@ function normalizeFiveDayEvaluation({
 
 function resolveReviewConclusion({
   action,
-  outcomeHorizons,
+  hasComputedHorizon,
   pathOutcome,
   qualityTag,
   sources,
 }: {
   action: SignalDeciderAction;
-  outcomeHorizons: SignalDeciderOutcomeHorizon[];
+  hasComputedHorizon: boolean;
   pathOutcome: SignalDeciderPathOutcome | null;
   qualityTag: SignalDeciderQualityTag | null;
   sources: Array<Record<string, unknown> | null | undefined>;
@@ -2375,7 +2375,7 @@ function resolveReviewConclusion({
   if (pathOutcome?.kind === "ambiguous") return "Replay path is ambiguous.";
   if (pathOutcome?.kind === "unresolved") return "Replay outcome is still unresolved.";
 
-  if (outcomeHorizons.length > 0) return "Review outcome is available by horizon.";
+  if (hasComputedHorizon) return "Review outcome is available by horizon.";
   return null;
 }
 
@@ -2401,6 +2401,15 @@ function getPayload(item: AgentFeedbackStoredItemDto): AgentFeedbackStoredPayloa
   if (isRecord(item.normalized_feedback)) return item.normalized_feedback;
   if (isRecord(item.feedback)) return item.feedback;
   return {};
+}
+
+function itemMatchesRequestedDecider(item: AgentFeedbackStoredItemDto, requestedAgentName: DeciderAgentName) {
+  const payload = getPayload(item);
+  const explicitAgentNames = [item.agent.name, payload.agent_name, payload.role]
+    .map((value) => (typeof value === "string" ? normalizeRole(value) : null))
+    .filter((value): value is string => value !== null && value.length > 0);
+
+  return explicitAgentNames.length === 0 || explicitAgentNames.every((value) => value === requestedAgentName);
 }
 
 function getContextCompanyName(symbol: string, context: Record<string, unknown> | null | undefined) {
@@ -2915,6 +2924,7 @@ export function normalizeDeciderFeedbackItems(
   const resolvedAgentName = resolveDeciderAgentName(agentName ?? response?.request?.agent_name);
 
   return items
+    .filter((item) => itemMatchesRequestedDecider(item, resolvedAgentName))
     .map((item) => {
       const payload = getPayload(item);
       const symbol = getStringValue(payload, ["symbol"]) ?? item.symbol;
@@ -3034,7 +3044,7 @@ export function normalizeDeciderFeedbackItems(
       ]);
       const reviewConclusion = resolveReviewConclusion({
         action,
-        outcomeHorizons,
+        hasComputedHorizon: horizonEvaluations.some((horizon) => horizon.state === "computed"),
         pathOutcome,
         qualityTag: quality.qualityTag,
         sources: [...rootSources, shortTermRecord, evaluationRecord, outcomeRecord],
@@ -3451,18 +3461,35 @@ export function resolveDeciderFeedbackStatus({
   return "waiting";
 }
 
-function getSignalDeciderFeedbackResponseMarketDate(
-  feedback: AgentFeedbackListResponseDto | null | undefined,
-) {
-  return (
-    normalizeMarketDate(feedback?.request?.market_date) ??
-    normalizeMarketDate(feedback?.items?.[0]?.market_date) ??
-    null
-  );
+export function getSignalDeciderStoredItemMarketDate(item: AgentFeedbackStoredItemDto) {
+  const candidateDates = [
+    normalizeMarketDate(item.market_date),
+    normalizeMarketDate(item.feedback?.market_date),
+    normalizeMarketDate(item.normalized_feedback?.market_date),
+  ].filter((marketDate): marketDate is string => marketDate !== null);
+  const uniqueDates = new Set(candidateDates);
+
+  return uniqueDates.size === 1 ? candidateDates[0] : null;
 }
 
-function getSignalDeciderStoredItemMarketDate(item: AgentFeedbackStoredItemDto) {
-  return normalizeMarketDate(item.market_date) ?? normalizeMarketDate(item.feedback?.market_date) ?? null;
+export function getSignalDeciderFeedbackResponseMarketDate(
+  feedback: AgentFeedbackListResponseDto | null | undefined,
+) {
+  if (!feedback) return null;
+
+  const requestedMarketDate = normalizeMarketDate(feedback.request?.market_date);
+  if (feedback.items.length === 0) return requestedMarketDate;
+
+  const itemMarketDates = feedback.items.map(getSignalDeciderStoredItemMarketDate);
+  if (itemMarketDates.some((marketDate) => marketDate === null)) return null;
+
+  const uniqueItemMarketDates = new Set(itemMarketDates);
+  if (uniqueItemMarketDates.size !== 1) return null;
+
+  const itemMarketDate = itemMarketDates[0];
+  if (requestedMarketDate && requestedMarketDate !== itemMarketDate) return null;
+
+  return itemMarketDate;
 }
 
 function hasSignalDeciderFeedbackRows(feedback: AgentFeedbackListResponseDto | null | undefined) {

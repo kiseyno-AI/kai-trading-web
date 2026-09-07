@@ -70,6 +70,26 @@ test("pickFactorInspectItem prefers the matching symbol and tolerates item plus 
   assert.deepEqual(pickFactorInspectItem(response, "005930"), response.items[0]);
 });
 
+test("pickFactorInspectItem returns unavailable when the response only contains another symbol", () => {
+  const otherSymbol = {
+    symbol: "000660",
+    market_date: "2026-04-24",
+    value_score: 0.41,
+    value_status: "scored",
+  };
+
+  assert.equal(
+    pickFactorInspectItem(
+      {
+        item: otherSymbol,
+        items: [otherSymbol],
+      },
+      "005930",
+    ),
+    null,
+  );
+});
+
 test("buildFactorFamilySnapshotResult keeps per-family HTTP failures isolated", () => {
   const snapshot = buildFactorFamilySnapshotResult(
     "beta",

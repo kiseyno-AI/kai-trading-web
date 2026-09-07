@@ -3,7 +3,10 @@ import type {
   AgentFeedbackProgressResponseDto,
 } from "@/types/trading-api";
 
-import { normalizeSignalDeciderFeedbackItems } from "./signal-decider-feedback";
+import {
+  getSignalDeciderStoredItemMarketDate,
+  normalizeSignalDeciderFeedbackItems,
+} from "./signal-decider-feedback";
 
 const CACHE_VERSION = 1;
 const CACHE_PREFIX = "kai.signalDeciderFeedback.v1";
@@ -129,15 +132,15 @@ export function isSignalDeciderFeedbackResponseForMarketDate(
   feedback: AgentFeedbackListResponseDto | null | undefined,
   marketDate: string,
 ) {
-  if (!feedback) return false;
-
-  const requestedMarketDate = normalizeMarketDate(feedback.request?.market_date);
-  const items = normalizeSignalDeciderFeedbackItems(feedback);
-  if (items.length > 0) {
-    return items.every((item) => normalizeMarketDate(item.marketDate) === marketDate);
+  const normalizedMarketDate = normalizeMarketDate(marketDate);
+  if (!feedback || !normalizedMarketDate) return false;
+  if (feedback.items.length > 0) {
+    return feedback.items.every(
+      (item) => getSignalDeciderStoredItemMarketDate(item) === normalizedMarketDate,
+    );
   }
 
-  return requestedMarketDate === marketDate;
+  return normalizeMarketDate(feedback.request?.market_date) === normalizedMarketDate;
 }
 
 function isUsableCacheEntry(
@@ -371,4 +374,30 @@ export function selectSignalDeciderFeedbackResponse({
 
   if (cached && cachedRowCount > 0 && fetchedRowCount === 0) return cached.feedback;
   return fetched;
+}
+
+export function selectSignalDeciderFeedbackResponseForMarketDate({
+  cached,
+  fetched,
+  marketDate,
+}: {
+  cached: SignalDeciderFeedbackCacheEntry | null;
+  fetched: AgentFeedbackListResponseDto;
+  marketDate: string;
+}) {
+  const normalizedMarketDate = normalizeMarketDate(marketDate);
+  if (!normalizedMarketDate) return null;
+
+  const exactCached =
+    cached &&
+    normalizeMarketDate(cached.marketDate) === normalizedMarketDate &&
+    isSignalDeciderFeedbackResponseForMarketDate(cached.feedback, normalizedMarketDate)
+      ? cached
+      : null;
+  const exactFetched = isSignalDeciderFeedbackResponseForMarketDate(fetched, normalizedMarketDate)
+    ? fetched
+    : null;
+
+  if (!exactFetched) return exactCached?.feedback ?? null;
+  return selectSignalDeciderFeedbackResponse({ cached: exactCached, fetched: exactFetched });
 }

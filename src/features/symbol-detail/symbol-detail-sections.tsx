@@ -37,6 +37,7 @@ import {
   pickFundamentalsCompany,
 } from "./symbol-detail-derived-state";
 import type { QuoteResponse } from "./symbol-detail-types";
+import { findExactSymbolItem } from "./use-symbol-detail-data";
 
 type SymbolDetailUnitProps = {
   copy: SymbolDetailCopy;
@@ -99,7 +100,7 @@ function useSymbolAggregateContextData({
   const aggregateResponseResult = useUnitData<AgentContextResponseDto>(aggregateRequest);
   const aggregateResponse = enabled ? aggregateResponseResult.data : null;
   const aggregateContext =
-    aggregateResponse?.items.find((item) => item.symbol === normalizedSymbol) ?? null;
+    aggregateResponse ? findExactSymbolItem(aggregateResponse.items, normalizedSymbol) : null;
   const aggregateContextLoadState: AggregateContextLoadState =
     !enabled
       ? "success"
@@ -198,7 +199,6 @@ export const HeroPiotroskiMetric = memo(function HeroPiotroskiMetric({
     [marketDate, normalizedSymbol, symbolReady],
   );
   const piotroskiResponseResult = useUnitData<EodPiotroskiFilterResultsResponseDto>(piotroskiRequest);
-  const piotroskiResult = piotroskiResponseResult.data?.item ?? null;
   const piotroskiLoadState: AggregateContextLoadState =
     !symbolReady || !marketDate
       ? "loading"
@@ -207,7 +207,13 @@ export const HeroPiotroskiMetric = memo(function HeroPiotroskiMetric({
         : piotroskiResponseResult.error
           ? "error"
           : "loading";
-  const metricModel = buildHeroPiotroskiMetricModel({ copy, piotroskiLoadState, piotroskiResult });
+  const metricModel = buildHeroPiotroskiMetricModel({
+    copy,
+    piotroskiLoadState,
+    piotroskiResponse: piotroskiResponseResult.data,
+    requestedMarketDate: marketDate,
+    requestedSymbol: normalizedSymbol,
+  });
   const piotroskiValueClassName =
     metricModel.tone === "positive" ? styles.positive : metricModel.tone === "negative" ? styles.negative : undefined;
 
@@ -215,7 +221,9 @@ export const HeroPiotroskiMetric = memo(function HeroPiotroskiMetric({
     <article
       className={styles.heroMetricCard}
       aria-busy={
-        (piotroskiResponseResult.isRefreshing || (!piotroskiResult && piotroskiLoadState === "loading")) || undefined
+        (piotroskiResponseResult.isRefreshing ||
+          (!piotroskiResponseResult.data?.item && piotroskiLoadState === "loading")) ||
+        undefined
       }
     >
       <span>{copy.hero.piotroskiFilter}</span>
@@ -258,7 +266,7 @@ function useNormalizedActionSummaryState(
           `/api/trading/eod/action-summaries?${insightQuery.toString()}`,
         );
 
-        return data.items.find((item) => item.symbol === normalizedSymbol) ?? data.items[0] ?? null;
+        return findExactSymbolItem(data.items, normalizedSymbol);
       },
     }),
     [marketDate, normalizedSymbol, symbolReady],
@@ -455,7 +463,7 @@ export const TechnicalAnalysisSection = memo(function TechnicalAnalysisSection({
           `/api/trading/eod/technical-snapshots?${insightQuery.toString()}`,
         );
 
-        return data.items.find((item) => item.symbol === normalizedSymbol) ?? data.items[0] ?? null;
+        return findExactSymbolItem(data.items, normalizedSymbol);
       },
     }),
     [marketDate, normalizedSymbol, symbolReady],

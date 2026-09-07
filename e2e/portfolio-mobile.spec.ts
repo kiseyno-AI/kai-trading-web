@@ -162,7 +162,7 @@ async function mockPortfolioRiskEndpointPending(page: Page) {
 }
 
 test.describe("portfolio mobile route", () => {
-  test("bottom toolbar opens the portfolio assets screen", async ({ page }) => {
+  test("bottom toolbar opens the portfolio screen", async ({ page }) => {
     await mockSearchShellApis(page);
     await mockPortfolioSummary(page);
     await mockPortfolioRiskSnapshot(page);
@@ -170,7 +170,7 @@ test.describe("portfolio mobile route", () => {
     await page.goto("/search");
     await expect(page.getByRole("heading", { name: "Quick Access" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Assets", exact: true }).click();
+    await page.getByRole("link", { name: "Portfolio", exact: true }).click();
 
     await expect(page).toHaveURL(/\/portfolio$/);
     await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();

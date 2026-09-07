@@ -157,7 +157,7 @@ const dashboardLiveCopy = {
       riskWatchlist: "Risk watchlist",
       piotroskiBreadth: "Piotroski pass",
       conditionNote: "Use the market posture as context before acting on decider recommendations.",
-      openMarkets: "Open markets",
+      openMarkets: "Explore symbols",
       openFactorScreening: "Open factor screening",
     },
     executionRuntime: {
@@ -767,7 +767,7 @@ const dashboardLiveCopy = {
       riskWatchlist: "리스크 워치리스트",
       piotroskiBreadth: "피오트로스키 통과",
       conditionNote: "디사이더 추천을 실행하기 전에 현재 마켓 자세를 해석 컨텍스트로 사용하세요.",
-      openMarkets: "마켓 열기",
+      openMarkets: "종목 탐색",
       openFactorScreening: "팩터 스크리닝 열기",
     },
     executionRuntime: {

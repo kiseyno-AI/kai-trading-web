@@ -180,13 +180,10 @@ async function mockMobileToolbarApis(
 }
 
 test.describe("my symbols mobile flow", () => {
-  test("bottom toolbar opens the full My Symbols screen instead of the dashboard section anchor", async ({ page }) => {
+  test("My Symbols stays directly addressable without adding a fifth global destination", async ({ page }) => {
     await mockMobileToolbarApis(page);
 
-    await page.goto("/search");
-
-    await expect(page.getByRole("heading", { name: "Quick Access" })).toBeVisible();
-    await page.getByRole("link", { name: "My Symbols", exact: true }).click();
+    await page.goto("/my-symbols");
 
     await expect(page).toHaveURL(/\/my-symbols$/);
     await expect(page.getByRole("heading", { name: "My Symbols" })).toBeVisible();
@@ -203,9 +200,8 @@ test.describe("my symbols mobile flow", () => {
     await expect(page).toHaveURL(/\/dashboard\/symbol\/005930\?.*navContext=my-symbols/);
     await expect(page.getByRole("heading", { name: "Samsung Electronics" })).toBeVisible();
 
-    const mySymbolsNavItem = page.getByRole("link", { name: "My Symbols", exact: true });
-    await expect(mySymbolsNavItem).toHaveAttribute("aria-current", "page");
-    await expect(mySymbolsNavItem).toHaveClass(/navItemActive/);
+    await expect(page.getByRole("link", { name: "My Symbols", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Explore", exact: true })).toHaveAttribute("aria-current", "page");
   });
 
   test("marks summary counts unavailable when tracked and favorite feeds fail", async ({ page }) => {
@@ -466,7 +462,7 @@ test.describe("my symbols mobile flow", () => {
       markLoadingSignals();
     });
 
-    const dashboardLink = page.getByRole("link", { name: "Dashboard", exact: true });
+    const dashboardLink = page.getByRole("link", { name: "Overview", exact: true });
     await dashboardLink.click();
 
     await expect.poll(() => page.evaluate(() => (window as Window & { __dashboardNavPendingSeen?: boolean }).__dashboardNavPendingSeen ?? false)).toBe(true);
@@ -480,7 +476,7 @@ test.describe("my symbols mobile flow", () => {
 
     await expect(page).toHaveURL(/\/search$/);
     await expect(page.getByRole("heading", { name: "Quick Access" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("data-navigation-pending", "false");
-    await expect(page.getByRole("link", { name: "Dashboard", exact: true })).not.toHaveAttribute("aria-busy", "true");
+    await expect(page.getByRole("link", { name: "Overview", exact: true })).toHaveAttribute("data-navigation-pending", "false");
+    await expect(page.getByRole("link", { name: "Overview", exact: true })).not.toHaveAttribute("aria-busy", "true");
   });
 });

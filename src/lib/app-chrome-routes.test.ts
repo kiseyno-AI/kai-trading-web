@@ -4,59 +4,59 @@ import test from "node:test";
 import { messages } from "@/i18n/messages";
 
 import {
-  APP_CHROME_ROUTE_BY_KEY,
-  APP_SHELL_ROUTE_KEYS,
-  FULL_PAGE_CHROME_ROUTE_KEYS,
-  MARKETS_ROUTE_CHROME_ROUTE_KEYS,
+  PRIMARY_APP_CHROME_ROUTE_KEYS,
   buildAppChromeNavItems,
+  resolvePrimaryAppChromeRouteKey,
 } from "./app-chrome-routes";
-import { resolveMobileAppChromeMetadata } from "./mobile-app-chrome-route-metadata";
 
-test("full-screen MobileAppChrome route keys expose only primary chrome destinations", () => {
-  assert.deepEqual(FULL_PAGE_CHROME_ROUTE_KEYS, [
-    "dashboard",
-    "search",
-    "calendar",
-    "portfolio",
-    "symbols",
-  ]);
-  const navItems = buildAppChromeNavItems(messages.en, FULL_PAGE_CHROME_ROUTE_KEYS);
-  const navIds = navItems.map((item) => item.id);
+const EXPECTED_PRIMARY_ROUTE_KEYS = ["dashboard", "search", "calendar", "portfolio"];
 
-  assert.deepEqual(navIds, FULL_PAGE_CHROME_ROUTE_KEYS);
-  assert.equal(navItems.length, 5);
+test("every app chrome surface shares one four-destination route set", () => {
+  assert.deepEqual(PRIMARY_APP_CHROME_ROUTE_KEYS, EXPECTED_PRIMARY_ROUTE_KEYS);
+
+  const navItems = buildAppChromeNavItems(messages.en);
+
+  assert.deepEqual(
+    navItems.map(({ id, href, label }) => ({ id, href, label })),
+    [
+      { id: "dashboard", href: "/dashboard", label: "Overview" },
+      { id: "search", href: "/search", label: "Explore" },
+      { id: "calendar", href: "/calendar", label: "Review" },
+      { id: "portfolio", href: "/portfolio", label: "Portfolio" },
+    ],
+  );
+  assert.equal(navItems.length, 4);
+  assert.equal(navItems.some((item) => item.id === "symbols"), false);
   assert.equal(navItems.some((item) => item.id === "markets"), false);
   assert.equal(navItems.some((item) => item.id === "bots"), false);
 });
 
-test("Markets route chrome exposes the broader AppShell destinations", () => {
-  const navItems = buildAppChromeNavItems(messages.en, MARKETS_ROUTE_CHROME_ROUTE_KEYS);
-  const navIds = navItems.map((item) => item.id);
+test("Korean navigation copy follows the same outcome-oriented route model", () => {
+  const navItems = buildAppChromeNavItems(messages.ko);
 
-  assert.deepEqual(MARKETS_ROUTE_CHROME_ROUTE_KEYS, APP_SHELL_ROUTE_KEYS);
-  assert.deepEqual(navIds, APP_SHELL_ROUTE_KEYS);
-  assert.equal(navItems.find((item) => item.id === "markets")?.href, "/markets");
-  assert.equal(navItems.find((item) => item.id === "bots")?.href, "/bots");
+  assert.deepEqual(
+    navItems.map(({ id, label }) => ({ id, label })),
+    [
+      { id: "dashboard", label: "개요" },
+      { id: "search", label: "탐색" },
+      { id: "calendar", label: "검토" },
+      { id: "portfolio", label: "포트폴리오" },
+    ],
+  );
 });
 
-test("broader AppShell navigation still exposes Markets and Bots for workspace routes", () => {
-  const shellNavItems = buildAppChromeNavItems(messages.en, APP_SHELL_ROUTE_KEYS);
-  assert.deepEqual(
-    shellNavItems.map((item) => item.id),
-    APP_SHELL_ROUTE_KEYS,
-  );
-  assert.equal(shellNavItems.some((item) => item.id === "markets"), true);
-  assert.equal(shellNavItems.some((item) => item.id === "bots"), true);
-  assert.equal(APP_CHROME_ROUTE_BY_KEY.markets.navigationItemKey, "markets");
-  assert.equal(APP_CHROME_ROUTE_BY_KEY.markets.defaultHref, "/markets");
-  assert.equal(APP_CHROME_ROUTE_BY_KEY.bots.navigationItemKey, "bots");
-  assert.equal(APP_CHROME_ROUTE_BY_KEY.bots.defaultHref, "/bots");
-
-  const marketsMetadata = resolveMobileAppChromeMetadata({
-    pathname: "/markets",
-    activeNav: "markets",
-    t: messages.en,
+test("route-state hrefs can be preserved without changing the global destinations", () => {
+  const navItems = buildAppChromeNavItems(messages.en, {
+    calendar: "/calendar?date=2026-04-27",
   });
 
-  assert.equal(marketsMetadata.title, "Markets");
+  assert.equal(navItems.find((item) => item.id === "calendar")?.href, "/calendar?date=2026-04-27");
+  assert.deepEqual(navItems.map((item) => item.id), EXPECTED_PRIMARY_ROUTE_KEYS);
+});
+
+test("secondary exploration routes keep Explore active in the four-item navigation", () => {
+  assert.equal(resolvePrimaryAppChromeRouteKey("symbols"), "search");
+  assert.equal(resolvePrimaryAppChromeRouteKey("markets"), "search");
+  assert.equal(resolvePrimaryAppChromeRouteKey("calendar"), "calendar");
+  assert.equal(resolvePrimaryAppChromeRouteKey(null), null);
 });

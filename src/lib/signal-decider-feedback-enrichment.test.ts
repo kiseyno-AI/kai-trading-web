@@ -307,3 +307,33 @@ test("loads company names from /symbols/search endpoint for resolver", async (t)
   assert.equal(requestUrl, "https://core.example.test/symbols/search?q=139480&limit=20");
   assert.equal(resolved, "한화오션");
 });
+
+test("symbol-name enrichment rejects a different symbol returned by search", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalBaseUrl = process.env.TRADING_API_UPSTREAM_BASE_URL;
+
+  globalThis.fetch = (() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          items: [{ symbol: "005930", company_name: "Samsung Electronics" }],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    )) as typeof fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) {
+      delete process.env.TRADING_API_UPSTREAM_BASE_URL;
+    } else {
+      process.env.TRADING_API_UPSTREAM_BASE_URL = originalBaseUrl;
+    }
+  });
+
+  process.env.TRADING_API_UPSTREAM_BASE_URL = "https://core.example.test";
+
+  assert.equal(await resolveSymbolNameFromSearchEndpoint("139480"), null);
+});

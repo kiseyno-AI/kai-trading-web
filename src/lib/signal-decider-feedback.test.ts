@@ -1219,7 +1219,9 @@ test("supports short-term-decider 5-day outcome statuses embedded in stored rows
     summary: { count: 1 },
   });
 
-  const item = normalizeSignalDeciderFeedbackItems(response)[0];
+  const item = normalizeDeciderFeedbackItems(response, {
+    agentName: SHORT_TERM_DECIDER_AGENT_NAME,
+  })[0];
 
   assert.ok(item);
   assert.equal(item.fiveDayEvaluation.status, "avoid_chase_missed_upside");
@@ -1493,6 +1495,46 @@ test("normalizes short-term decider tactical fields and data gaps", () => {
   assert.equal(item.contextBadges.some((badge) => badge.label === "DART events" && badge.value === "1 recent"), true);
   assert.equal(item.contextBadges.some((badge) => badge.label === "Investor flow" && badge.value === "Foreign flow positive"), true);
   assert.equal(item.contextBadges.some((badge) => badge.label === "Sector context" && badge.value === "Semiconductor strength"), true);
+});
+
+test("keeps only the explicitly requested decider while retaining agent-less legacy rows", () => {
+  const signalRow = buildFeedbackResponse().items[0];
+  assert.ok(signalRow);
+  const response = buildFeedbackResponse({
+    request: {
+      market_date: "2026-04-27",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+    },
+    summary: { count: 3 },
+    items: [
+      signalRow,
+      {
+        ...signalRow,
+        id: "wrong-decider",
+        agent: { ...signalRow.agent, name: "short-term-decider" },
+        feedback: {
+          ...signalRow.feedback,
+          role: "short-term-decider",
+        },
+      },
+      {
+        ...signalRow,
+        id: "legacy-agentless",
+        agent: { ...signalRow.agent, name: "" },
+        feedback: {
+          ...signalRow.feedback,
+          role: undefined,
+        },
+      },
+    ],
+  });
+
+  const items = normalizeDeciderFeedbackItems(response, { agentName: "signal-decider" });
+
+  assert.deepEqual(items.map((item) => item.id).sort(), ["1", "legacy-agentless"]);
+  assert.equal(items.every((item) => item.agentName === "signal-decider"), true);
 });
 
 test("deduplicates short-term data-quality warnings from risk and data-gap flags", () => {
@@ -2613,6 +2655,45 @@ test("promotes dashboard recommendations to the current date once current signal
   assert.equal(model.currentMarketDate, currentMarketDate);
   assert.equal(model.resultCount, 2);
   assert.equal(model.requestedCount, 2);
+});
+
+test("rejects current-date dashboard feedback when every stored row belongs to an earlier date", () => {
+  const currentMarketDate = "2026-04-30";
+  const staleRows = buildFeedbackResponseForMarketDate("2026-04-29");
+  const requestEchoedAsCurrent = buildFeedbackResponse({
+    ...staleRows,
+    request: {
+      ...staleRows.request,
+      market_date: currentMarketDate,
+    },
+  });
+  const completedProgress = buildProgress({
+    request: {
+      market_date: currentMarketDate,
+      symbols: null,
+      expected_agents: ["signal-decider"],
+    },
+    result: {
+      market_date: currentMarketDate,
+      roles: {
+        "signal-decider": {
+          requested_count: 2,
+          completed_count: 2,
+          error_count: 0,
+        },
+      },
+    },
+  });
+
+  const selection = selectSignalDeciderDashboardFeedback({
+    currentFeedback: requestEchoedAsCurrent,
+    currentMarketDate,
+    latestCompletedFeedback: null,
+    progress: completedProgress,
+  });
+
+  assert.equal(selection.feedback, null);
+  assert.equal(selection.isLatestCompletedFallback, false);
 });
 
 test("keeps the current dashboard cycle empty when no completed signal-decider fallback exists", () => {

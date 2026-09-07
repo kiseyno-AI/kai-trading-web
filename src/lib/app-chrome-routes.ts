@@ -1,23 +1,13 @@
 import type { MessageTree } from "@/i18n/messages";
-import type { NavItemDto, SearchSuggestionDto } from "@/types/trading-api";
+import type { NavItemDto } from "@/types/trading-api";
 
-export const APP_SHELL_ROUTE_KEYS = ["dashboard", "search", "portfolio", "calendar", "markets", "bots"] as const;
-export const FULL_PAGE_CHROME_ROUTE_KEYS = [
-  "dashboard",
-  "search",
-  "calendar",
-  "portfolio",
-  "symbols",
-] as const;
-export const MARKETS_ROUTE_CHROME_ROUTE_KEYS = APP_SHELL_ROUTE_KEYS;
+export const PRIMARY_APP_CHROME_ROUTE_KEYS = ["dashboard", "search", "calendar", "portfolio"] as const;
 
-export type AppChromeRouteKey = (typeof APP_SHELL_ROUTE_KEYS)[number] | "symbols";
-export type FullPageChromeRouteKey = (typeof FULL_PAGE_CHROME_ROUTE_KEYS)[number];
-
+export type AppChromeRouteKey = (typeof PRIMARY_APP_CHROME_ROUTE_KEYS)[number] | "symbols" | "markets";
+export type PrimaryAppChromeRouteKey = (typeof PRIMARY_APP_CHROME_ROUTE_KEYS)[number];
 export type AppChromeHrefOverrides = Partial<Record<AppChromeRouteKey, string>>;
 
 type NavigationItemKey = keyof MessageTree["navigation"]["items"];
-type SearchSuggestionKey = keyof MessageTree["navigation"]["searchSuggestions"];
 type MobileChromeLabelKey = keyof Pick<
   MessageTree["mobileChrome"],
   "assets" | "calendar" | "dashboard" | "markets" | "mySymbols" | "search"
@@ -29,7 +19,6 @@ type AppChromeRouteDescriptor = {
   key: AppChromeRouteKey;
   mobileChromeLabelKey: MobileChromeLabelKey;
   navigationItemKey?: NavigationItemKey;
-  searchSuggestionKey?: SearchSuggestionKey;
 };
 
 export const APP_CHROME_ROUTE_BY_KEY: Record<AppChromeRouteKey, AppChromeRouteDescriptor> = {
@@ -39,7 +28,6 @@ export const APP_CHROME_ROUTE_BY_KEY: Record<AppChromeRouteKey, AppChromeRouteDe
     iconId: "dashboard",
     mobileChromeLabelKey: "dashboard",
     navigationItemKey: "dashboard",
-    searchSuggestionKey: "dashboard",
   },
   search: {
     key: "search",
@@ -47,7 +35,6 @@ export const APP_CHROME_ROUTE_BY_KEY: Record<AppChromeRouteKey, AppChromeRouteDe
     iconId: "search",
     mobileChromeLabelKey: "search",
     navigationItemKey: "search",
-    searchSuggestionKey: "search",
   },
   portfolio: {
     key: "portfolio",
@@ -55,7 +42,6 @@ export const APP_CHROME_ROUTE_BY_KEY: Record<AppChromeRouteKey, AppChromeRouteDe
     iconId: "portfolio",
     mobileChromeLabelKey: "assets",
     navigationItemKey: "portfolio",
-    searchSuggestionKey: "portfolio",
   },
   calendar: {
     key: "calendar",
@@ -63,7 +49,6 @@ export const APP_CHROME_ROUTE_BY_KEY: Record<AppChromeRouteKey, AppChromeRouteDe
     iconId: "calendar",
     mobileChromeLabelKey: "calendar",
     navigationItemKey: "calendar",
-    searchSuggestionKey: "calendar",
   },
   symbols: {
     key: "symbols",
@@ -73,26 +58,23 @@ export const APP_CHROME_ROUTE_BY_KEY: Record<AppChromeRouteKey, AppChromeRouteDe
   },
   markets: {
     key: "markets",
-    defaultHref: "/markets",
+    defaultHref: "/markets/factors",
     iconId: "markets",
     mobileChromeLabelKey: "markets",
     navigationItemKey: "markets",
-    searchSuggestionKey: "markets",
-  },
-  bots: {
-    key: "bots",
-    defaultHref: "/bots",
-    iconId: "bots",
-    mobileChromeLabelKey: "dashboard",
-    navigationItemKey: "bots",
-    searchSuggestionKey: "bots",
   },
 };
 
-export const APP_CHROME_ROUTES = Object.values(APP_CHROME_ROUTE_BY_KEY);
-
-export function getAppChromeRoute(key: AppChromeRouteKey) {
+function getAppChromeRoute(key: AppChromeRouteKey) {
   return APP_CHROME_ROUTE_BY_KEY[key];
+}
+
+export function resolvePrimaryAppChromeRouteKey(
+  key: AppChromeRouteKey | null | undefined,
+): PrimaryAppChromeRouteKey | null {
+  if (!key) return null;
+  if (key === "symbols" || key === "markets") return "search";
+  return key;
 }
 
 export function resolveAppChromeHref(key: AppChromeRouteKey, hrefOverrides: AppChromeHrefOverrides = {}) {
@@ -101,10 +83,9 @@ export function resolveAppChromeHref(key: AppChromeRouteKey, hrefOverrides: AppC
 
 export function buildAppChromeNavItems(
   t: MessageTree,
-  routeKeys: readonly AppChromeRouteKey[] = APP_SHELL_ROUTE_KEYS,
   hrefOverrides: AppChromeHrefOverrides = {},
 ): NavItemDto[] {
-  return routeKeys.map((routeKey) => {
+  return PRIMARY_APP_CHROME_ROUTE_KEYS.map((routeKey) => {
     const route = getAppChromeRoute(routeKey);
     const navigationCopy = route.navigationItemKey ? t.navigation.items[route.navigationItemKey] : null;
 
@@ -114,25 +95,6 @@ export function buildAppChromeNavItems(
       icon: route.iconId,
       href: resolveAppChromeHref(route.key, hrefOverrides),
       description: navigationCopy?.description ?? t.mySymbols.brandMeta,
-    };
-  });
-}
-
-export function buildAppChromeSearchSuggestions(
-  t: MessageTree,
-  routeKeys: readonly AppChromeRouteKey[] = APP_SHELL_ROUTE_KEYS,
-  hrefOverrides: AppChromeHrefOverrides = {},
-): SearchSuggestionDto[] {
-  return routeKeys.flatMap((routeKey) => {
-    const route = getAppChromeRoute(routeKey);
-
-    if (!route.searchSuggestionKey) return [];
-
-    return {
-      id: route.key,
-      label: t.navigation.searchSuggestions[route.searchSuggestionKey],
-      type: "route",
-      route: resolveAppChromeHref(route.key, hrefOverrides),
     };
   });
 }

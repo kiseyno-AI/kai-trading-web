@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("KAI design-system recomposition", () => {
-  test("shared shell uses the blue financial terminal tokens", async ({ page }) => {
+  test("shared shell uses the restrained high-contrast terminal tokens", async ({ page }) => {
     await page.goto("/dashboard");
 
     const tokens = await page.evaluate(() => {
@@ -17,17 +17,17 @@ test.describe("KAI design-system recomposition", () => {
     });
 
     expect(tokens).toEqual({
-      accent: "#0052ff",
-      background: "#050b14",
-      canvas: "#050b14",
+      accent: "#4c7dff",
+      background: "#080b10",
+      canvas: "#080b10",
       radius: "12px",
-      surface: "#101c2e",
-      text: "#d6e2f2",
+      surface: "#111821",
+      text: "#dfe6ef",
     });
     const dashboardNavItem = page.locator('aside[aria-label="Desktop navigation"] a[href="/dashboard"]');
     await expect(dashboardNavItem).toBeVisible();
     await expect(dashboardNavItem).toHaveAttribute("aria-current", "page");
-    await expect(dashboardNavItem).toHaveCSS("box-shadow", /rgb\(0, 82, 255\)|rgba\(0, 82, 255/);
+    await expect(dashboardNavItem).toHaveCSS("box-shadow", /rgb\(76, 125, 255\)|rgba\(76, 125, 255/);
   });
 
   test("major surfaces expose the unified state and panel primitives", async ({ page }) => {

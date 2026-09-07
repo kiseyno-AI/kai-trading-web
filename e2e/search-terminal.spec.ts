@@ -95,7 +95,7 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByRole("dialog", { name: /Save Symbol/i })).toBeVisible();
   });
 
-  test("resets the header badge to the closed fallback when market status fails", async ({ page }) => {
+  test("marks the header badge unavailable when market status fails", async ({ page }) => {
     let marketStatusRequests = 0;
     await page.clock.install({ time: new Date("2026-04-14T09:00:00+09:00") });
 
@@ -158,8 +158,9 @@ test.describe("search terminal desktop", () => {
     await page.clock.runFor(60_000);
 
     await expect.poll(() => marketStatusRequests).toBe(2);
-    await expect(banner.getByText("Market Closed")).toBeVisible();
+    await expect(banner.getByText("Unavailable")).toBeVisible();
     await expect(banner.getByText("Market Open")).toHaveCount(0);
+    await expect(banner.getByText("Market Closed")).toHaveCount(0);
   });
 
   test("updates the terminal result title from the query", async ({ page }) => {
@@ -446,6 +447,9 @@ test.describe("search terminal desktop", () => {
     );
     await expect(quickSection.locator("strong").filter({ hasText: /^Unavailable$/ })).toBeVisible();
     await expect(quickSection.getByText(/Favorite list unavailable\. HTTP 503/i)).toBeVisible();
+    await expect(
+      page.locator("[data-dashboard-toolbar]").first().getByText("Unavailable", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("row", { name: /005930.*Samsung Electronics/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Results for "005930"/i })).toBeVisible();
     await expect(page.getByText(/Selected Terminal Feed/i)).toHaveCount(0);

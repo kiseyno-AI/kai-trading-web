@@ -1141,7 +1141,7 @@ test.describe("symbol detail mobile pages", () => {
 
     const runningStatus = freshnessCard.locator(".pill.info", { hasText: "Running" });
     await expect(runningStatus).toBeVisible();
-    await expect(runningStatus).toHaveCSS("color", "rgb(74, 168, 255)");
+    await expect(runningStatus).toHaveCSS("color", "rgb(107, 167, 255)");
 
     const overflowingNodes = await freshnessCard.evaluate((card) => {
       const cardRect = card.getBoundingClientRect();

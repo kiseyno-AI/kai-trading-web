@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
-import type { AgentContextActionSummaryDto, SymbolPriceBarDto } from "@/types/trading-api";
+import type {
+  AgentContextActionSummaryDto,
+  EodPiotroskiFilterResultsResponseDto,
+  SymbolPriceBarDto,
+} from "@/types/trading-api";
 import type { QuoteResponse } from "./symbol-detail-types";
 
 import {
@@ -14,6 +18,7 @@ import {
   buildFreshnessTone,
   buildFundamentalsHistorySectionModel,
   buildHeroFundamentalLatestMetricModel,
+  buildHeroPiotroskiMetricModel,
   buildLatestPriceLabel,
   buildModuleStatusTone,
   buildPriceHistoryRangeMetrics,
@@ -27,6 +32,7 @@ import {
   getCurrentSeoulMarketDate,
   getMarketOpenState,
   isClosedSessionMarketState,
+  pickFundamentalsCompany,
   pickSelectedBarTradeDate,
   resolveSymbolDetailCurrentMarketDate,
   resolveSymbolDetailEffectiveMarketDate,
@@ -88,6 +94,34 @@ function makePriceBar(overrides: Partial<SymbolPriceBarDto> = {}): SymbolPriceBa
     turnover: 6897645000000,
     source: "test",
     captured_at: "2026-04-10T16:00:00+09:00",
+    ...overrides,
+  };
+}
+
+function makePiotroskiResponse(
+  overrides: Partial<EodPiotroskiFilterResultsResponseDto> = {},
+): EodPiotroskiFilterResultsResponseDto {
+  return {
+    market_date: "2026-04-10",
+    requested_market_date: "2026-04-10",
+    resolved_market_date: "2026-04-10",
+    is_latest_fallback: false,
+    summary: {
+      entries: 1,
+      requested_symbol: "005930",
+      matched_symbols: ["005930"],
+      missing_symbols: [],
+      passed_count: 1,
+      not_passed_count: 0,
+    },
+    item: {
+      symbol: "005930",
+      market_date: "2026-04-10",
+      passed_filter: true,
+      piotroski_score: 8,
+      passes_piotroski_score: true,
+      captured_at: "2026-04-10T16:00:00+09:00",
+    },
     ...overrides,
   };
 }
@@ -735,6 +769,17 @@ test("keeps fundamentals-history empty-state outputs stable when no history is a
   assert.equal(model.highlights[0]?.value, copy.fundamentals.noFilingLoaded);
 });
 
+test("fundamentals history never falls back to another company's first row", () => {
+  const wrongCompany = { symbol: "000660", name: "SK hynix", entries: [] };
+  const requestedCompany = { symbol: "005930", name: "Samsung Electronics", entries: [] };
+
+  assert.equal(pickFundamentalsCompany({ companies: [wrongCompany] }, "005930"), null);
+  assert.equal(
+    pickFundamentalsCompany({ companies: [wrongCompany, requestedCompany] }, " 005930 "),
+    requestedCompany,
+  );
+});
+
 test("builds disclosure-coverage cards from a stable display model", () => {
   const copy = getSymbolDetailCopy("en");
   const latestDisclosure = {
@@ -868,6 +913,101 @@ test("surfaces aggregate errors in the hero fundamentals metric after loading fi
   assert.equal(model.value, copy.disclosures.emptyTitle);
   assert.equal(model.detailDateLabel, null);
   assert.equal(model.errorLabel, copy.errors.aggregateUnavailable);
+});
+
+test("shows the Piotroski hero result only for the exact normalized symbol and requested market date", () => {
+  const copy = getSymbolDetailCopy("en");
+  const matchingResponse = makePiotroskiResponse({
+    item: {
+      ...makePiotroskiResponse().item!,
+      symbol: " 005930 ",
+      market_date: "2026-04-10T16:00:00+09:00",
+    },
+  });
+
+  assert.deepEqual(
+    buildHeroPiotroskiMetricModel({
+      copy,
+      piotroskiLoadState: "success",
+      piotroskiResponse: matchingResponse,
+      requestedMarketDate: "2026-04-10",
+      requestedSymbol: "005930",
+    }),
+    { label: copy.common.pass, tone: "positive" },
+  );
+
+  const wrongSymbolResponse = makePiotroskiResponse({
+    item: {
+      ...makePiotroskiResponse().item!,
+      symbol: "000660",
+    },
+  });
+  assert.deepEqual(
+    buildHeroPiotroskiMetricModel({
+      copy,
+      piotroskiLoadState: "success",
+      piotroskiResponse: wrongSymbolResponse,
+      requestedMarketDate: "2026-04-10",
+      requestedSymbol: "005930",
+    }),
+    { label: copy.common.unavailable, tone: null },
+  );
+
+  const staleItemBehindCurrentRequestEcho = makePiotroskiResponse({
+    item: {
+      ...makePiotroskiResponse().item!,
+      market_date: "2026-04-09",
+    },
+  });
+  assert.deepEqual(
+    buildHeroPiotroskiMetricModel({
+      copy,
+      piotroskiLoadState: "success",
+      piotroskiResponse: staleItemBehindCurrentRequestEcho,
+      requestedMarketDate: "2026-04-10",
+      requestedSymbol: "005930",
+    }),
+    { label: copy.common.unavailable, tone: null },
+  );
+});
+
+test("accepts a Piotroski hero latest fallback only when requested, resolved, and item dates prove it", () => {
+  const copy = getSymbolDetailCopy("en");
+  const provenFallback = makePiotroskiResponse({
+    market_date: "2026-04-09",
+    requested_market_date: "2026-04-10",
+    resolved_market_date: "2026-04-09",
+    is_latest_fallback: true,
+    item: {
+      ...makePiotroskiResponse().item!,
+      market_date: "2026-04-09",
+    },
+  });
+
+  assert.deepEqual(
+    buildHeroPiotroskiMetricModel({
+      copy,
+      piotroskiLoadState: "success",
+      piotroskiResponse: provenFallback,
+      requestedMarketDate: "2026-04-10",
+      requestedSymbol: "005930",
+    }),
+    { label: copy.common.pass, tone: "positive" },
+  );
+
+  assert.deepEqual(
+    buildHeroPiotroskiMetricModel({
+      copy,
+      piotroskiLoadState: "success",
+      piotroskiResponse: {
+        ...provenFallback,
+        resolved_market_date: "2026-04-10",
+      },
+      requestedMarketDate: "2026-04-10",
+      requestedSymbol: "005930",
+    }),
+    { label: copy.common.unavailable, tone: null },
+  );
 });
 
 test("keeps the selected price-bar trade date stable across refreshed history arrays", () => {

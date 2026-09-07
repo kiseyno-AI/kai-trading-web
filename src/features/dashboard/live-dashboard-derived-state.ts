@@ -946,28 +946,6 @@ export function getMarketSnapshotPollDelayMs({
   ];
 }
 
-export function shouldTreatAgentFeedbackStopDisconnectAsAccepted(error: unknown) {
-  const normalizedMessage = getDashboardLoadErrorMessage(error).trim().toLowerCase();
-  return normalizedMessage === "fetch failed" || normalizedMessage === "failed to fetch";
-}
-
-export function markAgentFeedbackProgressStopped(
-  progress: AgentFeedbackProgressResponseDto | null,
-): AgentFeedbackProgressResponseDto | null {
-  if (!progress) return null;
-
-  return {
-    ...progress,
-    summary: {
-      ...progress.summary,
-      is_live: false,
-      run_status: "stalled",
-      run_table_status: "stalled",
-      cycle_status: "stalled",
-    },
-  };
-}
-
 export function isOfflineTrackedPlaceholder(tracked: CoreTrackedQuotesResponse) {
   return (
     tracked.market_state === "offline-placeholder" ||

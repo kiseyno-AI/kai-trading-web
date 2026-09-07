@@ -1,44 +1,27 @@
 import { expect, test } from "@playwright/test";
 
-const unsupportedLiveValues = [
-  /Registered bots/i,
-  /Execution mode/i,
-  /Risk lock/i,
-  /Momentum Breakout/i,
-  /Mean Reversion/i,
-  /Funding Capture/i,
-  /Armed/i,
-  /Standby/i,
-  /Monitoring/i,
-  /28% capital/i,
-  /14% capital/i,
-  /9% capital/i,
-];
+test.describe("retired route aliases", () => {
+  for (const [legacyPath, canonicalPath] of [
+    ["/bots", "/dashboard"],
+    ["/real-dashboard", "/dashboard"],
+    ["/kis-dashboard", "/dashboard"],
+    ["/scanner-tracker", "/my-symbols"],
+    ["/markets", "/markets/factors"],
+  ] as const) {
+    test(`${legacyPath} redirects to ${canonicalPath}`, async ({ page }) => {
+      await page.goto(legacyPath);
+      await expect(page).toHaveURL(new RegExp(`${canonicalPath.replaceAll("/", "\\/")}$`));
+    });
+  }
 
-test.describe("bots placeholder truthfulness", () => {
-  test("does not present unsupported automation state as live data", async ({ page }) => {
-    await page.goto("/bots");
+  test("shared decider feedback route preserves short-term query state", async ({ page }) => {
+    await page.goto(
+      "/dashboard/decider-feedback?agent=short-term-decider&marketDate=2026-04-27&q=Samsung&symbols=005930&symbols=000660",
+    );
 
-    await expect(page.getByRole("heading", { name: /No live bot roster connected/i })).toBeVisible();
-    await expect(page.getByText(/Bot read API not connected/i)).toBeVisible();
-    await expect(page.getByText(/Not exposed on placeholder/i)).toBeVisible();
-    await expect(page.getByText(/Not displayed without source data/i)).toBeVisible();
-
-    for (const value of unsupportedLiveValues) {
-      await expect(page.getByText(value)).toHaveCount(0);
-    }
-  });
-
-  test("keeps the mobile scaffold conservative", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/bots");
-
-    await expect(page.getByRole("heading", { name: /No live bot roster connected/i })).toBeVisible();
-    await expect(page.getByText(/Hidden until API-backed/i)).toBeVisible();
-    await expect(page.getByText(/API-backed roster/i)).toBeVisible();
-
-    for (const value of unsupportedLiveValues) {
-      await expect(page.getByText(value)).toHaveCount(0);
-    }
+    await expect(page).toHaveURL(
+      /\/dashboard\/decider-feedback\?agent=short-term-decider&marketDate=2026-04-27&q=Samsung&symbols=005930&symbols=000660$/,
+    );
+    await expect(page.getByRole("link", { name: "Short-term Decider" })).toHaveAttribute("aria-current", "page");
   });
 });

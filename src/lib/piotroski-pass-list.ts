@@ -2,6 +2,7 @@ import {
   SYMBOL_DETAIL_NAV_CONTEXT_PARAM,
   SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
+import { selectExactSymbolQuote } from "@/lib/exact-symbol-quote";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import type {
   EodFreshnessResponseDto,
@@ -192,7 +193,8 @@ async function loadPiotroskiItemMetadata(
 
 async function loadPiotroskiItemQuote(symbol: string, signal?: AbortSignal): Promise<PiotroskiQuoteResponse | null> {
   try {
-    return await getJson<PiotroskiQuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`, { signal });
+    const quote = await getJson<PiotroskiQuoteResponse>(`/api/trading/quotes/${encodeURIComponent(symbol)}`, { signal });
+    return selectExactSymbolQuote(quote, symbol);
   } catch (error) {
     console.error("Piotroski quote load failed", error);
     return null;

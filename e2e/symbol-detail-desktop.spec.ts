@@ -855,9 +855,14 @@ test.describe("symbol detail desktop", () => {
     });
 
     await page.route("**/api/trading/eod/piotroski-filter-results?**", async (route) => {
+      const requestedDate = new URL(route.request().url()).searchParams.get("market_date");
+      expect(requestedDate).toBe(marketDate);
       await route.fulfill({
         json: {
           market_date: marketDate,
+          requested_market_date: marketDate,
+          resolved_market_date: marketDate,
+          is_latest_fallback: false,
           summary: {
             entries: 1,
             requested_symbol: "005930",
@@ -904,7 +909,8 @@ test.describe("symbol detail desktop", () => {
       });
     });
 
-    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+    const datedSymbolSeed = symbolSeed.replace("2026-04-10", marketDate);
+    await page.goto(`/dashboard/symbol/005930?${datedSymbolSeed}`);
 
     const summary = page.locator("#summary");
     const tradeButton = summary.getByRole("button", { name: "Trading disabled · read-only" });

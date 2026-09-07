@@ -378,12 +378,11 @@ export async function resolveSymbolNameFromSearchEndpoint(
       const candidateSymbol = getStringValue(entry, "symbol");
       return isText(candidateSymbol) && normalizeSymbolCode(candidateSymbol) === normalizedSymbol;
     });
-    const symbolCandidate = exactMatch ?? symbolEntries[0];
-    if (!symbolCandidate) return null;
+    if (!exactMatch) return null;
 
     return getUsableCompanyName(
       normalizedSymbol,
-      COMPANY_NAME_KEYS.map((key) => getStringValue(symbolCandidate, key)),
+      COMPANY_NAME_KEYS.map((key) => getStringValue(exactMatch, key)),
     );
   } catch {
     return null;

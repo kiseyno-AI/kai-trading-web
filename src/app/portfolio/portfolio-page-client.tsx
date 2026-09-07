@@ -32,6 +32,7 @@ import {
   formatPortfolioPercent,
   getPortfolioAccounts,
   getPortfolioActivity,
+  getPortfolioAllocationBarWidth,
   getPortfolioAllocations,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
@@ -69,7 +70,7 @@ function humanizeToken(value: string | null | undefined, fallback: string) {
 
 function getMetricCopy(id: PortfolioMetricId, copy: PortfolioCopy) {
   if (id === "total-assets") return copy.metrics.totalAssets;
-  if (id === "week-pnl") return copy.metrics.dayPnl;
+  if (id === "week-pnl") return copy.metrics.weekPnl;
   if (id === "unrealized-pnl") return copy.metrics.unrealizedPnl;
   return copy.metrics.cashBuyingPower;
 }
@@ -977,18 +978,26 @@ export default function PortfolioPageClient() {
             <EmptyState {...getEmptyStateCopy("allocation", allocationSectionState, copy)} />
           ) : (
             <div className={styles.allocationList}>
-              {allocationRows.map((row) => (
-                <div key={row.id} className={styles.allocationRow}>
-                  <div>
-                    <strong>{row.label}</strong>
-                    <span>{formatPortfolioMoney(row.value, allocationFieldFallback)}</span>
+              {allocationRows.map((row) => {
+                const barWidth = getPortfolioAllocationBarWidth(row.percent);
+
+                return (
+                  <div key={row.id} className={styles.allocationRow}>
+                    <div>
+                      <strong>{row.label}</strong>
+                      <span>{formatPortfolioMoney(row.value, allocationFieldFallback)}</span>
+                    </div>
+                    <div
+                      className={styles.allocationBar}
+                      data-state={barWidth === null ? "unavailable" : "available"}
+                      aria-hidden="true"
+                    >
+                      {barWidth === null ? null : <span style={{ width: `${barWidth}%` }} />}
+                    </div>
+                    <em>{formatPortfolioPercent(row.percent, copy.fieldNotAllocated)}</em>
                   </div>
-                  <div className={styles.allocationBar} aria-hidden="true">
-                    <span style={{ width: `${Math.max(0, Math.min(100, row.percent ?? 0))}%` }} />
-                  </div>
-                  <em>{formatPortfolioPercent(row.percent, copy.fieldNotAllocated)}</em>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

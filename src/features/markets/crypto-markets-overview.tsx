@@ -83,10 +83,10 @@ export function CryptoMarketsOverview() {
         </div>
 
         <div className={styles.heroActions}>
-          <Link href="/markets" className={styles.primaryLink}>
+          <Link href="/markets/factors" className={styles.primaryLink}>
             {t.markets.backToMarkets}
           </Link>
-          <Link href="/bots" className={styles.secondaryLink}>
+          <Link href="/dashboard" className={styles.secondaryLink}>
             {t.markets.openBotsRuntime}
           </Link>
         </div>

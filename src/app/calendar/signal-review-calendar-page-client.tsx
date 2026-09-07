@@ -15,6 +15,7 @@ import {
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { getCurrentProductMarketDate } from "@/lib/product-market-date";
+import { isAgentFeedbackProgressResponseForMarketDate } from "@/lib/agent-feedback-progress";
 import {
   buildSignalDeciderFeedbackPath,
   buildCalendarSummaryQuery,
@@ -63,6 +64,10 @@ import type {
   Locale,
 } from "@/types/trading-api";
 
+import {
+  getReviewEvidenceCount,
+  getReviewedStatusCount,
+} from "./signal-review-calendar-aggregation";
 import styles from "./signal-review-calendar-page.module.css";
 
 const UNKNOWN_LABEL = "[확인 필요]";
@@ -85,6 +90,10 @@ type CalendarDay = {
   dayNumber: number;
   inMonth: boolean;
   isFuture: boolean;
+};
+
+type SignalReviewCalendarPageClientProps = {
+  initialTodayKey: string;
 };
 
 type DateSnapshotStatus = "loading" | "empty" | "stored" | "reviewed" | "partial" | "unavailable" | "future";
@@ -350,18 +359,6 @@ function buildCalendarDays(monthKey: string, todayKey: string): CalendarDay[] {
   });
 }
 
-function getReviewEvidenceCount(items: SignalDeciderFeedbackItem[]) {
-  return items.filter(
-    (item) =>
-      hasTextValue(item.qualityVerdict) ||
-      hasTextValue(item.qualityReason) ||
-      hasTextValue(item.reviewConclusion) ||
-      item.pathOutcome !== null ||
-      item.outcomeHorizons.length > 0 ||
-      item.horizonEvaluations.some((horizon) => horizon.state === "computed"),
-  ).length;
-}
-
 function buildDateSnapshot(
   dateKey: string,
   feedback: AgentFeedbackListResponseDto | null,
@@ -415,10 +412,7 @@ function buildDateSnapshotFromCalendarSummary({
   if (!summaryItem) return fallbackFeedback ? buildDateSnapshot(dateKey, fallbackFeedback) : buildEmptyDateSnapshot(dateKey);
 
   const decisionCount = toCalendarInt(summaryItem.decision_count);
-  const reviewCount = Object.values(summaryItem.review_status_counts ?? {}).reduce<number>(
-    (total, value) => total + toCalendarInt(value),
-    0,
-  );
+  const reviewCount = getReviewedStatusCount(summaryItem.review_status_counts);
   const actionCounts = { ...EMPTY_ACTION_COUNTS };
   for (const [actionKey, countValue] of Object.entries(summaryItem.decision_actions ?? {})) {
     const action = normalizeActionKey(actionKey);
@@ -1057,12 +1051,12 @@ function getSelectedDateHeader(
   return selectedDate ?? copy.status.pending;
 }
 
-export default function SignalReviewCalendarPageClient() {
+export default function SignalReviewCalendarPageClient({ initialTodayKey }: SignalReviewCalendarPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDate = searchParams.get("date");
   const requestedDateKey = parseCompactDateValue(requestedDate);
-  const [todayKey, setTodayKey] = useState(() => getTodayDateKey());
+  const [todayKey, setTodayKey] = useState(initialTodayKey);
   const initialDate = requestedDateKey;
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   const [monthKey, setMonthKey] = useState(getMonthKey(initialDate ?? todayKey));
@@ -1159,15 +1153,17 @@ export default function SignalReviewCalendarPageClient() {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
-      setSelectedDate(todayKey);
-      setMonthKey(getMonthKey(todayKey));
-      router.replace(`/calendar?date=${encodeURIComponent(todayKey)}`);
+      const currentTodayKey = getTodayDateKey();
+      setTodayKey((current) => (current === currentTodayKey ? current : currentTodayKey));
+      setSelectedDate(currentTodayKey);
+      setMonthKey(getMonthKey(currentTodayKey));
+      router.replace(`/calendar?date=${encodeURIComponent(currentTodayKey)}`);
     });
 
     return () => {
       active = false;
     };
-  }, [router, selectedDate, todayKey]);
+  }, [router, selectedDate]);
 
   useEffect(() => {
     let active = true;
@@ -1245,6 +1241,11 @@ export default function SignalReviewCalendarPageClient() {
             }),
             { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
           );
+          if (!isSignalDeciderFeedbackResponseForMarketDate(feedback, day.dateKey)) {
+            return cachedSnapshot
+              ? buildDateSnapshot(day.dateKey, cachedSnapshot.feedback)
+              : buildDateSnapshot(day.dateKey, null, copy.states.unavailableMonth);
+          }
           const selectedFeedback = selectSignalDeciderFeedbackResponse({
             cached: cachedSnapshot,
             fetched: feedback,
@@ -1296,13 +1297,19 @@ export default function SignalReviewCalendarPageClient() {
 
     let active = true;
     const cachedSnapshot = readSignalDeciderFeedbackCache(selectedDate);
+    const cachedProgress = isAgentFeedbackProgressResponseForMarketDate(
+      cachedSnapshot?.progress,
+      selectedDate,
+    )
+      ? (cachedSnapshot?.progress ?? null)
+      : null;
 
     const loadSelectedDate = async () => {
       setSelectedLoadState(cachedSnapshot ? "ready" : "loading");
       setSelectedError(null);
-      setProgressUnavailable(cachedSnapshot ? cachedSnapshot.progress === null : false);
+      setProgressUnavailable(cachedSnapshot ? cachedProgress === null : false);
       setSelectedFeedback(cachedSnapshot?.feedback ?? null);
-      setSelectedProgress(cachedSnapshot?.progress ?? null);
+      setSelectedProgress(cachedProgress);
       setSelectedDataDate(cachedSnapshot ? selectedDate : null);
       setSelectedItemId(null);
 
@@ -1324,13 +1331,25 @@ export default function SignalReviewCalendarPageClient() {
           response: reviewDateResponse,
           fallbackMarketDate: selectedDate,
         });
-        const selectedProgress = await selectedProgressPromise;
+        if (!isSignalDeciderFeedbackResponseForMarketDate(feedback, selectedDate)) {
+          throw new Error(`Selected-date feedback rows do not match ${selectedDate}.`);
+        }
+        const loadedProgress = await selectedProgressPromise;
+        const selectedProgress = isAgentFeedbackProgressResponseForMarketDate(
+          loadedProgress,
+          selectedDate,
+        )
+          ? loadedProgress
+          : null;
         if (!active) return;
         const selectedFeedback = selectSignalDeciderFeedbackResponse({
           cached: cachedSnapshot,
           fetched: feedback,
         });
-        const selectedProgressFallback = selectedFeedback === cachedSnapshot?.feedback ? (selectedProgress ?? cachedSnapshot.progress) : selectedProgress;
+        const selectedProgressFallback =
+          selectedFeedback === cachedSnapshot?.feedback
+            ? (selectedProgress ?? cachedProgress)
+            : selectedProgress;
         setSelectedFeedback(selectedFeedback);
         setSelectedProgress(selectedProgressFallback);
         setSelectedDataDate(selectedDate);
@@ -1358,13 +1377,23 @@ export default function SignalReviewCalendarPageClient() {
               { timeoutMs: SIGNAL_REVIEW_READ_TIMEOUT_MS },
             ),
           ]);
-          const progress = await selectedProgressPromise;
+          if (!isSignalDeciderFeedbackResponseForMarketDate(feedback, selectedDate)) {
+            throw new Error(`Selected-date feedback rows do not match ${selectedDate}.`);
+          }
+          const loadedProgress = await selectedProgressPromise;
+          const progress = isAgentFeedbackProgressResponseForMarketDate(
+            loadedProgress,
+            selectedDate,
+          )
+            ? loadedProgress
+            : null;
           if (!active) return;
           const selectedFeedback = selectSignalDeciderFeedbackResponse({
             cached: cachedSnapshot,
             fetched: feedback,
           });
-          const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedSnapshot.progress) : progress;
+          const selectedProgress =
+            selectedFeedback === cachedSnapshot?.feedback ? (progress ?? cachedProgress) : progress;
           const fallbackResolvedEmpty =
             selectedFeedback.items.length === 0 && selectedFeedback.summary.count === 0;
           const selectedReviewError =
@@ -1408,9 +1437,9 @@ export default function SignalReviewCalendarPageClient() {
           if (!active) return;
           if (cachedSnapshot) {
             setSelectedFeedback(cachedSnapshot.feedback);
-            setSelectedProgress(cachedSnapshot.progress);
+            setSelectedProgress(cachedProgress);
             setSelectedDataDate(selectedDate);
-            setProgressUnavailable(cachedSnapshot.progress === null);
+            setProgressUnavailable(cachedProgress === null);
             setSelectedLoadState("ready");
             setSelectedError(
               fallbackError instanceof Error

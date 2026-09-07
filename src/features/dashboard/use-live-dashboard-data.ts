@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
-import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
+import {
+  getAgentFeedbackProgressMarketDate,
+  isAgentFeedbackProgressResponseForMarketDate,
+} from "@/lib/agent-feedback-progress";
 import {
   getDashboardLatestCompletedPipelineMarketDate,
   getDashboardProcessRequestMarketDate,
@@ -47,6 +50,7 @@ import {
   seedTradingApiJsonCache,
   seedTradingApiJsonSnapshot,
 } from "@/lib/trading-api-cache";
+import { isSignalDeciderFeedbackResponseForMarketDate } from "@/lib/signal-decider-feedback-cache";
 
 import {
   getAgentFeedbackProgressPollDelayMs,
@@ -276,11 +280,38 @@ export function hasResponseForRequestedMarketDate(
     return responseRequestedDate === requestedDate;
   }
 
-  return (
-    normalizeMarketDateKey(response.market_date) === requestedDate ||
-    normalizeMarketDateKey(response.resolved_market_date) === requestedDate ||
-    responseRequestedDate === requestedDate
-  );
+  const actualDates = [
+    normalizeMarketDateKey(response.market_date),
+    normalizeMarketDateKey(response.resolved_market_date),
+  ].filter((value): value is string => value !== null);
+
+  return actualDates.length > 0 && actualDates.every((value) => value === requestedDate);
+}
+
+export function shouldSeedInitialMarketSnapshot(market: CoreMarketStatus) {
+  return market.state.trim().toUpperCase() !== "UNAVAILABLE";
+}
+
+export function shouldSeedInitialTrackedSnapshot(tracked: CoreTrackedQuotesResponse) {
+  return tracked.market_state.trim().toLowerCase() !== "unavailable";
+}
+
+export function selectSignalDeciderFeedbackForMarketDate(
+  feedback: AgentFeedbackListResponseDto | null | undefined,
+  marketDate: string | null | undefined,
+) {
+  return marketDate && isSignalDeciderFeedbackResponseForMarketDate(feedback, marketDate)
+    ? (feedback ?? null)
+    : null;
+}
+
+export function selectAgentFeedbackProgressForMarketDate(
+  progress: AgentFeedbackProgressResponseDto | null | undefined,
+  marketDate: string | null | undefined,
+) {
+  return isAgentFeedbackProgressResponseForMarketDate(progress, marketDate)
+    ? (progress ?? null)
+    : null;
 }
 
 export function useLiveDashboardData({
@@ -314,6 +345,11 @@ export function useLiveDashboardData({
     initialPipelineStatus,
     initialPipelineRequestMarketDate,
   );
+  const initialAgentProgressMarketDate = getAgentFeedbackProgressMarketDate(initialFreshness);
+  const exactInitialAgentFeedbackProgress = selectAgentFeedbackProgressForMarketDate(
+    initialAgentFeedbackProgress,
+    initialAgentProgressMarketDate,
+  );
   const [market, setMarket] = useState<CoreMarketStatus>(initialMarket);
   const [tracked, setTracked] = useState<CoreTrackedQuotesResponse>(initialTracked);
   const [freshness, setFreshness] = useState<EodFreshnessResponseDto | null>(initialFreshness);
@@ -332,9 +368,11 @@ export function useLiveDashboardData({
   const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshotResponseDto | null>(null);
   const [marketSnapshotError, setMarketSnapshotError] = useState<string | null>(null);
   const [agentFeedbackProgress, setAgentFeedbackProgressState] = useState<AgentFeedbackProgressResponseDto | null>(
-    initialAgentFeedbackProgress,
+    exactInitialAgentFeedbackProgress,
   );
-  const agentFeedbackProgressRef = useRef<AgentFeedbackProgressResponseDto | null>(initialAgentFeedbackProgress);
+  const agentFeedbackProgressRef = useRef<AgentFeedbackProgressResponseDto | null>(
+    exactInitialAgentFeedbackProgress,
+  );
   const setAgentFeedbackProgress: Dispatch<SetStateAction<AgentFeedbackProgressResponseDto | null>> = (nextValue) => {
     setAgentFeedbackProgressState((current) => {
       const resolvedValue = typeof nextValue === "function" ? nextValue(current) : nextValue;
@@ -346,8 +384,16 @@ export function useLiveDashboardData({
   const [signalDeciderFeedback, setSignalDeciderFeedback] = useState<AgentFeedbackListResponseDto | null>(
     initialSignalDeciderFeedback,
   );
+  const initialSignalDeciderFeedbackMarketDate = normalizeMarketDateKey(
+    initialSignalDeciderFeedback?.request?.market_date,
+  );
   const initialSignalDeciderFeedbackMarketDateRef = useRef<string | null>(
-    normalizeMarketDateKey(initialSignalDeciderFeedback?.request?.market_date),
+    selectSignalDeciderFeedbackForMarketDate(
+      initialSignalDeciderFeedback,
+      initialSignalDeciderFeedbackMarketDate,
+    )
+      ? initialSignalDeciderFeedbackMarketDate
+      : null,
   );
   const [latestSignalDeciderFeedback, setLatestSignalDeciderFeedback] =
     useState<AgentFeedbackListResponseDto | null>(initialLatestSignalDeciderFeedback);
@@ -441,8 +487,12 @@ export function useLiveDashboardData({
   const executionRuntimeMarketDate = pipelineRequestMarketDate;
 
   useEffect(() => {
-    seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, initialMarket);
-    seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH, initialTracked);
+    if (shouldSeedInitialMarketSnapshot(initialMarket)) {
+      seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, initialMarket);
+    }
+    if (shouldSeedInitialTrackedSnapshot(initialTracked)) {
+      seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH, initialTracked);
+    }
     seedTradingApiJsonSnapshot(PORTFOLIO_SUMMARY_PATH, initialPortfolioSummary);
     seedTradingApiJsonCache("/api/trading/eod/freshness", initialFreshness);
     seedTradingApiJsonCache(
@@ -514,7 +564,7 @@ export function useLiveDashboardData({
         seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_TRACKED_QUOTES_PATH, trackedData);
         setTrackedError(null);
       } catch (loadError) {
-        console.error("Dashboard tracked quote load failed", loadError);
+        console.warn("Dashboard tracked quote load failed", loadError);
         if (!active) return;
         setTrackedError(getDashboardLoadErrorMessage(loadError));
         scheduleRetry();
@@ -567,7 +617,7 @@ export function useLiveDashboardData({
         setMarketSnapshotError(null);
         scheduleNextLoad(false);
       } catch (snapshotError) {
-        console.error("Dashboard market snapshot load failed", snapshotError);
+        console.warn("Dashboard market snapshot load failed", snapshotError);
         if (!active) return;
         consecutiveErrorCount += 1;
         setMarketSnapshotError(getDashboardLoadErrorMessage(snapshotError));
@@ -601,7 +651,7 @@ export function useLiveDashboardData({
         setPortfolioSummaryError(null);
         setPortfolioSummaryLoadState("success");
       } catch (portfolioError) {
-        console.error("Dashboard portfolio summary load failed", portfolioError);
+        console.warn("Dashboard portfolio summary load failed", portfolioError);
         if (!active) return;
         setPortfolioSummaryError(getDashboardLoadErrorMessage(portfolioError));
         setPortfolioSummaryLoadState("error");
@@ -641,7 +691,7 @@ export function useLiveDashboardData({
         setExecutionRuntimeStatus(statusResult.data);
         setExecutionRuntimeStatusError(null);
       } else {
-        console.error("Dashboard execution runtime status load failed", statusResult.message);
+        console.warn("Dashboard execution runtime status load failed", statusResult.message);
         setExecutionRuntimeStatusError(statusResult.message);
       }
 
@@ -649,7 +699,7 @@ export function useLiveDashboardData({
         setExecutionRuntimeMonitoredSymbols(monitoredSymbolsResult.data);
         setExecutionRuntimeMonitoredSymbolsError(null);
       } else {
-        console.error("Dashboard execution runtime monitored symbols load failed", monitoredSymbolsResult.message);
+        console.warn("Dashboard execution runtime monitored symbols load failed", monitoredSymbolsResult.message);
         setExecutionRuntimeMonitoredSymbolsError(monitoredSymbolsResult.message);
       }
 
@@ -657,7 +707,7 @@ export function useLiveDashboardData({
         setExecutionRuntimeDailyBoard(dailyBoardResult.data);
         setExecutionRuntimeDailyBoardError(null);
       } else {
-        console.error("Dashboard execution runtime daily board load failed", dailyBoardResult.message);
+        console.warn("Dashboard execution runtime daily board load failed", dailyBoardResult.message);
         setExecutionRuntimeDailyBoardError(dailyBoardResult.message);
       }
     };
@@ -694,7 +744,7 @@ export function useLiveDashboardData({
         seedTradingApiJsonSnapshot(MOBILE_TOOLBAR_MARKET_STATUS_PATH, marketData);
         setMarketError(null);
       } catch (loadError) {
-        console.error("Dashboard market status polling failed", loadError);
+        console.warn("Dashboard market status polling failed", loadError);
         if (!active) return;
         setMarketError(getDashboardLoadErrorMessage(loadError));
       }
@@ -731,7 +781,7 @@ export function useLiveDashboardData({
         setFreshness(data);
         setFreshnessError(null);
       } catch (freshnessError) {
-        console.error("Dashboard freshness load failed", freshnessError);
+        console.warn("Dashboard freshness load failed", freshnessError);
         if (!active) return;
         setFreshnessError(getDashboardLoadErrorMessage(freshnessError));
         setFreshness((current) => current);
@@ -830,7 +880,7 @@ export function useLiveDashboardData({
         setPiotroskiStatusError(null);
         setPiotroskiStatusLoadState("ready");
       } else {
-        console.error("Dashboard Piotroski status load failed", piotroskiResult.reason);
+        console.warn("Dashboard Piotroski status load failed", piotroskiResult.reason);
         if (!isBackgroundReload) {
           piotroskiStatusRef.current = null;
           setPiotroskiStatus(null);
@@ -845,7 +895,7 @@ export function useLiveDashboardData({
         setMarketRiskStatusError(null);
         setMarketRiskStatusLoadState("ready");
       } else {
-        console.error("Dashboard market risk status load failed", marketRiskResult.reason);
+        console.warn("Dashboard market risk status load failed", marketRiskResult.reason);
         if (!isBackgroundReload) {
           marketRiskStatusRef.current = null;
           setMarketRiskStatus(null);
@@ -947,7 +997,7 @@ export function useLiveDashboardData({
         setScoringValueFactorsError(null);
         setScoringValueFactorsLoadState("ready");
       } else {
-        console.error("Dashboard value scoring summary load failed", valueResult.reason);
+        console.warn("Dashboard value scoring summary load failed", valueResult.reason);
         if (!isBackgroundReload) {
           scoringValueFactorsRef.current = null;
           setScoringValueFactors(null);
@@ -962,7 +1012,7 @@ export function useLiveDashboardData({
         setScoringMomentumFactorsError(null);
         setScoringMomentumFactorsLoadState("ready");
       } else {
-        console.error("Dashboard momentum scoring summary load failed", momentumResult.reason);
+        console.warn("Dashboard momentum scoring summary load failed", momentumResult.reason);
         if (!isBackgroundReload) {
           scoringMomentumFactorsRef.current = null;
           setScoringMomentumFactors(null);
@@ -1097,7 +1147,7 @@ export function useLiveDashboardData({
           }
         } else {
           pipelineStatusTimeoutErrorCount = 0;
-          console.error("Dashboard EOD pipeline status load failed", pipelineStatusError);
+          console.warn("Dashboard EOD pipeline status load failed", pipelineStatusError);
         }
         if (!active) return;
         setPipelineStatusError(getDashboardLoadErrorMessage(pipelineStatusError));
@@ -1131,7 +1181,7 @@ export function useLiveDashboardData({
         if (!active) return;
         setFundamentalsStatus(data);
       } catch (fundamentalsStatusError) {
-        console.error("Dashboard fundamentals status load failed", fundamentalsStatusError);
+        console.warn("Dashboard fundamentals status load failed", fundamentalsStatusError);
         if (!active) return;
         setFundamentalsStatus((current) => current);
       }
@@ -1168,8 +1218,14 @@ export function useLiveDashboardData({
     )}`;
     let timer: number | null = null;
 
-    if (agentFeedbackProgressRef.current?.request.market_date !== agentProgressMarketDate) {
+    if (
+      !isAgentFeedbackProgressResponseForMarketDate(
+        agentFeedbackProgressRef.current,
+        agentProgressMarketDate,
+      )
+    ) {
       agentFeedbackProgressRef.current = null;
+      setAgentFeedbackProgressState(null);
     }
 
     function clearTimer() {
@@ -1188,11 +1244,17 @@ export function useLiveDashboardData({
       try {
         const data = await getJsonNoCache<AgentFeedbackProgressResponseDto>(progressPath);
         if (!active) return;
-        setAgentFeedbackProgress(data);
-        setAgentFeedbackProgressError(null);
-        scheduleNextLoad(data);
+        const exactDateProgress = selectAgentFeedbackProgressForMarketDate(
+          data,
+          agentProgressMarketDate,
+        );
+        setAgentFeedbackProgress(exactDateProgress);
+        setAgentFeedbackProgressError(
+          exactDateProgress ? null : "Agent feedback progress did not match the requested market date.",
+        );
+        scheduleNextLoad(exactDateProgress);
       } catch (progressError) {
-        console.error("Dashboard agent feedback progress load failed", progressError);
+        console.warn("Dashboard agent feedback progress load failed", progressError);
         if (!active) return;
         setAgentFeedbackProgressError(getDashboardLoadErrorMessage(progressError));
         scheduleNextLoad(agentFeedbackProgressRef.current);
@@ -1252,11 +1314,14 @@ export function useLiveDashboardData({
       try {
         const data = await getJsonNoCache<AgentFeedbackListResponseDto>(feedbackPath);
         if (!active) return;
-        setSignalDeciderFeedback(data);
-        setSignalDeciderFeedbackError(null);
-        scheduleNextLoad(false);
+        const exactDateFeedback = selectSignalDeciderFeedbackForMarketDate(data, agentProgressMarketDate);
+        setSignalDeciderFeedback(exactDateFeedback);
+        setSignalDeciderFeedbackError(
+          exactDateFeedback ? null : "Signal-decider feedback did not match the requested market date.",
+        );
+        scheduleNextLoad(exactDateFeedback === null);
       } catch (feedbackError) {
-        console.error("Dashboard signal decider feedback load failed", feedbackError);
+        console.warn("Dashboard signal decider feedback load failed", feedbackError);
         if (!active) return;
         setSignalDeciderFeedbackError(getDashboardLoadErrorMessage(feedbackError));
         scheduleNextLoad(true);
@@ -1298,9 +1363,11 @@ export function useLiveDashboardData({
       try {
         const data = await getJsonNoCache<AgentFeedbackListResponseDto>(latestFeedbackPath);
         if (!active) return;
-        setLatestSignalDeciderFeedback(data);
+        setLatestSignalDeciderFeedback(
+          selectSignalDeciderFeedbackForMarketDate(data, latestSignalDeciderFeedbackMarketDate),
+        );
       } catch (feedbackError) {
-        console.error("Dashboard latest signal decider feedback load failed", feedbackError);
+        console.warn("Dashboard latest signal decider feedback load failed", feedbackError);
         if (!active) return;
         setLatestSignalDeciderFeedback((current) => current);
       }
@@ -1318,7 +1385,10 @@ export function useLiveDashboardData({
   ]);
 
   return {
-    agentFeedbackProgress,
+    agentFeedbackProgress: selectAgentFeedbackProgressForMarketDate(
+      agentFeedbackProgress,
+      agentProgressMarketDate,
+    ),
     agentFeedbackProgressError,
     dashboardProcessMarketDate,
     executionRuntimeDailyBoard,
@@ -1354,10 +1424,10 @@ export function useLiveDashboardData({
     scoringValueFactorsLoadState: scoringMarketDate ? scoringValueFactorsLoadState : "idle",
     setAgentFeedbackProgress,
     setAgentFeedbackProgressError,
-    signalDeciderFeedback:
-      agentProgressMarketDate && signalDeciderFeedback?.request?.market_date === agentProgressMarketDate
-        ? signalDeciderFeedback
-        : null,
+    signalDeciderFeedback: selectSignalDeciderFeedbackForMarketDate(
+      signalDeciderFeedback,
+      agentProgressMarketDate,
+    ),
     latestSignalDeciderFeedback,
     signalDeciderFeedbackError: agentProgressMarketDate ? signalDeciderFeedbackError : null,
     tracked,
