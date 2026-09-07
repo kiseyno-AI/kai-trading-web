@@ -138,10 +138,10 @@ test.describe("Tailnet browser entrypoint", () => {
     await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(
       /Trading Command Surface|트레이딩 커맨드 서피스/,
     );
-    await expect(page.getByRole("link", { name: /^Dashboard$/i }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /^Search$/i }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /^Calendar$/i }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /^Assets$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Overview$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Explore$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Review$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Portfolio$/i }).first()).toBeVisible();
 
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
 
@@ -153,19 +153,19 @@ test.describe("Tailnet browser entrypoint", () => {
 
     const routeChecks = [
       {
-        linkName: /^Search$/i,
+        linkName: /^Explore$/i,
         pathname: /\/search$/,
         title: /Universal Search|통합 검색/i,
       },
       {
-        linkName: /^Calendar$/i,
+        linkName: /^Review$/i,
         pathname: /\/calendar$/,
-        title: /Calendar|Signal Review Calendar|캘린더|시그널 리뷰 캘린더/i,
+        title: /Review|검토/i,
       },
       {
-        linkName: /^Assets$/i,
+        linkName: /^Portfolio$/i,
         pathname: /\/portfolio$/,
-        title: /^Portfolio$|^포트폴리오$/i,
+        title: /Portfolio|포트폴리오/i,
       },
     ];
 
