@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { useAppState } from "@/components/providers/app-state-provider";
-import { MARKETS_ROUTE_CHROME_ROUTE_KEYS } from "@/lib/app-chrome-routes";
 import type { FactorScreeningRouteStatus } from "@/lib/factor-screening";
 
 type MarketsRouteChromeProps = {
@@ -54,8 +53,7 @@ export function MarketsRouteChrome({
   return (
     <MobileAppChrome
       chrome={{
-        activeNav: "markets",
-        navRouteKeys: MARKETS_ROUTE_CHROME_ROUTE_KEYS,
+        activeNav: "search",
         title,
         subtitle,
         status: {

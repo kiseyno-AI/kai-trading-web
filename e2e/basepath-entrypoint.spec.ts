@@ -21,10 +21,10 @@ test.describe("base-path entrypoint", () => {
       await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(
         /Trading Command Surface|트레이딩 커맨드 서피스/,
       );
-      await expect(page.getByRole("link", { name: /^Dashboard$/i }).first()).toBeVisible();
-      await expect(page.getByRole("link", { name: /^Search$/i }).first()).toBeVisible();
-      await expect(page.getByRole("link", { name: /^Calendar$/i }).first()).toBeVisible();
-      await expect(page.getByRole("link", { name: /^Assets$/i }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: /^Overview$/i }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: /^Explore$/i }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: /^Review$/i }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: /^Portfolio$/i }).first()).toBeVisible();
     });
   }
 });

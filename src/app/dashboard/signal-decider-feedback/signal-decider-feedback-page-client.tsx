@@ -20,7 +20,10 @@ import {
   SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE,
   type SymbolDetailFeedbackReturnRoute,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
-import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
+import {
+  getAgentFeedbackProgressMarketDate,
+  isAgentFeedbackProgressResponseForMarketDate,
+} from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
   buildDeciderDataGapCategorySummaries,
@@ -65,9 +68,10 @@ import {
   type SignalDeciderTraceEntry,
 } from "@/lib/signal-decider-feedback";
 import {
+  isSignalDeciderFeedbackResponseForMarketDate,
   readLatestSignalDeciderFeedbackCache,
   readSignalDeciderFeedbackCache,
-  selectSignalDeciderFeedbackResponse,
+  selectSignalDeciderFeedbackResponseForMarketDate,
   writeSignalDeciderFeedbackCache,
 } from "@/lib/signal-decider-feedback-cache";
 import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
@@ -1157,7 +1161,11 @@ export default function SignalDeciderFeedbackPageClient() {
         setMarketDateDraft(cachedLatest.marketDate);
         setFeedback(cachedLatest.feedback);
         setPreviousFeedback(null);
-        setProgress(cachedLatest.progress);
+        setProgress(
+          isAgentFeedbackProgressResponseForMarketDate(cachedLatest.progress, cachedLatest.marketDate)
+            ? cachedLatest.progress
+            : null,
+        );
         setLoadState("ready");
       });
     } else {
@@ -1211,7 +1219,11 @@ export default function SignalDeciderFeedbackPageClient() {
         setFeedback(cachedSnapshot.feedback);
         setComparisonFeedback(null);
         setPreviousFeedback(null);
-        setProgress(cachedSnapshot.progress);
+        setProgress(
+          isAgentFeedbackProgressResponseForMarketDate(cachedSnapshot.progress, marketDate)
+            ? cachedSnapshot.progress
+            : null,
+        );
         setLoadState("ready");
       });
     } else {
@@ -1253,8 +1265,18 @@ export default function SignalDeciderFeedbackPageClient() {
 
       const [loadedComparisonData, loadedPreviousFeedbackData] = await Promise.all([comparisonData, previousFeedbackData]);
       if (!active) return;
-      setComparisonFeedback(loadedComparisonData);
-      setPreviousFeedback(loadedPreviousFeedbackData);
+      setComparisonFeedback(
+        loadedComparisonData && isSignalDeciderFeedbackResponseForMarketDate(loadedComparisonData, marketDate)
+          ? loadedComparisonData
+          : null,
+      );
+      setPreviousFeedback(
+        loadedPreviousFeedbackData &&
+          previousMarketDate &&
+          isSignalDeciderFeedbackResponseForMarketDate(loadedPreviousFeedbackData, previousMarketDate)
+          ? loadedPreviousFeedbackData
+          : null,
+      );
     };
 
     const loadData = async () => {
@@ -1282,11 +1304,31 @@ export default function SignalDeciderFeedbackPageClient() {
           ).catch(() => null),
         ]);
         if (!active) return;
-        const selectedFeedback = selectSignalDeciderFeedbackResponse({
+        const selectedFeedback = selectSignalDeciderFeedbackResponseForMarketDate({
           cached: cachedSnapshot,
           fetched: feedbackData,
+          marketDate,
         });
-        const selectedProgress = selectedFeedback === cachedSnapshot?.feedback ? (progressData ?? cachedSnapshot.progress) : progressData;
+        if (!selectedFeedback) {
+          setFeedback(null);
+          setComparisonFeedback(null);
+          setPreviousFeedback(null);
+          setProgress(null);
+          setLoadState("error");
+          setError("feedbackUnavailable");
+          return;
+        }
+
+        const fetchedProgress = isAgentFeedbackProgressResponseForMarketDate(progressData, marketDate)
+          ? progressData
+          : null;
+        const cachedProgress =
+          cachedSnapshot && isAgentFeedbackProgressResponseForMarketDate(cachedSnapshot.progress, marketDate)
+            ? cachedSnapshot.progress
+            : null;
+        const selectedProgress = selectedFeedback === cachedSnapshot?.feedback
+          ? (fetchedProgress ?? cachedProgress)
+          : fetchedProgress;
         if (!active) return;
         setFeedback(selectedFeedback);
         setComparisonFeedback(null);
@@ -1297,7 +1339,7 @@ export default function SignalDeciderFeedbackPageClient() {
           writeSignalDeciderFeedbackCache({
             feedback: feedbackData,
             marketDate,
-            progress: progressData,
+            progress: selectedProgress,
             source: "detail",
           });
         }
@@ -1310,7 +1352,11 @@ export default function SignalDeciderFeedbackPageClient() {
           setFeedback(cachedSnapshot.feedback);
           setComparisonFeedback(null);
           setPreviousFeedback(null);
-          setProgress(cachedSnapshot.progress);
+          setProgress(
+            isAgentFeedbackProgressResponseForMarketDate(cachedSnapshot.progress, marketDate)
+              ? cachedSnapshot.progress
+              : null,
+          );
           setLoadState("ready");
           setError(getFeedbackError(loadError, "feedback", "feedbackUnavailable"));
           return;

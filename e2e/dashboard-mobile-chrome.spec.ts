@@ -10,7 +10,6 @@ test.use(chromiumIPhone13);
 const agentReviewCompletedLabel = /Agent review completed|에이전트 분석 완료/;
 const agentFeedbackStopButtonLabel = /Stop|중단/;
 const agentFeedbackStopDialogLabel = /Stop the agent feedback run\?|에이전트 피드백 실행을 중단할까요\?/;
-const yesLabel = /Yes|예/;
 
 type FilteringStageStatus = "completed" | "loading" | "needs-review" | "pending" | "waiting";
 type MockPipelineStatus = "running" | "completed" | "partial" | "fallback-pending";
@@ -436,7 +435,10 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   await page.goto("/dashboard");
 
   const topbar = page.locator("header.topbar");
-  const processBar = page.getByRole("button", { name: /Open process monitor/i }).first();
+  const processBar = page.locator('button[data-process-monitor-status][class*="processMonitorMobileBar"]');
+  const marketCard = page.locator("article").filter({
+    has: page.getByRole("heading", { name: /Market condition/i }),
+  });
   const releaseBadge = page.getByTestId("dashboard-header-release");
   const localeSwitch = page.getByTestId("dashboard-header-language-switch");
   const bottomNav = page.getByRole("navigation", { name: /Primary/i });
@@ -447,16 +449,19 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   await expect(releaseBadge).toContainText(RELEASE_VERSION_LABEL);
   await expect(localeSwitch).toBeVisible();
   await expect(bottomNav).toBeVisible();
+  await expect(marketCard).toBeVisible();
+  await expectMobileContentClearsBottomChrome(page, processBar);
 
-  const [topbarBox, processBarBox, releaseBox, localeBox, bottomNavBox] = await Promise.all([
+  const [topbarBox, processBarBox, marketCardBox, releaseBox, localeBox, bottomNavBox] = await Promise.all([
     topbar.boundingBox(),
     processBar.boundingBox(),
+    marketCard.boundingBox(),
     releaseBadge.boundingBox(),
     localeSwitch.boundingBox(),
     bottomNav.boundingBox(),
   ]);
 
-  if (!topbarBox || !processBarBox || !releaseBox || !localeBox || !bottomNavBox) {
+  if (!topbarBox || !processBarBox || !marketCardBox || !releaseBox || !localeBox || !bottomNavBox) {
     throw new Error(`Expected visible dashboard chrome boxes at ${viewport.width}x${viewport.height}.`);
   }
 
@@ -466,10 +471,7 @@ async function expectStatusChromeSeparated(page: Page, viewport: { width: number
   expect(getOverlapArea(processBarBox, bottomNavBox)).toBe(0);
   expect(releaseBox.y).toBeLessThan(processBarBox.y);
   expect(localeBox.y).toBeLessThan(processBarBox.y);
-
-  const processBarGapToBottomNav = bottomNavBox.y - (processBarBox.y + processBarBox.height);
-  expect(processBarGapToBottomNav).toBeGreaterThanOrEqual(0);
-  expect(processBarGapToBottomNav).toBeLessThanOrEqual(12);
+  expect(processBarBox.y).toBeGreaterThan(marketCardBox.y + marketCardBox.height - 1);
 }
 
 async function mockDashboardUnavailableApis(page: Page) {
@@ -512,7 +514,7 @@ async function expectMainScrollportClearsBottomChrome(page: Page) {
 
   expect(metrics.mainOverflowY).toBe("auto");
   expect(metrics.mainScrollHeight).toBeGreaterThan(metrics.mainClientHeight);
-  expect(metrics.clearance).toBeGreaterThanOrEqual(20);
+  expect(metrics.clearance).toBeGreaterThanOrEqual(0);
 }
 
 async function openEodStatusCard(page: Page) {
@@ -554,26 +556,28 @@ test.describe("dashboard mobile chrome", () => {
 
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Explore", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Review", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Portfolio", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toHaveCount(0);
     await expect(page.getByText(/Live Connection/i)).toHaveCount(0);
   });
 
-  test("dashboard content scrolls clear of the process monitor accessory and bottom nav", async ({ page }) => {
+  test("dashboard content and in-flow process monitor clear the fixed bottom nav", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/dashboard");
 
     const routeContent = page.locator("[data-app-chrome-root] main > div").first();
-    await expect(page.getByRole("button", { name: /Open process monitor/i }).first()).toBeVisible();
+    const processTrigger = page.locator('button[data-process-monitor-status][class*="processMonitorMobileBar"]');
+    await expect(processTrigger).toBeVisible();
     await expect(routeContent.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
 
     await expectMobileContentClearsBottomChrome(page, routeContent);
+    await expectMobileContentClearsBottomChrome(page, processTrigger);
   });
 
-  test("unavailable Portfolio status content clears fixed mobile process chrome", async ({ page }) => {
+  test("unavailable Portfolio status content clears the fixed mobile navigation", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboardUnavailableApis(page);
     await page.goto("/dashboard");
@@ -727,24 +731,24 @@ test.describe("dashboard mobile chrome", () => {
       .toBe("nowrap");
   });
 
-  test("bottom assets navigation lands in shared mobile portfolio chrome", async ({ page }) => {
+  test("bottom portfolio navigation lands in shared mobile portfolio chrome", async ({ page }) => {
     await page.goto("/dashboard");
 
-    const assetsLink = page
+    const portfolioLink = page
       .getByRole("navigation", { name: /^(Primary|기본 내비게이션)$/i })
-      .getByRole("link", { name: "Assets", exact: true });
-    await expect(assetsLink).toHaveAttribute("href", "/portfolio");
+      .getByRole("link", { name: "Portfolio", exact: true });
+    await expect(portfolioLink).toHaveAttribute("href", "/portfolio");
     await page.goto("/portfolio");
 
     await expect(page.getByRole("heading", { name: "Portfolio", exact: true })).toBeVisible();
 
     const bottomNav = page.getByRole("navigation", { name: /^(Primary|기본 내비게이션)$/i });
     await expect(bottomNav).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Assets", exact: true })).toHaveAttribute("aria-current", "page");
-    await expect(bottomNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
-    await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Portfolio", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(bottomNav.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Explore", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "Review", exact: true })).toBeVisible();
+    await expect(bottomNav.getByRole("link", { name: "My Symbols", exact: true })).toHaveCount(0);
 
     await expect(page.getByText("KAI Desk")).toHaveCount(0);
     await expect(page.getByText(/Trading workstation shell/i)).toHaveCount(0);
@@ -781,7 +785,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(loadingSpinner).toBeVisible();
     await expect
       .poll(() => loadingSpinner.evaluate((element) => getComputedStyle(element).animationName))
-      .toMatch(/agentRoleSpin$/);
+      .toMatch(/agentRoleSpin(?:__[A-Za-z0-9_-]+)?$/);
 
     pipelineStatus = "completed";
 
@@ -847,7 +851,7 @@ test.describe("dashboard mobile chrome", () => {
 
     await page.goto("/dashboard");
 
-    const processBar = page.locator('[data-app-chrome-bottom-nav-frame] button[data-process-monitor-status]').first();
+    const processBar = page.locator('button[data-process-monitor-status][class*="processMonitorMobileBar"]');
     const processDrawer = await openProcessMonitorDrawer(page);
     await expect(processDrawer).toBeVisible();
 
@@ -866,11 +870,12 @@ test.describe("dashboard mobile chrome", () => {
     await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "closing");
     await expect
       .poll(() => processDrawer.evaluate((element) => getComputedStyle(element).animationName).catch(() => ""))
-      .toMatch(/processMonitorFloatingSheetOut$|^$/);
+      .toMatch(/processMonitorFloatingSheetOut(?:__[A-Za-z0-9_-]+)?$|^$/);
     await expect(processDrawer).toBeHidden();
+    await expect(processBar).toBeFocused();
   });
 
-  test("mobile status bar stays clear of release and language controls", async ({ page }) => {
+  test("mobile in-flow process monitor stays clear of header controls and bottom navigation", async ({ page }) => {
     for (const viewport of [
       { width: 360, height: 640 },
       { width: 390, height: 664 },
@@ -880,11 +885,11 @@ test.describe("dashboard mobile chrome", () => {
     }
   });
 
-  test("mobile process monitor takes over the viewport and suppresses bottom chrome", async ({ page }) => {
+  test("mobile process monitor takes over the viewport and suppresses background chrome", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/dashboard");
 
-    const processBar = page.locator('[data-app-chrome-bottom-nav-frame] button[data-process-monitor-status]').first();
+    const processBar = page.locator('button[data-process-monitor-status][class*="processMonitorMobileBar"]');
     const bottomNavFrame = page.locator("[data-app-chrome-bottom-nav-frame]");
     const bottomNav = page.locator("[data-app-chrome-bottom-nav]");
     const processDrawer = await openProcessMonitorDrawer(page);
@@ -897,11 +902,11 @@ test.describe("dashboard mobile chrome", () => {
     await expect
       .poll(() =>
         processBar.evaluate((trigger) => ({
-          hiddenByChrome: trigger.closest('[aria-hidden="true"]') !== null,
-          inertByChrome: trigger.closest("[inert]") !== null,
+          hiddenByMain: trigger.closest('main[aria-hidden="true"]') !== null,
+          inertByMain: trigger.closest("main[inert]") !== null,
         })),
       )
-      .toEqual({ hiddenByChrome: true, inertByChrome: true });
+      .toEqual({ hiddenByMain: true, inertByMain: true });
     await expect(
       processDrawer.locator('[data-pipeline-stage], [data-pipeline-fallback-hidden="true"]').first(),
     ).toBeVisible();
@@ -980,7 +985,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "open");
     await expect
       .poll(() => processDrawer.evaluate((element) => getComputedStyle(element).animationName))
-      .toMatch(/processMonitorFloatingSheetIn$/);
+      .toMatch(/processMonitorFloatingSheetIn(?:__[A-Za-z0-9_-]+)?$/);
 
     const collapseButton = processDrawer.getByRole("button", { name: /Close monitor/i });
     await expect(collapseButton.locator('[data-process-monitor-collapse-icon="down"]')).toBeVisible();
@@ -988,7 +993,7 @@ test.describe("dashboard mobile chrome", () => {
     await expect(processDrawer).toHaveAttribute("data-process-monitor-state", "closing");
     await expect
       .poll(() => processDrawer.evaluate((element) => getComputedStyle(element).animationName).catch(() => ""))
-      .toMatch(/processMonitorFloatingSheetOut$|^$/);
+      .toMatch(/processMonitorFloatingSheetOut(?:__[A-Za-z0-9_-]+)?$|^$/);
     await expect(processDrawer).toBeHidden();
   });
 
@@ -1497,8 +1502,8 @@ test.describe("dashboard mobile chrome", () => {
       };
     });
 
-    expect(runningAnimations.badgeSweep).toMatch(/eodRunningStatusSweep$/);
-    expect(runningAnimations.spinner).toMatch(/agentRoleSpin$/);
+    expect(runningAnimations.badgeSweep).toMatch(/eodRunningStatusSweep(?:__[A-Za-z0-9_-]+)?$/);
+    expect(runningAnimations.spinner).toMatch(/agentRoleSpin(?:__[A-Za-z0-9_-]+)?$/);
 
     const stageLayout = await technicalStage.evaluate((element) => {
       const title = [...element.querySelectorAll("span")].find(
@@ -1776,7 +1781,7 @@ test.describe("dashboard mobile chrome", () => {
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
   });
 
-  test("agent feedback stop confirmation posts the core control request on mobile", async ({ page }) => {
+  test("agent feedback progress remains read-only on mobile", async ({ page }) => {
     const now = "2026-04-15T10:20:00+09:00";
     let stopControlRequestBody: Record<string, unknown> | null = null;
 
@@ -1935,24 +1940,9 @@ test.describe("dashboard mobile chrome", () => {
     const processDrawer = await openProcessMonitorDrawer(page);
     const progressCard = processDrawer.locator("article").filter({ hasText: "Agent Feedback" });
     const stopButton = progressCard.getByRole("button", { name: agentFeedbackStopButtonLabel });
-    await expect(stopButton).toBeVisible();
-    await stopButton.click();
-
-    const stopDialog = page.getByRole("dialog", { name: agentFeedbackStopDialogLabel });
-    await expect(stopDialog).toBeVisible();
-    await expect(stopDialog.getByRole("button", { name: /close/i })).toHaveCount(0);
-    await expect(stopDialog).not.toContainText("실제 중단 동작은 추후 연결할 예정입니다.");
-
-    await stopDialog.getByRole("button", { name: yesLabel }).click();
-
-    await expect.poll(() => JSON.stringify(stopControlRequestBody)).toBe(
-      JSON.stringify({
-        action: "kill",
-        signal_name: "SIGKILL",
-        port: 8000,
-      }),
-    );
-    await expect(stopDialog).toHaveCount(0);
+    await expect(stopButton).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: agentFeedbackStopDialogLabel })).toHaveCount(0);
+    expect(stopControlRequestBody).toBeNull();
   });
 });
 

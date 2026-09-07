@@ -248,6 +248,11 @@ export function formatPortfolioPercent(value: number | null | undefined, fallbac
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
+export function getPortfolioAllocationBarWidth(value: number | null | undefined) {
+  if (!hasNumber(value)) return null;
+  return Math.max(0, Math.min(100, value));
+}
+
 function formatPortfolioRiskPercent(value: number | null | undefined, fallback = "Unavailable") {
   if (!hasNumber(value)) return fallback;
   return `${value.toFixed(2)}%`;

@@ -79,40 +79,31 @@ test.describe("dashboard mobile hero", () => {
     await expect(marketCard.getByText("USD/KRW", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Foreign flow", { exact: true })).toBeVisible();
     await expect(marketCard.getByText("Institutional flow", { exact: true })).toBeVisible();
-    await expect(marketCard.getByRole("link", { name: /Open markets/i })).toBeVisible();
+    await expect(marketCard.getByRole("link", { name: /Explore symbols/i })).toHaveAttribute("href", "/search");
     await expect(hero.getByRole("heading", { name: /^Exec runtime$/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Monitored symbols/i })).toHaveCount(0);
     await expect(hero.getByRole("heading", { name: /Same-day execution board/i })).toHaveCount(0);
     await expect(hero.locator('[data-dashboard-operational-integrity="inline"]')).toHaveCount(0);
     await expect(hero.getByText(/EOD Status/i)).toHaveCount(0);
-    const filteringScoring = hero.locator('[data-dashboard-filtering-scoring="inline"]');
-    const filteringCard = filteringScoring.locator("article").filter({ hasText: "Filtering" });
-    const scoringCard = filteringScoring.locator("article").filter({ hasText: "Scoring" });
-    await expect(filteringScoring).toBeVisible();
-    await expect(filteringCard.getByRole("heading", { name: /Piotroski/i })).toBeVisible();
-    await expect(scoringCard.getByRole("heading", { name: /Unified value scoring/i })).toBeVisible();
-    await expect(
-      filteringCard.getByRole("link", { name: /Open the full Piotroski filter pass list/i }),
-    ).toBeVisible();
+    await expect(hero.locator('[data-dashboard-filtering-scoring="inline"]')).toHaveCount(0);
     await expect(page.locator("#tracked-symbols")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Today's ledger recommendations/i })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Open process monitor/i })).toBeVisible();
+    const processTrigger = hero.getByRole("button", { name: /Open process monitor/i });
+    await expect(processTrigger).toBeVisible();
 
-    const [deciderBox, portfolioBox, marketBox, filteringBox, scoringBox] = await Promise.all([
+    const [deciderBox, portfolioBox, marketBox, processTriggerBox] = await Promise.all([
       deciderCard.boundingBox(),
       portfolioCard.boundingBox(),
       marketCard.boundingBox(),
-      filteringCard.boundingBox(),
-      scoringCard.boundingBox(),
+      processTrigger.boundingBox(),
     ]);
 
     expect(deciderBox).not.toBeNull();
     expect(portfolioBox).not.toBeNull();
     expect(marketBox).not.toBeNull();
-    expect(filteringBox).not.toBeNull();
-    expect(scoringBox).not.toBeNull();
+    expect(processTriggerBox).not.toBeNull();
 
-    if (!deciderBox || !portfolioBox || !marketBox || !filteringBox || !scoringBox) {
+    if (!deciderBox || !portfolioBox || !marketBox || !processTriggerBox) {
       throw new Error("Expected mobile dashboard cards to have layout boxes.");
     }
 
@@ -120,9 +111,7 @@ test.describe("dashboard mobile hero", () => {
     expect(Math.abs(portfolioBox.x - deciderBox.x)).toBeLessThan(8);
     expect(marketBox.y).toBeGreaterThan(portfolioBox.y + portfolioBox.height - 1);
     expect(Math.abs(marketBox.x - deciderBox.x)).toBeLessThan(8);
-    expect(filteringBox.y).toBeGreaterThan(marketBox.y + marketBox.height - 1);
-    expect(scoringBox.y).toBeGreaterThan(filteringBox.y + filteringBox.height - 1);
-    expect(Math.abs(filteringBox.x - scoringBox.x)).toBeLessThan(8);
+    expect(processTriggerBox.y).toBeGreaterThan(marketBox.y + marketBox.height - 1);
 
     const marketCardFitsViewport = await marketCard.evaluate(
       (element) => element.scrollWidth <= element.clientWidth + 1,

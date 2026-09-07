@@ -43,6 +43,7 @@ import type {
   DartFundamentalsHistoryMetricDto,
   EodFreshnessResponseDto,
   EodPiotroskiFilterResultItemDto,
+  EodPiotroskiFilterResultsResponseDto,
   Locale,
   SymbolPriceBarDto,
   SymbolPriceBarsResponseDto,
@@ -876,16 +877,72 @@ export function buildHeroFundamentalLatestMetricModel({
 export function buildHeroPiotroskiMetricModel({
   copy,
   piotroskiLoadState,
-  piotroskiResult,
+  piotroskiResponse,
+  requestedMarketDate,
+  requestedSymbol,
 }: {
   copy: SymbolDetailCopy;
   piotroskiLoadState: AggregateContextLoadState;
-  piotroskiResult: EodPiotroskiFilterResultItemDto | null;
+  piotroskiResponse: EodPiotroskiFilterResultsResponseDto | null;
+  requestedMarketDate: string | null;
+  requestedSymbol: string;
 }): HeroPiotroskiMetricModel {
+  const piotroskiResult = selectHeroPiotroskiResult(
+    piotroskiResponse,
+    requestedSymbol,
+    requestedMarketDate,
+  );
+  const effectiveLoadState =
+    piotroskiResponse?.item && !piotroskiResult ? "error" : piotroskiLoadState;
+
   return {
-    label: getPiotroskiLabel(piotroskiResult, piotroskiLoadState, copy),
+    label: getPiotroskiLabel(piotroskiResult, effectiveLoadState, copy),
     tone: piotroskiResult ? (piotroskiResult.passed_filter ? "positive" : "negative") : null,
   };
+}
+
+function selectHeroPiotroskiResult(
+  response: EodPiotroskiFilterResultsResponseDto | null,
+  requestedSymbol: string,
+  requestedMarketDate: string | null,
+) {
+  const item = response?.item;
+  const normalizedRequestedSymbol = normalizeSymbolCode(requestedSymbol);
+  const normalizedRequestedMarketDate = normalizeProductMarketDate(requestedMarketDate);
+  const itemMarketDate = normalizeProductMarketDate(item?.market_date);
+
+  if (
+    !item ||
+    !normalizedRequestedSymbol ||
+    normalizeSymbolCode(item.symbol) !== normalizedRequestedSymbol ||
+    !normalizedRequestedMarketDate ||
+    !itemMarketDate
+  ) {
+    return null;
+  }
+
+  const responseRequestedMarketDate = normalizeProductMarketDate(response.requested_market_date);
+  const responseResolvedMarketDate = normalizeProductMarketDate(response.resolved_market_date);
+  const responseEffectiveMarketDate = normalizeProductMarketDate(response.market_date);
+
+  if (
+    (responseRequestedMarketDate && responseRequestedMarketDate !== normalizedRequestedMarketDate) ||
+    (responseResolvedMarketDate && responseResolvedMarketDate !== itemMarketDate) ||
+    (responseEffectiveMarketDate && responseEffectiveMarketDate !== itemMarketDate)
+  ) {
+    return null;
+  }
+
+  if (itemMarketDate === normalizedRequestedMarketDate) {
+    return item;
+  }
+
+  const isProvenLatestFallback =
+    response.is_latest_fallback === true &&
+    responseRequestedMarketDate === normalizedRequestedMarketDate &&
+    responseResolvedMarketDate === itemMarketDate;
+
+  return isProvenLatestFallback ? item : null;
 }
 
 export function buildActionTone(actionSummary: AgentContextActionSummaryDto | null): ActionSummarySectionModel["tone"] {
@@ -958,7 +1015,13 @@ export function pickFundamentalsCompany(
   symbol: string,
 ) {
   if (!fundamentalsHistory) return null;
-  return fundamentalsHistory.companies.find((company) => company.symbol === symbol) ?? fundamentalsHistory.companies[0] ?? null;
+  const normalizedSymbol = normalizeSymbolCode(symbol);
+  if (!normalizedSymbol) return null;
+  return (
+    fundamentalsHistory.companies.find(
+      (company) => normalizeSymbolCode(company.symbol) === normalizedSymbol,
+    ) ?? null
+  );
 }
 
 export function buildTechnicalFreshnessDate(

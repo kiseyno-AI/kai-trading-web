@@ -26,6 +26,7 @@ import type { SymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { MOBILE_TOOLBAR_MARKET_STATUS_PATH } from "@/lib/mobile-toolbar-data";
 import { readDashboardRecommendationContext } from "@/lib/dashboard-recommendation-context";
 import { DECIDER_FEEDBACK_FOCUS_PARAM, DECIDER_FEEDBACK_PAGE_PARAM } from "@/lib/signal-decider-feedback";
+import { selectExactSymbolQuote } from "@/lib/exact-symbol-quote";
 import { getForwardableSymbolMetaSeedValue } from "@/lib/symbol-meta";
 import {
   invalidateTradingApiCacheByPathPrefix,
@@ -88,6 +89,18 @@ type UseSymbolDetailDataOptions = {
 
 const PRICE_HISTORY_RETRY_INTERVAL_MS = 5_000;
 const PRICE_HISTORY_MAX_AUTOMATIC_RETRIES = 1;
+
+export function findExactSymbolItem<T extends { symbol: string }>(
+  items: readonly T[],
+  requestedSymbol: string,
+) {
+  const normalizedRequestedSymbol = normalizeSymbolCode(requestedSymbol);
+  if (!normalizedRequestedSymbol) return null;
+
+  return (
+    items.find((item) => normalizeSymbolCode(item.symbol) === normalizedRequestedSymbol) ?? null
+  );
+}
 
 export function useSymbolDetailData({
   copy,
@@ -181,7 +194,7 @@ export function useSymbolDetailData({
           `/api/trading/symbols/search?q=${encodeURIComponent(normalizedSymbol)}&limit=20`,
         );
 
-        return data.items.find((item) => item.symbol === normalizedSymbol) ?? data.items[0] ?? null;
+        return findExactSymbolItem(data.items, normalizedSymbol);
       },
     }),
     [needsSymbolMeta, normalizedSymbol, symbolReady],
@@ -203,7 +216,17 @@ export function useSymbolDetailData({
       key: ["symbol-detail", "quote", normalizedSymbol] as const,
       cachePolicy: "network-first" as const,
       ttlMs: 5_000,
-      fetcher: () => fetchUnitJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(normalizedSymbol)}`),
+      fetcher: async () => {
+        const quote = selectExactSymbolQuote(
+          await fetchUnitJson<QuoteResponse>(`/api/trading/quotes/${encodeURIComponent(normalizedSymbol)}`),
+          normalizedSymbol,
+        );
+        if (!quote) {
+          throw new Error(`Quote response symbol mismatch for ${normalizedSymbol}`);
+        }
+
+        return quote;
+      },
     }),
     [normalizedSymbol, symbolReady],
   );

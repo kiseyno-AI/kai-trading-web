@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const expectedFullPageChromeNavIds = ["dashboard", "search", "calendar", "portfolio", "symbols"];
+const expectedFullPageChromeNavIds = ["dashboard", "search", "calendar", "portfolio"];
 const fullPageMobileRoutes = [
   { label: "dashboard", path: "/dashboard" },
   { label: "search", path: "/search" },
@@ -26,18 +26,18 @@ async function expectNoHorizontalOverflow(page: Page) {
 async function expectFullPageMobileBottomNav(page: Page, routeLabel: string) {
   const primaryNav = page.getByRole("navigation", { name: /^Primary$/i });
   await expect(primaryNav, `${routeLabel} primary mobile nav`).toBeVisible();
-  await expect(primaryNav.getByRole("link"), `${routeLabel} primary mobile nav count`).toHaveCount(5);
+  await expect(primaryNav.getByRole("link"), `${routeLabel} primary mobile nav count`).toHaveCount(4);
 
   const navIds = await primaryNav.locator("[data-mobile-nav-item]").evaluateAll((items) =>
     items.map((item) => item.getAttribute("data-mobile-nav-item")),
   );
 
   expect(navIds, `${routeLabel} primary mobile nav ids`).toEqual(expectedFullPageChromeNavIds);
-  await expect(primaryNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
-  await expect(primaryNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
-  await expect(primaryNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
-  await expect(primaryNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
-  await expect(primaryNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Explore", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Review", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "Portfolio", exact: true })).toBeVisible();
+  await expect(primaryNav.getByRole("link", { name: "My Symbols", exact: true })).toHaveCount(0);
   await expect(primaryNav.getByRole("link", { name: "Markets", exact: true })).toHaveCount(0);
   await expect(primaryNav.getByRole("link", { name: "Bots", exact: true })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
@@ -49,12 +49,12 @@ test.describe("canonical shell navigation", () => {
     await page.goto("/dashboard");
 
     const desktopNav = page.getByRole("navigation", { name: /Primary desktop/i });
-    await expect(desktopNav.getByRole("link")).toHaveCount(5);
-    await expect(desktopNav.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
-    await expect(desktopNav.getByRole("link", { name: "Search", exact: true })).toBeVisible();
-    await expect(desktopNav.getByRole("link", { name: "Calendar", exact: true })).toBeVisible();
-    await expect(desktopNav.getByRole("link", { name: "Assets", exact: true })).toBeVisible();
-    await expect(desktopNav.getByRole("link", { name: "My Symbols", exact: true })).toBeVisible();
+    await expect(desktopNav.getByRole("link")).toHaveCount(4);
+    await expect(desktopNav.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
+    await expect(desktopNav.getByRole("link", { name: "Explore", exact: true })).toBeVisible();
+    await expect(desktopNav.getByRole("link", { name: "Review", exact: true })).toBeVisible();
+    await expect(desktopNav.getByRole("link", { name: "Portfolio", exact: true })).toBeVisible();
+    await expect(desktopNav.getByRole("link", { name: "My Symbols", exact: true })).toHaveCount(0);
     await expect(desktopNav.getByRole("link", { name: "Markets", exact: true })).toHaveCount(0);
     await expect(desktopNav.getByRole("link", { name: "Bots", exact: true })).toHaveCount(0);
   });
@@ -68,7 +68,7 @@ test.describe("canonical shell navigation", () => {
     }
   });
 
-  test("dashboard actions and AppShell navigation reach Markets, Factor Screening, and Bots", async ({ page }) => {
+  test("dashboard market action resolves to the canonical exploration workspace", async ({ page }) => {
     test.setTimeout(60_000);
 
     const viewports = [
@@ -83,40 +83,21 @@ test.describe("canonical shell navigation", () => {
       const marketConditionCard = page.locator("article").filter({
         has: page.getByRole("heading", { name: /Market condition/i }),
       });
-      const openMarketsLink = marketConditionCard.getByRole("link", { name: "Open markets", exact: true });
-      await expect(openMarketsLink).toHaveAttribute("href", "/markets");
-      await Promise.all([page.waitForURL(/\/markets$/, { timeout: 15_000 }), openMarketsLink.click()]);
-      await expect(page.getByRole("heading", { name: "Markets", exact: true })).toBeVisible();
-
-      await page.getByRole("link", { name: "Open factor screening", exact: true }).first().click();
-      await expect(page).toHaveURL(/\/markets\/factors$/);
-      await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
+      const exploreSymbolsLink = marketConditionCard.getByRole("link", { name: "Explore symbols", exact: true });
+      await expect(exploreSymbolsLink).toHaveAttribute("href", "/search");
+      await Promise.all([page.waitForURL(/\/search$/, { timeout: 15_000 }), exploreSymbolsLink.click()]);
+      await expect(page).toHaveURL(/\/search$/);
+      await expect(page.locator("[data-dashboard-toolbar-title]").first()).toContainText(/Universal Search/i);
       await expectNoHorizontalOverflow(page);
 
       const workspaceNav = page.getByRole("navigation", {
         name: viewport.width >= 1024 ? /Primary desktop/i : /^Primary$/i,
       });
-      await expect(workspaceNav.getByRole("link", { name: "Markets", exact: true })).toHaveAttribute(
+      await expect(workspaceNav.getByRole("link", { name: "Explore", exact: true })).toHaveAttribute(
         "aria-current",
         "page",
       );
-      const botsLink = workspaceNav.getByRole("link", { name: "Bots", exact: true });
-      await expect(botsLink).toBeVisible();
-      await expect(botsLink).toHaveAttribute("href", "/bots");
-      await botsLink.click();
-      await expect(page).toHaveURL(/\/bots$/);
-      await expect(page.getByRole("heading", { name: /No live bot roster connected/i })).toBeVisible();
       await expectNoHorizontalOverflow(page);
     }
-  });
-
-  test("AppShell workspace sidebar still exposes Markets and Bots", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/bots");
-
-    await expect(page.getByRole("heading", { name: /No live bot roster connected/i })).toBeVisible();
-    const workspaceNav = page.locator(".side-nav");
-    await expect(workspaceNav.getByRole("link", { name: "Markets", exact: true })).toHaveAttribute("href", "/markets");
-    await expect(workspaceNav.getByRole("link", { name: "Bots", exact: true })).toHaveAttribute("href", "/bots");
   });
 });

@@ -8,6 +8,7 @@ import {
   classifyPortfolioSummaryFailure,
   formatPortfolioMoney,
   formatPortfolioPercent,
+  getPortfolioAllocationBarWidth,
   getPortfolioActivity,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
@@ -29,6 +30,15 @@ test("formats signed portfolio percentages with stable unavailable fallback", ()
   assert.equal(formatPortfolioPercent(2.345), "+2.35%");
   assert.equal(formatPortfolioPercent(-0.8), "-0.80%");
   assert.equal(formatPortfolioPercent(null), "Unavailable");
+});
+
+test("keeps unknown allocation widths unavailable instead of coercing them to zero", () => {
+  assert.equal(getPortfolioAllocationBarWidth(null), null);
+  assert.equal(getPortfolioAllocationBarWidth(undefined), null);
+  assert.equal(getPortfolioAllocationBarWidth(Number.NaN), null);
+  assert.equal(getPortfolioAllocationBarWidth(-12.5), 0);
+  assert.equal(getPortfolioAllocationBarWidth(44.2), 44.2);
+  assert.equal(getPortfolioAllocationBarWidth(125), 100);
 });
 
 test("builds multi-account summary metrics without assuming one account", () => {

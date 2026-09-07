@@ -326,11 +326,7 @@ export function pickFactorInspectItem<T extends { symbol: string }>(
     return matchedItem;
   }
 
-  if (response.item) {
-    return response.item;
-  }
-
-  return response.items?.[0] ?? null;
+  return null;
 }
 
 export function buildFactorFamilySnapshotResult<FamilyId extends FactorFamilyId>(

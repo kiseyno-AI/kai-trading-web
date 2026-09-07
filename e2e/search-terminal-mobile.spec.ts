@@ -154,7 +154,9 @@ test.describe("search terminal mobile", () => {
       .toBe("fixed");
 
     await expect(page.getByRole("navigation", { name: /^Primary$/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Search/i })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: /^Primary$/i }).getByRole("link", { name: "Explore", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
     await expect(page.getByLabel(/Search markets, symbols, or analysis/i)).toBeVisible();
     await expect(page.getByLabel(/Search suggestions/i)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toBeVisible();
@@ -416,11 +418,10 @@ test.describe("search terminal mobile", () => {
     await page.goto("/search");
     await expect(page.getByLabel(/마켓, 종목 또는 분석 검색/i)).toBeVisible();
     await expectMobileHiddenShellControlsSuppressed(page, [
-      "대시보드",
-      "검색",
-      "캘린더",
-      "자산",
-      "내 종목",
+      "개요",
+      "탐색",
+      "검토",
+      "포트폴리오",
       "영어",
       "한국어",
       "태그 꺼짐",
@@ -430,11 +431,10 @@ test.describe("search terminal mobile", () => {
     await page.goto("/calendar");
     await expect(page.getByRole("heading", { name: /시그널 리뷰 캘린더|Signal Review Calendar/i })).toBeVisible();
     await expectMobileHiddenShellControlsSuppressed(page, [
-      "대시보드",
-      "검색",
-      "캘린더",
-      "자산",
-      "내 종목",
+      "개요",
+      "탐색",
+      "검토",
+      "포트폴리오",
       "영어",
       "한국어",
     ]);

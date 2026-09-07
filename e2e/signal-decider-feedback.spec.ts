@@ -1019,14 +1019,20 @@ test("dashboard signal-decider card shows planned board rows and links to the de
 
   await actionFilter.selectOption("buy");
   await expect(samsungCard).toBeVisible();
-  await samsungCard.getByRole("button", { name: "Review" }).click();
-  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("The buy worked intraday");
-  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("3d");
-  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("-1.44%");
-  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Momentum");
-  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Liquidity");
-  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Technical Snapshot");
-  await expect(page.getByRole("dialog", { name: /Samsung Electronics/i })).toContainText("Feature Snapshot Id");
+  const reviewButton = samsungCard.getByRole("button", { name: "Review" });
+  const reviewDialog = page.getByRole("dialog", { name: /Samsung Electronics/i });
+  await expect(reviewButton).toBeEnabled();
+  await expect(async () => {
+    if (!(await reviewDialog.isVisible())) await reviewButton.click();
+    await expect(reviewDialog).toBeVisible();
+  }).toPass();
+  await expect(reviewDialog).toContainText("The buy worked intraday");
+  await expect(reviewDialog).toContainText("3d");
+  await expect(reviewDialog).toContainText("-1.44%");
+  await expect(reviewDialog).toContainText("Momentum");
+  await expect(reviewDialog).toContainText("Liquidity");
+  await expect(reviewDialog).toContainText("Technical Snapshot");
+  await expect(reviewDialog).toContainText("Feature Snapshot Id");
 });
 
 test("dashboard only claims a running current stage as live in the process trigger and Decider copy", async ({ page }) => {
@@ -1186,7 +1192,7 @@ test("signal-decider feedback review dialog traps focus and hides mobile backgro
   expect(backgroundSuppression.bottomNavFrame).toEqual({ ariaHidden: "true", inert: true });
   expect(backgroundSuppression.bottomNav).toEqual({ ariaHidden: "true", inert: true });
   expect(backgroundSuppression.outsideLinks.length).toBeGreaterThan(0);
-  expect(backgroundSuppression.outsideLinks.some((link) => link.label.includes("캘린더"))).toBe(true);
+  expect(backgroundSuppression.outsideLinks.some((link) => link.label.includes("검토"))).toBe(true);
   for (const link of backgroundSuppression.outsideLinks) {
     expect(link.ariaHidden, `${link.label} should be directly aria-hidden`).toBe("true");
     expect(link.directInert, `${link.label} should be directly inert`).toBe(true);
@@ -1198,7 +1204,7 @@ test("signal-decider feedback review dialog traps focus and hides mobile backgro
   expect(ariaSnapshot).toContain("dialog");
   expect(ariaSnapshot).toContain("Samsung Electronics");
   expect(ariaSnapshot).not.toContain("SK hynix");
-  expect(ariaSnapshot).not.toMatch(/link "[^"]*(?:Calendar|캘린더|Dashboard|대시보드)/);
+  expect(ariaSnapshot).not.toMatch(/link "[^"]*(?:Review|검토|Overview|개요)/);
 
   for (let tabPress = 0; tabPress < 4; tabPress += 1) {
     await page.keyboard.press("Tab");

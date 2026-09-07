@@ -95,19 +95,19 @@
     "modeValue": "Stitch refresh",
     "items": {
       "dashboard": {
-        "label": "Dashboard",
+        "label": "Overview",
         "description": "Primary command surface"
       },
       "search": {
-        "label": "Search",
+        "label": "Explore",
         "description": "Symbol and route lookup"
       },
       "portfolio": {
-        "label": "Assets",
+        "label": "Portfolio",
         "description": "Account state and holdings"
       },
       "calendar": {
-        "label": "Calendar",
+        "label": "Review",
         "description": "Signal decision replay"
       },
       "markets": {
@@ -140,10 +140,10 @@
     "primaryNavigation": "Primary",
     "releaseVersion": "Release version",
     "release": "Release",
-    "dashboard": "Dashboard",
-    "search": "Search",
-    "calendar": "Calendar",
-    "assets": "Assets",
+    "dashboard": "Overview",
+    "search": "Explore",
+    "calendar": "Review",
+    "assets": "Portfolio",
     "markets": "Markets",
     "mySymbols": "My Symbols"
   },
@@ -376,7 +376,7 @@
         "label": "Total assets",
         "detail": "Estimated equity across accounts"
       },
-      "dayPnl": {
+      "weekPnl": {
         "label": "Weekly P/L",
         "detail": "Total asset change over the last 7 days"
       },
@@ -877,8 +877,8 @@
     "cryptoHeroCopy": "This route shows crypto market and runtime readiness only when trading-core or exec exposes confirmed read models. It does not call Upbit from the browser and does not expose order controls.",
     "cryptoOverviewCopy": "Review crypto market and runtime readiness without changing the existing KRX/KIS market flow.",
     "openCryptoMarkets": "Open crypto readiness",
-    "backToMarkets": "Back to markets",
-    "openBotsRuntime": "Open bots runtime",
+    "backToMarkets": "Back to factor screens",
+    "openBotsRuntime": "Open system overview",
     "cryptoSourceStatus": "Crypto source status",
     "cryptoMarketOverview": "Market overview",
     "cryptoStrategyOverview": "Strategy overview",

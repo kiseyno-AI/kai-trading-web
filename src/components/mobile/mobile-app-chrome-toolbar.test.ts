@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -62,13 +62,6 @@ test("MobileAppChrome owns the shared dashboard toolbar frame and standardized a
   assert.match(source, /actions=\{toolbarActions\}/);
 });
 
-test("AppShell topbar composes the shared dashboard toolbar", () => {
-  const source = readFileSync(join(repoRoot, "src/components/navigation/topbar.tsx"), "utf8");
-
-  assert.match(source, /from "@\/components\/navigation\/dashboard-toolbar"/);
-  assert.match(source, /<DashboardToolbar/);
-});
-
 test("shared dashboard toolbar uses the provided transparent logo asset", () => {
   const toolbarSource = readFileSync(join(repoRoot, "src/components/navigation/dashboard-toolbar.tsx"), "utf8");
   const toolbarStyles = readFileSync(join(repoRoot, "src/components/navigation/dashboard-toolbar.module.css"), "utf8");
@@ -93,24 +86,22 @@ test("desktop brand mark in mobile chrome uses shared logo asset", () => {
   assert.equal(logo[25], 6);
 });
 
-test("AppShell and MobileAppChrome share the central route model", () => {
-  const appShellSource = readFileSync(join(repoRoot, "src/components/layout/app-shell.tsx"), "utf8");
+test("MobileAppChrome uses the central route model", () => {
   const mobileChromeSource = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
 
-  assert.match(appShellSource, /buildAppChromeNavItems/);
-  assert.match(appShellSource, /buildAppChromeSearchSuggestions/);
-  assert.match(mobileChromeSource, /FULL_PAGE_CHROME_ROUTE_KEYS/);
   assert.match(mobileChromeSource, /buildAppChromeNavItems/);
+  assert.doesNotMatch(mobileChromeSource, /\bnavRouteKeys\b/);
 });
 
-test("Markets route chrome opts into the canonical AppShell route key set", () => {
+test("Markets research routes use Explore as their global navigation parent", () => {
   const source = readFileSync(join(repoRoot, "src/app/markets/markets-route-chrome.tsx"), "utf8");
 
-  assert.match(source, /MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
-  assert.match(source, /navRouteKeys:\s*MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
+  assert.match(source, /activeNav:\s*"search"/);
+  assert.doesNotMatch(source, /navRouteKeys/);
+  assert.doesNotMatch(source, /MARKETS_ROUTE_CHROME_ROUTE_KEYS/);
 });
 
-test("only Markets workspace routes override the primary full-screen route set", () => {
+test("no full-screen route overrides the four-item global route set", () => {
   const requiredChromeRoutes = [
     "src/app/calendar/signal-review-calendar-page-client.tsx",
     "src/app/dashboard/live-dashboard-client.tsx",
@@ -136,8 +127,6 @@ test("only Markets workspace routes override the primary full-screen route set",
   }
 
   const offenders = chromeRouteFiles.flatMap((route) => {
-    if (route === "src/app/markets/markets-route-chrome.tsx") return [];
-
     const source = readFileSync(join(repoRoot, route), "utf8");
 
     return forbiddenOverrides
@@ -146,6 +135,22 @@ test("only Markets workspace routes override the primary full-screen route set",
   });
 
   assert.deepEqual(offenders, []);
+});
+
+test("retired AppShell and Bots placeholder modules are removed once their routes redirect", () => {
+  const retiredFiles = [
+    "src/components/layout/app-shell.tsx",
+    "src/components/navigation/app-sidebar.tsx",
+    "src/components/navigation/mobile-nav.tsx",
+    "src/components/navigation/topbar.tsx",
+    "src/components/ui/search-picker.tsx",
+    "src/features/bots/bots-overview.tsx",
+  ];
+
+  assert.deepEqual(
+    retiredFiles.filter((path) => existsSync(join(repoRoot, path))),
+    [],
+  );
 });
 
 test("full-screen routes use the shared chrome metadata model for representative pages", () => {
@@ -203,9 +208,8 @@ test("search metadata falls back to path-based locale-aware title when activeNav
 test("MobileAppChrome keeps dashboard bottom chrome canonical for full-screen routes", () => {
   const source = readFileSync(join(repoRoot, "src/components/mobile/mobile-app-chrome.tsx"), "utf8");
 
-  assert.match(source, /const bottomAccessory = chrome\.bottomAccessory;/);
-  assert.match(source, /const bottomMeta = null;/);
-  assert.match(source, /const desktopRailFooter = <MobileAppChromeDesktopRailFooter \/>;/);
+  assert.doesNotMatch(source, /bottomAccessory|bottomMeta/);
+  assert.match(source, /<MobileAppChromeDesktopRailFooter \/>/);
   assert.doesNotMatch(source, /bottomChrome/);
   assert.doesNotMatch(source, /desktopRail\?/);
 });
@@ -234,6 +238,16 @@ test("legacy page-local toolbar selectors stay out of route chrome styles", () =
     });
 
   assert.deepEqual(offenders, []);
+});
+
+test("the dark shell uses one canonical token palette", () => {
+  const css = readFileSync(join(repoRoot, "src/app/globals.css"), "utf8");
+  const rootBlock = css.match(/:root\s*\{[^}]*\}/s)?.[0];
+
+  assert.ok(rootBlock);
+  assert.match(rootBlock, /--background:\s*#080b10;/);
+  assert.match(rootBlock, /--accent:\s*#4c7dff;/);
+  assert.doesNotMatch(css, /\.dark\s*\{[^}]*--(?:background|accent|primary):/s);
 });
 
 test("explicit route chrome toolbarAction can override shared metadata defaults", () => {

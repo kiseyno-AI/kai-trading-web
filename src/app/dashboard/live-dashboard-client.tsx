@@ -10,7 +10,10 @@ import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
 import { DocumentRouteLink } from "@/components/navigation/document-route-link";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { getDashboardLiveCopy, type DashboardLiveCopy } from "@/i18n/dashboard-live-copy";
-import { getAgentFeedbackProgressMarketDate } from "@/lib/agent-feedback-progress";
+import {
+  getAgentFeedbackProgressMarketDate,
+  isAgentFeedbackProgressResponseForMarketDate,
+} from "@/lib/agent-feedback-progress";
 import {
   getLatestActionMarketDate,
   getLatestEodTradeDate,
@@ -63,7 +66,6 @@ import {
   getAgentProgressStatusLabel,
   getAgentProgressStatusLabels,
   getAgentRoleStatusLabels,
-  getDashboardLoadErrorMessage,
   getFirstTextValue,
   getFundamentalsCheckedCount,
   getDailyProcessDependencyWaitState,
@@ -98,7 +100,6 @@ import {
   isAgentFeedbackProgressRunning,
   isBreakDayMarket,
   isIconOnlyEodStageStatus,
-  markAgentFeedbackProgressStopped,
   maskAgentRoleCardsAsWaiting,
   maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
@@ -106,7 +107,6 @@ import {
   normalizeMarketSnapshotToken,
   resolveFundamentalsPollingPresentation,
   shouldShowAgentRoleProgress,
-  shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "@/features/dashboard/live-dashboard-derived-state";
 import type {
   AgentRoleCard,
@@ -124,8 +124,6 @@ import type {
 } from "@/features/dashboard/live-dashboard-types";
 import { useLiveDashboardData } from "@/features/dashboard/use-live-dashboard-data";
 import type {
-  AgentContextCoreControlRequestDto,
-  AgentContextCoreControlResponseDto,
   MarketSnapshotFlowDto,
   MarketSnapshotFxRateDto,
   MarketSnapshotIndexDto,
@@ -134,61 +132,8 @@ import type {
 
 import styles from "./live-dashboard-client.module.css";
 
-const AGENT_FEEDBACK_STOP_DIALOG_ID = "agent-feedback-stop-dialog";
-const AGENT_FEEDBACK_STOP_ERROR_ID = "agent-feedback-stop-error";
 const PROCESS_MONITOR_DRAWER_ID = "dashboard-process-monitor-drawer";
 const PROCESS_MONITOR_DRAWER_ANIMATION_MS = 240;
-const AGENT_FEEDBACK_STOP_CONTROL_CLIENT_PATH = "/api/trading/agent-context/internal/core/control";
-const AGENT_FEEDBACK_STOP_REQUEST = {
-  action: "kill",
-  signal_name: "SIGKILL",
-  port: 8000,
-} satisfies AgentContextCoreControlRequestDto;
-
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const responseText = await response.text();
-  let parsedBody: unknown = null;
-
-  if (responseText) {
-    try {
-      parsedBody = JSON.parse(responseText) as T;
-    } catch (error) {
-      throw new Error(`Failed to parse JSON for ${path}: ${getDashboardLoadErrorMessage(error)}`);
-    }
-  }
-
-  if (!response.ok) {
-    if (
-      parsedBody &&
-      typeof parsedBody === "object" &&
-      "message" in parsedBody &&
-      typeof parsedBody.message === "string"
-    ) {
-      throw new Error(parsedBody.message);
-    }
-
-    if (
-      parsedBody &&
-      typeof parsedBody === "object" &&
-      "detail" in parsedBody &&
-      typeof parsedBody.detail === "string"
-    ) {
-      throw new Error(parsedBody.detail);
-    }
-
-    throw new Error(`HTTP ${response.status} for ${path}`);
-  }
-
-  return parsedBody as T;
-}
 
 function getExceptionDateLabel(date: string | null | undefined, primaryLatestCycleDate: string | null | undefined) {
   const normalizedDate = getFirstTextValue(date);
@@ -545,7 +490,7 @@ const ScoringCard = memo(function ScoringCard({
       </div>
 
       <div className={styles.cardActionRow}>
-        <Link href="/markets" className={styles.signalDeciderDetailLink}>
+        <Link href="/search" className={styles.signalDeciderDetailLink}>
           {copy.marketOverview.openMarkets}
         </Link>
         <Link href="/markets/factors" className={styles.signalDeciderDetailLink}>
@@ -559,25 +504,21 @@ const ScoringCard = memo(function ScoringCard({
 type AgentFeedbackCardProps = {
   agentFeedbackHeaderStatusLabel: string;
   agentFeedbackStatusTone: "positive" | "neutral" | "warning";
-  agentFeedbackStopDialogOpen: boolean;
   agentProgressDateContext: string | null;
   agentRoleCards: AgentRoleCard[];
   agentRoleStatusLabels: AgentRoleStatusLabels;
   copy: DashboardLiveCopy;
   isAgentFeedbackRunning: boolean;
-  onOpenAgentFeedbackStopDialog: () => void;
 };
 
 const AgentFeedbackCard = memo(function AgentFeedbackCard({
   agentFeedbackHeaderStatusLabel,
   agentFeedbackStatusTone,
-  agentFeedbackStopDialogOpen,
   agentProgressDateContext,
   agentRoleCards,
   agentRoleStatusLabels,
   copy,
   isAgentFeedbackRunning,
-  onOpenAgentFeedbackStopDialog,
 }: AgentFeedbackCardProps) {
   const statusClass = isAgentFeedbackRunning ? styles.runningStatusPill : "";
 
@@ -608,7 +549,9 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
             const roleContent = (
               <div className={styles.agentRoleContent}>
                 <span className={styles.agentRoleTitleRow}>
-                  <span className={styles.agentRoleName}>{role.label}</span>
+                  <span className={styles.agentRoleName} data-agent-role-title>
+                    {role.label}
+                  </span>
                   {showRoleProgress ? (
                     <span
                       className={styles.agentRoleProgressIcon}
@@ -668,21 +611,6 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
       ) : (
         <div className={styles.emptyState}>{copy.operational.agentProgressUnavailable}</div>
       )}
-      {isAgentFeedbackRunning ? (
-        <div className={styles.agentFeedbackActions}>
-          <button
-            type="button"
-            className={styles.agentFeedbackStopButton}
-            aria-label={copy.operational.stop}
-            aria-haspopup="dialog"
-            aria-expanded={agentFeedbackStopDialogOpen}
-            aria-controls={AGENT_FEEDBACK_STOP_DIALOG_ID}
-            onClick={onOpenAgentFeedbackStopDialog}
-          >
-            {copy.operational.stop}
-          </button>
-        </div>
-      ) : null}
     </article>
   );
 });
@@ -690,7 +618,6 @@ const AgentFeedbackCard = memo(function AgentFeedbackCard({
 type OperationalIntegrityCardsProps = {
   agentFeedbackHeaderStatusLabel: string;
   agentFeedbackStatusTone: "positive" | "neutral" | "warning";
-  agentFeedbackStopDialogOpen: boolean;
   agentProgressDateContext: string | null;
   agentRoleCards: AgentRoleCard[];
   agentRoleStatusLabels: AgentRoleStatusLabels;
@@ -705,7 +632,6 @@ type OperationalIntegrityCardsProps = {
   isAgentFeedbackRunning: boolean;
   patchDate: string | null;
   scoringCardModel: ScoringCardModel;
-  onOpenAgentFeedbackStopDialog: () => void;
   onOpenFundamentalsDetails: () => void;
   onToggleFundamentalsUpdatesExpanded: () => void;
 };
@@ -713,7 +639,6 @@ type OperationalIntegrityCardsProps = {
 const OperationalIntegrityCards = memo(function OperationalIntegrityCards({
   agentFeedbackHeaderStatusLabel,
   agentFeedbackStatusTone,
-  agentFeedbackStopDialogOpen,
   agentProgressDateContext,
   agentRoleCards,
   agentRoleStatusLabels,
@@ -728,7 +653,6 @@ const OperationalIntegrityCards = memo(function OperationalIntegrityCards({
   isAgentFeedbackRunning,
   patchDate,
   scoringCardModel,
-  onOpenAgentFeedbackStopDialog,
   onOpenFundamentalsDetails,
   onToggleFundamentalsUpdatesExpanded,
 }: OperationalIntegrityCardsProps) {
@@ -761,13 +685,11 @@ const OperationalIntegrityCards = memo(function OperationalIntegrityCards({
       <AgentFeedbackCard
         agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
         agentFeedbackStatusTone={agentFeedbackStatusTone}
-        agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
         agentProgressDateContext={agentProgressDateContext}
         agentRoleCards={agentRoleCards}
         agentRoleStatusLabels={agentRoleStatusLabels}
         copy={copy}
         isAgentFeedbackRunning={isAgentFeedbackRunning}
-        onOpenAgentFeedbackStopDialog={onOpenAgentFeedbackStopDialog}
       />
     </>
   );
@@ -1344,7 +1266,7 @@ const MarketOverviewCard = memo(function MarketOverviewCard({
       ) : null}
 
       <div className={styles.cardActionRow}>
-        <Link href="/markets" className={styles.signalDeciderDetailLink} aria-label={copy.marketOverview.openMarkets}>
+        <Link href="/search" className={styles.signalDeciderDetailLink} aria-label={copy.marketOverview.openMarkets}>
           {copy.marketOverview.openMarkets}
         </Link>
       </div>
@@ -1357,7 +1279,7 @@ type ProcessMonitorTriggerProps = {
   model: ProcessMonitorModel;
   open: boolean;
   placement: "desktop" | "mobile";
-  onOpen: () => void;
+  onOpen: (trigger: HTMLButtonElement) => void;
 };
 
 type ProcessMonitorTriggerSummary = {
@@ -1443,7 +1365,7 @@ const ProcessMonitorTrigger = memo(function ProcessMonitorTrigger({
       aria-haspopup="dialog"
       aria-expanded={open}
       aria-controls={PROCESS_MONITOR_DRAWER_ID}
-      onClick={onOpen}
+      onClick={(event) => onOpen(event.currentTarget)}
     >
       <span className={styles.processMonitorMain}>
         <strong>{copy.processMonitor.compactTitle}</strong>
@@ -1882,6 +1804,7 @@ export function LiveDashboardClient({
   const [processMonitorDrawerOpen, setProcessMonitorDrawerOpen] = useState(false);
   const [processMonitorDrawerClosing, setProcessMonitorDrawerClosing] = useState(false);
   const processMonitorDrawerCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const processMonitorReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const {
     agentFeedbackProgress,
     agentFeedbackProgressError,
@@ -1918,8 +1841,6 @@ export function LiveDashboardClient({
     scoringValueFactors,
     scoringValueFactorsError,
     scoringValueFactorsLoadState,
-    setAgentFeedbackProgress,
-    setAgentFeedbackProgressError,
     signalDeciderFeedback,
     tracked,
     trackedError,
@@ -1944,16 +1865,8 @@ export function LiveDashboardClient({
   }, {
     processMonitorOpen: processMonitorDrawerOpen,
   });
-  const [agentFeedbackStopPending, setAgentFeedbackStopPending] = useState(false);
-  const [agentFeedbackStopError, setAgentFeedbackStopError] = useState<string | null>(null);
-  const [agentFeedbackStopDialogOpen, setAgentFeedbackStopDialogOpen] = useState(false);
-  const [fundamentalsUpdatesExpanded, setFundamentalsUpdatesExpanded] = useState(false);
+  const [expandedFundamentalsActivityKey, setExpandedFundamentalsActivityKey] = useState<string | null>(null);
   const [openFundamentalsFailureKey, setOpenFundamentalsFailureKey] = useState<string | null>(null);
-  const agentFeedbackProgressRef = useRef(agentFeedbackProgress);
-
-  useEffect(() => {
-    agentFeedbackProgressRef.current = agentFeedbackProgress;
-  }, [agentFeedbackProgress]);
 
   const latestAvailableFundamentalsCoverage = getLatestAvailableFundamentalsCoverage(freshness, fundamentalsStatus);
   const latestFundamentalsDate = getFirstTextValue(
@@ -2008,17 +1921,13 @@ export function LiveDashboardClient({
     latestFundamentalsDate,
     useTodayFundamentalsStage,
   );
-  const fundamentalsFailureDetails = useMemo(
-    () =>
-      getFundamentalsFailureDetails(
-        freshness,
-        fundamentalsStatus,
-        latestFundamentalsDate,
-        fundamentalsStatusLabel,
-        copy,
-        numberLocale,
-      ),
-    [copy, freshness, fundamentalsStatus, fundamentalsStatusLabel, latestFundamentalsDate, numberLocale],
+  const fundamentalsFailureDetails = getFundamentalsFailureDetails(
+    freshness,
+    fundamentalsStatus,
+    latestFundamentalsDate,
+    fundamentalsStatusLabel,
+    copy,
+    numberLocale,
   );
 
   const piotroskiMarketDate = dashboardProcessMarketDate;
@@ -2201,17 +2110,19 @@ export function LiveDashboardClient({
     technicalLatestDate,
     technicalPipelineStage,
   ]);
-  useEffect(() => {
-    setFundamentalsUpdatesExpanded(false);
-  }, [fundamentalsUpdatedActivity?.key]);
+  const fundamentalsUpdatesExpanded = Boolean(
+    fundamentalsUpdatedActivity?.key && expandedFundamentalsActivityKey === fundamentalsUpdatedActivity.key,
+  );
   const toggleFundamentalsUpdatesExpanded = useCallback(() => {
-    if (!fundamentalsUpdatedActivity?.canExpand) return;
-    setFundamentalsUpdatesExpanded((current) => !current);
-  }, [fundamentalsUpdatedActivity?.canExpand]);
+    if (!fundamentalsUpdatedActivity?.canExpand || !fundamentalsUpdatedActivity.key) return;
+    setExpandedFundamentalsActivityKey((current) =>
+      current === fundamentalsUpdatedActivity.key ? null : fundamentalsUpdatedActivity.key,
+    );
+  }, [fundamentalsUpdatedActivity, setExpandedFundamentalsActivityKey]);
   const agentProgressMarketDate = getAgentFeedbackProgressMarketDate(freshness);
   const displayedAgentFeedbackProgress = useMemo(
     () =>
-      agentProgressMarketDate && agentFeedbackProgress?.request?.market_date === agentProgressMarketDate
+      isAgentFeedbackProgressResponseForMarketDate(agentFeedbackProgress, agentProgressMarketDate)
         ? agentFeedbackProgress
         : null,
     [agentFeedbackProgress, agentProgressMarketDate],
@@ -2544,7 +2455,12 @@ export function LiveDashboardClient({
       portfolioSummaryState,
     ],
   );
-  const marketStatusUnavailable = market.state === "OFFLINE PLACEHOLDER" || Boolean(marketError);
+  const marketStateToken = market.state.trim().toUpperCase();
+  const marketStatusUnavailable =
+    marketStateToken === "OFFLINE PLACEHOLDER" ||
+    marketStateToken === "UNAVAILABLE" ||
+    marketStateToken === "UNKNOWN" ||
+    Boolean(marketError);
   const marketBadgeLabel = marketStatusUnavailable
     ? copy.dashboardOverview.unavailable
     : market.is_open
@@ -2555,28 +2471,23 @@ export function LiveDashboardClient({
     Boolean(fundamentalsFailureDetails) && openFundamentalsFailureKey === fundamentalsFailureDetails?.key;
   const processMonitorDrawerMounted = processMonitorDrawerOpen || processMonitorDrawerClosing;
   const processMonitorDrawerState = processMonitorDrawerOpen ? "open" : "closing";
-  const dialogOpen = fundamentalsDialogOpen || agentFeedbackStopDialogOpen || processMonitorDrawerMounted;
-
-  const openAgentFeedbackStopDialog = useCallback(() => {
-    if (!isAgentFeedbackRunning) return;
-    setAgentFeedbackStopError(null);
-    setAgentFeedbackStopDialogOpen(true);
-  }, [isAgentFeedbackRunning]);
+  const dialogOpen = fundamentalsDialogOpen || processMonitorDrawerMounted;
 
   const openFundamentalsDetails = useCallback(() => {
     if (!fundamentalsFailureDetails) return;
     setOpenFundamentalsFailureKey(fundamentalsFailureDetails.key);
-  }, [fundamentalsFailureDetails]);
+  }, [fundamentalsFailureDetails, setOpenFundamentalsFailureKey]);
 
-  const openProcessMonitorDrawer = useCallback(() => {
+  const openProcessMonitorDrawer = useCallback((trigger: HTMLButtonElement) => {
     if (processMonitorDrawerCloseTimerRef.current) {
       clearTimeout(processMonitorDrawerCloseTimerRef.current);
       processMonitorDrawerCloseTimerRef.current = null;
     }
 
+    processMonitorReturnFocusRef.current = trigger;
     setProcessMonitorDrawerClosing(false);
     setProcessMonitorDrawerOpen(true);
-  }, []);
+  }, [setProcessMonitorDrawerClosing, setProcessMonitorDrawerOpen]);
 
   const closeProcessMonitorDrawer = useCallback(() => {
     if (processMonitorDrawerCloseTimerRef.current) {
@@ -2586,51 +2497,13 @@ export function LiveDashboardClient({
     setProcessMonitorDrawerOpen(false);
     setProcessMonitorDrawerClosing(true);
     processMonitorDrawerCloseTimerRef.current = setTimeout(() => {
+      const returnFocusTarget = processMonitorReturnFocusRef.current;
       setProcessMonitorDrawerClosing(false);
       processMonitorDrawerCloseTimerRef.current = null;
+      processMonitorReturnFocusRef.current = null;
+      requestAnimationFrame(() => returnFocusTarget?.focus());
     }, PROCESS_MONITOR_DRAWER_ANIMATION_MS);
-  }, []);
-
-  function closeAgentFeedbackStopDialog() {
-    if (agentFeedbackStopPending) return;
-    setAgentFeedbackStopError(null);
-    setAgentFeedbackStopDialogOpen(false);
-  }
-
-  async function handleAgentFeedbackStopConfirm() {
-    if (agentFeedbackStopPending) return;
-
-    setAgentFeedbackStopPending(true);
-    setAgentFeedbackStopError(null);
-
-    try {
-      await postJson<AgentContextCoreControlResponseDto>(
-        AGENT_FEEDBACK_STOP_CONTROL_CLIENT_PATH,
-        AGENT_FEEDBACK_STOP_REQUEST,
-      );
-      setAgentFeedbackStopDialogOpen(false);
-    } catch (stopError) {
-      if (shouldTreatAgentFeedbackStopDisconnectAsAccepted(stopError)) {
-        const stoppedProgress = markAgentFeedbackProgressStopped(agentFeedbackProgressRef.current);
-        agentFeedbackProgressRef.current = stoppedProgress;
-        setAgentFeedbackProgress(stoppedProgress);
-        setAgentFeedbackProgressError(null);
-        setAgentFeedbackStopDialogOpen(false);
-        return;
-      }
-
-      console.error("Dashboard agent feedback stop request failed", stopError);
-      setAgentFeedbackStopError(getDashboardLoadErrorMessage(stopError));
-    } finally {
-      setAgentFeedbackStopPending(false);
-    }
-  }
-
-  useEffect(() => {
-    if (isAgentFeedbackRunning) return;
-    setAgentFeedbackStopError(null);
-    setAgentFeedbackStopDialogOpen(false);
-  }, [isAgentFeedbackRunning]);
+  }, [setProcessMonitorDrawerClosing, setProcessMonitorDrawerOpen]);
 
   useEffect(() => {
     return () => {
@@ -2645,12 +2518,6 @@ export function LiveDashboardClient({
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (agentFeedbackStopPending) return;
-        if (agentFeedbackStopDialogOpen) {
-          setAgentFeedbackStopError(null);
-          setAgentFeedbackStopDialogOpen(false);
-          return;
-        }
         if (processMonitorDrawerMounted) {
           closeProcessMonitorDrawer();
           return;
@@ -2668,8 +2535,6 @@ export function LiveDashboardClient({
       document.body.style.overflow = previousOverflow;
     };
   }, [
-    agentFeedbackStopDialogOpen,
-    agentFeedbackStopPending,
     dialogOpen,
     fundamentalsDialogOpen,
     closeProcessMonitorDrawer,
@@ -2687,7 +2552,6 @@ export function LiveDashboardClient({
       <OperationalIntegrityCards
         agentFeedbackHeaderStatusLabel={agentFeedbackHeaderStatusLabel}
         agentFeedbackStatusTone={agentFeedbackStatusTone}
-        agentFeedbackStopDialogOpen={agentFeedbackStopDialogOpen}
         agentProgressDateContext={agentProgressDateContext}
         agentRoleCards={agentRoleCards}
         agentRoleStatusLabels={displayedAgentRoleStatusLabels}
@@ -2702,7 +2566,6 @@ export function LiveDashboardClient({
         isAgentFeedbackRunning={isAgentFeedbackRunning}
         patchDate={processMonitorModel.patchDate}
         scoringCardModel={scoringCardModel}
-        onOpenAgentFeedbackStopDialog={openAgentFeedbackStopDialog}
         onOpenFundamentalsDetails={openFundamentalsDetails}
         onToggleFundamentalsUpdatesExpanded={toggleFundamentalsUpdatesExpanded}
       />
@@ -2713,15 +2576,6 @@ export function LiveDashboardClient({
     <MobileAppChrome
       chrome={{
         activeNav: "dashboard",
-        bottomAccessory: (
-          <ProcessMonitorTrigger
-            copy={copy}
-            model={processMonitorModel}
-            open={processMonitorDrawerOpen}
-            placement="mobile"
-            onOpen={openProcessMonitorDrawer}
-          />
-        ),
         contentScrollMode: "contained",
         modalLayer: processMonitorModalLayer,
         modalOpen: dialogOpen,
@@ -2766,34 +2620,13 @@ export function LiveDashboardClient({
             />
           </div>
 
-          <div
-            className={styles.filteringScoringGrid}
-            data-dashboard-filtering-scoring="inline"
-            aria-hidden={processMonitorDrawerMounted || undefined}
-            hidden={processMonitorDrawerMounted || undefined}
-          >
-            <FilteringCard
-              copy={copy}
-              filteringCardModel={filteringCardModel}
-              patchDate={processMonitorModel.patchDate}
-            />
-
-            <ScoringCard
-              copy={copy}
-              patchDate={processMonitorModel.patchDate}
-              scoringCardModel={scoringCardModel}
-            />
-
-            {processMonitorModel.patchDate ? (
-              <div
-                className={`${styles.processMonitorPatchDate} ${styles.filteringScoringPatchDate}`}
-                aria-label={copy.processMonitor.patchDate}
-              >
-                <span>{copy.processMonitor.patchDate}</span>
-                <strong>{processMonitorModel.patchDate}</strong>
-              </div>
-            ) : null}
-          </div>
+          <ProcessMonitorTrigger
+            copy={copy}
+            model={processMonitorModel}
+            open={processMonitorDrawerOpen}
+            placement="mobile"
+            onOpen={openProcessMonitorDrawer}
+          />
         </section>
 
       </div>
@@ -2860,61 +2693,6 @@ export function LiveDashboardClient({
           )
         : null}
 
-      {agentFeedbackStopDialogOpen
-        ? createPortal(
-            <div className={styles.dialogBackdrop} onMouseDown={closeAgentFeedbackStopDialog}>
-              <section
-                id={AGENT_FEEDBACK_STOP_DIALOG_ID}
-                className={`${styles.failureDialog} ${styles.confirmationDialog}`}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="agent-feedback-stop-title"
-                aria-describedby={agentFeedbackStopError ? AGENT_FEEDBACK_STOP_ERROR_ID : undefined}
-                onMouseDown={(event) => event.stopPropagation()}
-              >
-                <div className={styles.dialogHeader}>
-                  <div>
-                    <p className={styles.sectionEyebrow}>{copy.operational.stopDialogEyebrow}</p>
-                    <h2 id="agent-feedback-stop-title" className={styles.dialogTitle}>
-                      {copy.operational.stopDialogTitle}
-                    </h2>
-                  </div>
-                </div>
-
-                {agentFeedbackStopError ? (
-                  <p
-                    id={AGENT_FEEDBACK_STOP_ERROR_ID}
-                    className={`${styles.confirmationMessage} ${styles.confirmationError}`}
-                    role="alert"
-                  >
-                    {agentFeedbackStopError}
-                  </p>
-                ) : null}
-
-                <div className={styles.dialogActions}>
-                  <button
-                    type="button"
-                    className={`${styles.dialogActionButton} ${styles.dialogActionSecondary}`}
-                    onClick={closeAgentFeedbackStopDialog}
-                    autoFocus
-                    disabled={agentFeedbackStopPending}
-                  >
-                    {copy.operational.stopDialogNo}
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.dialogActionButton} ${styles.dialogActionDanger}`}
-                    onClick={() => void handleAgentFeedbackStopConfirm()}
-                    disabled={agentFeedbackStopPending}
-                  >
-                    {agentFeedbackStopPending ? copy.operational.stopDialogStopping : copy.operational.stopDialogYes}
-                  </button>
-                </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
     </MobileAppChrome>
   );
 }

@@ -7,21 +7,16 @@ import { fileURLToPath } from "node:url";
 const cssPath = join(dirname(fileURLToPath(import.meta.url)), "mobile-app-chrome.module.css");
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
-test("reserves shared mobile bottom chrome in main padding for every route", () => {
+test("reserves one compact mobile navigation bar in main padding for every route", () => {
   const css = readFileSync(cssPath, "utf8");
-  const selector = '.surface[data-mobile-bottom-accessory="present"] .main';
-  const accessoryOverrideMatches = [...css.matchAll(new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))];
 
-  assert.match(css, /--mobile-bottom-content-buffer:\s*1\.55rem;/);
+  assert.match(css, /--mobile-bottom-content-buffer:\s*1rem;/);
   assert.match(
     css,
-    /\.main\s*\{[^}]*padding:\s*5\.5rem 0\.9rem calc\(var\(--mobile-bottom-chrome-height\) \+ var\(--mobile-bottom-content-buffer\)\);/s,
+    /\.main\s*\{[^}]*padding:\s*4\.8rem 0\.75rem calc\(var\(--mobile-bottom-chrome-height\) \+ var\(--mobile-bottom-content-buffer\)\);/s,
   );
-  assert.equal(
-    accessoryOverrideMatches.length,
-    0,
-    "Accessory routes should inherit the shared chrome reserve instead of using a smaller override.",
-  );
+  assert.doesNotMatch(css, /mobile-bottom-accessory|bottomAccessory/);
+  assert.match(css, /\.bottomNav\s*\{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/s);
 });
 
 test("process monitor modal no longer depends on the mobile floating chrome offset", () => {
@@ -29,7 +24,7 @@ test("process monitor modal no longer depends on the mobile floating chrome offs
   const dashboardCss = readFileSync(join(repoRoot, "src/app/dashboard/live-dashboard-client.module.css"), "utf8");
   const dashboardSource = readFileSync(join(repoRoot, "src/app/dashboard/live-dashboard-client.tsx"), "utf8");
 
-  assert.match(shellCss, /--mobile-floating-status-offset:\s*calc\(var\(--mobile-bottom-chrome-height\) \+ 0\.75rem\);/);
+  assert.doesNotMatch(shellCss, /mobile-floating-status-offset/);
   assert.doesNotMatch(dashboardCss, /var\(--mobile-floating-status-offset\)/);
   assert.doesNotMatch(dashboardCss, /mobile-floating-status-offset,\s*calc\([^)]*safe-area-inset-bottom/);
   assert.match(dashboardSource, /const processMonitorModalLayer = processMonitorDrawerMounted \?/);
@@ -51,13 +46,14 @@ test("process monitor modal no longer depends on the mobile floating chrome offs
   );
 });
 
-test("contained mobile content leaves a gutter above fixed bottom accessories", () => {
+test("contained mobile content stops above the fixed bottom navigation", () => {
   const css = readFileSync(cssPath, "utf8");
 
   assert.match(
     css,
-    /\.surface\[data-mobile-content-scroll="contained"\]\[data-mobile-bottom-accessory="present"\]\s*\.main\s*\{[^}]*height:\s*calc\(100dvh - var\(--mobile-bottom-chrome-height\) - var\(--mobile-bottom-content-buffer\)\);/s,
+    /\.surface\[data-mobile-content-scroll="contained"\]\s*\.main\s*\{[^}]*height:\s*calc\(100dvh - var\(--mobile-bottom-chrome-height\)\);/s,
   );
+  assert.doesNotMatch(css, /data-mobile-bottom-accessory/);
 });
 
 test("desktop rail keeps metadata and navigation scrollable at fixed desktop widths", () => {

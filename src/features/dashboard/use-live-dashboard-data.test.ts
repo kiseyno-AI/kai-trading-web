@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import type { AgentFeedbackProgressResponseDto } from "@/types/trading-api";
+
 import {
   createMarketSnapshotRequestTimeout,
   hasResponseForRequestedMarketDate,
   isEodPipelineStatusTransientError,
   getEodPipelineStatusMonitorAwarePollDelayMs,
   getEodPipelineStatusPollDelayMsWithTransientErrors,
+  selectAgentFeedbackProgressForMarketDate,
+  selectSignalDeciderFeedbackForMarketDate,
+  shouldSeedInitialMarketSnapshot,
+  shouldSeedInitialTrackedSnapshot,
 } from "./use-live-dashboard-data";
 
 type MarketSnapshotTimeoutOptions = NonNullable<Parameters<typeof createMarketSnapshotRequestTimeout>[0]>;
@@ -42,6 +48,78 @@ function buildMarketSnapshotTimeoutApi() {
     timeoutApi,
   };
 }
+
+test("does not seed unavailable dashboard sentinels into shared trading snapshots", () => {
+  assert.equal(
+    shouldSeedInitialMarketSnapshot({
+      state: "UNAVAILABLE",
+      is_open: false,
+      server_time: null,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldSeedInitialTrackedSnapshot({
+      market_state: "unavailable",
+      as_of: null,
+      items: [],
+    }),
+    false,
+  );
+  assert.equal(
+    shouldSeedInitialMarketSnapshot({
+      state: "CLOSED",
+      is_open: false,
+      server_time: "2026-04-27T16:00:00+09:00",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSeedInitialTrackedSnapshot({
+      market_state: "closed",
+      as_of: "2026-04-27T16:00:00+09:00",
+      items: [],
+    }),
+    true,
+  );
+});
+
+test("rejects signal-decider payloads whose rows do not match the requested dashboard date", () => {
+  const feedback = {
+    request: {
+      market_date: "2026-04-30",
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: 200,
+    },
+    summary: { count: 1 },
+    items: [
+      {
+        market_date: "2026-04-29",
+        symbol: "005930",
+        agent: { name: "signal-decider", run_id: "run-stale" },
+        feedback: {
+          role: "signal-decider",
+          symbol: "005930",
+          market_date: "2026-04-29",
+          preferred_action: "wait",
+        },
+      },
+    ],
+  };
+
+  assert.equal(selectSignalDeciderFeedbackForMarketDate(feedback, "2026-04-30"), null);
+});
+
+test("rejects dashboard agent progress reported for a different market date", () => {
+  const staleProgress = {
+    request: { market_date: "2026-04-29" },
+    result: { market_date: "2026-04-29" },
+  } as unknown as AgentFeedbackProgressResponseDto;
+
+  assert.equal(selectAgentFeedbackProgressForMarketDate(staleProgress, "2026-04-30"), null);
+  assert.equal(selectAgentFeedbackProgressForMarketDate(staleProgress, "2026-04-29"), staleProgress);
+});
 
 test("aborts stalled market snapshot requests when the timeout elapses", () => {
   const timeout = buildMarketSnapshotTimeoutApi();
@@ -92,6 +170,14 @@ test("wires the market snapshot poll through its BFF path and request timeout", 
   assert.match(source, /getMarketSnapshotPollDelayMs\(\{/);
 });
 
+test("expected dashboard API outages do not trigger the framework error overlay", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.doesNotMatch(source, /console\.error\(/);
+  assert.match(source, /console\.warn\("Dashboard market snapshot load failed"/);
+});
+
 test("requires a requested-date match before reusing latest fallback snapshots", () => {
   const fallbackSnapshot = {
     market_date: "2026-04-24",
@@ -127,6 +213,21 @@ test("continues to reuse non-fallback snapshots that resolve to the requested ma
       "2026-04-27",
     ),
     true,
+  );
+});
+
+test("rejects non-fallback snapshots whose actual dates do not match the requested market date", () => {
+  assert.equal(
+    hasResponseForRequestedMarketDate(
+      {
+        market_date: "2026-04-26",
+        requested_market_date: "2026-04-27",
+        resolved_market_date: "2026-04-26",
+        is_latest_fallback: false,
+      },
+      "2026-04-27",
+    ),
+    false,
   );
 });
 
@@ -352,10 +453,10 @@ test("avoids immediate duplicated signal-decider feedback loads on hydrated dash
   const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
   const source = readFileSync(sourcePath, "utf8");
 
-  assert.ok(
-    source.includes(
-      "const initialSignalDeciderFeedbackMarketDateRef = useRef<string | null>(\n    normalizeMarketDateKey(initialSignalDeciderFeedback?.request?.market_date),\n  );",
-    ),
+  assert.match(source, /const initialSignalDeciderFeedbackMarketDate = normalizeMarketDateKey\(/);
+  assert.match(
+    source,
+    /selectSignalDeciderFeedbackForMarketDate\(\s*initialSignalDeciderFeedback,\s*initialSignalDeciderFeedbackMarketDate,\s*\)/,
   );
   assert.match(
     source,

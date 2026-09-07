@@ -11,6 +11,7 @@ import { useAppState } from "@/components/providers/app-state-provider";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import { SurfaceState } from "@/components/ui/surface-state";
 import { getSearchPageCopy, type SearchPageCopy } from "@/i18n/search-page-copy";
+import { selectExactSymbolQuote } from "@/lib/exact-symbol-quote";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
 import {
@@ -191,8 +192,8 @@ const DEFAULT_MARKET_STATUS: CoreMarketStatus = {
   server_time: "",
 };
 
-const CLOSED_MARKET_STATUS: CoreMarketStatus = {
-  state: "CLOSED",
+const UNAVAILABLE_MARKET_STATUS: CoreMarketStatus = {
+  state: "UNAVAILABLE",
   is_open: false,
   server_time: "",
 };
@@ -448,6 +449,7 @@ export default function SearchPageClient() {
   const numberLocale = getNumberLocale(locale);
   const querySeed = useMemo(() => searchParams.get("q")?.trim() ?? "", [searchParams]);
   const [query, setQuery] = useState(querySeed);
+  const lastQuerySeedRef = useRef(querySeed);
   const [items, setItems] = useState<SymbolSearchItem[]>([]);
   const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(Boolean(querySeed));
   const [activeSearchSuggestionIndex, setActiveSearchSuggestionIndex] = useState(-1);
@@ -465,6 +467,8 @@ export default function SearchPageClient() {
   const [favoriteSearchError, setFavoriteSearchError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (lastQuerySeedRef.current === querySeed) return;
+    lastQuerySeedRef.current = querySeed;
     setQuery(querySeed);
     setSearchSuggestionsOpen(Boolean(querySeed));
     setActiveSearchSuggestionIndex(-1);
@@ -512,8 +516,7 @@ export default function SearchPageClient() {
         if (!active) return;
         if (!result.ok) {
           setMarketStatus((current) => ({
-            ...current,
-            ...CLOSED_MARKET_STATUS,
+            ...UNAVAILABLE_MARKET_STATUS,
             server_time: current.server_time,
           }));
           return;
@@ -523,8 +526,7 @@ export default function SearchPageClient() {
       } catch {
         if (!active) return;
         setMarketStatus((current) => ({
-          ...current,
-          ...CLOSED_MARKET_STATUS,
+          ...UNAVAILABLE_MARKET_STATUS,
           server_time: current.server_time,
         }));
       }
@@ -773,8 +775,7 @@ export default function SearchPageClient() {
           setQuote(null);
           return;
         }
-        const data = result.data;
-        setQuote(data);
+        setQuote(selectExactSymbolQuote(result.data, selected.symbol));
       } catch {
         if (!active) return;
         setQuote(null);
@@ -804,7 +805,10 @@ export default function SearchPageClient() {
       ? `"${trimmedQuery}" ${copy.results.resultPrefix}`
       : `${copy.results.resultPrefix} "${trimmedQuery}"`
     : copy.results.title;
-  const selectedQuoteDate = quote ? formatDisplayTimestamp(quote.cached_at ?? quote.trade_date, UNKNOWN) : UNKNOWN;
+  const selectedQuote = selectExactSymbolQuote(quote, selected?.symbol);
+  const selectedQuoteDate = selectedQuote
+    ? formatDisplayTimestamp(selectedQuote.cached_at ?? selectedQuote.trade_date, UNKNOWN)
+    : UNKNOWN;
   const favoriteSymbolCandidate = normalizeSymbolCode(favoriteSymbolInput);
   const favoriteInputItem = favoriteSymbolCandidate ? getValidatedFavoriteItem(favoriteSymbolCandidate) : null;
   const canAddFavorite = favoriteInputItem !== null && favoriteSavingSymbol === null;
@@ -819,9 +823,16 @@ export default function SearchPageClient() {
   const marketBadgeLabel =
     marketStatus.state === DEFAULT_MARKET_STATUS.state
       ? copy.status.marketPending
+      : marketStatus.state === UNAVAILABLE_MARKET_STATUS.state
+        ? copy.status.unavailable
       : marketStatus.is_open
         ? copy.status.marketOpen
         : copy.status.marketClosed;
+  const marketBadgeTone = marketStatus.is_open
+    ? "positive"
+    : marketStatus.state === UNAVAILABLE_MARKET_STATUS.state || marketStatus.state === DEFAULT_MARKET_STATUS.state
+      ? "warning"
+      : "closed";
 
   const handleTrendingModeChange = (nextMode: TrendingMode) => {
     if (nextMode === trendingMode && trendingVisibleLimit === TRENDING_INITIAL_LIMIT) return;
@@ -1091,7 +1102,7 @@ export default function SearchPageClient() {
     <MobileAppChrome
       chrome={{
         activeNav: "search",
-        status: { label: marketBadgeLabel, tone: marketStatus.is_open ? "positive" : "closed" },
+        status: { label: marketBadgeLabel, tone: marketBadgeTone },
       }}
     >
       <div className={styles.searchTerminal}>
@@ -1540,7 +1551,7 @@ export default function SearchPageClient() {
               <tbody>
                 {searchResultItems.map((item) => {
                   const isSelected = selected?.symbol === item.symbol;
-                  const canShowSelectedQuote = isSelected && quote;
+                  const canShowSelectedQuote = isSelected && selectedQuote;
                   const itemDisplayName = getSearchItemDisplayName(item, copy);
                   const itemMetaLabel = getSearchItemMetaLabel(item, copy);
                   const itemProvenanceLabel = getSearchItemProvenanceLabel(item, copy);
@@ -1559,9 +1570,13 @@ export default function SearchPageClient() {
                           ) : null}
                         </span>
                       </td>
-                      <td>{canShowSelectedQuote && hasNumber(quote.price) ? formatPrice(quote.price) : UNKNOWN}</td>
-                      <td className={canShowSelectedQuote ? getChangeClass(quote.change_pct) : styles.neutralText}>
-                        {canShowSelectedQuote ? formatChangePct(quote.change_pct) : UNKNOWN}
+                      <td>
+                        {canShowSelectedQuote && hasNumber(selectedQuote.price)
+                          ? formatPrice(selectedQuote.price)
+                          : UNKNOWN}
+                      </td>
+                      <td className={canShowSelectedQuote ? getChangeClass(selectedQuote.change_pct) : styles.neutralText}>
+                        {canShowSelectedQuote ? formatChangePct(selectedQuote.change_pct) : UNKNOWN}
                       </td>
                       <td>{UNKNOWN}</td>
                       <td>

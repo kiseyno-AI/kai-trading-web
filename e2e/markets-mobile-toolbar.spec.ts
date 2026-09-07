@@ -63,29 +63,30 @@ async function expectToolbarChromeContained(
   expect(metrics.pageScrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
 }
 
-test("markets mobile toolbar keeps route context and controls legible at 320px", async ({ page }) => {
+test("markets alias lands on the factor workspace with legible toolbar context at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto("/markets");
 
-  await expect(page.getByRole("heading", { name: "Markets" })).toBeVisible();
+  await expect(page).toHaveURL(/\/markets\/factors$/);
+  await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
   await expectToolbarChromeContained(page, {
-    status: "Market data pending",
-    subtitle: "Market state and screening",
-    title: "Markets",
+    status: "Factor data unavailable",
+    subtitle: "Market-date factor ranks",
+    title: "Factor Screening",
   });
 
   await page.getByRole("button", { name: "Korean" }).click();
-  await expect(page.getByRole("heading", { name: "마켓", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /팩터 순위 워크스페이스/i })).toBeVisible();
   await expectToolbarChromeContained(page, {
-    status: "마켓 데이터 대기 중",
-    subtitle: "마켓 상태와 스크리닝",
-    title: "마켓",
+    status: "팩터 데이터 사용 불가",
+    subtitle: "시장일자별 팩터 순위",
+    title: "팩터 스크리닝",
   });
 
   await page.getByRole("button", { name: "영어" }).click();
   await expectToolbarChromeContained(page, {
-    status: "Market data pending",
-    subtitle: "Market state and screening",
-    title: "Markets",
+    status: "Factor data unavailable",
+    subtitle: "Market-date factor ranks",
+    title: "Factor Screening",
   });
 });

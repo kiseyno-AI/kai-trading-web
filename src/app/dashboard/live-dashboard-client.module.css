@@ -12,7 +12,7 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.9rem;
 }
 
 .panel {
@@ -28,7 +28,7 @@
   position: relative;
   min-width: 0;
   display: grid;
-  gap: 0.85rem;
+  gap: 0.8rem;
 }
 
 .alertPanel,
@@ -100,18 +100,6 @@
   margin-top: 0;
 }
 
-.filteringScoringGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 0.85rem;
-}
-
-.filteringScoringPatchDate {
-  grid-column: 1 / -1;
-  margin-top: 0;
-}
-
 .primaryInsightCard {
   min-width: 0;
   container-type: inline-size;
@@ -127,6 +115,9 @@
 }
 
 .dashboardWideShell {
+  width: 100%;
+  max-width: 92rem;
+  margin-inline: auto;
   padding-bottom: 0;
 }
 
@@ -137,16 +128,14 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.7rem;
-  min-height: 4.2rem;
-  padding: 0.78rem 0.85rem;
+  min-height: 3.65rem;
+  padding: 0.68rem 0.78rem;
   border: 1px solid var(--outline-strong);
   border-radius: var(--radius-lg);
   background: var(--surface-low);
   color: inherit;
   text-align: left;
-  box-shadow:
-    var(--shadow-soft),
-    inset 0 0 0 1px rgba(74, 168, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(76, 125, 255, 0.04);
   cursor: pointer;
   transition:
     border-color 140ms ease,
@@ -185,7 +174,7 @@
   z-index: 1;
   width: 100%;
   margin: 0 auto;
-  backdrop-filter: blur(18px);
+  margin-top: 0.1rem;
 }
 
 .processMonitorMain,
@@ -283,7 +272,7 @@
   justify-content: center;
   overflow: hidden;
   padding: 0;
-  background: rgba(1, 15, 32, 0.78);
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(10px);
   animation: processMonitorBackdropIn 240ms ease both;
 }
@@ -304,7 +293,7 @@
   padding: calc(env(safe-area-inset-top) + 0.85rem) 0.9rem calc(env(safe-area-inset-bottom) + 0.9rem);
   border: 0;
   border-radius: 0;
-  background: rgba(8, 17, 31, 0.98);
+  background: rgba(17, 24, 33, 0.99);
   box-shadow:
     var(--shadow),
     inset 0 0 0 1px rgba(74, 168, 255, 0.05);
@@ -737,10 +726,10 @@
 }
 
 .integrityStat {
-  padding: 0.85rem;
-  border-radius: 1rem;
-  background: rgba(8, 17, 31, 0.84);
-  border: 1px solid rgba(134, 162, 194, 0.18);
+  padding: 0.9rem;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .integrityStat > span,
@@ -830,9 +819,9 @@
 .insightStateList > div {
   min-width: 0;
   padding: 0.72rem 0.78rem;
-  border: 1px solid rgba(134, 162, 194, 0.18);
-  border-radius: 0.65rem;
-  background: rgba(3, 7, 13, 0.64);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .portfolioMetric span,
@@ -872,9 +861,9 @@
   display: grid;
   gap: 0.65rem;
   padding: 0.72rem 0.78rem;
-  border: 1px solid rgba(134, 162, 194, 0.18);
-  border-radius: 0.65rem;
-  background: rgba(3, 7, 13, 0.64);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .overviewSymbolRow {
@@ -1069,9 +1058,9 @@
 .marketSummaryLine {
   margin: 0;
   padding: 0.72rem 0.78rem;
-  border: 1px solid rgba(83, 140, 255, 0.22);
-  border-radius: 0.65rem;
-  background: rgba(26, 42, 67, 0.5);
+  border: 1px solid rgba(76, 125, 255, 0.22);
+  border-radius: var(--radius-md);
+  background: rgba(76, 125, 255, 0.08);
   color: var(--text-strong);
   font-size: 0.82rem;
   font-weight: 700;
@@ -1703,11 +1692,6 @@
   }
 }
 
-.agentFeedbackActions {
-  margin-top: auto;
-  padding-top: 0.2rem;
-}
-
 .statusMetricGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
@@ -1740,28 +1724,6 @@
 
 .statusMetric strong :global(.pill) {
   display: inline-flex;
-}
-
-.agentFeedbackStopButton {
-  width: 100%;
-  min-height: 2.6rem;
-  border: 1px solid rgba(227, 176, 74, 0.28);
-  border-radius: 0.55rem;
-  background: rgba(50, 37, 12, 0.42);
-  color: var(--text-strong);
-  font-family: var(--font-inter), sans-serif;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    color 140ms ease;
-}
-
-.agentFeedbackStopButton:hover {
-  border-color: rgba(227, 176, 74, 0.52);
-  background: rgba(78, 53, 12, 0.6);
 }
 
 .signalDeciderPreviewList {
@@ -2121,10 +2083,8 @@
 .processMonitorBar:focus-visible,
 .processMonitorDrawerCollapseButton:focus-visible,
 .dialogCloseButton:focus-visible,
-.agentFeedbackStopButton:focus-visible,
 .signalDeciderDetailLink:focus-visible,
-.signalDeciderMoreLink:focus-visible,
-.dialogActionButton:focus-visible {
+.signalDeciderMoreLink:focus-visible {
   outline: 2px solid rgba(88, 139, 255, 0.88);
   outline-offset: 2px;
 }
@@ -2151,10 +2111,6 @@
   background: rgba(8, 17, 31, 0.98);
   box-shadow: 0 28px 70px rgba(1, 15, 32, 0.46);
   padding: 1rem;
-}
-
-.confirmationDialog {
-  width: min(26rem, 100%);
 }
 
 .dialogHeader {
@@ -2190,58 +2146,6 @@
 
 .dialogCloseButton:hover {
   background: var(--control-surface-hover);
-}
-
-.confirmationMessage {
-  margin: 0.95rem 0 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-
-.confirmationError {
-  color: var(--text-strong);
-}
-
-.dialogActions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-top: 1rem;
-}
-
-.dialogActionButton {
-  min-height: 2.5rem;
-  padding: 0 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: rgba(11, 22, 38, 0.82);
-  color: var(--text-strong);
-  font-family: var(--font-inter), sans-serif;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  transition:
-    border-color 140ms ease,
-    background-color 140ms ease,
-    color 140ms ease;
-}
-
-.dialogActionSecondary:hover {
-  border-color: var(--outline-strong);
-  background: rgba(25, 40, 60, 0.9);
-}
-
-.dialogActionDanger {
-  border-color: rgba(227, 176, 74, 0.28);
-  background: rgba(50, 37, 12, 0.54);
-  color: var(--text-strong);
-}
-
-.dialogActionDanger:hover {
-  border-color: rgba(227, 176, 74, 0.5);
-  background: rgba(78, 53, 12, 0.62);
 }
 
 .failureReason {
@@ -2495,14 +2399,6 @@
     flex-direction: column;
   }
 
-  .dialogActions {
-    flex-direction: column-reverse;
-  }
-
-  .dialogActionButton {
-    width: 100%;
-  }
-
   .failureDetailGrid {
     grid-template-columns: 1fr;
   }
@@ -2549,41 +2445,41 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.9rem;
-    min-height: 3.7rem;
+    min-height: 3.3rem;
     margin-top: 0;
     padding: 0.72rem 0.9rem;
     border-radius: var(--radius-lg);
-    background: rgba(12, 26, 42, 0.82);
+    background: rgba(17, 24, 33, 0.88);
   }
 
   .processMonitorDrawerBackdrop {
     align-items: flex-start;
     justify-content: center;
-    padding: 6.7rem 2rem 2rem calc(15.5rem + 2rem);
-    background: rgba(1, 15, 32, 0.22);
+    padding: 5.35rem 1.5rem 1.5rem calc(13.75rem + 1.5rem);
+    background: rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(2px);
   }
 
   .processMonitorDrawer {
-    width: min(62rem, calc(100vw - 19.5rem));
-    max-height: min(58dvh, calc(100dvh - 8.7rem), 40rem);
+    width: min(64rem, calc(100vw - 17.5rem));
+    max-height: min(68dvh, calc(100dvh - 7rem), 44rem);
     height: auto;
     border: 1px solid var(--outline-strong);
-    border-radius: 0.2rem;
+    border-radius: var(--radius-xl);
     background: var(--surface);
     padding: 1.35rem;
     transform-origin: top center;
   }
 
   .processMonitorDrawerCollapseButton {
-    border-radius: 0.18rem;
+    border-radius: 999px;
     margin-bottom: 0.8rem;
   }
 
   .panel {
-    border-radius: 0.18rem;
-    background: rgba(11, 22, 38, 0.82);
-    box-shadow: 0 28px 64px rgba(1, 15, 32, 0.24);
+    border-radius: var(--radius-xl);
+    background: rgba(17, 24, 33, 0.9);
+    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.24);
   }
 
   .alertPanel,
@@ -2605,13 +2501,23 @@
 
   .primaryInsightGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "decision portfolio"
+      "market portfolio";
     gap: 1rem;
     margin-top: 0;
   }
 
-  .filteringScoringGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
+  .signalDeciderCard {
+    grid-area: decision;
+  }
+
+  .portfolioStateCard {
+    grid-area: portfolio;
+  }
+
+  .marketOverviewCard {
+    grid-area: market;
   }
 
   .processMonitorCardsGrid {
@@ -2629,18 +2535,18 @@
   .marketContextGrid > div,
   .marketIndexCard,
   .insightStateList > div {
-    border-radius: 0.16rem;
-    background: rgba(12, 26, 42, 0.78);
+    border-radius: var(--radius-xl);
+    background: rgba(17, 24, 33, 0.92);
   }
 
   .integrityStat {
     min-height: 10rem;
-    padding: 1.25rem;
+    padding: 1rem;
   }
 
   .filterStageSection {
-    border-radius: 0.16rem;
-    background: rgba(10, 22, 38, 0.7);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.025);
   }
 
   .integrityStat strong {
@@ -2652,7 +2558,7 @@
   }
 
   .sectionTitle {
-    font-size: clamp(1.35rem, 1.7vw, 2rem);
+    font-size: clamp(1.05rem, 1.25vw, 1.3rem);
     letter-spacing: 0;
   }
 
@@ -2664,12 +2570,6 @@
 
   .supportGrid > .supportPanel:only-child {
     grid-column: 1 / -1;
-  }
-}
-
-@media (min-width: 1280px) {
-  .primaryInsightGrid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

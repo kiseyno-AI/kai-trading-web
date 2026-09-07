@@ -41,7 +41,7 @@ const copyByLocale = {
     allFamilies: "Factor families",
     applyDate: "Apply date",
     auditRows: "Audit rows",
-    backToMarkets: "Back to markets",
+    backToMarkets: "Explore symbols",
     controlsEyebrow: "Screen controls",
     controlsTitle: "Family, date, and eligibility filters",
     controlsBody:
@@ -113,7 +113,7 @@ const copyByLocale = {
     allFamilies: "팩터 패밀리",
     applyDate: "날짜 적용",
     auditRows: "감사용 행",
-    backToMarkets: "마켓으로 돌아가기",
+    backToMarkets: "종목 탐색",
     controlsEyebrow: "스크린 제어",
     controlsTitle: "패밀리, 날짜, 적격성 필터",
     controlsBody:
@@ -536,7 +536,7 @@ export function FactorScreening({ onRouteStatusChange }: FactorScreeningProps) {
               <button type="button" className={styles.secondaryAction} onClick={handleRefresh}>
                 {copy.refresh}
               </button>
-              <Link href="/markets" className={styles.secondaryLink}>
+              <Link href="/search" className={styles.secondaryLink}>
                 {copy.backToMarkets}
               </Link>
             </div>

@@ -16,9 +16,9 @@ import { NavGlyph } from "@/components/navigation/nav-glyph";
 import { useAppState } from "@/components/providers/app-state-provider";
 import { useNavigationLoading } from "@/components/providers/navigation-loading-provider";
 import {
-  FULL_PAGE_CHROME_ROUTE_KEYS,
   buildAppChromeNavItems,
   resolveAppChromeHref,
+  resolvePrimaryAppChromeRouteKey,
   type AppChromeHrefOverrides,
   type AppChromeRouteKey,
 } from "@/lib/app-chrome-routes";
@@ -36,14 +36,12 @@ type MobileAppChromeStatus = {
 
 export type MobileAppChromeRouteChrome = {
   activeNav?: AppChromeRouteKey | null;
-  bottomAccessory?: ReactNode;
   contentScrollMode?: "document" | "contained";
   floatingLayer?: ReactNode;
   hrefs?: AppChromeHrefOverrides;
   leading?: ReactNode;
   modalLayer?: ReactNode;
   modalOpen?: boolean;
-  navRouteKeys?: ReadonlyArray<AppChromeRouteKey>;
   status?: MobileAppChromeStatus | null;
   subtitle?: ReactNode | null;
   subtitleAriaLabel?: string;
@@ -56,7 +54,6 @@ type MobileAppChromeProps = {
   children: ReactNode;
 };
 
-const EMPTY_HREF_OVERRIDES: AppChromeHrefOverrides = {};
 const MODAL_BACKGROUND_INTERACTIVE_SELECTOR = [
   "a[href]",
   "button",
@@ -157,6 +154,7 @@ export function MobileAppChrome({
   const { t, locale } = useAppState();
   const { beginNavigation, isNavigatingTo } = useNavigationLoading();
   const activeNav = chrome.activeNav ?? null;
+  const primaryActiveNav = resolvePrimaryAppChromeRouteKey(activeNav);
   const modalOpen = Boolean(chrome.modalOpen);
   const desktopChromeActive = useMediaQuery("(min-width: 1024px)");
   const toolbarDevActionVisible = useMediaQuery("(min-width: 521px)");
@@ -165,21 +163,14 @@ export function MobileAppChrome({
   const toolbarLanguageHidden = desktopChromeActive;
   const toolbarDevActionHidden = !toolbarDevActionVisible;
   const resolvedMetadata = resolveMobileAppChromeMetadata({ pathname, activeNav, t, locale });
-  const hrefOverrides = chrome.hrefs ?? EMPTY_HREF_OVERRIDES;
-  const navRouteKeys = chrome.navRouteKeys ?? FULL_PAGE_CHROME_ROUTE_KEYS;
-  const navItems = useMemo(
-    () => buildAppChromeNavItems(t, navRouteKeys, hrefOverrides),
-    [hrefOverrides, navRouteKeys, t],
-  );
-  const activeHref = activeNav ? resolveAppChromeHref(activeNav, hrefOverrides) : null;
+  const hrefOverrides = chrome.hrefs;
+  const navItems = useMemo(() => buildAppChromeNavItems(t, hrefOverrides), [hrefOverrides, t]);
+  const activeHref = primaryActiveNav ? resolveAppChromeHref(primaryActiveNav, hrefOverrides) : null;
   const prefetchTargets = useMemo(() => {
     const targets = navItems.map((item) => (item.href === activeHref ? null : item.href));
 
     return [...new Set(targets.filter((target): target is string => typeof target === "string" && target.startsWith("/")))];
   }, [activeHref, navItems]);
-  const bottomAccessory = chrome.bottomAccessory;
-  const bottomMeta = null;
-  const desktopRailFooter = <MobileAppChromeDesktopRailFooter />;
   const desktopChromeSuppressed = modalOpen || !desktopChromeActive;
   const mobileChromeSuppressed = modalOpen || desktopChromeActive;
   const floatingLayerSuppressed = modalOpen;
@@ -247,7 +238,7 @@ export function MobileAppChrome({
   }, [prefetchTargets, router]);
 
   const renderNavItem = (item: (typeof navItems)[number]) => {
-    const active = item.id === activeNav;
+    const active = item.id === primaryActiveNav;
     const pending = isNavigatingTo(item.href);
 
     return (
@@ -278,7 +269,7 @@ export function MobileAppChrome({
   };
 
   const renderDesktopNavItem = (item: (typeof navItems)[number]) => {
-    const active = item.id === activeNav;
+    const active = item.id === primaryActiveNav;
     const pending = isNavigatingTo(item.href);
 
     return (
@@ -306,15 +297,10 @@ export function MobileAppChrome({
   return (
     <div
       className={styles.surface}
-      data-mobile-bottom-accessory={bottomAccessory ? "present" : "absent"}
-      data-mobile-meta-row={bottomMeta ? "visible" : "hidden"}
       data-mobile-content-scroll={chrome.contentScrollMode ?? "document"}
       data-mobile-toolbar-layout={narrowToolbarLayout ?? "single-row"}
       data-app-chrome-root
     >
-      <div className={styles.glowPrimary} />
-      <div className={styles.glowSecondary} />
-
       <aside
         className={styles.desktopRail}
         aria-label={t.mobileChrome.desktopNavigation}
@@ -354,11 +340,9 @@ export function MobileAppChrome({
           </section>
         </div>
 
-        {desktopRailFooter ? (
-          <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>
-            {desktopRailFooter}
-          </div>
-        ) : null}
+        <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>
+          <MobileAppChromeDesktopRailFooter />
+        </div>
       </aside>
 
       <header
@@ -395,8 +379,6 @@ export function MobileAppChrome({
         aria-hidden={mobileChromeSuppressed ? true : undefined}
         inert={mobileChromeSuppressed ? true : undefined}
       >
-        {bottomMeta ? <div className={styles.mobileMetaRow}>{bottomMeta}</div> : null}
-        {bottomAccessory ? <div className={styles.bottomAccessory}>{bottomAccessory}</div> : null}
         <nav
           className={styles.bottomNav}
           style={bottomNavStyle}

@@ -29,9 +29,10 @@ test.describe("smoke", () => {
     );
   });
 
-  test("markets shell renders", async ({ page }) => {
+  test("markets alias renders the canonical factor workspace", async ({ page }) => {
     await page.goto("/markets");
-    await expect(page.getByRole("heading", { name: /^Markets$/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/markets\/factors$/);
+    await expect(page.getByRole("heading", { name: /Factor ranking workspace/i })).toBeVisible();
   });
 
   test("crypto markets shell renders pending read-only state", async ({ page }) => {
@@ -190,9 +191,10 @@ test.describe("smoke", () => {
     await expect(page.getByText("No web controls").first()).toBeVisible();
   });
 
-  test("bots shell renders", async ({ page }) => {
+  test("bots alias resolves to the canonical dashboard", async ({ page }) => {
     await page.goto("/bots");
-    await expect(page.getByRole("heading", { name: /Automation Control/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
   });
 
   test("dashboard renders success or upstream-missing state", async ({ page }) => {
@@ -657,8 +659,9 @@ test.describe("smoke", () => {
     expect(sanitized).not.toContain("secret-key");
   });
 
-  test("kis dashboard renders even when an upstream section is unavailable", async ({ page }) => {
+  test("kis dashboard alias resolves to the canonical dashboard", async ({ page }) => {
     await page.goto("/kis-dashboard");
-    await expect(page.getByRole("heading", { name: /Trading Dashboard Home|All upstream sections failed/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
   });
 });

@@ -54,7 +54,6 @@ import {
   getResolvedAgentProgressRunStatus,
   getSignalDeciderFeedbackPollDelayMs,
   getTechnicalFreshnessStage,
-  markAgentFeedbackProgressStopped,
   maskAgentRoleCardsAsWaiting,
   maskFilteringCardModelAsWaiting,
   maskFutureEodStageCardsWhilePipelineRunning,
@@ -63,7 +62,6 @@ import {
   shouldRevalidateFilteringFallback,
   shouldShowAgentRoleProgress,
   shouldShowSignalDeciderCurrentCycleContext,
-  shouldTreatAgentFeedbackStopDisconnectAsAccepted,
 } from "./live-dashboard-derived-state";
 
 function buildStage(status: string): EodFreshnessStageDto {
@@ -3725,7 +3723,7 @@ test("keeps a running EOD process monitor step below complete progress when coun
   assert.equal(completedStep?.progressPercent, 100);
 });
 
-test("keeps dashboard polling at the active cadence until a stop acceptance marks the run stalled", () => {
+test("keeps dashboard polling at the active cadence while agent feedback is running", () => {
   const progress = {
     request: {
       market_date: "2026-04-21",
@@ -3763,12 +3761,7 @@ test("keeps dashboard polling at the active cadence until a stop acceptance mark
     result: null,
   };
 
-  const stopped = markAgentFeedbackProgressStopped(progress);
-
   assert.equal(getAgentFeedbackProgressPollDelayMs(progress), 1_000);
-  assert.equal(stopped?.summary.run_status, "stalled");
-  assert.equal(stopped?.summary.is_live, false);
-  assert.equal(getAgentFeedbackProgressPollDelayMs(stopped ?? null), 30_000);
 });
 
 test("retries signal-decider feedback errors without polling completed successful reads", () => {
@@ -3820,12 +3813,6 @@ test("retries signal-decider feedback errors without polling completed successfu
   assert.equal(getSignalDeciderFeedbackPollDelayMs({ progress: completedProgress, hadError: false }), null);
   assert.equal(getSignalDeciderFeedbackPollDelayMs({ progress: completedProgress, hadError: true }), 5_000);
   assert.equal(getSignalDeciderFeedbackPollDelayMs({ progress: null, hadError: true }), 5_000);
-});
-
-test("treats disconnect-shaped stop errors as accepted while keeping real upstream failures visible", () => {
-  assert.equal(shouldTreatAgentFeedbackStopDisconnectAsAccepted(new Error("fetch failed")), true);
-  assert.equal(shouldTreatAgentFeedbackStopDisconnectAsAccepted(new Error("Failed to fetch")), true);
-  assert.equal(shouldTreatAgentFeedbackStopDisconnectAsAccepted(new Error("HTTP 502 for /api/trading/agent-context/internal/core/control")), false);
 });
 
 test("keeps pipeline polling at the active cadence while the status or any stage is still running", () => {

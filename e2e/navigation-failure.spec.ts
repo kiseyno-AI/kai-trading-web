@@ -78,8 +78,8 @@ async function seedSignalDeciderFeedbackCache(page: Page, marketDate: string) {
 test.describe("navigation failure recovery", () => {
   test("keeps recovery controls visible when a route chunk load rejection is reported", async ({ page }) => {
     await page.goto(withBasePath("/dashboard"));
-    await expect(page.getByRole("link", { name: /^Search$/i }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /^Search$/i }).first()).toHaveAttribute(
+    await expect(page.getByRole("link", { name: /^Explore$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Explore$/i }).first()).toHaveAttribute(
       "href",
       withBasePath("/search"),
     );

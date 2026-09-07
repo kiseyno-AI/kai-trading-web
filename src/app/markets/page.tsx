@@ -1,11 +1,5 @@
-import { MarketsOverview } from "@/features/markets/markets-overview";
-
-import { MarketsRouteChrome } from "./markets-route-chrome";
+import { redirect } from "next/navigation";
 
 export default function MarketsPage() {
-  return (
-    <MarketsRouteChrome>
-      <MarketsOverview />
-    </MarketsRouteChrome>
-  );
+  redirect("/markets/factors");
 }

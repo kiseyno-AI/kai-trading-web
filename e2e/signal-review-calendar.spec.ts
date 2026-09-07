@@ -25,6 +25,7 @@ type SignalReviewCalendarMockOptions = {
   pendingReplayWindowDate?: string;
   pendingRationaleDate?: string;
   pendingWaitDate?: string;
+  progressResponseDateOverrides?: Partial<Record<string, string>>;
   reviewDateDelays?: Partial<Record<string, Promise<void>>>;
   reviewDateErrorMessages?: Partial<Record<string, string>>;
   runningProgressDates?: string[];
@@ -885,6 +886,82 @@ function buildReviewDateResponse(marketDate: string, options: SignalReviewCalend
   };
 }
 
+function buildMismatchedStoredFeedbackItem(itemMarketDate: string): SignalReviewCalendarFeedbackItem {
+  return {
+    id: `mismatched-date-${itemMarketDate}`,
+    market_date: itemMarketDate,
+    symbol: "STALE-DATE-SYMBOL",
+    agent: {
+      name: "signal-decider",
+      run_id: `feedback-cycle-${itemMarketDate}`,
+    },
+    summary: {},
+    feedback: {
+      role: "signal-decider",
+      symbol: "STALE-DATE-SYMBOL",
+      market_date: itemMarketDate,
+      preferred_action: "buy",
+      next_day_open_action: "buy",
+      confidence_score_10: 10,
+      conviction_score_10: 10,
+      thesis_summary: "This stale-date row must never be applied to the requested calendar date.",
+    },
+    normalized_feedback: null,
+    details: null,
+    context: {
+      symbol_day_context: {
+        company: {
+          name_ko: "Stale Date Company",
+        },
+      },
+    },
+    received_at: `${itemMarketDate}T07:45:00+00:00`,
+  };
+}
+
+function buildMismatchedFeedbackListResponse(requestedMarketDate: string, itemMarketDate: string) {
+  const item = buildMismatchedStoredFeedbackItem(itemMarketDate);
+  return {
+    request: {
+      market_date: requestedMarketDate,
+      symbols: [],
+      agent_name: "signal-decider",
+      limit: 200,
+    },
+    summary: {
+      count: 1,
+    },
+    items: [item],
+  };
+}
+
+function buildMismatchedReviewDateResponse(requestedMarketDate: string, itemMarketDate: string) {
+  const item = buildMismatchedStoredFeedbackItem(itemMarketDate);
+  return {
+    request: {
+      market_date: requestedMarketDate,
+    },
+    summary: {
+      count: 1,
+      review_status_counts: {},
+    },
+    items: [
+      {
+        snapshot_id: `${itemMarketDate}-stale-date-row`,
+        symbol: item.symbol,
+        market_date: item.market_date,
+        run_id: item.agent.run_id,
+        captured_at: item.received_at,
+        decision: item.feedback,
+        normalized_feedback: item.normalized_feedback,
+        review: item.details,
+        summary: item.summary,
+        context: item.context,
+      },
+    ],
+  };
+}
+
 function buildCalendarSummaryResponse(month: string, options: SignalReviewCalendarMockOptions) {
   const monthDates = listMonthDates(month);
   const summaryItems = monthDates
@@ -1043,6 +1120,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
     requestHits.progress += 1;
     const url = new URL(route.request().url());
     const marketDate = url.searchParams.get("market_date") ?? "2026-04-27";
+    const responseMarketDate = options.progressResponseDateOverrides?.[marketDate] ?? marketDate;
     const storedDecisionCount =
       options.pendingRationaleDate === marketDate ||
       options.pendingWaitDate === marketDate ||
@@ -1072,7 +1150,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
       contentType: "application/json",
       body: JSON.stringify({
         request: {
-          market_date: marketDate,
+          market_date: responseMarketDate,
           symbols: null,
           expected_agents: ["signal-decider"],
         },
@@ -1101,7 +1179,7 @@ async function mockSignalReviewCalendar(page: Page, options: SignalReviewCalenda
           expected_feedback_count: storedDecisionCount,
         },
         result: {
-          market_date: marketDate,
+          market_date: responseMarketDate,
           roles: {
             "signal-decider": {
               requested_count: storedDecisionCount,
@@ -1739,7 +1817,7 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await page.goto("/calendar?date=2026-04-27");
 
   await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Calendar" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Review" }).first()).toBeVisible();
 
   const selectedDateCell = page.getByRole("button", { name: /2026-04-27/ });
   await expect(selectedDateCell).toContainText("2 decisions");
@@ -1786,6 +1864,33 @@ test("signal review calendar desktop rail does not label the month as market sta
   await expect(railMarketStatus).toBeVisible();
   await expect(railMarketStatus).toContainText("Market status pending");
   await expect(railMarketStatus).not.toContainText("July 2026");
+});
+
+test("signal review calendar hydrates before adopting the browser-controlled product date", async ({ page }) => {
+  const hydrationErrors: string[] = [];
+  const isHydrationError = (message: string) =>
+    /hydration|hydrated|server rendered html.*(?:did not|didn't) match/i.test(message);
+  page.on("console", (message) => {
+    if (message.type() === "error" && isHydrationError(message.text())) {
+      hydrationErrors.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => {
+    if (isHydrationError(error.message)) hydrationErrors.push(error.message);
+  });
+
+  await page.clock.setFixedTime(new Date("2026-07-05T00:34:00+09:00"));
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-07-05": 1,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-07-05");
+
+  await expect(page.getByRole("heading", { name: "July 2026" })).toBeVisible();
+  await expect(page.locator('[data-calendar-cell="2026-07-05"]')).toBeEnabled();
+  expect(hydrationErrors).toEqual([]);
 });
 
 test("signal review calendar does not disable the initial post-midnight KST current date", async ({ page }) => {
@@ -1972,7 +2077,7 @@ test("signal review calendar traps replay dialog focus and restores the mobile o
   expect(backgroundSuppression.bottomNavFrame).toEqual({ ariaHidden: "true", inert: true });
   expect(backgroundSuppression.bottomNav).toEqual({ ariaHidden: "true", inert: true });
   expect(backgroundSuppression.outsideLinks.length).toBeGreaterThan(0);
-  expect(backgroundSuppression.outsideLinks.some((link) => link.label.includes("캘린더"))).toBe(true);
+  expect(backgroundSuppression.outsideLinks.some((link) => link.label.includes("검토"))).toBe(true);
   for (const link of backgroundSuppression.outsideLinks) {
     expect(link.ariaHidden, `${link.label} should be directly aria-hidden`).toBe("true");
     expect(link.directInert, `${link.label} should be directly inert`).toBe(true);
@@ -1984,7 +2089,7 @@ test("signal review calendar traps replay dialog focus and restores the mobile o
   expect(ariaSnapshot).toContain("dialog");
   expect(ariaSnapshot).toContain("비상교육");
   expect(ariaSnapshot).not.toContain("한국주철관");
-  expect(ariaSnapshot).not.toMatch(/link "[^"]*(?:Calendar|캘린더|Dashboard|대시보드)/);
+  expect(ariaSnapshot).not.toMatch(/link "[^"]*(?:Review|검토|Overview|개요)/);
 
   for (let tabPress = 0; tabPress < 4; tabPress += 1) {
     await page.keyboard.press("Tab");
@@ -2765,8 +2870,14 @@ test("feedback table link keeps the selected calendar date in navigation", async
   await expect(page.getByText("MD 2026-05-05").first()).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/calendar\?date=2026-05-05/);
+  await expect(feedbackLink).toHaveAttribute(
+    "href",
+    /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-05/,
+  );
 
-  await page.getByRole("button", { name: /2026-05-04/ }).click();
+  const previousDateCell = page.getByRole("button", { name: /2026-05-04/ });
+  await expect(previousDateCell).toBeEnabled();
+  await previousDateCell.click();
   await expect(page).toHaveURL(/\/calendar\?date=2026-05-04/);
   await expect(feedbackLink).toHaveAttribute("href", /\/dashboard\/signal-decider-feedback\?marketDate=2026-05-04/);
 });
@@ -2830,6 +2941,130 @@ test("signal review calendar falls back to per-date feedback calls only when mon
   await expect
     .poll(async () => requestHits.reviewDate)
     .toBe(1);
+});
+
+test("signal review calendar rejects stale item dates from the per-date month fallback", async ({ page }) => {
+  const requestedMarketDate = "2026-05-05";
+  const staleItemMarketDate = "2026-05-04";
+  const requestHits = await mockSignalReviewCalendar(page, {
+    forceCalendarSummaryFailure: true,
+  });
+  await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
+    const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+    if (marketDate !== requestedMarketDate) {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(buildMismatchedFeedbackListResponse(requestedMarketDate, staleItemMarketDate)),
+    });
+  });
+
+  await page.goto("/calendar?date=2026-05-06");
+
+  await expect.poll(async () => requestHits.feedback).toBe(listMonthDates("2026-05").length - 1);
+  const mismatchedDateCell = page.locator(`[data-calendar-cell="${requestedMarketDate}"]`);
+  await expect(mismatchedDateCell).toHaveAttribute("aria-label", new RegExp(`${requestedMarketDate} Unavailable`));
+  await expect(mismatchedDateCell).toBeDisabled();
+  await expect(mismatchedDateCell).not.toContainText("1 decision");
+  await expect(page.getByText("Stale Date Company")).toHaveCount(0);
+});
+
+test("signal review calendar keeps exact-date cache when the dedicated review returns stale item dates", async ({
+  page,
+}) => {
+  const requestedMarketDate = "2026-05-07";
+  const staleItemMarketDate = "2026-05-06";
+  await seedDashboardSignalDeciderCache(page, requestedMarketDate);
+  const requestHits = await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      [requestedMarketDate]: 1,
+    },
+    emptyFeedbackListDates: [requestedMarketDate],
+  });
+  await page.route("**/api/trading/agent-context/feedback/review?**", async (route) => {
+    const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+    if (marketDate !== requestedMarketDate) {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(buildMismatchedReviewDateResponse(requestedMarketDate, staleItemMarketDate)),
+    });
+  });
+
+  await page.goto(`/calendar?date=${requestedMarketDate}`);
+
+  await expect.poll(async () => requestHits.reviewDate).toBe(0);
+  await expect.poll(async () => requestHits.feedback).toBe(1);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByTestId("calendar-feedback-cta")).toHaveText("Open 1 rows in feedback table");
+  await expect(page.getByText("Stale Date Company")).toHaveCount(0);
+  await expect(page.getByText("STALE-DATE-SYMBOL")).toHaveCount(0);
+});
+
+test("signal review calendar rejects stale item dates from the generic selected-date fallback", async ({
+  page,
+}) => {
+  const requestedMarketDate = "2026-05-08";
+  const staleItemMarketDate = "2026-05-07";
+  const requestHits = await mockSignalReviewCalendar(page, {
+    reviewDateErrorMessages: {
+      [requestedMarketDate]: "Dedicated selected-date review is unavailable.",
+    },
+  });
+  await page.route("**/api/trading/agent-context/feedback?**", async (route) => {
+    const marketDate = new URL(route.request().url()).searchParams.get("market_date");
+    if (marketDate !== requestedMarketDate) {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(buildMismatchedFeedbackListResponse(requestedMarketDate, staleItemMarketDate)),
+    });
+  });
+
+  await page.goto(`/calendar?date=${requestedMarketDate}`);
+
+  await expect.poll(async () => requestHits.reviewDate).toBe(1);
+  await page.waitForLoadState("networkidle");
+  const selectedPanel = page.locator("aside").filter({
+    has: page.getByRole("heading", { name: requestedMarketDate }),
+  });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "unavailable",
+  );
+  const requestedDateCell = page.locator(`[data-calendar-cell="${requestedMarketDate}"]`);
+  await expect(requestedDateCell).not.toContainText("1 decision");
+  await expect(page.getByText("Stale Date Company")).toHaveCount(0);
+  await expect(page.getByText("STALE-DATE-SYMBOL")).toHaveCount(0);
+});
+
+test("signal review calendar ignores running progress reported for a different market date", async ({ page }) => {
+  const selectedDate = "2026-05-08";
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: { [selectedDate]: 1 },
+    progressResponseDateOverrides: { [selectedDate]: "2026-05-07" },
+    runningProgressDates: [selectedDate],
+  });
+
+  await page.goto(`/calendar?date=${selectedDate}`);
+
+  const selectedPanel = page.locator("aside").filter({
+    has: page.getByRole("heading", { name: selectedDate }),
+  });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "completed",
+  );
+  await expect(selectedPanel.locator("[data-selected-date-status]")).not.toHaveText("Run active");
 });
 
 test("signal review calendar clears global loading once stored month data is available during partial fallback", async ({ page }) => {
@@ -3016,11 +3251,15 @@ test("signal review calendar labels unresolved month loading cells as loading in
 
 test("signal review calendar keeps no-date current-month loading cells out of run state", async ({ page }) => {
   const delayedMonthSummary = createDeferred();
+  const delayedSelectedDateFetch = createDeferred();
   try {
     await page.clock.setFixedTime(new Date("2026-06-29T09:00:00+09:00"));
     await page.setViewportSize({ width: 390, height: 844 });
     await mockSignalReviewCalendar(page, {
       calendarSummaryDelay: delayedMonthSummary.promise,
+      feedbackDelays: {
+        "2026-06-29": delayedSelectedDateFetch.promise,
+      },
       forceFreshnessFailure: true,
     });
 
@@ -3046,6 +3285,7 @@ test("signal review calendar keeps no-date current-month loading cells out of ru
     ).toHaveCount(0);
   } finally {
     delayedMonthSummary.resolve();
+    delayedSelectedDateFetch.resolve();
   }
 });
 
@@ -3761,7 +4001,7 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   const selectedDateCell = page.locator('[data-calendar-cell="2026-05-08"]');
   await expectMobileToolbarRouteContextContained(page, {
     subtitle: "2026-05-08",
-    title: "Calendar",
+    title: "Review",
   });
   await expect(selectedDateCell).toBeVisible();
   await expect(selectedDateCell.locator('[data-calendar-cell-label="status"] [data-calendar-label-variant="compact"]')).toBeVisible();
@@ -3769,7 +4009,7 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   await expect(selectedDateCell.locator('[data-calendar-cell-label="action-mix"] [data-calendar-label-variant="compact"]')).toHaveText("W");
 
   const navLabels = page.locator("[data-mobile-nav-label]");
-  await expect(navLabels).toHaveCount(5);
+  await expect(navLabels).toHaveCount(4);
   await expect
     .poll(() =>
       navLabels.evaluateAll((labels) =>
@@ -3786,11 +4026,10 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
       ),
     )
     .toEqual([
-      { lineHeight: expect.any(Number), text: "Dashboard", whiteSpace: "nowrap", wraps: false },
-      { lineHeight: expect.any(Number), text: "Search", whiteSpace: "nowrap", wraps: false },
-      { lineHeight: expect.any(Number), text: "Calendar", whiteSpace: "nowrap", wraps: false },
-      { lineHeight: expect.any(Number), text: "Assets", whiteSpace: "nowrap", wraps: false },
-      { lineHeight: expect.any(Number), text: "My Symbols", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Overview", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Explore", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Review", whiteSpace: "nowrap", wraps: false },
+      { lineHeight: expect.any(Number), text: "Portfolio", whiteSpace: "nowrap", wraps: false },
     ]);
   await expectNarrowMobileLabelsContained(page);
 
@@ -3798,7 +4037,7 @@ test("signal review calendar keeps narrow mobile toolbar, cell, and bottom-nav l
   await expect(page.getByRole("heading", { name: "시그널 리뷰 캘린더" })).toBeVisible();
   await expectMobileToolbarRouteContextContained(page, {
     subtitle: "2026-05-08",
-    title: "캘린더",
+    title: "검토",
   });
   await expect(page.getByRole("button", { name: /English|영어/ })).toBeVisible();
   await expect(selectedDateCell.locator('[data-calendar-cell-label="count"] [data-calendar-label-variant="compact"]')).toHaveText("111");

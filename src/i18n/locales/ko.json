@@ -95,19 +95,19 @@
     "modeValue": "Stitch 새로고침",
     "items": {
       "dashboard": {
-        "label": "대시보드",
+        "label": "개요",
         "description": "핵심 커맨드 화면"
       },
       "search": {
-        "label": "검색",
+        "label": "탐색",
         "description": "종목 및 라우트 조회"
       },
       "portfolio": {
-        "label": "자산",
+        "label": "포트폴리오",
         "description": "계좌 상태와 보유 종목"
       },
       "calendar": {
-        "label": "캘린더",
+        "label": "검토",
         "description": "시그널 의사결정 리플레이"
       },
       "markets": {
@@ -140,10 +140,10 @@
     "primaryNavigation": "기본 내비게이션",
     "releaseVersion": "릴리스 버전",
     "release": "릴리스",
-    "dashboard": "대시보드",
-    "search": "검색",
-    "calendar": "캘린더",
-    "assets": "자산",
+    "dashboard": "개요",
+    "search": "탐색",
+    "calendar": "검토",
+    "assets": "포트폴리오",
     "markets": "마켓",
     "mySymbols": "내 종목"
   },
@@ -376,7 +376,7 @@
         "label": "총자산",
         "detail": "계좌 전체 추정 평가액"
       },
-      "dayPnl": {
+      "weekPnl": {
         "label": "주간 손익",
         "detail": "최근 7일 총자산 변화"
       },
@@ -877,8 +877,8 @@
     "cryptoHeroCopy": "이 경로는 trading-core 또는 exec가 검증된 조회 모델을 제공할 때만 크립토 마켓과 런타임 준비 상태를 보여줍니다. 브라우저에서 Upbit를 직접 호출하지 않고 주문 제어도 노출하지 않습니다.",
     "cryptoOverviewCopy": "기존 KRX/KIS 마켓 흐름을 바꾸지 않고 크립토 마켓과 런타임 준비 상태를 확인합니다.",
     "openCryptoMarkets": "크립토 준비 상태 열기",
-    "backToMarkets": "마켓으로 돌아가기",
-    "openBotsRuntime": "봇 런타임 열기",
+    "backToMarkets": "팩터 탐색으로 돌아가기",
+    "openBotsRuntime": "시스템 개요 열기",
     "cryptoSourceStatus": "크립토 소스 상태",
     "cryptoMarketOverview": "마켓 개요",
     "cryptoStrategyOverview": "전략 개요",

@@ -51,7 +51,7 @@ export type CoreTrackedQuote = {
 
 export type CoreTrackedQuotesResponse = {
   market_state: string;
-  as_of: string;
+  as_of: string | null;
   items: CoreTrackedQuote[];
 };
 
