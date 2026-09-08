@@ -266,7 +266,24 @@ async function mockSystemFreshnessApis(
   });
 }
 
-async function mockSignalDeciderRecommendationEvidence(page: Page) {
+async function mockSignalDeciderRecommendationEvidence(
+  page: Page,
+  {
+    action = "buy",
+    companyName = "현대해상",
+    stopLossPrice = 51800,
+    symbol = "005930",
+    targetPrice = 55200,
+    thesis = "Insurance momentum and valuation support the same-date recommendation.",
+  }: {
+    action?: "buy" | "wait";
+    companyName?: string;
+    stopLossPrice?: number;
+    symbol?: string;
+    targetPrice?: number;
+    thesis?: string;
+  } = {},
+) {
   await page.route("**/api/trading/agent-context/feedback/progress?**", async (route) => {
     await route.fulfill({
       json: {
@@ -318,9 +335,9 @@ async function mockSignalDeciderRecommendationEvidence(page: Page) {
             received_at: `2026-04-10T07:${String(59 - Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}+00:00`,
           })),
           {
-            id: "dashboard-evidence-005930",
+            id: `dashboard-evidence-${symbol}`,
             market_date: marketDate,
-            symbol: "005930",
+            symbol,
             agent: {
               name: "signal-decider",
               run_id: "dashboard-decider-2026-04-10",
@@ -328,15 +345,15 @@ async function mockSignalDeciderRecommendationEvidence(page: Page) {
             summary: {},
             feedback: {
               role: "signal-decider",
-              symbol: "005930",
+              symbol,
               market_date: marketDate,
-              preferred_action: "buy",
-              next_day_open_action: "buy",
-              target_price: 55200,
-              stop_loss_price: 51800,
+              preferred_action: action,
+              next_day_open_action: action,
+              target_price: targetPrice,
+              stop_loss_price: stopLossPrice,
               confidence_score_10: 8,
               conviction_score_10: 7,
-              thesis_summary: "Insurance momentum and valuation support the same-date recommendation.",
+              thesis_summary: thesis,
               decision_risks: ["Opening gap could invalidate the setup"],
               policy_version: "decider-policy-2026.04",
             },
@@ -345,7 +362,7 @@ async function mockSignalDeciderRecommendationEvidence(page: Page) {
             context: {
               symbol_day_context: {
                 company: {
-                  name_ko: "현대해상",
+                  name_ko: companyName,
                 },
               },
             },
@@ -1200,6 +1217,79 @@ test.describe("symbol detail mobile pages", () => {
     { label: "desktop", width: 1280, height: 900 },
     { label: "390x844 mobile", width: 390, height: 844 },
   ]) {
+    test(`same-date execution and Signal Decider disagreements stay explicit through drilldown on ${viewport.label}`, async ({
+      page,
+    }) => {
+      await mockSystemFreshnessApis(page);
+      await mockSignalDeciderRecommendationEvidence(page, {
+        action: "wait",
+        companyName: "Samsung Electronics",
+        stopLossPrice: 51800,
+        targetPrice: 55200,
+        thesis: "Wait for confirmation instead of chasing the next open.",
+      });
+
+      const recommendationQuery = new URLSearchParams({
+        name: "Samsung Electronics",
+        market: "KOSPI",
+        marketDate: "2026-04-10",
+        recommendationSource: "execution-runtime",
+        recommendationSymbol: "005930",
+        recommendationMarketDate: "2026-04-10",
+        executionAction: "planned-buy-today",
+        executionSource: "execution-board",
+        referencePriceKind: "close",
+        stopLossPrice: "54000",
+        targetPrice: "60000",
+        referencePrice: "56000",
+        signalDeciderAction: "wait",
+        signalDeciderMarketDate: "2026-04-10",
+        signalDeciderStopLossPrice: "51000",
+        signalDeciderTargetPrice: "55000",
+      });
+
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(`/dashboard/symbol/005930/action-summary?${recommendationQuery}`);
+
+      const actionConflict = page.getByTestId("dashboard-source-conflict");
+      await expect(actionConflict).toBeVisible();
+      await expect(actionConflict).toContainText("Execution Runtime · Execution board");
+      await expect(actionConflict).toContainText("Planned buy today");
+      await expect(actionConflict).toContainText("Signal Decider");
+      await expect(actionConflict).toContainText("Wait");
+      await expect(actionConflict).toContainText("54,000");
+      await expect(actionConflict).toContainText("60,000");
+      await expect(actionConflict).toContainText("51,000");
+      await expect(actionConflict).toContainText("55,000");
+      await expect(actionConflict).toContainText("Action differs");
+      await expect(actionConflict).toContainText("Stop/target differs");
+
+      await actionConflict.getByRole("link", { name: "Review same-date Signal Decider evidence" }).click();
+
+      const feedbackConflict = page.getByTestId("execution-signal-conflict-context");
+      await expect(feedbackConflict).toBeVisible();
+      await expect(feedbackConflict).toContainText("005930 source conflict");
+      await expect(feedbackConflict).toContainText("Execution Runtime · Execution board");
+      await expect(feedbackConflict).toContainText("Planned buy today");
+      await expect(feedbackConflict).toContainText("Signal Decider");
+      await expect(feedbackConflict).toContainText("Wait");
+      await expect(feedbackConflict).toContainText("54,000");
+      await expect(feedbackConflict).toContainText("60,000");
+      await expect(feedbackConflict).toContainText("51,800");
+      await expect(feedbackConflict).toContainText("55,200");
+      await expect(feedbackConflict).toContainText("Effective date · 2026-04-10");
+      await expect(feedbackConflict).toContainText(
+        "Review both source records and reconcile the action and risk plan before treating either as actionable.",
+      );
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+        .toBeLessThanOrEqual(1);
+
+      if (viewport.width === 390) {
+        await expectMobileContentClearsBottomChrome(page, feedbackConflict);
+      }
+    });
+
     test(`dashboard recommendation fallback retrieves same-date evidence beyond the 200-row cap on ${viewport.label}`, async ({
       page,
     }) => {
@@ -1216,7 +1306,11 @@ test.describe("symbol detail mobile pages", () => {
         name: "현대해상",
         market: "KOSPI",
         marketDate: "2026-04-10",
-        recommendationSource: "dashboard-decider",
+        recommendationSource: "execution-runtime",
+        recommendationSymbol: "005930",
+        recommendationMarketDate: "2026-04-10",
+        executionAction: "buy-monitoring",
+        executionSource: "monitored-symbols",
         referencePriceKind: "current",
         stopLossPrice: "51800",
         targetPrice: "55200",
@@ -1226,28 +1320,29 @@ test.describe("symbol detail mobile pages", () => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto(`/dashboard/symbol/005930/action-summary?${recommendationQuery}`);
 
-      const context = page.getByRole("region", { name: /현대해상 · Selected recommendation context/i });
+      const context = page.getByRole("region", { name: /현대해상 · Selected execution plan/i });
       const actionSection = page.locator("#action");
       await expect(page.getByRole("heading", { name: "현대해상", exact: true })).toBeVisible();
       await expect(context).toBeVisible();
-      await expect(context).toContainText("Dashboard Decider");
-      await expect(context).toContainText("Market date 2026-04-10");
+      await expect(context).toContainText("Execution Runtime · Monitored symbols");
+      await expect(context).toContainText("Buy monitoring");
+      await expect(context).toContainText("Effective date 2026-04-10");
       await expect(context).toContainText("51,800");
       await expect(context).toContainText("55,200");
       await expect(context).toContainText("52,400");
       await expect(actionSection).toHaveAttribute("data-action-state", "unavailable");
 
       const evidenceLink = actionSection.getByRole("link", {
-        name: /Action-summary rationale unavailable · Review same-date signal-decider evidence/i,
+        name: /Action-summary evidence unavailable · Review same-date Signal Decider evidence/i,
       });
       await expect(evidenceLink).toHaveAttribute(
         "href",
-        "/dashboard/signal-decider-feedback?marketDate=2026-04-10&q=005930&symbols=005930",
+        "/dashboard/signal-decider-feedback?marketDate=2026-04-10&q=005930&symbols=005930&recommendationSource=execution-runtime&referencePriceKind=current&recommendationSymbol=005930&recommendationMarketDate=2026-04-10&executionAction=buy-monitoring&executionSource=monitored-symbols&stopLossPrice=51800&targetPrice=55200&referencePrice=52400",
       );
       await evidenceLink.click();
 
       await expect(page).toHaveURL(
-        /\/dashboard\/signal-decider-feedback\?marketDate=2026-04-10&q=005930&symbols=005930$/,
+        /\/dashboard\/signal-decider-feedback\?marketDate=2026-04-10&q=005930&symbols=005930&recommendationSource=execution-runtime/,
       );
       const evidenceCard = page.getByTestId("signal-decider-result-card");
       await expect(evidenceCard).toHaveCount(1);

@@ -90,6 +90,72 @@
   background: rgba(0, 82, 255, 0.18);
 }
 
+.sourceConflictContext {
+  min-width: 0;
+  display: grid;
+  gap: 0.82rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(227, 176, 74, 0.36);
+  border-radius: 0.5rem;
+  background: rgba(50, 37, 12, 0.3);
+}
+
+.sourceConflictContextHeader {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.72rem;
+}
+
+.sourceConflictContextHeader h2 {
+  margin: 0.3rem 0 0;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.sourceConflictContext > p,
+.sourceConflictComparison p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.sourceConflictComparison {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.72rem;
+}
+
+.sourceConflictComparison p {
+  margin-top: 0.32rem;
+  color: var(--muted);
+}
+
+.sourceConflictFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem 0.82rem;
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.sourceConflictGuidance {
+  padding-top: 0.72rem;
+  border-top: 1px solid rgba(227, 176, 74, 0.24);
+  color: var(--warning) !important;
+  font-weight: 800;
+}
+
 .panel {
   display: flex;
   flex-direction: column;

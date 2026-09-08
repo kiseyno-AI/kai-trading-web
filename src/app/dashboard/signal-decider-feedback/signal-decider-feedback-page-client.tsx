@@ -26,6 +26,10 @@ import {
 } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
 import {
+  getDashboardDecisionConflict,
+  readDashboardRecommendationContext,
+} from "@/lib/dashboard-recommendation-context";
+import {
   buildDeciderDataGapCategorySummaries,
   buildDeciderFeedbackComparisons,
   buildDeciderFeedbackHref,
@@ -1013,6 +1017,10 @@ export default function SignalDeciderFeedbackPageClient() {
   const comparisonAgent = useMemo(() => getOppositeDeciderAgentName(activeAgent), [activeAgent]);
   const isShortTermAgent = activeAgent === SHORT_TERM_DECIDER_AGENT_NAME;
   const requestedMarketDate = useMemo(() => searchParams.get("marketDate"), [searchParams]);
+  const dashboardRecommendation = useMemo(
+    () => readDashboardRecommendationContext(searchParams),
+    [searchParams],
+  );
   const requestedFeedbackQuery = useMemo(() => searchParams.get(SYMBOL_DETAIL_SEARCH_QUERY_PARAM) ?? "", [searchParams]);
   const requestedFeedbackSymbols = useMemo(
     () => normalizeDeciderFeedbackSymbols(searchParams.getAll(DECIDER_FEEDBACK_SYMBOLS_PARAM)),
@@ -1512,6 +1520,7 @@ export default function SignalDeciderFeedbackPageClient() {
   const summaryCopy = copy.summary;
   const labelsCopy = copy.labels;
   const actionCopy = copy.actions;
+  const executionConflictCopy = copy.executionConflict;
   const statusCopy = copy.status;
   const sortCopy = copy.sortOptions;
   const filtersCopy = copy.filters;
@@ -1520,6 +1529,38 @@ export default function SignalDeciderFeedbackPageClient() {
   const evaluationCopy = copy.evaluation;
   const countCopy = copy.counts;
   const dataGapCopy = copy.dataGaps;
+  const dashboardSourceConflict = useMemo(() => {
+    if (!dashboardRecommendation || activeAgent !== SIGNAL_DECIDER_AGENT_NAME) return null;
+    if (dashboardRecommendation.marketDate !== displayedMarketDate) return null;
+    const symbol = dashboardRecommendation.symbol;
+    if (!symbol || !requestedFeedbackSymbols.includes(symbol)) return null;
+
+    const currentSignalEvidence = summary.items.find(
+      (item) => item.symbol === symbol && item.marketDate === dashboardRecommendation.marketDate,
+    );
+    if (!currentSignalEvidence) return null;
+
+    const context = {
+      ...dashboardRecommendation,
+      signalDeciderEvidence: {
+        action: currentSignalEvidence.action,
+        marketDate: currentSignalEvidence.marketDate,
+        stopLossPrice: currentSignalEvidence.stopLossPrice,
+        targetPrice: currentSignalEvidence.targetPrice,
+      },
+    };
+    const conflict = getDashboardDecisionConflict(context);
+    return conflict ? { conflict, context } : null;
+  }, [activeAgent, dashboardRecommendation, displayedMarketDate, requestedFeedbackSymbols, summary.items]);
+  const dashboardExecutionActionLabel = dashboardSourceConflict?.context.executionAction
+    ? executionConflictCopy.executionActions[dashboardSourceConflict.context.executionAction]
+    : executionConflictCopy.unavailable;
+  const dashboardExecutionSourceLabel = dashboardSourceConflict?.context.executionSource
+    ? executionConflictCopy.executionSources[dashboardSourceConflict.context.executionSource]
+    : executionConflictCopy.executionRuntime;
+  const dashboardSignalActionLabel = dashboardSourceConflict
+    ? getLocalizedActionLabel(dashboardSourceConflict.context.signalDeciderEvidence.action, actionCopy)
+    : executionConflictCopy.unavailable;
   const feedbackLoadingMessage = formatDeciderAgentCopy(summaryCopy.loading, activeAgentLabel);
   const feedbackErrorMessage = formatDeciderAgentCopy(summaryCopy.error, activeAgentLabel);
   const feedbackUnavailableMessage = formatDeciderAgentCopy(copy.errors.feedbackUnavailable, activeAgentLabel);
@@ -2312,6 +2353,66 @@ export default function SignalDeciderFeedbackPageClient() {
             </nav>
           ) : null}
         </section>
+
+        {dashboardSourceConflict ? (
+          <section
+            className={styles.sourceConflictContext}
+            aria-labelledby="execution-signal-conflict-title"
+            data-testid="execution-signal-conflict-context"
+          >
+            <header className={styles.sourceConflictContextHeader}>
+              <div>
+                <p className={styles.eyebrow}>{executionConflictCopy.eyebrow}</p>
+                <h2 id="execution-signal-conflict-title">
+                  {executionConflictCopy.title.replace(
+                    "{symbol}",
+                    dashboardSourceConflict.context.symbol ?? executionConflictCopy.unknownSymbol,
+                  )}
+                </h2>
+              </div>
+              <span className="pill warning">{executionConflictCopy.badge}</span>
+            </header>
+            <p>{executionConflictCopy.description}</p>
+            <div className={styles.sourceConflictComparison}>
+              <article className={styles.summaryCard}>
+                <span>{dashboardExecutionSourceLabel}</span>
+                <strong>{dashboardExecutionActionLabel}</strong>
+                <p>
+                  {executionConflictCopy.stopLoss}{" "}
+                  {formatPrice(dashboardSourceConflict.context.stopLossPrice, executionConflictCopy.unavailable)} ·{" "}
+                  {executionConflictCopy.target}{" "}
+                  {formatPrice(dashboardSourceConflict.context.targetPrice, executionConflictCopy.unavailable)}
+                </p>
+              </article>
+              <article className={styles.summaryCard}>
+                <span>{executionConflictCopy.signalDecider}</span>
+                <strong>{dashboardSignalActionLabel}</strong>
+                <p>
+                  {executionConflictCopy.stopLoss}{" "}
+                  {formatPrice(
+                    dashboardSourceConflict.context.signalDeciderEvidence.stopLossPrice,
+                    executionConflictCopy.unavailable,
+                  )}{" "}
+                  · {executionConflictCopy.target}{" "}
+                  {formatPrice(
+                    dashboardSourceConflict.context.signalDeciderEvidence.targetPrice,
+                    executionConflictCopy.unavailable,
+                  )}
+                </p>
+              </article>
+            </div>
+            <div className={styles.sourceConflictFacts}>
+              <span>
+                {executionConflictCopy.source} · {dashboardExecutionSourceLabel} /{" "}
+                {executionConflictCopy.signalDecider}
+              </span>
+              <span>
+                {executionConflictCopy.effectiveDate} · {dashboardSourceConflict.context.marketDate}
+              </span>
+            </div>
+            <p className={styles.sourceConflictGuidance}>{executionConflictCopy.guidance}</p>
+          </section>
+        ) : null}
 
         <section className={styles.panel}>
           <nav className={styles.agentTabs} aria-label={copy.tabs.label}>

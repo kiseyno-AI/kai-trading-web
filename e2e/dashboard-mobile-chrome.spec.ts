@@ -555,7 +555,7 @@ test.describe("dashboard mobile chrome", () => {
     expect(releaseBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height - 1);
 
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Execution plans/i })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Overview", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Explore", exact: true })).toBeVisible();
     await expect(bottomNav.getByRole("link", { name: "Review", exact: true })).toBeVisible();
@@ -571,7 +571,7 @@ test.describe("dashboard mobile chrome", () => {
     const routeContent = page.locator("[data-app-chrome-root] main > div").first();
     const processTrigger = page.locator('button[data-process-monitor-status][class*="processMonitorMobileBar"]');
     await expect(processTrigger).toBeVisible();
-    await expect(routeContent.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(routeContent.getByRole("heading", { name: /Execution plans/i })).toBeVisible();
 
     await expectMobileContentClearsBottomChrome(page, routeContent);
     await expectMobileContentClearsBottomChrome(page, processTrigger);
@@ -721,7 +721,7 @@ test.describe("dashboard mobile chrome", () => {
     await page.goto("/dashboard");
 
     const deciderCard = page.locator("article").filter({
-      has: page.getByRole("heading", { name: /Decider recommendations/i }),
+      has: page.getByRole("heading", { name: /Execution plans/i }),
     });
     const compactPriceLine = deciderCard.getByText("Stop 174,000 · Target 184,000 · Now —", { exact: true });
     await expect(compactPriceLine).toBeVisible();

@@ -8,6 +8,7 @@ import type {
   ExecutionRuntimeStatusResponseDto,
 } from "@/types/trading-api/execution-runtime";
 import type { PortfolioSummaryDto } from "@/types/trading-api/portfolio-account";
+import type { SignalDeciderFeedbackItem } from "@/lib/signal-decider-feedback";
 
 import {
   buildDashboardDeciderOverviewModel,
@@ -95,7 +96,7 @@ test("builds market-open decider rows from monitored symbols without per-symbol 
   assert.equal(model.rows[0].compactPriceLine, "Stop 70,000 · Target 76,000 · Now 71,500");
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22&recommendationSource=dashboard-decider&referencePriceKind=current&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22&recommendationSource=execution-runtime&referencePriceKind=current&recommendationSymbol=005930&recommendationMarketDate=2026-05-22&executionAction=buy-monitoring&executionSource=monitored-symbols&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
   );
 });
 
@@ -237,7 +238,7 @@ test("shows planned buy and sell rows when closed-market process is partial with
   assert.equal(model.rows[1].intentLabel, "Planned sell today");
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22&recommendationSource=dashboard-decider&referencePriceKind=close&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KRX&marketDate=2026-05-22&recommendationSource=execution-runtime&referencePriceKind=close&recommendationSymbol=005930&recommendationMarketDate=2026-05-22&executionAction=planned-buy-today&executionSource=execution-board&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
   );
   assert.equal(
     model.contextLabel,
@@ -245,6 +246,65 @@ test("shows planned buy and sell rows when closed-market process is partial with
   );
   assert.doesNotMatch(model.contextLabel, /Live daily-process stage reported:/);
   assert.doesNotMatch([model.statusLabel, model.emptyLabel, model.contextLabel].filter(Boolean).join("\n"), /running|진행 중/i);
+});
+
+test("marks a same-date execution buy and Signal Decider wait with different risk prices as a source conflict", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: {
+      market_date: "2026-09-08",
+      items: [
+        {
+          symbol: "000720",
+          name: "Hyundai E&C",
+          market: "KOSPI",
+          status: "planned",
+          intent: "buy",
+          stop_loss_price: 131000,
+          target_price: 145000,
+          market_close_price: 133000,
+        },
+      ],
+    },
+    copy,
+    market: {
+      is_open: false,
+      server_time: "2026-09-08T07:30:00+09:00",
+      state: "PREOPEN",
+    },
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "partial",
+    signalDeciderItems: [
+      {
+        symbol: "000720",
+        marketDate: "2026-09-08",
+        action: "wait",
+        stopLossPrice: 123000,
+        targetPrice: 135900,
+      } as SignalDeciderFeedbackItem,
+    ],
+    tracked: null,
+  });
+
+  assert.equal(model.rows.length, 1);
+  assert.equal(model.rows[0].sourceLabel, "Execution Runtime · Execution board");
+  assert.equal(model.rows[0].intentLabel, "Planned buy today");
+  assert.equal(model.rows[0].hasSourceConflict, true);
+  assert.equal(
+    model.rows[0].conflictLabel,
+    "Same-date Signal Decider: Wait. Review both sources before acting.",
+  );
+
+  const detailUrl = new URL(model.rows[0].detailHref, "https://example.test");
+  assert.equal(detailUrl.searchParams.get("recommendationSource"), "execution-runtime");
+  assert.equal(detailUrl.searchParams.get("recommendationMarketDate"), "2026-09-08");
+  assert.equal(detailUrl.searchParams.get("executionAction"), "planned-buy-today");
+  assert.equal(detailUrl.searchParams.get("executionSource"), "execution-board");
+  assert.equal(detailUrl.searchParams.get("stopLossPrice"), "131000");
+  assert.equal(detailUrl.searchParams.get("signalDeciderAction"), "wait");
+  assert.equal(detailUrl.searchParams.get("signalDeciderStopLossPrice"), "123000");
+  assert.equal(detailUrl.searchParams.get("signalDeciderTargetPrice"), "135900");
 });
 
 test("reports the available live stage beside planned rows when the daily process is partial", () => {
@@ -421,7 +481,7 @@ test("builds closed-market next-day exec rows with close prices when the daily p
   );
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21&recommendationSource=dashboard-decider&referencePriceKind=close&stopLossPrice=174000&targetPrice=184000&referencePrice=179500",
+    "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21&recommendationSource=execution-runtime&referencePriceKind=close&recommendationSymbol=000660&recommendationMarketDate=2026-05-21&executionAction=planned-buy-next&executionSource=execution-board&stopLossPrice=174000&targetPrice=184000&referencePrice=179500",
   );
 });
 
@@ -462,7 +522,7 @@ test("routes decider More link to visible recommendation source date", () => {
   assert.equal(model.detailMarketDate, "2026-07-16");
   assert.equal(
     model.rows[0].detailHref,
-    "/dashboard/symbol/004080/action-summary?name=Kyungbang&market=KRX&marketDate=2026-07-16&recommendationSource=dashboard-decider&referencePriceKind=close&stopLossPrice=8700&targetPrice=9500&referencePrice=9100",
+    "/dashboard/symbol/004080/action-summary?name=Kyungbang&market=KRX&marketDate=2026-07-16&recommendationSource=execution-runtime&referencePriceKind=close&recommendationSymbol=004080&recommendationMarketDate=2026-07-16&executionAction=planned-buy-next&executionSource=execution-board&stopLossPrice=8700&targetPrice=9500&referencePrice=9100",
   );
   assert.equal(
     buildDashboardDeciderMoreHref({

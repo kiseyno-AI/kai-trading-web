@@ -187,7 +187,7 @@ test.describe("dashboard desktop", () => {
     await expect(page.getByLabel("Current screen")).toContainText(/Trading Command Surface|트레이딩 커맨드 서피스/);
     await expect(page.getByLabel("Market status")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Execution plans/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
     const marketCard = getPrimaryInsightCard(page, /Market condition/i);
     await expect(marketCard).toHaveAttribute("data-market-snapshot-status", "ready");
@@ -217,12 +217,12 @@ test.describe("dashboard desktop", () => {
 
     await expect(page.getByText(/Insight cockpit/i)).toHaveCount(0);
     await expect(page.locator('#dashboard-freshness [class*="supportingCopy"]')).toHaveCount(0);
-    const deciderCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });
+    const deciderCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Execution plans/i }) });
     await expect(deciderCard).toHaveCount(1);
     await expect(deciderCard.getByText("Samsung Electronics", { exact: true })).toBeVisible();
-    await expect(deciderCard.getByRole("link", { name: /Review rationale: Samsung Electronics 005930/i })).toHaveAttribute(
+    await expect(deciderCard.getByRole("link", { name: /Review sources: Samsung Electronics 005930/i })).toHaveAttribute(
       "href",
-      "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-28&recommendationSource=dashboard-decider&referencePriceKind=current&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
+      "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-28&recommendationSource=execution-runtime&referencePriceKind=current&recommendationSymbol=005930&recommendationMarketDate=2026-04-28&executionAction=buy-monitoring&executionSource=monitored-symbols&stopLossPrice=70000&targetPrice=76000&referencePrice=71500",
     );
     const recommendationPrices = deciderCard.locator('[class*="overviewValueGrid"]');
     await expect(recommendationPrices).toContainText(/Stop-loss\s*70,000/);
@@ -266,7 +266,7 @@ test.describe("dashboard desktop", () => {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.goto("/dashboard");
 
-    const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
+    const signalCard = getPrimaryInsightCard(page, /Execution plans/i);
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
     const marketCard = getPrimaryInsightCard(page, /Market condition/i);
 
@@ -294,7 +294,7 @@ test.describe("dashboard desktop", () => {
     await page.setViewportSize({ width: 1120, height: 1100 });
     await page.goto("/dashboard");
 
-    const signalCard = getPrimaryInsightCard(page, /Decider recommendations/i);
+    const signalCard = getPrimaryInsightCard(page, /Execution plans/i);
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
     const marketCard = getPrimaryInsightCard(page, /Market condition/i);
 

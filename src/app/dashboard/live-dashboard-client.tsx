@@ -759,10 +759,11 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
     <article
       className={`${styles.integrityStat} ${styles.primaryInsightCard} ${styles.signalDeciderCard}`}
       data-decider-overview-mode={model.mode}
+      data-source-conflicts={model.rows.filter((row) => row.hasSourceConflict).length}
       data-signal-decider-status={feedbackStatus}
     >
       <ComponentTag
-        label="dashboard.decider-recommendations"
+        label="dashboard.execution-plans"
         api="/api/trading/execution/runtime/monitored-symbols + /api/trading/execution/runtime/daily-board + /api/trading/quotes/tracked"
       />
 
@@ -789,14 +790,31 @@ const DeciderRecommendationCard = memo(function DeciderRecommendationCard({
                 <Link
                   href={row.detailHref}
                   className={styles.overviewSymbolRow}
-                  aria-label={`${copy.dashboardOverview.reviewRationale}: ${row.nameLabel} ${row.symbol}`}
+                  aria-label={`${
+                    row.hasSourceConflict
+                      ? copy.dashboardOverview.sourceConflict
+                      : copy.dashboardOverview.reviewRationale
+                  }: ${row.nameLabel} ${row.symbol}`}
+                  data-source-conflict={row.hasSourceConflict ? "true" : "false"}
                 >
                   <div className={styles.overviewSymbolIdentity}>
                     <strong>{row.nameLabel}</strong>
                     <span>
                       {[row.symbol, row.marketLabel, row.intentLabel].filter(Boolean).join(" · ")}
                     </span>
+                    <span>
+                      {copy.dashboardOverview.sourceLabel} · {row.sourceLabel}
+                      {row.marketDate
+                        ? ` · ${copy.dashboardOverview.effectiveDateLabel} · ${row.marketDate}`
+                        : ""}
+                    </span>
                   </div>
+                  {row.hasSourceConflict && row.conflictLabel ? (
+                    <div className={styles.sourceConflictNote} role="note">
+                      <strong>{copy.dashboardOverview.sourceConflict}</strong>
+                      <span>{row.conflictLabel}</span>
+                    </div>
+                  ) : null}
                   {row.compactPriceLine ? (
                     <p className={styles.overviewCompactPriceLine} title={row.compactPriceLine}>
                       {row.compactPriceLine}
@@ -2397,6 +2415,7 @@ export function LiveDashboardClient({
           label: liveProcessMonitorStage?.label ?? null,
         },
         processStatus: deciderProcessStatus,
+        signalDeciderItems: signalDeciderFeedbackModel.items,
         tracked,
         trackedError,
       }),
@@ -2411,6 +2430,7 @@ export function LiveDashboardClient({
       deciderProcessStatus,
       liveProcessMonitorStage?.label,
       processMonitorModel.pipelineAvailability.status,
+      signalDeciderFeedbackModel.items,
       tracked,
       trackedError,
     ],

@@ -236,7 +236,7 @@ test.describe("dashboard incremental lists", () => {
 
     await page.goto("/dashboard");
 
-    const deciderCard = getPrimaryInsightCard(page, /Decider recommendations/i);
+    const deciderCard = getPrimaryInsightCard(page, /Execution plans/i);
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
 
     await expect(deciderCard.getByTestId("dashboard-decider-row")).toHaveCount(5);
@@ -329,7 +329,7 @@ test.describe("dashboard incremental lists", () => {
 
     await page.goto("/dashboard");
 
-    const deciderCard = getPrimaryInsightCard(page, /Decider recommendations/i);
+    const deciderCard = getPrimaryInsightCard(page, /Execution plans/i);
     const portfolioCard = getPrimaryInsightCard(page, /Portfolio status/i);
 
     await expect(deciderCard.getByText("Monitoring list is updating.", { exact: true })).toBeVisible();

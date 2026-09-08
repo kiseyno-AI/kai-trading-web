@@ -194,7 +194,7 @@ test.describe("smoke", () => {
   test("bots alias resolves to the canonical dashboard", async ({ page }) => {
     await page.goto("/bots");
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Execution plans/i })).toBeVisible();
   });
 
   test("dashboard renders success or upstream-missing state", async ({ page }) => {
@@ -204,7 +204,7 @@ test.describe("smoke", () => {
       /Trading Command Surface|트레이딩 커맨드 서피스/,
     );
     await expect(page.getByRole("heading", { name: /Decider, portfolio, and market state/i })).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Execution plans/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Portfolio status/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Market condition/i })).toBeVisible();
     await expect(page.getByText(/Sovereign Desk/i)).toHaveCount(0);
@@ -662,6 +662,6 @@ test.describe("smoke", () => {
   test("kis dashboard alias resolves to the canonical dashboard", async ({ page }) => {
     await page.goto("/kis-dashboard");
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Execution plans/i })).toBeVisible();
   });
 });
