@@ -248,15 +248,15 @@ test("shows planned buy and sell rows when closed-market process is partial with
   assert.doesNotMatch([model.statusLabel, model.emptyLabel, model.contextLabel].filter(Boolean).join("\n"), /running|진행 중/i);
 });
 
-test("marks a same-date execution buy and Signal Decider wait with different risk prices as a source conflict", () => {
+test("matches case- and whitespace-mismatched symbols before marking an execution/Signal Decider conflict", () => {
   const model = buildDashboardDeciderOverviewModel({
     board: {
       market_date: "2026-09-08",
       items: [
         {
-          symbol: "000720",
-          name: "Hyundai E&C",
-          market: "KOSPI",
+          symbol: "aapl",
+          name: "Apple",
+          market: "NASDAQ",
           status: "planned",
           intent: "buy",
           stop_loss_price: 131000,
@@ -277,7 +277,7 @@ test("marks a same-date execution buy and Signal Decider wait with different ris
     processStatus: "partial",
     signalDeciderItems: [
       {
-        symbol: "000720",
+        symbol: " AAPL ",
         marketDate: "2026-09-08",
         action: "wait",
         stopLossPrice: 123000,
@@ -301,6 +301,7 @@ test("marks a same-date execution buy and Signal Decider wait with different ris
   assert.equal(detailUrl.searchParams.get("recommendationMarketDate"), "2026-09-08");
   assert.equal(detailUrl.searchParams.get("executionAction"), "planned-buy-today");
   assert.equal(detailUrl.searchParams.get("executionSource"), "execution-board");
+  assert.equal(detailUrl.searchParams.get("recommendationSymbol"), "aapl");
   assert.equal(detailUrl.searchParams.get("stopLossPrice"), "131000");
   assert.equal(detailUrl.searchParams.get("signalDeciderAction"), "wait");
   assert.equal(detailUrl.searchParams.get("signalDeciderStopLossPrice"), "123000");

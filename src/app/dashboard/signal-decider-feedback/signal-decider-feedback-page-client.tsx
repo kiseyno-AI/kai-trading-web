@@ -49,6 +49,7 @@ import {
   filterDeciderDataGapRecords,
   getDeciderFeedbackComparisonKey,
   getOppositeDeciderAgentName,
+  normalizeDeciderFeedbackSymbol,
   normalizeDeciderFeedbackSymbols,
   resolveDeciderFeedbackNavContext,
   resolveDeciderFeedbackOriginDate,
@@ -1533,10 +1534,13 @@ export default function SignalDeciderFeedbackPageClient() {
     if (!dashboardRecommendation || activeAgent !== SIGNAL_DECIDER_AGENT_NAME) return null;
     if (dashboardRecommendation.marketDate !== displayedMarketDate) return null;
     const symbol = dashboardRecommendation.symbol;
-    if (!symbol || !requestedFeedbackSymbols.includes(symbol)) return null;
+    const normalizedSymbol = normalizeDeciderFeedbackSymbol(symbol);
+    if (!normalizedSymbol || !requestedFeedbackSymbols.includes(normalizedSymbol)) return null;
 
     const currentSignalEvidence = summary.items.find(
-      (item) => item.symbol === symbol && item.marketDate === dashboardRecommendation.marketDate,
+      (item) =>
+        normalizeDeciderFeedbackSymbol(item.symbol) === normalizedSymbol &&
+        item.marketDate === dashboardRecommendation.marketDate,
     );
     if (!currentSignalEvidence) return null;
 

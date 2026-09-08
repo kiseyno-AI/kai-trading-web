@@ -21,6 +21,7 @@ import {
 } from "@/features/portfolio/portfolio-display";
 import {
   buildSignalDeciderFeedbackHref,
+  normalizeDeciderFeedbackSymbol,
   type SignalDeciderFeedbackItem,
 } from "@/lib/signal-decider-feedback";
 import {
@@ -275,8 +276,13 @@ function buildExecutionPlanContext({
   symbol: string;
   targetPrice: ExecutionRuntimeQuantity | undefined;
 }): DashboardRecommendationContext {
-  const signalEvidence = marketDate
-    ? signalDeciderItems.find((item) => item.symbol === symbol && item.marketDate === marketDate) ?? null
+  const normalizedSymbol = normalizeDeciderFeedbackSymbol(symbol);
+  const signalEvidence = marketDate && normalizedSymbol
+    ? signalDeciderItems.find(
+        (item) =>
+          normalizeDeciderFeedbackSymbol(item.symbol) === normalizedSymbol &&
+          item.marketDate === marketDate,
+      ) ?? null
     : null;
 
   return {
