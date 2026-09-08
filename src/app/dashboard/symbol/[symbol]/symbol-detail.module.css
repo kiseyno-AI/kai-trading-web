@@ -348,6 +348,49 @@
   margin-top: 0.75rem;
 }
 
+.sourceConflictPanel {
+  display: grid;
+  gap: 0.72rem;
+  margin-top: 0.95rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(245, 184, 75, 0.34);
+  border-radius: var(--radius-lg);
+  background: rgba(50, 37, 12, 0.32);
+}
+
+.sourceConflictHeader {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.sourceConflictTitle {
+  margin: 0.22rem 0 0;
+  color: var(--text-strong);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.sourceConflictPanel .supportingCopy {
+  margin: 0;
+}
+
+.sourceConflictComparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.65rem;
+}
+
+.sourceConflictReasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
 .errorList {
   display: flex;
   flex-direction: column;

@@ -61,8 +61,8 @@ test.describe("dashboard mobile hero", () => {
     expect(heroBox!.x).toBeGreaterThanOrEqual(0);
     await expect(hero.getByText(/Insight cockpit/i)).toHaveCount(0);
     await expect(hero.locator('[class*="supportingCopy"]')).toHaveCount(0);
-    await expect(hero.getByRole("heading", { name: /Decider recommendations/i })).toBeVisible();
-    const deciderCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Decider recommendations/i }) });
+    await expect(hero.getByRole("heading", { name: /Execution plans/i })).toBeVisible();
+    const deciderCard = hero.locator("article").filter({ has: page.getByRole("heading", { name: /Execution plans/i }) });
     await expect(deciderCard).toHaveCount(1);
     await expect(deciderCard.getByText("Results", { exact: true })).toHaveCount(0);
     await expect(deciderCard.getByText("Market date", { exact: true })).toHaveCount(0);

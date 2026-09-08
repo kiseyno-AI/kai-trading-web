@@ -19,9 +19,18 @@ import {
   getPortfolioHoldings,
   type PortfolioSummaryState,
 } from "@/features/portfolio/portfolio-display";
-import { buildSignalDeciderFeedbackHref } from "@/lib/signal-decider-feedback";
 import {
+  buildSignalDeciderFeedbackHref,
+  normalizeDeciderFeedbackSymbol,
+  type SignalDeciderFeedbackItem,
+} from "@/lib/signal-decider-feedback";
+import {
+  DASHBOARD_RECOMMENDATION_SOURCE,
   appendDashboardRecommendationContext,
+  getDashboardDecisionConflict,
+  type DashboardExecutionAction,
+  type DashboardExecutionSource,
+  type DashboardRecommendationContext,
   type DashboardRecommendationReferencePriceKind,
 } from "@/lib/dashboard-recommendation-context";
 import type {
@@ -51,13 +60,16 @@ export type DashboardOverviewPriceItem = {
 
 export type DashboardDeciderRow = {
   compactPriceLine?: string;
+  conflictLabel: string | null;
   detailHref: string;
+  hasSourceConflict: boolean;
   intentLabel?: string | null;
   key: string;
   marketDate: string | null;
   marketLabel: string | null;
   nameLabel: string;
   prices: DashboardOverviewPriceItem[];
+  sourceLabel: string;
   symbol: string;
 };
 
@@ -213,29 +225,19 @@ function formatCompactPriceLine(prices: DashboardOverviewPriceItem[]) {
 }
 
 function buildRecommendationDetailHref({
-  marketDate,
   marketLabel,
   nameLabel,
-  referencePrice,
-  referencePriceKind,
-  stopLossPrice,
-  symbol,
-  targetPrice,
+  context,
 }: {
-  marketDate: string | null;
   marketLabel: string | null;
   nameLabel: string;
-  referencePrice: ExecutionRuntimeQuantity | undefined;
-  referencePriceKind: DashboardRecommendationReferencePriceKind;
-  stopLossPrice: ExecutionRuntimeQuantity | undefined;
-  symbol: string;
-  targetPrice: ExecutionRuntimeQuantity | undefined;
+  context: DashboardRecommendationContext;
 }) {
   const params = new URLSearchParams();
   const forwardableName = textOrNull(nameLabel);
   const forwardableMarket = textOrNull(marketLabel);
 
-  if (forwardableName && forwardableName !== symbol) {
+  if (forwardableName && forwardableName !== context.symbol) {
     params.set("name", forwardableName);
   }
 
@@ -243,19 +245,72 @@ function buildRecommendationDetailHref({
     params.set("market", forwardableMarket);
   }
 
-  if (marketDate) {
-    params.set("marketDate", marketDate);
+  if (context.marketDate) {
+    params.set("marketDate", context.marketDate);
   }
 
-  appendDashboardRecommendationContext(params, {
-    referencePrice: quantityToNumber(referencePrice),
-    referencePriceKind,
-    stopLossPrice: quantityToNumber(stopLossPrice),
-    targetPrice: quantityToNumber(targetPrice),
-  });
+  appendDashboardRecommendationContext(params, context);
 
   const query = params.toString();
-  return `/dashboard/symbol/${encodeURIComponent(symbol)}/action-summary${query ? `?${query}` : ""}`;
+  return `/dashboard/symbol/${encodeURIComponent(context.symbol ?? "")}/action-summary${query ? `?${query}` : ""}`;
+}
+
+function buildExecutionPlanContext({
+  executionAction,
+  executionSource,
+  marketDate,
+  referencePrice,
+  referencePriceKind,
+  signalDeciderItems,
+  stopLossPrice,
+  symbol,
+  targetPrice,
+}: {
+  executionAction: DashboardExecutionAction;
+  executionSource: DashboardExecutionSource;
+  marketDate: string | null;
+  referencePrice: ExecutionRuntimeQuantity | undefined;
+  referencePriceKind: DashboardRecommendationReferencePriceKind;
+  signalDeciderItems: readonly SignalDeciderFeedbackItem[];
+  stopLossPrice: ExecutionRuntimeQuantity | undefined;
+  symbol: string;
+  targetPrice: ExecutionRuntimeQuantity | undefined;
+}): DashboardRecommendationContext {
+  const normalizedSymbol = normalizeDeciderFeedbackSymbol(symbol);
+  const signalEvidence = marketDate && normalizedSymbol
+    ? signalDeciderItems.find(
+        (item) =>
+          normalizeDeciderFeedbackSymbol(item.symbol) === normalizedSymbol &&
+          item.marketDate === marketDate,
+      ) ?? null
+    : null;
+
+  return {
+    executionAction,
+    executionSource,
+    marketDate,
+    referencePrice: quantityToNumber(referencePrice),
+    referencePriceKind,
+    signalDeciderEvidence: signalEvidence
+      ? {
+          action: signalEvidence.action,
+          marketDate: signalEvidence.marketDate,
+          stopLossPrice: signalEvidence.stopLossPrice,
+          targetPrice: signalEvidence.targetPrice,
+        }
+      : null,
+    source: DASHBOARD_RECOMMENDATION_SOURCE,
+    stopLossPrice: quantityToNumber(stopLossPrice),
+    symbol,
+    targetPrice: quantityToNumber(targetPrice),
+  };
+}
+
+function getSignalDeciderActionLabel(
+  action: SignalDeciderFeedbackItem["action"],
+  copy: DashboardOverviewCopy,
+) {
+  return copy.signalDeciderActionLabels[action];
 }
 
 function getRowsDetailMarketDate(rows: readonly DashboardDeciderRow[]) {
@@ -397,7 +452,7 @@ function isNextDayExecutionCandidate(item: ExecutionRuntimeBoardItemDto, boardMa
   return NEXT_DAY_STATUSES.has(normalizeToken(item.status));
 }
 
-function getPlannedTradeSide(item: ExecutionRuntimeBoardItemDto) {
+function getPlannedTradeSide(item: Record<string, unknown>) {
   if (hasAnyIntent(item, PLANNED_BUY_INTENTS)) return "buy";
   if (hasAnyIntent(item, PLANNED_SELL_INTENTS)) return "sell";
   return null;
@@ -419,19 +474,33 @@ function isTodayPlannedTrade(
   return !boardMarketDate || boardMarketDate === currentMarketDate;
 }
 
-function getPlannedTradeIntentLabel(
+function getPlannedTradeAction(
   item: ExecutionRuntimeBoardItemDto,
   boardMarketDate: string | null,
   currentMarketDate: string | null,
-  copy: DashboardOverviewCopy,
-) {
+): DashboardExecutionAction {
   const side = getPlannedTradeSide(item);
   const todayPlan = isTodayPlannedTrade(item, boardMarketDate, currentMarketDate);
-  if (side === "buy") return todayPlan ? copy.plannedBuyToday : copy.plannedBuyNext;
-  if (side === "sell") return todayPlan ? copy.plannedSellToday : copy.plannedSellNext;
+  if (side === "buy") return todayPlan ? "planned-buy-today" : "planned-buy-next";
+  if (side === "sell") return todayPlan ? "planned-sell-today" : "planned-sell-next";
+  return "monitoring";
+}
 
-  const rawIntent = textOrNull(item.intent) ?? textOrNull(item.side) ?? textOrNull(item.action);
-  return rawIntent ? humanizeToken(rawIntent, copy.plannedTrade) : null;
+function getMarketOpenExecutionAction(item: ExecutionRuntimeMonitoredSymbolDto): DashboardExecutionAction {
+  const side = getPlannedTradeSide(item);
+  if (side === "buy") return "buy-monitoring";
+  if (side === "sell") return "sell-monitoring";
+  return "monitoring";
+}
+
+function getExecutionActionLabel(action: DashboardExecutionAction, copy: DashboardOverviewCopy) {
+  if (action === "buy-monitoring") return copy.buyMonitoring;
+  if (action === "sell-monitoring") return copy.sellMonitoring;
+  if (action === "planned-buy-today") return copy.plannedBuyToday;
+  if (action === "planned-buy-next") return copy.plannedBuyNext;
+  if (action === "planned-sell-today") return copy.plannedSellToday;
+  if (action === "planned-sell-next") return copy.plannedSellNext;
+  return copy.executionMonitoring;
 }
 
 function isPlannedTradeCandidate(item: ExecutionRuntimeBoardItemDto, boardMarketDate: string | null) {
@@ -447,6 +516,7 @@ function buildClosedMarketDeciderRow({
   index,
   item,
   numberLocale,
+  signalDeciderItems,
 }: {
   boardMarketDate: string | null;
   copy: DashboardOverviewCopy;
@@ -454,6 +524,7 @@ function buildClosedMarketDeciderRow({
   index: number;
   item: ExecutionRuntimeBoardItemDto;
   numberLocale: string;
+  signalDeciderItems: readonly SignalDeciderFeedbackItem[];
 }): DashboardDeciderRow {
   const marketLabel = textOrNull(item.market);
   const nameLabel = textOrNull(item.name) ?? item.symbol;
@@ -461,19 +532,35 @@ function buildClosedMarketDeciderRow({
   const stopLossPrice = getStopLossPriceWithFallback(item, null);
   const targetPrice = getTargetPrice(item, null);
   const closePrice = getClosedPrice(item);
+  const executionAction = getPlannedTradeAction(item, boardMarketDate, currentMarketDate);
+  const context = buildExecutionPlanContext({
+    executionAction,
+    executionSource: "execution-board",
+    marketDate: sourceMarketDate,
+    referencePrice: closePrice,
+    referencePriceKind: "close",
+    signalDeciderItems,
+    stopLossPrice,
+    symbol: item.symbol,
+    targetPrice,
+  });
+  const conflict = getDashboardDecisionConflict(context);
+  const signalActionLabel = context.signalDeciderEvidence
+    ? getSignalDeciderActionLabel(context.signalDeciderEvidence.action, copy)
+    : null;
 
   return {
+    conflictLabel:
+      conflict && signalActionLabel
+        ? copy.sourceConflictSummary.replace("{action}", signalActionLabel)
+        : null,
     detailHref: buildRecommendationDetailHref({
-      marketDate: sourceMarketDate,
+      context,
       marketLabel,
       nameLabel,
-      referencePrice: closePrice,
-      referencePriceKind: "close",
-      stopLossPrice,
-      symbol: item.symbol,
-      targetPrice,
     }),
-    intentLabel: getPlannedTradeIntentLabel(item, boardMarketDate, currentMarketDate, copy),
+    hasSourceConflict: Boolean(conflict),
+    intentLabel: getExecutionActionLabel(executionAction, copy),
     key: `${item.symbol}-${item.execution_plan_id ?? item.plan_item_id ?? index}`,
     marketDate: sourceMarketDate,
     marketLabel,
@@ -495,6 +582,7 @@ function buildClosedMarketDeciderRow({
         value: formatPrice(closePrice, numberLocale, copy.unavailable),
       },
     ],
+    sourceLabel: copy.executionBoardSource,
     symbol: item.symbol,
   };
 }
@@ -943,6 +1031,7 @@ export function buildDashboardDeciderOverviewModel({
   numberLocale,
   processStage,
   processStatus,
+  signalDeciderItems = [],
   tracked,
   trackedError,
 }: {
@@ -955,6 +1044,7 @@ export function buildDashboardDeciderOverviewModel({
   numberLocale: string;
   processStage: DashboardProcessStageSnapshot;
   processStatus: ProcessMonitorStatus;
+  signalDeciderItems?: readonly SignalDeciderFeedbackItem[];
   tracked: CoreTrackedQuotesResponse | null;
   trackedError?: string | null;
 }): DashboardDeciderOverviewModel {
@@ -973,6 +1063,22 @@ export function buildDashboardDeciderOverviewModel({
       const stopLossPrice = getStopLossPriceWithFallback(item, supportingBoardItem);
       const targetPrice = getTargetPrice(item, supportingBoardItem);
       const currentPrice = getCurrentPrice(item, quote);
+      const executionAction = getMarketOpenExecutionAction(item);
+      const context = buildExecutionPlanContext({
+        executionAction,
+        executionSource: "monitored-symbols",
+        marketDate: sourceMarketDate,
+        referencePrice: currentPrice,
+        referencePriceKind: "current",
+        signalDeciderItems,
+        stopLossPrice,
+        symbol: item.symbol,
+        targetPrice,
+      });
+      const conflict = getDashboardDecisionConflict(context);
+      const signalActionLabel = context.signalDeciderEvidence
+        ? getSignalDeciderActionLabel(context.signalDeciderEvidence.action, overviewCopy)
+        : null;
       const compactPrices = [
         {
           key: "stop-loss",
@@ -992,17 +1098,18 @@ export function buildDashboardDeciderOverviewModel({
       ];
 
       return {
+        conflictLabel:
+          conflict && signalActionLabel
+            ? overviewCopy.sourceConflictSummary.replace("{action}", signalActionLabel)
+            : null,
         compactPriceLine: formatCompactPriceLine(compactPrices),
         detailHref: buildRecommendationDetailHref({
-          marketDate: sourceMarketDate,
+          context,
           marketLabel,
           nameLabel,
-          referencePrice: currentPrice,
-          referencePriceKind: "current",
-          stopLossPrice,
-          symbol: item.symbol,
-          targetPrice,
         }),
+        hasSourceConflict: Boolean(conflict),
+        intentLabel: getExecutionActionLabel(executionAction, overviewCopy),
         key: item.symbol,
         marketDate: sourceMarketDate,
         marketLabel,
@@ -1024,6 +1131,7 @@ export function buildDashboardDeciderOverviewModel({
             value: formatPrice(currentPrice, numberLocale, overviewCopy.unavailable),
           },
         ],
+        sourceLabel: overviewCopy.executionMonitoringSource,
         symbol: item.symbol,
       };
     });
@@ -1072,7 +1180,15 @@ export function buildDashboardDeciderOverviewModel({
     const rows = getBoardItems(board)
       .filter((item) => isPlannedTradeCandidate(item, boardMarketDate))
       .map((item, index) =>
-        buildClosedMarketDeciderRow({ boardMarketDate, copy: overviewCopy, currentMarketDate, index, item, numberLocale }),
+        buildClosedMarketDeciderRow({
+          boardMarketDate,
+          copy: overviewCopy,
+          currentMarketDate,
+          index,
+          item,
+          numberLocale,
+          signalDeciderItems,
+        }),
       );
     const isTodayPlan = rows.length > 0 && getBoardItems(board)
       .filter((item) => isPlannedTradeCandidate(item, boardMarketDate))
@@ -1105,7 +1221,15 @@ export function buildDashboardDeciderOverviewModel({
   const rows = getBoardItems(board)
     .filter((item) => isNextDayExecutionCandidate(item, boardMarketDate))
     .map((item, index) =>
-      buildClosedMarketDeciderRow({ boardMarketDate, copy: overviewCopy, currentMarketDate, index, item, numberLocale }),
+      buildClosedMarketDeciderRow({
+        boardMarketDate,
+        copy: overviewCopy,
+        currentMarketDate,
+        index,
+        item,
+        numberLocale,
+        signalDeciderItems,
+      }),
     );
 
   return {

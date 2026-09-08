@@ -571,6 +571,34 @@
       "backToCalendar": "Back to calendar",
       "backToOriginDate": "Back to calendar (selected date {originDate})"
     },
+    "executionConflict": {
+      "eyebrow": "Dashboard execution intent",
+      "title": "{symbol} source conflict",
+      "badge": "Review required",
+      "description": "Execution Runtime is authoritative for the displayed plan and risk prices; this page is authoritative for the stored Signal Decider evidence. The same-date sources disagree.",
+      "source": "Sources",
+      "effectiveDate": "Effective date",
+      "executionRuntime": "Execution Runtime",
+      "executionSources": {
+        "execution-board": "Execution Runtime · Execution board",
+        "monitored-symbols": "Execution Runtime · Monitored symbols"
+      },
+      "signalDecider": "Signal Decider",
+      "stopLoss": "Stop-loss",
+      "target": "Target",
+      "unavailable": "Unavailable",
+      "unknownSymbol": "Selected symbol",
+      "guidance": "Review both source records and reconcile the action and risk plan before treating either as actionable.",
+      "executionActions": {
+        "buy-monitoring": "Buy monitoring",
+        "sell-monitoring": "Sell monitoring",
+        "monitoring": "Execution monitoring",
+        "planned-buy-today": "Planned buy today",
+        "planned-buy-next": "Next-open buy",
+        "planned-sell-today": "Planned sell today",
+        "planned-sell-next": "Next-open sell"
+      }
+    },
     "tabs": {
       "label": "Decider feedback tabs",
       "signalDecider": "Signal Decider",

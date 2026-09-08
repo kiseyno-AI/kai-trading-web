@@ -942,7 +942,7 @@ test("dashboard signal-decider card shows planned board rows and links to the de
   await expect(card).not.toContainText("2 / 3");
   await expect(card).not.toContainText("Buy 1 · Wait 1");
   const detailLink = card.getByRole("link", { name: /Open the signal-decider feedback detail page/i });
-  await expect(detailLink).toHaveText("More");
+  await expect(detailLink).toHaveText("Review Signal Decider evidence");
   await expect(detailLink).toHaveAttribute("href", "/dashboard/signal-decider-feedback?marketDate=2026-04-27");
   await expectHorizontalCentersAligned(card, detailLink);
   const detailLinkBox = await detailLink.boundingBox();
@@ -1721,9 +1721,9 @@ test("dashboard signal-decider card hides current cycle on closed-market weekend
   await expect(card).not.toContainText("Current cycle");
   await expect(card).not.toContainText("2026-05-09 signal-decider");
   await expect(card).not.toContainText("Latest Friday recommendation remains the dashboard basis on the weekend.");
-  await expect(card.getByRole("link", { name: /Review rationale: Samsung Electronics 005930/i })).toHaveAttribute(
+  await expect(card.getByRole("link", { name: /Review sources: Samsung Electronics 005930/i })).toHaveAttribute(
     "href",
-    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-27&recommendationSource=dashboard-decider&referencePriceKind=close&stopLossPrice=73500&targetPrice=82000&referencePrice=79500",
+    "/dashboard/symbol/005930/action-summary?name=Samsung+Electronics&market=KOSPI&marketDate=2026-04-27&recommendationSource=execution-runtime&referencePriceKind=close&recommendationSymbol=005930&recommendationMarketDate=2026-04-27&executionAction=planned-buy-next&executionSource=execution-board&stopLossPrice=73500&targetPrice=82000&referencePrice=79500",
   );
   await expect(card.getByRole("link", { name: /Open the signal-decider feedback detail page/i })).toHaveAttribute(
     "href",

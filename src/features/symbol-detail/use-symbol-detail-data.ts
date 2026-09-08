@@ -147,10 +147,6 @@ export function useSymbolDetailData({
   const symbolDetailActiveNav = resolveSymbolDetailActiveNav(navContext);
   const defaultMarketDate = useMemo(() => getCurrentSeoulMarketDate(), []);
   const fsDiv = useMemo(() => searchParams.get("fsDiv"), [searchParams]);
-  const dashboardRecommendation = useMemo(
-    () => readDashboardRecommendationContext(searchParams),
-    [searchParams],
-  );
   const initialMeta = useMemo(() => {
     return buildInitialSymbolMeta(symbol, {
       name: searchParams.get("name"),
@@ -313,6 +309,13 @@ export function useSymbolDetailData({
     () => resolveSymbolDetailCurrentMarketDate(freshnessBasis, marketStatus, defaultMarketDate),
     [defaultMarketDate, freshnessBasis, marketStatus],
   );
+  const dashboardRecommendation = useMemo(() => {
+    const context = readDashboardRecommendationContext(searchParams);
+    if (!context) return null;
+    if (context.symbol && context.symbol !== normalizedSymbol) return null;
+    if (context.marketDate && context.marketDate !== marketDate) return null;
+    return context;
+  }, [marketDate, normalizedSymbol, searchParams]);
   const marketDateBasisCopy = useMemo(
     () =>
       buildSymbolDetailMarketDateBasisCopy({

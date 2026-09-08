@@ -22,6 +22,7 @@ import {
   compactSignalDeciderFeedbackForDashboard,
   filterDeciderDataGapRecords,
   normalizeDeciderFeedbackItems,
+  normalizeDeciderFeedbackSymbols,
   normalizeSignalDeciderFeedbackItems,
   resolveDeciderDataGapDisplayState,
   resolveDeciderFeedbackOriginDate,
@@ -1348,11 +1349,12 @@ test("builds symbol-scoped feedback paths before the upstream result limit", () 
   const path = buildSignalDeciderFeedbackPath({
     basePath: SIGNAL_DECIDER_FEEDBACK_UPSTREAM_PATH,
     marketDate: "2026-04-28",
-    symbols: [" 005930 ", "000660", "005930"],
+    symbols: [" aapl ", "MSFT", "AAPL"],
   });
   const url = new URL(`https://example.test${path}`);
 
-  assert.deepEqual(url.searchParams.getAll("symbols"), ["005930", "000660"]);
+  assert.deepEqual(normalizeDeciderFeedbackSymbols([" aapl ", "MSFT", "AAPL"]), ["AAPL", "MSFT"]);
+  assert.deepEqual(url.searchParams.getAll("symbols"), ["AAPL", "MSFT"]);
   assert.equal(url.searchParams.get("limit"), String(SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT));
 });
 

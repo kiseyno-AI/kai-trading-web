@@ -2710,8 +2710,18 @@ export function buildSignalDeciderFeedbackPath({
   });
 }
 
+export function normalizeDeciderFeedbackSymbol(symbol: string | null | undefined) {
+  return hasTextValue(symbol) ? symbol.trim().toUpperCase() : null;
+}
+
 export function normalizeDeciderFeedbackSymbols(symbols: readonly (string | null | undefined)[]) {
-  return Array.from(new Set(symbols.filter(hasTextValue).map((symbol) => symbol.trim())));
+  return Array.from(
+    new Set(
+      symbols
+        .map(normalizeDeciderFeedbackSymbol)
+        .filter((symbol): symbol is string => symbol !== null),
+    ),
+  );
 }
 
 function appendDeciderFeedbackSymbols(params: URLSearchParams, symbols: readonly string[] | null | undefined) {

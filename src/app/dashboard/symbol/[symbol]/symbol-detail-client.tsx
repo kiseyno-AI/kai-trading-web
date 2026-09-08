@@ -36,6 +36,10 @@ import { formatPrice } from "@/lib/format";
 import { getNumberLocale } from "@/lib/locale";
 import { buildPiotroskiListHref } from "@/lib/piotroski-pass-list";
 import {
+  appendDashboardRecommendationContextToHref,
+  getDashboardDecisionConflict,
+} from "@/lib/dashboard-recommendation-context";
+import {
   buildDeciderFeedbackHref,
   buildSignalDeciderFeedbackHref,
 } from "@/lib/signal-decider-feedback";
@@ -226,9 +230,24 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const handleOpenFreshnessDetail = useCallback(() => {
     setActiveMode("system-freshness");
   }, [setActiveMode]);
-  const dashboardRecommendationEvidenceHref = dashboardRecommendation
-    ? buildSignalDeciderFeedbackHref(marketDate, { query: normalizedSymbol, symbols: [normalizedSymbol] })
+  const dashboardRecommendationConflict = dashboardRecommendation
+    ? getDashboardDecisionConflict(dashboardRecommendation)
     : null;
+  const dashboardRecommendationEvidenceHref = dashboardRecommendation
+    ? appendDashboardRecommendationContextToHref(
+        buildSignalDeciderFeedbackHref(marketDate, { query: normalizedSymbol, symbols: [normalizedSymbol] }),
+        dashboardRecommendation,
+      )
+    : null;
+  const dashboardExecutionActionLabel = dashboardRecommendation?.executionAction
+    ? copy.dashboardRecommendation.actions[dashboardRecommendation.executionAction]
+    : copy.dashboardRecommendation.actions.unavailable;
+  const dashboardExecutionSourceLabel = dashboardRecommendation?.executionSource
+    ? copy.dashboardRecommendation.executionSources[dashboardRecommendation.executionSource]
+    : copy.dashboardRecommendation.executionRuntimeSource;
+  const dashboardSignalActionLabel = dashboardRecommendation?.signalDeciderEvidence
+    ? copy.dashboardRecommendation.signalActions[dashboardRecommendation.signalDeciderEvidence.action]
+    : copy.common.unavailable;
 
   const pendingChrome = {
     activeNav: symbolDetailActiveNav,
@@ -440,11 +459,20 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 </h2>
               </div>
               <span className="pill info">
-                {copy.dashboardRecommendation.marketDate} {marketDate ?? copy.common.datePending}
+                {copy.dashboardRecommendation.marketDate}{" "}
+                {dashboardRecommendation.marketDate ?? marketDate ?? copy.common.datePending}
               </span>
             </div>
             <p className={styles.supportingCopy}>{copy.dashboardRecommendation.body}</p>
             <div className={styles.metricGrid}>
+              <article className={styles.metricCard}>
+                <span>{copy.dashboardRecommendation.source}</span>
+                <strong>{dashboardExecutionSourceLabel}</strong>
+              </article>
+              <article className={styles.metricCard}>
+                <span>{copy.dashboardRecommendation.executionAction}</span>
+                <strong>{dashboardExecutionActionLabel}</strong>
+              </article>
               <article className={styles.metricCard}>
                 <span>{copy.dashboardRecommendation.stopLossPrice}</span>
                 <strong>{formatPrice(dashboardRecommendation.stopLossPrice, copy.common.unavailable)}</strong>
@@ -462,6 +490,68 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 <strong>{formatPrice(dashboardRecommendation.referencePrice, copy.common.unavailable)}</strong>
               </article>
             </div>
+            {dashboardRecommendationConflict && dashboardRecommendation.signalDeciderEvidence ? (
+              <section
+                className={styles.sourceConflictPanel}
+                aria-labelledby="dashboard-source-conflict-title"
+                data-testid="dashboard-source-conflict"
+              >
+                <div className={styles.sourceConflictHeader}>
+                  <div>
+                    <p className={styles.sectionEyebrow}>{copy.dashboardRecommendation.conflictBadge}</p>
+                    <h3 id="dashboard-source-conflict-title" className={styles.sourceConflictTitle}>
+                      {copy.dashboardRecommendation.conflictTitle}
+                    </h3>
+                  </div>
+                  <span className="pill warning">{copy.dashboardRecommendation.conflictBadge}</span>
+                </div>
+                <p className={styles.supportingCopy}>{copy.dashboardRecommendation.conflictBody}</p>
+                <div className={styles.sourceConflictComparison}>
+                  <article className={styles.metricCard}>
+                    <span>{dashboardExecutionSourceLabel}</span>
+                    <strong>{dashboardExecutionActionLabel}</strong>
+                    <p>
+                      {copy.dashboardRecommendation.stopLossPrice}{" "}
+                      {formatPrice(dashboardRecommendation.stopLossPrice, copy.common.unavailable)} ·{" "}
+                      {copy.dashboardRecommendation.targetPrice}{" "}
+                      {formatPrice(dashboardRecommendation.targetPrice, copy.common.unavailable)}
+                    </p>
+                  </article>
+                  <article className={styles.metricCard}>
+                    <span>{copy.dashboardRecommendation.signalDeciderSource}</span>
+                    <strong>{dashboardSignalActionLabel}</strong>
+                    <p>
+                      {copy.dashboardRecommendation.stopLossPrice}{" "}
+                      {formatPrice(
+                        dashboardRecommendation.signalDeciderEvidence.stopLossPrice,
+                        copy.common.unavailable,
+                      )}{" "}
+                      · {copy.dashboardRecommendation.targetPrice}{" "}
+                      {formatPrice(
+                        dashboardRecommendation.signalDeciderEvidence.targetPrice,
+                        copy.common.unavailable,
+                      )}
+                    </p>
+                  </article>
+                </div>
+                <div className={styles.sourceConflictReasons}>
+                  {dashboardRecommendationConflict.actionConflict ? (
+                    <span className="pill warning">{copy.dashboardRecommendation.conflictAction}</span>
+                  ) : null}
+                  {dashboardRecommendationConflict.riskPlanConflict ? (
+                    <span className="pill warning">{copy.dashboardRecommendation.conflictRiskPlan}</span>
+                  ) : null}
+                </div>
+                {dashboardRecommendationEvidenceHref ? (
+                  <Link
+                    href={dashboardRecommendationEvidenceHref}
+                    className={`${styles.detailLink} ${styles.dashboardEvidenceFallback}`}
+                  >
+                    {copy.dashboardRecommendation.reviewSignalEvidence}
+                  </Link>
+                ) : null}
+              </section>
+            ) : null}
           </section>
         ) : null}
 
@@ -597,7 +687,9 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             {showActionSection ? (
               <ActionSummarySection
                 copy={copy}
-                dashboardRecommendationEvidenceHref={dashboardRecommendationEvidenceHref}
+                dashboardRecommendationEvidenceHref={
+                  dashboardRecommendationConflict ? null : dashboardRecommendationEvidenceHref
+                }
                 fsDiv={fsDiv}
                 marketDate={marketDate}
                 normalizedSymbol={normalizedSymbol}
