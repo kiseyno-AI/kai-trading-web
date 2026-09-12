@@ -367,6 +367,39 @@ test.describe("dashboard desktop", () => {
     await expect(marketCard.getByText(/Missing:.*KOSDAQ.*Institutional flow/i)).toBeVisible();
   });
 
+  test("market condition card explains when partial snapshot missing-field details are unavailable", async ({ page }) => {
+    await page.route("**/api/trading/market/snapshot", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "partial",
+          missing_fields: [],
+          as_of: "2026-04-28T10:21:00+09:00",
+          indices: {
+            kospi: { level: 2742.31 },
+            kosdaq: { level: 842.17 },
+          },
+          fx: {
+            usdkrw: { value: 1378.2 },
+          },
+          flows: {
+            foreign: { value: 248_000_000_000, unit: "KRW" },
+            institutional: { value: -91_000_000_000, unit: "KRW" },
+          },
+        }),
+      });
+    });
+
+    await page.goto("/dashboard");
+
+    const marketCard = getPrimaryInsightCard(page, /Market condition/i);
+    await expect(marketCard).toHaveAttribute("data-market-snapshot-status", "partial");
+    await expect(
+      marketCard.getByText("Partial market snapshot. Missing-field details are unavailable.", { exact: true }),
+    ).toBeVisible();
+    await expect(marketCard.getByText("Partial market snapshot. Missing:", { exact: true })).toHaveCount(0);
+  });
+
   test("market condition card keeps stale values visible with the reported reason", async ({ page }) => {
     await page.route("**/api/trading/market/snapshot", async (route) => {
       await route.fulfill({
