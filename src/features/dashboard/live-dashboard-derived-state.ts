@@ -900,7 +900,7 @@ export function buildMarketSnapshotPresentation(
       : status === "partial"
         ? missingFieldLabels.length > 0
           ? `${copy.marketOverview.snapshotPartialContext} ${missingFieldLabels.join(", ")}`
-          : copy.marketOverview.snapshotPartialContext
+          : copy.marketOverview.snapshotPartialDetailsUnavailable
         : status === "stale"
           ? staleReason
             ? `${copy.marketOverview.snapshotStaleContext} ${staleReason}`

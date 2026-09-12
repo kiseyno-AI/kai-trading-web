@@ -264,9 +264,42 @@ test("renders partial-but-usable market snapshots instead of collapsing the full
   assert.equal(presentation.statusTone, "info");
   assert.equal(presentation.displaySnapshot, snapshot);
   assert.deepEqual(presentation.missingFieldLabels, [copy.marketOverview.kosdaq, copy.marketOverview.institutionalFlow]);
-  assert.match(presentation.fallbackContextLabel, /Partial market snapshot/);
-  assert.match(presentation.fallbackContextLabel, /KOSDAQ/);
-  assert.match(presentation.fallbackContextLabel, /Institutional flow/);
+  assert.equal(
+    presentation.fallbackContextLabel,
+    `${copy.marketOverview.snapshotPartialContext} ${copy.marketOverview.kosdaq}, ${copy.marketOverview.institutionalFlow}`,
+  );
+});
+
+test("uses bounded fallback copy when partial market snapshot missing-field details are empty or absent", () => {
+  for (const locale of ["en", "ko"] as const) {
+    const copy = getDashboardLiveCopy(locale);
+
+    for (const missingFields of [undefined, []] as const) {
+      const snapshot: MarketSnapshotResponseDto = {
+        status: "partial",
+        missing_fields: missingFields,
+        market_date: "2026-04-21",
+        as_of: "2026-04-21T15:30:00+09:00",
+        indices: {
+          kospi: { level: 2648.3 },
+          kosdaq: { level: 812.22 },
+        },
+        fx: {
+          usdkrw: { value: 1378.1 },
+        },
+        flows: {
+          foreign: { value: 124_000_000_000, unit: "KRW" },
+          institutional: { value: -44_000_000_000, unit: "KRW" },
+        },
+      };
+      const presentation = buildMarketSnapshotPresentation(copy, snapshot, null);
+
+      assert.equal(presentation.status, "partial");
+      assert.deepEqual(presentation.missingFieldLabels, []);
+      assert.equal(presentation.fallbackContextLabel, copy.marketOverview.snapshotPartialDetailsUnavailable);
+      assert.notEqual(presentation.fallbackContextLabel, copy.marketOverview.snapshotPartialContext);
+    }
+  }
 });
 
 test("keeps explicit unavailable market snapshots unavailable when partial fragments exist", () => {
