@@ -51,15 +51,15 @@
 }
 
 .topbar {
-  min-height: 40px;
-  padding: 4px;
+  min-height: 44px;
+  padding: 0;
   background: var(--control-surface);
 }
 
 .topbarButton {
-  min-width: 50px;
-  min-height: 34px;
-  padding: 0 12px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
   font-size: 11px;
   letter-spacing: 0.1em;
 }

@@ -1303,7 +1303,7 @@ test("locale switch does not refetch feedback data or close the detail dialog", 
   await expect.poll(() => shell.getSignalDeciderFeedbackRequestCount()).toBe(requestCountBeforeLocale);
 
   await page
-    .getByTestId("dashboard-header-language-switch")
+    .getByTestId("dashboard-desktop-rail-language-switch")
     .locator('button[aria-label="Korean"]')
     .dispatchEvent("click");
 
