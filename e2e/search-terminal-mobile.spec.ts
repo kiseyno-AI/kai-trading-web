@@ -36,27 +36,23 @@ async function expectVisibleAffordance(locator: Locator) {
   expect(styles.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
 }
 
-async function expectMobileHiddenShellControlsSuppressed(page: Page, expectedLabels: string[]) {
-  const hiddenShellControls = await page.locator("[data-app-chrome-hidden-when-mobile]").evaluateAll((containers) =>
-    containers.flatMap((container) =>
-      Array.from(container.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]")).map(
-        (element) => {
-          const rect = element.getBoundingClientRect();
+async function expectInactiveShellControlsRemoved(page: Page) {
+  await expect(page.locator("[data-app-chrome-hidden-when-mobile]")).toHaveCount(0);
 
-          return {
-            hiddenAncestor: Boolean(element.closest("[aria-hidden='true'], [inert]")),
-            label: (element.getAttribute("aria-label") || element.textContent || "").replace(/\s+/g, " ").trim(),
-            tabIndex: element.tabIndex,
-            zeroRect: rect.width === 0 && rect.height === 0,
-          };
-        },
+  const zeroGeometryFocusable = await page.locator("[data-app-chrome-root]").evaluate((root) =>
+    Array.from(
+      root.querySelectorAll<HTMLElement>(
+        ":scope > header a[href], :scope > header button, :scope > [data-app-chrome-bottom-nav-frame] a[href], :scope > [data-app-chrome-bottom-nav-frame] button",
       ),
-    ),
+    )
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return element.tabIndex >= 0 && (rect.width === 0 || rect.height === 0);
+      })
+      .map((element) => (element.getAttribute("aria-label") || element.textContent || "").replace(/\s+/g, " ").trim()),
   );
 
-  expect(hiddenShellControls.map((control) => control.label)).toEqual(expect.arrayContaining(expectedLabels));
-  expect(hiddenShellControls.filter((control) => control.tabIndex >= 0)).toEqual([]);
-  expect(hiddenShellControls.filter((control) => control.zeroRect && !control.hiddenAncestor)).toEqual([]);
+  expect(zeroGeometryFocusable).toEqual([]);
 }
 
 async function expectFirstTabTargetVisible(page: Page) {
@@ -417,27 +413,12 @@ test.describe("search terminal mobile", () => {
 
     await page.goto("/search");
     await expect(page.getByLabel(/마켓, 종목 또는 분석 검색/i)).toBeVisible();
-    await expectMobileHiddenShellControlsSuppressed(page, [
-      "개요",
-      "탐색",
-      "검토",
-      "포트폴리오",
-      "영어",
-      "한국어",
-      "태그 꺼짐",
-    ]);
+    await expectInactiveShellControlsRemoved(page);
     await expectFirstTabTargetVisible(page);
 
     await page.goto("/calendar");
     await expect(page.getByRole("heading", { name: /시그널 리뷰 캘린더|Signal Review Calendar/i })).toBeVisible();
-    await expectMobileHiddenShellControlsSuppressed(page, [
-      "개요",
-      "탐색",
-      "검토",
-      "포트폴리오",
-      "영어",
-      "한국어",
-    ]);
+    await expectInactiveShellControlsRemoved(page);
     await expectFirstTabTargetVisible(page);
   });
 

@@ -158,10 +158,8 @@ export function MobileAppChrome({
   const modalOpen = Boolean(chrome.modalOpen);
   const desktopChromeActive = useMediaQuery("(min-width: 1024px)");
   const toolbarDevActionVisible = useMediaQuery("(min-width: 521px)");
-  const desktopChromeHiddenTabIndex = desktopChromeActive ? undefined : -1;
-  const mobileChromeHiddenTabIndex = desktopChromeActive ? -1 : undefined;
-  const toolbarLanguageHidden = desktopChromeActive;
-  const toolbarDevActionHidden = !toolbarDevActionVisible;
+  const desktopChromeVisible = desktopChromeActive === true;
+  const mobileChromeVisible = desktopChromeActive === false;
   const resolvedMetadata = resolveMobileAppChromeMetadata({ pathname, activeNav, t, locale });
   const hrefOverrides = chrome.hrefs;
   const navItems = useMemo(() => buildAppChromeNavItems(t, hrefOverrides), [hrefOverrides, t]);
@@ -171,8 +169,8 @@ export function MobileAppChrome({
 
     return [...new Set(targets.filter((target): target is string => typeof target === "string" && target.startsWith("/")))];
   }, [activeHref, navItems]);
-  const desktopChromeSuppressed = modalOpen || !desktopChromeActive;
-  const mobileChromeSuppressed = modalOpen || desktopChromeActive;
+  const desktopChromeSuppressed = modalOpen;
+  const mobileChromeSuppressed = modalOpen;
   const floatingLayerSuppressed = modalOpen;
   const toolbarTitle = chrome.title ?? resolvedMetadata?.title;
   const toolbarAction = chrome.toolbarAction ?? resolvedMetadata?.toolbarAction ?? "none";
@@ -194,26 +192,16 @@ export function MobileAppChrome({
   );
   const toolbarActions = (
     <>
-      {toolbarAction === "dev-mode" ? (
-        <span
-          className={styles.toolbarDevAction}
-          aria-hidden={toolbarDevActionHidden ? true : undefined}
-          data-app-chrome-hidden-when-mobile
-          inert={toolbarDevActionHidden ? true : undefined}
-        >
-          <DevModeToggle tabIndex={toolbarDevActionHidden ? -1 : undefined} />
+      {toolbarAction === "dev-mode" && toolbarDevActionVisible === true ? (
+        <span className={styles.toolbarDevAction}>
+          <DevModeToggle />
         </span>
       ) : null}
-      <span
-        className={styles.toolbarLanguageAction}
-        aria-hidden={toolbarLanguageHidden ? true : undefined}
-        inert={toolbarLanguageHidden ? true : undefined}
-      >
-        <LanguageSwitchControl
-          buttonTabIndex={toolbarLanguageHidden ? -1 : undefined}
-          testId="dashboard-header-language-switch"
-        />
-      </span>
+      {mobileChromeVisible ? (
+        <span className={styles.toolbarLanguageAction}>
+          <LanguageSwitchControl testId="dashboard-header-language-switch" variant="topbar" />
+        </span>
+      ) : null}
     </>
   );
   const bottomNavStyle = useMemo<CSSProperties>(
@@ -254,7 +242,7 @@ export function MobileAppChrome({
         data-navigation-pending={pending ? "true" : "false"}
         aria-hidden={mobileChromeSuppressed ? true : undefined}
         inert={mobileChromeSuppressed ? true : undefined}
-        tabIndex={mobileChromeSuppressed ? -1 : mobileChromeHiddenTabIndex}
+        tabIndex={mobileChromeSuppressed ? -1 : undefined}
         title={item.label}
         onClick={() => beginNavigation(item.href)}
       >
@@ -283,7 +271,7 @@ export function MobileAppChrome({
         aria-current={active ? "page" : undefined}
         data-navigation-pending={pending ? "true" : "false"}
         inert={desktopChromeSuppressed ? true : undefined}
-        tabIndex={desktopChromeSuppressed ? -1 : desktopChromeHiddenTabIndex}
+        tabIndex={desktopChromeSuppressed ? -1 : undefined}
         onClick={() => beginNavigation(item.href)}
       >
         <span className={styles.navIcon} aria-hidden="true">
@@ -301,49 +289,47 @@ export function MobileAppChrome({
       data-mobile-toolbar-layout={narrowToolbarLayout ?? "single-row"}
       data-app-chrome-root
     >
-      <aside
-        className={styles.desktopRail}
-        aria-label={t.mobileChrome.desktopNavigation}
-        aria-hidden={desktopChromeSuppressed ? true : undefined}
-        data-app-chrome-hidden-when-mobile
-        inert={desktopChromeSuppressed ? true : undefined}
-      >
-        <div className={styles.desktopBrand}>
-          <div className={styles.desktopBrandMark} aria-hidden="true" />
-          <div>
-            <strong>{t.mobileChrome.brandTitle}</strong>
-            <span>{t.mobileChrome.brandSubtitle}</span>
+      {desktopChromeVisible ? (
+        <aside
+          className={styles.desktopRail}
+          aria-label={t.mobileChrome.desktopNavigation}
+          aria-hidden={desktopChromeSuppressed ? true : undefined}
+          inert={desktopChromeSuppressed ? true : undefined}
+        >
+          <div className={styles.desktopBrand}>
+            <div className={styles.desktopBrandMark} aria-hidden="true" />
+            <div>
+              <strong>{t.mobileChrome.brandTitle}</strong>
+              <span>{t.mobileChrome.brandSubtitle}</span>
+            </div>
           </div>
-        </div>
 
-        <nav className={styles.desktopNav} aria-label={t.mobileChrome.primaryDesktopNavigation}>
-          {navItems.map(renderDesktopNavItem)}
-        </nav>
+          <nav className={styles.desktopNav} aria-label={t.mobileChrome.primaryDesktopNavigation}>
+            {navItems.map(renderDesktopNavItem)}
+          </nav>
 
-        <div className={styles.desktopRailMetaGroup} aria-label={t.mobileChrome.desktopMetadata}>
-          <section className={styles.desktopRailMeta} aria-label={t.mobileChrome.currentScreen}>
-            <span className={styles.desktopRailMetaLabel}>{t.mobileChrome.currentScreen}</span>
-            <strong className={styles.desktopRailScreenName}>{toolbarTitle}</strong>
-          </section>
+          <div className={styles.desktopRailMetaGroup} aria-label={t.mobileChrome.desktopMetadata}>
+            <section className={styles.desktopRailMeta} aria-label={t.mobileChrome.currentScreen}>
+              <span className={styles.desktopRailMetaLabel}>{t.mobileChrome.currentScreen}</span>
+              <strong className={styles.desktopRailScreenName}>{toolbarTitle}</strong>
+            </section>
 
-          <section className={styles.desktopRailMeta} aria-label={t.mobileChrome.marketStatus}>
-            <span className={styles.desktopRailMetaLabel}>{t.mobileChrome.marketStatus}</span>
-            {desktopRailMarketStatus}
-          </section>
+            <section className={styles.desktopRailMeta} aria-label={t.mobileChrome.marketStatus}>
+              <span className={styles.desktopRailMetaLabel}>{t.mobileChrome.marketStatus}</span>
+              {desktopRailMarketStatus}
+            </section>
 
-          <section className={styles.desktopRailMeta} aria-label={t.common.languageSwitcher}>
-            <span className={styles.desktopRailMetaLabel}>{t.common.languageSwitcher}</span>
-            <LanguageSwitchControl
-              buttonTabIndex={desktopChromeHiddenTabIndex}
-              testId="dashboard-desktop-rail-language-switch"
-            />
-          </section>
-        </div>
+            <section className={styles.desktopRailMeta} aria-label={t.common.languageSwitcher}>
+              <span className={styles.desktopRailMetaLabel}>{t.common.languageSwitcher}</span>
+              <LanguageSwitchControl testId="dashboard-desktop-rail-language-switch" />
+            </section>
+          </div>
 
-        <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>
-          <MobileAppChromeDesktopRailFooter />
-        </div>
-      </aside>
+          <div className={styles.desktopRailStatus} aria-label={t.mobileChrome.releaseVersion}>
+            <MobileAppChromeDesktopRailFooter />
+          </div>
+        </aside>
+      ) : null}
 
       <header
         className={`${styles.headerFrame} topbar`}
@@ -373,23 +359,25 @@ export function MobileAppChrome({
         {children}
       </main>
 
-      <div
-        className={styles.bottomNavFrame}
-        data-app-chrome-bottom-nav-frame
-        aria-hidden={mobileChromeSuppressed ? true : undefined}
-        inert={mobileChromeSuppressed ? true : undefined}
-      >
-        <nav
-          className={styles.bottomNav}
-          style={bottomNavStyle}
-          aria-label={t.mobileChrome.primaryNavigation}
+      {mobileChromeVisible ? (
+        <div
+          className={styles.bottomNavFrame}
+          data-app-chrome-bottom-nav-frame
           aria-hidden={mobileChromeSuppressed ? true : undefined}
-          data-app-chrome-bottom-nav
           inert={mobileChromeSuppressed ? true : undefined}
         >
-          {navItems.map(renderNavItem)}
-        </nav>
-      </div>
+          <nav
+            className={styles.bottomNav}
+            style={bottomNavStyle}
+            aria-label={t.mobileChrome.primaryNavigation}
+            aria-hidden={mobileChromeSuppressed ? true : undefined}
+            data-app-chrome-bottom-nav
+            inert={mobileChromeSuppressed ? true : undefined}
+          >
+            {navItems.map(renderNavItem)}
+          </nav>
+        </div>
+      ) : null}
       {chrome.floatingLayer ? (
         <div
           aria-hidden={floatingLayerSuppressed ? true : undefined}

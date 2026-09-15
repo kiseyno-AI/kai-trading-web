@@ -202,11 +202,11 @@
   }
 
   .surface[data-mobile-toolbar-layout="wrap-actions"] .headerInner {
-    padding: 0.72rem 0.8rem;
+    padding: 0.5rem 0.8rem;
   }
 
   .surface[data-mobile-toolbar-layout="wrap-actions"] .main {
-    padding-top: 5.8rem;
+    padding-top: 7.625rem;
   }
 
   .toolbarSupplementalStatus {

@@ -14,8 +14,8 @@
 }
 
 .backButton {
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 2.75rem;
+  height: 2.75rem;
   display: grid;
   place-items: center;
   border-radius: var(--radius-lg);
@@ -444,6 +444,7 @@
 .detailTab {
   width: 100%;
   min-width: 0;
+  min-height: 2.75rem;
   line-height: 1.15;
   text-align: center;
   white-space: normal;

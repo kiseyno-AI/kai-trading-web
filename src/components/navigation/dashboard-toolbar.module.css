@@ -159,7 +159,7 @@
   .toolbar[data-narrow-layout="wrap-actions"] {
     flex-wrap: wrap;
     align-items: flex-start;
-    row-gap: 0.45rem;
+    row-gap: 0.25rem;
   }
 
   .toolbar[data-narrow-layout="wrap-actions"] .brandCluster {
@@ -180,5 +180,6 @@
     max-width: calc(100% - 5rem);
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: normal;
   }
 }

@@ -758,6 +758,37 @@ async function mockDetailModeSwitchApis(
 }
 
 test.describe("symbol detail mobile pages", () => {
+  test("server-rendered symbol detail HTML keeps primary navigation and locale controls", async ({ browser }) => {
+    const baseURL = test.info().project.use.baseURL;
+
+    if (typeof baseURL !== "string") {
+      throw new Error("Playwright baseURL is required for server-rendered chrome coverage.");
+    }
+
+    const context = await browser.newContext({
+      ...chromiumIPhone13,
+      baseURL,
+      javaScriptEnabled: false,
+    });
+    const serverRenderedPage = await context.newPage();
+
+    try {
+      const response = await serverRenderedPage.goto(
+        `/dashboard/symbol/005930?${symbolSeed}&navContext=search&q=005930`,
+      );
+
+      expect(response?.ok()).toBe(true);
+      await expect(serverRenderedPage.locator("[data-app-chrome-root]")).toBeVisible();
+      await expect(serverRenderedPage.locator("[data-app-chrome-bottom-nav]")).toBeVisible();
+      await expect(serverRenderedPage.locator("[data-app-chrome-bottom-nav] a[href]")).toHaveCount(4);
+      await expect(serverRenderedPage.getByTestId("dashboard-header-language-switch").getByRole("button"))
+        .toHaveCount(2);
+      await expect(serverRenderedPage.locator("aside")).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("remaining Stitch detail pages render with mobile chrome and section tabs", async ({ page }) => {
     for (const detailPage of detailPages) {
       await page.goto(`/dashboard/symbol/005930/${detailPage.path}?${symbolSeed}`);
@@ -820,6 +851,120 @@ test.describe("symbol detail mobile pages", () => {
     expect(tradeTreatment.borderStyle).toBe("solid");
     expect(tradeTreatment.cursor).toBe("not-allowed");
     expect(tradeTreatment.documentOverflow).toBeLessThanOrEqual(1);
+  });
+
+  test("keeps symbol detail chrome focusable controls visible and target-sized across viewports", async ({ page }) => {
+    const requestCounts = {
+      priceHistory: 0,
+      technical: 0,
+      action: 0,
+      fundamentals: 0,
+    };
+    const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(
+      `/dashboard/symbol/005930?${symbolSeed}&navContext=search&q=005930`,
+    );
+
+    const tabNav = page.getByRole("navigation", { name: "종목 상세 페이지" });
+    const mobileBack = page.getByRole("link", { name: "검색으로 돌아가기" });
+    const mobileLocaleButtons = page
+      .locator("header")
+      .getByTestId("dashboard-header-language-switch")
+      .getByRole("button");
+
+    await expect(tabNav).toBeVisible();
+    await expect(tabNav.getByRole("button")).toHaveCount(6);
+    await expect(mobileBack).toBeVisible();
+    await expect(mobileLocaleButtons).toHaveCount(2);
+    await expect(page.locator("[data-app-chrome-bottom-nav] a[href]")).toHaveCount(4);
+    await expect(page.locator("aside")).toHaveCount(0);
+    await expect(page.locator("[data-app-chrome-hidden-when-mobile]")).toHaveCount(0);
+
+    const mobileTargetMetrics = await page.locator("[data-app-chrome-root]").evaluate((root) => {
+      const describe = (element: Element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          height: rect.height,
+          label: (element.getAttribute("aria-label") || element.textContent || "").replace(/\s+/g, " ").trim(),
+          width: rect.width,
+        };
+      };
+      const zeroGeometryFocusable = Array.from(
+        root.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]"),
+      )
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return element.tabIndex >= 0 && (rect.width === 0 || rect.height === 0);
+        })
+        .map(describe);
+
+      return {
+        back: describe(root.querySelector("header a[aria-label]")!),
+        contentTop: root.querySelector("main > *")!.getBoundingClientRect().top,
+        headerBottom: root.querySelector("header")!.getBoundingClientRect().bottom,
+        locale: Array.from(root.querySelectorAll("header [data-testid='dashboard-header-language-switch'] button")).map(
+          describe,
+        ),
+        tabs: Array.from(root.querySelectorAll("nav[aria-label='종목 상세 페이지'] button")).map(describe),
+        zeroGeometryFocusable,
+      };
+    });
+
+    expect(mobileTargetMetrics.tabs.map((tab) => tab.label)).toEqual([
+      "인사이트",
+      "액션",
+      "기술",
+      "펀더멘털",
+      "공시",
+      "신선도",
+    ]);
+    expect(mobileTargetMetrics.locale.map((button) => button.label)).toEqual(["영어", "한국어"]);
+    expect(mobileTargetMetrics.zeroGeometryFocusable).toEqual([]);
+    expect(mobileTargetMetrics.contentTop).toBeGreaterThanOrEqual(mobileTargetMetrics.headerBottom);
+    for (const target of [mobileTargetMetrics.back, ...mobileTargetMetrics.locale, ...mobileTargetMetrics.tabs]) {
+      expect(target.width, `${target.label} width`).toBeGreaterThanOrEqual(44);
+      expect(target.height, `${target.label} height`).toBeGreaterThanOrEqual(44);
+    }
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const desktopRail = page.getByRole("complementary", { name: /Desktop navigation|데스크톱 내비게이션/i });
+    await expect(desktopRail).toBeVisible();
+    await expect(desktopRail.locator("nav a[href]")).toHaveCount(4);
+    await expect(desktopRail.getByTestId("dashboard-desktop-rail-language-switch").getByRole("button"))
+      .toHaveCount(2);
+    await expect(page.locator("[data-app-chrome-bottom-nav-frame]")).toHaveCount(0);
+    await expect(page.getByTestId("dashboard-header-language-switch")).toHaveCount(0);
+    await expect(tabNav.getByRole("button")).toHaveCount(6);
+    const desktopZeroGeometryFocusable = await page.locator("[data-app-chrome-root]").evaluate((root) =>
+      Array.from(root.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]"))
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return element.tabIndex >= 0 && (rect.width === 0 || rect.height === 0);
+        })
+        .map((element) =>
+          (element.getAttribute("aria-label") || element.textContent || "").replace(/\s+/g, " ").trim(),
+        ),
+    );
+    expect(desktopZeroGeometryFocusable).toEqual([]);
+    const desktopTabMetrics = await tabNav.getByRole("button").evaluateAll((tabs) =>
+      tabs.map((tab) => {
+        const rect = tab.getBoundingClientRect();
+        return { height: rect.height, width: rect.width };
+      }),
+    );
+    for (const target of desktopTabMetrics) {
+      expect(target.width).toBeGreaterThanOrEqual(44);
+      expect(target.height).toBeGreaterThanOrEqual(44);
+    }
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+      .toBeLessThanOrEqual(1);
   });
 
   test("lower insight cards scroll clear of the mobile bottom nav", async ({ page }) => {
