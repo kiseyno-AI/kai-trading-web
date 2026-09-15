@@ -75,7 +75,7 @@ function getDesktopItemClass(active: boolean) {
 }
 
 function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState<boolean | null>(null);
+  const [matches, setMatches] = useState(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(query);
