@@ -1074,7 +1074,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
   const [feedbackNavigationAttempt, setFeedbackNavigationAttempt] = useState<{
     href: string;
     notice: string | null;
-    state: "latest" | "resolve-latest" | "selected";
+    state: "latest" | "selected";
   } | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const detailOpenerRef = useRef<HTMLElement | null>(null);
@@ -1610,23 +1610,20 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
           navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
           originDate: feedbackDate,
         })
-      : buildSignalDeciderFeedbackHref(null, {
-          navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
-          originDate: feedbackDate,
-        })
+      : null
     : buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT });
   const feedbackCtaState = selectedFeedbackNavigationBlocked
     ? latestUsableFeedbackCtaDate
       ? "latest"
-      : "resolve-latest"
+      : "disabled"
     : "selected";
   const storedFeedbackCtaExceedsLimit =
     selectedStoredDecisionCount > SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
   const feedbackCtaLabel =
     feedbackCtaState === "latest"
       ? copy.actions.openLatestFeedback
-      : feedbackCtaState === "resolve-latest"
-        ? copy.actions.findLatestFeedback
+      : feedbackCtaState === "disabled"
+        ? copy.actions.feedbackUnavailable
         : selectedCalendarEvidenceOnly
           ? (storedFeedbackCtaExceedsLimit
               ? copy.actions.openStoredFeedbackUpTo
@@ -1645,8 +1642,8 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
           ? copy.states.openDashboardFeedback
           : copy.states.openLatestFeedback
         ).replaceAll("{marketDate}", latestUsableFeedbackCtaDate)
-      : feedbackCtaState === "resolve-latest"
-        ? copy.states.resolveLatestFeedback
+      : feedbackCtaState === "disabled"
+        ? copy.states.feedbackTableUnavailable
         : null;
   const feedbackNavigationTargetHref = feedbackNavigationAttempt?.href ?? feedbackCtaHref;
   const feedbackNavigationPending = feedbackNavigationTargetHref
@@ -2001,7 +1998,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
                     setFeedbackNavigationAttempt({
                       href,
                       notice: feedbackCtaNotice,
-                      state: feedbackCtaState,
+                      state: feedbackCtaState === "latest" ? "latest" : "selected",
                     });
                   }}
                   pendingAcknowledgement
