@@ -2324,7 +2324,9 @@ test("calendar-sourced mobile feedback shows decision rows before data-gap diagn
   expect(firstDecisionBox!.y).toBeLessThan(dataGapBox!.y);
 });
 
-test("calendar unavailable selected date keeps feedback CTA in recovery mode", async ({ page }) => {
+test("calendar unavailable selected date delegates latest-date recovery without enabling unknown dates", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page, {
     forceCalendarSummaryFailure: true,
@@ -2337,15 +2339,26 @@ test("calendar unavailable selected date keeps feedback CTA in recovery mode", a
   await page.getByRole("button", { name: /Korean/i }).click();
 
   const feedbackCta = page.getByTestId("calendar-feedback-cta");
-  await expect(feedbackCta).toHaveText("피드백 표 사용 불가");
-  await expect(feedbackCta).toBeDisabled();
-  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "disabled");
-  await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
-    "선택한 날짜는 지금 피드백 행을 열 수 없습니다.",
+  await expect(feedbackCta).toHaveText("최근 피드백 찾기");
+  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "resolve-latest");
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?navContext=calendar&originDate=2026-05-26",
   );
+  await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
+    "피드백 화면이 사용 가능한 최근 날짜를 별도로 확인",
+  );
+  const unavailableDate = page.locator('[data-calendar-cell="2026-05-26"]');
+  await expect(unavailableDate).toBeDisabled();
+  await expectNarrowMobileLabelsContained(page);
   await expect(page).toHaveURL(/\/calendar\?date=2026-05-26$/);
-  await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveCount(0);
   await expect(page.getByTestId("feedback-error-primary")).toHaveCount(0);
+
+  await feedbackCta.click();
+  await expect(page).toHaveURL(
+    /\/dashboard\/signal-decider-feedback\?navContext=calendar&originDate=2026-05-26$/,
+  );
+  await expect(page.getByRole("heading", { name: "시그널 디사이더 피드백" })).toBeVisible();
 });
 
 test("calendar unavailable state opens backend-proven latest feedback without enabling unknown dates", async ({
