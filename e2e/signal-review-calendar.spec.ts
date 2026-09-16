@@ -2324,7 +2324,9 @@ test("calendar-sourced mobile feedback shows decision rows before data-gap diagn
   expect(firstDecisionBox!.y).toBeLessThan(dataGapBox!.y);
 });
 
-test("calendar unavailable selected date keeps feedback CTA in recovery mode", async ({ page }) => {
+test("calendar unavailable selected date keeps recovery disabled when freshness has no feedback", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page, {
     forceCalendarSummaryFailure: true,
@@ -2343,6 +2345,9 @@ test("calendar unavailable selected date keeps feedback CTA in recovery mode", a
   await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
     "선택한 날짜는 지금 피드백 행을 열 수 없습니다.",
   );
+  const unavailableDate = page.locator('[data-calendar-cell="2026-05-26"]');
+  await expect(unavailableDate).toBeDisabled();
+  await expectNarrowMobileLabelsContained(page);
   await expect(page).toHaveURL(/\/calendar\?date=2026-05-26$/);
   await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveCount(0);
   await expect(page.getByTestId("feedback-error-primary")).toHaveCount(0);
@@ -2391,7 +2396,9 @@ test("calendar unavailable state opens backend-proven latest feedback without en
   await expect(page).toHaveURL(
     /\/dashboard\/signal-decider-feedback\?marketDate=2026-07-31&navContext=calendar&originDate=2026-08-17$/,
   );
-  await expect(page.getByTestId("signal-decider-result-card").first()).toBeVisible();
+  const destinationFeedbackRow = page.getByTestId("signal-decider-result-card").first();
+  await expect(destinationFeedbackRow).toBeVisible();
+  await expect(destinationFeedbackRow).toContainText("003480");
 });
 
 test("calendar feedback navigation stays idle when touch or pointer activation is cancelled", async ({ page }) => {
