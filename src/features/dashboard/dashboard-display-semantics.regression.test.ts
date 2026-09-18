@@ -13,6 +13,7 @@ import type {
   EodFreshnessResponseDto,
   EodFreshnessStageDto,
   EodPipelineStageDto,
+  EodValueFactorsResponseDto,
 } from "@/types/trading-api";
 
 import {
@@ -411,4 +412,63 @@ test("TC-DASH-011 non-stale pending scoring stages keep their existing numeric s
   assert.equal(quality?.status, "pending");
   assert.equal(quality?.progressLabel, "0 / 8,625");
   assert.equal(quality?.note, copy.scoring.notes.pending);
+});
+
+test("TC-DASH-012 fresh scoring result metrics survive a stale pipeline refresh", () => {
+  const copy = getDashboardLiveCopy("en");
+  const scoringValueFactors = {
+    market_date: "2026-09-18",
+    requested_market_date: "2026-09-18",
+    resolved_market_date: "2026-09-18",
+    is_latest_fallback: false,
+    summary: {
+      entries: 2,
+      requested_symbol: null,
+      matched_symbols: ["005930", "000660"],
+      missing_symbols: [],
+      scored_count: 0,
+      invalid_per_count: 2,
+      missing_metric_count: 0,
+    },
+    items: [
+      { symbol: "005930", market_date: "2026-09-18" },
+      { symbol: "000660", market_date: "2026-09-18" },
+    ],
+  } as EodValueFactorsResponseDto;
+  const model = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: {
+      market_date: "2026-09-18",
+      status: "blocked",
+      stage_order: ["unified_value_factors", "quality_factors", "momentum_factors"],
+      stages: {
+        unified_value_factors: buildPipelineStage("pending", { processed: 0, total: 2, failed: 0 }),
+        quality_factors: buildPipelineStage("pending", { processed: 0, total: 2, failed: 0 }),
+        momentum_factors: buildPipelineStage("pending", { processed: 0, total: 2, failed: 0 }),
+      },
+    },
+    pipelineStatusStale: true,
+    scoringMarketDate: "2026-09-18",
+    scoringValueFactors,
+    scoringValueFactorsLoadState: "ready",
+  });
+  const unifiedValue = model.stages.find((stage) => stage.key === "unified-value");
+  const quality = model.stages.find((stage) => stage.key === "quality");
+  const momentum = model.stages.find((stage) => stage.key === "momentum");
+
+  assert.equal(unifiedValue?.progressLabel, "0 / 2");
+  assert.deepEqual(unifiedValue?.metrics.map((metric) => [metric.key, metric.value]), [
+    ["progress", "0 / 2"],
+    ["invalid", "2"],
+  ]);
+  assert.equal(quality?.progressLabel, "0 / 2");
+  assert.deepEqual(quality?.metrics.map((metric) => [metric.key, metric.value]), [
+    ["progress", "0 / 2"],
+    ["missing", "2"],
+  ]);
+  assert.equal(momentum?.progressLabel, copy.scoring.statuses.waiting);
+  assert.deepEqual(momentum?.metrics.map((metric) => [metric.key, metric.value]), [
+    ["progress", copy.scoring.statuses.waiting],
+  ]);
 });
