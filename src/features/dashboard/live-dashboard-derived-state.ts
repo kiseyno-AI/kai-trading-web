@@ -1668,6 +1668,23 @@ function getScoringStageStatusTone(status: ScoringStageStatus): ScoringStageMode
   return "neutral";
 }
 
+function hasPositiveScoringPipelineProgress(pipelineStage: EodPipelineStageDto | null | undefined) {
+  return [
+    pipelineStage?.processed,
+    pipelineStage?.succeeded,
+    pipelineStage?.details?.rows_persisted,
+  ].some((value) => hasNumber(value) && value > 0);
+}
+
+function hasFreshScoringResultEvidence(resultSummary: ScoringStageResultSummary) {
+  return (
+    resultSummary.loadState === "ready" &&
+    (resultSummary.hasResult ||
+      resultSummary.progressLabel !== UNKNOWN_LABEL ||
+      resultSummary.metrics.some((metric) => metric.key !== "progress"))
+  );
+}
+
 function buildScoringMetric(key: string, label: string, value: string): ScoringStageMetric {
   return { key, label, value };
 }
@@ -1844,6 +1861,7 @@ function buildScoringStageModel({
   forceWaiting,
   numberLocale,
   pipelineStage,
+  pipelineStatusStale,
   requestedMarketDate,
   resultSummary,
   stageKey,
@@ -1853,24 +1871,34 @@ function buildScoringStageModel({
   forceWaiting: boolean;
   numberLocale: string;
   pipelineStage: EodPipelineStageDto | null | undefined;
+  pipelineStatusStale: boolean;
   requestedMarketDate: string | null;
   resultSummary: ScoringStageResultSummary;
   stageKey: ScoringStageKey;
   isDailyProcessRunning: boolean;
 }): ScoringStageModel {
-  const baseStatus = getScoringStageStatus(pipelineStage, requestedMarketDate, resultSummary);
-  const isWaitingFromRunning = isDailyProcessRunning && requestedMarketDate !== null && baseStatus === "pending";
+  const shouldUseFreshResult = pipelineStatusStale && hasFreshScoringResultEvidence(resultSummary);
+  const displayedPipelineStage = shouldUseFreshResult ? null : pipelineStage;
+  const baseStatus = getScoringStageStatus(displayedPipelineStage, requestedMarketDate, resultSummary);
+  const isWaitingFromRunning =
+    !shouldUseFreshResult && isDailyProcessRunning && requestedMarketDate !== null && baseStatus === "pending";
   const shouldForceWaiting = forceWaiting || isWaitingFromRunning;
+  const shouldShowWaitingProgress =
+    shouldForceWaiting ||
+    (pipelineStatusStale &&
+      !shouldUseFreshResult &&
+      baseStatus === "pending" &&
+      !hasPositiveScoringPipelineProgress(displayedPipelineStage));
   const displayMarketDate = shouldForceWaiting
     ? null
-    : getScoringStageDisplayMarketDate(pipelineStage, requestedMarketDate, resultSummary);
+    : getScoringStageDisplayMarketDate(displayedPipelineStage, requestedMarketDate, resultSummary);
   const status = shouldForceWaiting ? "waiting" : baseStatus;
-  const progressLabel = shouldForceWaiting
+  const progressLabel = shouldShowWaitingProgress
     ? copy.scoring.statuses.waiting
-    : getScoringProgressLabel(pipelineStage, numberLocale, resultSummary);
-  const metrics = shouldForceWaiting
+    : getScoringProgressLabel(displayedPipelineStage, numberLocale, resultSummary);
+  const metrics = shouldShowWaitingProgress
     ? [buildScoringMetric("progress", copy.processMonitor.progress, copy.scoring.statuses.waiting)]
-    : getScoringStageMetrics(pipelineStage, progressLabel, resultSummary, copy, numberLocale);
+    : getScoringStageMetrics(displayedPipelineStage, progressLabel, resultSummary, copy, numberLocale);
 
   return {
     key: stageKey,
@@ -1878,7 +1906,9 @@ function buildScoringStageModel({
     displayMarketDateLabel: displayMarketDate ?? UNKNOWN_LABEL,
     label: getScoringStageLabel(stageKey, copy),
     metrics,
-    note: shouldForceWaiting ? copy.scoring.notes.waiting : getScoringStageNote(status, pipelineStage, copy, resultSummary),
+    note: shouldForceWaiting
+      ? copy.scoring.notes.waiting
+      : getScoringStageNote(status, displayedPipelineStage, copy, resultSummary),
     progressLabel,
     status,
     statusLabel: getScoringStageStatusLabel(status, copy),
@@ -1891,6 +1921,7 @@ export function buildScoringCardModel({
   forceWaiting = false,
   numberLocale,
   pipelineStatus,
+  pipelineStatusStale = false,
   scoringMomentumFactors = null,
   scoringMomentumFactorsError = null,
   scoringMomentumFactorsLoadState = "idle",
@@ -1903,6 +1934,7 @@ export function buildScoringCardModel({
   forceWaiting?: boolean;
   numberLocale: string;
   pipelineStatus: EodPipelineStatusResponseDto | null;
+  pipelineStatusStale?: boolean;
   scoringMomentumFactors?: EodMomentumFactorsResponseDto | null;
   scoringMomentumFactorsError?: string | null;
   scoringMomentumFactorsLoadState?: FilteringStageLoadState;
@@ -1931,6 +1963,7 @@ export function buildScoringCardModel({
         forceWaiting,
         numberLocale,
         pipelineStage: getScoringPipelineStage(pipelineStatus, stage),
+        pipelineStatusStale,
         requestedMarketDate,
         resultSummary: getScoringStageResultSummary(stage.key, resultSummaries),
         stageKey: stage.key,
