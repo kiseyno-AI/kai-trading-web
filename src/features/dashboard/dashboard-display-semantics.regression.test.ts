@@ -17,6 +17,7 @@ import type {
 
 import {
   buildEodStageCard,
+  buildScoringCardModel,
   getFundamentalsStageStatusLabel,
   isBreakDayMarket,
 } from "./live-dashboard-derived-state";
@@ -337,4 +338,77 @@ test("TC-DASH-008 piotroski filter copy remains Korean when using ko locale", ()
   assert.equal(koCopy.piotroskiFilter.retry, "다시 시도");
   assert.equal(koCopy.piotroskiFilter.backToDashboard, "대시보드로 돌아가기");
   assert.notEqual(koCopy.piotroskiFilter.title, enCopy.piotroskiFilter.title);
+});
+
+test("TC-DASH-009 stale unstarted scoring stages show waiting instead of numeric progress", () => {
+  const copy = getDashboardLiveCopy("en");
+  const model = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: {
+      market_date: "2026-09-18",
+      status: "blocked",
+      stage_order: ["unified_value_factors", "quality_factors", "momentum_factors"],
+      stages: {
+        unified_value_factors: buildPipelineStage("waiting", { processed: 0, total: 8_625, failed: 0 }),
+        quality_factors: buildPipelineStage("blocked", { processed: 0, total: 8_625, failed: 0 }),
+        momentum_factors: buildPipelineStage("pending", { processed: 0, total: 8_625, failed: 0 }),
+      },
+    },
+    pipelineStatusStale: true,
+    scoringMarketDate: "2026-09-18",
+  });
+
+  assert.deepEqual(model.stages.map((stage) => stage.status), ["pending", "pending", "pending"]);
+  assert.deepEqual(model.stages.map((stage) => stage.progressLabel), [
+    copy.scoring.statuses.waiting,
+    copy.scoring.statuses.waiting,
+    copy.scoring.statuses.waiting,
+  ]);
+  assert.equal(model.stages.every((stage) => stage.metrics[0]?.value === copy.scoring.statuses.waiting), true);
+  assert.equal(model.stages.every((stage) => stage.note === copy.scoring.notes.pending), true);
+});
+
+test("TC-DASH-010 active scoring stages keep their live numeric progress", () => {
+  const copy = getDashboardLiveCopy("en");
+  const model = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: {
+      market_date: "2026-09-18",
+      status: "running",
+      stage_order: ["momentum_factors"],
+      stages: {
+        momentum_factors: buildPipelineStage("running", { processed: 125, total: 8_625, failed: 0 }),
+      },
+    },
+    scoringMarketDate: "2026-09-18",
+  });
+  const momentum = model.stages.find((stage) => stage.key === "momentum");
+
+  assert.equal(momentum?.status, "loading");
+  assert.equal(momentum?.progressLabel, "125 / 8,625");
+  assert.equal(momentum?.metrics[0]?.value, "125 / 8,625");
+});
+
+test("TC-DASH-011 non-stale pending scoring stages keep their existing numeric state", () => {
+  const copy = getDashboardLiveCopy("en");
+  const model = buildScoringCardModel({
+    copy,
+    numberLocale: "en-US",
+    pipelineStatus: {
+      market_date: "2026-09-18",
+      status: "completed",
+      stage_order: ["quality_factors"],
+      stages: {
+        quality_factors: buildPipelineStage("pending", { processed: 0, total: 8_625, failed: 0 }),
+      },
+    },
+    scoringMarketDate: "2026-09-18",
+  });
+  const quality = model.stages.find((stage) => stage.key === "quality");
+
+  assert.equal(quality?.status, "pending");
+  assert.equal(quality?.progressLabel, "0 / 8,625");
+  assert.equal(quality?.note, copy.scoring.notes.pending);
 });
