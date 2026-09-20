@@ -1074,7 +1074,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
   const [feedbackNavigationAttempt, setFeedbackNavigationAttempt] = useState<{
     href: string;
     notice: string | null;
-    state: "latest" | "selected";
+    state: "disabled" | "latest" | "resolve-latest" | "selected";
   } | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const detailOpenerRef = useRef<HTMLElement | null>(null);
@@ -1604,47 +1604,62 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
     (latestFeedbackRecovery.source === "dashboard" || latestFeedbackRecovery.marketDate !== feedbackDate)
       ? latestFeedbackRecovery.marketDate
       : null;
+  const selectedDateReadSettledUnavailable =
+    selectedDisplayLoadState !== "idle" &&
+    selectedDisplayLoadState !== "loading" &&
+    selectedDateUnavailable;
   const feedbackCtaHref = selectedFeedbackNavigationBlocked
     ? latestUsableFeedbackCtaDate
       ? buildSignalDeciderFeedbackHref(latestUsableFeedbackCtaDate, {
           navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
           originDate: feedbackDate,
         })
-      : null
+      : selectedDateReadSettledUnavailable
+        ? buildSignalDeciderFeedbackHref(null, {
+            navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
+            originDate: feedbackDate,
+          })
+        : null
     : buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT });
   const feedbackCtaState = selectedFeedbackNavigationBlocked
     ? latestUsableFeedbackCtaDate
       ? "latest"
-      : "disabled"
+      : selectedDateReadSettledUnavailable
+        ? "resolve-latest"
+        : "disabled"
     : "selected";
   const storedFeedbackCtaExceedsLimit =
     selectedStoredDecisionCount > SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
   const feedbackCtaLabel =
     feedbackCtaState === "latest"
       ? copy.actions.openLatestFeedback
-      : feedbackCtaState === "disabled"
-        ? copy.actions.feedbackUnavailable
-        : selectedCalendarEvidenceOnly
-          ? (storedFeedbackCtaExceedsLimit
-              ? copy.actions.openStoredFeedbackUpTo
-              : copy.actions.openStoredFeedback
-            ).replaceAll(
-              "{count}",
-              Math.min(
-                selectedStoredDecisionCount,
-                SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
-              ).toLocaleString("en-US"),
-            )
-        : copy.actions.openFeedback;
+      : feedbackCtaState === "resolve-latest"
+        ? copy.actions.findLatestFeedback
+        : feedbackCtaState === "disabled"
+          ? copy.actions.feedbackUnavailable
+          : selectedCalendarEvidenceOnly
+            ? (storedFeedbackCtaExceedsLimit
+                ? copy.actions.openStoredFeedbackUpTo
+                : copy.actions.openStoredFeedback
+              ).replaceAll(
+                "{count}",
+                Math.min(
+                  selectedStoredDecisionCount,
+                  SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+                ).toLocaleString("en-US"),
+              )
+          : copy.actions.openFeedback;
   const feedbackCtaNotice =
     feedbackCtaState === "latest" && latestUsableFeedbackCtaDate
       ? (latestFeedbackRecovery?.source === "dashboard"
           ? copy.states.openDashboardFeedback
           : copy.states.openLatestFeedback
         ).replaceAll("{marketDate}", latestUsableFeedbackCtaDate)
-      : feedbackCtaState === "disabled"
-        ? copy.states.feedbackTableUnavailable
-        : null;
+      : feedbackCtaState === "resolve-latest"
+        ? copy.states.resolveLatestFeedback
+        : feedbackCtaState === "disabled"
+          ? copy.states.feedbackTableUnavailable
+          : null;
   const feedbackNavigationTargetHref = feedbackNavigationAttempt?.href ?? feedbackCtaHref;
   const feedbackNavigationPending = feedbackNavigationTargetHref
     ? isNavigatingTo(feedbackNavigationTargetHref)
@@ -1998,7 +2013,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
                     setFeedbackNavigationAttempt({
                       href,
                       notice: feedbackCtaNotice,
-                      state: feedbackCtaState === "latest" ? "latest" : "selected",
+                      state: feedbackCtaState,
                     });
                   }}
                   pendingAcknowledgement

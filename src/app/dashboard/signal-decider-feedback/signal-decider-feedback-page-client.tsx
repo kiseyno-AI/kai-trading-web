@@ -21,7 +21,6 @@ import {
   type SymbolDetailFeedbackReturnRoute,
 } from "@/app/dashboard/symbol/[symbol]/symbol-detail-state";
 import {
-  getAgentFeedbackProgressMarketDate,
   isAgentFeedbackProgressResponseForMarketDate,
 } from "@/lib/agent-feedback-progress";
 import { formatDisplayTimestamp, formatPrice } from "@/lib/format";
@@ -49,6 +48,7 @@ import {
   filterDeciderDataGapRecords,
   getDeciderFeedbackComparisonKey,
   getOppositeDeciderAgentName,
+  normalizeDeciderFeedbackItems,
   normalizeDeciderFeedbackSymbol,
   normalizeDeciderFeedbackSymbols,
   resolveDeciderFeedbackNavContext,
@@ -74,11 +74,12 @@ import {
 } from "@/lib/signal-decider-feedback";
 import {
   isSignalDeciderFeedbackResponseForMarketDate,
-  readLatestSignalDeciderFeedbackCache,
+  readLatestSignalDeciderFeedbackCacheByMarketDate,
   readSignalDeciderFeedbackCache,
   selectSignalDeciderFeedbackResponseForMarketDate,
   writeSignalDeciderFeedbackCache,
 } from "@/lib/signal-decider-feedback-cache";
+import { getSignalDeciderFeedbackRecoveryCandidateDates } from "@/lib/signal-decider-feedback-recovery";
 import { getSignalDeciderReviewJson } from "@/lib/signal-decider-review-fetch";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 import type {
@@ -1162,7 +1163,10 @@ export default function SignalDeciderFeedbackPageClient() {
     if (requestedMarketDate) return;
 
     let active = true;
-    const cachedLatest = activeAgent === SIGNAL_DECIDER_AGENT_NAME ? readLatestSignalDeciderFeedbackCache() : null;
+    const cachedLatest =
+      activeAgent === SIGNAL_DECIDER_AGENT_NAME
+        ? readLatestSignalDeciderFeedbackCacheByMarketDate()
+        : null;
     if (cachedLatest) {
       queueMicrotask(() => {
         if (!active) return;
@@ -1188,15 +1192,60 @@ export default function SignalDeciderFeedbackPageClient() {
           timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS,
         });
         if (!active) return;
-        const resolvedMarketDate = getAgentFeedbackProgressMarketDate(freshness);
-        if (!resolvedMarketDate) {
-          if (cachedLatest) return;
-          setMarketDate(null);
-          setLoadState("error");
-          setError("marketDateUnavailable");
-          return;
+        const candidateDates = getSignalDeciderFeedbackRecoveryCandidateDates({
+          freshness,
+          unavailableMarketDate: null,
+        }).filter(
+          (candidateDate) => !cachedLatest || candidateDate > cachedLatest.marketDate,
+        );
+        let lastProbeError: unknown = null;
+
+        for (const candidateDate of candidateDates) {
+          try {
+            const candidateFeedback = await getSignalDeciderReviewJson<AgentFeedbackListResponseDto>(
+              buildDeciderFeedbackPath({
+                agentName: activeAgent,
+                basePath: SIGNAL_DECIDER_FEEDBACK_CLIENT_PATH,
+                marketDate: candidateDate,
+                symbols: requestedFeedbackSymbols,
+              }),
+              { timeoutMs: SIGNAL_DECIDER_FEEDBACK_READ_TIMEOUT_MS },
+            );
+            if (!active) return;
+            if (normalizeDeciderFeedbackItems(candidateFeedback, { agentName: activeAgent }).length <= 0) {
+              continue;
+            }
+            if (!isSignalDeciderFeedbackResponseForMarketDate(candidateFeedback, candidateDate)) {
+              lastProbeError = new Error(
+                `Latest feedback rows do not match candidate date ${candidateDate}.`,
+              );
+              continue;
+            }
+
+            if (activeAgent === SIGNAL_DECIDER_AGENT_NAME && requestedFeedbackSymbols.length === 0) {
+              writeSignalDeciderFeedbackCache({
+                feedback: candidateFeedback,
+                marketDate: candidateDate,
+                progress: null,
+                source: "detail",
+              });
+            }
+            setMarketDate(candidateDate);
+            setMarketDateDraft(candidateDate);
+            return;
+          } catch (probeError) {
+            lastProbeError = probeError;
+          }
         }
-        setMarketDate(resolvedMarketDate);
+
+        if (cachedLatest) return;
+        setMarketDate(null);
+        setLoadState("error");
+        setError(
+          lastProbeError
+            ? getFeedbackError(lastProbeError, "feedback", "feedbackUnavailable")
+            : "marketDateUnavailable",
+        );
       } catch (freshnessError) {
         if (!active) return;
         if (cachedLatest) return;
@@ -1211,7 +1260,7 @@ export default function SignalDeciderFeedbackPageClient() {
     return () => {
       active = false;
     };
-  }, [activeAgent, requestedMarketDate, copy.errors.marketDateUnavailable]);
+  }, [activeAgent, requestedFeedbackSymbols, requestedMarketDate]);
 
   useEffect(() => {
     if (!marketDate) return;
