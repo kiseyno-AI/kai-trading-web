@@ -2324,13 +2324,15 @@ test("calendar-sourced mobile feedback shows decision rows before data-gap diagn
   expect(firstDecisionBox!.y).toBeLessThan(dataGapBox!.y);
 });
 
-test("calendar unavailable selected date keeps recovery disabled when freshness has no feedback", async ({
+test("calendar unavailable selected date delegates recovery to an exact-row latest-date resolver", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSignalReviewCalendar(page, {
-    forceCalendarSummaryFailure: true,
     emptyFeedbackDates: ["2026-04-27"],
+    forceCalendarSummaryFailure: true,
+    forceFreshnessFailure: true,
+    pendingWaitDate: "2026-04-24",
     runningProgressDates: ["2026-05-26"],
     timeoutFeedbackDates: ["2026-05-26"],
   });
@@ -2339,18 +2341,51 @@ test("calendar unavailable selected date keeps recovery disabled when freshness 
   await page.getByRole("button", { name: /Korean/i }).click();
 
   const feedbackCta = page.getByTestId("calendar-feedback-cta");
-  await expect(feedbackCta).toHaveText("피드백 표 사용 불가");
-  await expect(feedbackCta).toBeDisabled();
-  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "disabled");
+  await expect(feedbackCta).toHaveText("최근 검토 가능한 피드백 찾기");
+  await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "resolve-latest");
+  await expect(feedbackCta).toHaveAttribute(
+    "href",
+    "/dashboard/signal-decider-feedback?navContext=calendar&originDate=2026-05-26",
+  );
   await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
-    "선택한 날짜는 지금 피드백 행을 열 수 없습니다.",
+    "저장된 피드백 행을 확인한 뒤에만 날짜를 선택",
   );
   const unavailableDate = page.locator('[data-calendar-cell="2026-05-26"]');
   await expect(unavailableDate).toBeDisabled();
   await expectNarrowMobileLabelsContained(page);
   await expect(page).toHaveURL(/\/calendar\?date=2026-05-26$/);
-  await expect(page.getByRole("link", { name: /피드백 표 열기/i })).toHaveCount(0);
   await expect(page.getByTestId("feedback-error-primary")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(feedbackCta).toBeVisible();
+  await expect(page.getByTestId("calendar-feedback-recovery-notice")).toBeVisible();
+  await expect(unavailableDate).toBeDisabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.unroute("**/api/trading/eod/freshness");
+  await page.route("**/api/trading/eod/freshness", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        today: {
+          trade_date: "2026-05-26",
+        },
+        latest: {
+          action_market_date: "2026-04-24",
+          price_trade_date: "2026-04-27",
+        },
+      }),
+    });
+  });
+
+  await feedbackCta.click();
+  await expect(page).toHaveURL(
+    /\/dashboard\/signal-decider-feedback\?navContext=calendar&originDate=2026-05-26$/,
+  );
+  const resolvedFeedbackRow = page.getByTestId("signal-decider-result-card").first();
+  await expect(resolvedFeedbackRow).toBeVisible();
+  await expect(resolvedFeedbackRow).toContainText("003480");
+  await expect(page.getByText("MD 2026-04-24")).toBeVisible();
 });
 
 test("calendar unavailable state opens backend-proven latest feedback without enabling unknown dates", async ({
