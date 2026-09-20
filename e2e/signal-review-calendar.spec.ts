@@ -2324,6 +2324,58 @@ test("calendar-sourced mobile feedback shows decision rows before data-gap diagn
   expect(firstDecisionBox!.y).toBeLessThan(dataGapBox!.y);
 });
 
+test("calendar keeps date-less feedback recovery disabled while the selected-date state is idle", async ({
+  baseURL,
+  browser,
+}) => {
+  const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+  const page = await context.newPage();
+
+  try {
+    await page.goto("/calendar");
+
+    const feedbackCta = page.getByTestId("calendar-feedback-cta");
+    await expect(feedbackCta).toHaveText("Feedback table unavailable");
+    await expect(feedbackCta).toBeDisabled();
+    await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "disabled");
+    await expect(feedbackCta).not.toHaveAttribute("href");
+    await expect(page.getByTestId("calendar-feedback-recovery-notice")).toContainText(
+      "The selected date cannot open feedback rows right now.",
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+test("calendar keeps date-less feedback recovery disabled while the selected-date read is loading", async ({
+  page,
+}) => {
+  const pendingSelectedDateRead = createDeferred();
+
+  try {
+    await mockSignalReviewCalendar(page, {
+      reviewDateDelays: {
+        "2026-05-26": pendingSelectedDateRead.promise,
+      },
+    });
+
+    await page.goto("/calendar?date=2026-05-26");
+
+    const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-26" }) });
+    await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+      "data-selected-date-status",
+      "loading",
+    );
+    const feedbackCta = page.getByTestId("calendar-feedback-cta");
+    await expect(feedbackCta).toHaveText("Feedback table unavailable");
+    await expect(feedbackCta).toBeDisabled();
+    await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "disabled");
+    await expect(feedbackCta).not.toHaveAttribute("href");
+  } finally {
+    pendingSelectedDateRead.resolve();
+  }
+});
+
 test("calendar unavailable selected date delegates recovery to an exact-row latest-date resolver", async ({
   page,
 }) => {
@@ -2341,6 +2393,11 @@ test("calendar unavailable selected date delegates recovery to an exact-row late
   await page.getByRole("button", { name: /Korean/i }).click();
 
   const feedbackCta = page.getByTestId("calendar-feedback-cta");
+  const selectedPanel = page.locator("aside").filter({ has: page.getByRole("heading", { name: "2026-05-26" }) });
+  await expect(selectedPanel.locator("[data-selected-date-status]")).toHaveAttribute(
+    "data-selected-date-status",
+    "unavailable",
+  );
   await expect(feedbackCta).toHaveText("최근 검토 가능한 피드백 찾기");
   await expect(feedbackCta).toHaveAttribute("data-calendar-feedback-cta-state", "resolve-latest");
   await expect(feedbackCta).toHaveAttribute(

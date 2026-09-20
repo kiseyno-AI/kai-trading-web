@@ -1074,7 +1074,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
   const [feedbackNavigationAttempt, setFeedbackNavigationAttempt] = useState<{
     href: string;
     notice: string | null;
-    state: "latest" | "resolve-latest" | "selected";
+    state: "disabled" | "latest" | "resolve-latest" | "selected";
   } | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const detailOpenerRef = useRef<HTMLElement | null>(null);
@@ -1604,21 +1604,29 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
     (latestFeedbackRecovery.source === "dashboard" || latestFeedbackRecovery.marketDate !== feedbackDate)
       ? latestFeedbackRecovery.marketDate
       : null;
+  const selectedDateReadSettledUnavailable =
+    selectedDisplayLoadState !== "idle" &&
+    selectedDisplayLoadState !== "loading" &&
+    selectedDateUnavailable;
   const feedbackCtaHref = selectedFeedbackNavigationBlocked
     ? latestUsableFeedbackCtaDate
       ? buildSignalDeciderFeedbackHref(latestUsableFeedbackCtaDate, {
           navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
           originDate: feedbackDate,
         })
-      : buildSignalDeciderFeedbackHref(null, {
-          navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
-          originDate: feedbackDate,
-        })
+      : selectedDateReadSettledUnavailable
+        ? buildSignalDeciderFeedbackHref(null, {
+            navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT,
+            originDate: feedbackDate,
+          })
+        : null
     : buildSignalDeciderFeedbackHref(feedbackDate, { navContext: DECIDER_FEEDBACK_CALENDAR_NAV_CONTEXT });
   const feedbackCtaState = selectedFeedbackNavigationBlocked
     ? latestUsableFeedbackCtaDate
       ? "latest"
-      : "resolve-latest"
+      : selectedDateReadSettledUnavailable
+        ? "resolve-latest"
+        : "disabled"
     : "selected";
   const storedFeedbackCtaExceedsLimit =
     selectedStoredDecisionCount > SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT;
@@ -1627,18 +1635,20 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
       ? copy.actions.openLatestFeedback
       : feedbackCtaState === "resolve-latest"
         ? copy.actions.findLatestFeedback
-        : selectedCalendarEvidenceOnly
-          ? (storedFeedbackCtaExceedsLimit
-              ? copy.actions.openStoredFeedbackUpTo
-              : copy.actions.openStoredFeedback
-            ).replaceAll(
-              "{count}",
-              Math.min(
-                selectedStoredDecisionCount,
-                SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
-              ).toLocaleString("en-US"),
-            )
-        : copy.actions.openFeedback;
+        : feedbackCtaState === "disabled"
+          ? copy.actions.feedbackUnavailable
+          : selectedCalendarEvidenceOnly
+            ? (storedFeedbackCtaExceedsLimit
+                ? copy.actions.openStoredFeedbackUpTo
+                : copy.actions.openStoredFeedback
+              ).replaceAll(
+                "{count}",
+                Math.min(
+                  selectedStoredDecisionCount,
+                  SIGNAL_DECIDER_FEEDBACK_MAX_RESULT_LIMIT,
+                ).toLocaleString("en-US"),
+              )
+          : copy.actions.openFeedback;
   const feedbackCtaNotice =
     feedbackCtaState === "latest" && latestUsableFeedbackCtaDate
       ? (latestFeedbackRecovery?.source === "dashboard"
@@ -1647,7 +1657,9 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
         ).replaceAll("{marketDate}", latestUsableFeedbackCtaDate)
       : feedbackCtaState === "resolve-latest"
         ? copy.states.resolveLatestFeedback
-        : null;
+        : feedbackCtaState === "disabled"
+          ? copy.states.feedbackTableUnavailable
+          : null;
   const feedbackNavigationTargetHref = feedbackNavigationAttempt?.href ?? feedbackCtaHref;
   const feedbackNavigationPending = feedbackNavigationTargetHref
     ? isNavigatingTo(feedbackNavigationTargetHref)
