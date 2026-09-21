@@ -10,6 +10,7 @@ import {
   isEodPipelineStatusTransientError,
   getEodPipelineStatusMonitorAwarePollDelayMs,
   getEodPipelineStatusPollDelayMsWithTransientErrors,
+  shouldPollEodPipelineStatusForVisibility,
   selectAgentFeedbackProgressForMarketDate,
   selectSignalDeciderFeedbackForMarketDate,
   shouldSeedInitialMarketSnapshot,
@@ -280,14 +281,14 @@ test("uses a longer retry delay only for transient pipeline status errors", () =
       pipelineStatus: runningStatus,
       timeoutErrorCount: 0,
     }),
-    1_000,
+    5_000,
   );
   assert.equal(
     getEodPipelineStatusPollDelayMsWithTransientErrors({
       pipelineStatus: runningStatus,
       timeoutErrorCount: 1,
     }),
-    2_000,
+    5_000,
   );
   assert.equal(
     getEodPipelineStatusPollDelayMsWithTransientErrors({
@@ -348,7 +349,7 @@ test("keeps monitor-open polling fast only while transient pipeline status polli
       processMonitorOpen: false,
       timeoutErrorCount: 0,
     }),
-    1_000,
+    5_000,
   );
   assert.equal(
     getEodPipelineStatusMonitorAwarePollDelayMs({
@@ -366,6 +367,11 @@ test("keeps monitor-open polling fast only while transient pipeline status polli
     }),
     10_000,
   );
+});
+
+test("suspends EOD pipeline status polling while the document is hidden", () => {
+  assert.equal(shouldPollEodPipelineStatusForVisibility("visible"), true);
+  assert.equal(shouldPollEodPipelineStatusForVisibility("hidden"), false);
 });
 
 test("loads pipeline status with a request timeout signal and quiet transient error handling", () => {
@@ -413,6 +419,14 @@ test("uses one pipeline status polling owner with a 2s monitor-open cadence", ()
     /\}, \[freshness, latestCompletedPipelineStatusPath, pipelineRequestMarketDate, pipelineStatusPath, processMonitorOpen\]\);/,
   );
   assert.equal((source.match(/getJsonNoCache<EodPipelineStatusResponseDto>\(pipelineStatusPath/g) ?? []).length, 1);
+  assert.match(
+    source,
+    /document\.addEventListener\("visibilitychange", handlePipelineVisibilityChange\);/,
+  );
+  assert.match(
+    source,
+    /document\.removeEventListener\("visibilitychange", handlePipelineVisibilityChange\);/,
+  );
 });
 
 test("wires daily process drawer open state to restart and stop fast pipeline polling", () => {

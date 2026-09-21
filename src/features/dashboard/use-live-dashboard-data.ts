@@ -176,6 +176,12 @@ export function isEodPipelineStatusTransientError(error: unknown) {
   return message.includes("timed out") || message.includes("http 504") || message.includes("aborted");
 }
 
+export function shouldPollEodPipelineStatusForVisibility(
+  visibilityState: DocumentVisibilityState,
+) {
+  return visibilityState !== "hidden";
+}
+
 export function getEodPipelineStatusPollDelayMsWithTransientErrors({
   pipelineStatus,
   timeoutErrorCount,
@@ -1076,7 +1082,12 @@ export function useLiveDashboardData({
       nextPipelineStatus: EodPipelineStatusResponseDto | null,
       timeoutErrorCount: number,
     ) {
-      if (!active) return;
+      if (
+        !active ||
+        !shouldPollEodPipelineStatusForVisibility(document.visibilityState)
+      ) {
+        return;
+      }
       clearTimer();
       timer = window.setTimeout(
         loadPipelineStatus,
@@ -1089,6 +1100,13 @@ export function useLiveDashboardData({
     }
 
     async function loadPipelineStatus() {
+      if (
+        !active ||
+        !shouldPollEodPipelineStatusForVisibility(document.visibilityState)
+      ) {
+        return;
+      }
+
       const currentRequestTimeout = createEodPipelineStatusRequestTimeout();
       inFlightRequest = currentRequestTimeout;
 
@@ -1160,11 +1178,25 @@ export function useLiveDashboardData({
       }
     }
 
+    function handlePipelineVisibilityChange() {
+      clearTimer();
+      if (
+        !active ||
+        !shouldPollEodPipelineStatusForVisibility(document.visibilityState) ||
+        inFlightRequest !== null
+      ) {
+        return;
+      }
+      void loadPipelineStatus();
+    }
+
+    document.addEventListener("visibilitychange", handlePipelineVisibilityChange);
     void loadPipelineStatus();
 
     return () => {
       active = false;
       clearTimer();
+      document.removeEventListener("visibilitychange", handlePipelineVisibilityChange);
       inFlightRequest?.abort();
       inFlightLatestCompletedRequest?.abort();
     };
