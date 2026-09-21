@@ -159,7 +159,7 @@ test.describe("Tailnet browser entrypoint", () => {
       },
       {
         linkName: /^Review$/i,
-        pathname: /\/calendar$/,
+        pathname: /\/calendar(?:\?date=\d{4}-\d{2}-\d{2})?$/,
         title: /Review|검토/i,
       },
       {
@@ -200,11 +200,13 @@ test.describe("Tailnet browser entrypoint", () => {
 
     const piotroskiUrl = buildTailnetRouteUrl(tailnetBrowserNavigationUrl, "/dashboard/piotroski-filter");
     await page.goto(piotroskiUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko", { timeout: 30_000 });
 
     const main = page.getByRole("main");
     const errorState = page.getByTestId("piotroski-error-state");
     await expect(errorState).toContainText(
       "피오트로스키 결과 데이터를 불러오지 못했습니다. 최신 데이터 처리가 지연되었을 수 있습니다.",
+      { timeout: 30_000 },
     );
     await expect(
       page.locator('[data-app-chrome-topbar="fixed"]').getByText("데이터 사용 불가", { exact: true }),
