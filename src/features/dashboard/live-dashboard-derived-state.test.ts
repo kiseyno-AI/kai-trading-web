@@ -3863,7 +3863,7 @@ test("keeps pipeline polling at the active cadence while the status or any stage
         },
       },
     }),
-    1_000,
+    5_000,
   );
   assert.equal(
     getEodPipelineStatusPollDelayMs({
@@ -3879,7 +3879,7 @@ test("keeps pipeline polling at the active cadence while the status or any stage
         },
       },
     }),
-    1_000,
+    5_000,
   );
   assert.equal(
     getEodPipelineStatusPollDelayMs({
