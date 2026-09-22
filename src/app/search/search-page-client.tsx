@@ -480,6 +480,7 @@ export default function SearchPageClient() {
   const [searchLoading, setSearchLoading] = useState(false);
   const favoriteOpenButtonRef = useRef<HTMLButtonElement>(null);
   const favoriteSearchInputRef = useRef<HTMLInputElement>(null);
+  const trendingTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const trendingListRef = useRef<HTMLDivElement>(null);
   const pendingTrendingViewportCompensationRef = useRef(false);
   const [trendingMode, setTrendingMode] = useState<TrendingMode>("kis");
@@ -845,6 +846,32 @@ export default function SearchPageClient() {
     setTrendingMode(nextMode);
     setTrendingVisibleLimit(TRENDING_INITIAL_LIMIT);
     setTrendingError(null);
+  };
+
+  const handleTrendingTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+    let nextIndex: number;
+
+    switch (event.key) {
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % trendingTabs.length;
+        break;
+      case "ArrowLeft":
+        nextIndex = (currentIndex - 1 + trendingTabs.length) % trendingTabs.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = trendingTabs.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    const nextTab = trendingTabs[nextIndex];
+    handleTrendingModeChange(nextTab.mode);
+    trendingTabRefs.current[nextIndex]?.focus();
   };
 
   const handleShowMoreTrending = () => {
@@ -1424,14 +1451,19 @@ export default function SearchPageClient() {
             <span>{trendingMeta ?? selectedTrendingTab.description}</span>
           </div>
           <div className={styles.trendingTabs} role="tablist" aria-label={copy.trending.source}>
-            {trendingTabs.map((tab) => (
+            {trendingTabs.map((tab, index) => (
               <button
                 key={tab.mode}
+                ref={(element) => {
+                  trendingTabRefs.current[index] = element;
+                }}
                 type="button"
                 role="tab"
                 aria-selected={tab.mode === trendingMode}
+                tabIndex={tab.mode === trendingMode ? 0 : -1}
                 className={tab.mode === trendingMode ? styles.trendingTabActive : undefined}
                 onClick={() => handleTrendingModeChange(tab.mode)}
+                onKeyDown={(event) => handleTrendingTabKeyDown(event, index)}
               >
                 <span>{tab.label}</span>
                 <small>{tab.description}</small>

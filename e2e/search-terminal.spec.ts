@@ -44,6 +44,19 @@ test.describe("search terminal desktop", () => {
     await expect(page.getByText(/Search workspace/i)).toHaveCount(0);
   });
 
+  test("keeps the desktop search layout free of horizontal overflow", async ({ page }) => {
+    await page.goto("/search");
+
+    await expect(page.getByRole("navigation", { name: /Primary desktop/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Trending Symbols/i })).toHaveCount(0);
+
+    const overflow = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }));
+    expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewportWidth);
+  });
+
   test("keeps the quick-access favorite add control target sized on desktop", async ({ page }) => {
     await page.route("**/api/trading/symbols/favorites", async (route) => {
       await route.fulfill({

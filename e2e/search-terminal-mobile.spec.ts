@@ -137,6 +137,18 @@ async function stubEmptySearchData(page: Page) {
       },
     });
   });
+  await page.route("**/api/trading/scanner/trending-stocks?**", async (route) => {
+    const requestUrl = new URL(route.request().url());
+    const period = requestUrl.searchParams.get("period") ?? "1d";
+
+    await route.fulfill({
+      json: {
+        items: [],
+        request: { period, resolved_market_date: "2026-05-30" },
+        summary: { count: 0, data_available: true },
+      },
+    });
+  });
 }
 
 test.describe("search terminal mobile", () => {
@@ -263,6 +275,81 @@ test.describe("search terminal mobile", () => {
     });
 
     expect(directionLineCount).toBe(1);
+  });
+
+  test("supports roving keyboard navigation for Korean trending tabs at 390px", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await stubEmptySearchData(page);
+    await page.goto("/search");
+
+    const trendingSection = page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "인기 종목" }) })
+      .first();
+    const tablist = trendingSection.getByRole("tablist", { name: "인기 소스" });
+    const tabs = tablist.getByRole("tab");
+    const kisTab = tabs.nth(0);
+    const oneDayTab = tabs.nth(1);
+    const fiveDayTab = tabs.nth(2);
+    const twentyDayTab = tabs.nth(3);
+
+    await expect(tabs).toHaveCount(4);
+    await expect(kisTab).toHaveAttribute("aria-selected", "true");
+    await expect(kisTab).toHaveAttribute("tabindex", "0");
+    await expect(oneDayTab).toHaveAttribute("tabindex", "-1");
+    await expect(fiveDayTab).toHaveAttribute("tabindex", "-1");
+    await expect(twentyDayTab).toHaveAttribute("tabindex", "-1");
+
+    await kisTab.focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(twentyDayTab).toBeFocused();
+    await expect(twentyDayTab).toHaveAttribute("aria-selected", "true");
+
+    await page.keyboard.press("ArrowRight");
+    await expect(kisTab).toBeFocused();
+    await expect(kisTab).toHaveAttribute("aria-selected", "true");
+
+    await page.keyboard.press("End");
+    await expect(twentyDayTab).toBeFocused();
+    await expect(twentyDayTab).toHaveAttribute("aria-selected", "true");
+
+    await page.keyboard.press("Home");
+    await expect(kisTab).toBeFocused();
+    await expect(kisTab).toHaveAttribute("aria-selected", "true");
+
+    await page.keyboard.press("ArrowRight");
+    await expect(oneDayTab).toBeFocused();
+    await expect(oneDayTab).toHaveAttribute("aria-selected", "true");
+    await expect(oneDayTab).toHaveAttribute("tabindex", "0");
+    await expect(kisTab).toHaveAttribute("tabindex", "-1");
+
+    const focusStyle = await oneDayTab.evaluate((element) => {
+      const styles = window.getComputedStyle(element);
+
+      return {
+        outlineStyle: styles.outlineStyle,
+        outlineWidth: Number.parseFloat(styles.outlineWidth),
+      };
+    });
+    expect(focusStyle.outlineStyle).not.toBe("none");
+    expect(focusStyle.outlineWidth).toBeGreaterThanOrEqual(2);
+
+    await page.keyboard.press("Tab");
+    expect(await tablist.evaluate((element) => element.contains(document.activeElement))).toBe(false);
+    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
+
+    await fiveDayTab.click();
+    await expect(fiveDayTab).toHaveAttribute("aria-selected", "true");
+    await expect(fiveDayTab).toHaveAttribute("tabindex", "0");
+    await expect(tablist.getByRole("tab", { selected: false })).toHaveCount(3);
+
+    const overflow = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }));
+    expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewportWidth);
   });
 
   test("trending rows scroll clear of the mobile bottom nav", async ({ page }) => {
