@@ -1954,4 +1954,56 @@ test.describe("symbol detail mobile pages", () => {
     await expect(reportFrame).toHaveAttribute("src", expectedDocumentUrl);
     await expect(page.frameLocator('iframe[title="Quarterly report filing document"]').getByText(/Mock filing document body/i)).toBeVisible();
   });
+
+  test("Korean disclosure report detail localizes workflow copy and keeps DART identifiers", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await page.route("**/api/trading/disclosures/dart/filings/document?**", async (route) => {
+      await route.fulfill({
+        contentType: "text/html",
+        body: "<!doctype html><html><body><main>공시 문서 본문</main></body></html>",
+      });
+    });
+
+    const reportQuery = new URLSearchParams({
+      name: "삼성전자",
+      reportName: "분기보고서 (2026.03)",
+      corpName: "삼성전자",
+      receiptDate: "2026-04-10",
+      filingCategory: "Quarterly",
+      captureStatus: "Captured",
+    });
+    await page.goto(
+      withBasePath(`/dashboard/symbol/005930/disclosure-coverage/202604100001?${reportQuery.toString()}`),
+    );
+
+    const reportPage = page.locator("[data-app-chrome-main]");
+    const reportFrame = page.locator('iframe[title="분기보고서 (2026.03) 공시 문서"]');
+
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await expect(page.getByRole("link", { name: "공시 커버리지로 돌아가기" })).toBeVisible();
+    await expect(page.getByText("DART 보고서 상세", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "분기보고서 (2026.03)" })).toBeVisible();
+    await expect(page.getByText("005930 - 접수번호 202604100001 - 접수일 2026-04-10", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "공시로 돌아가기" })).toBeVisible();
+    await expect(page.getByText("회사", { exact: true })).toBeVisible();
+    await expect(page.getByText("공시 카테고리", { exact: true })).toBeVisible();
+    await expect(page.getByText("분기", { exact: true })).toBeVisible();
+    await expect(page.getByText("수집 상태", { exact: true })).toBeVisible();
+    await expect(page.getByText("수집됨", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "문서 다운로드" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "DART에서 열기" })).toBeVisible();
+    await expect(page.getByText("보고서 내용", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "공시 문서" })).toBeVisible();
+    await expect(page.getByText("접수번호 202604100001", { exact: true })).toBeVisible();
+    await expect(reportFrame).toBeVisible();
+    await expect(reportFrame).toHaveAttribute(
+      "src",
+      `${appBasePath}/api/trading/disclosures/dart/filings/document?rcept_no=202604100001`,
+    );
+    await expect(reportPage).not.toContainText(
+      /Back to disclosures|Company|Filing category|Capture status|Download document|Report Content|Filing document/,
+    );
+  });
 });

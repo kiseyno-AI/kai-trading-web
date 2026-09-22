@@ -6,6 +6,12 @@ import { useMemo } from "react";
 
 import { ComponentTag } from "@/components/dev/component-tag";
 import { MobileAppChrome } from "@/components/mobile/mobile-app-chrome";
+import { useAppState } from "@/components/providers/app-state-provider";
+import {
+  localizeDisclosureCaptureStatus,
+  localizeDisclosureFilingCategory,
+} from "@/features/symbol-detail/disclosure-report-display";
+import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import { buildDisclosureDocumentUrl } from "@/lib/disclosure-document-url";
 import {
   resolveSymbolDetailActiveNav,
@@ -74,6 +80,8 @@ function readRouteParam(value: string | string[] | undefined) {
 }
 
 export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: serverSymbol }: DisclosureReportClientProps) {
+  const { locale } = useAppState();
+  const copy = getSymbolDetailCopy(locale).disclosures.reportDetail;
   const params = useParams<{ symbol?: string | string[]; receiptNo?: string | string[] }>();
   const searchParams = useSearchParams();
   const symbol = useMemo(() => {
@@ -99,10 +107,16 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
     () => buildDisclosureCoverageHref(symbol, preservedQueryString),
     [preservedQueryString, symbol],
   );
-  const reportName = getSearchParam(searchParams, "reportName", "Disclosure report");
-  const receiptDate = getSearchParam(searchParams, "receiptDate", "No receipt date");
-  const filingCategory = getSearchParam(searchParams, "filingCategory", "No category");
-  const captureStatus = getSearchParam(searchParams, "captureStatus", "Not captured");
+  const reportName = getSearchParam(searchParams, "reportName", copy.fallbackReportName);
+  const receiptDate = getSearchParam(searchParams, "receiptDate", copy.noReceiptDate);
+  const filingCategory = localizeDisclosureFilingCategory(
+    getSearchParam(searchParams, "filingCategory", copy.noCategory),
+    copy,
+  );
+  const captureStatus = localizeDisclosureCaptureStatus(
+    getSearchParam(searchParams, "captureStatus", copy.notCaptured),
+    copy,
+  );
   const corpName = getSearchParam(searchParams, "corpName", searchParams.get("name") ?? symbol);
   const documentUrl = useMemo(() => buildDisclosureDocumentUrl(receiptNo), [receiptNo]);
   const dartViewerUrl = useMemo(() => buildDartViewerUrl(receiptNo), [receiptNo]);
@@ -112,12 +126,12 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
       chrome={{
         activeNav: symbolDetailActiveNav,
         leading: (
-          <Link href={backHref} className={styles.backButton} aria-label="Back to disclosure coverage">
+          <Link href={backHref} className={styles.backButton} aria-label={copy.backToCoverage}>
             &larr;
           </Link>
         ),
         title: corpName,
-        status: { label: "S7 Report", tone: "info" },
+        status: { label: copy.statusLabel, tone: "info" },
         toolbarAction: "dev-mode",
       }}
     >
@@ -126,38 +140,38 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
           <ComponentTag label="symbol.disclosure-report" api="/api/trading/disclosures/dart/filings/document" />
           <div className={styles.reportHeroTop}>
             <div>
-              <p className={styles.sectionEyebrow}>DART Report Detail</p>
+              <p className={styles.sectionEyebrow}>{copy.eyebrow}</p>
               <h1 className={styles.reportTitle}>{reportName}</h1>
               <p className={`clamp-3 ${styles.supportingCopy}`}>
-                {symbol} - Receipt {receiptNo} - Filed {receiptDate}
+                {symbol} - {copy.receipt} {receiptNo} - {copy.filed} {receiptDate}
               </p>
             </div>
             <Link href={backHref} className={styles.detailLink}>
-              Back to disclosures
+              {copy.backToDisclosures}
             </Link>
           </div>
 
           <div className={styles.reportMetaGrid}>
             <article className={styles.metricCard}>
-              <span>Company</span>
+              <span>{copy.company}</span>
               <strong>{corpName}</strong>
             </article>
             <article className={styles.metricCard}>
-              <span>Filing category</span>
+              <span>{copy.filingCategory}</span>
               <strong>{filingCategory}</strong>
             </article>
             <article className={styles.metricCard}>
-              <span>Capture status</span>
+              <span>{copy.captureStatus}</span>
               <strong>{captureStatus}</strong>
             </article>
           </div>
 
           <div className={styles.reportActions}>
             <a className={styles.detailLink} href={documentUrl}>
-              Download document
+              {copy.downloadDocument}
             </a>
             <a className={styles.detailLink} href={dartViewerUrl} target="_blank" rel="noreferrer">
-              Open in DART
+              {copy.openInDart}
             </a>
           </div>
         </section>
@@ -165,17 +179,17 @@ export function DisclosureReportClient({ receiptNo: serverReceiptNo, symbol: ser
         <section className={`${styles.panel} ${styles.reportViewerPanel}`}>
           <div className={styles.cardHeader}>
             <div>
-              <p className={styles.sectionEyebrow}>Report Content</p>
-              <h2 className={styles.cardTitle}>Filing document</h2>
+              <p className={styles.sectionEyebrow}>{copy.contentEyebrow}</p>
+              <h2 className={styles.cardTitle}>{copy.documentTitle}</h2>
             </div>
-            <span className="pill neutral">Rcept {receiptNo}</span>
+            <span className="pill neutral">{copy.receiptNumber} {receiptNo}</span>
           </div>
           <div className={styles.reportFrameShell}>
             <iframe
               className={styles.reportFrame}
               sandbox=""
               src={documentUrl}
-              title={`${reportName} filing document`}
+              title={`${reportName} ${copy.iframeTitleSuffix}`}
             />
           </div>
         </section>
