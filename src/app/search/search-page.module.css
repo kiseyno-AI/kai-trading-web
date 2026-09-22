@@ -728,6 +728,11 @@ span.degradedProvenanceBadge {
   color: var(--search-text-strong);
 }
 
+.trendingTabs button:focus-visible {
+  outline: 2px solid rgba(88, 139, 255, 0.88);
+  outline-offset: 2px;
+}
+
 .trendingTabs span {
   min-width: 0;
   max-width: 100%;
