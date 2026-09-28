@@ -246,6 +246,28 @@ test.describe("portfolio mobile route", () => {
     await expect(page.getByText("Timed out after")).toHaveCount(0);
     await expect(page.getByText("/portfolio/summary")).toHaveCount(0);
     await expect(page.getByText("Loading the aggregate portfolio summary from trading-core...")).toHaveCount(0);
+
+    const accountState = page.locator("dt", { hasText: /^Account state$/ }).locator("..");
+    const holdingsState = page.locator("dt", { hasText: /^holdings$/ }).locator("..");
+    await expect(accountState.getByText("Upstream unavailable", { exact: true })).toBeVisible();
+    await expect(holdingsState.getByText("Upstream unavailable", { exact: true })).toBeVisible();
+    await expect(page.getByText("0 accounts", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("0 holdings", { exact: true })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Korean" }).click();
+
+    const koreanAccountState = page.locator("dt", { hasText: /^계좌 상태$/ }).locator("..");
+    const koreanHoldingsState = page.locator("dt", { hasText: /^보유$/ }).locator("..");
+    await expect(koreanAccountState.getByText("업스트림 사용 불가", { exact: true })).toBeVisible();
+    await expect(koreanHoldingsState.getByText("업스트림 사용 불가", { exact: true })).toBeVisible();
+    await expect(page.getByText("0 계좌", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("0 보유", { exact: true })).toHaveCount(0);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await expect(koreanAccountState.getByText("업스트림 사용 불가", { exact: true })).toBeVisible();
+    await expect(koreanHoldingsState.getByText("업스트림 사용 불가", { exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "기본 데스크톱" })).toBeVisible();
   });
 
   test("keeps raw runtime risk snapshot diagnostics out of visible unavailable copy", async ({ page }) => {
@@ -311,6 +333,80 @@ test.describe("portfolio mobile route", () => {
     await expect(page.getByText("No holdings reported yet.")).toBeVisible();
     await expect(page.getByText("The aggregate summary is connected and returned no holdings for the current accounts.")).toBeVisible();
     await expect(page.getByText("Portfolio summary unavailable.")).toHaveCount(0);
+
+    const accountState = page.locator("dt", { hasText: /^Account state$/ }).locator("..");
+    const holdingsState = page.locator("dt", { hasText: /^holdings$/ }).locator("..");
+    await expect(accountState.getByText("1 account", { exact: true })).toBeVisible();
+    await expect(holdingsState.getByText("0 holdings", { exact: true })).toBeVisible();
+
+    await page.evaluate(() => window.sessionStorage.clear());
+    await page.unroute("**/api/trading/portfolio/summary");
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        json: {
+          asOf: "2026-04-21T09:12:00+09:00",
+          source: "portfolio-summary",
+          sync: {
+            status: "synced",
+            lastSyncedAt: "2026-04-21T09:12:00+09:00",
+            source: "kis",
+          },
+          accounts: [],
+        },
+      });
+    });
+    await page.reload();
+
+    await expect(
+      page.locator("dt", { hasText: /^Account state$/ }).locator("..").getByText("0 accounts", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator("dt", { hasText: /^holdings$/ }).locator("..").getByText("0 holdings", { exact: true }),
+    ).toBeVisible();
+  });
+
+  test("keeps confirmed empty counts visible in degraded summaries", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
+    let syncStatus = "stale";
+    let accounts: Record<string, unknown>[] = [];
+
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        json: {
+          asOf: "2026-04-21T09:12:00+09:00",
+          source: "portfolio-summary",
+          sync: {
+            status: syncStatus,
+            lastSyncedAt: "2026-04-20T09:12:00+09:00",
+            source: "kis",
+          },
+          accounts,
+        },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    const accountState = page.locator("dt", { hasText: /^Account state$/ }).locator("..");
+    const holdingsState = page.locator("dt", { hasText: /^holdings$/ }).locator("..");
+    await expect(accountState.getByText("0 accounts", { exact: true })).toBeVisible();
+    await expect(holdingsState.getByText("0 holdings", { exact: true })).toBeVisible();
+    await expect(page.getByText("Portfolio sync is stale.")).toBeVisible();
+
+    syncStatus = "partial";
+    accounts = [{ id: "partial-empty", label: "Partial Empty", status: "partial", holdings: [] }];
+    await page.evaluate(() => window.sessionStorage.clear());
+    await page.reload();
+
+    await expect(accountState.getByText("1 account", { exact: true })).toBeVisible();
+    await expect(holdingsState.getByText("0 holdings", { exact: true })).toBeVisible();
+    await expect(page.getByText("Portfolio data is partial.")).toBeVisible();
+    await expect(
+      page
+        .getByRole("heading", { name: "Holdings", exact: true })
+        .locator("../..")
+        .getByText("0 holdings · Partial data", { exact: true }),
+    ).toBeVisible();
   });
 
   test("surfaces stale sync while still rendering returned holdings", async ({ page }) => {
