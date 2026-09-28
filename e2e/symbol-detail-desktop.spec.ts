@@ -645,6 +645,36 @@ test.describe("symbol detail desktop", () => {
     await expect(page.getByRole("heading", { name: /Recent filing coverage/i })).toHaveCount(0);
   });
 
+  test("hero reports confirmed empty disclosures only after aggregate context succeeds", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await mockSymbolOverviewSectionRoutes(page);
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+
+    const fundamentalsCard = page.locator("#summary article").filter({ hasText: "Fundamental latest" });
+    await expect(fundamentalsCard.locator("strong")).toHaveText("No Disclosure Found");
+    await expect(fundamentalsCard).not.toContainText("Unavailable");
+  });
+
+  test("hero keeps disclosures unavailable when aggregate context cannot be read", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+    });
+    await mockSymbolOverviewSectionRoutes(page);
+    await page.route("**/api/trading/agent-context/symbol-day?**", async (route) => {
+      await route.fulfill({
+        status: 502,
+        json: { detail: "Aggregate symbol context unavailable" },
+      });
+    });
+    await page.goto(`/dashboard/symbol/005930?${symbolSeed}`);
+
+    const fundamentalsCard = page.locator("#summary article").filter({ hasText: "최신 펀더멘털" });
+    await expect(fundamentalsCard.locator("strong")).toHaveText("사용할 수 없음");
+    await expect(fundamentalsCard).toContainText("현재 aggregate symbol context를 사용할 수 없습니다.");
+    await expect(fundamentalsCard).not.toContainText("공시 없음");
+  });
+
   test("hero cards swap date-only summaries for focus candle, fundamentals, and Piotroski content", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const marketDate = "2026-04-18";
