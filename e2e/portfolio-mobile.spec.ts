@@ -365,6 +365,50 @@ test.describe("portfolio mobile route", () => {
     ).toBeVisible();
   });
 
+  test("keeps confirmed empty counts visible in degraded summaries", async ({ page }) => {
+    await mockPortfolioRiskEndpointPending(page);
+    let syncStatus = "stale";
+    let accounts: Record<string, unknown>[] = [];
+
+    await page.route("**/api/trading/portfolio/summary", async (route) => {
+      await route.fulfill({
+        json: {
+          asOf: "2026-04-21T09:12:00+09:00",
+          source: "portfolio-summary",
+          sync: {
+            status: syncStatus,
+            lastSyncedAt: "2026-04-20T09:12:00+09:00",
+            source: "kis",
+          },
+          accounts,
+        },
+      });
+    });
+
+    await page.goto("/portfolio");
+
+    const accountState = page.locator("dt", { hasText: /^Account state$/ }).locator("..");
+    const holdingsState = page.locator("dt", { hasText: /^holdings$/ }).locator("..");
+    await expect(accountState.getByText("0 accounts", { exact: true })).toBeVisible();
+    await expect(holdingsState.getByText("0 holdings", { exact: true })).toBeVisible();
+    await expect(page.getByText("Portfolio sync is stale.")).toBeVisible();
+
+    syncStatus = "partial";
+    accounts = [{ id: "partial-empty", label: "Partial Empty", status: "partial", holdings: [] }];
+    await page.evaluate(() => window.sessionStorage.clear());
+    await page.reload();
+
+    await expect(accountState.getByText("1 account", { exact: true })).toBeVisible();
+    await expect(holdingsState.getByText("0 holdings", { exact: true })).toBeVisible();
+    await expect(page.getByText("Portfolio data is partial.")).toBeVisible();
+    await expect(
+      page
+        .getByRole("heading", { name: "Holdings", exact: true })
+        .locator("../..")
+        .getByText("0 holdings · Partial data", { exact: true }),
+    ).toBeVisible();
+  });
+
   test("surfaces stale sync while still rendering returned holdings", async ({ page }) => {
     await mockPortfolioRiskEndpointPending(page);
     await page.route("**/api/trading/portfolio/summary", async (route) => {

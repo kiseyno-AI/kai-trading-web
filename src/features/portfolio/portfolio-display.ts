@@ -767,7 +767,6 @@ function resolvePortfolioCollectionCount(
   ) {
     return null;
   }
-  if (count === 0 && state !== "connected-empty" && state !== "fully-synced") return null;
 
   return count;
 }

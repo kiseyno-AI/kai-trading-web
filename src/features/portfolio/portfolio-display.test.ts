@@ -171,6 +171,23 @@ test("keeps unavailable portfolio collection counts unknown and confirms success
   );
 });
 
+test("preserves confirmed empty portfolio counts for stale and partial payloads", () => {
+  assert.deepEqual(
+    getPortfolioCollectionCounts({ sync: { status: "stale" }, accounts: [] }, "stale-sync"),
+    { accountCount: 0, holdingCount: 0 },
+  );
+  assert.deepEqual(
+    getPortfolioCollectionCounts(
+      {
+        sync: { status: "partial" },
+        accounts: [{ id: "partial-empty", label: "Partial Empty", holdings: [] }],
+      },
+      "partial-data",
+    ),
+    { accountCount: 1, holdingCount: 0 },
+  );
+});
+
 test("distinguishes portfolio summary loading, connectivity, empty, stale, partial, and synced states", () => {
   assert.equal(resolvePortfolioSummaryState({ loading: true, summary: null }), "loading");
   assert.equal(
