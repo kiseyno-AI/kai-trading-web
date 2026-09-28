@@ -4,6 +4,7 @@ import test from "node:test";
 import { getSymbolDetailCopy } from "@/i18n/symbol-detail-copy";
 import type {
   AgentContextActionSummaryDto,
+  AgentContextItemDto,
   EodPiotroskiFilterResultsResponseDto,
   SymbolPriceBarDto,
 } from "@/types/trading-api";
@@ -910,9 +911,68 @@ test("surfaces aggregate errors in the hero fundamentals metric after loading fi
     latestFundamentals: null,
   });
 
-  assert.equal(model.value, copy.disclosures.emptyTitle);
+  assert.equal(model.value, copy.common.unavailable);
+  assert.notEqual(model.value, copy.disclosures.emptyTitle);
   assert.equal(model.detailDateLabel, null);
   assert.equal(model.errorLabel, copy.errors.aggregateUnavailable);
+});
+
+test("shows the hero no-disclosures state only after aggregate context confirms an empty result", () => {
+  const copy = getSymbolDetailCopy("en");
+  const aggregateContext = {
+    symbol: "005930",
+    market_date: "2026-04-10",
+    company: {
+      symbol: "005930",
+      name_ko: "Samsung Electronics",
+      market: "KOSPI",
+      instrument_type: "stock",
+      standard_code: "KR7005930003",
+      source: "test",
+      is_active: true,
+      last_refreshed_at: null,
+      dart: {
+        corp_code: "00126380",
+        corp_name: "Samsung Electronics",
+      },
+    },
+    technical_snapshot: null,
+    action_summary: null,
+    fundamentals: {
+      latest_snapshot: null,
+      history_summary: {
+        entries: 0,
+        latest_receipt_date: null,
+        latest_period_end_date: null,
+        available_business_years: [],
+        recent_periods: [],
+      },
+    },
+    recent_disclosures: {
+      count: 0,
+      items: [],
+    },
+    availability: {
+      company: true,
+      technical_snapshot: false,
+      action_summary: false,
+      fundamentals: false,
+      recent_disclosures: false,
+    },
+  } satisfies AgentContextItemDto;
+  const model = buildHeroFundamentalLatestMetricModel({
+    aggregateContext,
+    aggregateContextError: null,
+    aggregateContextLoadState: "success",
+    copy,
+    latestDisclosure: null,
+    latestFundamentals: null,
+  });
+
+  assert.equal(model.value, copy.disclosures.emptyTitle);
+  assert.notEqual(model.value, copy.common.unavailable);
+  assert.equal(model.detailDateLabel, null);
+  assert.equal(model.errorLabel, null);
 });
 
 test("shows the Piotroski hero result only for the exact normalized symbol and requested market date", () => {

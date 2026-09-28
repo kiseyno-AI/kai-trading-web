@@ -864,7 +864,9 @@ export function buildHeroFundamentalLatestMetricModel({
       ? buildFundamentalsLatestLabel(null, latestFundamentals, copy)
       : aggregateContextLoadState === "loading"
         ? copy.hero.priceLoading
-        : copy.disclosures.emptyTitle);
+        : aggregateContext
+          ? copy.disclosures.emptyTitle
+          : copy.common.unavailable);
   const detailDate = latestDisclosure?.receipt_date ?? buildFundamentalsDate(null, latestFundamentals, aggregateContext);
 
   return {
