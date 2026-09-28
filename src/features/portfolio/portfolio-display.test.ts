@@ -10,6 +10,7 @@ import {
   formatPortfolioPercent,
   getPortfolioAllocationBarWidth,
   getPortfolioActivity,
+  getPortfolioCollectionCounts,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
   getPortfolioNoticeMessages,
@@ -128,6 +129,46 @@ test("flattens holdings and recent activity from every account", () => {
 
   assert.deepEqual(getPortfolioHoldings(summary).map((holding) => holding.symbol), ["005930", "000660"]);
   assert.deepEqual(getPortfolioActivity(summary).map((item) => item.id), ["fill-1", "order-2"]);
+});
+
+test("keeps unavailable portfolio collection counts unknown and confirms successful empty counts", () => {
+  const cachedSummary: PortfolioSummaryDto = {
+    sync: { status: "synced" },
+    accounts: [{ id: "cached", label: "Cached", holdings: [{ symbol: "005930" }] }],
+  };
+
+  assert.deepEqual(getPortfolioCollectionCounts(null, "upstream-unavailable"), {
+    accountCount: null,
+    holdingCount: null,
+  });
+  assert.deepEqual(getPortfolioCollectionCounts(cachedSummary, "upstream-unavailable"), {
+    accountCount: null,
+    holdingCount: null,
+  });
+  assert.deepEqual(
+    getPortfolioCollectionCounts({ sync: { status: "synced" }, accounts: [] }, "connected-empty"),
+    { accountCount: 0, holdingCount: 0 },
+  );
+  assert.deepEqual(
+    getPortfolioCollectionCounts(
+      {
+        sync: { status: "synced" },
+        accounts: [{ id: "empty", label: "Empty", holdings: [] }],
+      },
+      "connected-empty",
+    ),
+    { accountCount: 1, holdingCount: 0 },
+  );
+  assert.deepEqual(
+    getPortfolioCollectionCounts(
+      {
+        sync: { status: "partial" },
+        accounts: [{ id: "partial", label: "Partial" }],
+      },
+      "partial-data",
+    ),
+    { accountCount: 1, holdingCount: null },
+  );
 });
 
 test("distinguishes portfolio summary loading, connectivity, empty, stale, partial, and synced states", () => {

@@ -42,6 +42,11 @@ export type PortfolioSectionState = Exclude<PortfolioSummaryState, "connected-em
 
 export type PortfolioSectionStates = Record<PortfolioSectionId, PortfolioSectionState>;
 
+export type PortfolioCollectionCounts = {
+  accountCount: number | null;
+  holdingCount: number | null;
+};
+
 export type PortfolioRiskSnapshotState =
   | "loading"
   | PortfolioSummaryFailureKind
@@ -745,6 +750,40 @@ export function getPortfolioAccounts(summary: PortfolioSummaryDto | null | undef
 
 export function getPortfolioHoldings(summary: PortfolioSummaryDto | null | undefined): PortfolioHoldingDto[] {
   return getPortfolioAccounts(summary).flatMap((account) => account.holdings ?? []);
+}
+
+function resolvePortfolioCollectionCount(
+  count: number,
+  hasValidatedCollection: boolean,
+  state: PortfolioSummaryState,
+) {
+  if (!hasValidatedCollection) return null;
+  if (
+    state === "loading" ||
+    state === "endpoint-pending" ||
+    state === "invalid-response" ||
+    state === "not-configured" ||
+    state === "upstream-unavailable"
+  ) {
+    return null;
+  }
+  if (count === 0 && state !== "connected-empty" && state !== "fully-synced") return null;
+
+  return count;
+}
+
+export function getPortfolioCollectionCounts(
+  summary: PortfolioSummaryDto | null | undefined,
+  state: PortfolioSummaryState,
+): PortfolioCollectionCounts {
+  const hasAccountCollection = Array.isArray(summary?.accounts);
+  const accounts = getPortfolioAccounts(summary);
+  const hasHoldingCollections = hasAccountCollection && accounts.every((account) => Array.isArray(account.holdings));
+
+  return {
+    accountCount: resolvePortfolioCollectionCount(accounts.length, hasAccountCollection, state),
+    holdingCount: resolvePortfolioCollectionCount(getPortfolioHoldings(summary).length, hasHoldingCollections, state),
+  };
 }
 
 export function getPortfolioAllocations(summary: PortfolioSummaryDto | null | undefined): PortfolioAllocationDto[] {

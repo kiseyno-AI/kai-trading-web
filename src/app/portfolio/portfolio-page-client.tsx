@@ -34,6 +34,7 @@ import {
   getPortfolioActivity,
   getPortfolioAllocationBarWidth,
   getPortfolioAllocations,
+  getPortfolioCollectionCounts,
   getPortfolioHoldings,
   getPortfolioLastSyncedAt,
   getPortfolioNoticeMessages,
@@ -592,8 +593,6 @@ export default function PortfolioPageClient() {
   const statusLabel = getPortfolioStatusLabel(portfolioState, summary, copy);
   const riskStatusLabel = getPortfolioRiskStatusLabel(riskState, riskModel.sourceStatusKey, copy);
   const riskGeneratedAtLabel = formatDisplayTimestamp(riskModel.generatedAt, getRiskTimestampFallback(riskState, copy));
-  const accountCountLabel = `${accounts.length} ${accounts.length === 1 ? copy.account : copy.accounts}`;
-  const holdingCountLabel = `${holdings.length} ${holdings.length === 1 ? copy.holding : copy.holdings}`;
   const syncMessage = getPortfolioSyncMessage(summary);
   const noticeMessages = getPortfolioNoticeMessages(summary, portfolioState);
   const portfolioNotice = getPortfolioStateNotice(portfolioState, failure?.message ?? null, syncMessage, copy);
@@ -611,6 +610,23 @@ export default function PortfolioPageClient() {
   const accountFieldFallback = getFieldFallback(accountSectionState, copy);
   const holdingsFieldFallback = getFieldFallback(holdingsSectionState, copy);
   const allocationFieldFallback = getFieldFallback(allocationSectionState, copy);
+  const collectionCounts = getPortfolioCollectionCounts(summary, portfolioState);
+  const accountCountLabel =
+    collectionCounts.accountCount === null
+      ? accountFieldFallback
+      : `${collectionCounts.accountCount} ${collectionCounts.accountCount === 1 ? copy.account : copy.accounts}`;
+  const holdingCountLabel =
+    collectionCounts.holdingCount === null
+      ? holdingsFieldFallback
+      : `${collectionCounts.holdingCount} ${collectionCounts.holdingCount === 1 ? copy.holding : copy.holdings}`;
+  const accountSectionMeta =
+    collectionCounts.accountCount === null
+      ? getSectionStatusLabel(accountSectionState, copy)
+      : getSectionMeta(accountCountLabel, accountSectionState, copy);
+  const holdingsSectionMeta =
+    collectionCounts.holdingCount === null
+      ? getSectionStatusLabel(holdingsSectionState, copy)
+      : getSectionMeta(holdingCountLabel, holdingsSectionState, copy);
   const accountBlockingNotice = getBlockingSectionNotice(accountSectionState, failure?.message ?? null, syncMessage, copy);
   const holdingsBlockingNotice = getBlockingSectionNotice(holdingsSectionState, failure?.message ?? null, syncMessage, copy);
   const allocationBlockingNotice = getBlockingSectionNotice(allocationSectionState, failure?.message ?? null, syncMessage, copy);
@@ -861,7 +877,7 @@ export default function PortfolioPageClient() {
               <p className={styles.sectionEyebrow}>{copy.accountState}</p>
               <h2 className={styles.sectionTitle}>{copy.accountsTitle}</h2>
             </div>
-            <span className={styles.sectionMeta}>{getSectionMeta(accountCountLabel, accountSectionState, copy)}</span>
+            <span className={styles.sectionMeta}>{accountSectionMeta}</span>
           </div>
 
           {accountBlockingNotice ? (
@@ -910,7 +926,7 @@ export default function PortfolioPageClient() {
               <p className={styles.sectionEyebrow}>{copy.positionVisibility}</p>
               <h2 className={styles.sectionTitle}>{copy.holdingsTitle}</h2>
             </div>
-            <span className={styles.sectionMeta}>{getSectionMeta(holdingCountLabel, holdingsSectionState, copy)}</span>
+            <span className={styles.sectionMeta}>{holdingsSectionMeta}</span>
           </div>
 
           {holdingsBlockingNotice ? (
