@@ -153,6 +153,16 @@ export function resolveSymbolDetailActiveNav(navContext: SymbolDetailNavContext 
   return null;
 }
 
+export function resolveSymbolDetailCalendarReviewDate(
+  navContext: SymbolDetailNavContext | null,
+  marketDate: string | null,
+) {
+  if (navContext !== SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT) return null;
+
+  const normalizedMarketDate = marketDate?.trim();
+  return normalizedMarketDate ? normalizedMarketDate : null;
+}
+
 export function resolveSymbolDetailModeFromPathname(pathname: string | null, symbol: string) {
   if (!pathname || !symbol) return null;
 

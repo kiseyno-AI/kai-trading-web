@@ -51,6 +51,14 @@ const symbolDetailCopy = {
       recommendation: "Recommendation",
       comingSoon: "Coming soon",
     },
+    calendarReview: {
+      ariaLabel: "Calendar review context",
+      eyebrow: "Historical decision context",
+      titleTemplate: "Opened from the %date% calendar review",
+      body: "Decision evidence on this page is anchored to the selected review date. Latest/current symbol data is labeled separately and may have a newer date.",
+      latestData: "Latest/current symbol data",
+      decisionBasisTemplate: "Calendar review decision · %date%",
+    },
     modes: {
       overview: {
         label: "Insights",
@@ -636,6 +644,14 @@ const symbolDetailCopy = {
       piotroskiFilter: "피오트로스키 필터",
       recommendation: "추천",
       comingSoon: "준비 중",
+    },
+    calendarReview: {
+      ariaLabel: "캘린더 검토 컨텍스트",
+      eyebrow: "과거 결정 컨텍스트",
+      titleTemplate: "%date% 캘린더 검토에서 열림",
+      body: "이 페이지의 결정 근거는 선택한 검토일을 기준으로 합니다. 최신/현재 종목 데이터는 별도로 표시되며 더 최근 날짜일 수 있습니다.",
+      latestData: "최신/현재 종목 데이터",
+      decisionBasisTemplate: "캘린더 검토 결정 · %date%",
     },
     modes: {
       overview: {

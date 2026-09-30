@@ -659,6 +659,7 @@ export function useSymbolDetailData({
     quotePollingState,
     quoteSourceCopy,
     navContext,
+    requestedMarketDate,
     feedbackActionFilter,
     feedbackAgent,
     feedbackFocus,

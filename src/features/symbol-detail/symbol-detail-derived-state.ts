@@ -947,6 +947,26 @@ function selectHeroPiotroskiResult(
   return isProvenLatestFallback ? item : null;
 }
 
+export function selectExactActionSummary(
+  actionSummary: AgentContextActionSummaryDto | null | undefined,
+  requestedSymbol: string,
+  requestedMarketDate: string | null,
+) {
+  const normalizedRequestedSymbol = normalizeSymbolCode(requestedSymbol);
+  const normalizedRequestedMarketDate = normalizeProductMarketDate(requestedMarketDate);
+
+  if (
+    !actionSummary ||
+    !normalizedRequestedSymbol ||
+    normalizeSymbolCode(actionSummary.symbol) !== normalizedRequestedSymbol ||
+    normalizeProductMarketDate(actionSummary.market_date) !== normalizedRequestedMarketDate
+  ) {
+    return null;
+  }
+
+  return normalizedRequestedMarketDate ? actionSummary : null;
+}
+
 export function buildActionTone(actionSummary: AgentContextActionSummaryDto | null): ActionSummarySectionModel["tone"] {
   if (!actionSummary) return "neutral";
   if (isInsufficientHistoryActionSummary(actionSummary)) return "info";

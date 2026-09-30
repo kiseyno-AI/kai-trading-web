@@ -209,6 +209,41 @@
   margin-top: 1rem;
 }
 
+.calendarReviewContext {
+  display: grid;
+  gap: 0.34rem;
+  margin-top: 1rem;
+  padding: 0.82rem 0.9rem;
+  border: 1px solid rgba(88, 139, 255, 0.34);
+  border-radius: var(--radius-lg);
+  background: rgba(0, 82, 255, 0.08);
+}
+
+.calendarReviewContext strong {
+  color: var(--text-strong);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.calendarReviewContext > p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.heroQuoteBlock .heroDataContextLabel {
+  margin: 0 0 0.28rem;
+  color: var(--muted-soft);
+  font-family: var(--font-inter), sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
 .heroQuoteBlock strong {
   display: block;
   color: var(--text-strong);
@@ -300,6 +335,18 @@
   color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.48;
+}
+
+.heroMetricCard .heroMetricContext,
+.decisionContextLabel {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.decisionContextLabel {
+  margin: 0.72rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .heroMetricList {
