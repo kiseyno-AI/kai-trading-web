@@ -35,6 +35,7 @@ import {
   buildTechnicalAnalysisSectionModel,
   buildTechnicalFreshnessDate,
   pickFundamentalsCompany,
+  selectExactActionSummary,
 } from "./symbol-detail-derived-state";
 import type { QuoteResponse } from "./symbol-detail-types";
 import { findExactSymbolItem } from "./use-symbol-detail-data";
@@ -272,7 +273,9 @@ function useNormalizedActionSummaryState(
     [marketDate, normalizedSymbol, symbolReady],
   );
   const actionSummaryResult = useUnitData<AgentContextActionSummaryDto | null>(actionSummaryRequest);
-  const resolvedActionSummary = actionSummaryResult.data ?? aggregateContext?.action_summary ?? null;
+  const resolvedActionSummary =
+    selectExactActionSummary(actionSummaryResult.data, normalizedSymbol, marketDate) ??
+    selectExactActionSummary(aggregateContext?.action_summary, normalizedSymbol, marketDate);
   const actionSummaryRefreshing =
     (actionSummaryResult.hasData || aggregateContext !== null) &&
     (actionSummaryResult.isRefreshing || aggregateContextRefreshing);
@@ -282,6 +285,7 @@ function useNormalizedActionSummaryState(
 
   return {
     busy: actionSummaryRefreshing || actionSummaryPending,
+    hasValidatedActionSummary: resolvedActionSummary !== null,
     normalizedState: buildNormalizedActionSummaryState(resolvedActionSummary, actionSummaryPending, copy, options),
     refreshing: actionSummaryRefreshing,
   };
@@ -297,7 +301,7 @@ export const HeroActionRecommendationMetric = memo(function HeroActionRecommenda
 }: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady"> & {
   decisionContextLabel?: string | null;
 }) {
-  const { busy, normalizedState } = useNormalizedActionSummaryState({
+  const { busy, hasValidatedActionSummary, normalizedState } = useNormalizedActionSummaryState({
     copy,
     fsDiv,
     marketDate,
@@ -319,7 +323,9 @@ export const HeroActionRecommendationMetric = memo(function HeroActionRecommenda
     >
       <span>{copy.hero.recommendation}</span>
       <strong className="clamp-3">{recommendation}</strong>
-      {decisionContextLabel ? <p className={styles.heroMetricContext}>{decisionContextLabel}</p> : null}
+      {decisionContextLabel && hasValidatedActionSummary ? (
+        <p className={styles.heroMetricContext}>{decisionContextLabel}</p>
+      ) : null}
     </article>
   );
 });
@@ -337,7 +343,7 @@ export const ActionSummarySection = memo(function ActionSummarySection({
   decisionContextLabel?: string | null;
 }) {
   const { devMode } = useAppState();
-  const { busy, normalizedState, refreshing } = useNormalizedActionSummaryState(
+  const { busy, hasValidatedActionSummary, normalizedState, refreshing } = useNormalizedActionSummaryState(
     {
       copy,
       fsDiv,
@@ -384,7 +390,9 @@ export const ActionSummarySection = memo(function ActionSummarySection({
           <span className={`pill ${resolvedActionSectionModel.tone}`}>{actionSectionBadgeLabel}</span>
         </div>
 
-        {decisionContextLabel ? <p className={styles.decisionContextLabel}>{decisionContextLabel}</p> : null}
+        {decisionContextLabel && hasValidatedActionSummary ? (
+          <p className={styles.decisionContextLabel}>{decisionContextLabel}</p>
+        ) : null}
 
         <div className={styles.signalMeter}>
           <div className={styles.signalMeterHeader}>

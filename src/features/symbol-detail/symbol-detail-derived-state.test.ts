@@ -39,6 +39,7 @@ import {
   resolveSymbolDetailEffectiveMarketDate,
   resolveSymbolDetailLatestStoredMarketDate,
   resolveQuotePollingDisplayState,
+  selectExactActionSummary,
   shouldStopQuotePollingForClosedSession,
 } from "./symbol-detail-derived-state";
 
@@ -559,6 +560,20 @@ test("keeps action-summary fallback labels stable when no summary is available",
       ...model.reasonTags,
     ].join(" "),
     /\b(?:Sell|Strong Buy)\b/,
+  );
+});
+
+test("rejects action summaries whose payload date does not match the requested market date", () => {
+  const matchingSummary = makeActionSummary();
+
+  assert.equal(selectExactActionSummary(matchingSummary, "005930", "2026-04-10"), matchingSummary);
+  assert.equal(
+    selectExactActionSummary(
+      makeActionSummary({ market_date: "2026-04-09" }),
+      "005930",
+      "2026-04-10",
+    ),
+    null,
   );
 });
 

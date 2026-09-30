@@ -104,6 +104,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
     quotePollingState,
     quoteSourceCopy,
     navContext,
+    requestedMarketDate,
     feedbackActionFilter,
     feedbackAgent,
     feedbackFocus,
@@ -152,7 +153,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const toolbarMarketBadgeTone: DashboardToolbarStatusTone =
     toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : "closed";
   const isSearchContext = navContext === SYMBOL_DETAIL_SEARCH_NAV_CONTEXT;
-  const calendarReviewDate = resolveSymbolDetailCalendarReviewDate(navContext, marketDate);
+  const calendarReviewDate = resolveSymbolDetailCalendarReviewDate(navContext, requestedMarketDate);
   const calendarDecisionContextLabel = calendarReviewDate
     ? copy.calendarReview.decisionBasisTemplate.replace("%date%", calendarReviewDate)
     : null;
@@ -189,8 +190,8 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
       });
     }
 
-    if (navContext === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT && marketDate) {
-      return `/calendar?date=${encodeURIComponent(marketDate)}`;
+    if (navContext === SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT) {
+      return calendarReviewDate ? `/calendar?date=${encodeURIComponent(calendarReviewDate)}` : "/calendar";
     }
 
     if (navContext === SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT) {
