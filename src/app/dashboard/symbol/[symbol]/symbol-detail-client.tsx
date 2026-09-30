@@ -55,6 +55,7 @@ import {
   SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_QUERY_PARAM,
   SYMBOL_DETAIL_SIGNAL_DECIDER_FEEDBACK_RETURN_ROUTE,
+  resolveSymbolDetailCalendarReviewDate,
   type SymbolDetailMode,
 } from "./symbol-detail-state";
 
@@ -151,6 +152,10 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
   const toolbarMarketBadgeTone: DashboardToolbarStatusTone =
     toolbarMarketOpenState === null ? "neutral" : toolbarMarketOpenState ? "positive" : "closed";
   const isSearchContext = navContext === SYMBOL_DETAIL_SEARCH_NAV_CONTEXT;
+  const calendarReviewDate = resolveSymbolDetailCalendarReviewDate(navContext, marketDate);
+  const calendarDecisionContextLabel = calendarReviewDate
+    ? copy.calendarReview.decisionBasisTemplate.replace("%date%", calendarReviewDate)
+    : null;
   const backHref = (() => {
     if (isSearchContext) {
       return `/search${searchContextQuery ? `?${SYMBOL_DETAIL_SEARCH_QUERY_PARAM}=${encodeURIComponent(searchContextQuery)}` : ""}`;
@@ -333,7 +338,22 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
             </div>
           </div>
 
+          {calendarReviewDate ? (
+            <aside
+              className={styles.calendarReviewContext}
+              aria-label={copy.calendarReview.ariaLabel}
+              data-testid="calendar-review-context"
+            >
+              <p className={styles.sectionEyebrow}>{copy.calendarReview.eyebrow}</p>
+              <strong>{copy.calendarReview.titleTemplate.replace("%date%", calendarReviewDate)}</strong>
+              <p>{copy.calendarReview.body}</p>
+            </aside>
+          ) : null}
+
           <div className={styles.heroQuoteBlock}>
+            {calendarReviewDate ? (
+              <span className={styles.heroDataContextLabel}>{copy.calendarReview.latestData}</span>
+            ) : null}
             <strong>
               {quote
                 ? quote.available
@@ -404,6 +424,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
 
             <HeroActionRecommendationMetric
               copy={copy}
+              decisionContextLabel={calendarDecisionContextLabel}
               fsDiv={fsDiv}
               marketDate={marketDate}
               normalizedSymbol={normalizedSymbol}
@@ -690,6 +711,7 @@ export function SymbolDetailClient({ mode = "overview", symbol: serverSymbol }: 
                 dashboardRecommendationEvidenceHref={
                   dashboardRecommendationConflict ? null : dashboardRecommendationEvidenceHref
                 }
+                decisionContextLabel={calendarDecisionContextLabel}
                 fsDiv={fsDiv}
                 marketDate={marketDate}
                 normalizedSymbol={normalizedSymbol}

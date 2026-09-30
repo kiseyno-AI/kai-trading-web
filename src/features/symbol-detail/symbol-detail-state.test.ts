@@ -5,9 +5,11 @@ import {
   buildInitialSymbolMeta,
   getSymbolDetailSectionVisibility,
   resolveSymbolDetailActiveNav,
+  resolveSymbolDetailCalendarReviewDate,
   resolveSymbolDetailMode,
   resolveSymbolDetailModeFromPathname,
   resolveSymbolDetailNavContext,
+  SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT,
   SYMBOL_DETAIL_PIOTROSKI_NAV_CONTEXT,
   SYMBOL_DETAIL_SEARCH_NAV_CONTEXT,
   type SymbolDetailMode,
@@ -41,6 +43,16 @@ test("resolves symbol detail navigation context without defaulting to My Symbols
   assert.equal(resolveSymbolDetailNavContext("markets"), null);
   assert.equal(resolveSymbolDetailNavContext(null), null);
   assert.equal(resolveSymbolDetailActiveNav(null), null);
+});
+
+test("exposes a review date only for calendar-sourced symbol detail", () => {
+  assert.equal(
+    resolveSymbolDetailCalendarReviewDate(SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT, "2026-09-23"),
+    "2026-09-23",
+  );
+  assert.equal(resolveSymbolDetailCalendarReviewDate(SYMBOL_DETAIL_SEARCH_NAV_CONTEXT, "2026-09-23"), null);
+  assert.equal(resolveSymbolDetailCalendarReviewDate(SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT, "  "), null);
+  assert.equal(resolveSymbolDetailCalendarReviewDate(SYMBOL_DETAIL_CALENDAR_NAV_CONTEXT, null), null);
 });
 
 test("does not seed unverified symbol metadata when direct-open URLs only preserve search context", () => {

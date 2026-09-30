@@ -288,12 +288,15 @@ function useNormalizedActionSummaryState(
 }
 
 export const HeroActionRecommendationMetric = memo(function HeroActionRecommendationMetric({
+  decisionContextLabel,
   copy,
   fsDiv,
   marketDate,
   normalizedSymbol,
   symbolReady,
-}: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady">) {
+}: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady"> & {
+  decisionContextLabel?: string | null;
+}) {
   const { busy, normalizedState } = useNormalizedActionSummaryState({
     copy,
     fsDiv,
@@ -316,6 +319,7 @@ export const HeroActionRecommendationMetric = memo(function HeroActionRecommenda
     >
       <span>{copy.hero.recommendation}</span>
       <strong className="clamp-3">{recommendation}</strong>
+      {decisionContextLabel ? <p className={styles.heroMetricContext}>{decisionContextLabel}</p> : null}
     </article>
   );
 });
@@ -323,12 +327,14 @@ export const HeroActionRecommendationMetric = memo(function HeroActionRecommenda
 export const ActionSummarySection = memo(function ActionSummarySection({
   copy,
   dashboardRecommendationEvidenceHref,
+  decisionContextLabel,
   fsDiv,
   marketDate,
   normalizedSymbol,
   symbolReady,
 }: Pick<SymbolDetailUnitProps, "copy" | "fsDiv" | "marketDate" | "normalizedSymbol" | "symbolReady"> & {
   dashboardRecommendationEvidenceHref?: string | null;
+  decisionContextLabel?: string | null;
 }) {
   const { devMode } = useAppState();
   const { busy, normalizedState, refreshing } = useNormalizedActionSummaryState(
@@ -377,6 +383,8 @@ export const ActionSummarySection = memo(function ActionSummarySection({
           </div>
           <span className={`pill ${resolvedActionSectionModel.tone}`}>{actionSectionBadgeLabel}</span>
         </div>
+
+        {decisionContextLabel ? <p className={styles.decisionContextLabel}>{decisionContextLabel}</p> : null}
 
         <div className={styles.signalMeter}>
           <div className={styles.signalMeterHeader}>

@@ -76,6 +76,7 @@ type MockDetailModeSwitchOptions = {
   onQuoteRequest?: () => void;
   quoteAvailable?: boolean;
   quoteMarketState?: string;
+  quoteTradeDate?: string;
   quoteUnavailable?: boolean;
   quoteUnavailableReason?: string;
   technicalSnapshotAvailable?: boolean;
@@ -402,6 +403,7 @@ async function mockDetailModeSwitchApis(
   const marketStatusState = options.marketStatusState ?? "CLOSED";
   const marketStatusIsOpen = options.marketStatusIsOpen ?? marketStatusState === "OPEN";
   const quoteMarketState = options.quoteMarketState ?? "CLOSED";
+  const quoteTradeDate = options.quoteTradeDate ?? marketDate;
   const quoteAvailable = options.quoteAvailable ?? true;
   const technicalSnapshotAvailable = options.technicalSnapshotAvailable ?? true;
   let aggregateRequestCount = 0;
@@ -453,7 +455,7 @@ async function mockDetailModeSwitchApis(
         fallback: quoteMarketState !== "OPEN",
         is_live: quoteMarketState === "OPEN",
         available: quoteAvailable,
-        trade_date: marketDate,
+        trade_date: quoteTradeDate,
         unavailable_reason: quoteAvailable
           ? null
           : options.quoteUnavailableReason ?? "no_live_quote_or_fresh_fallback",
@@ -852,6 +854,65 @@ test.describe("symbol detail mobile pages", () => {
     expect(tradeTreatment.cursor).toBe("not-allowed");
     expect(tradeTreatment.documentOverflow).toBeLessThanOrEqual(1);
   });
+
+  for (const viewport of [
+    { label: "desktop", width: 1280, height: 900 },
+    { label: "390x844 mobile", width: 390, height: 844 },
+  ]) {
+    test(`calendar drilldown keeps the historical decision date distinct from latest symbol data on ${viewport.label}`, async ({
+      page,
+    }) => {
+      const requestCounts = {
+        priceHistory: 0,
+        technical: 0,
+        action: 0,
+        fundamentals: 0,
+      };
+      const priceHistoryRequests: PriceHistoryRequestSnapshot[] = [];
+
+      await page.addInitScript(() => {
+        window.localStorage.setItem("trading-web.locale", JSON.stringify("ko"));
+      });
+      await mockDetailModeSwitchApis(page, requestCounts, priceHistoryRequests, {
+        actionLabel: "neutral",
+        actionSignalScore: 50,
+        marketDate: "2026-09-23",
+        quoteTradeDate: "2026-09-30",
+      });
+
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(
+        "/dashboard/symbol/005930?name=%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90&market=KOSPI&standardCode=KR7005930003&marketDate=2026-09-23&navContext=calendar",
+      );
+
+      const hero = page.locator("#summary");
+      const calendarContext = page.getByTestId("calendar-review-context");
+      const recommendationCard = hero.locator("article").filter({ hasText: "추천" });
+      const calendarReturnLink = page.getByRole("link", { name: "캘린더로 돌아가기" });
+
+      await expect(calendarContext).toBeVisible();
+      await expect(calendarContext).toContainText("2026-09-23 캘린더 검토에서 열림");
+      await expect(calendarContext).toContainText("최신/현재 종목 데이터는 별도로 표시");
+      await expect(hero.getByText("최신/현재 종목 데이터", { exact: true })).toBeVisible();
+      await expect(hero.getByText("최신 업데이트 : 2026-09-30", { exact: true })).toBeVisible();
+      await expect(recommendationCard).toContainText("캘린더 검토 결정 · 2026-09-23");
+      await expect(calendarReturnLink).toHaveAttribute("href", "/calendar?date=2026-09-23");
+
+      await page.getByRole("button", { name: "액션" }).click();
+
+      const actionSection = page.locator("#action");
+      await expect(calendarContext).toBeVisible();
+      await expect(actionSection).toContainText("캘린더 검토 결정 · 2026-09-23");
+      await expect(calendarReturnLink).toHaveAttribute("href", "/calendar?date=2026-09-23");
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+        .toBeLessThanOrEqual(1);
+
+      if (viewport.width === 390) {
+        await expectMobileContentClearsBottomChrome(page, actionSection);
+      }
+    });
+  }
 
   test("keeps symbol detail chrome focusable controls visible and target-sized across viewports", async ({ page }) => {
     const requestCounts = {
