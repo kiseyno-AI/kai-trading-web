@@ -67,6 +67,8 @@ import type {
 import {
   getReviewEvidenceCount,
   getReviewedStatusCount,
+  hasReviewEvidence,
+  isPartialCalendarDecisionResultSet,
 } from "./signal-review-calendar-aggregation";
 import styles from "./signal-review-calendar-page.module.css";
 
@@ -76,6 +78,17 @@ const ACTION_KEYS = ["buy", "wait", "reject", "unknown"] as const satisfies read
 const DAY_MS = 86_400_000;
 const PRODUCT_DATE_REFRESH_INTERVAL_MS = 60_000;
 const SIGNAL_REVIEW_READ_TIMEOUT_MS = 12_000;
+const SIGNAL_REVIEW_RESULT_WINDOW_SIZE = 10;
+const RESULT_ACTION_FILTERS = [
+  "all",
+  "buy",
+  "watch_for_trigger",
+  "avoid_chase",
+  "wait",
+  "reject",
+  "unknown",
+] as const;
+const REVIEW_STATE_FILTERS = ["all", "reviewed", "pending"] as const;
 const DETAIL_DIALOG_FOCUSABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",
@@ -110,6 +123,8 @@ type CalendarDateSnapshot = {
 type MonthLoadState = "idle" | "loading" | "ready" | "partial" | "unavailable";
 type DetailLoadState = "idle" | "loading" | "ready" | "error";
 type SelectedDateDisplayStatus = DateSnapshotStatus | SignalDeciderFeedbackStatus;
+type ResultActionFilter = (typeof RESULT_ACTION_FILTERS)[number];
+type ReviewStateFilter = (typeof REVIEW_STATE_FILTERS)[number];
 
 const EMPTY_ACTION_COUNTS = { buy: 0, wait: 0, reject: 0, watch_for_trigger: 0, avoid_chase: 0, unknown: 0 } as const;
 
@@ -611,6 +626,33 @@ function getCalendarActionLabel(
   return formatSignalDeciderActionLabel(action);
 }
 
+function filterSelectedDateDecisions({
+  actionFilter,
+  items,
+  query,
+  reviewStateFilter,
+}: {
+  actionFilter: ResultActionFilter;
+  items: SignalDeciderFeedbackItem[];
+  query: string;
+  reviewStateFilter: ReviewStateFilter;
+}) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  return items.filter((item) => {
+    if (actionFilter !== "all" && item.action !== actionFilter) return false;
+
+    const reviewed = hasReviewEvidence(item);
+    if (reviewStateFilter === "reviewed" && !reviewed) return false;
+    if (reviewStateFilter === "pending" && reviewed) return false;
+    if (!normalizedQuery) return true;
+
+    return [item.symbol, getDistinctCompanyName(item.symbol, item.companyName)]
+      .filter((value): value is string => hasTextValue(value))
+      .some((value) => value.toLowerCase().includes(normalizedQuery));
+  });
+}
+
 function formatSignedPercent(value: number | null) {
   if (value === null) return UNKNOWN_LABEL;
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -1077,8 +1119,14 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
     state: "disabled" | "latest" | "resolve-latest" | "selected";
   } | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [resultQuery, setResultQuery] = useState("");
+  const [resultActionFilter, setResultActionFilter] = useState<ResultActionFilter>("all");
+  const [reviewStateFilter, setReviewStateFilter] = useState<ReviewStateFilter>("all");
+  const [resultPage, setResultPage] = useState(1);
   const detailOpenerRef = useRef<HTMLElement | null>(null);
   const shouldRestoreDetailFocusRef = useRef(false);
+  const resultWindowHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const shouldFocusResultWindowRef = useRef(false);
   const { devMode, locale, t } = useAppState();
   const { isNavigationFailed, isNavigatingTo } = useNavigationLoading();
   const copy = t.signalReview;
@@ -1129,6 +1177,8 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
 
     queueMicrotask(() => {
       if (!active) return;
+
+      setResultPage(1);
 
       if (requestedDateKey) {
         setSelectedDate((current) => (current === requestedDateKey ? current : requestedDateKey));
@@ -1490,6 +1540,50 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
       }),
     [selectedDate, selectedDisplayLoadState, selectedFeedback, selectedProgress],
   );
+  const filteredSelectedItems = useMemo(
+    () =>
+      filterSelectedDateDecisions({
+        actionFilter: resultActionFilter,
+        items: selectedSummary.items,
+        query: resultQuery,
+        reviewStateFilter,
+      }),
+    [resultActionFilter, resultQuery, reviewStateFilter, selectedSummary.items],
+  );
+  const selectedResultsArePartial = isPartialCalendarDecisionResultSet(
+    selectedSummary.resultCount,
+    selectedSummary.items.length,
+  );
+  const resultPageCount = Math.max(
+    1,
+    Math.ceil(filteredSelectedItems.length / SIGNAL_REVIEW_RESULT_WINDOW_SIZE),
+  );
+  const selectedResultPage = Math.min(resultPage, resultPageCount);
+  const resultWindowStartIndex = (selectedResultPage - 1) * SIGNAL_REVIEW_RESULT_WINDOW_SIZE;
+  const resultWindowEndIndex = Math.min(
+    resultWindowStartIndex + SIGNAL_REVIEW_RESULT_WINDOW_SIZE,
+    filteredSelectedItems.length,
+  );
+  const visibleSelectedItems = useMemo(
+    () => filteredSelectedItems.slice(resultWindowStartIndex, resultWindowEndIndex),
+    [filteredSelectedItems, resultWindowEndIndex, resultWindowStartIndex],
+  );
+  const resultWindowRangeLabel = selectedResultsArePartial
+    ? (filteredSelectedItems.length > 0 ? copy.resultWindow.partialRange : copy.resultWindow.partialEmpty)
+        .replaceAll("{start}", (resultWindowStartIndex + 1).toLocaleString("en-US"))
+        .replaceAll("{end}", resultWindowEndIndex.toLocaleString("en-US"))
+        .replaceAll("{matched}", filteredSelectedItems.length.toLocaleString("en-US"))
+        .replaceAll("{loaded}", selectedSummary.items.length.toLocaleString("en-US"))
+        .replaceAll("{total}", selectedSummary.resultCount.toLocaleString("en-US"))
+    : filteredSelectedItems.length > 0
+      ? copy.resultWindow.range
+          .replaceAll("{start}", (resultWindowStartIndex + 1).toLocaleString("en-US"))
+          .replaceAll("{end}", resultWindowEndIndex.toLocaleString("en-US"))
+          .replaceAll("{total}", filteredSelectedItems.length.toLocaleString("en-US"))
+      : copy.resultWindow.empty;
+  const resultNoMatchesLabel = selectedResultsArePartial
+    ? copy.resultWindow.partialNoMatches
+    : copy.resultWindow.noMatches;
   const selectedItem = useMemo(
     () =>
       selectedDisplayLoadState === "ready"
@@ -1826,6 +1920,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
   function handleSelectDate(dateKey: string) {
     setSelectedDate(dateKey);
     setMonthKey(getMonthKey(dateKey));
+    setResultPage(1);
     router.push(`/calendar?date=${encodeURIComponent(dateKey)}`);
   }
 
@@ -1865,6 +1960,27 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
       opener.focus({ preventScroll: true });
     }
   }, [selectedItemId]);
+
+  useEffect(() => {
+    if (!shouldFocusResultWindowRef.current) return;
+    shouldFocusResultWindowRef.current = false;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const heading = resultWindowHeadingRef.current;
+      if (!heading) return;
+      heading.scrollIntoView({ block: "start" });
+      heading.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedResultPage]);
+
+  function handleResultPageChange(nextPage: number) {
+    const clampedPage = Math.min(Math.max(nextPage, 1), resultPageCount);
+    if (clampedPage === selectedResultPage) return;
+    shouldFocusResultWindowRef.current = true;
+    setResultPage(clampedPage);
+  }
 
   function renderCalendarCell(day: CalendarDay) {
     const rawSnapshot = day.inMonth
@@ -1970,6 +2086,49 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
           </>
         ) : null}
       </button>
+    );
+  }
+
+  function renderResultWindowNavigation(position: "top" | "bottom") {
+    return (
+      <nav
+        className={styles.resultWindowNavigation}
+        aria-label={`${copy.resultWindow.navigationLabel} — ${
+          position === "top" ? copy.resultWindow.topNavigation : copy.resultWindow.bottomNavigation
+        }`}
+        data-testid={`calendar-result-window-nav-${position}`}
+      >
+        <button
+          type="button"
+          onClick={() => handleResultPageChange(selectedResultPage - 1)}
+          disabled={selectedResultPage <= 1}
+        >
+          {copy.resultWindow.previous}
+        </button>
+        <label className={styles.resultWindowPageSelect}>
+          <span>{copy.resultWindow.windowLabel}</span>
+          <select
+            value={selectedResultPage}
+            onChange={(event) => handleResultPageChange(Number.parseInt(event.target.value, 10))}
+            aria-label={copy.resultWindow.selectLabel}
+          >
+            {Array.from({ length: resultPageCount }, (_, index) => index + 1).map((pageNumber) => (
+              <option key={pageNumber} value={pageNumber}>
+                {copy.resultWindow.pageOption
+                  .replaceAll("{page}", pageNumber.toLocaleString("en-US"))
+                  .replaceAll("{total}", resultPageCount.toLocaleString("en-US"))}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => handleResultPageChange(selectedResultPage + 1)}
+          disabled={selectedResultPage >= resultPageCount}
+        >
+          {copy.resultWindow.next}
+        </button>
+      </nav>
     );
   }
 
@@ -2194,9 +2353,11 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
               <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>
             ) : selectedSummary.items.length === 0 ? (
               <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
+            ) : filteredSelectedItems.length === 0 ? (
+              <div className={styles.emptyState}>{resultNoMatchesLabel}</div>
             ) : (
               <div className={styles.decisionList}>
-                {selectedSummary.items.map((item) => {
+                {visibleSelectedItems.map((item) => {
                   const decisionRowDetail = getDecisionRowDetailSummary(item, copy, selectedSummary.status);
                   const identity = getDecisionIdentity(item, copy);
                   return (
@@ -2236,6 +2397,96 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
             </div>
           </header>
 
+          {selectedDisplayLoadState === "ready" &&
+          !selectedCalendarEvidenceOnly &&
+          !selectedDateUnavailable &&
+          selectedSummary.items.length > 0 ? (
+            <div className={styles.resultWindow} data-testid="calendar-result-window">
+              <div
+                className={styles.resultControls}
+                aria-describedby={selectedResultsArePartial ? "calendar-result-filter-scope" : undefined}
+                aria-label={copy.resultFilters.label}
+                role="group"
+              >
+                <label>
+                  <span>{copy.resultFilters.search}</span>
+                  <input
+                    type="search"
+                    value={resultQuery}
+                    onChange={(event) => {
+                      setResultQuery(event.target.value);
+                      setResultPage(1);
+                    }}
+                    placeholder={copy.resultFilters.searchPlaceholder}
+                  />
+                </label>
+                <label>
+                  <span>{copy.resultFilters.action}</span>
+                  <select
+                    value={resultActionFilter}
+                    onChange={(event) => {
+                      setResultActionFilter(event.target.value as ResultActionFilter);
+                      setResultPage(1);
+                    }}
+                  >
+                    {RESULT_ACTION_FILTERS.map((action) => (
+                      <option key={action} value={action}>
+                        {action === "all" ? copy.resultFilters.allActions : getCalendarActionLabel(action, copy)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>{copy.resultFilters.reviewState}</span>
+                  <select
+                    value={reviewStateFilter}
+                    onChange={(event) => {
+                      setReviewStateFilter(event.target.value as ReviewStateFilter);
+                      setResultPage(1);
+                    }}
+                  >
+                    {REVIEW_STATE_FILTERS.map((reviewState) => (
+                      <option key={reviewState} value={reviewState}>
+                        {reviewState === "all"
+                          ? copy.resultFilters.allReviewStates
+                          : reviewState === "reviewed"
+                            ? copy.resultFilters.reviewed
+                            : copy.resultFilters.pending}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedResultsArePartial ? (
+                  <p
+                    className={styles.resultScopeNotice}
+                    data-testid="calendar-result-filter-scope"
+                    id="calendar-result-filter-scope"
+                  >
+                    {copy.resultFilters.partialScope
+                      .replaceAll("{loaded}", selectedSummary.items.length.toLocaleString("en-US"))
+                      .replaceAll("{total}", selectedSummary.resultCount.toLocaleString("en-US"))}
+                  </p>
+                ) : null}
+              </div>
+
+              <header className={styles.resultWindowHeader}>
+                <div>
+                  <p className={styles.eyebrow}>{copy.resultWindow.eyebrow}</p>
+                  <h3
+                    ref={resultWindowHeadingRef}
+                    tabIndex={-1}
+                    aria-live="polite"
+                    data-testid="calendar-result-window-range"
+                  >
+                    {resultWindowRangeLabel}
+                  </h3>
+                </div>
+              </header>
+
+              {filteredSelectedItems.length > 0 ? renderResultWindowNavigation("top") : null}
+            </div>
+          ) : null}
+
           {selectedCalendarEvidenceOnly ? (
             <div className={styles.emptyState}>
               {copy.states.selectedInlineUnavailableStored.replaceAll(
@@ -2249,10 +2500,10 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
             <div className={styles.emptyState}>{copy.states.loadingSelected}</div>
           ) : selectedDisplayLoadState === "error" ? (
             <div className={styles.emptyState}>{selectedError ?? copy.states.selectedUnavailable}</div>
-          ) : selectedSummary.items.length > 0 ? (
+          ) : selectedSummary.items.length > 0 && filteredSelectedItems.length > 0 ? (
             <>
               <div className={styles.mobileDecisionCards}>
-                {selectedSummary.items.map((item) => (
+                {visibleSelectedItems.map((item) => (
                   <MobileDecisionCard
                     key={item.id}
                     copy={copy}
@@ -2282,7 +2533,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedSummary.items.map((item) => {
+                    {visibleSelectedItems.map((item) => {
                       const identity = getDecisionIdentity(item, copy);
                       return (
                         <tr key={item.id}>
@@ -2331,7 +2582,11 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
                   </tbody>
                 </table>
               </div>
+
+              {resultPageCount > 1 ? renderResultWindowNavigation("bottom") : null}
             </>
+          ) : selectedSummary.items.length > 0 ? (
+            <div className={styles.emptyState}>{resultNoMatchesLabel}</div>
           ) : (
             <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
           )}

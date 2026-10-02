@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   getReviewEvidenceCount,
   getReviewedStatusCount,
+  hasReviewEvidence,
+  isPartialCalendarDecisionResultSet,
   type CalendarReviewEvidenceItem,
 } from "../app/calendar/signal-review-calendar-aggregation";
 import { normalizeSignalDeciderFeedbackItems } from "./signal-decider-feedback";
@@ -28,6 +30,21 @@ test("pending-only horizons do not count as reviewed decisions", () => {
   };
 
   assert.equal(getReviewEvidenceCount([pendingOnlyItem]), 0);
+  assert.equal(hasReviewEvidence(pendingOnlyItem), false);
+});
+
+test("completed replay evidence is reusable for per-row review filtering", () => {
+  const reviewedItem: CalendarReviewEvidenceItem = {
+    horizonEvaluations: [{ state: "computed" }],
+    outcomeHorizons: [],
+    pathOutcome: null,
+    qualityReason: null,
+    qualityVerdict: "Correct decision",
+    reviewConclusion: "The replay confirmed the stored decision.",
+  };
+
+  assert.equal(hasReviewEvidence(reviewedItem), true);
+  assert.equal(getReviewEvidenceCount([reviewedItem]), 1);
 });
 
 test("normalized pending-only realized results do not become reviewed evidence", () => {
@@ -79,4 +96,10 @@ test("normalized pending-only realized results do not become reviewed evidence",
 
 test("calendar review status counts exclude pending decisions", () => {
   assert.equal(getReviewedStatusCount({ reviewed: 1, pending: 9 }), 1);
+});
+
+test("calendar decision results are partial only when the reported total exceeds loaded rows", () => {
+  assert.equal(isPartialCalendarDecisionResultSet(9, 1), true);
+  assert.equal(isPartialCalendarDecisionResultSet(9, 9), false);
+  assert.equal(isPartialCalendarDecisionResultSet(8, 9), false);
 });

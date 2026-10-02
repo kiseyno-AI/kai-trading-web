@@ -23,18 +23,24 @@ function isPendingReviewText(value: string | null | undefined) {
   );
 }
 
-export function getReviewEvidenceCount(items: readonly CalendarReviewEvidenceItem[]) {
-  return items.filter((item) => {
-    const hasComputedHorizon = item.horizonEvaluations.some((horizon) => horizon.state === "computed");
-    const hasPendingHorizon = item.horizonEvaluations.some((horizon) => horizon.state === "pending");
-    const hasCompletedVerdict = hasTextValue(item.qualityVerdict) && !isPendingReviewText(item.qualityVerdict);
-    const hasCompletedConclusion =
-      hasTextValue(item.reviewConclusion) &&
-      !isPendingReviewText(item.reviewConclusion) &&
-      !(hasPendingHorizon && !hasComputedHorizon);
+export function hasReviewEvidence(item: CalendarReviewEvidenceItem) {
+  const hasComputedHorizon = item.horizonEvaluations.some((horizon) => horizon.state === "computed");
+  const hasPendingHorizon = item.horizonEvaluations.some((horizon) => horizon.state === "pending");
+  const hasCompletedVerdict = hasTextValue(item.qualityVerdict) && !isPendingReviewText(item.qualityVerdict);
+  const hasCompletedConclusion =
+    hasTextValue(item.reviewConclusion) &&
+    !isPendingReviewText(item.reviewConclusion) &&
+    !(hasPendingHorizon && !hasComputedHorizon);
 
-    return hasComputedHorizon || item.pathOutcome !== null || hasCompletedVerdict || hasCompletedConclusion;
-  }).length;
+  return hasComputedHorizon || item.pathOutcome !== null || hasCompletedVerdict || hasCompletedConclusion;
+}
+
+export function getReviewEvidenceCount(items: readonly CalendarReviewEvidenceItem[]) {
+  return items.filter(hasReviewEvidence).length;
+}
+
+export function isPartialCalendarDecisionResultSet(resultCount: number, loadedCount: number) {
+  return resultCount > loadedCount;
 }
 
 function toReviewCount(value: unknown) {
