@@ -14,6 +14,7 @@ type SignalReviewCalendarMockOptions = {
   calendarSummaryDelay?: Promise<void>;
   denseFeedbackActions?: Partial<Record<string, SignalReviewCalendarMockAction | SignalReviewCalendarMockAction[]>>;
   denseFeedbackDates?: Partial<Record<string, number>>;
+  denseReviewedDates?: string[];
   emptyFeedbackDates?: string[];
   emptyFeedbackListDates?: string[];
   feedbackDelays?: Partial<Record<string, Promise<void>>>;
@@ -212,6 +213,12 @@ function buildMockFeedbackItemsForDate(
         confidence_score_10: 8,
         conviction_score_10: 7,
         thesis_summary: "Dense mobile calendar regression row.",
+        ...(options.denseReviewedDates?.includes(date) && index % 2 === 0
+          ? {
+              quality_verdict: "Correct decision",
+              review_conclusion: "Replay review completed.",
+            }
+          : {}),
       },
       normalized_feedback: null,
       details: null,
@@ -2132,6 +2139,80 @@ test("signal review calendar traps replay dialog focus and restores the mobile o
     main: { ariaHidden: null, inert: false },
   });
   await expect(opener).toBeFocused();
+});
+
+test("signal review calendar bounds dense decision results and preserves the active window across replay detail", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackActions: {
+      "2026-10-01": ["wait", "buy"],
+    },
+    denseFeedbackDates: {
+      "2026-10-01": 128,
+    },
+    denseReviewedDates: ["2026-10-01"],
+  });
+
+  await page.goto("/calendar?date=2026-10-01");
+  await expect(page.getByRole("heading", { name: "Signal Review Calendar" })).toBeVisible();
+
+  const resultWindow = page.getByTestId("calendar-result-window");
+  const range = page.getByTestId("calendar-result-window-range");
+  const cards = page.getByTestId("calendar-mobile-decision-card");
+  await expect(resultWindow).toBeVisible();
+  await expect(range).toHaveText("Showing 1–10 of 128 decisions");
+  const resultsTable = page.locator("table").filter({ hasText: "Decision" });
+  await expect(resultsTable).toBeVisible();
+  await expect(resultsTable.locator("tbody tr")).toHaveCount(10);
+  const desktopWindowOverflow = await resultWindow.evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(desktopWindowOverflow).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(resultsTable).toBeHidden();
+  await expect(cards).toHaveCount(10);
+  await expect(cards.first()).toBeVisible();
+  await expect(cards.filter({ hasText: "DENSE011" })).toHaveCount(0);
+
+  const initialScrollHeight = await page.locator("[data-app-chrome-root] main").evaluate((main) => main.scrollHeight);
+  expect(initialScrollHeight).toBeLessThan(30_000);
+
+  await page
+    .getByTestId("calendar-result-window-nav-top")
+    .getByRole("button", { name: "Next" })
+    .click();
+  await expect(range).toHaveText("Showing 11–20 of 128 decisions");
+  await expect(cards).toHaveCount(10);
+
+  const openerCard = cards.first();
+  const opener = openerCard.getByRole("button", { name: "Review" });
+  await opener.scrollIntoViewIfNeeded();
+  const main = page.locator("[data-app-chrome-root] main");
+  const scrollTopBeforeDialog = await main.evaluate((element) => element.scrollTop);
+  await opener.click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(range).toHaveText("Showing 11–20 of 128 decisions");
+  await expect(opener).toBeFocused();
+  await expect
+    .poll(async () => Math.abs((await main.evaluate((element) => element.scrollTop)) - scrollTopBeforeDialog))
+    .toBeLessThanOrEqual(2);
+
+  await resultWindow.getByLabel("Action").selectOption("buy");
+  await expect(range).toHaveText("Showing 1–10 of 64 decisions");
+  await resultWindow.getByLabel("Action").selectOption("all");
+  await resultWindow.getByLabel("Review state").selectOption("reviewed");
+  await expect(range).toHaveText("Showing 1–10 of 64 decisions");
+
+  await resultWindow.getByRole("searchbox", { name: "Search symbols" }).fill("DENSE023");
+  await expect(range).toHaveText("Showing 1–1 of 1 decisions");
+  await expect(cards).toHaveCount(1);
+  await expect(page.getByRole("article", { name: /Dense Regression 23 Selected-date decisions/ })).toBeVisible();
 });
 
 test("signal review calendar does not repeat symbols when company names are unavailable", async ({ page }) => {

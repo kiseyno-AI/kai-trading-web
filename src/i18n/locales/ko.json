@@ -543,6 +543,31 @@
       "targetStop": "목표 / 손절",
       "title": "선택 날짜 결정"
     },
+    "resultFilters": {
+      "label": "선택 날짜 결정 필터",
+      "search": "종목 검색",
+      "searchPlaceholder": "종목 코드 또는 회사명",
+      "action": "액션",
+      "allActions": "모든 액션",
+      "reviewState": "리뷰 상태",
+      "allReviewStates": "모든 리뷰 상태",
+      "reviewed": "리뷰됨",
+      "pending": "리뷰 대기"
+    },
+    "resultWindow": {
+      "eyebrow": "결정 구간",
+      "range": "전체 {total}개 결정 중 {start}–{end}개 표시",
+      "empty": "일치하는 결정 0개",
+      "noMatches": "현재 필터와 일치하는 선택 날짜 결정이 없습니다.",
+      "navigationLabel": "캘린더 결정 결과 구간",
+      "topNavigation": "상단 컨트롤",
+      "bottomNavigation": "하단 컨트롤",
+      "windowLabel": "구간",
+      "selectLabel": "캘린더 결정 결과 구간 선택",
+      "pageOption": "{total}개 중 {page}번째",
+      "previous": "이전",
+      "next": "다음"
+    },
     "detail": {
       "actionPlan": "액션 계획",
       "conclusion": "결론",

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   getReviewEvidenceCount,
   getReviewedStatusCount,
+  hasReviewEvidence,
   type CalendarReviewEvidenceItem,
 } from "../app/calendar/signal-review-calendar-aggregation";
 import { normalizeSignalDeciderFeedbackItems } from "./signal-decider-feedback";
@@ -28,6 +29,21 @@ test("pending-only horizons do not count as reviewed decisions", () => {
   };
 
   assert.equal(getReviewEvidenceCount([pendingOnlyItem]), 0);
+  assert.equal(hasReviewEvidence(pendingOnlyItem), false);
+});
+
+test("completed replay evidence is reusable for per-row review filtering", () => {
+  const reviewedItem: CalendarReviewEvidenceItem = {
+    horizonEvaluations: [{ state: "computed" }],
+    outcomeHorizons: [],
+    pathOutcome: null,
+    qualityReason: null,
+    qualityVerdict: "Correct decision",
+    reviewConclusion: "The replay confirmed the stored decision.",
+  };
+
+  assert.equal(hasReviewEvidence(reviewedItem), true);
+  assert.equal(getReviewEvidenceCount([reviewedItem]), 1);
 });
 
 test("normalized pending-only realized results do not become reviewed evidence", () => {
