@@ -406,6 +406,14 @@
   text-transform: uppercase;
 }
 
+.resultScopeNotice {
+  margin: 0;
+  color: var(--warning);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .resultControls input,
 .resultControls select,
 .resultWindowNavigation button,
@@ -936,6 +944,10 @@
 @media (min-width: 768px) {
   .resultControls {
     grid-template-columns: minmax(12rem, 1.2fr) repeat(2, minmax(9rem, 0.8fr));
+  }
+
+  .resultScopeNotice {
+    grid-column: 1 / -1;
   }
 
   .resultWindowNavigation {

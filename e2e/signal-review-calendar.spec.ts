@@ -26,6 +26,7 @@ type SignalReviewCalendarMockOptions = {
   pendingReplayWindowDate?: string;
   pendingRationaleDate?: string;
   pendingWaitDate?: string;
+  partialResultCounts?: Partial<Record<string, number>>;
   progressResponseDateOverrides?: Partial<Record<string, string>>;
   reviewDateDelays?: Partial<Record<string, Promise<void>>>;
   reviewDateErrorMessages?: Partial<Record<string, string>>;
@@ -875,7 +876,7 @@ function buildReviewDateResponse(marketDate: string, options: SignalReviewCalend
       market_date: marketDate,
     },
     summary: {
-      count: items.length,
+      count: options.partialResultCounts?.[marketDate] ?? items.length,
       review_status_counts: reviewedCount > 0 ? { reviewed: reviewedCount } : {},
     },
     items: items.map((item, index) => ({
@@ -2213,6 +2214,67 @@ test("signal review calendar bounds dense decision results and preserves the act
   await expect(range).toHaveText("Showing 1–1 of 1 decisions");
   await expect(cards).toHaveCount(1);
   await expect(page.getByRole("article", { name: /Dense Regression 23 Selected-date decisions/ })).toBeVisible();
+});
+
+test("signal review calendar labels search and filters as loaded-only for partial decision results", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await mockSignalReviewCalendar(page, {
+    denseFeedbackDates: {
+      "2026-10-01": 12,
+    },
+    partialResultCounts: {
+      "2026-10-01": 25,
+    },
+  });
+
+  await page.goto("/calendar?date=2026-10-01");
+
+  const resultWindow = page.getByTestId("calendar-result-window");
+  const range = page.getByTestId("calendar-result-window-range");
+  await expect(page.getByTestId("calendar-result-filter-scope")).toHaveText(
+    "Search and filters apply only to 12 loaded decisions; the response reports 25 total decisions.",
+  );
+  await expect(range).toHaveText(
+    "Showing 1–10 of 12 matching loaded decisions; search and filters cover only 12 of 25 total decisions.",
+  );
+
+  const getPartialWindowOverflow = () =>
+    page.evaluate(() => {
+      const resultWindowElement = document.querySelector<HTMLElement>('[data-testid="calendar-result-window"]');
+      const controls = document.querySelector<HTMLElement>('[aria-label="Selected-date decision filters"]');
+      return {
+        controls: controls ? controls.scrollWidth - controls.clientWidth : null,
+        document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        resultWindow: resultWindowElement ? resultWindowElement.scrollWidth - resultWindowElement.clientWidth : null,
+      };
+    });
+  for (const overflow of Object.values(await getPartialWindowOverflow())) {
+    expect(overflow).not.toBeNull();
+    expect(overflow ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId("calendar-result-filter-scope")).toBeVisible();
+  await expect(range).toBeVisible();
+  for (const overflow of Object.values(await getPartialWindowOverflow())) {
+    expect(overflow).not.toBeNull();
+    expect(overflow ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+  }
+
+  await resultWindow.getByRole("searchbox", { name: "Search symbols" }).fill("DENSE012");
+  await expect(range).toHaveText(
+    "Showing 1–1 of 1 matching loaded decisions; search and filters cover only 12 of 25 total decisions.",
+  );
+
+  await resultWindow.getByRole("searchbox", { name: "Search symbols" }).fill("NOT-LOADED");
+  await expect(range).toHaveText(
+    "0 matches in loaded decisions; search and filters cover only 12 of 25 total decisions.",
+  );
+  await expect(
+    page.getByText(
+      "No loaded selected-date decisions match these filters. Unloaded decisions were not searched.",
+    ),
+  ).toHaveCount(2);
 });
 
 test("signal review calendar does not repeat symbols when company names are unavailable", async ({ page }) => {

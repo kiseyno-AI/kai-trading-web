@@ -39,6 +39,10 @@ export function getReviewEvidenceCount(items: readonly CalendarReviewEvidenceIte
   return items.filter(hasReviewEvidence).length;
 }
 
+export function isPartialCalendarDecisionResultSet(resultCount: number, loadedCount: number) {
+  return resultCount > loadedCount;
+}
+
 function toReviewCount(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
   if (typeof value !== "string") return 0;

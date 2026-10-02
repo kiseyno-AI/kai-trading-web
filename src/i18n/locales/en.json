@@ -552,13 +552,17 @@
       "reviewState": "Review state",
       "allReviewStates": "All review states",
       "reviewed": "Reviewed",
-      "pending": "Review pending"
+      "pending": "Review pending",
+      "partialScope": "Search and filters apply only to {loaded} loaded decisions; the response reports {total} total decisions."
     },
     "resultWindow": {
       "eyebrow": "Decision window",
       "range": "Showing {start}–{end} of {total} decisions",
       "empty": "0 matching decisions",
+      "partialRange": "Showing {start}–{end} of {matched} matching loaded decisions; search and filters cover only {loaded} of {total} total decisions.",
+      "partialEmpty": "0 matches in loaded decisions; search and filters cover only {loaded} of {total} total decisions.",
       "noMatches": "No selected-date decisions match these filters.",
+      "partialNoMatches": "No loaded selected-date decisions match these filters. Unloaded decisions were not searched.",
       "navigationLabel": "Calendar decision result windows",
       "topNavigation": "top controls",
       "bottomNavigation": "bottom controls",

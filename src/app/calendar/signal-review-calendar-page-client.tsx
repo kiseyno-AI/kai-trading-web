@@ -68,6 +68,7 @@ import {
   getReviewEvidenceCount,
   getReviewedStatusCount,
   hasReviewEvidence,
+  isPartialCalendarDecisionResultSet,
 } from "./signal-review-calendar-aggregation";
 import styles from "./signal-review-calendar-page.module.css";
 
@@ -1549,6 +1550,10 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
       }),
     [resultActionFilter, resultQuery, reviewStateFilter, selectedSummary.items],
   );
+  const selectedResultsArePartial = isPartialCalendarDecisionResultSet(
+    selectedSummary.resultCount,
+    selectedSummary.items.length,
+  );
   const resultPageCount = Math.max(
     1,
     Math.ceil(filteredSelectedItems.length / SIGNAL_REVIEW_RESULT_WINDOW_SIZE),
@@ -1563,13 +1568,22 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
     () => filteredSelectedItems.slice(resultWindowStartIndex, resultWindowEndIndex),
     [filteredSelectedItems, resultWindowEndIndex, resultWindowStartIndex],
   );
-  const resultWindowRangeLabel =
-    filteredSelectedItems.length > 0
+  const resultWindowRangeLabel = selectedResultsArePartial
+    ? (filteredSelectedItems.length > 0 ? copy.resultWindow.partialRange : copy.resultWindow.partialEmpty)
+        .replaceAll("{start}", (resultWindowStartIndex + 1).toLocaleString("en-US"))
+        .replaceAll("{end}", resultWindowEndIndex.toLocaleString("en-US"))
+        .replaceAll("{matched}", filteredSelectedItems.length.toLocaleString("en-US"))
+        .replaceAll("{loaded}", selectedSummary.items.length.toLocaleString("en-US"))
+        .replaceAll("{total}", selectedSummary.resultCount.toLocaleString("en-US"))
+    : filteredSelectedItems.length > 0
       ? copy.resultWindow.range
           .replaceAll("{start}", (resultWindowStartIndex + 1).toLocaleString("en-US"))
           .replaceAll("{end}", resultWindowEndIndex.toLocaleString("en-US"))
           .replaceAll("{total}", filteredSelectedItems.length.toLocaleString("en-US"))
       : copy.resultWindow.empty;
+  const resultNoMatchesLabel = selectedResultsArePartial
+    ? copy.resultWindow.partialNoMatches
+    : copy.resultWindow.noMatches;
   const selectedItem = useMemo(
     () =>
       selectedDisplayLoadState === "ready"
@@ -2340,7 +2354,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
             ) : selectedSummary.items.length === 0 ? (
               <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
             ) : filteredSelectedItems.length === 0 ? (
-              <div className={styles.emptyState}>{copy.resultWindow.noMatches}</div>
+              <div className={styles.emptyState}>{resultNoMatchesLabel}</div>
             ) : (
               <div className={styles.decisionList}>
                 {visibleSelectedItems.map((item) => {
@@ -2388,7 +2402,12 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
           !selectedDateUnavailable &&
           selectedSummary.items.length > 0 ? (
             <div className={styles.resultWindow} data-testid="calendar-result-window">
-              <div className={styles.resultControls} aria-label={copy.resultFilters.label} role="group">
+              <div
+                className={styles.resultControls}
+                aria-describedby={selectedResultsArePartial ? "calendar-result-filter-scope" : undefined}
+                aria-label={copy.resultFilters.label}
+                role="group"
+              >
                 <label>
                   <span>{copy.resultFilters.search}</span>
                   <input
@@ -2437,6 +2456,17 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
                     ))}
                   </select>
                 </label>
+                {selectedResultsArePartial ? (
+                  <p
+                    className={styles.resultScopeNotice}
+                    data-testid="calendar-result-filter-scope"
+                    id="calendar-result-filter-scope"
+                  >
+                    {copy.resultFilters.partialScope
+                      .replaceAll("{loaded}", selectedSummary.items.length.toLocaleString("en-US"))
+                      .replaceAll("{total}", selectedSummary.resultCount.toLocaleString("en-US"))}
+                  </p>
+                ) : null}
               </div>
 
               <header className={styles.resultWindowHeader}>
@@ -2556,7 +2586,7 @@ export default function SignalReviewCalendarPageClient({ initialTodayKey }: Sign
               {resultPageCount > 1 ? renderResultWindowNavigation("bottom") : null}
             </>
           ) : selectedSummary.items.length > 0 ? (
-            <div className={styles.emptyState}>{copy.resultWindow.noMatches}</div>
+            <div className={styles.emptyState}>{resultNoMatchesLabel}</div>
           ) : (
             <div className={styles.emptyState}>{selectedEmptyStateMessage}</div>
           )}
