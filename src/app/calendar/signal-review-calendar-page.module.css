@@ -815,6 +815,14 @@
   line-height: 1.25;
 }
 
+.detailHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .closeButton {
   width: auto;
 }
@@ -1018,6 +1026,14 @@
   .detailHeader,
   .detailGroup div {
     grid-template-columns: 1fr;
+  }
+
+  .detailHeaderActions {
+    justify-content: stretch;
+  }
+
+  .detailHeaderActions > * {
+    flex: 1 1 9rem;
   }
 
   .panel {

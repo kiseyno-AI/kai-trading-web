@@ -1845,6 +1845,10 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await expect(dialog).toContainText("Target hit intraday first, but the multi-day hold weakened.");
   await expect(dialog).toContainText("Following sessions");
   await expect(dialog).toContainText("Gap-down open");
+  await expect(dialog.getByRole("link", { name: "Open symbol detail" })).toHaveAttribute(
+    "href",
+    "/dashboard/symbol/005930?name=Samsung+Electronics&marketDate=2026-04-27&navContext=calendar",
+  );
 
   await dialog.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: /2026-04-26/ }).click();
@@ -1854,6 +1858,40 @@ test("signal review calendar shows date metadata, selected decisions, and symbol
   await page.goBack();
   await expect(page).toHaveURL(/\/calendar\?date=2026-04-27/);
   await expect(samsungRow).toContainText("Target hit intraday first");
+});
+
+test("calendar replay opens symbol detail and returns to the selected date", async ({ page }) => {
+  await mockSignalReviewCalendar(page);
+  await mockSymbolDetailApis(page, {
+    companyName: "Samsung Electronics",
+    marketDate: "2026-04-27",
+    symbol: "005930",
+  });
+
+  await page.goto("/calendar?date=2026-04-27");
+
+  const samsungRow = page.locator("tr").filter({ hasText: "Samsung Electronics" });
+  await samsungRow.getByRole("button", { name: "Review" }).click();
+
+  const dialog = page.getByRole("dialog", { name: /Samsung Electronics/i });
+  const symbolDetailLink = dialog.getByRole("link", { name: "Open symbol detail" });
+  await expect(symbolDetailLink).toHaveAttribute(
+    "href",
+    "/dashboard/symbol/005930?name=Samsung+Electronics&marketDate=2026-04-27&navContext=calendar",
+  );
+
+  await symbolDetailLink.click();
+
+  await expect(page).toHaveURL(
+    /\/dashboard\/symbol\/005930\?name=Samsung\+Electronics&marketDate=2026-04-27&navContext=calendar$/,
+  );
+  const calendarReturnLink = page.getByRole("link", { name: "Back to calendar" });
+  await expect(calendarReturnLink).toHaveAttribute("href", "/calendar?date=2026-04-27");
+
+  await calendarReturnLink.click();
+
+  await expect(page).toHaveURL(/\/calendar\?date=2026-04-27$/);
+  await expect(page.getByRole("button", { name: /2026-04-27/ })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("signal review calendar desktop rail does not label the month as market status", async ({ page }) => {
@@ -2032,6 +2070,38 @@ test("signal review calendar traps replay dialog focus and restores the mobile o
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAttribute("aria-modal", "true");
   await expect(dialog.getByRole("button", { name: "닫기" })).toBeFocused();
+  const symbolDetailAction = dialog.getByRole("link", { name: "종목 상세 열기" });
+  await expect(symbolDetailAction).toBeVisible();
+  await expect(symbolDetailAction).toHaveAttribute(
+    "href",
+    /\/dashboard\/symbol\/100220\?.*marketDate=2026-05-04.*navContext=calendar$/,
+  );
+  const mobileDialogLayout = await dialog.evaluate((element) => {
+    const action = element.querySelector<HTMLAnchorElement>('a[href*="/dashboard/symbol/100220"]');
+    const close = Array.from(element.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.trim() === "닫기",
+    );
+    const actionBounds = action?.getBoundingClientRect() ?? null;
+    const closeBounds = close?.getBoundingClientRect() ?? null;
+    const dialogBounds = element.getBoundingClientRect();
+
+    return {
+      actionHeight: actionBounds?.height ?? 0,
+      actionWithinDialog: actionBounds
+        ? actionBounds.left >= dialogBounds.left && actionBounds.right <= dialogBounds.right
+        : false,
+      closeHeight: closeBounds?.height ?? 0,
+      closeWithinDialog: closeBounds
+        ? closeBounds.left >= dialogBounds.left && closeBounds.right <= dialogBounds.right
+        : false,
+      horizontalOverflow: element.scrollWidth - element.clientWidth,
+    };
+  });
+  expect(mobileDialogLayout.actionHeight).toBeGreaterThanOrEqual(37);
+  expect(mobileDialogLayout.closeHeight).toBeGreaterThanOrEqual(37);
+  expect(mobileDialogLayout.actionWithinDialog).toBe(true);
+  expect(mobileDialogLayout.closeWithinDialog).toBe(true);
+  expect(mobileDialogLayout.horizontalOverflow).toBeLessThanOrEqual(1);
 
   const openerSuppression = await opener.evaluate((element) => ({
     hiddenAncestor: Boolean(element.closest("[aria-hidden='true']")),

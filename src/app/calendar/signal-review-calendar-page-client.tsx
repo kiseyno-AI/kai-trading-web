@@ -2797,9 +2797,14 @@ function DetailPanel({
               ) : null}
             </div>
           </div>
-          <button ref={closeButtonRef} type="button" className={styles.closeButton} onClick={onClose}>
-            {copy.actions.close}
-          </button>
+          <div className={styles.detailHeaderActions}>
+            <Link href={buildSymbolHref(item)} className={styles.secondaryLink}>
+              {copy.actions.openSymbolDetail}
+            </Link>
+            <button ref={closeButtonRef} type="button" className={styles.closeButton} onClick={onClose}>
+              {copy.actions.close}
+            </button>
+          </div>
         </header>
 
         <div className={styles.detailBody}>
