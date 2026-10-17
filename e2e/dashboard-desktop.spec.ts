@@ -597,7 +597,7 @@ test.describe("dashboard desktop", () => {
 
     const portfolioCard = page.locator("article").filter({ has: page.getByRole("heading", { name: /Portfolio status/i }) });
     await expect(portfolioCard.getByText("Exec integration", { exact: true })).toBeVisible();
-    await expect(portfolioCard.getByText("Connected", { exact: true })).toBeVisible();
+    await expect(portfolioCard.getByText("Kill switch active", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Total assets", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("₩1,000,000", { exact: true })).toBeVisible();
     await expect(portfolioCard.getByText("Weekly P/L", { exact: true })).toBeVisible();
