@@ -4,7 +4,7 @@ export const EXECUTION_RUNTIME_DAILY_BOARD_UPSTREAM_PATH = "/execution/runtime/d
 export const EXECUTION_RUNTIME_SYMBOL_UPSTREAM_BASE_PATH = "/execution/runtime/symbols";
 export const EXECUTION_RUNTIME_PORTFOLIO_RISK_SNAPSHOT_UPSTREAM_PATH = "/execution/runtime/portfolio-risk-snapshot";
 
-export const EXECUTION_RUNTIME_STATUS_CLIENT_PATH = "/api/trading/execution/runtime/status";
+export const EXECUTION_RUNTIME_STATUS_CLIENT_PATH = "/api/trading/execution/runtime/status?refresh=true";
 export const EXECUTION_RUNTIME_MONITORED_SYMBOLS_CLIENT_PATH = "/api/trading/execution/runtime/monitored-symbols";
 export const EXECUTION_RUNTIME_DAILY_BOARD_CLIENT_PATH = "/api/trading/execution/runtime/daily-board";
 export const EXECUTION_RUNTIME_SYMBOL_CLIENT_BASE_PATH = "/api/trading/execution/runtime/symbols";

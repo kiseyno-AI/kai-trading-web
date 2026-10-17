@@ -152,6 +152,38 @@ function compactDiagnostics(...messages: Array<string | null | undefined>) {
   return messages.map((message) => textOrNull(message)).filter((message): message is string => Boolean(message));
 }
 
+function getExecIntegrationStatus(
+  status: ExecutionRuntimeStatusResponseDto | null,
+  copy: DashboardLiveCopy,
+  statusReadFailed = false,
+): { label: string; tone: OverviewTone } {
+  if (!status) return { label: copy.dashboardOverview.unavailable, tone: "warning" };
+
+  const normalizedStatus = normalizeToken(status.status);
+  if (status.kill_switch_enabled === true || normalizedStatus === "kill_switched") {
+    return { label: copy.executionRuntime.statuses.killSwitched, tone: "warning" };
+  }
+  if (status.paused === true || normalizedStatus === "paused") {
+    return { label: copy.executionRuntime.statuses.paused, tone: "warning" };
+  }
+  if (normalizedStatus === "degraded") {
+    return { label: copy.executionRuntime.statuses.degraded, tone: "warning" };
+  }
+  if (normalizedStatus === "offline") {
+    return { label: copy.executionRuntime.statuses.offline, tone: "warning" };
+  }
+  if (statusReadFailed) {
+    return { label: copy.dashboardOverview.unavailable, tone: "warning" };
+  }
+  if (normalizedStatus === "ready" && status.exec_connected === true) {
+    return { label: copy.executionRuntime.statuses.ready, tone: "positive" };
+  }
+
+  return status.exec_connected === true
+    ? { label: copy.dashboardOverview.execConnected, tone: "positive" }
+    : { label: copy.dashboardOverview.execDisconnected, tone: "warning" };
+}
+
 function quantityOrUndefined(value: unknown): ExecutionRuntimeQuantity | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) return value;
@@ -1284,7 +1316,7 @@ export function buildDashboardPortfolioOverviewModel({
   const hasPortfolioAccounts = getPortfolioAccounts(displaySummary).length > 0;
   const weekPnlPending = hasPortfolioAccounts && weekPnl?.available !== true;
   const heldPositionCount = shouldRenderPortfolioSummaryValues ? getHeldPositionCount(summary) : null;
-  const execConnected = executionStatus?.exec_connected === true;
+  const execIntegrationStatus = getExecIntegrationStatus(executionStatus, copy, Boolean(executionStatusError));
   const monitoredItems = monitoredSymbols?.items ?? [];
   const accountHoldingBySymbol = shouldRenderPortfolioSummaryValues
     ? buildPortfolioHoldingSnapshots(summary)
@@ -1336,22 +1368,14 @@ export function buildDashboardPortfolioOverviewModel({
           : overviewCopy.accountHoldingsUnavailable,
     contextLabel,
     diagnostics,
-    execConnectionLabel: execConnected
-      ? overviewCopy.execConnected
-      : executionStatus
-        ? overviewCopy.execDisconnected
-        : overviewCopy.unavailable,
-    execConnectionTone: execConnected ? "positive" : "warning",
+    execConnectionLabel: execIntegrationStatus.label,
+    execConnectionTone: execIntegrationStatus.tone,
     metrics: [
       {
         key: "exec-connection",
         label: overviewCopy.execIntegration,
-        tone: execConnected ? "positive" : "warning",
-        value: execConnected
-          ? overviewCopy.execConnected
-          : executionStatus
-            ? overviewCopy.execDisconnected
-            : overviewCopy.unavailable,
+        tone: execIntegrationStatus.tone,
+        value: execIntegrationStatus.label,
       },
       {
         key: "total-assets",

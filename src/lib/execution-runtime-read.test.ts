@@ -94,6 +94,31 @@ test("normalizes empty successful execution runtime status JSON as invalid respo
   assert.equal(result.status, null);
 });
 
+test("requests a fresh execution runtime status by default", async (t) => {
+  const originalFetch = globalThis.fetch;
+  let requestedInput: RequestInfo | URL | null = null;
+
+  globalThis.fetch = (async (input) => {
+    requestedInput = input;
+    return Response.json({
+      exec_connected: true,
+      paused: true,
+      status: "paused",
+    });
+  }) as typeof fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const result = await getExecutionRuntimeStatusReadResult();
+
+  assert.equal(String(requestedInput), "/api/trading/execution/runtime/status?refresh=true");
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error("Expected fresh runtime status to normalize successfully.");
+  assert.equal(result.data.paused, true);
+  assert.equal(result.data.status, "paused");
+});
+
 test("normalizes malformed successful execution runtime monitored-symbols JSON as invalid response", async (t) => {
   const originalFetch = globalThis.fetch;
 

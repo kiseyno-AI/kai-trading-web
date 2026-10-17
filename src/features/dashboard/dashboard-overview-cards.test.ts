@@ -611,6 +611,69 @@ test("shows exec-approved monitoring rows from runtime monitored symbols with ta
   );
 });
 
+test("shows the current Exec safety and availability state instead of connection alone", () => {
+  const cases: Array<{
+    expectedLabel: string;
+    expectedTone: "positive" | "warning";
+    status: ExecutionRuntimeStatusResponseDto;
+  }> = [
+    {
+      expectedLabel: "Exec online",
+      expectedTone: "positive",
+      status: { exec_connected: true, status: "ready" },
+    },
+    {
+      expectedLabel: "Automation paused",
+      expectedTone: "warning",
+      status: { exec_connected: true, paused: true, status: "paused" },
+    },
+    {
+      expectedLabel: "Automation paused",
+      expectedTone: "warning",
+      status: { exec_connected: true, status: "paused" },
+    },
+    {
+      expectedLabel: "Kill switch active",
+      expectedTone: "warning",
+      status: { exec_connected: true, kill_switch_enabled: true, status: "ready" },
+    },
+    {
+      expectedLabel: "Kill switch active",
+      expectedTone: "warning",
+      status: { exec_connected: true, status: "kill_switched" },
+    },
+    {
+      expectedLabel: "Exec degraded",
+      expectedTone: "warning",
+      status: { exec_connected: true, status: "degraded" },
+    },
+    {
+      expectedLabel: "Exec offline",
+      expectedTone: "warning",
+      status: { exec_connected: false, status: "offline" },
+    },
+  ];
+
+  for (const current of cases) {
+    const model = buildDashboardPortfolioOverviewModel({
+      copy,
+      executionStatus: current.status,
+      executionStatusError: null,
+      monitoredSymbols: { market_date: "2026-05-22", items: [] },
+      monitoredSymbolsError: null,
+      numberLocale: "en-US",
+      portfolioState: "fully-synced",
+      summary: null,
+    });
+
+    const execMetric = model.metrics.find((metric) => metric.key === "exec-connection");
+    assert.equal(model.execConnectionLabel, current.expectedLabel);
+    assert.equal(model.execConnectionTone, current.expectedTone);
+    assert.equal(execMetric?.value, current.expectedLabel);
+    assert.equal(execMetric?.tone, current.expectedTone);
+  }
+});
+
 test("shows actual account holdings from the portfolio summary", () => {
   const summary = {
     sync: { status: "synced" },
@@ -650,7 +713,7 @@ test("shows actual account holdings from the portfolio summary", () => {
     summary,
   });
 
-  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
+  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Exec online");
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
   assert.equal(model.metrics.find((metric) => metric.key === "week-pnl")?.value, "-₩600,000");
   assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
@@ -985,7 +1048,8 @@ test("preserves portfolio summary fields while runtime timeouts keep row states 
     summary,
   });
 
-  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Connected");
+  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Unavailable");
+  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.tone, "warning");
   assert.equal(model.metrics.find((metric) => metric.key === "total-assets")?.value, "₩1,000,000");
   assert.equal(model.metrics.find((metric) => metric.key === "week-pnl")?.value, "Weekly P/L pending");
   assert.equal(model.metrics.find((metric) => metric.key === "account-holdings")?.value, "1 holding");
@@ -1009,6 +1073,31 @@ test("preserves portfolio summary fields while runtime timeouts keep row states 
       .join("\n"),
     /Timed out after 5\.0s|trading-core|\/execution\/runtime\/(?:status|monitored-symbols)/,
   );
+});
+
+test("preserves a cached Exec safety warning when the latest status refresh times out", () => {
+  const runtimeStatusTimeout =
+    "Timed out after 5.0s while loading /execution/runtime/status from trading-core.";
+
+  const model = buildDashboardPortfolioOverviewModel({
+    copy,
+    executionStatus: {
+      exec_connected: true,
+      paused: true,
+      status: "paused",
+    },
+    executionStatusError: runtimeStatusTimeout,
+    monitoredSymbols: { market_date: "2026-05-22", items: [] },
+    monitoredSymbolsError: null,
+    numberLocale: "en-US",
+    portfolioState: "fully-synced",
+    summary: null,
+  });
+
+  assert.equal(model.execConnectionLabel, "Automation paused");
+  assert.equal(model.execConnectionTone, "warning");
+  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.value, "Automation paused");
+  assert.equal(model.metrics.find((metric) => metric.key === "exec-connection")?.tone, "warning");
 });
 
 test("marks portfolio runtime rows unavailable when status times out with an empty monitored-symbol payload", () => {
