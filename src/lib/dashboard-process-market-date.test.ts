@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { EodFreshnessResponseDto, EodPipelineStatusResponseDto } from "@/types/trading-api";
+import type {
+  EodFreshnessResponseDto,
+  EodPipelineStatusResponseDto,
+} from "@/types/trading-api";
 
 import {
   getDashboardLatestCompletedPipelineMarketDate,
@@ -43,6 +46,88 @@ const liveRolloverFreshness: EodFreshnessResponseDto = {
     action_market_date: "2026-04-29",
   },
 };
+
+const weekendRolloverFreshness: EodFreshnessResponseDto = {
+  today: {
+    trade_date: "2026-10-18",
+    technical_analysis: {
+      status: "missing",
+      symbols_total: 2676,
+      symbols_succeeded: 0,
+      symbols_failed: 0,
+    },
+    action_summary: {
+      status: "missing",
+      symbols_total: 2676,
+      symbols_succeeded: 0,
+      symbols_failed: 0,
+    },
+  },
+  latest: {
+    trade_date: "2026-10-16",
+    technical_market_date: "2026-10-16",
+    action_market_date: "2026-10-16",
+  },
+};
+
+function buildWeekendPartialPipelineStatus() {
+  return {
+    ...buildPipelineStatus({
+      market_date: "2026-10-18",
+      status: "partial",
+      stage_order: [
+        "master_refresh",
+        "pykrx_universe_refresh",
+        "price_collection",
+        "technical_snapshots",
+        "action_summaries",
+        "macro_context_refresh",
+      ],
+      stages: {
+        master_refresh: { status: "skipped", processed: 0, total: 0, failed: 0 },
+        pykrx_universe_refresh: { status: "skipped", processed: 0, total: 0, failed: 0 },
+        price_collection: { status: "pending", processed: 0, total: 0, failed: 0 },
+        technical_snapshots: { status: "pending", processed: 0, total: 0, failed: 0 },
+        action_summaries: { status: "pending", processed: 0, total: 0, failed: 0 },
+        macro_context_refresh: {
+          status: "completed",
+          processed: 3,
+          total: 3,
+          failed: 0,
+        },
+      },
+      total_stages: 26,
+      completed_stages: 1,
+      display_completed_stages: 3,
+      partial_stages: 0,
+      failed_stages: 0,
+      blocked_stages: 0,
+      running_stages: 0,
+      pending_stages: 23,
+      current_stage: "price_collection",
+      current_stage_status: "pending",
+    }),
+    market_session: {
+      requested_date: "2026-10-18",
+      latest_valid_trading_date: "2026-10-16",
+      is_trading_day: false,
+      requested_date_is_trading_day: false,
+      status: "weekend",
+      recommendation_basis: "latest_completed_eod",
+    },
+  };
+}
+
+function buildFridayCompletedPipelineStatus() {
+  return buildPipelineStatus({
+    market_date: "2026-10-16",
+    status: "completed",
+    stages: {
+      technical_snapshots: { status: "completed", processed: 2676, total: 2676, failed: 0 },
+      action_summaries: { status: "completed", processed: 2676, total: 2676, failed: 0 },
+    },
+  });
+}
 
 test("uses the latest completed pipeline when the requested current-day pipeline is only pending", () => {
   const currentPipelineStatus = buildPipelineStatus({
@@ -152,6 +237,98 @@ test("does not use a latest pipeline response unless it is completed for the fre
       freshness: liveRolloverFreshness,
       latestCompletedPipelineStatus: pendingLatestPipelineStatus,
       requestMarketDate: "2026-04-30",
+    }),
+    currentPipelineStatus,
+  );
+});
+
+test("uses Friday's completed pipeline when a weekend partial only completed macro context", () => {
+  const currentPipelineStatus = buildWeekendPartialPipelineStatus();
+  const latestCompletedPipelineStatus = buildFridayCompletedPipelineStatus();
+
+  assert.equal(
+    shouldRequestLatestCompletedPipelineStatus({
+      currentPipelineStatus,
+      freshness: weekendRolloverFreshness,
+      requestMarketDate: "2026-10-18",
+    }),
+    true,
+  );
+
+  const effectivePipelineStatus = resolveDashboardProcessPipelineStatus({
+    currentPipelineStatus,
+    freshness: weekendRolloverFreshness,
+    latestCompletedPipelineStatus,
+    requestMarketDate: "2026-10-18",
+  });
+
+  assert.equal(effectivePipelineStatus, latestCompletedPipelineStatus);
+  assert.equal(getDashboardProcessResolvedMarketDate(effectivePipelineStatus, "2026-10-18"), "2026-10-16");
+});
+
+test("keeps an active trading-day partial pipeline ahead of the latest completed state", () => {
+  const currentPipelineStatus = {
+    ...buildPipelineStatus({
+      market_date: "2026-10-19",
+      status: "partial",
+      stages: {
+        price_collection: { status: "completed", processed: 2676, total: 2676, failed: 0 },
+        technical_snapshots: { status: "running", processed: 1200, total: 2676, failed: 0 },
+        action_summaries: { status: "pending", processed: 0, total: 2676, failed: 0 },
+      },
+    }),
+    market_session: {
+      requested_date: "2026-10-19",
+      latest_valid_trading_date: "2026-10-19",
+      is_trading_day: true,
+      requested_date_is_trading_day: true,
+      status: "closed",
+      recommendation_basis: "latest_completed_eod",
+    },
+  };
+
+  assert.equal(
+    shouldRequestLatestCompletedPipelineStatus({
+      currentPipelineStatus,
+      freshness: weekendRolloverFreshness,
+      requestMarketDate: "2026-10-19",
+    }),
+    false,
+  );
+  assert.equal(
+    resolveDashboardProcessPipelineStatus({
+      currentPipelineStatus,
+      freshness: weekendRolloverFreshness,
+      latestCompletedPipelineStatus: buildFridayCompletedPipelineStatus(),
+      requestMarketDate: "2026-10-19",
+    }),
+    currentPipelineStatus,
+  );
+});
+
+test("keeps a non-trading partial pipeline when a stage reports a real problem", () => {
+  const currentPipelineStatus = buildWeekendPartialPipelineStatus();
+  currentPipelineStatus.stages.technical_snapshots = {
+    status: "partial",
+    processed: 2674,
+    total: 2676,
+    failed: 2,
+  };
+
+  assert.equal(
+    shouldRequestLatestCompletedPipelineStatus({
+      currentPipelineStatus,
+      freshness: weekendRolloverFreshness,
+      requestMarketDate: "2026-10-18",
+    }),
+    false,
+  );
+  assert.equal(
+    resolveDashboardProcessPipelineStatus({
+      currentPipelineStatus,
+      freshness: weekendRolloverFreshness,
+      latestCompletedPipelineStatus: buildFridayCompletedPipelineStatus(),
+      requestMarketDate: "2026-10-18",
     }),
     currentPipelineStatus,
   );

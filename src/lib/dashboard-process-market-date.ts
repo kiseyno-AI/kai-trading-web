@@ -69,11 +69,63 @@ function hasCompletedRequiredLatestPipelineStages(pipelineStatus: EodPipelineSta
   );
 }
 
-function isCurrentPipelineStatusAuthoritative(pipelineStatus: EodPipelineStatusResponseDto | null | undefined) {
+function isNonTradingLatestCompletedBasisPartial({
+  pipelineStatus,
+  latestMarketDate,
+  requestMarketDate,
+}: {
+  pipelineStatus: EodPipelineStatusResponseDto | null | undefined;
+  latestMarketDate: string | null;
+  requestMarketDate: string | null | undefined;
+}) {
+  if (normalizeDailyPipelineStatusToken(pipelineStatus?.status) !== "partial") return false;
+
+  const requestedMarketDate = normalizeDartFundamentalsMarketDate(requestMarketDate);
+  const pipelineMarketDate = normalizeDartFundamentalsMarketDate(pipelineStatus?.market_date);
+  const sessionRequestedMarketDate = normalizeDartFundamentalsMarketDate(
+    pipelineStatus?.market_session?.requested_date,
+  );
+  const sessionLatestValidTradingDate = normalizeDartFundamentalsMarketDate(
+    pipelineStatus?.market_session?.latest_valid_trading_date,
+  );
+  const requestedDateIsTradingDay =
+    pipelineStatus?.market_session?.requested_date_is_trading_day ??
+    pipelineStatus?.market_session?.is_trading_day;
+  const recommendationBasis = pipelineStatus?.market_session?.recommendation_basis?.trim().toLowerCase();
+
+  return (
+    requestedMarketDate !== null &&
+    latestMarketDate !== null &&
+    requestedMarketDate !== latestMarketDate &&
+    pipelineMarketDate === requestedMarketDate &&
+    sessionRequestedMarketDate === requestedMarketDate &&
+    sessionLatestValidTradingDate === latestMarketDate &&
+    requestedDateIsTradingDay === false &&
+    recommendationBasis === "latest_completed_eod"
+  );
+}
+
+function isCurrentPipelineStatusAuthoritative({
+  pipelineStatus,
+  latestMarketDate,
+  requestMarketDate,
+}: {
+  pipelineStatus: EodPipelineStatusResponseDto | null | undefined;
+  latestMarketDate: string | null;
+  requestMarketDate: string | null | undefined;
+}) {
+  const hasAuthoritativeTopLevelProblem =
+    isProblemPipelineStatus(pipelineStatus?.status) &&
+    !isNonTradingLatestCompletedBasisPartial({
+      pipelineStatus,
+      latestMarketDate,
+      requestMarketDate,
+    });
+
   return (
     isRunningPipelineStatus(pipelineStatus?.status) ||
     isCompletedPipelineStatus(pipelineStatus?.status) ||
-    isProblemPipelineStatus(pipelineStatus?.status) ||
+    hasAuthoritativeTopLevelProblem ||
     hasRunningPipelineStage(pipelineStatus) ||
     hasProblemPipelineStage(pipelineStatus)
   );
@@ -113,8 +165,13 @@ export function shouldRequestLatestCompletedPipelineStatus({
   freshness: EodFreshnessResponseDto | null;
   requestMarketDate: string | null | undefined;
 }) {
-  if (!getDashboardLatestCompletedPipelineMarketDate(freshness, requestMarketDate)) return false;
-  return !isCurrentPipelineStatusAuthoritative(currentPipelineStatus);
+  const latestMarketDate = getDashboardLatestCompletedPipelineMarketDate(freshness, requestMarketDate);
+  if (!latestMarketDate) return false;
+  return !isCurrentPipelineStatusAuthoritative({
+    pipelineStatus: currentPipelineStatus,
+    latestMarketDate,
+    requestMarketDate,
+  });
 }
 
 export function resolveDashboardProcessPipelineStatus({
@@ -131,7 +188,11 @@ export function resolveDashboardProcessPipelineStatus({
   const latestMarketDate = getDashboardLatestCompletedPipelineMarketDate(freshness, requestMarketDate);
 
   if (
-    !isCurrentPipelineStatusAuthoritative(currentPipelineStatus) &&
+    !isCurrentPipelineStatusAuthoritative({
+      pipelineStatus: currentPipelineStatus,
+      latestMarketDate,
+      requestMarketDate,
+    }) &&
     isCompletedLatestPipelineStatus(latestCompletedPipelineStatus, latestMarketDate)
   ) {
     return latestCompletedPipelineStatus;

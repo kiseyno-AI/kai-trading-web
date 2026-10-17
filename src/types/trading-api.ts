@@ -655,6 +655,7 @@ export type EodPipelineStageKey =
   | "composite_factors"
   | "external_news_collect"
   | "external_news_enrich"
+  | "macro_context_refresh"
   | "agent_feedback_summaries"
   | "signal_decider"
   | "signal_decider_evaluations"
@@ -721,8 +722,18 @@ export type EodPipelineStageDto = Record<string, unknown> & {
   details?: EodPipelineStageDetailsDto | null;
 };
 
+export type EodPipelineMarketSessionDto = Record<string, unknown> & {
+  requested_date?: string | null;
+  latest_valid_trading_date?: string | null;
+  is_trading_day?: boolean | null;
+  requested_date_is_trading_day?: boolean | null;
+  status?: string | null;
+  recommendation_basis?: string | null;
+};
+
 export type EodPipelineStatusResponseDto = {
   market_date: string | null;
+  market_session?: EodPipelineMarketSessionDto | null;
   fs_div?: string | null;
   status: string | null;
   stage_order: EodPipelineStageKey[];
