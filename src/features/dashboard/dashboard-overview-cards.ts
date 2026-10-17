@@ -129,8 +129,8 @@ const FILLED_STATUSES = new Set(["filled", "partial"]);
 const NEXT_DAY_STATUSES = new Set(["planned", "accepted", "scheduled", "submitted"]);
 const REJECTED_OR_EXPIRED_RUNTIME_STATUSES = new Set(["expired", "rejected"]);
 
-function normalizeToken(value: string | null | undefined) {
-  return value?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? "";
+function normalizeToken(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase().replace(/[\s-]+/g, "_") : "";
 }
 
 function humanizeToken(value: string | null | undefined, fallback: string) {
@@ -478,10 +478,12 @@ function isFilledExecutionItem(item: ExecutionRuntimeBoardItemDto) {
 }
 
 function isNextDayExecutionCandidate(item: ExecutionRuntimeBoardItemDto, boardMarketDate: string | null) {
+  const status = normalizeToken(item.status);
+  if (!NEXT_DAY_STATUSES.has(status)) return false;
   const targetTradeDate = textOrNull(item.target_trade_date);
   if (targetTradeDate && (!boardMarketDate || targetTradeDate !== boardMarketDate)) return true;
   if (hasAnyIntent(item, ["next_open_buy", "next_open_sell", "next_day_exec", "next"])) return true;
-  return NEXT_DAY_STATUSES.has(normalizeToken(item.status));
+  return NEXT_DAY_STATUSES.has(status);
 }
 
 function getPlannedTradeSide(item: Record<string, unknown>) {
@@ -771,6 +773,19 @@ function isExplicitlyUnapprovedRuntimeRow(item: Record<string, unknown>) {
 
 function isExecApprovedMonitoringRow(item: ExecutionRuntimeMonitoredSymbolDto) {
   return !isExplicitlyUnapprovedRuntimeRow(item) && !isRejectedOrExpiredRuntimeRow(item);
+}
+
+function hasRuntimeReadMetadataDelay(
+  response: ExecutionRuntimeDailyBoardResponseDto | ExecutionRuntimeMonitoredSymbolsResponseDto | null,
+) {
+  const freshnessStatus = normalizeToken(response?.freshness?.status);
+  return Boolean(
+    normalizeToken(response?.activity_coverage?.status) === "unavailable" ||
+      response?.freshness?.is_stale === true ||
+      response?.freshness?.is_partial === true ||
+      response?.freshness?.refreshing === true ||
+      ["partial", "refreshing", "stale", "unavailable"].includes(freshnessStatus),
+  );
 }
 
 function getRuntimeHeldQuantity(item: Record<string, unknown>) {
@@ -1087,7 +1102,7 @@ export function buildDashboardDeciderOverviewModel({
 
   if (market.is_open) {
     const sourceMarketDate = monitoredSymbols?.market_date ?? getDatePart(market.server_time);
-    const rows = (monitoredSymbols?.items ?? []).map((item) => {
+    const rows = (monitoredSymbols?.items ?? []).filter(isExecApprovedMonitoringRow).map((item) => {
       const supportingBoardItem = findSupportingBoardItem(item.symbol, boardBySymbol);
       const quote = quoteBySymbol.get(item.symbol);
       const marketLabel = textOrNull(item.market) ?? textOrNull(quote?.market_state);
@@ -1167,7 +1182,12 @@ export function buildDashboardDeciderOverviewModel({
         symbol: item.symbol,
       };
     });
-    const hasMarketOpenRuntimeDelay = Boolean(monitoredSymbolsError || trackedError);
+    const hasMarketOpenRuntimeDelay = Boolean(
+      monitoredSymbolsError ||
+        trackedError ||
+        !monitoredSymbols ||
+        hasRuntimeReadMetadataDelay(monitoredSymbols),
+    );
     const marketOpenContext = [
       overviewCopy.marketOpenContext,
       hasMarketOpenRuntimeDelay ? overviewCopy.runtimeDataDelayed : null,
@@ -1181,7 +1201,7 @@ export function buildDashboardDeciderOverviewModel({
       emptyLabel:
         rows.length > 0
           ? null
-          : monitoredSymbolsError
+          : hasMarketOpenRuntimeDelay
             ? overviewCopy.monitoringListUpdating
             : overviewCopy.noMonitoredStocks,
       mode: "market-open",
@@ -1206,7 +1226,16 @@ export function buildDashboardDeciderOverviewModel({
 
   const boardMarketDate = board?.market_date ?? board?.request?.market_date ?? null;
   const currentMarketDate = getDatePart(market.server_time);
-  const hasBoardRuntimeDelay = Boolean(boardError);
+  const boardActivityUnavailable = normalizeToken(board?.activity_coverage?.status) === "unavailable";
+  const boardFreshnessDelayed = hasRuntimeReadMetadataDelay(board) && !boardActivityUnavailable;
+  const hasBoardRuntimeDelay = Boolean(boardError) || boardActivityUnavailable || boardFreshnessDelayed;
+  const boardRuntimeEmptyLabel = boardError
+    ? overviewCopy.executionBoardUpdating
+    : boardActivityUnavailable
+      ? overviewCopy.executionBoardUnavailable
+      : boardFreshnessDelayed
+        ? overviewCopy.executionBoardUpdating
+        : null;
 
   if (processStatus !== "completed") {
     const rows = getBoardItems(board)
@@ -1227,17 +1256,20 @@ export function buildDashboardDeciderOverviewModel({
       .every((item) => isTodayPlannedTrade(item, boardMarketDate, currentMarketDate));
 
     return {
-      contextLabel: rows.length > 0 ? getPlannedTradesContext(overviewCopy, processStage) : null,
+      contextLabel:
+        rows.length > 0
+          ? [
+              getPlannedTradesContext(overviewCopy, processStage),
+              hasBoardRuntimeDelay ? overviewCopy.runtimeDataDelayed : null,
+            ].filter(Boolean).join(" ")
+          : null,
       detailMarketDate: getRowsDetailMarketDate(rows),
       diagnostics,
       emptyLabel:
         rows.length > 0
           ? null
-          : boardError
-            ? overviewCopy.executionBoardUpdating
-            : board
-              ? overviewCopy.noPlannedTrades
-              : overviewCopy.executionBoardUnavailable,
+          : boardRuntimeEmptyLabel ??
+            (board ? overviewCopy.noPlannedTrades : overviewCopy.executionBoardUnavailable),
       mode: "closed-planned",
       rows,
       statusLabel:
@@ -1246,7 +1278,14 @@ export function buildDashboardDeciderOverviewModel({
             ? overviewCopy.plannedTradesToday
             : overviewCopy.plannedTrades
           : copy.processMonitor.statuses[processStatus],
-      statusTone: rows.length > 0 ? "neutral" : processStatus === "pending" ? "neutral" : "warning",
+      statusTone:
+        rows.length > 0
+          ? hasBoardRuntimeDelay
+            ? "warning"
+            : "neutral"
+          : processStatus === "pending" && !hasBoardRuntimeDelay
+            ? "neutral"
+            : "warning",
     };
   }
 
@@ -1273,11 +1312,8 @@ export function buildDashboardDeciderOverviewModel({
     emptyLabel:
       rows.length > 0
         ? null
-        : boardError
-          ? overviewCopy.executionBoardUpdating
-          : board
-            ? overviewCopy.noNextDayExecStocks
-            : overviewCopy.executionBoardUnavailable,
+        : boardRuntimeEmptyLabel ??
+          (board ? overviewCopy.noNextDayExecStocks : overviewCopy.executionBoardUnavailable),
     mode: "closed-completed",
     rows,
     statusLabel: overviewCopy.nextDayExec,
@@ -1349,7 +1385,12 @@ export function buildDashboardPortfolioOverviewModel({
   const runtimeHoldingRows = Array.from(runtimeHoldingBySymbol.values())
     .filter((holding) => !monitoringSymbols.has(holding.symbol))
     .map((holding) => buildHoldingRow({ badgeLabel: overviewCopy.runtimeHeld, copy, holding, numberLocale }));
-  const hasRuntimeDataDelay = Boolean(executionStatusError || monitoredSymbolsError);
+  const hasRuntimeDataDelay = Boolean(
+    executionStatusError ||
+      monitoredSymbolsError ||
+      !monitoredSymbols ||
+      hasRuntimeReadMetadataDelay(monitoredSymbols),
+  );
   const runtimeRowsUnavailable = hasRuntimeDataDelay || !monitoredSymbols;
   const contextLabel = [
     copy.portfolioState.dashboardContext,

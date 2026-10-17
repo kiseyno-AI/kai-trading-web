@@ -505,3 +505,21 @@ test("loads portfolio summary client-side and preserves loading state when SSR d
   assert.match(source, /void loadPortfolioSummary\(\);/);
   assert.match(source, /const timer = window\.setInterval\(loadPortfolioSummary, 60_000\);/);
 });
+
+test("guards execution runtime payloads by their exact requested market date", () => {
+  const sourcePath = new URL("./use-live-dashboard-data.ts", import.meta.url);
+  const source = readFileSync(sourcePath, "utf8");
+
+  assert.match(
+    source,
+    /selectExecutionRuntimeResponseForMarketDate\(\s*executionRuntimeDailyBoard,\s*executionRuntimeMarketDate,\s*\)/,
+  );
+  assert.match(
+    source,
+    /selectExecutionRuntimeResponseForMarketDate\(\s*executionRuntimeMonitoredSymbols,\s*executionRuntimeMarketDate,\s*\)/,
+  );
+  assert.match(
+    source,
+    /setExecutionRuntimeDailyBoard\(\(current\) =>[\s\S]*?selectExecutionRuntimeResponseForMarketDate\(current, executionRuntimeMarketDate\)[\s\S]*?setExecutionRuntimeMonitoredSymbols\(\(current\) =>/,
+  );
+});

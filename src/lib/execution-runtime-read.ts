@@ -3,6 +3,7 @@ import {
   EXECUTION_RUNTIME_MONITORED_SYMBOLS_CLIENT_PATH,
   EXECUTION_RUNTIME_STATUS_CLIENT_PATH,
 } from "@/lib/execution-runtime";
+import { normalizeDartFundamentalsMarketDate } from "@/lib/dart-fundamentals-daily";
 import { getTradingApiJsonResult, type TradingApiJsonResult } from "@/lib/trading-api-cache";
 import { resolveTradingApiClientPath } from "@/lib/trading-api-client-path";
 import {
@@ -21,14 +22,110 @@ const INVALID_STATUS_MESSAGE = "Execution runtime status response was invalid.";
 const INVALID_MONITORED_SYMBOLS_MESSAGE = "Execution runtime monitored-symbols response was invalid.";
 const INVALID_DAILY_BOARD_MESSAGE = "Execution runtime daily-board response was invalid.";
 
-function hasOptionalArrayField(value: Record<string, unknown>, key: string) {
-  const field = value[key];
-  return field === undefined || field === null || Array.isArray(field);
+function hasOptionalBoardItemsField(value: Record<string, unknown>) {
+  const field = value.items;
+  if (field === undefined || field === null) return true;
+  if (!Array.isArray(field)) return false;
+
+  return field.every(
+    (item) =>
+      isTradingApiObjectResponse(item) &&
+      typeof item.symbol === "string" &&
+      item.symbol.trim().length > 0 &&
+      typeof item.status === "string",
+  );
+}
+
+function hasOptionalMonitoredItemsField(value: Record<string, unknown>) {
+  const field = value.items;
+  if (field === undefined || field === null) return true;
+  if (!Array.isArray(field)) return false;
+
+  return field.every(
+    (item) =>
+      isTradingApiObjectResponse(item) &&
+      typeof item.symbol === "string" &&
+      item.symbol.trim().length > 0 &&
+      typeof item.monitoring_state === "string",
+  );
 }
 
 function hasOptionalObjectField(value: Record<string, unknown>, key: string) {
   const field = value[key];
   return field === undefined || field === null || isTradingApiObjectResponse(field);
+}
+
+function hasOptionalStringField(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+  return field === undefined || field === null || typeof field === "string";
+}
+
+function hasOptionalBooleanField(value: Record<string, unknown>, key: string) {
+  const field = value[key];
+  return field === undefined || field === null || typeof field === "boolean";
+}
+
+function hasOptionalActivityCoverageField(value: Record<string, unknown>) {
+  const field = value.activity_coverage;
+  if (field === undefined || field === null) return true;
+  if (!isTradingApiObjectResponse(field)) return false;
+
+  return (
+    hasOptionalStringField(field, "status") &&
+    hasOptionalStringField(field, "status_reason") &&
+    hasOptionalBooleanField(field, "exec_activity_detected") &&
+    hasOptionalStringField(field, "source")
+  );
+}
+
+function hasOptionalFreshnessField(value: Record<string, unknown>) {
+  const field = value.freshness;
+  if (field === undefined || field === null) return true;
+  if (!isTradingApiObjectResponse(field)) return false;
+
+  return (
+    hasOptionalStringField(field, "status") &&
+    hasOptionalBooleanField(field, "is_stale") &&
+    hasOptionalBooleanField(field, "is_partial") &&
+    hasOptionalBooleanField(field, "refreshing")
+  );
+}
+
+function hasOptionalRequestField(value: Record<string, unknown>) {
+  const field = value.request;
+  if (field === undefined || field === null) return true;
+  if (!isTradingApiObjectResponse(field)) return false;
+
+  return (
+    hasOptionalStringField(field, "market_date") &&
+    hasOptionalBooleanField(field, "refresh")
+  );
+}
+
+type ExecutionRuntimeMarketDateResponse =
+  | ExecutionRuntimeDailyBoardResponseDto
+  | ExecutionRuntimeMonitoredSymbolsResponseDto;
+
+export function selectExecutionRuntimeResponseForMarketDate<T extends ExecutionRuntimeMarketDateResponse>(
+  response: T | null | undefined,
+  marketDate: string | null | undefined,
+) {
+  const expectedMarketDate = normalizeDartFundamentalsMarketDate(marketDate);
+  if (!response || !expectedMarketDate) return null;
+
+  const responseMarketDate =
+    typeof response.market_date === "string"
+      ? normalizeDartFundamentalsMarketDate(response.market_date)
+      : null;
+  if (responseMarketDate !== expectedMarketDate) return null;
+
+  const requestedMarketDate =
+    typeof response.request?.market_date === "string"
+      ? normalizeDartFundamentalsMarketDate(response.request.market_date)
+      : null;
+  if (response.request?.market_date != null && requestedMarketDate !== expectedMarketDate) return null;
+
+  return response;
 }
 
 export function isExecutionRuntimeStatusResponseDto(
@@ -42,7 +139,11 @@ export function isExecutionRuntimeMonitoredSymbolsResponseDto(
 ): value is ExecutionRuntimeMonitoredSymbolsResponseDto {
   return (
     isTradingApiObjectResponse(value) &&
-    hasOptionalArrayField(value, "items") &&
+    hasOptionalStringField(value, "market_date") &&
+    hasOptionalRequestField(value) &&
+    hasOptionalMonitoredItemsField(value) &&
+    hasOptionalActivityCoverageField(value) &&
+    hasOptionalFreshnessField(value) &&
     hasOptionalObjectField(value, "summary") &&
     hasOptionalObjectField(value, "runtime")
   );
@@ -53,7 +154,11 @@ export function isExecutionRuntimeDailyBoardResponseDto(
 ): value is ExecutionRuntimeDailyBoardResponseDto {
   return (
     isTradingApiObjectResponse(value) &&
-    hasOptionalArrayField(value, "items") &&
+    hasOptionalStringField(value, "market_date") &&
+    hasOptionalRequestField(value) &&
+    hasOptionalBoardItemsField(value) &&
+    hasOptionalActivityCoverageField(value) &&
+    hasOptionalFreshnessField(value) &&
     hasOptionalObjectField(value, "summary") &&
     hasOptionalObjectField(value, "runtime")
   );

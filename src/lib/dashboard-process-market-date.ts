@@ -30,6 +30,45 @@ export function getDashboardProcessResolvedMarketDate(
   );
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+export function getDashboardExecutionRuntimeMarketDate(
+  pipelineStatus: EodPipelineStatusResponseDto | null,
+  requestMarketDate: string | null | undefined,
+) {
+  const fallbackMarketDate = normalizeDartFundamentalsMarketDate(requestMarketDate);
+  const stages = asRecord(pipelineStatus?.stages);
+  const nextOpenStage = asRecord(stages?.next_open_execution_plan);
+
+  if (
+    !nextOpenStage ||
+    !isCompletedPipelineStatus(
+      typeof nextOpenStage.status === "string" ? nextOpenStage.status : null,
+    )
+  ) {
+    return fallbackMarketDate;
+  }
+
+  const details = asRecord(nextOpenStage.details);
+  const resultSummary = asRecord(details?.result_summary);
+  const summary = asRecord(resultSummary?.summary);
+  const request = asRecord(resultSummary?.request);
+
+  return (
+    normalizeDartFundamentalsMarketDate(
+      typeof summary?.target_trade_date === "string" ? summary.target_trade_date : null,
+    ) ??
+    normalizeDartFundamentalsMarketDate(
+      typeof request?.target_trade_date === "string" ? request.target_trade_date : null,
+    ) ??
+    fallbackMarketDate
+  );
+}
+
 function isRunningPipelineStatus(value: string | null | undefined) {
   return normalizeDailyPipelineStatusToken(value) === "running";
 }

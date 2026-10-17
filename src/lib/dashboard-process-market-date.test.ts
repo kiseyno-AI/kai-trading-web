@@ -7,6 +7,7 @@ import type {
 } from "@/types/trading-api";
 
 import {
+  getDashboardExecutionRuntimeMarketDate,
   getDashboardLatestCompletedPipelineMarketDate,
   getDashboardProcessResolvedMarketDate,
   resolveDashboardProcessPipelineStatus,
@@ -332,4 +333,63 @@ test("keeps a non-trading partial pipeline when a stage reports a real problem",
     }),
     currentPipelineStatus,
   );
+});
+
+test("uses the completed next-open plan target for execution runtime reads", () => {
+  const completedPipelineStatus = buildPipelineStatus({
+    market_date: "2026-10-16",
+    status: "completed",
+    stages: {
+      next_open_execution_plan: {
+        status: "completed",
+        processed: 36,
+        total: 36,
+        failed: 0,
+        details: {
+          result_summary: {
+            request: {
+              target_trade_date: "2026-10-19",
+            },
+            summary: {
+              target_trade_date: "2026-10-19",
+              source_market_date: "2026-10-16",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(
+    getDashboardExecutionRuntimeMarketDate(completedPipelineStatus, "2026-10-16"),
+    "2026-10-19",
+  );
+});
+
+test("keeps the requested runtime date until the next-open plan is complete", () => {
+  const runningPipelineStatus = buildPipelineStatus({
+    market_date: "2026-10-19",
+    status: "running",
+    stages: {
+      next_open_execution_plan: {
+        status: "running",
+        processed: 12,
+        total: 36,
+        failed: 0,
+        details: {
+          result_summary: {
+            summary: {
+              target_trade_date: "2026-10-20",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(
+    getDashboardExecutionRuntimeMarketDate(runningPipelineStatus, "2026-10-19"),
+    "2026-10-19",
+  );
+  assert.equal(getDashboardExecutionRuntimeMarketDate(null, "2026-10-19T09:00:00+09:00"), "2026-10-19");
 });

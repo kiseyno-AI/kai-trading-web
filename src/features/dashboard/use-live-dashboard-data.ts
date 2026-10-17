@@ -5,6 +5,7 @@ import {
   isAgentFeedbackProgressResponseForMarketDate,
 } from "@/lib/agent-feedback-progress";
 import {
+  getDashboardExecutionRuntimeMarketDate,
   getDashboardLatestCompletedPipelineMarketDate,
   getDashboardProcessRequestMarketDate,
   getDashboardProcessResolvedMarketDate,
@@ -30,6 +31,7 @@ import {
   getExecutionRuntimeDailyBoardReadResult,
   getExecutionRuntimeMonitoredSymbolsReadResult,
   getExecutionRuntimeStatusReadResult,
+  selectExecutionRuntimeResponseForMarketDate,
 } from "@/lib/execution-runtime-read";
 import {
   MOBILE_TOOLBAR_MARKET_STATUS_PATH,
@@ -490,7 +492,10 @@ export function useLiveDashboardData({
         : null,
     [latestCompletedPipelineMarketDate],
   );
-  const executionRuntimeMarketDate = pipelineRequestMarketDate;
+  const executionRuntimeMarketDate = getDashboardExecutionRuntimeMarketDate(
+    pipelineStatus,
+    pipelineRequestMarketDate,
+  );
 
   useEffect(() => {
     if (shouldSeedInitialMarketSnapshot(initialMarket)) {
@@ -675,6 +680,14 @@ export function useLiveDashboardData({
 
   useEffect(() => {
     let active = true;
+    setExecutionRuntimeDailyBoard((current) =>
+      selectExecutionRuntimeResponseForMarketDate(current, executionRuntimeMarketDate),
+    );
+    setExecutionRuntimeDailyBoardError(null);
+    setExecutionRuntimeMonitoredSymbols((current) =>
+      selectExecutionRuntimeResponseForMarketDate(current, executionRuntimeMarketDate),
+    );
+    setExecutionRuntimeMonitoredSymbolsError(null);
     const monitoredSymbolsPath = buildExecutionRuntimeMarketDatePath(
       EXECUTION_RUNTIME_MONITORED_SYMBOLS_CLIENT_PATH,
       executionRuntimeMarketDate,
@@ -1423,10 +1436,16 @@ export function useLiveDashboardData({
     ),
     agentFeedbackProgressError,
     dashboardProcessMarketDate,
-    executionRuntimeDailyBoard,
+    executionRuntimeDailyBoard: selectExecutionRuntimeResponseForMarketDate(
+      executionRuntimeDailyBoard,
+      executionRuntimeMarketDate,
+    ),
     executionRuntimeDailyBoardError,
     executionRuntimeMarketDate,
-    executionRuntimeMonitoredSymbols,
+    executionRuntimeMonitoredSymbols: selectExecutionRuntimeResponseForMarketDate(
+      executionRuntimeMonitoredSymbols,
+      executionRuntimeMarketDate,
+    ),
     executionRuntimeMonitoredSymbolsError,
     executionRuntimeStatus,
     executionRuntimeStatusError,
