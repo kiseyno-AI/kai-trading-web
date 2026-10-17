@@ -184,10 +184,26 @@ export type ExecutionRuntimeRequestDto = {
   refresh?: boolean | null;
 };
 
+export type ExecutionRuntimeActivityCoverageDto = Record<string, unknown> & {
+  status?: string | null;
+  status_reason?: string | null;
+  exec_activity_detected?: boolean | null;
+  source?: string | null;
+};
+
+export type ExecutionRuntimeReadFreshnessDto = Record<string, unknown> & {
+  status?: string | null;
+  is_stale?: boolean | null;
+  is_partial?: boolean | null;
+  refreshing?: boolean | null;
+};
+
 export type ExecutionRuntimeDailyBoardResponseDto = {
   request?: ExecutionRuntimeRequestDto | null;
   runtime?: ExecutionRuntimeStatusResponseDto | null;
   market_date?: string | null;
+  activity_coverage?: ExecutionRuntimeActivityCoverageDto | null;
+  freshness?: ExecutionRuntimeReadFreshnessDto | null;
   summary?: ExecutionRuntimeDailyBoardSummaryDto | null;
   items?: ExecutionRuntimeBoardItemDto[] | null;
 };
@@ -238,6 +254,8 @@ export type ExecutionRuntimeMonitoredSymbolsResponseDto = {
   request?: ExecutionRuntimeRequestDto | null;
   runtime?: ExecutionRuntimeStatusResponseDto | null;
   market_date?: string | null;
+  activity_coverage?: ExecutionRuntimeActivityCoverageDto | null;
+  freshness?: ExecutionRuntimeReadFreshnessDto | null;
   summary?: ExecutionRuntimeMonitoredSummaryDto | null;
   items?: ExecutionRuntimeMonitoredSymbolDto[] | null;
 };

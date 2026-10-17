@@ -175,6 +175,89 @@ test("sanitizes market-open monitored-symbol timeout while preserving diagnostic
   );
 });
 
+test("keeps market-open monitoring in a warning state while the exact-date read is loading", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: null,
+    copy,
+    market: marketOpen,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.statusLabel, "Runtime delayed");
+  assert.equal(model.statusTone, "warning");
+  assert.equal(model.emptyLabel, "Monitoring list is updating.");
+});
+
+test("keeps fresh empty market-open monitoring distinct from a delayed read", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: null,
+    copy,
+    market: marketOpen,
+    monitoredSymbols: {
+      market_date: "2026-05-22",
+      freshness: {
+        status: "fresh",
+        is_stale: false,
+        is_partial: false,
+        refreshing: false,
+      },
+      items: [],
+    },
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.statusLabel, "Market open");
+  assert.equal(model.statusTone, "positive");
+  assert.equal(model.emptyLabel, "No monitored stocks returned for today.");
+});
+
+test("warns on stale market-open readback and excludes explicitly unapproved rows", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: null,
+    copy,
+    market: marketOpen,
+    monitoredSymbols: {
+      market_date: "2026-05-22",
+      freshness: {
+        status: "stale",
+        is_stale: true,
+        is_partial: true,
+      },
+      items: [
+        {
+          symbol: "005930",
+          monitoring_state: "watching_target_stop",
+          exec_agent_approved: true,
+          exec_monitoring_active: true,
+        },
+        {
+          symbol: "000660",
+          monitoring_state: "watching_fill",
+          exec_agent_approved: false,
+          exec_monitoring_active: false,
+        },
+      ],
+    },
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.deepEqual(model.rows.map((row) => row.symbol), ["005930"]);
+  assert.equal(model.statusTone, "warning");
+  assert.match(model.contextLabel ?? "", /delayed/i);
+});
+
 test("uses in-progress copy only while the closed-market daily process is running", () => {
   const model = buildDashboardDeciderOverviewModel({
     board: null,
@@ -484,6 +567,159 @@ test("builds closed-market next-day exec rows with close prices when the daily p
     model.rows[0].detailHref,
     "/dashboard/symbol/000660/action-summary?name=SK+hynix&market=KRX&marketDate=2026-05-21&recommendationSource=execution-runtime&referencePriceKind=close&recommendationSymbol=000660&recommendationMarketDate=2026-05-21&executionAction=planned-buy-next&executionSource=execution-board&stopLossPrice=174000&targetPrice=184000&referencePrice=179500",
   );
+});
+
+test("excludes failed next-open rows from completed-process monitoring candidates", () => {
+  const board = {
+    market_date: "2026-10-19",
+    activity_coverage: {
+      status: "available",
+      status_reason: "core_read_model_items_available",
+    },
+    items: [
+      {
+        symbol: "000660",
+        status: "planned",
+        intent: "next_open_buy",
+        source_market_date: "2026-10-16",
+        target_trade_date: "2026-10-19",
+      },
+      {
+        symbol: "005930",
+        status: "failed",
+        intent: "next_open_buy",
+        source_market_date: "2026-10-16",
+        target_trade_date: "2026-10-19",
+        failure_reason: "blocked_by_safety_gate",
+      },
+      {
+        symbol: "035420",
+        status: "filled",
+        intent: "next_open_buy",
+        target_trade_date: "2026-10-19",
+      },
+      {
+        symbol: "035720",
+        status: "partial",
+        intent: "next_open_buy",
+        target_trade_date: "2026-10-19",
+      },
+      {
+        symbol: "051910",
+        status: "cancelled",
+        intent: "next_open_buy",
+        target_trade_date: "2026-10-19",
+      },
+      {
+        symbol: "068270",
+        status: "unexpected_runtime_state",
+        intent: "next_open_buy",
+        target_trade_date: "2026-10-19",
+      },
+      {
+        symbol: "105560",
+        status: " ",
+        intent: "next_open_buy",
+        target_trade_date: "2026-10-19",
+      },
+    ],
+  } satisfies ExecutionRuntimeDailyBoardResponseDto;
+
+  const model = buildDashboardDeciderOverviewModel({
+    board,
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.deepEqual(model.rows.map((row) => row.symbol), ["000660"]);
+});
+
+test("does not claim zero next-open candidates when board activity coverage is unavailable", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: {
+      market_date: "2026-10-18",
+      activity_coverage: {
+        status: "unavailable",
+        status_reason: "exec_activity_not_materialized",
+      },
+      items: [],
+    },
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.emptyLabel, "Execution board unavailable.");
+  assert.equal(model.statusTone, "warning");
+});
+
+test("marks stale or partial next-open readbacks as delayed while preserving planned rows", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: {
+      market_date: "2026-10-19",
+      activity_coverage: {
+        status: "available",
+      },
+      freshness: {
+        status: "stale",
+        is_stale: true,
+        is_partial: true,
+        refreshing: false,
+      },
+      items: [
+        {
+          symbol: "000660",
+          status: "planned",
+          intent: "next_open_buy",
+          target_trade_date: "2026-10-19",
+        },
+      ],
+    },
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "completed",
+    tracked: null,
+  });
+
+  assert.deepEqual(model.rows.map((row) => row.symbol), ["000660"]);
+  assert.equal(model.statusTone, "warning");
+  assert.match(model.contextLabel ?? "", /updating/i);
+});
+
+test("does not claim no planned trades when activity coverage is unavailable before completion", () => {
+  const model = buildDashboardDeciderOverviewModel({
+    board: {
+      market_date: "2026-10-19",
+      activity_coverage: {
+        status: "unavailable",
+      },
+      items: [],
+    },
+    copy,
+    market: marketClosed,
+    monitoredSymbols: null,
+    numberLocale: "en-US",
+    processStage: noLiveProcessStage,
+    processStatus: "partial",
+    tracked: null,
+  });
+
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.emptyLabel, "Execution board unavailable.");
+  assert.equal(model.statusTone, "warning");
 });
 
 test("routes decider More link to visible recommendation source date", () => {

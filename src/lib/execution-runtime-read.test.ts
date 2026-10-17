@@ -7,6 +7,7 @@ import {
   normalizeExecutionRuntimeDailyBoardResult,
   normalizeExecutionRuntimeMonitoredSymbolsResult,
   normalizeExecutionRuntimeStatusResult,
+  selectExecutionRuntimeResponseForMarketDate,
 } from "./execution-runtime-read";
 
 test("normalizes execution runtime timeout responses with stable failure kind", () => {
@@ -61,6 +62,86 @@ test("accepts execution runtime list payloads with absent or array items", () =>
   assert.equal(dailyBoard.ok, true);
 });
 
+test("selects execution runtime payloads only for the exact requested market date", () => {
+  const mondayBoard = {
+    market_date: "2026-10-19",
+    request: {
+      market_date: "2026-10-19",
+    },
+    items: [],
+  };
+
+  assert.equal(
+    selectExecutionRuntimeResponseForMarketDate(mondayBoard, "2026-10-19"),
+    mondayBoard,
+  );
+  assert.equal(selectExecutionRuntimeResponseForMarketDate(mondayBoard, "2026-10-16"), null);
+  assert.equal(
+    selectExecutionRuntimeResponseForMarketDate(
+      {
+        ...mondayBoard,
+        request: {
+          market_date: "2026-10-16",
+        },
+      },
+      "2026-10-19",
+    ),
+    null,
+  );
+  assert.equal(
+    selectExecutionRuntimeResponseForMarketDate(
+      {
+        request: {
+          market_date: "2026-10-19",
+        },
+        items: [],
+      },
+      "2026-10-19",
+    ),
+    null,
+  );
+});
+
+test("rejects malformed execution runtime activity coverage metadata", () => {
+  const result = normalizeExecutionRuntimeDailyBoardResult({
+    ok: true,
+    data: {
+      activity_coverage: {
+        status: 0,
+      },
+      items: [],
+      market_date: "2026-10-19",
+    } as never,
+  });
+
+  assert.equal(result.ok, false);
+  if (result.ok) throw new Error("Expected malformed activity coverage to normalize as a failure.");
+  assert.equal(result.kind, "invalid-response");
+});
+
+test("rejects malformed execution runtime market-date metadata", () => {
+  const malformedTopLevelDate = normalizeExecutionRuntimeDailyBoardResult({
+    ok: true,
+    data: {
+      items: [],
+      market_date: 42,
+    } as never,
+  });
+  const malformedRequestedDate = normalizeExecutionRuntimeMonitoredSymbolsResult({
+    ok: true,
+    data: {
+      items: [],
+      market_date: "2026-10-19",
+      request: {
+        market_date: 42,
+      },
+    } as never,
+  });
+
+  assert.equal(malformedTopLevelDate.ok, false);
+  assert.equal(malformedRequestedDate.ok, false);
+});
+
 test("rejects malformed execution runtime list payload item containers", () => {
   const result = normalizeExecutionRuntimeMonitoredSymbolsResult({
     ok: true,
@@ -75,6 +156,36 @@ test("rejects malformed execution runtime list payload item containers", () => {
   if (result.ok) throw new Error("Expected malformed list to normalize as a failure.");
   assert.equal(result.kind, "invalid-response");
   assert.equal(result.message, "Execution runtime monitored-symbols response was invalid.");
+});
+
+test("rejects malformed execution runtime list items before dashboard rendering", () => {
+  const malformedBoardItem = normalizeExecutionRuntimeDailyBoardResult({
+    ok: true,
+    data: {
+      items: [
+        {
+          status: 42,
+          symbol: "005930",
+        },
+      ],
+      market_date: "2026-10-19",
+    } as never,
+  });
+  const malformedMonitoredItem = normalizeExecutionRuntimeMonitoredSymbolsResult({
+    ok: true,
+    data: {
+      items: [
+        {
+          monitoring_state: 42,
+          symbol: "005930",
+        },
+      ],
+      market_date: "2026-10-19",
+    } as never,
+  });
+
+  assert.equal(malformedBoardItem.ok, false);
+  assert.equal(malformedMonitoredItem.ok, false);
 });
 
 test("normalizes empty successful execution runtime status JSON as invalid response", async (t) => {

@@ -659,6 +659,7 @@ export type EodPipelineStageKey =
   | "agent_feedback_summaries"
   | "signal_decider"
   | "signal_decider_evaluations"
+  | "next_open_execution_plan"
   | "unified_value_scoring"
   | "quality_scoring"
   | "momentum_scoring";
