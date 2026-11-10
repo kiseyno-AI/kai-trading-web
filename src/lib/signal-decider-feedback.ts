@@ -3642,10 +3642,6 @@ function getComparableActionGroup(action: SignalDeciderAction) {
   return "unknown";
 }
 
-function getComparisonScore(item: SignalDeciderFeedbackItem) {
-  return item.convictionScore ?? item.confidenceScore;
-}
-
 function getContrastSnippet(item: SignalDeciderFeedbackItem) {
   return item.thesisSummary ?? item.supportingEvidence[0]?.value ?? item.supportingEvidence[0]?.label ?? null;
 }
@@ -3672,8 +3668,8 @@ export function buildDeciderFeedbackComparisons({
       const signalItem = signalByKey.get(getDeciderFeedbackComparisonKey(shortTermItem));
       if (!signalItem) return null;
 
-      const shortTermScore = getComparisonScore(shortTermItem);
-      const signalScore = getComparisonScore(signalItem);
+      const shortTermConfidence = shortTermItem.confidenceScore;
+      const signalConfidence = signalItem.confidenceScore;
       const shortTermGroup = getComparableActionGroup(shortTermItem.action);
       const signalGroup = getComparableActionGroup(signalItem.action);
       const agreement =
@@ -3695,7 +3691,8 @@ export function buildDeciderFeedbackComparisons({
         signalAction: signalItem.action,
         signalActionLabel: signalItem.actionLabel,
         agreement,
-        confidenceDelta: shortTermScore !== null && signalScore !== null ? shortTermScore - signalScore : null,
+        confidenceDelta:
+          shortTermConfidence !== null && signalConfidence !== null ? shortTermConfidence - signalConfidence : null,
         reasonContrast:
           shortReason || signalReason ? `Short-term: ${shortReason ?? "n/a"} · Signal: ${signalReason ?? "n/a"}` : null,
         riskContrast:

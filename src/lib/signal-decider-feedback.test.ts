@@ -1838,7 +1838,7 @@ test("builds cross-decider comparison rows for matching symbol dates", () => {
             symbol: "005930",
             market_date: "2026-04-27",
             short_term_label: "buy",
-            confidence_score_10: 9,
+            confidence_score_10: 5,
             conviction_score_10: 8,
             thesis_summary: "Short-term trigger already confirmed.",
             risk_flags: ["Tight stop required"],
@@ -1856,9 +1856,20 @@ test("builds cross-decider comparison rows for matching symbol dates", () => {
   assert.equal(comparison.agreement, "agreement");
   assert.equal(comparison.shortTermAction, "buy");
   assert.equal(comparison.signalAction, "buy");
-  assert.equal(comparison.confidenceDelta, 1);
+  assert.equal(comparison.confidenceDelta, -3);
   assert.match(comparison.reasonContrast ?? "", /Short-term trigger already confirmed/);
   assert.match(comparison.riskContrast ?? "", /Tight stop required/);
+
+  const [withoutShortTermConfidence] = buildDeciderFeedbackComparisons({
+    shortTermItems: shortTermItems.map((item) => ({ ...item, confidenceScore: null })),
+    signalItems,
+  });
+  const [withoutSignalConfidence] = buildDeciderFeedbackComparisons({
+    shortTermItems,
+    signalItems: signalItems.map((item) => ({ ...item, confidenceScore: null })),
+  });
+  assert.equal(withoutShortTermConfidence?.confidenceDelta, null);
+  assert.equal(withoutSignalConfidence?.confidenceDelta, null);
 });
 
 test("builds compact calendar summary query strings", () => {
